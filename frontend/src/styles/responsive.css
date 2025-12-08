@@ -55,3 +55,14 @@ button {
 body {
   -webkit-text-size-adjust: 100%;
 }
+
+/* Responsive event creation grid */
+@media (max-width: 968px) {
+  .create-event-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .create-event-grid > div:first-child {
+    position: static !important;
+  }
+}

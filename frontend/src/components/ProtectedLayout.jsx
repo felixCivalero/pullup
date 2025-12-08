@@ -28,10 +28,10 @@ export function ProtectedLayout() {
           alignItems: "center",
           justifyContent: "space-between",
           padding: "0 16px",
-          background:
-            "linear-gradient(to bottom, rgba(5,4,10,0.95), rgba(5,4,10,0.6), transparent)",
+          // background:
+          //   "linear-gradient(to bottom, rgba(5,4,10,0.95), rgba(5,4,10,0.6), transparent)",
           zIndex: 20,
-          borderBottom: "1px solid rgba(255,255,255,0.04)",
+          // borderBottom: "1px solid rgba(255,255,255,0.04)",
         }}
       >
         <button
@@ -51,7 +51,7 @@ export function ProtectedLayout() {
         </button>
 
         {/* Hamburger */}
-        <button
+        {/* <button
           onClick={() => setOpen((o) => !o)}
           style={{
             width: 32,
@@ -70,10 +70,10 @@ export function ProtectedLayout() {
             <span style={barStyle} />
             <span style={barStyle} />
           </div>
-        </button>
+        </button> */}
 
         {/* Dropdown menu */}
-        {open && (
+        {/* {open && (
           <div
             style={{
               position: "absolute",
@@ -92,9 +92,10 @@ export function ProtectedLayout() {
             <MenuItem onClick={() => handleNav("/create")}>
               Create PullUp
             </MenuItem>
-            {/* Placeholder for future auth/logout */}
+
           </div>
         )}
+         */}
       </header>
 
       {/* Page content */}

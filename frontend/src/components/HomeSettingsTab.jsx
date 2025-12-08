@@ -1,0 +1,1029 @@
+// src/components/HomeSettingsTab.jsx
+import { useState } from "react";
+
+export function SettingsTab({ user, setUser, showToast }) {
+  const [socialLinks, setSocialLinks] = useState({
+    instagram: "",
+    x: "",
+    youtube: "",
+    tiktok: "",
+    linkedin: "",
+    website: "",
+  });
+  const [emails, setEmails] = useState([
+    { email: "felix.civalero@gmail.com", primary: true },
+  ]);
+  const [mobileNumber, setMobileNumber] = useState("+46 70 123 45 67");
+  const [thirdPartyAccounts, setThirdPartyAccounts] = useState([
+    {
+      id: "google",
+      name: "Google",
+      email: "felix.civalero@gmail.com",
+      linked: true,
+    },
+    { id: "apple", name: "Apple", linked: false },
+    { id: "zoom", name: "Zoom", linked: false },
+    { id: "solana", name: "Solana", linked: false },
+    { id: "ethereum", name: "Ethereum", linked: false },
+  ]);
+  const [activeDevices] = useState([
+    {
+      id: "1",
+      name: "Chrome on macOS",
+      location: "Stockholm, SE",
+      current: true,
+    },
+  ]);
+
+  function handleSave() {
+    showToast("Settings saved successfully! ✨", "success");
+  }
+
+  function handleAddEmail() {
+    setEmails([...emails, { email: "", primary: false }]);
+  }
+
+  function handleRemoveSocialLink(platform) {
+    setSocialLinks({ ...socialLinks, [platform]: "" });
+  }
+
+  function handleLinkThirdParty(id) {
+    setThirdPartyAccounts((prev) =>
+      prev.map((acc) => (acc.id === id ? { ...acc, linked: !acc.linked } : acc))
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "48px" }}>
+      {/* PROFILE */}
+      <SettingsSection
+        title="Your Profile"
+        description="Choose how you are displayed as a host or guest."
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: "32px",
+            alignItems: "start",
+          }}
+        >
+          {/* Left side: fields */}
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "20px" }}
+          >
+            {/* Name */}
+            <label style={{ display: "block" }}>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  opacity: 0.9,
+                }}
+              >
+                Name
+              </div>
+              <input
+                type="text"
+                value={user.name}
+                onChange={(e) => setUser({ ...user, name: e.target.value })}
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(20, 16, 30, 0.6)",
+                  color: "#fff",
+                  fontSize: "15px",
+                  outline: "none",
+                }}
+              />
+            </label>
+
+            {/* Username */}
+            <label style={{ display: "block" }}>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  opacity: 0.9,
+                }}
+              >
+                Username
+              </div>
+              <div style={{ position: "relative" }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    left: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "rgba(255,255,255,0.5)",
+                  }}
+                >
+                  @
+                </span>
+                <input
+                  type="text"
+                  value={user.username}
+                  onChange={(e) =>
+                    setUser({ ...user, username: e.target.value })
+                  }
+                  placeholder="username"
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px 12px 28px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(20, 16, 30, 0.6)",
+                    color: "#fff",
+                    fontSize: "15px",
+                    outline: "none",
+                  }}
+                />
+              </div>
+            </label>
+
+            {/* Bio */}
+            <label style={{ display: "block" }}>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  opacity: 0.9,
+                }}
+              >
+                Bio
+              </div>
+              <textarea
+                value={user.bio}
+                onChange={(e) => setUser({ ...user, bio: e.target.value })}
+                placeholder="Share a little about your background and interests."
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(20, 16, 30, 0.6)",
+                  color: "#fff",
+                  fontSize: "15px",
+                  outline: "none",
+                  minHeight: "100px",
+                  resize: "vertical",
+                  fontFamily: "inherit",
+                }}
+              />
+            </label>
+
+            {/* Social Links */}
+            <div style={{ marginTop: "8px" }}>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginBottom: "16px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  opacity: 0.9,
+                }}
+              >
+                Social Links
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {/* Instagram */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "18px" }}>📷</span>
+                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                    instagram.com/
+                  </span>
+                  <input
+                    type="text"
+                    value={socialLinks.instagram}
+                    onChange={(e) =>
+                      setSocialLinks({
+                        ...socialLinks,
+                        instagram: e.target.value,
+                      })
+                    }
+                    placeholder="username"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(20, 16, 30, 0.6)",
+                      color: "#fff",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                {/* X / Twitter */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "18px" }}>𝕏</span>
+                  <span style={{ fontSize: "14px", opacity: 0.8 }}>x.com/</span>
+                  <input
+                    type="text"
+                    value={socialLinks.x}
+                    onChange={(e) =>
+                      setSocialLinks({ ...socialLinks, x: e.target.value })
+                    }
+                    placeholder="username"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(20, 16, 30, 0.6)",
+                      color: "#fff",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                  {socialLinks.x && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSocialLink("x")}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        border: "none",
+                        background: "rgba(239, 68, 68, 0.2)",
+                        color: "#fff",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                {/* YouTube */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "18px" }}>▶️</span>
+                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                    youtube.com/@
+                  </span>
+                  <input
+                    type="text"
+                    value={socialLinks.youtube}
+                    onChange={(e) =>
+                      setSocialLinks({
+                        ...socialLinks,
+                        youtube: e.target.value,
+                      })
+                    }
+                    placeholder="username"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(20, 16, 30, 0.6)",
+                      color: "#fff",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                {/* TikTok */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "18px" }}>🎵</span>
+                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                    tiktok.com/@
+                  </span>
+                  <input
+                    type="text"
+                    value={socialLinks.tiktok}
+                    onChange={(e) =>
+                      setSocialLinks({
+                        ...socialLinks,
+                        tiktok: e.target.value,
+                      })
+                    }
+                    placeholder="username"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(20, 16, 30, 0.6)",
+                      color: "#fff",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                {/* LinkedIn */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "18px" }}>💼</span>
+                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                    linkedin.com
+                  </span>
+                  <input
+                    type="text"
+                    value={socialLinks.linkedin}
+                    onChange={(e) =>
+                      setSocialLinks({
+                        ...socialLinks,
+                        linkedin: e.target.value,
+                      })
+                    }
+                    placeholder="/in/handle"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(20, 16, 30, 0.6)",
+                      color: "#fff",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                {/* Website */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "18px" }}>🌐</span>
+                  <input
+                    type="text"
+                    value={socialLinks.website}
+                    onChange={(e) =>
+                      setSocialLinks({
+                        ...socialLinks,
+                        website: e.target.value,
+                      })
+                    }
+                    placeholder="Your website"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(20, 16, 30, 0.6)",
+                      color: "#fff",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right side: profile picture */}
+          <div>
+            <div
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                marginBottom: "8px",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                opacity: 0.9,
+              }}
+            >
+              Profile Picture
+            </div>
+            <div
+              style={{
+                width: "120px",
+                height: "120px",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "48px",
+                position: "relative",
+                cursor: "pointer",
+                border: "2px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              😊
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "4px",
+                  right: "4px",
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  background: "rgba(0,0,0,0.7)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "2px solid rgba(255,255,255,0.2)",
+                  fontSize: "16px",
+                }}
+              >
+                ⬆️
+              </div>
+            </div>
+          </div>
+        </div>
+      </SettingsSection>
+
+      {/* EMAILS */}
+      <SettingsSection
+        title="Emails"
+        description="Add additional emails to receive event invitations sent to those addresses."
+        actionButton={
+          <button
+            type="button"
+            onClick={handleAddEmail}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "8px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(139, 92, 246, 0.2)",
+              color: "#fff",
+              fontSize: "14px",
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <span>+</span>
+            <span>Add Email</span>
+          </button>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {emails.map((email, idx) => (
+            <div
+              key={idx}
+              style={{
+                padding: "16px",
+                background: "rgba(20, 16, 30, 0.6)",
+                borderRadius: "12px",
+                border: "1px solid rgba(255,255,255,0.05)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: "15px",
+                    fontWeight: 500,
+                    marginBottom: "4px",
+                  }}
+                >
+                  {email.email}
+                </div>
+                {email.primary && (
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      opacity: 0.7,
+                    }}
+                  >
+                    This email will be shared with hosts when you register for
+                    their events.
+                  </div>
+                )}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                }}
+              >
+                {email.primary && (
+                  <span
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "12px",
+                      background: "rgba(139, 92, 246, 0.2)",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Primary
+                  </span>
+                )}
+                <button
+                  type="button"
+                  style={{
+                    padding: "6px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "transparent",
+                    color: "rgba(255,255,255,0.6)",
+                    cursor: "pointer",
+                    fontSize: "18px",
+                  }}
+                >
+                  ⋮
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </SettingsSection>
+
+      {/* MOBILE NUMBER */}
+      <SettingsSection
+        title="Mobile Number"
+        description="Manage the mobile number you use to sign in to PullUp and receive SMS updates."
+      >
+        <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+          <input
+            type="tel"
+            value={mobileNumber}
+            onChange={(e) => setMobileNumber(e.target.value)}
+            style={{
+              flex: 1,
+              padding: "12px 16px",
+              borderRadius: "12px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(20, 16, 30, 0.6)",
+              color: "#fff",
+              fontSize: "15px",
+              outline: "none",
+            }}
+          />
+          <button
+            type="button"
+            style={{
+              padding: "12px 20px",
+              borderRadius: "12px",
+              border: "none",
+              background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: "14px",
+              cursor: "pointer",
+            }}
+          >
+            Update
+          </button>
+        </div>
+        <div
+          style={{
+            marginTop: "12px",
+            fontSize: "13px",
+            opacity: 0.6,
+          }}
+        >
+          For your security, we will send you a code to verify any change to
+          your mobile number.
+        </div>
+      </SettingsSection>
+
+      {/* PASSWORD & SECURITY */}
+      <SettingsSection
+        title="Password & Security"
+        description="Secure your account with password and two-factor authentication."
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <SecurityItem
+            icon="🔒"
+            title="Account Password"
+            description="Please follow the instructions in the email to finish setting your password."
+            buttonText="Set Password"
+          />
+          <SecurityItem
+            icon="🛡️"
+            title="Two-Factor Authentication"
+            description="Please set a password before enabling two-factor authentication."
+            buttonText="Enable 2FA"
+          />
+          <SecurityItem
+            icon="🔑"
+            title="Passkeys"
+            description="Passkeys are a secure and convenient way to sign in."
+            buttonText="Add Passkey"
+          />
+        </div>
+      </SettingsSection>
+
+      {/* THIRD PARTY ACCOUNTS */}
+      <SettingsSection
+        title="Third Party Accounts"
+        description="Link your accounts to sign in to PullUp and automate your workflows."
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+            gap: "16px",
+          }}
+        >
+          {thirdPartyAccounts.map((account) => (
+            <div
+              key={account.id}
+              style={{
+                padding: "16px",
+                background: "rgba(20, 16, 30, 0.6)",
+                borderRadius: "12px",
+                border: "1px solid rgba(255,255,255,0.05)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginBottom: "4px",
+                }}
+              >
+                <span style={{ fontSize: "20px" }}>
+                  {account.id === "google" && "G"}
+                  {account.id === "apple" && "🍎"}
+                  {account.id === "zoom" && "📹"}
+                  {account.id === "solana" && "S"}
+                  {account.id === "ethereum" && "Ξ"}
+                </span>
+                <span style={{ fontSize: "14px", fontWeight: 600 }}>
+                  {account.name}
+                </span>
+              </div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  opacity: 0.7,
+                  marginBottom: "8px",
+                }}
+              >
+                {account.linked ? account.email || "Linked" : "Not Linked"}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleLinkThirdParty(account.id)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  border: account.linked
+                    ? "1px solid rgba(255,255,255,0.1)"
+                    : "none",
+                  background: account.linked
+                    ? "transparent"
+                    : "rgba(139, 92, 246, 0.2)",
+                  color: "#fff",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                {account.linked ? (
+                  <>
+                    <span>✓</span>
+                    <span>Linked</span>
+                  </>
+                ) : (
+                  <>
+                    <span>+</span>
+                    <span>Link</span>
+                  </>
+                )}
+              </button>
+            </div>
+          ))}
+        </div>
+      </SettingsSection>
+
+      {/* ACCOUNT SYNCING */}
+      <SettingsSection
+        title="Account Syncing"
+        description="Sync your events and contacts with external services."
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <SyncItem
+            icon="📅"
+            title="Calendar Syncing"
+            description="Sync your PullUp events with your Google, Outlook, or Apple calendar."
+            buttonText="Add iCal Subscription"
+          />
+          <SyncItem
+            icon="G"
+            title="Sync Contacts with Google"
+            description="Sync your Gmail contacts to easily invite them to your events."
+            buttonText="Enable Syncing"
+          />
+        </div>
+      </SettingsSection>
+
+      {/* ACTIVE DEVICES */}
+      <SettingsSection
+        title="Active Devices"
+        description="See the list of devices you are currently signed into PullUp from."
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+          }}
+        >
+          {activeDevices.map((device) => (
+            <div
+              key={device.id}
+              style={{
+                padding: "16px",
+                background: "rgba(20, 16, 30, 0.6)",
+                borderRadius: "12px",
+                border: "1px solid rgba(255,255,255,0.05)",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+              }}
+            >
+              <span style={{ fontSize: "20px" }}>💻</span>
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: "15px",
+                    fontWeight: 500,
+                    marginBottom: "4px",
+                  }}
+                >
+                  {device.name}
+                </div>
+                <div style={{ fontSize: "12px", opacity: 0.7 }}>
+                  {device.location}
+                </div>
+              </div>
+              {device.current && (
+                <span
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "12px",
+                    background: "rgba(34, 197, 94, 0.2)",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: "#22c55e",
+                  }}
+                >
+                  This Device
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </SettingsSection>
+
+      {/* DELETE ACCOUNT */}
+      <SettingsSection
+        title="Delete Account"
+        description="If you no longer wish to use PullUp, you can permanently delete your account."
+      >
+        <button
+          type="button"
+          style={{
+            padding: "12px 24px",
+            borderRadius: "12px",
+            border: "none",
+            background: "rgba(239, 68, 68, 0.2)",
+            color: "#ef4444",
+            fontWeight: 600,
+            fontSize: "14px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "all 0.3s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = "rgba(239, 68, 68, 0.3)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = "rgba(239, 68, 68, 0.2)";
+          }}
+        >
+          <span>⚠️</span>
+          <span>Delete My Account</span>
+        </button>
+      </SettingsSection>
+
+      {/* SAVE BUTTON */}
+      <button
+        type="button"
+        onClick={handleSave}
+        style={{
+          marginTop: "32px",
+          padding: "14px 28px",
+          borderRadius: "999px",
+          border: "none",
+          background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+          color: "#fff",
+          fontWeight: 700,
+          fontSize: "15px",
+          cursor: "pointer",
+          boxShadow: "0 10px 30px rgba(139, 92, 246, 0.4)",
+          transition: "all 0.3s ease",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+        }}
+      >
+        <span>🔄</span>
+        <span>Save Changes</span>
+      </button>
+    </div>
+  );
+}
+
+function SettingsSection({ title, description, children, actionButton }) {
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          marginBottom: "16px",
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              fontSize: "18px",
+              fontWeight: 600,
+              marginBottom: "4px",
+            }}
+          >
+            {title}
+          </h2>
+          <p
+            style={{
+              fontSize: "14px",
+              opacity: 0.7,
+            }}
+          >
+            {description}
+          </p>
+        </div>
+        {actionButton && actionButton}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function SecurityItem({ icon, title, description, buttonText }) {
+  return (
+    <div
+      style={{
+        padding: "16px",
+        background: "rgba(20, 16, 30, 0.6)",
+        borderRadius: "12px",
+        border: "1px solid rgba(255,255,255,0.05)",
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: "16px",
+      }}
+    >
+      <div style={{ display: "flex", gap: "12px", flex: 1 }}>
+        <span style={{ fontSize: "20px", marginTop: "2px" }}>{icon}</span>
+        <div>
+          <div
+            style={{
+              fontSize: "15px",
+              fontWeight: 600,
+              marginBottom: "4px",
+            }}
+          >
+            {title}
+          </div>
+          <div style={{ fontSize: "13px", opacity: 0.7 }}>{description}</div>
+        </div>
+      </div>
+      <button
+        type="button"
+        style={{
+          padding: "8px 16px",
+          borderRadius: "8px",
+          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(139, 92, 246, 0.2)",
+          color: "#fff",
+          fontSize: "13px",
+          fontWeight: 600,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {buttonText}
+      </button>
+    </div>
+  );
+}
+
+export function SyncItem({ icon, title, description, buttonText }) {
+  return (
+    <div
+      style={{
+        padding: "16px",
+        background: "rgba(20, 16, 30, 0.6)",
+        borderRadius: "12px",
+        border: "1px solid rgba(255,255,255,0.05)",
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: "16px",
+      }}
+    >
+      <div style={{ display: "flex", gap: "12px", flex: 1 }}>
+        <span style={{ fontSize: "20px", marginTop: "2px" }}>{icon}</span>
+        <div>
+          <div
+            style={{
+              fontSize: "15px",
+              fontWeight: 600,
+              marginBottom: "4px",
+            }}
+          >
+            {title}
+          </div>
+          <div style={{ fontSize: "13px", opacity: 0.7 }}>{description}</div>
+        </div>
+      </div>
+      <button
+        type="button"
+        style={{
+          padding: "8px 16px",
+          borderRadius: "8px",
+          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(139, 92, 246, 0.2)",
+          color: "#fff",
+          fontSize: "13px",
+          fontWeight: 600,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {buttonText}
+      </button>
+    </div>
+  );
+}

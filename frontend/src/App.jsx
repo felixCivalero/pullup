@@ -1,32 +1,81 @@
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
-import "./App.css";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { EventCard } from "./EventCard";
+
+const API_BASE = "http://localhost:3001";
 
 function App() {
+  const [mode, setMode] = useState("create"); // "create" | "view"
+  const [loading, setLoading] = useState(false);
   const [event, setEvent] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // For now, hardcode a slug
-    const slug = "pullup-launch-party";
+  // form state
+  const [title, setTitle] = useState("PullUp Launch Party");
+  const [description, setDescription] = useState(
+    "A sexy test event for PullUp."
+  );
+  const [location, setLocation] = useState("Stockholm");
+  const [startsAt, setStartsAt] = useState("2025-12-31T22:00");
 
-    fetch(`http://localhost:3001/events/${slug}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setEvent(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error fetching event:", err);
-        setLoading(false);
+  async function handleCreate(e) {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description,
+          location,
+          // send ISO string
+          startsAt: new Date(startsAt).toISOString(),
+        }),
       });
-  }, []);
 
-  if (loading) return <div style={{ color: "white" }}>Loading event…</div>;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to create event");
+      }
 
-  if (!event) return <div style={{ color: "white" }}>No event found.</div>;
+      const created = await res.json();
+      setEvent(created);
+      setMode("view");
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
+  async function handleRsvp() {
+    if (!event) return;
+    const email = window.prompt("Drop your email to pull up:");
+    if (!email) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/events/${event.slug}/rsvp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to RSVP");
+      }
+      alert("You're on the list. 🔥");
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    }
+  }
+
+  if (mode === "view" && event) {
+    return <EventCard event={event} onRsvp={handleRsvp} />;
+  }
+
+  // CREATE MODE
   return (
     <div
       style={{
@@ -39,36 +88,73 @@ function App() {
         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      <div
+      <form
+        onSubmit={handleCreate}
         style={{
-          background: "linear-gradient(145deg, #25132F, #421B4F)",
+          background: "#0C0A12",
           padding: "32px",
           borderRadius: "24px",
-          maxWidth: "420px",
           width: "100%",
+          maxWidth: "480px",
           boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
         }}
       >
-        <div
-          style={{ fontSize: "12px", textTransform: "uppercase", opacity: 0.7 }}
-        >
-          PullUp · Preview
-        </div>
-        <h1 style={{ fontSize: "28px", margin: "12px 0 4px" }}>
-          {event.title}
+        <h1 style={{ fontSize: "24px", marginBottom: "16px" }}>
+          Create a PullUp
         </h1>
-        <p style={{ fontSize: "14px", opacity: 0.8 }}>{event.description}</p>
 
-        <div style={{ marginTop: "20px", fontSize: "14px", opacity: 0.9 }}>
-          <div>📍 {event.location}</div>
-          <div style={{ marginTop: "4px" }}>
-            🕒 {new Date(event.startsAt).toLocaleString()}
-          </div>
-        </div>
+        <label
+          style={{ display: "block", fontSize: "13px", marginBottom: "8px" }}
+        >
+          Title
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            style={inputStyle}
+            required
+          />
+        </label>
+
+        <label
+          style={{ display: "block", fontSize: "13px", marginBottom: "8px" }}
+        >
+          Description
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            style={{ ...inputStyle, minHeight: "70px", resize: "vertical" }}
+          />
+        </label>
+
+        <label
+          style={{ display: "block", fontSize: "13px", marginBottom: "8px" }}
+        >
+          Location
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            style={inputStyle}
+          />
+        </label>
+
+        <label
+          style={{ display: "block", fontSize: "13px", marginBottom: "16px" }}
+        >
+          Starts at
+          <input
+            type="datetime-local"
+            value={startsAt}
+            onChange={(e) => setStartsAt(e.target.value)}
+            style={inputStyle}
+            required
+          />
+        </label>
 
         <button
+          type="submit"
+          disabled={loading}
           style={{
-            marginTop: "24px",
+            marginTop: "8px",
             width: "100%",
             padding: "12px 16px",
             borderRadius: "999px",
@@ -76,14 +162,26 @@ function App() {
             fontWeight: 600,
             fontSize: "15px",
             cursor: "pointer",
+            opacity: loading ? 0.7 : 1,
           }}
-          onClick={() => alert("In v1 this will be RSVP / Get Ticket")}
         >
-          Pull up
+          {loading ? "Creating…" : "Create event"}
         </button>
-      </div>
+      </form>
     </div>
   );
 }
+
+const inputStyle = {
+  width: "100%",
+  marginTop: "4px",
+  padding: "10px 12px",
+  borderRadius: "10px",
+  border: "1px solid #2B2738",
+  background: "#14101E",
+  color: "#fff",
+  fontSize: "14px",
+  outline: "none",
+};
 
 export default App;

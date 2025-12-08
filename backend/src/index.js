@@ -1,7 +1,15 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { events, createEvent, findEventBySlug, addRsvp } from "./data.js";
+import {
+  events,
+  createEvent,
+  findEventBySlug,
+  addRsvp,
+  findEventById,
+  updateEvent,
+  getRsvpsForEvent,
+} from "./data.js";
 
 dotenv.config();
 
@@ -60,6 +68,35 @@ app.post("/events/:slug/rsvp", (req, res) => {
 
   console.log("New RSVP:", result);
   res.status(201).json({ status: "ok" });
+});
+
+// HOST: get single event by id (for manage screens)
+app.get("/host/events/:id", (req, res) => {
+  const { id } = req.params;
+  const event = findEventById(id);
+  if (!event) return res.status(404).json({ error: "Event not found" });
+  res.json(event);
+});
+
+// HOST: update event
+app.put("/host/events/:id", (req, res) => {
+  const { id } = req.params;
+  const { title, description, location, startsAt } = req.body;
+
+  const updated = updateEvent(id, { title, description, location, startsAt });
+  if (!updated) return res.status(404).json({ error: "Event not found" });
+
+  res.json(updated);
+});
+
+// HOST: get guests for event
+app.get("/host/events/:id/guests", (req, res) => {
+  const { id } = req.params;
+  const event = findEventById(id);
+  if (!event) return res.status(404).json({ error: "Event not found" });
+
+  const guests = getRsvpsForEvent(id);
+  res.json({ event, guests });
 });
 
 const PORT = process.env.PORT || 3001;

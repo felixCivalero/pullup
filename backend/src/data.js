@@ -74,3 +74,23 @@ export function addRsvp({ slug, name, email }) {
   rsvps.push(rsvp);
   return { event, rsvp };
 }
+
+export function findEventById(id) {
+  return events.find((e) => e.id === id) || null;
+}
+
+export function updateEvent(id, updates) {
+  const idx = events.findIndex((e) => e.id === id);
+  if (idx === -1) return null;
+
+  events[idx] = {
+    ...events[idx],
+    ...updates,
+  };
+
+  return events[idx];
+}
+
+export function getRsvpsForEvent(eventId) {
+  return rsvps.filter((r) => r.eventId === eventId);
+}

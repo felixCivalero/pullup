@@ -11,6 +11,8 @@ import {
   findEventById,
   updateEvent,
   getRsvpsForEvent,
+  generateDinnerTimeSlots,
+  getDinnerSlotCounts,
 } from "./data.js";
 
 dotenv.config();
@@ -71,8 +73,11 @@ app.post("/events", (req, res) => {
     // NEW fields
     maxPlusOnesPerGuest,
     dinnerEnabled,
-    dinnerTime,
-    dinnerMaxSeats,
+    dinnerStartTime,
+    dinnerEndTime,
+    dinnerSeatingIntervalHours,
+    dinnerMaxSeatsPerSlot,
+    dinnerOverflowAction,
   } = req.body;
 
   if (!title || !startsAt) {
@@ -96,8 +101,11 @@ app.post("/events", (req, res) => {
     requireApproval,
     maxPlusOnesPerGuest,
     dinnerEnabled,
-    dinnerTime,
-    dinnerMaxSeats,
+    dinnerStartTime,
+    dinnerEndTime,
+    dinnerSeatingIntervalHours,
+    dinnerMaxSeatsPerSlot,
+    dinnerOverflowAction,
   });
 
   res.status(201).json(event);
@@ -113,13 +121,23 @@ app.post("/events/:slug/rsvp", (req, res) => {
     email,
     plusOnes = 0, // NEW: how many guests they bring (0–3)
     wantsDinner = false, // NEW: opt-in to dinner
+    dinnerTimeSlot = null, // NEW: selected dinner time slot (ISO string)
+    dinnerPartySize = null, // NEW: party size for dinner (can differ from event party size)
   } = req.body;
 
   if (!email) {
     return res.status(400).json({ error: "email is required" });
   }
 
-  const result = addRsvp({ slug, name, email, plusOnes, wantsDinner });
+  const result = addRsvp({
+    slug,
+    name,
+    email,
+    plusOnes,
+    wantsDinner,
+    dinnerTimeSlot,
+    dinnerPartySize,
+  });
 
   if (result.error === "not_found") {
     return res.status(404).json({ error: "Event not found" });
@@ -186,8 +204,10 @@ app.put("/host/events/:id", (req, res) => {
     requireApproval,
     maxPlusOnesPerGuest,
     dinnerEnabled,
-    dinnerTime,
-    dinnerMaxSeats,
+    dinnerStartTime,
+    dinnerEndTime,
+    dinnerSeatingIntervalHours,
+    dinnerMaxSeatsPerSlot,
   } = req.body;
 
   const updated = updateEvent(id, {
@@ -207,8 +227,11 @@ app.put("/host/events/:id", (req, res) => {
     requireApproval,
     maxPlusOnesPerGuest,
     dinnerEnabled,
-    dinnerTime,
-    dinnerMaxSeats,
+    dinnerStartTime,
+    dinnerEndTime,
+    dinnerSeatingIntervalHours,
+    dinnerMaxSeatsPerSlot,
+    dinnerOverflowAction,
   });
 
   if (!updated) return res.status(404).json({ error: "Event not found" });
@@ -226,6 +249,47 @@ app.get("/host/events/:id/guests", (req, res) => {
   const guests = getRsvpsForEvent(event.id);
 
   res.json({ event, guests });
+});
+
+// ---------------------------
+// PUBLIC: Get dinner time slots for event
+// ---------------------------
+app.get("/events/:slug/dinner-slots", (req, res) => {
+  const { slug } = req.params;
+  const event = findEventBySlug(slug);
+
+  if (!event) return res.status(404).json({ error: "Event not found" });
+
+  if (!event.dinnerEnabled) {
+    return res.json({ slots: [], slotCounts: {} });
+  }
+
+  const slots = generateDinnerTimeSlots(event);
+  const slotCounts = getDinnerSlotCounts(event.id);
+
+  // Enrich slots with availability info
+  const enrichedSlots = slots.map((slotTime) => {
+    const counts = slotCounts[slotTime] || { confirmed: 0, waitlist: 0 };
+    const available =
+      !event.dinnerMaxSeatsPerSlot ||
+      counts.confirmed < event.dinnerMaxSeatsPerSlot;
+    const remaining = event.dinnerMaxSeatsPerSlot
+      ? Math.max(0, event.dinnerMaxSeatsPerSlot - counts.confirmed)
+      : null;
+
+    return {
+      time: slotTime,
+      available,
+      remaining,
+      confirmed: counts.confirmed,
+      waitlist: counts.waitlist,
+    };
+  });
+
+  res.json({
+    slots: enrichedSlots,
+    maxSeatsPerSlot: event.dinnerMaxSeatsPerSlot,
+  });
 });
 
 // ---------------------------

@@ -2,7 +2,7 @@
 import { useState } from "react";
 
 export function SettingsTab({ user, setUser, showToast }) {
-  const [socialLinks, setSocialLinks] = useState({
+  const [brandingLinks, setBrandingLinks] = useState({
     instagram: "",
     x: "",
     youtube: "",
@@ -43,8 +43,8 @@ export function SettingsTab({ user, setUser, showToast }) {
     setEmails([...emails, { email: "", primary: false }]);
   }
 
-  function handleRemoveSocialLink(platform) {
-    setSocialLinks({ ...socialLinks, [platform]: "" });
+  function handleRemoveBrandingLink(platform) {
+    setBrandingLinks({ ...brandingLinks, [platform]: "" });
   }
 
   function handleLinkThirdParty(id) {
@@ -184,19 +184,29 @@ export function SettingsTab({ user, setUser, showToast }) {
               />
             </label>
 
-            {/* Social Links */}
+            {/* Branding Links */}
             <div style={{ marginTop: "8px" }}>
               <div
                 style={{
                   fontSize: "13px",
                   fontWeight: 600,
-                  marginBottom: "16px",
+                  marginBottom: "8px",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   opacity: 0.9,
                 }}
               >
-                Social Links
+                Branding Links
+              </div>
+              <div
+                style={{
+                  fontSize: "11px",
+                  opacity: 0.6,
+                  marginBottom: "16px",
+                  fontStyle: "italic",
+                }}
+              >
+                Visual data will be automatically fetched from these links
               </div>
               <div
                 style={{
@@ -219,10 +229,10 @@ export function SettingsTab({ user, setUser, showToast }) {
                   </span>
                   <input
                     type="text"
-                    value={socialLinks.instagram}
+                    value={brandingLinks.instagram}
                     onChange={(e) =>
-                      setSocialLinks({
-                        ...socialLinks,
+                      setBrandingLinks({
+                        ...brandingLinks,
                         instagram: e.target.value,
                       })
                     }
@@ -252,9 +262,9 @@ export function SettingsTab({ user, setUser, showToast }) {
                   <span style={{ fontSize: "14px", opacity: 0.8 }}>x.com/</span>
                   <input
                     type="text"
-                    value={socialLinks.x}
+                    value={brandingLinks.x}
                     onChange={(e) =>
-                      setSocialLinks({ ...socialLinks, x: e.target.value })
+                      setBrandingLinks({ ...brandingLinks, x: e.target.value })
                     }
                     placeholder="username"
                     style={{
@@ -268,10 +278,10 @@ export function SettingsTab({ user, setUser, showToast }) {
                       outline: "none",
                     }}
                   />
-                  {socialLinks.x && (
+                  {brandingLinks.x && (
                     <button
                       type="button"
-                      onClick={() => handleRemoveSocialLink("x")}
+                      onClick={() => handleRemoveBrandingLink("x")}
                       style={{
                         padding: "4px 8px",
                         borderRadius: "6px",
@@ -301,10 +311,10 @@ export function SettingsTab({ user, setUser, showToast }) {
                   </span>
                   <input
                     type="text"
-                    value={socialLinks.youtube}
+                    value={brandingLinks.youtube}
                     onChange={(e) =>
-                      setSocialLinks({
-                        ...socialLinks,
+                      setBrandingLinks({
+                        ...brandingLinks,
                         youtube: e.target.value,
                       })
                     }
@@ -336,10 +346,10 @@ export function SettingsTab({ user, setUser, showToast }) {
                   </span>
                   <input
                     type="text"
-                    value={socialLinks.tiktok}
+                    value={brandingLinks.tiktok}
                     onChange={(e) =>
-                      setSocialLinks({
-                        ...socialLinks,
+                      setBrandingLinks({
+                        ...brandingLinks,
                         tiktok: e.target.value,
                       })
                     }
@@ -371,10 +381,10 @@ export function SettingsTab({ user, setUser, showToast }) {
                   </span>
                   <input
                     type="text"
-                    value={socialLinks.linkedin}
+                    value={brandingLinks.linkedin}
                     onChange={(e) =>
-                      setSocialLinks({
-                        ...socialLinks,
+                      setBrandingLinks({
+                        ...brandingLinks,
                         linkedin: e.target.value,
                       })
                     }
@@ -403,10 +413,10 @@ export function SettingsTab({ user, setUser, showToast }) {
                   <span style={{ fontSize: "18px" }}>🌐</span>
                   <input
                     type="text"
-                    value={socialLinks.website}
+                    value={brandingLinks.website}
                     onChange={(e) =>
-                      setSocialLinks({
-                        ...socialLinks,
+                      setBrandingLinks({
+                        ...brandingLinks,
                         website: e.target.value,
                       })
                     }

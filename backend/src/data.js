@@ -28,8 +28,11 @@ export const events = [
 
     // NEW: dinner add-on
     dinnerEnabled: false,
-    dinnerTime: null, // simple "19:00" string for now
-    dinnerMaxSeats: null, // null = unlimited dinner seats
+    dinnerStartTime: null, // ISO datetime string for dinner start
+    dinnerEndTime: null, // ISO datetime string for dinner end
+    dinnerSeatingIntervalHours: 2, // hours between seatings (default 2)
+    dinnerMaxSeatsPerSlot: null, // max seats per time slot (null = unlimited)
+    dinnerOverflowAction: "waitlist", // "waitlist" | "cocktails" | "both"
 
     createdAt: new Date().toISOString(),
   },
@@ -82,8 +85,11 @@ export function createEvent({
   // NEW
   maxPlusOnesPerGuest = 0,
   dinnerEnabled = false,
-  dinnerTime = null,
-  dinnerMaxSeats = null,
+  dinnerStartTime = null,
+  dinnerEndTime = null,
+  dinnerSeatingIntervalHours = 2,
+  dinnerMaxSeatsPerSlot = null,
+  dinnerOverflowAction = "waitlist",
 }) {
   const baseSlug = slugify(title || "event");
   const slug = ensureUniqueSlug(baseSlug);
@@ -114,8 +120,22 @@ export function createEvent({
         : 0,
 
     dinnerEnabled: !!dinnerEnabled,
-    dinnerTime: dinnerTime || null, // keep simple for now
-    dinnerMaxSeats: dinnerMaxSeats ? Number(dinnerMaxSeats) : null,
+    dinnerStartTime: dinnerStartTime || null,
+    dinnerEndTime: dinnerEndTime || null,
+    dinnerSeatingIntervalHours:
+      typeof dinnerSeatingIntervalHours === "number" &&
+      dinnerSeatingIntervalHours > 0
+        ? dinnerSeatingIntervalHours
+        : 2,
+    dinnerMaxSeatsPerSlot: dinnerMaxSeatsPerSlot
+      ? Number(dinnerMaxSeatsPerSlot)
+      : null,
+    dinnerOverflowAction:
+      dinnerOverflowAction === "cocktails" ||
+      dinnerOverflowAction === "both" ||
+      dinnerOverflowAction === "waitlist"
+        ? dinnerOverflowAction
+        : "waitlist",
   };
 
   events.push(event);
@@ -159,7 +179,62 @@ export function getEventCounts(eventId) {
   return { attending, waitlist };
 }
 
-// Dinner seat counts
+// Generate dinner time slots based on start, end, and interval
+export function generateDinnerTimeSlots(event) {
+  if (!event.dinnerEnabled || !event.dinnerStartTime || !event.dinnerEndTime) {
+    return [];
+  }
+
+  const slots = [];
+  const start = new Date(event.dinnerStartTime);
+  const end = new Date(event.dinnerEndTime);
+  const intervalMs = (event.dinnerSeatingIntervalHours || 2) * 60 * 60 * 1000;
+
+  let current = new Date(start);
+  while (current <= end) {
+    slots.push(new Date(current).toISOString());
+    current = new Date(current.getTime() + intervalMs);
+  }
+
+  return slots;
+}
+
+// Get seat counts per time slot
+export function getDinnerSlotCounts(eventId) {
+  const event = findEventById(eventId);
+  if (!event || !event.dinnerEnabled) return {};
+
+  const slots = generateDinnerTimeSlots(event);
+  const slotCounts = {};
+
+  slots.forEach((slotTime) => {
+    const confirmed = rsvps
+      .filter(
+        (r) =>
+          r.eventId === eventId &&
+          r.wantsDinner &&
+          r.dinnerTimeSlot === slotTime &&
+          r.dinnerStatus === "confirmed"
+      )
+      .reduce((sum, r) => sum + (r.partySize || 1), 0);
+
+    const waitlist = rsvps
+      .filter(
+        (r) =>
+          r.eventId === eventId &&
+          r.wantsDinner &&
+          r.dinnerTimeSlot === slotTime &&
+          r.dinnerStatus === "waitlist"
+      )
+      .reduce((sum, r) => sum + (r.partySize || 1), 0);
+
+    slotCounts[slotTime] = { confirmed, waitlist };
+  });
+
+  return slotCounts;
+}
+
+// Dinner seat counts (legacy - total across all slots)
 export function getDinnerCounts(eventId) {
   const dinnerConfirmedSeats = rsvps
     .filter(
@@ -184,13 +259,15 @@ function isValidEmail(email) {
   return re.test(email);
 }
 
-// plusOnes = 0–3, wantsDinner = boolean
+// plusOnes = 0–3, wantsDinner = boolean, dinnerTimeSlot = ISO string, dinnerPartySize = number
 export function addRsvp({
   slug,
   name,
   email,
   plusOnes = 0,
   wantsDinner = false,
+  dinnerTimeSlot = null,
+  dinnerPartySize = null,
 }) {
   const event = findEventBySlug(slug);
   if (!event) return { error: "not_found" };
@@ -233,25 +310,60 @@ export function addRsvp({
     }
   }
 
-  // Dinner allocation
+  // Dinner allocation with time slots
   let dinnerStatus = null;
   let finalWantsDinner = !!wantsDinner && !!event.dinnerEnabled;
+  let finalDinnerTimeSlot = null;
+  let finalDinnerPartySize = partySize;
 
   if (finalWantsDinner) {
-    if (event.dinnerMaxSeats) {
-      const { dinnerConfirmedSeats } = getDinnerCounts(event.id);
+    // Use provided dinner party size if specified, otherwise use event party size
+    if (dinnerPartySize !== null && Number.isFinite(dinnerPartySize)) {
+      finalDinnerPartySize = Math.max(1, Math.floor(Number(dinnerPartySize)));
+    }
 
-      if (
-        status === "attending" &&
-        dinnerConfirmedSeats + partySize <= event.dinnerMaxSeats
-      ) {
-        dinnerStatus = "confirmed";
+    // Validate time slot
+    const availableSlots = generateDinnerTimeSlots(event);
+    if (dinnerTimeSlot && availableSlots.includes(dinnerTimeSlot)) {
+      finalDinnerTimeSlot = dinnerTimeSlot;
+    } else if (availableSlots.length > 0) {
+      // Default to first available slot if none specified
+      finalDinnerTimeSlot = availableSlots[0];
+    }
+
+    if (finalDinnerTimeSlot) {
+      // Check capacity for this specific time slot
+      const slotCounts = getDinnerSlotCounts(event.id);
+      const slotData = slotCounts[finalDinnerTimeSlot] || {
+        confirmed: 0,
+        waitlist: 0,
+      };
+
+      if (event.dinnerMaxSeatsPerSlot) {
+        // Limited seats per slot
+        if (
+          status === "attending" &&
+          slotData.confirmed + finalDinnerPartySize <=
+            event.dinnerMaxSeatsPerSlot
+        ) {
+          dinnerStatus = "confirmed";
+        } else {
+          // Check overflow action
+          if (event.dinnerOverflowAction === "cocktails") {
+            dinnerStatus = "cocktails"; // Invite for cocktails instead
+          } else if (event.dinnerOverflowAction === "both") {
+            dinnerStatus = "cocktails_waitlist"; // Both cocktails and waitlist
+          } else {
+            dinnerStatus = "waitlist"; // Default waitlist
+          }
+        }
       } else {
-        dinnerStatus = "waitlist";
+        // Unlimited seats per slot
+        dinnerStatus = status === "attending" ? "confirmed" : "waitlist";
       }
     } else {
-      // unlimited dinner seats; track anyway
-      dinnerStatus = status === "attending" ? "confirmed" : "waitlist";
+      // No valid time slot available
+      finalWantsDinner = false;
     }
   }
 
@@ -266,6 +378,8 @@ export function addRsvp({
     partySize,
     wantsDinner: finalWantsDinner,
     dinnerStatus, // "confirmed" | "waitlist" | null
+    dinnerTimeSlot: finalDinnerTimeSlot, // ISO datetime string
+    dinnerPartySize: finalWantsDinner ? finalDinnerPartySize : null,
     createdAt: new Date().toISOString(),
   };
 

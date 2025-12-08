@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { EventCard } from "../components/EventCard";
+import { RsvpModal } from "../components/RsvpModal";
 import { useToast } from "../components/Toast";
 
 const API_BASE = "http://localhost:3001";
@@ -21,6 +22,8 @@ export function EventPage() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [showRsvpModal, setShowRsvpModal] = useState(false);
+  const [rsvpLoading, setRsvpLoading] = useState(false);
 
   useEffect(() => {
     async function loadEvent() {
@@ -85,57 +88,25 @@ export function EventPage() {
     );
   }
 
-  async function handleRsvp() {
+  async function handleRsvpSubmit(data) {
+    setRsvpLoading(true);
     try {
-      const email = window.prompt("Drop your email to pull up:");
-      if (!email) return;
-
-      const name = window.prompt("What's your name? (optional)") || "";
-
-      let plusOnes = 0;
-      const maxPlusOnes =
-        typeof event.maxPlusOnesPerGuest === "number"
-          ? event.maxPlusOnesPerGuest
-          : 0;
-
-      if (maxPlusOnes > 0) {
-        const rawPlus = window.prompt(
-          `How many friends are you bringing? (0–${maxPlusOnes})`,
-          "0"
-        );
-        if (rawPlus === null) return; // cancelled
-        const parsed = Number(rawPlus);
-        if (Number.isFinite(parsed) && parsed >= 0 && parsed <= maxPlusOnes) {
-          plusOnes = parsed;
-        } else {
-          alert("We'll save it as 0 extra guests for now.");
-          plusOnes = 0;
-        }
-      }
-
-      let wantsDinner = false;
-      if (event.dinnerEnabled) {
-        wantsDinner = window.confirm(
-          "Dinner option is available for this event. Do you want to join dinner as well?"
-        );
-      }
-
       const res = await fetch(`${API_BASE}/events/${event.slug}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, plusOnes, wantsDinner }),
+        body: JSON.stringify(data),
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
 
         if (res.status === 409 && err.error === "full") {
-          alert("Event is full and waitlist is disabled.");
+          showToast("Event is full and waitlist is disabled.", "error");
           return;
         }
 
         if (res.status === 409 && err.error === "duplicate") {
-          alert("You’ve already RSVP’d for this event.");
+          showToast("You've already RSVP'd for this event.", "error");
           return;
         }
 
@@ -145,19 +116,41 @@ export function EventPage() {
       const body = await res.json();
 
       if (body.status === "waitlist") {
-        alert("The event is full. You’ve been added to the waitlist. 👀");
+        showToast(
+          "The event is full. You've been added to the waitlist. 👀",
+          "info"
+        );
       } else {
-        alert("You’re on the list. 🔥");
+        showToast("You're on the list. 🔥", "success");
       }
+
+      setShowRsvpModal(false);
     } catch (err) {
       console.error(err);
       if (isNetworkError(err)) {
-        alert("Network error. Please try again.");
+        showToast("Network error. Please try again.", "error");
       } else {
-        alert(err.message || "Failed to RSVP.");
+        showToast(err.message || "Failed to RSVP.", "error");
       }
+    } finally {
+      setRsvpLoading(false);
     }
   }
 
-  return <EventCard event={event} onRsvp={handleRsvp} />;
+  return (
+    <>
+      <EventCard
+        event={event}
+        onRsvp={() => setShowRsvpModal(true)}
+      />
+      {showRsvpModal && (
+        <RsvpModal
+          event={event}
+          onClose={() => setShowRsvpModal(false)}
+          onSubmit={handleRsvpSubmit}
+          loading={rsvpLoading}
+        />
+      )}
+    </>
+  );
 }

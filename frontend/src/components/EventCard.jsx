@@ -12,13 +12,16 @@ export function EventCard({ event, onRsvp, label = "Pull up" }) {
       : 0;
 
   const dinnerEnabled = !!event.dinnerEnabled;
-  const dinnerTimeLabel = event.dinnerTime
-    ? new Date(event.dinnerTime).toLocaleString()
+  const dinnerStartTime = event.dinnerStartTime
+    ? new Date(event.dinnerStartTime)
     : null;
-  const dinnerSeats =
-    typeof event.dinnerMaxSeats === "number" && event.dinnerMaxSeats > 0
-      ? event.dinnerMaxSeats
-      : null;
+  const dinnerEndTime = event.dinnerEndTime
+    ? new Date(event.dinnerEndTime)
+    : null;
+  const dinnerSeatingIntervalHours =
+    typeof event.dinnerSeatingIntervalHours === "number"
+      ? event.dinnerSeatingIntervalHours
+      : 2;
 
   return (
     <div
@@ -152,7 +155,7 @@ export function EventCard({ event, onRsvp, label = "Pull up" }) {
               <span>🍽️</span>
               <span>Dinner option available</span>
             </div>
-            {dinnerTimeLabel && (
+            {dinnerStartTime && dinnerEndTime && (
               <div
                 style={{
                   fontSize: "12px",
@@ -160,18 +163,27 @@ export function EventCard({ event, onRsvp, label = "Pull up" }) {
                   paddingLeft: "24px",
                 }}
               >
-                Dinner at {dinnerTimeLabel}
+                {dinnerStartTime.toLocaleTimeString("en-US", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}{" "}
+                -{" "}
+                {dinnerEndTime.toLocaleTimeString("en-US", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
               </div>
             )}
-            {dinnerSeats && (
+            {dinnerStartTime && dinnerEndTime && (
               <div
                 style={{
-                  fontSize: "12px",
-                  opacity: 0.75,
+                  fontSize: "11px",
+                  opacity: 0.65,
                   paddingLeft: "24px",
                 }}
               >
-                {dinnerSeats} dinner seats
+                Seatings every {dinnerSeatingIntervalHours}{" "}
+                {dinnerSeatingIntervalHours === 1 ? "hour" : "hours"}
               </div>
             )}
           </div>

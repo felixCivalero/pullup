@@ -78,8 +78,12 @@ export function CreateEventPage() {
 
   // NEW: dinner
   const [dinnerEnabled, setDinnerEnabled] = useState(false);
-  const [dinnerTime, setDinnerTime] = useState(""); // simple "19:00" string
-  const [dinnerMaxSeats, setDinnerMaxSeats] = useState("");
+  const [dinnerStartTime, setDinnerStartTime] = useState("");
+  const [dinnerEndTime, setDinnerEndTime] = useState("");
+  const [dinnerSeatingIntervalHours, setDinnerSeatingIntervalHours] =
+    useState("2");
+  const [dinnerMaxSeatsPerSlot, setDinnerMaxSeatsPerSlot] = useState("");
+  const [dinnerOverflowAction, setDinnerOverflowAction] = useState("waitlist");
 
   const [loading, setLoading] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -177,9 +181,22 @@ export function CreateEventPage() {
         // NEW
         maxPlusOnesPerGuest: parsedMaxPlus,
         dinnerEnabled,
-        dinnerTime: dinnerEnabled && dinnerTime ? dinnerTime : null,
-        dinnerMaxSeats:
-          dinnerEnabled && dinnerMaxSeats ? Number(dinnerMaxSeats) : null,
+        dinnerStartTime:
+          dinnerEnabled && dinnerStartTime
+            ? new Date(dinnerStartTime).toISOString()
+            : null,
+        dinnerEndTime:
+          dinnerEnabled && dinnerEndTime
+            ? new Date(dinnerEndTime).toISOString()
+            : null,
+        dinnerSeatingIntervalHours: dinnerEnabled
+          ? Number(dinnerSeatingIntervalHours) || 2
+          : 2,
+        dinnerMaxSeatsPerSlot:
+          dinnerEnabled && dinnerMaxSeatsPerSlot
+            ? Number(dinnerMaxSeatsPerSlot)
+            : null,
+        dinnerOverflowAction: dinnerEnabled ? dinnerOverflowAction : "waitlist",
       };
 
       if (imageUrl) {
@@ -219,8 +236,6 @@ export function CreateEventPage() {
   }
 
   const tzInfo = formatTimezone(timezone);
-  const startTime = startsAt ? startsAt.split("T")[1]?.slice(0, 5) : "";
-  const endTime = endsAt ? endsAt.split("T")[1]?.slice(0, 5) : "";
 
   return (
     <div
@@ -340,10 +355,14 @@ export function CreateEventPage() {
                   overflow: "hidden",
                   background: isDragging
                     ? "rgba(139, 92, 246, 0.2)"
-                    : "rgba(20, 16, 30, 0.3)",
+                    : imagePreview
+                      ? "transparent"
+                      : "rgba(20, 16, 30, 0.3)",
                   border: isDragging
                     ? "2px dashed rgba(139, 92, 246, 0.5)"
-                    : "1px solid rgba(255,255,255,0.06)",
+                    : imagePreview
+                      ? "1px solid rgba(255,255,255,0.1)"
+                      : "1px solid rgba(255,255,255,0.06)",
                   position: "relative",
                   cursor: "pointer",
                   transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -355,15 +374,64 @@ export function CreateEventPage() {
                 onDrop={handleDrop}
               >
                 {imagePreview ? (
-                  <img
-                    src={imagePreview}
-                    alt="Event cover"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                    }}
-                  />
+                  <>
+                    <img
+                      src={imagePreview}
+                      alt="Event cover"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background:
+                          "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: 0,
+                        transition: "opacity 0.3s ease",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                      onMouseLeave={(e) => (e.currentTarget.style.opacity = "0")}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: "8px",
+                          color: "#fff",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "32px",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          📷
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                          }}
+                        >
+                          Change Image
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <div
                     style={{
@@ -373,17 +441,26 @@ export function CreateEventPage() {
                       flexDirection: "column",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: "12px",
+                      gap: "16px",
                       background:
                         "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(236, 72, 153, 0.12) 100%)",
                       color: "#fff",
                     }}
                   >
-                    <div style={{ fontSize: "48px", opacity: 0.8 }}>🎨</div>
                     <div
                       style={{
-                        fontSize: "12px",
-                        opacity: 0.6,
+                        fontSize: "56px",
+                        opacity: 0.9,
+                        transition: "transform 0.3s ease",
+                      }}
+                    >
+                      🖼️
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        opacity: 0.9,
                         textAlign: "center",
                         padding: "0 16px",
                       }}
@@ -391,6 +468,16 @@ export function CreateEventPage() {
                       {isDragging
                         ? "Drop image here"
                         : "Click or drag to upload"}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        opacity: 0.6,
+                        textAlign: "center",
+                        padding: "0 16px",
+                      }}
+                    >
+                      JPG, PNG, or GIF (max 5MB)
                     </div>
                   </div>
                 )}
@@ -401,25 +488,46 @@ export function CreateEventPage() {
                   onChange={handleImageUpload}
                   style={{ display: "none" }}
                 />
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: "12px",
-                    right: "12px",
-                    width: "40px",
-                    height: "40px",
-                    borderRadius: "50%",
-                    background: "rgba(0,0,0,0.7)",
-                    backdropFilter: "blur(10px)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    fontSize: "18px",
-                  }}
-                >
-                  📷
-                </div>
+                {imagePreview && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setImagePreview(null);
+                      setImageUrl(null);
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                      }
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: "12px",
+                      right: "12px",
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "50%",
+                      background: "rgba(0,0,0,0.7)",
+                      backdropFilter: "blur(10px)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      fontSize: "16px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "rgba(239, 68, 68, 0.8)";
+                      e.target.style.transform = "scale(1.1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "rgba(0,0,0,0.7)";
+                      e.target.style.transform = "scale(1)";
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             </div>
 
@@ -458,238 +566,200 @@ export function CreateEventPage() {
               {/* date/time */}
               <div
                 style={{
-                  display: "flex",
-                  gap: "20px",
                   marginBottom: "32px",
-                  alignItems: "flex-start",
+                  background: "rgba(20, 16, 30, 0.2)",
+                  borderRadius: "16px",
+                  padding: "24px",
+                  border: "1px solid rgba(255,255,255,0.05)",
                 }}
               >
                 <div
-                  style={{ flex: 1, position: "relative", paddingLeft: "8px" }}
-                >
-                  {/* start */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "12px",
-                      marginBottom: "24px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "10px",
-                        height: "10px",
-                        borderRadius: "50%",
-                        background:
-                          "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                        border: "1.5px solid rgba(255,255,255,0.08)",
-                        flexShrink: 0,
-                        marginTop: "8px",
-                      }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontSize: "9px",
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.2em",
-                          opacity: 0.4,
-                          marginBottom: "10px",
-                        }}
-                      >
-                        Start
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          flexWrap: "wrap",
-                          alignItems: "center",
-                        }}
-                      >
-                        <input
-                          type="date"
-                          value={startsAt ? startsAt.split("T")[0] : ""}
-                          onChange={(e) => {
-                            const date = e.target.value;
-                            const time = startsAt
-                              ? startsAt.split("T")[1]
-                              : "19:00";
-                            setStartsAt(`${date}T${time}`);
-                          }}
-                          style={{
-                            ...(focusedField === "startDate"
-                              ? focusedInputStyle
-                              : inputStyle),
-                            fontSize: "13px",
-                            flex: 1,
-                            minWidth: "140px",
-                            padding: "9px 12px",
-                          }}
-                          onFocus={() => setFocusedField("startDate")}
-                          onBlur={() => setFocusedField(null)}
-                          required
-                        />
-                        <input
-                          type="time"
-                          value={startTime}
-                          onChange={(e) => {
-                            const date =
-                              startsAt?.split("T")[0] ||
-                              new Date().toISOString().split("T")[0];
-                            setStartsAt(`${date}T${e.target.value}`);
-                          }}
-                          style={{
-                            ...(focusedField === "startTime"
-                              ? focusedInputStyle
-                              : inputStyle),
-                            fontSize: "13px",
-                            width: "85px",
-                            padding: "9px 12px",
-                          }}
-                          onFocus={() => setFocusedField("startTime")}
-                          onBlur={() => setFocusedField(null)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* connector */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: "4px",
-                      top: "20px",
-                      bottom: "20px",
-                      width: "1.5px",
-                      background:
-                        "repeating-linear-gradient(to bottom, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 2px, transparent 2px, transparent 5px)",
-                    }}
-                  />
-
-                  {/* end */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "12px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "10px",
-                        height: "10px",
-                        borderRadius: "50%",
-                        border: "1.5px solid rgba(255,255,255,0.2)",
-                        background: "transparent",
-                        flexShrink: 0,
-                        marginTop: "8px",
-                      }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontSize: "9px",
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.2em",
-                          opacity: 0.4,
-                          marginBottom: "10px",
-                        }}
-                      >
-                        End
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          flexWrap: "wrap",
-                          alignItems: "center",
-                        }}
-                      >
-                        <input
-                          type="date"
-                          value={endsAt ? endsAt.split("T")[0] : ""}
-                          onChange={(e) => {
-                            const date = e.target.value;
-                            const time = endsAt
-                              ? endsAt.split("T")[1]
-                              : "20:00";
-                            setEndsAt(`${date}T${time}`);
-                          }}
-                          style={{
-                            ...(focusedField === "endDate"
-                              ? focusedInputStyle
-                              : inputStyle),
-                            fontSize: "13px",
-                            flex: 1,
-                            minWidth: "140px",
-                            padding: "9px 12px",
-                          }}
-                          onFocus={() => setFocusedField("endDate")}
-                          onBlur={() => setFocusedField(null)}
-                        />
-                        <input
-                          type="time"
-                          value={endTime}
-                          onChange={(e) => {
-                            const date =
-                              endsAt?.split("T")[0] ||
-                              startsAt?.split("T")[0] ||
-                              new Date().toISOString().split("T")[0];
-                            setEndsAt(`${date}T${e.target.value}`);
-                          }}
-                          style={{
-                            ...(focusedField === "endTime"
-                              ? focusedInputStyle
-                              : inputStyle),
-                            fontSize: "13px",
-                            width: "85px",
-                            padding: "9px 12px",
-                          }}
-                          onFocus={() => setFocusedField("endTime")}
-                          onBlur={() => setFocusedField(null)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* timezone pill */}
-                <div
                   style={{
-                    padding: "12px 14px",
-                    background: "rgba(20, 16, 30, 0.3)",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    fontSize: "12px",
-                    textAlign: "center",
-                    minWidth: "120px",
-                    alignSelf: "flex-end",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "20px",
                   }}
                 >
+                  <span style={{ fontSize: "18px" }}>🕒</span>
                   <div
                     style={{
-                      fontSize: "14px",
-                      marginBottom: "4px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.15em",
                       opacity: 0.7,
                     }}
                   >
-                    🌐
+                    Event Schedule
                   </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: "20px",
+                    alignItems: "start",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                    {/* start */}
+                    <div>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          marginBottom: "10px",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          opacity: 0.9,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "12px",
+                            height: "12px",
+                            borderRadius: "50%",
+                            background:
+                              "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                            border: "2px solid rgba(255,255,255,0.1)",
+                            boxShadow: "0 0 0 2px rgba(139, 92, 246, 0.2)",
+                          }}
+                        />
+                        <span>Start Date & Time</span>
+                        <span style={{ opacity: 0.5, fontWeight: 400 }}>*</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={
+                          startsAt
+                            ? new Date(startsAt).toISOString().slice(0, 16)
+                            : ""
+                        }
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setStartsAt(new Date(e.target.value).toISOString());
+                          }
+                        }}
+                        style={{
+                          ...(focusedField === "startDateTime"
+                            ? focusedInputStyle
+                            : inputStyle),
+                          fontSize: "15px",
+                          padding: "12px 16px",
+                          width: "100%",
+                          cursor: "pointer",
+                        }}
+                        onFocus={() => setFocusedField("startDateTime")}
+                        onBlur={() => setFocusedField(null)}
+                        required
+                      />
+                    </div>
+
+                    {/* end */}
+                    <div>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          marginBottom: "10px",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          opacity: 0.9,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "12px",
+                            height: "12px",
+                            borderRadius: "50%",
+                            border: "2px solid rgba(255,255,255,0.3)",
+                            background: "transparent",
+                          }}
+                        />
+                        <span>End Date & Time</span>
+                        <span style={{ opacity: 0.5, fontWeight: 400 }}>
+                          (optional)
+                        </span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={
+                          endsAt
+                            ? new Date(endsAt).toISOString().slice(0, 16)
+                            : ""
+                        }
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setEndsAt(new Date(e.target.value).toISOString());
+                          } else {
+                            setEndsAt("");
+                          }
+                        }}
+                        min={
+                          startsAt
+                            ? new Date(startsAt).toISOString().slice(0, 16)
+                            : undefined
+                        }
+                        style={{
+                          ...(focusedField === "endDateTime"
+                            ? focusedInputStyle
+                            : inputStyle),
+                          fontSize: "15px",
+                          padding: "12px 16px",
+                          width: "100%",
+                          cursor: "pointer",
+                        }}
+                        onFocus={() => setFocusedField("endDateTime")}
+                        onBlur={() => setFocusedField(null)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* timezone pill */}
                   <div
                     style={{
-                      fontWeight: 600,
-                      marginBottom: "2px",
-                      fontSize: "13px",
+                      padding: "16px 18px",
+                      background: "rgba(139, 92, 246, 0.1)",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(139, 92, 246, 0.2)",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      minWidth: "140px",
+                      alignSelf: "center",
                     }}
                   >
-                    {tzInfo.tzName}
-                  </div>
-                  <div style={{ opacity: 0.4, fontSize: "11px" }}>
-                    {tzInfo.city}
+                    <div
+                      style={{
+                        fontSize: "20px",
+                        marginBottom: "8px",
+                        opacity: 0.9,
+                      }}
+                    >
+                      🌐
+                    </div>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        marginBottom: "4px",
+                        fontSize: "14px",
+                        color: "#8b5cf6",
+                      }}
+                    >
+                      {tzInfo.tzName}
+                    </div>
+                    <div
+                      style={{
+                        opacity: 0.6,
+                        fontSize: "11px",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {tzInfo.city}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -904,60 +974,375 @@ export function CreateEventPage() {
                 {dinnerEnabled && (
                   <div
                     style={{
-                      marginTop: "10px",
-                      padding: "10px 12px",
-                      borderRadius: "10px",
-                      border: "1px dashed rgba(255,255,255,0.08)",
-                      background: "rgba(12, 10, 18, 0.35)",
+                      marginTop: "16px",
+                      padding: "24px",
+                      borderRadius: "16px",
+                      border: "1px solid rgba(139, 92, 246, 0.2)",
+                      background:
+                        "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%)",
                       display: "flex",
-                      gap: "10px",
-                      flexWrap: "wrap",
+                      flexDirection: "column",
+                      gap: "20px",
                     }}
                   >
-                    <div style={{ flex: 1, minWidth: "140px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      <span style={{ fontSize: "20px" }}>🍽️</span>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          opacity: 0.9,
+                        }}
+                      >
+                        Dinner Configuration
+                      </div>
+                    </div>
+
+                    {/* Time Range */}
+                    <div>
                       <div
                         style={{
                           fontSize: "11px",
-                          opacity: 0.6,
-                          marginBottom: "4px",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          opacity: 0.7,
+                          marginBottom: "12px",
                         }}
                       >
-                        Dinner time (optional)
+                        Dinner Time Window
                       </div>
-                      <input
-                        type="time"
-                        value={dinnerTime}
-                        onChange={(e) => setDinnerTime(e.target.value)}
+                      <div
                         style={{
-                          ...inputStyle,
-                          fontSize: "13px",
-                          padding: "8px 10px",
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: "12px",
                         }}
-                      />
+                      >
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "12px",
+                              opacity: 0.8,
+                              marginBottom: "8px",
+                            }}
+                          >
+                            Start Time <span style={{ color: "#ef4444" }}>*</span>
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={dinnerStartTime}
+                            onChange={(e) =>
+                              setDinnerStartTime(e.target.value)
+                            }
+                            required={dinnerEnabled}
+                            style={{
+                              ...inputStyle,
+                              fontSize: "14px",
+                              padding: "12px 14px",
+                              width: "100%",
+                              cursor: "pointer",
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "12px",
+                              opacity: 0.8,
+                              marginBottom: "8px",
+                            }}
+                          >
+                            End Time <span style={{ color: "#ef4444" }}>*</span>
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={dinnerEndTime}
+                            onChange={(e) => setDinnerEndTime(e.target.value)}
+                            required={dinnerEnabled}
+                            min={dinnerStartTime || undefined}
+                            style={{
+                              ...inputStyle,
+                              fontSize: "14px",
+                              padding: "12px 14px",
+                              width: "100%",
+                              cursor: "pointer",
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ flex: 1, minWidth: "140px" }}>
+
+                    {/* Seating Configuration */}
+                    <div>
                       <div
                         style={{
                           fontSize: "11px",
-                          opacity: 0.6,
-                          marginBottom: "4px",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          opacity: 0.7,
+                          marginBottom: "12px",
                         }}
                       >
-                        Dinner seats (optional)
+                        Seating Settings
                       </div>
-                      <input
-                        type="number"
-                        min="1"
-                        value={dinnerMaxSeats}
-                        onChange={(e) => setDinnerMaxSeats(e.target.value)}
-                        placeholder="Unlimited"
+                      <div
                         style={{
-                          ...inputStyle,
-                          fontSize: "13px",
-                          padding: "8px 10px",
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: "12px",
                         }}
-                      />
+                      >
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "12px",
+                              opacity: 0.8,
+                              marginBottom: "8px",
+                            }}
+                          >
+                            Hours Between Seatings
+                          </label>
+                          <input
+                            type="number"
+                            min="0.5"
+                            max="12"
+                            step="0.5"
+                            value={dinnerSeatingIntervalHours}
+                            onChange={(e) =>
+                              setDinnerSeatingIntervalHours(e.target.value)
+                            }
+                            placeholder="2"
+                            style={{
+                              ...inputStyle,
+                              fontSize: "14px",
+                              padding: "12px 14px",
+                              width: "100%",
+                            }}
+                          />
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              opacity: 0.6,
+                              marginTop: "4px",
+                            }}
+                          >
+                            e.g., 2 = seatings at 6pm, 8pm, 10pm
+                          </div>
+                        </div>
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "12px",
+                              opacity: 0.8,
+                              marginBottom: "8px",
+                            }}
+                          >
+                            Max Seats Per Slot
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={dinnerMaxSeatsPerSlot}
+                            onChange={(e) =>
+                              setDinnerMaxSeatsPerSlot(e.target.value)
+                            }
+                            placeholder="Unlimited"
+                            style={{
+                              ...inputStyle,
+                              fontSize: "14px",
+                              padding: "12px 14px",
+                              width: "100%",
+                            }}
+                          />
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              opacity: 0.6,
+                              marginTop: "4px",
+                            }}
+                          >
+                            Leave empty for unlimited
+                          </div>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Overflow Handling */}
+                    {dinnerMaxSeatsPerSlot && (
+                      <div>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                            opacity: 0.7,
+                            marginBottom: "12px",
+                          }}
+                        >
+                          When Dinner Seats Are Full
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "10px",
+                          }}
+                        >
+                          {[
+                            {
+                              value: "waitlist",
+                              label: "Add to Waitlist",
+                              description:
+                                "Keep them on the waitlist for dinner seats",
+                              icon: "📋",
+                            },
+                            {
+                              value: "cocktails",
+                              label: "Invite for Cocktails",
+                              description:
+                                "Invite them to join for cocktails after dinner",
+                              icon: "🥂",
+                            },
+                            {
+                              value: "both",
+                              label: "Both Options",
+                              description:
+                                "Add to waitlist AND invite for cocktails",
+                              icon: "✨",
+                            },
+                          ].map((option) => (
+                            <label
+                              key={option.value}
+                              style={{
+                                display: "flex",
+                                alignItems: "flex-start",
+                                gap: "12px",
+                                padding: "14px",
+                                borderRadius: "12px",
+                                border:
+                                  dinnerOverflowAction === option.value
+                                    ? "2px solid #8b5cf6"
+                                    : "1px solid rgba(255,255,255,0.1)",
+                                background:
+                                  dinnerOverflowAction === option.value
+                                    ? "rgba(139, 92, 246, 0.15)"
+                                    : "rgba(20, 16, 30, 0.4)",
+                                cursor: "pointer",
+                                transition: "all 0.2s ease",
+                              }}
+                              onMouseEnter={(e) => {
+                                if (
+                                  dinnerOverflowAction !== option.value
+                                ) {
+                                  e.currentTarget.style.background =
+                                    "rgba(20, 16, 30, 0.6)";
+                                  e.currentTarget.style.borderColor =
+                                    "rgba(255,255,255,0.2)";
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (
+                                  dinnerOverflowAction !== option.value
+                                ) {
+                                  e.currentTarget.style.background =
+                                    "rgba(20, 16, 30, 0.4)";
+                                  e.currentTarget.style.borderColor =
+                                    "rgba(255,255,255,0.1)";
+                                }
+                              }}
+                            >
+                              <input
+                                type="radio"
+                                name="dinnerOverflow"
+                                value={option.value}
+                                checked={dinnerOverflowAction === option.value}
+                                onChange={(e) =>
+                                  setDinnerOverflowAction(e.target.value)
+                                }
+                                style={{
+                                  marginTop: "2px",
+                                  width: "18px",
+                                  height: "18px",
+                                  cursor: "pointer",
+                                  accentColor: "#8b5cf6",
+                                }}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    marginBottom: "4px",
+                                  }}
+                                >
+                                  <span style={{ fontSize: "16px" }}>
+                                    {option.icon}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: "14px",
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {option.label}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    opacity: 0.7,
+                                    paddingLeft: "24px",
+                                  }}
+                                >
+                                  {option.description}
+                                </div>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {dinnerStartTime &&
+                      dinnerEndTime &&
+                      dinnerSeatingIntervalHours && (
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            opacity: 0.7,
+                            padding: "12px",
+                            background: "rgba(139, 92, 246, 0.1)",
+                            borderRadius: "10px",
+                            border: "1px solid rgba(139, 92, 246, 0.2)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <span>💡</span>
+                          <span>
+                            Time slots will be generated automatically based on
+                            your settings.
+                          </span>
+                        </div>
+                      )}
                   </div>
                 )}
               </div>

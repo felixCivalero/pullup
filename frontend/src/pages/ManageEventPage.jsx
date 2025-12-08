@@ -1,5 +1,5 @@
 // frontend/src/pages/ManageEventPage.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
@@ -46,6 +46,10 @@ export function ManageEventPage() {
   const [networkError, setNetworkError] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [guestsCount, setGuestsCount] = useState(0);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     function handleMouseMove(e) {
@@ -68,8 +72,11 @@ export function ManageEventPage() {
           startsAtLocal: data.startsAt
             ? new Date(data.startsAt).toISOString().slice(0, 16)
             : "",
-          dinnerTimeLocal: data.dinnerTime
-            ? new Date(data.dinnerTime).toISOString().slice(0, 16)
+          dinnerStartTimeLocal: data.dinnerStartTime
+            ? new Date(data.dinnerStartTime).toISOString().slice(0, 16)
+            : "",
+          dinnerEndTimeLocal: data.dinnerEndTime
+            ? new Date(data.dinnerEndTime).toISOString().slice(0, 16)
             : "",
           maxAttendeesInput:
             typeof data.maxAttendees === "number"
@@ -79,15 +86,35 @@ export function ManageEventPage() {
             typeof data.maxPlusOnesPerGuest === "number"
               ? String(data.maxPlusOnesPerGuest)
               : "0",
-          dinnerMaxSeatsInput:
-            typeof data.dinnerMaxSeats === "number"
-              ? String(data.dinnerMaxSeats)
+          dinnerSeatingIntervalHoursInput:
+            typeof data.dinnerSeatingIntervalHours === "number"
+              ? String(data.dinnerSeatingIntervalHours)
+              : "2",
+          dinnerMaxSeatsPerSlotInput:
+            typeof data.dinnerMaxSeatsPerSlot === "number"
+              ? String(data.dinnerMaxSeatsPerSlot)
               : "",
+          dinnerOverflowAction:
+            data.dinnerOverflowAction || "waitlist",
           waitlistEnabled:
             typeof data.waitlistEnabled === "boolean"
               ? data.waitlistEnabled
               : true,
         });
+        if (data.imageUrl) {
+          setImagePreview(data.imageUrl);
+        }
+
+        // Fetch guests count
+        try {
+          const guestsRes = await fetch(`${API_BASE}/host/events/${id}/guests`);
+          if (guestsRes.ok) {
+            const guestsData = await guestsRes.json();
+            setGuestsCount(guestsData.guests?.length || 0);
+          }
+        } catch (err) {
+          // Ignore guest count errors
+        }
       } catch (err) {
         console.error(err);
         if (isNetworkError(err)) {
@@ -102,6 +129,34 @@ export function ManageEventPage() {
     load();
   }, [id, showToast]);
 
+  function handleImageUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("Please upload an image file", "error");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Image must be less than 5MB", "error");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => {
+      showToast("Failed to read image file", "error");
+    };
+    reader.onloadend = () => {
+      if (reader.result) {
+        setImagePreview(reader.result);
+        setEvent({ ...event, imageUrl: reader.result });
+        showToast("Image uploaded successfully! ✨", "success");
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function handleSave(e) {
     e.preventDefault();
     if (!event) return;
@@ -113,10 +168,14 @@ export function ManageEventPage() {
 
       const maxPlusOnesPerGuest = Number(event.maxPlusOnesPerGuestInput || 0);
 
-      const dinnerMaxSeats =
-        event.dinnerMaxSeatsInput === ""
+      const dinnerMaxSeatsPerSlot =
+        event.dinnerMaxSeatsPerSlotInput === ""
           ? null
-          : Number(event.dinnerMaxSeatsInput);
+          : Number(event.dinnerMaxSeatsPerSlotInput);
+
+      const dinnerSeatingIntervalHours = Number(
+        event.dinnerSeatingIntervalHoursInput || 2
+      );
 
       const body = {
         title: event.title,
@@ -129,10 +188,16 @@ export function ManageEventPage() {
         waitlistEnabled: !!event.waitlistEnabled,
         maxPlusOnesPerGuest,
         dinnerEnabled: !!event.dinnerEnabled,
-        dinnerTime: event.dinnerTimeLocal
-          ? new Date(event.dinnerTimeLocal).toISOString()
+        dinnerStartTime: event.dinnerStartTimeLocal
+          ? new Date(event.dinnerStartTimeLocal).toISOString()
           : null,
-        dinnerMaxSeats,
+        dinnerEndTime: event.dinnerEndTimeLocal
+          ? new Date(event.dinnerEndTimeLocal).toISOString()
+          : null,
+        dinnerSeatingIntervalHours,
+        dinnerMaxSeatsPerSlot,
+        dinnerOverflowAction: event.dinnerOverflowAction || "waitlist",
+        imageUrl: event.imageUrl || null,
       };
 
       const res = await fetch(`${API_BASE}/host/events/${id}`, {
@@ -151,8 +216,11 @@ export function ManageEventPage() {
         startsAtLocal: updated.startsAt
           ? new Date(updated.startsAt).toISOString().slice(0, 16)
           : "",
-        dinnerTimeLocal: updated.dinnerTime
-          ? new Date(updated.dinnerTime).toISOString().slice(0, 16)
+        dinnerStartTimeLocal: updated.dinnerStartTime
+          ? new Date(updated.dinnerStartTime).toISOString().slice(0, 16)
+          : "",
+        dinnerEndTimeLocal: updated.dinnerEndTime
+          ? new Date(updated.dinnerEndTime).toISOString().slice(0, 16)
           : "",
         maxAttendeesInput:
           typeof updated.maxAttendees === "number"
@@ -162,10 +230,16 @@ export function ManageEventPage() {
           typeof updated.maxPlusOnesPerGuest === "number"
             ? String(updated.maxPlusOnesPerGuest)
             : "0",
-        dinnerMaxSeatsInput:
-          typeof updated.dinnerMaxSeats === "number"
-            ? String(updated.dinnerMaxSeats)
+        dinnerSeatingIntervalHoursInput:
+          typeof updated.dinnerSeatingIntervalHours === "number"
+            ? String(updated.dinnerSeatingIntervalHours)
+            : "2",
+        dinnerMaxSeatsPerSlotInput:
+          typeof updated.dinnerMaxSeatsPerSlot === "number"
+            ? String(updated.dinnerMaxSeatsPerSlot)
             : "",
+        dinnerOverflowAction:
+          updated.dinnerOverflowAction || "waitlist",
         waitlistEnabled:
           typeof updated.waitlistEnabled === "boolean"
             ? updated.waitlistEnabled
@@ -354,30 +428,226 @@ export function ManageEventPage() {
             </Link>
           </div>
 
-          {event.imageUrl && (
+          {/* Image Upload Section */}
+          <div
+            style={{
+              marginBottom: "32px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                opacity: 0.7,
+                marginBottom: "12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <span>🖼️</span>
+              <span>Event Cover Image</span>
+            </div>
             <div
               style={{
                 width: "100%",
-                maxWidth: "400px",
+                maxWidth: "500px",
                 aspectRatio: "16/9",
                 borderRadius: "16px",
                 overflow: "hidden",
-                marginBottom: "24px",
-                background: "rgba(0,0,0,0.2)",
-                border: "1px solid rgba(255,255,255,0.1)",
+                background: isDragging
+                  ? "rgba(139, 92, 246, 0.2)"
+                  : imagePreview || event.imageUrl
+                    ? "transparent"
+                    : "rgba(20, 16, 30, 0.3)",
+                border: isDragging
+                  ? "2px dashed rgba(139, 92, 246, 0.5)"
+                  : imagePreview || event.imageUrl
+                    ? "1px solid rgba(255,255,255,0.1)"
+                    : "1px solid rgba(255,255,255,0.06)",
+                position: "relative",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                transform: isDragging ? "scale(1.01)" : "scale(1)",
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const file = e.dataTransfer.files[0];
+                if (file) {
+                  handleImageUpload({ target: { files: [file] } });
+                }
               }}
             >
-              <img
-                src={event.imageUrl}
-                alt={event.title || "Event"}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                }}
+              {imagePreview || event.imageUrl ? (
+                <>
+                  <img
+                    src={imagePreview || event.imageUrl}
+                    alt={event.title || "Event"}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background:
+                        "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: 0,
+                      transition: "opacity 0.3s ease",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.opacity = "1")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.opacity = "0")
+                    }
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: "8px",
+                        color: "#fff",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "32px",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        📷
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        Change Image
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "16px",
+                    background:
+                      "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(236, 72, 153, 0.12) 100%)",
+                    color: "#fff",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "48px",
+                      opacity: 0.9,
+                    }}
+                  >
+                    🖼️
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      opacity: 0.9,
+                      textAlign: "center",
+                      padding: "0 16px",
+                    }}
+                  >
+                    {isDragging
+                      ? "Drop image here"
+                      : "Click or drag to upload"}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      opacity: 0.6,
+                      textAlign: "center",
+                      padding: "0 16px",
+                    }}
+                  >
+                    JPG, PNG, or GIF (max 5MB)
+                  </div>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                style={{ display: "none" }}
               />
+              {(imagePreview || event.imageUrl) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImagePreview(null);
+                    setEvent({ ...event, imageUrl: null });
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = "";
+                    }
+                  }}
+                  style={{
+                    position: "absolute",
+                    top: "12px",
+                    right: "12px",
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "50%",
+                    background: "rgba(0,0,0,0.7)",
+                    backdropFilter: "blur(10px)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    fontSize: "16px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    color: "#fff",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = "rgba(239, 68, 68, 0.8)";
+                    e.target.style.transform = "scale(1.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = "rgba(0,0,0,0.7)";
+                    e.target.style.transform = "scale(1)";
+                  }}
+                >
+                  ✕
+                </button>
+              )}
             </div>
-          )}
+          </div>
 
           <h1
             style={{
@@ -425,7 +695,18 @@ export function ManageEventPage() {
               paddingBottom: "16px",
             }}
           >
-            <span style={{ fontWeight: 600, color: "#fff" }}>Overview</span>
+            <span
+              style={{
+                fontWeight: 600,
+                color: "#fff",
+                padding: "8px 16px",
+                background: "rgba(139, 92, 246, 0.1)",
+                borderRadius: "8px",
+                border: "1px solid rgba(139, 92, 246, 0.2)",
+              }}
+            >
+              Overview
+            </span>
             <button
               onClick={() => navigate(`/app/events/${id}/guests`)}
               style={{
@@ -433,12 +714,20 @@ export function ManageEventPage() {
                 border: "none",
                 color: "#bbb",
                 cursor: "pointer",
-                transition: "color 0.3s ease",
+                transition: "all 0.3s ease",
+                padding: "8px 16px",
+                borderRadius: "8px",
               }}
-              onMouseEnter={(e) => (e.target.style.color = "#fff")}
-              onMouseLeave={(e) => (e.target.style.color = "#bbb")}
+              onMouseEnter={(e) => {
+                e.target.style.color = "#fff";
+                e.target.style.background = "rgba(255,255,255,0.05)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.color = "#bbb";
+                e.target.style.background = "transparent";
+              }}
             >
-              Guests
+              👥 Guests ({guestsCount})
             </button>
           </div>
 
@@ -531,30 +820,86 @@ export function ManageEventPage() {
               />
             </label>
 
-            <label
+            <div
               style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                opacity: 0.9,
+                background: "rgba(20, 16, 30, 0.2)",
+                borderRadius: "16px",
+                padding: "20px",
+                border: "1px solid rgba(255,255,255,0.05)",
+                marginBottom: "24px",
               }}
             >
-              Starts at
-              <input
-                type="datetime-local"
-                value={event.startsAtLocal || ""}
-                onChange={(e) =>
-                  setEvent({ ...event, startsAtLocal: e.target.value })
-                }
-                onFocus={() => setFocusedField("startsAt")}
-                onBlur={() => setFocusedField(null)}
-                style={
-                  focusedField === "startsAt" ? focusedInputStyle : inputStyle
-                }
-              />
-            </label>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginBottom: "16px",
+                }}
+              >
+                <span style={{ fontSize: "18px" }}>🕒</span>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.15em",
+                    opacity: 0.7,
+                  }}
+                >
+                  Event Schedule
+                </div>
+              </div>
+
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginBottom: "10px",
+                  opacity: 0.9,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "10px",
+                      height: "10px",
+                      borderRadius: "50%",
+                      background:
+                        "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                      border: "2px solid rgba(255,255,255,0.1)",
+                    }}
+                  />
+                  <span>Start Date & Time</span>
+                  <span style={{ opacity: 0.5, fontWeight: 400 }}>*</span>
+                </div>
+                <input
+                  type="datetime-local"
+                  value={event.startsAtLocal || ""}
+                  onChange={(e) =>
+                    setEvent({ ...event, startsAtLocal: e.target.value })
+                  }
+                  onFocus={() => setFocusedField("startsAt")}
+                  onBlur={() => setFocusedField(null)}
+                  style={{
+                    ...(focusedField === "startsAt"
+                      ? focusedInputStyle
+                      : inputStyle),
+                    fontSize: "15px",
+                    padding: "12px 16px",
+                    cursor: "pointer",
+                  }}
+                />
+              </label>
+            </div>
 
             {/* Capacity + waitlist */}
             <div
@@ -797,69 +1142,357 @@ export function ManageEventPage() {
             {event.dinnerEnabled && (
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.3fr 0.7fr",
-                  gap: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "20px",
+                  padding: "24px",
+                  background:
+                    "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%)",
+                  borderRadius: "16px",
+                  border: "1px solid rgba(139, 92, 246, 0.2)",
                 }}
               >
-                <label
+                <div
                   style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    opacity: 0.9,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    marginBottom: "4px",
                   }}
                 >
-                  Dinner time
-                  <input
-                    type="datetime-local"
-                    value={event.dinnerTimeLocal || ""}
-                    onChange={(e) =>
-                      setEvent({ ...event, dinnerTimeLocal: e.target.value })
-                    }
-                    onFocus={() => setFocusedField("dinnerTime")}
-                    onBlur={() => setFocusedField(null)}
-                    style={
-                      focusedField === "dinnerTime"
-                        ? focusedInputStyle
-                        : inputStyle
-                    }
-                  />
-                </label>
+                  <span style={{ fontSize: "20px" }}>🍽️</span>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      opacity: 0.9,
+                    }}
+                  >
+                    Dinner Configuration
+                  </div>
+                </div>
 
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    opacity: 0.9,
-                  }}
-                >
-                  Dinner seats
-                  <input
-                    type="number"
-                    min="1"
-                    value={event.dinnerMaxSeatsInput}
-                    placeholder="Unlimited"
-                    onChange={(e) =>
-                      setEvent({
-                        ...event,
-                        dinnerMaxSeatsInput: e.target.value,
-                      })
-                    }
-                    onFocus={() => setFocusedField("dinnerSeats")}
-                    onBlur={() => setFocusedField(null)}
-                    style={
-                      focusedField === "dinnerSeats"
-                        ? focusedInputStyle
-                        : inputStyle
-                    }
-                  />
-                </label>
+                {/* Time Range */}
+                <div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      opacity: 0.7,
+                      marginBottom: "12px",
+                    }}
+                  >
+                    Dinner Time Window
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "12px",
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "12px",
+                        opacity: 0.8,
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Start Time
+                      <input
+                        type="datetime-local"
+                        value={event.dinnerStartTimeLocal || ""}
+                        onChange={(e) =>
+                          setEvent({
+                            ...event,
+                            dinnerStartTimeLocal: e.target.value,
+                          })
+                        }
+                        onFocus={() => setFocusedField("dinnerStartTime")}
+                        onBlur={() => setFocusedField(null)}
+                        style={{
+                          ...(focusedField === "dinnerStartTime"
+                            ? focusedInputStyle
+                            : inputStyle),
+                          fontSize: "14px",
+                          padding: "12px 14px",
+                          marginTop: "8px",
+                          cursor: "pointer",
+                        }}
+                      />
+                    </label>
+
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "12px",
+                        opacity: 0.8,
+                        marginBottom: "8px",
+                      }}
+                    >
+                      End Time
+                      <input
+                        type="datetime-local"
+                        value={event.dinnerEndTimeLocal || ""}
+                        onChange={(e) =>
+                          setEvent({
+                            ...event,
+                            dinnerEndTimeLocal: e.target.value,
+                          })
+                        }
+                        onFocus={() => setFocusedField("dinnerEndTime")}
+                        onBlur={() => setFocusedField(null)}
+                        style={{
+                          ...(focusedField === "dinnerEndTime"
+                            ? focusedInputStyle
+                            : inputStyle),
+                          fontSize: "14px",
+                          padding: "12px 14px",
+                          marginTop: "8px",
+                          cursor: "pointer",
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Seating Configuration */}
+                <div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      opacity: 0.7,
+                      marginBottom: "12px",
+                    }}
+                  >
+                    Seating Settings
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "12px",
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "12px",
+                        opacity: 0.8,
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Hours Between Seatings
+                      <input
+                        type="number"
+                        min="0.5"
+                        max="12"
+                        step="0.5"
+                        value={event.dinnerSeatingIntervalHoursInput || "2"}
+                        onChange={(e) =>
+                          setEvent({
+                            ...event,
+                            dinnerSeatingIntervalHoursInput: e.target.value,
+                          })
+                        }
+                        onFocus={() => setFocusedField("dinnerInterval")}
+                        onBlur={() => setFocusedField(null)}
+                        style={{
+                          ...(focusedField === "dinnerInterval"
+                            ? focusedInputStyle
+                            : inputStyle),
+                          fontSize: "14px",
+                          padding: "12px 14px",
+                          marginTop: "8px",
+                        }}
+                      />
+                    </label>
+
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "12px",
+                        opacity: 0.8,
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Max Seats Per Slot
+                      <input
+                        type="number"
+                        min="1"
+                        value={event.dinnerMaxSeatsPerSlotInput || ""}
+                        placeholder="Unlimited"
+                        onChange={(e) =>
+                          setEvent({
+                            ...event,
+                            dinnerMaxSeatsPerSlotInput: e.target.value,
+                          })
+                        }
+                        onFocus={() => setFocusedField("dinnerSeats")}
+                        onBlur={() => setFocusedField(null)}
+                        style={{
+                          ...(focusedField === "dinnerSeats"
+                            ? focusedInputStyle
+                            : inputStyle),
+                          fontSize: "14px",
+                          padding: "12px 14px",
+                          marginTop: "8px",
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Overflow Handling */}
+                {event.dinnerMaxSeatsPerSlotInput && (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        opacity: 0.7,
+                        marginBottom: "12px",
+                      }}
+                    >
+                      When Dinner Seats Are Full
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "10px",
+                      }}
+                    >
+                      {[
+                        {
+                          value: "waitlist",
+                          label: "Add to Waitlist",
+                          description:
+                            "Keep them on the waitlist for dinner seats",
+                          icon: "📋",
+                        },
+                        {
+                          value: "cocktails",
+                          label: "Invite for Cocktails",
+                          description:
+                            "Invite them to join for cocktails after dinner",
+                          icon: "🥂",
+                        },
+                        {
+                          value: "both",
+                          label: "Both Options",
+                          description:
+                            "Add to waitlist AND invite for cocktails",
+                          icon: "✨",
+                        },
+                      ].map((option) => (
+                        <label
+                          key={option.value}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "12px",
+                            padding: "14px",
+                            borderRadius: "12px",
+                            border:
+                              event.dinnerOverflowAction === option.value
+                                ? "2px solid #8b5cf6"
+                                : "1px solid rgba(255,255,255,0.1)",
+                            background:
+                              event.dinnerOverflowAction === option.value
+                                ? "rgba(139, 92, 246, 0.15)"
+                                : "rgba(20, 16, 30, 0.4)",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (
+                              event.dinnerOverflowAction !== option.value
+                            ) {
+                              e.currentTarget.style.background =
+                                "rgba(20, 16, 30, 0.6)";
+                              e.currentTarget.style.borderColor =
+                                "rgba(255,255,255,0.2)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (
+                              event.dinnerOverflowAction !== option.value
+                            ) {
+                              e.currentTarget.style.background =
+                                "rgba(20, 16, 30, 0.4)";
+                              e.currentTarget.style.borderColor =
+                                "rgba(255,255,255,0.1)";
+                            }
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="dinnerOverflow"
+                            value={option.value}
+                            checked={
+                              event.dinnerOverflowAction === option.value
+                            }
+                            onChange={(e) =>
+                              setEvent({
+                                ...event,
+                                dinnerOverflowAction: e.target.value,
+                              })
+                            }
+                            style={{
+                              marginTop: "2px",
+                              width: "18px",
+                              height: "18px",
+                              cursor: "pointer",
+                              accentColor: "#8b5cf6",
+                            }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              <span style={{ fontSize: "16px" }}>
+                                {option.icon}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {option.label}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                opacity: 0.7,
+                                paddingLeft: "24px",
+                              }}
+                            >
+                              {option.description}
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

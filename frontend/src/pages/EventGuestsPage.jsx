@@ -3,19 +3,6 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 
 const API_BASE = "http://localhost:3001";
 
-const pageStyle = {
-  minHeight: "100vh",
-  background: "#05040A",
-  color: "#fff",
-  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-};
-
-const shellStyle = {
-  maxWidth: "800px",
-  margin: "0 auto",
-  padding: "32px 16px",
-};
-
 export function EventGuestsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -43,23 +30,23 @@ export function EventGuestsPage() {
 
   if (loading) {
     return (
-      <div style={pageStyle}>
-        <div style={shellStyle}>Loading guests…</div>
+      <div className="responsive-container page-with-header">
+        <div className="responsive-card">Loading guests…</div>
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div style={pageStyle}>
-        <div style={shellStyle}>Event not found.</div>
+      <div className="responsive-container page-with-header">
+        <div className="responsive-card">Event not found.</div>
       </div>
     );
   }
 
   return (
-    <div style={pageStyle}>
-      <div style={shellStyle}>
+    <div className="responsive-container page-with-header">
+      <div className="responsive-card">
         <div style={{ marginBottom: "16px", fontSize: "14px", opacity: 0.7 }}>
           <Link to="/home" style={{ color: "#aaa", textDecoration: "none" }}>
             ← Back to home

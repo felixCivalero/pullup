@@ -5,38 +5,40 @@ export function LandingPage() {
 
   return (
     <div
+      className="responsive-container"
       style={{
         minHeight: "100vh",
-        background: "#05040A",
-        color: "#fff",
         display: "flex",
-        alignItems: "center",
         justifyContent: "center",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        alignItems: "center",
       }}
     >
       <div
+        className="responsive-card"
         style={{
           textAlign: "center",
-          padding: "32px",
-          borderRadius: "24px",
-          background: "#0C0A12",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
           maxWidth: "480px",
           width: "100%",
         }}
       >
         <div
-          style={{ fontSize: "12px", textTransform: "uppercase", opacity: 0.7 }}
+          style={{
+            fontSize: "12px",
+            textTransform: "uppercase",
+            opacity: 0.7,
+          }}
         >
           PullUp
         </div>
+
         <h1 style={{ fontSize: "28px", margin: "12px 0 8px" }}>
           The fastest way to make a sexy RSVP link
         </h1>
+
         <p style={{ fontSize: "14px", opacity: 0.8, marginBottom: "24px" }}>
           Create a link in seconds. Drop it in your bio. Let people pull up.
         </p>
+
         <button
           onClick={() => navigate("/create")}
           style={{

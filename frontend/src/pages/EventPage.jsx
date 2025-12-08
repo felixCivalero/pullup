@@ -35,38 +35,20 @@ export function EventPage() {
 
   if (loading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#05040A",
-          color: "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily:
-            "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-        }}
-      >
-        Loading event…
+      <div className="responsive-container">
+        <div className="responsive-card" style={{ textAlign: "center" }}>
+          Loading event…
+        </div>
       </div>
     );
   }
 
   if (notFound || !event) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#05040A",
-          color: "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily:
-            "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-        }}
-      >
-        Event not found.
+      <div className="responsive-container">
+        <div className="responsive-card" style={{ textAlign: "center" }}>
+          Event not found.
+        </div>
       </div>
     );
   }
@@ -92,5 +74,9 @@ export function EventPage() {
     }
   }
 
-  return <EventCard event={event} onRsvp={handleRsvp} />;
+  return (
+    <div className="responsive-container">
+      <EventCard event={event} onRsvp={handleRsvp} />
+    </div>
+  );
 }

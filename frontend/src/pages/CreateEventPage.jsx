@@ -13,6 +13,7 @@ const inputStyle = {
   color: "#fff",
   fontSize: "14px",
   outline: "none",
+  boxSizing: "border-box",
 };
 
 export function CreateEventPage() {
@@ -59,26 +60,14 @@ export function CreateEventPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#05040A",
-        color: "#fff",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-      }}
-    >
+    <div className="responsive-container page-with-header">
       <form
         onSubmit={handleCreate}
+        className="responsive-card"
         style={{
-          background: "#0C0A12",
-          padding: "32px",
-          borderRadius: "24px",
           width: "100%",
           maxWidth: "480px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+          margin: "0 auto",
         }}
       >
         <h1 style={{ fontSize: "24px", marginBottom: "16px" }}>

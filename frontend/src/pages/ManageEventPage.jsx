@@ -3,19 +3,6 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 
 const API_BASE = "http://localhost:3001";
 
-const pageStyle = {
-  minHeight: "100vh",
-  background: "#05040A",
-  color: "#fff",
-  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-};
-
-const shellStyle = {
-  maxWidth: "800px",
-  margin: "0 auto",
-  padding: "32px 16px",
-};
-
 const inputStyle = {
   width: "100%",
   marginTop: "4px",
@@ -26,6 +13,7 @@ const inputStyle = {
   color: "#fff",
   fontSize: "14px",
   outline: "none",
+  boxSizing: "border-box",
 };
 
 export function ManageEventPage() {
@@ -95,23 +83,29 @@ export function ManageEventPage() {
 
   if (loading) {
     return (
-      <div style={pageStyle}>
-        <div style={shellStyle}>Loading event…</div>
+      <div className="responsive-container page-with-header">
+        <div className="responsive-card">Loading event…</div>
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div style={pageStyle}>
-        <div style={shellStyle}>Event not found.</div>
+      <div className="responsive-container page-with-header">
+        <div className="responsive-card">Event not found.</div>
       </div>
     );
   }
 
   return (
-    <div style={pageStyle}>
-      <div style={shellStyle}>
+    <div className="responsive-container page-with-header">
+      <div
+        className="responsive-card"
+        style={{
+          maxWidth: "800px",
+          margin: "0 auto",
+        }}
+      >
         <div style={{ marginBottom: "16px", fontSize: "14px", opacity: 0.7 }}>
           <Link to="/home" style={{ color: "#aaa", textDecoration: "none" }}>
             ← Back to home
@@ -121,6 +115,7 @@ export function ManageEventPage() {
         <h1 style={{ marginBottom: "8px" }}>
           {event.title || "Untitled event"}
         </h1>
+
         <div style={{ marginBottom: "16px", fontSize: "13px", opacity: 0.8 }}>
           Public link:{" "}
           <a

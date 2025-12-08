@@ -25,8 +25,10 @@ export function HomePage() {
 
   if (loading) {
     return (
-      <div style={pageStyle}>
-        <div>Loading events…</div>
+      <div className="responsive-container page-with-header">
+        <div className="responsive-card" style={{ textAlign: "center" }}>
+          Loading events…
+        </div>
       </div>
     );
   }
@@ -34,16 +36,13 @@ export function HomePage() {
   // No events → empty state
   if (!events || events.length === 0) {
     return (
-      <div style={pageStyle}>
+      <div className="responsive-container page-with-header">
         <div
+          className="responsive-card"
           style={{
-            background: "#0C0A12",
-            padding: "32px",
-            borderRadius: "24px",
             textAlign: "center",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
             maxWidth: "480px",
-            width: "100%",
+            margin: "0 auto",
           }}
         >
           <h2 style={{ marginBottom: "8px" }}>No PullUps yet</h2>
@@ -60,15 +59,13 @@ export function HomePage() {
 
   // Has events → list them
   return (
-    <div style={pageStyle}>
+    <div className="responsive-container page-with-header">
       <div
+        className="responsive-card"
         style={{
-          background: "#0C0A12",
-          padding: "32px",
-          borderRadius: "24px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
           width: "100%",
           maxWidth: "600px",
+          margin: "0 auto",
         }}
       >
         <h2 style={{ marginBottom: "16px" }}>Your PullUps</h2>
@@ -118,16 +115,6 @@ export function HomePage() {
     </div>
   );
 }
-
-const pageStyle = {
-  minHeight: "100vh",
-  background: "#05040A",
-  color: "#fff",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-};
 
 const buttonStyle = {
   padding: "12px 24px",

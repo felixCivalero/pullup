@@ -13,6 +13,8 @@ import {
   getRsvpsForEvent,
   generateDinnerTimeSlots,
   getDinnerSlotCounts,
+  getEventCounts,
+  getCocktailsOnlyCount,
   findRsvpById,
   updateRsvp,
   deleteRsvp,
@@ -64,7 +66,22 @@ app.get("/events/:slug", (req, res) => {
 
   if (!event) return res.status(404).json({ error: "Event not found" });
 
-  res.json(event);
+  // Include current attendance counts for capacity warnings
+  const { attending } = getEventCounts(event.id);
+  // Calculate cocktails-only (people attending cocktails but not confirmed for dinner)
+  const cocktailsOnly = getCocktailsOnlyCount(event.id);
+  const cocktailSpotsLeft =
+    event.cocktailCapacity != null
+      ? Math.max(0, event.cocktailCapacity - cocktailsOnly)
+      : null;
+
+  res.json({
+    ...event,
+    _attendance: {
+      attending,
+      cocktailSpotsLeft,
+    },
+  });
 });
 
 // ---------------------------

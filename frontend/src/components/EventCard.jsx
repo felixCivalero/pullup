@@ -42,6 +42,9 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
   const totalCapacity = event.totalCapacity ?? null;
   const hasCapacity = cocktailCapacity !== null && cocktailCapacity > 0;
 
+  // Get attendance data for capacity warnings
+  const cocktailSpotsLeft = event._attendance?.cocktailSpotsLeft ?? null;
+
   const maxPlusOnes =
     typeof event.maxPlusOnesPerGuest === "number" &&
     event.maxPlusOnesPerGuest > 0
@@ -99,6 +102,14 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
 
     if (wantsDinner && !dinnerTimeSlot) {
       setError("Please select a dinner time slot");
+      return;
+    }
+
+    // Validate dinner party size limit (max 8)
+    if (wantsDinner && dinnerPartySize > 8) {
+      setError(
+        "For parties larger than 8, please contact us directly via email or phone to make arrangements."
+      );
       return;
     }
 
@@ -509,7 +520,40 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                     disabled={loading}
                   />
                 </label>
-
+                {/* Cocktail Capacity Warning */}
+                {cocktailSpotsLeft !== null && cocktailSpotsLeft <= 10 && (
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      background:
+                        cocktailSpotsLeft <= 5
+                          ? "rgba(239, 68, 68, 0.15)"
+                          : "rgba(245, 158, 11, 0.15)",
+                      border:
+                        cocktailSpotsLeft <= 5
+                          ? "1px solid rgba(239, 68, 68, 0.3)"
+                          : "1px solid rgba(245, 158, 11, 0.3)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: cocktailSpotsLeft <= 5 ? "#ef4444" : "#f59e0b",
+                    }}
+                  >
+                    <span style={{ fontSize: "14px" }}>
+                      {cocktailSpotsLeft <= 5 ? "⚠️" : "⚡"}
+                    </span>
+                    <span>
+                      {cocktailSpotsLeft <= 5
+                        ? `Only ${cocktailSpotsLeft} spot${
+                            cocktailSpotsLeft === 1 ? "" : "s"
+                          } left`
+                        : "Few spots left"}
+                    </span>
+                  </div>
+                )}
                 {/* Plus-ones */}
                 {maxPlusOnes > 0 && (
                   <label
@@ -522,7 +566,10 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                       letterSpacing: "0.05em",
                     }}
                   >
-                    Bringing friends? (0–{maxPlusOnes})
+                    Add plus-ones?{" "}
+                    <span style={{ opacity: 0.5 }}>
+                      (max: +{maxPlusOnes} on your list)
+                    </span>
                     <input
                       type="number"
                       min="0"
@@ -691,12 +738,24 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                                   {slot.remaining !== null && (
                                     <div
                                       style={{
-                                        fontSize: "9px",
-                                        opacity: 0.7,
-                                        marginTop: "2px",
+                                        fontSize:
+                                          slot.remaining <= 5 ? "10px" : "9px",
+                                        fontWeight:
+                                          slot.remaining <= 5 ? 700 : 500,
+                                        marginTop: "4px",
+                                        color:
+                                          slot.remaining <= 5
+                                            ? "#ef4444"
+                                            : slot.remaining <= 10
+                                            ? "#f59e0b"
+                                            : "rgba(255, 255, 255, 0.7)",
                                       }}
                                     >
-                                      {slot.remaining} left
+                                      {slot.remaining <= 5
+                                        ? `Only ${slot.remaining} left`
+                                        : slot.remaining <= 10
+                                        ? "Few spots left"
+                                        : `${slot.remaining} left`}
                                     </div>
                                   )}
                                 </button>
@@ -714,15 +773,23 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                                 letterSpacing: "0.05em",
                               }}
                             >
-                              Party Size for Dinner
+                              Seats for cuisine{" "}
+                              <span style={{ opacity: 0.5 }}>
+                                (If more than 8, please contact us directly via
+                                email or phone)
+                              </span>
                               <input
                                 type="number"
                                 min="1"
+                                max="8"
                                 value={dinnerPartySize}
                                 onChange={(e) => {
                                   const val = Math.max(
                                     1,
-                                    parseInt(e.target.value, 10) || 1
+                                    Math.min(
+                                      8,
+                                      parseInt(e.target.value, 10) || 1
+                                    )
                                   );
                                   setDinnerPartySize(val);
                                 }}
@@ -730,6 +797,13 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                                   ...inputStyle,
                                   marginTop: "8px",
                                   fontSize: "14px",
+                                  ...(dinnerPartySize > 8
+                                    ? {
+                                        border: "1px solid #ef4444",
+                                        boxShadow:
+                                          "0 0 0 3px rgba(239, 68, 68, 0.1)",
+                                      }
+                                    : {}),
                                 }}
                                 placeholder="1"
                                 disabled={loading}
@@ -745,6 +819,39 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                                 Total number of people for dinner (including
                                 you)
                               </div>
+                              {dinnerPartySize > 8 && (
+                                <div
+                                  style={{
+                                    marginTop: "10px",
+                                    padding: "14px 16px",
+                                    background: "rgba(239, 68, 68, 0.12)",
+                                    borderRadius: "12px",
+                                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                                    fontSize: "12px",
+                                    color: "#ef4444",
+                                    lineHeight: "1.6",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontWeight: 700,
+                                      marginBottom: "6px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "8px",
+                                      fontSize: "13px",
+                                    }}
+                                  >
+                                    <span style={{ fontSize: "16px" }}>⚠️</span>
+                                    <span>Large party booking</span>
+                                  </div>
+                                  <div style={{ opacity: 0.95 }}>
+                                    For parties larger than 8, please contact us
+                                    directly via email or phone to make
+                                    arrangements.
+                                  </div>
+                                </div>
+                              )}
                             </label>
                           </>
                         )}
@@ -766,6 +873,103 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                     }}
                   >
                     {error}
+                  </div>
+                )}
+
+                {/* Summary */}
+                {(wantsDinner || plusOnes > 0) && (
+                  <div
+                    style={{
+                      marginTop: "24px",
+                      padding: "18px 20px",
+                      background:
+                        "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(236, 72, 153, 0.08) 100%)",
+                      borderRadius: "14px",
+                      border: "1px solid rgba(139, 92, 246, 0.25)",
+                      backdropFilter: "blur(10px)",
+                      boxShadow: "0 4px 20px rgba(139, 92, 246, 0.1)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "16px",
+                        flexWrap: "wrap",
+                        marginBottom: "12px",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                        color: "#fff",
+                      }}
+                    >
+                      {wantsDinner && (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "4px 0",
+                          }}
+                        >
+                          <span style={{ fontSize: "16px", opacity: 0.9 }}>
+                            🍽️
+                          </span>
+                          <span style={{ fontWeight: 600 }}>
+                            {dinnerPartySize} dinner seat
+                            {dinnerPartySize !== 1 ? "s" : ""}
+                          </span>
+                        </span>
+                      )}
+                      {plusOnes > 0 && (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "4px 0",
+                          }}
+                        >
+                          <span style={{ fontSize: "16px", opacity: 0.9 }}>
+                            👥
+                          </span>
+                          <span style={{ fontWeight: 600 }}>
+                            +{plusOnes} on the list
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "rgba(255, 255, 255, 0.75)",
+                        paddingTop: "12px",
+                        borderTop: "1px solid rgba(255, 255, 255, 0.12)",
+                        lineHeight: "1.5",
+                      }}
+                    >
+                      Your total party is{" "}
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          color: "#fff",
+                          background:
+                            "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          backgroundClip: "text",
+                        }}
+                      >
+                        {(() => {
+                          const partySize = 1 + plusOnes;
+                          if (wantsDinner) {
+                            // Total unique guests = partySize + (dinnerPartySize - 1)
+                            return partySize + (dinnerPartySize - 1);
+                          }
+                          return partySize;
+                        })()}
+                      </span>{" "}
+                      including you
+                    </div>
                   </div>
                 )}
 

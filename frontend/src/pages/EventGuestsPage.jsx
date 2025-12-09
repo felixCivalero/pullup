@@ -39,11 +39,12 @@ export function EventGuestsPage() {
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [networkError, setNetworkError] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [dinnerFilter, setDinnerFilter] = useState("all");
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [editingGuest, setEditingGuest] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [dinnerSlots, setDinnerSlots] = useState([]);
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
 
   useEffect(() => {
     function handleMouseMove(e) {
@@ -62,6 +63,21 @@ export function EventGuestsPage() {
         const data = await res.json();
         setEvent(data.event);
         setGuests(data.guests || []);
+
+        // Load dinner slots if dinner is enabled
+        if (data.event?.dinnerEnabled) {
+          try {
+            const slotsRes = await fetch(
+              `${API_BASE}/events/${data.event.slug}/dinner-slots`
+            );
+            if (slotsRes.ok) {
+              const slotsData = await slotsRes.json();
+              setDinnerSlots(slotsData.slots || []);
+            }
+          } catch (err) {
+            console.error("Failed to load dinner slots", err);
+          }
+        }
       } catch (err) {
         console.error(err);
         if (isNetworkError(err)) {
@@ -330,17 +346,63 @@ export function EventGuestsPage() {
   const totalSpotsLeft =
     totalCapacity != null ? Math.max(totalCapacity - attending, 0) : null;
 
-  const filteredGuests = guests.filter((g) => {
-    if (statusFilter !== "all" && g.status !== statusFilter) return false;
-    if (dinnerFilter === "with_dinner" && !g.wantsDinner) return false;
-    if (dinnerFilter === "no_dinner" && g.wantsDinner) return false;
-    if (dinnerFilter === "dinner_confirmed" && g.dinnerStatus !== "confirmed")
-      return false;
-    if (dinnerFilter === "dinner_waitlist" && g.dinnerStatus !== "waitlist")
-      return false;
-    if (dinnerFilter === "cocktails" && g.dinnerStatus !== "cocktails")
-      return false;
-    return true;
+  // No filtering - all guests are shown (can be sorted)
+  const filteredGuests = guests;
+
+  // Sorting function
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      // New column, default to ascending
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  // Apply sorting
+  const sortedGuests = [...filteredGuests].sort((a, b) => {
+    if (!sortColumn) return 0;
+
+    let aValue, bValue;
+
+    switch (sortColumn) {
+      case "guest":
+        aValue = (a.name || "").toLowerCase();
+        bValue = (b.name || "").toLowerCase();
+        break;
+      case "status":
+        aValue = a.status || "";
+        bValue = b.status || "";
+        break;
+      case "cocktailList":
+        aValue = a.partySize || 1;
+        bValue = b.partySize || 1;
+        break;
+      case "dinnerParty":
+        aValue = a.dinnerPartySize || 0;
+        bValue = b.dinnerPartySize || 0;
+        break;
+      case "totalAttending":
+        aValue = a.totalGuests ?? a.partySize ?? 1;
+        bValue = b.totalGuests ?? b.partySize ?? 1;
+        break;
+      case "dinnerTime":
+        aValue = a.dinnerTimeSlot ? new Date(a.dinnerTimeSlot).getTime() : 0;
+        bValue = b.dinnerTimeSlot ? new Date(b.dinnerTimeSlot).getTime() : 0;
+        break;
+      case "rsvpDate":
+        aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        break;
+      default:
+        return 0;
+    }
+
+    if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+    if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+    return 0;
   });
 
   return (
@@ -545,26 +607,13 @@ export function EventGuestsPage() {
             }}
           >
             {/* Overview Section */}
-
             {totalCapacity != null && (
               <>
                 <StatCard
                   icon="📊"
                   label="Total Capacity"
-                  value={totalCapacity}
+                  value={`${attending}/${totalCapacity}`}
                   color="#fff"
-                />
-                <StatCard
-                  icon="👥"
-                  label="Total attending"
-                  value={attending}
-                  color="linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
-                />
-                <StatCard
-                  icon="✨"
-                  label="Total Spots Left"
-                  value={totalSpotsLeft}
-                  color="#8b5cf6"
                 />
               </>
             )}
@@ -575,57 +624,13 @@ export function EventGuestsPage() {
                 <StatCard
                   icon="🥂"
                   label="Cocktail Capacity"
-                  value={cocktailCapacity}
-                  color="#f59e0b"
-                />
-                {event.dinnerEnabled && (
-                  <StatCard
-                    icon="🥂"
-                    label="Cocktails"
-                    value={stats.cocktailsOnly}
-                    color="#f59e0b"
-                  />
-                )}
-                <StatCard
-                  icon="✨"
-                  label="Cocktail Spots Left"
-                  value={cocktailSpotsLeft}
+                  value={`${stats.cocktailsOnly}/${cocktailCapacity}`}
                   color="#f59e0b"
                 />
               </>
             )}
 
-            {/* Dinner Section */}
-            {event.dinnerEnabled && foodCapacity != null && (
-              <>
-                <StatCard
-                  icon="🍽️"
-                  label="Dinner Capacity"
-                  value={foodCapacity}
-                  color="#10b981"
-                />
-                <StatCard
-                  icon="🍽️"
-                  label="Dinner Confirmed"
-                  value={stats.dinnerConfirmed}
-                  color="#10b981"
-                />
-                <StatCard
-                  icon="✨"
-                  label="Dinner Spots Left"
-                  value={foodSpotsLeft}
-                  color="#10b981"
-                />
-                {stats.dinnerWaitlist > 0 && (
-                  <StatCard
-                    icon="⏳"
-                    label="Dinner Waitlist"
-                    value={stats.dinnerWaitlist}
-                    color="#ec4899"
-                  />
-                )}
-              </>
-            )}
+            {/* Waitlist */}
             <StatCard
               icon="📋"
               label="Waitlist"
@@ -634,111 +639,141 @@ export function EventGuestsPage() {
             />
           </div>
 
-          {/* Filters */}
-          <div
-            style={{
-              marginBottom: "32px",
-              padding: "24px",
-              background: "rgba(20, 16, 30, 0.5)",
-              borderRadius: "20px",
-              border: "1px solid rgba(255,255,255,0.08)",
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "12px",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.15em",
-                opacity: 0.9,
-                marginBottom: "20px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <span>🔍</span>
-              <span>Filters</span>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "20px",
-              }}
-            >
-              <div>
+          {/* Dinner Slots Section */}
+          {event &&
+            event.dinnerEnabled &&
+            event.dinnerMaxSeatsPerSlot &&
+            dinnerSlots.length > 0 && (
+              <div
+                style={{
+                  marginBottom: "32px",
+                  padding: "28px",
+                  background:
+                    "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(139, 92, 246, 0.06) 100%)",
+                  borderRadius: "18px",
+                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                  backdropFilter: "blur(10px)",
+                  boxShadow: "0 8px 32px rgba(16, 185, 129, 0.1)",
+                }}
+              >
                 <div
                   style={{
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    opacity: 0.8,
-                    marginBottom: "12px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    marginBottom: "24px",
                   }}
                 >
-                  Event Status
-                </div>
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                  <FilterChip
-                    label="All"
-                    active={statusFilter === "all"}
-                    onClick={() => setStatusFilter("all")}
-                  />
-                  <FilterChip
-                    label="Attending"
-                    active={statusFilter === "attending"}
-                    onClick={() => setStatusFilter("attending")}
-                  />
-                  <FilterChip
-                    label="Waitlist"
-                    active={statusFilter === "waitlist"}
-                    onClick={() => setStatusFilter("waitlist")}
-                  />
-                </div>
-              </div>
-              {event.dinnerEnabled && (
-                <div>
+                  <span style={{ fontSize: "22px" }}>🍽️</span>
                   <div
                     style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      opacity: 0.8,
-                      marginBottom: "12px",
+                      fontSize: "13px",
+                      fontWeight: 700,
                       textTransform: "uppercase",
                       letterSpacing: "0.1em",
+                      opacity: 0.95,
+                      color: "#10b981",
                     }}
                   >
-                    Dinner Status
-                  </div>
-                  <div
-                    style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}
-                  >
-                    <FilterChip
-                      label="All"
-                      active={dinnerFilter === "all"}
-                      onClick={() => setDinnerFilter("all")}
-                    />
-                    <FilterChip
-                      label="With Dinner"
-                      active={dinnerFilter === "with_dinner"}
-                      onClick={() => setDinnerFilter("with_dinner")}
-                    />
-                    <FilterChip
-                      label="No Dinner"
-                      active={dinnerFilter === "no_dinner"}
-                      onClick={() => setDinnerFilter("no_dinner")}
-                    />
+                    Dinner Slots
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: "16px",
+                  }}
+                >
+                  {dinnerSlots.map((slot) => {
+                    const slotTime = new Date(slot.time);
+                    const confirmed = slot.confirmed || 0;
+                    const capacity = event.dinnerMaxSeatsPerSlot;
+                    return (
+                      <div
+                        key={slot.time}
+                        style={{
+                          padding: "18px",
+                          background: "rgba(20, 16, 30, 0.7)",
+                          borderRadius: "14px",
+                          border: "1px solid rgba(16, 185, 129, 0.25)",
+                          transition: "all 0.3s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "translateY(-2px)";
+                          e.currentTarget.style.borderColor =
+                            "rgba(16, 185, 129, 0.4)";
+                          e.currentTarget.style.boxShadow =
+                            "0 4px 16px rgba(16, 185, 129, 0.2)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "translateY(0)";
+                          e.currentTarget.style.borderColor =
+                            "rgba(16, 185, 129, 0.25)";
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            opacity: 0.75,
+                            marginBottom: "10px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                            color: "rgba(255, 255, 255, 0.8)",
+                          }}
+                        >
+                          {slotTime.toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "28px",
+                            fontWeight: 700,
+                            color: "#10b981",
+                            display: "flex",
+                            alignItems: "baseline",
+                            gap: "6px",
+                            lineHeight: "1",
+                          }}
+                        >
+                          <span>{confirmed}</span>
+                          <span
+                            style={{
+                              fontSize: "18px",
+                              opacity: 0.5,
+                              fontWeight: 500,
+                              color: "rgba(255, 255, 255, 0.6)",
+                            }}
+                          >
+                            /{capacity}
+                          </span>
+                        </div>
+                        {slot.waitlist > 0 && (
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#ec4899",
+                              marginTop: "8px",
+                              opacity: 0.9,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {slot.waitlist} on waitlist
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
           {/* Guests Table */}
-          {filteredGuests.length === 0 ? (
+          {sortedGuests.length === 0 ? (
             <div
               style={{
                 background: "rgba(20, 16, 30, 0.6)",
@@ -783,124 +818,76 @@ export function EventGuestsPage() {
                       borderBottom: "2px solid rgba(139, 92, 246, 0.3)",
                     }}
                   >
-                    <th
-                      style={{
-                        padding: "20px 24px",
-                        textAlign: "left",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.12em",
-                        opacity: 0.95,
-                        color: "#fff",
-                      }}
-                    >
-                      Guest
-                    </th>
-                    <th
-                      style={{
-                        padding: "20px 24px",
-                        textAlign: "left",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.12em",
-                        opacity: 0.95,
-                        color: "#fff",
-                      }}
-                    >
-                      Status
-                    </th>
+                    <SortableHeader
+                      column="guest"
+                      label="Guest"
+                      sortColumn={sortColumn}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                      align="left"
+                    />
+                    <SortableHeader
+                      column="status"
+                      label="Status"
+                      sortColumn={sortColumn}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                      align="left"
+                    />
                     {event.dinnerEnabled && (
                       <>
-                        <th
-                          style={{
-                            padding: "20px 24px",
-                            textAlign: "center",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.12em",
-                            opacity: 0.95,
-                            color: "#fff",
-                          }}
-                        >
-                          Cocktail List
-                        </th>
-                        <th
-                          style={{
-                            padding: "20px 24px",
-                            textAlign: "center",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.12em",
-                            opacity: 0.95,
-                            color: "#fff",
-                          }}
-                        >
-                          Dinner Party
-                        </th>
-                        <th
-                          style={{
-                            padding: "20px 24px",
-                            textAlign: "center",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.12em",
-                            opacity: 0.95,
-                            color: "#fff",
-                          }}
-                        >
-                          Total Attending
-                        </th>
-                        <th
-                          style={{
-                            padding: "20px 24px",
-                            textAlign: "center",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.12em",
-                            opacity: 0.95,
-                            color: "#fff",
-                          }}
-                        >
-                          Dinner Time
-                        </th>
+                        <SortableHeader
+                          column="cocktailList"
+                          label="Cocktail List"
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                          align="center"
+                        />
+                        <SortableHeader
+                          column="dinnerParty"
+                          label="Dinner Party"
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                          align="center"
+                        />
+                        <SortableHeader
+                          column="totalAttending"
+                          label="Total Attending"
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                          align="center"
+                        />
+                        <SortableHeader
+                          column="dinnerTime"
+                          label="Dinner Time"
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                          align="center"
+                        />
                       </>
                     )}
                     {!event.dinnerEnabled && (
-                      <th
-                        style={{
-                          padding: "20px 24px",
-                          textAlign: "center",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.12em",
-                          opacity: 0.95,
-                          color: "#fff",
-                        }}
-                      >
-                        Total Guests
-                      </th>
+                      <SortableHeader
+                        column="totalAttending"
+                        label="Total Guests"
+                        sortColumn={sortColumn}
+                        sortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="center"
+                      />
                     )}
-                    <th
-                      style={{
-                        padding: "20px 24px",
-                        textAlign: "right",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.12em",
-                        opacity: 0.95,
-                        color: "#fff",
-                      }}
-                    >
-                      RSVP Date
-                    </th>
+                    <SortableHeader
+                      column="rsvpDate"
+                      label="RSVP Date"
+                      sortColumn={sortColumn}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                      align="right"
+                    />
                     <th
                       style={{
                         padding: "20px 24px",
@@ -919,12 +906,12 @@ export function EventGuestsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredGuests.map((g, idx) => (
+                  {sortedGuests.map((g, idx) => (
                     <tr
                       key={g.id}
                       style={{
                         borderBottom:
-                          idx < filteredGuests.length - 1
+                          idx < sortedGuests.length - 1
                             ? "1px solid rgba(255,255,255,0.06)"
                             : "none",
                         transition: "all 0.2s ease",
@@ -1312,44 +1299,91 @@ function StatCard({ icon, label, value, color }) {
   );
 }
 
-function FilterChip({ label, active, onClick }) {
+function SortableHeader({
+  column,
+  label,
+  sortColumn,
+  sortDirection,
+  onSort,
+  align = "left",
+}) {
+  const isActive = sortColumn === column;
   return (
-    <button
-      onClick={onClick}
+    <th
+      onClick={() => onSort(column)}
       style={{
-        padding: "10px 18px",
-        borderRadius: "999px",
-        border: active
-          ? "2px solid rgba(139, 92, 246, 0.6)"
-          : "1px solid rgba(255,255,255,0.15)",
-        background: active
-          ? "rgba(139, 92, 246, 0.25)"
-          : "rgba(255,255,255,0.05)",
+        padding: "20px 24px",
+        textAlign: align,
+        fontSize: "11px",
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: "0.12em",
+        opacity: 0.95,
         color: "#fff",
-        fontSize: "13px",
-        fontWeight: active ? 700 : 500,
         cursor: "pointer",
+        userSelect: "none",
         transition: "all 0.2s ease",
-        backdropFilter: "blur(10px)",
-        boxShadow: active ? "0 4px 12px rgba(139, 92, 246, 0.2)" : "none",
+        position: "relative",
       }}
       onMouseEnter={(e) => {
-        if (!active) {
-          e.target.style.borderColor = "rgba(255,255,255,0.3)";
-          e.target.style.background = "rgba(255,255,255,0.1)";
-          e.target.style.transform = "translateY(-1px)";
-        }
+        e.currentTarget.style.background = "rgba(139, 92, 246, 0.1)";
+        e.currentTarget.style.opacity = "1";
       }}
       onMouseLeave={(e) => {
-        if (!active) {
-          e.target.style.borderColor = "rgba(255,255,255,0.15)";
-          e.target.style.background = "rgba(255,255,255,0.05)";
-          e.target.style.transform = "translateY(0)";
-        }
+        e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.opacity = "0.95";
       }}
     >
-      {label}
-    </button>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          justifyContent:
+            align === "center"
+              ? "center"
+              : align === "right"
+              ? "flex-end"
+              : "flex-start",
+        }}
+      >
+        <span>{label}</span>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "2px",
+            opacity: isActive ? 1 : 0.4,
+            transition: "opacity 0.2s ease",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "8px",
+              lineHeight: "1",
+              color:
+                isActive && sortDirection === "asc"
+                  ? "#8b5cf6"
+                  : "rgba(255, 255, 255, 0.6)",
+            }}
+          >
+            ▲
+          </span>
+          <span
+            style={{
+              fontSize: "8px",
+              lineHeight: "1",
+              color:
+                isActive && sortDirection === "desc"
+                  ? "#8b5cf6"
+                  : "rgba(255, 255, 255, 0.6)",
+            }}
+          >
+            ▼
+          </span>
+        </div>
+      </div>
+    </th>
   );
 }
 

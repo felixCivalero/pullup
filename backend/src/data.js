@@ -216,6 +216,24 @@ export function getEventCounts(eventId) {
   return { attending, waitlist };
 }
 
+// Calculate cocktails-only count (people attending cocktails but not confirmed for dinner)
+export function getCocktailsOnlyCount(eventId) {
+  return rsvps
+    .filter((r) => r.eventId === eventId && r.status === "attending")
+    .reduce((sum, r) => {
+      const totalGuests = r.totalGuests ?? r.partySize ?? 1;
+      const dinnerPartySize = r.dinnerPartySize || r.partySize || 1;
+
+      // If confirmed for dinner: cocktailsOnly = totalGuests - dinnerPartySize
+      // If not confirmed for dinner: cocktailsOnly = totalGuests
+      if (r.wantsDinner && r.dinnerStatus === "confirmed") {
+        return sum + Math.max(0, totalGuests - dinnerPartySize);
+      } else {
+        return sum + totalGuests;
+      }
+    }, 0);
+}
+
 // Generate dinner time slots based on start, end, and interval
 export function generateDinnerTimeSlots(event) {
   if (!event.dinnerEnabled || !event.dinnerStartTime || !event.dinnerEndTime) {
@@ -527,13 +545,66 @@ export function addRsvp({
   }
 
   if (finalWantsDinner) {
-    // Validate time slot
+    // Validate time slot - normalize ISO strings for comparison
     const availableSlots = generateDinnerTimeSlots(event);
-    if (dinnerTimeSlot && availableSlots.includes(dinnerTimeSlot)) {
-      finalDinnerTimeSlot = dinnerTimeSlot;
-    } else if (availableSlots.length > 0) {
-      // Default to first available slot if none specified
-      finalDinnerTimeSlot = availableSlots[0];
+
+    // Normalize the provided dinnerTimeSlot for comparison
+    let normalizedDinnerTimeSlot = null;
+    if (dinnerTimeSlot) {
+      try {
+        // Parse and re-stringify to normalize format
+        const slotDate = new Date(dinnerTimeSlot);
+        if (!isNaN(slotDate.getTime())) {
+          normalizedDinnerTimeSlot = slotDate.toISOString();
+        }
+      } catch (e) {
+        console.error("Invalid dinnerTimeSlot format:", dinnerTimeSlot);
+      }
+    }
+
+    // Find matching slot by comparing normalized ISO strings or exact match
+    if (normalizedDinnerTimeSlot) {
+      // First try exact string match
+      if (availableSlots.includes(normalizedDinnerTimeSlot)) {
+        finalDinnerTimeSlot = normalizedDinnerTimeSlot;
+      } else {
+        // Try date-based comparison (more robust)
+        const matchingSlot = availableSlots.find((slot) => {
+          try {
+            const slotDate = new Date(slot);
+            const providedDate = new Date(normalizedDinnerTimeSlot);
+            // Compare dates (exact time match)
+            return slotDate.getTime() === providedDate.getTime();
+          } catch (e) {
+            return false;
+          }
+        });
+
+        if (matchingSlot) {
+          finalDinnerTimeSlot = matchingSlot;
+        }
+      }
+    }
+
+    // Only default to first slot if NO slot was provided by user
+    // If user provided a slot but it doesn't match, that's an error
+    if (!finalDinnerTimeSlot) {
+      if (dinnerTimeSlot) {
+        // User provided a slot but it doesn't match any available slot
+        console.error("Dinner slot mismatch:", {
+          provided: dinnerTimeSlot,
+          normalized: normalizedDinnerTimeSlot,
+          available: availableSlots,
+        });
+        return {
+          error: "invalid_slot",
+          message:
+            "The selected dinner time slot is not available for this event",
+        };
+      } else if (availableSlots.length > 0) {
+        // No slot provided - default to first available
+        finalDinnerTimeSlot = availableSlots[0];
+      }
     }
 
     if (finalDinnerTimeSlot) {
@@ -683,6 +754,12 @@ export function updateRsvp(rsvpId, updates) {
   }
   const partySize = 1 + plusOnes;
 
+  // Handle dinner status updates (need to determine wantsDinner first)
+  let wantsDinner = rsvp.wantsDinner;
+  if (updates.wantsDinner !== undefined) {
+    wantsDinner = !!updates.wantsDinner && !!event.dinnerEnabled;
+  }
+
   // Handle dinner party size update
   let dinnerPartySize = rsvp.dinnerPartySize || partySize;
   if (updates.dinnerPartySize !== undefined) {
@@ -726,13 +803,12 @@ export function updateRsvp(rsvpId, updates) {
     }
   }
 
-  // Handle dinner status updates
-  let wantsDinner = rsvp.wantsDinner;
+  // Handle dinner status updates (wantsDinner already determined above)
   let dinnerStatus = rsvp.dinnerStatus;
   let dinnerTimeSlot = rsvp.dinnerTimeSlot;
 
   if (updates.wantsDinner !== undefined) {
-    wantsDinner = !!updates.wantsDinner && !!event.dinnerEnabled;
+    // wantsDinner already updated above, but handle time slot validation
 
     if (wantsDinner) {
       // Validate time slot if provided

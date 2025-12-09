@@ -35,6 +35,117 @@ const focusedInputStyle = {
   boxShadow: "0 0 0 3px rgba(139, 92, 246, 0.1)",
 };
 
+function formatRelativeTime(date) {
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 60) {
+    return diffMins > 0 ? `in ${diffMins}m` : "now";
+  } else if (diffHours < 24) {
+    return diffHours > 0 ? `in ${diffHours}h` : "today";
+  } else if (diffDays === 1) {
+    return "tomorrow";
+  } else if (diffDays < 7) {
+    return `in ${diffDays}d`;
+  } else {
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+}
+
+function formatReadableDateTime(date) {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const isToday = date.toDateString() === today.toDateString();
+  const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+  let dateStr = "";
+  if (isToday) {
+    dateStr = "Today";
+  } else if (isTomorrow) {
+    dateStr = "Tomorrow";
+  } else {
+    dateStr = date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
+  const timeStr = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return `${dateStr} at ${timeStr}`;
+}
+
+// Get user's timezone
+function getUserTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+function formatTimezone(timezone) {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en", {
+    timeZone: timezone,
+    timeZoneName: "short",
+  });
+  const parts = formatter.formatToParts(now);
+  const tzName = parts.find((p) => p.type === "timeZoneName")?.value || "";
+  const city = timezone.split("/").pop()?.replace(/_/g, " ") || timezone;
+  return { tzName, city };
+}
+
+function getQuickDateOptions() {
+  const now = new Date();
+  const options = [];
+
+  // Today at 7pm
+  const today7pm = new Date(now);
+  today7pm.setHours(19, 0, 0, 0);
+  if (today7pm > now) {
+    options.push({
+      label: "Today 7pm",
+      getDate: () => today7pm,
+    });
+  }
+
+  // Tomorrow at 7pm
+  const tomorrow7pm = new Date(now);
+  tomorrow7pm.setDate(tomorrow7pm.getDate() + 1);
+  tomorrow7pm.setHours(19, 0, 0, 0);
+  options.push({
+    label: "Tomorrow 7pm",
+    getDate: () => tomorrow7pm,
+  });
+
+  // This weekend (next Saturday at 7pm)
+  const nextSaturday = new Date(now);
+  const daysUntilSaturday = (6 - now.getDay() + 7) % 7 || 7;
+  nextSaturday.setDate(now.getDate() + daysUntilSaturday);
+  nextSaturday.setHours(19, 0, 0, 0);
+  options.push({
+    label: "This Weekend",
+    getDate: () => nextSaturday,
+  });
+
+  // Next week (same day next week at 7pm)
+  const nextWeek = new Date(now);
+  nextWeek.setDate(now.getDate() + 7);
+  nextWeek.setHours(19, 0, 0, 0);
+  options.push({
+    label: "Next Week",
+    getDate: () => nextWeek,
+  });
+
+  return options;
+}
+
 export function ManageEventPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -46,7 +157,8 @@ export function ManageEventPage() {
   const [networkError, setNetworkError] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [imagePreview, setImagePreview] = useState(null);
+  const [imagePreview, setImagePreview] = useState(undefined);
+  const [hasUnsavedImage, setHasUnsavedImage] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [guestsCount, setGuestsCount] = useState(0);
   const fileInputRef = useRef(null);
@@ -72,6 +184,10 @@ export function ManageEventPage() {
           startsAtLocal: data.startsAt
             ? new Date(data.startsAt).toISOString().slice(0, 16)
             : "",
+          endsAtLocal: data.endsAt
+            ? new Date(data.endsAt).toISOString().slice(0, 16)
+            : "",
+          timezone: data.timezone || getUserTimezone(),
           dinnerStartTimeLocal: data.dinnerStartTime
             ? new Date(data.dinnerStartTime).toISOString().slice(0, 16)
             : "",
@@ -94,15 +210,45 @@ export function ManageEventPage() {
             typeof data.dinnerMaxSeatsPerSlot === "number"
               ? String(data.dinnerMaxSeatsPerSlot)
               : "",
-          dinnerOverflowAction:
-            data.dinnerOverflowAction || "waitlist",
+          dinnerOverflowAction: data.dinnerOverflowAction || "waitlist",
           waitlistEnabled:
             typeof data.waitlistEnabled === "boolean"
               ? data.waitlistEnabled
               : true,
+          ticketType: data.ticketType || "free",
+          requireApproval: data.requireApproval || false,
+          theme: data.theme || "minimal",
+          calendar: data.calendar || "personal",
+          visibility: data.visibility || "public",
         });
-        if (data.imageUrl) {
-          setImagePreview(data.imageUrl);
+        console.log("📥 [Load] Event loaded:", {
+          eventImageUrl: data.imageUrl
+            ? `${data.imageUrl.substring(0, 50)}...`
+            : null,
+          eventImageUrlLength: data.imageUrl?.length,
+          hasUnsavedImage,
+          currentImagePreview: imagePreview
+            ? `${imagePreview.substring(0, 50)}...`
+            : imagePreview,
+        });
+
+        // Only update imagePreview if user hasn't made unsaved changes
+        if (!hasUnsavedImage) {
+          if (data.imageUrl) {
+            console.log(
+              "📥 [Load] Setting imagePreview from loaded event (no unsaved changes)"
+            );
+            setImagePreview(data.imageUrl);
+          } else {
+            console.log(
+              "📥 [Load] No imageUrl in loaded event, setting imagePreview to null"
+            );
+            setImagePreview(null);
+          }
+        } else {
+          console.log(
+            "📥 [Load] Skipping imagePreview update - user has unsaved image changes"
+          );
         }
 
         // Fetch guests count
@@ -133,6 +279,14 @@ export function ManageEventPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    console.log("🖼️ [Image Upload] Starting upload:", {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      currentImagePreview: imagePreview,
+      currentEventImageUrl: event?.imageUrl,
+    });
+
     if (!file.type.startsWith("image/")) {
       showToast("Please upload an image file", "error");
       return;
@@ -145,13 +299,30 @@ export function ManageEventPage() {
 
     const reader = new FileReader();
     reader.onerror = () => {
+      console.error("🖼️ [Image Upload] FileReader error");
       showToast("Failed to read image file", "error");
     };
     reader.onloadend = () => {
       if (reader.result) {
-        setImagePreview(reader.result);
-        setEvent({ ...event, imageUrl: reader.result });
+        const base64Image = reader.result;
+        console.log("🖼️ [Image Upload] File read successfully:", {
+          base64Length: base64Image.length,
+          base64Preview: base64Image.substring(0, 50) + "...",
+          settingImagePreview: true,
+        });
+        setImagePreview(base64Image);
+        setHasUnsavedImage(true); // Mark that user has unsaved image changes
+        // Update event state with the new image URL
+        setEvent((prev) => {
+          console.log("🖼️ [Image Upload] Updating event state:", {
+            previousImageUrl: prev?.imageUrl,
+            newImageUrl: base64Image,
+          });
+          return { ...prev, imageUrl: base64Image };
+        });
         showToast("Image uploaded successfully! ✨", "success");
+      } else {
+        console.error("🖼️ [Image Upload] No result from FileReader");
       }
     };
     reader.readAsDataURL(file);
@@ -177,6 +348,22 @@ export function ManageEventPage() {
         event.dinnerSeatingIntervalHoursInput || 2
       );
 
+      // Determine what imageUrl to send
+      const imageUrlToSend =
+        imagePreview !== undefined ? imagePreview : event.imageUrl || null;
+
+      console.log("💾 [Save] Preparing to save event:", {
+        imagePreview,
+        imagePreviewDefined: imagePreview !== undefined,
+        imagePreviewType: typeof imagePreview,
+        eventImageUrl: event.imageUrl,
+        imageUrlToSend: imageUrlToSend
+          ? `${imageUrlToSend.substring(0, 50)}...`
+          : null,
+        imageUrlToSendLength: imageUrlToSend?.length,
+        imageUrlToSendType: typeof imageUrlToSend,
+      });
+
       const body = {
         title: event.title,
         description: event.description,
@@ -184,6 +371,10 @@ export function ManageEventPage() {
         startsAt: event.startsAtLocal
           ? new Date(event.startsAtLocal).toISOString()
           : null,
+        endsAt: event.endsAtLocal
+          ? new Date(event.endsAtLocal).toISOString()
+          : null,
+        timezone: event.timezone || getUserTimezone(),
         maxAttendees,
         waitlistEnabled: !!event.waitlistEnabled,
         maxPlusOnesPerGuest,
@@ -197,8 +388,20 @@ export function ManageEventPage() {
         dinnerSeatingIntervalHours,
         dinnerMaxSeatsPerSlot,
         dinnerOverflowAction: event.dinnerOverflowAction || "waitlist",
-        imageUrl: event.imageUrl || null,
+        ticketType: event.ticketType || "free",
+        requireApproval: !!event.requireApproval,
+        theme: event.theme || "minimal",
+        calendar: event.calendar || "personal",
+        visibility: event.visibility || "public",
+        imageUrl: imageUrlToSend,
       };
+
+      console.log("💾 [Save] Request body:", {
+        ...body,
+        imageUrl: body.imageUrl
+          ? `${body.imageUrl.substring(0, 50)}...`
+          : body.imageUrl,
+      });
 
       const res = await fetch(`${API_BASE}/host/events/${id}`, {
         method: "PUT",
@@ -211,11 +414,73 @@ export function ManageEventPage() {
         throw new Error(err.error || "Failed to save event");
       }
       const updated = await res.json();
+
+      console.log("💾 [Save] Server response received:", {
+        updatedImageUrl: updated.imageUrl
+          ? `${updated.imageUrl.substring(0, 50)}...`
+          : null,
+        updatedImageUrlLength: updated.imageUrl?.length,
+        updatedImageUrlType: typeof updated.imageUrl,
+        currentImagePreview: imagePreview
+          ? `${imagePreview.substring(0, 50)}...`
+          : imagePreview,
+        currentImagePreviewLength: imagePreview?.length,
+        currentImagePreviewType: typeof imagePreview,
+        imagePreviewDefined: imagePreview !== undefined,
+        currentEventImageUrl: event.imageUrl
+          ? `${event.imageUrl.substring(0, 50)}...`
+          : event.imageUrl,
+        currentEventImageUrlLength: event.imageUrl?.length,
+      });
+
+      // Store what we sent - if imagePreview is defined (even if null), use it
+      // Otherwise use event.imageUrl
+      const sentImageUrl =
+        imagePreview !== undefined ? imagePreview : event.imageUrl || null;
+
+      console.log("💾 [Save] Updating state:", {
+        sentImageUrl: sentImageUrl
+          ? `${sentImageUrl.substring(0, 50)}...`
+          : sentImageUrl,
+        sentImageUrlLength: sentImageUrl?.length,
+        updatedImageUrl: updated.imageUrl
+          ? `${updated.imageUrl.substring(0, 50)}...`
+          : updated.imageUrl,
+        imagePreviewWasDefined: imagePreview !== undefined,
+        willSetImagePreviewTo: updated.imageUrl || null,
+      });
+
+      // Update imagePreview based on what we sent vs what came back
+      if (imagePreview !== undefined) {
+        // We explicitly set imagePreview (either uploaded new or deleted)
+        // Use what server returned to confirm
+        console.log(
+          "💾 [Save] imagePreview was defined, updating from server response"
+        );
+        setImagePreview(updated.imageUrl || null);
+      } else {
+        // We didn't change imagePreview, so update it from server response
+        console.log(
+          "💾 [Save] imagePreview was undefined, updating from server response"
+        );
+        setImagePreview(updated.imageUrl || null);
+      }
+
+      // Clear the unsaved flag since we just saved
+      console.log("💾 [Save] Clearing hasUnsavedImage flag");
+      setHasUnsavedImage(false);
+
       setEvent({
         ...updated,
+        // Use server response for imageUrl
+        imageUrl: updated.imageUrl || null,
         startsAtLocal: updated.startsAt
           ? new Date(updated.startsAt).toISOString().slice(0, 16)
           : "",
+        endsAtLocal: updated.endsAt
+          ? new Date(updated.endsAt).toISOString().slice(0, 16)
+          : "",
+        timezone: updated.timezone || getUserTimezone(),
         dinnerStartTimeLocal: updated.dinnerStartTime
           ? new Date(updated.dinnerStartTime).toISOString().slice(0, 16)
           : "",
@@ -238,8 +503,7 @@ export function ManageEventPage() {
           typeof updated.dinnerMaxSeatsPerSlot === "number"
             ? String(updated.dinnerMaxSeatsPerSlot)
             : "",
-        dinnerOverflowAction:
-          updated.dinnerOverflowAction || "waitlist",
+        dinnerOverflowAction: updated.dinnerOverflowAction || "waitlist",
         waitlistEnabled:
           typeof updated.waitlistEnabled === "boolean"
             ? updated.waitlistEnabled
@@ -277,7 +541,7 @@ export function ManageEventPage() {
             "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
         }}
       >
-        <div className="responsive-container">
+        <div className="responsive-container responsive-container-wide">
           <div
             className="responsive-card"
             style={{
@@ -304,7 +568,7 @@ export function ManageEventPage() {
             "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
         }}
       >
-        <div className="responsive-container">
+        <div className="responsive-container responsive-container-wide">
           <div
             className="responsive-card"
             style={{
@@ -353,7 +617,7 @@ export function ManageEventPage() {
             "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
         }}
       >
-        <div className="responsive-container">
+        <div className="responsive-container responsive-container-wide">
           <div
             className="responsive-card"
             style={{
@@ -400,14 +664,12 @@ export function ManageEventPage() {
       />
 
       <div
-        className="responsive-container"
+        className="responsive-container responsive-container-wide"
         style={{ position: "relative", zIndex: 2 }}
       >
         <div
           className="responsive-card"
           style={{
-            maxWidth: "800px",
-            margin: "0 auto",
             background: "rgba(12, 10, 18, 0.6)",
             backdropFilter: "blur(10px)",
             border: "1px solid rgba(255,255,255,0.05)",
@@ -459,14 +721,14 @@ export function ManageEventPage() {
                 overflow: "hidden",
                 background: isDragging
                   ? "rgba(139, 92, 246, 0.2)"
-                  : imagePreview || event.imageUrl
-                    ? "transparent"
-                    : "rgba(20, 16, 30, 0.3)",
+                  : (imagePreview !== undefined ? imagePreview : event.imageUrl)
+                  ? "transparent"
+                  : "rgba(20, 16, 30, 0.3)",
                 border: isDragging
                   ? "2px dashed rgba(139, 92, 246, 0.5)"
-                  : imagePreview || event.imageUrl
-                    ? "1px solid rgba(255,255,255,0.1)"
-                    : "1px solid rgba(255,255,255,0.06)",
+                  : (imagePreview !== undefined ? imagePreview : event.imageUrl)
+                  ? "1px solid rgba(255,255,255,0.1)"
+                  : "1px solid rgba(255,255,255,0.06)",
                 position: "relative",
                 cursor: "pointer",
                 transition: "all 0.3s ease",
@@ -487,10 +749,12 @@ export function ManageEventPage() {
                 }
               }}
             >
-              {imagePreview || event.imageUrl ? (
+              {(imagePreview !== undefined ? imagePreview : event.imageUrl) ? (
                 <>
                   <img
-                    src={imagePreview || event.imageUrl}
+                    src={
+                      imagePreview !== undefined ? imagePreview : event.imageUrl
+                    }
                     alt={event.title || "Event"}
                     style={{
                       width: "100%",
@@ -513,12 +777,8 @@ export function ManageEventPage() {
                       opacity: 0,
                       transition: "opacity 0.3s ease",
                     }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.opacity = "1")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.opacity = "0")
-                    }
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "0")}
                   >
                     <div
                       style={{
@@ -582,9 +842,7 @@ export function ManageEventPage() {
                       padding: "0 16px",
                     }}
                   >
-                    {isDragging
-                      ? "Drop image here"
-                      : "Click or drag to upload"}
+                    {isDragging ? "Drop image here" : "Click or drag to upload"}
                   </div>
                   <div
                     style={{
@@ -605,13 +863,28 @@ export function ManageEventPage() {
                 onChange={handleImageUpload}
                 style={{ display: "none" }}
               />
-              {(imagePreview || event.imageUrl) && (
+              {(imagePreview !== undefined ? imagePreview : event.imageUrl) && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    console.log("🗑️ [Delete Image] Removing image:", {
+                      currentImagePreview: imagePreview
+                        ? `${imagePreview.substring(0, 50)}...`
+                        : imagePreview,
+                      currentImagePreviewType: typeof imagePreview,
+                      currentEventImageUrl: event.imageUrl
+                        ? `${event.imageUrl.substring(0, 50)}...`
+                        : event.imageUrl,
+                    });
                     setImagePreview(null);
-                    setEvent({ ...event, imageUrl: null });
+                    setHasUnsavedImage(true); // Mark that user has unsaved image changes
+                    setEvent((prev) => {
+                      console.log(
+                        "🗑️ [Delete Image] Updating event state to remove imageUrl"
+                      );
+                      return { ...prev, imageUrl: null };
+                    });
                     if (fileInputRef.current) {
                       fileInputRef.current.value = "";
                     }
@@ -685,45 +958,50 @@ export function ManageEventPage() {
             </a>
           </div>
 
+          {/* Tabs */}
           <div
             style={{
               display: "flex",
-              gap: "12px",
+              gap: "8px",
               marginBottom: "32px",
               fontSize: "14px",
-              borderBottom: "1px solid rgba(255,255,255,0.05)",
-              paddingBottom: "16px",
+              borderBottom: "2px solid rgba(255,255,255,0.08)",
+              paddingBottom: "0",
             }}
           >
-            <span
+            <div
               style={{
-                fontWeight: 600,
+                padding: "12px 20px",
+                fontWeight: 700,
                 color: "#fff",
-                padding: "8px 16px",
+                borderBottom: "2px solid #8b5cf6",
+                marginBottom: "-2px",
                 background: "rgba(139, 92, 246, 0.1)",
-                borderRadius: "8px",
-                border: "1px solid rgba(139, 92, 246, 0.2)",
+                borderRadius: "8px 8px 0 0",
               }}
             >
               Overview
-            </span>
+            </div>
             <button
               onClick={() => navigate(`/app/events/${id}/guests`)}
               style={{
                 background: "transparent",
                 border: "none",
-                color: "#bbb",
+                color: "#9ca3af",
                 cursor: "pointer",
                 transition: "all 0.3s ease",
-                padding: "8px 16px",
-                borderRadius: "8px",
+                padding: "12px 20px",
+                borderRadius: "8px 8px 0 0",
+                fontWeight: 500,
+                borderBottom: "2px solid transparent",
+                marginBottom: "-2px",
               }}
               onMouseEnter={(e) => {
                 e.target.style.color = "#fff";
                 e.target.style.background = "rgba(255,255,255,0.05)";
               }}
               onMouseLeave={(e) => {
-                e.target.style.color = "#bbb";
+                e.target.style.color = "#9ca3af";
                 e.target.style.background = "transparent";
               }}
             >
@@ -822,10 +1100,11 @@ export function ManageEventPage() {
 
             <div
               style={{
-                background: "rgba(20, 16, 30, 0.2)",
-                borderRadius: "16px",
-                padding: "20px",
-                border: "1px solid rgba(255,255,255,0.05)",
+                background: "rgba(20, 16, 30, 0.3)",
+                borderRadius: "20px",
+                padding: "28px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                backdropFilter: "blur(10px)",
                 marginBottom: "24px",
               }}
             >
@@ -833,18 +1112,18 @@ export function ManageEventPage() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px",
-                  marginBottom: "16px",
+                  gap: "10px",
+                  marginBottom: "24px",
                 }}
               >
-                <span style={{ fontSize: "18px" }}>🕒</span>
+                <span style={{ fontSize: "20px" }}>🕒</span>
                 <div
                   style={{
-                    fontSize: "11px",
-                    fontWeight: 600,
+                    fontSize: "12px",
+                    fontWeight: 700,
                     textTransform: "uppercase",
                     letterSpacing: "0.15em",
-                    opacity: 0.7,
+                    opacity: 0.9,
                   }}
                 >
                   Event Schedule
@@ -856,7 +1135,7 @@ export function ManageEventPage() {
                   display: "block",
                   fontSize: "13px",
                   fontWeight: 600,
-                  marginBottom: "10px",
+                  marginBottom: "12px",
                   opacity: 0.9,
                 }}
               >
@@ -864,41 +1143,272 @@ export function ManageEventPage() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "8px",
+                    gap: "10px",
+                    marginBottom: "12px",
                   }}
                 >
                   <div
                     style={{
-                      width: "10px",
-                      height: "10px",
+                      width: "12px",
+                      height: "12px",
                       borderRadius: "50%",
                       background:
                         "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
                       border: "2px solid rgba(255,255,255,0.1)",
+                      boxShadow: "0 0 0 2px rgba(139, 92, 246, 0.2)",
                     }}
                   />
                   <span>Start Date & Time</span>
                   <span style={{ opacity: 0.5, fontWeight: 400 }}>*</span>
                 </div>
-                <input
-                  type="datetime-local"
-                  value={event.startsAtLocal || ""}
-                  onChange={(e) =>
-                    setEvent({ ...event, startsAtLocal: e.target.value })
-                  }
-                  onFocus={() => setFocusedField("startsAt")}
-                  onBlur={() => setFocusedField(null)}
-                  style={{
-                    ...(focusedField === "startsAt"
-                      ? focusedInputStyle
-                      : inputStyle),
-                    fontSize: "15px",
-                    padding: "12px 16px",
-                    cursor: "pointer",
-                  }}
-                />
+
+                {/* Quick shortcuts */}
+                {getQuickDateOptions().map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    onClick={() => {
+                      const date = option.getDate();
+                      setEvent({
+                        ...event,
+                        startsAtLocal: date.toISOString().slice(0, 16),
+                      });
+                    }}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(255,255,255,0.05)",
+                      color: "#fff",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      opacity: 0.8,
+                      marginRight: "8px",
+                      marginBottom: "8px",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.opacity = "1";
+                      e.target.style.background = "rgba(139, 92, 246, 0.15)";
+                      e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.opacity = "0.8";
+                      e.target.style.background = "rgba(255,255,255,0.05)";
+                      e.target.style.borderColor = "rgba(255,255,255,0.1)";
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+
+                <div style={{ position: "relative", marginTop: "12px" }}>
+                  <input
+                    type="datetime-local"
+                    value={event.startsAtLocal || ""}
+                    onChange={(e) =>
+                      setEvent({ ...event, startsAtLocal: e.target.value })
+                    }
+                    onFocus={() => setFocusedField("startsAt")}
+                    onBlur={() => setFocusedField(null)}
+                    style={{
+                      ...(focusedField === "startsAt"
+                        ? focusedInputStyle
+                        : inputStyle),
+                      fontSize: "15px",
+                      padding: "14px 16px 14px 48px",
+                      cursor: "pointer",
+                      width: "100%",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "16px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      fontSize: "18px",
+                      opacity: 0.7,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    📅
+                  </div>
+                  {event.startsAtLocal && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        right: "16px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        fontSize: "11px",
+                        opacity: 0.6,
+                        pointerEvents: "none",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {formatRelativeTime(new Date(event.startsAtLocal))}
+                    </div>
+                  )}
+                </div>
+                {event.startsAtLocal && (
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      opacity: 0.7,
+                      marginTop: "8px",
+                      paddingLeft: "4px",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {formatReadableDateTime(new Date(event.startsAtLocal))}
+                  </div>
+                )}
               </label>
+
+              {/* End Date & Time */}
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginTop: "24px",
+                  opacity: 0.9,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      border: "2px solid rgba(255,255,255,0.3)",
+                      background: "transparent",
+                    }}
+                  />
+                  <span>End Date & Time</span>
+                  <span style={{ opacity: 0.5, fontWeight: 400 }}>
+                    (optional)
+                  </span>
+                </div>
+
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="datetime-local"
+                    value={event.endsAtLocal || ""}
+                    onChange={(e) =>
+                      setEvent({ ...event, endsAtLocal: e.target.value })
+                    }
+                    min={event.startsAtLocal || undefined}
+                    onFocus={() => setFocusedField("endsAt")}
+                    onBlur={() => setFocusedField(null)}
+                    style={{
+                      ...(focusedField === "endsAt"
+                        ? focusedInputStyle
+                        : inputStyle),
+                      fontSize: "15px",
+                      padding: "14px 16px 14px 48px",
+                      cursor: "pointer",
+                      width: "100%",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "16px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      fontSize: "18px",
+                      opacity: 0.7,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    📅
+                  </div>
+                  {event.endsAtLocal && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        right: "16px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        fontSize: "11px",
+                        opacity: 0.6,
+                        pointerEvents: "none",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {formatRelativeTime(new Date(event.endsAtLocal))}
+                    </div>
+                  )}
+                </div>
+                {event.endsAtLocal && (
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      opacity: 0.7,
+                      marginTop: "8px",
+                      paddingLeft: "4px",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {formatReadableDateTime(new Date(event.endsAtLocal))}
+                  </div>
+                )}
+              </label>
+
+              {/* Timezone Display */}
+              {event.timezone && (
+                <div
+                  style={{
+                    marginTop: "24px",
+                    padding: "18px 20px",
+                    background: "rgba(139, 92, 246, 0.12)",
+                    borderRadius: "16px",
+                    border: "1px solid rgba(139, 92, 246, 0.25)",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    boxShadow: "0 4px 16px rgba(139, 92, 246, 0.1)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "24px",
+                      marginBottom: "10px",
+                      opacity: 0.9,
+                    }}
+                  >
+                    🌐
+                  </div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      marginBottom: "6px",
+                      fontSize: "15px",
+                      color: "#8b5cf6",
+                    }}
+                  >
+                    {formatTimezone(event.timezone).tzName}
+                  </div>
+                  <div
+                    style={{
+                      opacity: 0.7,
+                      fontSize: "12px",
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {formatTimezone(event.timezone).city}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Capacity + waitlist */}
@@ -1017,6 +1527,328 @@ export function ManageEventPage() {
                   </label>
                 </div>
               </label>
+            </div>
+
+            {/* Event Options */}
+            <div
+              style={{
+                background: "rgba(20, 16, 30, 0.3)",
+                borderRadius: "20px",
+                padding: "28px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                backdropFilter: "blur(10px)",
+                marginBottom: "24px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginBottom: "24px",
+                }}
+              >
+                <span style={{ fontSize: "20px" }}>⚙️</span>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.15em",
+                    opacity: 0.9,
+                  }}
+                >
+                  Event Options
+                </div>
+              </div>
+
+              {/* Ticket Type */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  background: "rgba(20, 16, 30, 0.15)",
+                  borderRadius: "10px",
+                  marginBottom: "6px",
+                  border: "1px solid rgba(255,255,255,0.03)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                  }}
+                >
+                  <span style={{ fontSize: "15px" }}>🎫</span>
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
+                      Tickets
+                    </div>
+                  </div>
+                </div>
+                <select
+                  value={event.ticketType || "free"}
+                  onChange={(e) =>
+                    setEvent({ ...event, ticketType: e.target.value })
+                  }
+                  style={{
+                    padding: "5px 20px 5px 10px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(255,255,255,0.04)",
+                    background: "rgba(12, 10, 18, 0.4)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    appearance: "none",
+                    backgroundImage:
+                      "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 8px center",
+                    paddingRight: "28px",
+                  }}
+                >
+                  <option value="free">Free</option>
+                  <option value="paid">Paid</option>
+                </select>
+              </div>
+
+              {/* Require Approval */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  background: "rgba(20, 16, 30, 0.15)",
+                  borderRadius: "10px",
+                  marginBottom: "6px",
+                  border: "1px solid rgba(255,255,255,0.03)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                  }}
+                >
+                  <span style={{ fontSize: "15px" }}>🤝</span>
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
+                      Require Approval
+                    </div>
+                  </div>
+                </div>
+                <label
+                  style={{
+                    position: "relative",
+                    display: "inline-block",
+                    width: "40px",
+                    height: "20px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!event.requireApproval}
+                    onChange={(e) =>
+                      setEvent({
+                        ...event,
+                        requireApproval: e.target.checked,
+                      })
+                    }
+                    style={{ display: "none" }}
+                  />
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: event.requireApproval
+                        ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
+                        : "rgba(255,255,255,0.1)",
+                      borderRadius: "10px",
+                      transition: "all 0.3s ease",
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: "2px",
+                        left: event.requireApproval ? "22px" : "2px",
+                        width: "16px",
+                        height: "16px",
+                        background: "#fff",
+                        borderRadius: "50%",
+                        transition: "all 0.3s ease",
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                      }}
+                    />
+                  </span>
+                </label>
+              </div>
+
+              {/* Theme */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  background: "rgba(20, 16, 30, 0.15)",
+                  borderRadius: "10px",
+                  marginBottom: "6px",
+                  border: "1px solid rgba(255,255,255,0.03)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                  }}
+                >
+                  <span style={{ fontSize: "15px" }}>🎨</span>
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
+                      Theme
+                    </div>
+                  </div>
+                </div>
+                <select
+                  value={event.theme || "minimal"}
+                  onChange={(e) =>
+                    setEvent({ ...event, theme: e.target.value })
+                  }
+                  style={{
+                    padding: "5px 20px 5px 10px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(255,255,255,0.04)",
+                    background: "rgba(12, 10, 18, 0.4)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    appearance: "none",
+                    backgroundImage:
+                      "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 8px center",
+                    paddingRight: "28px",
+                  }}
+                >
+                  <option value="minimal">Minimal</option>
+                </select>
+              </div>
+
+              {/* Calendar */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  background: "rgba(20, 16, 30, 0.15)",
+                  borderRadius: "10px",
+                  marginBottom: "6px",
+                  border: "1px solid rgba(255,255,255,0.03)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                  }}
+                >
+                  <span style={{ fontSize: "15px" }}>📅</span>
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
+                      Calendar
+                    </div>
+                  </div>
+                </div>
+                <select
+                  value={event.calendar || "personal"}
+                  onChange={(e) =>
+                    setEvent({ ...event, calendar: e.target.value })
+                  }
+                  style={{
+                    padding: "5px 20px 5px 10px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(255,255,255,0.04)",
+                    background: "rgba(12, 10, 18, 0.4)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    appearance: "none",
+                    backgroundImage:
+                      "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 8px center",
+                    paddingRight: "28px",
+                  }}
+                >
+                  <option value="personal">Personal</option>
+                </select>
+              </div>
+
+              {/* Visibility */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  background: "rgba(20, 16, 30, 0.15)",
+                  borderRadius: "10px",
+                  marginBottom: "6px",
+                  border: "1px solid rgba(255,255,255,0.03)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                  }}
+                >
+                  <span style={{ fontSize: "15px" }}>👁️</span>
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
+                      Visibility
+                    </div>
+                  </div>
+                </div>
+                <select
+                  value={event.visibility || "public"}
+                  onChange={(e) =>
+                    setEvent({ ...event, visibility: e.target.value })
+                  }
+                  style={{
+                    padding: "5px 20px 5px 10px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(255,255,255,0.04)",
+                    background: "rgba(12, 10, 18, 0.4)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    appearance: "none",
+                    backgroundImage:
+                      "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 8px center",
+                    paddingRight: "28px",
+                  }}
+                >
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
+                </select>
+              </div>
             </div>
 
             {/* Plus-ones + dinner */}
@@ -1416,9 +2248,7 @@ export function ManageEventPage() {
                             transition: "all 0.2s ease",
                           }}
                           onMouseEnter={(e) => {
-                            if (
-                              event.dinnerOverflowAction !== option.value
-                            ) {
+                            if (event.dinnerOverflowAction !== option.value) {
                               e.currentTarget.style.background =
                                 "rgba(20, 16, 30, 0.6)";
                               e.currentTarget.style.borderColor =
@@ -1426,9 +2256,7 @@ export function ManageEventPage() {
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (
-                              event.dinnerOverflowAction !== option.value
-                            ) {
+                            if (event.dinnerOverflowAction !== option.value) {
                               e.currentTarget.style.background =
                                 "rgba(20, 16, 30, 0.4)";
                               e.currentTarget.style.borderColor =

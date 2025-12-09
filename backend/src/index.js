@@ -208,6 +208,7 @@ app.put("/host/events/:id", (req, res) => {
     dinnerEndTime,
     dinnerSeatingIntervalHours,
     dinnerMaxSeatsPerSlot,
+    dinnerOverflowAction,
   } = req.body;
 
   const updated = updateEvent(id, {

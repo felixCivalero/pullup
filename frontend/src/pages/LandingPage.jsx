@@ -135,7 +135,7 @@ export function LandingPage() {
               }}
             >
               <button
-                onClick={() => navigate("/create")}
+                onClick={() => navigate("/home")}
                 style={{
                   padding: "16px 32px",
                   borderRadius: "999px",

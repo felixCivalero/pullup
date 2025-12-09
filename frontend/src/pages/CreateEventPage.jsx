@@ -50,6 +50,102 @@ function formatTimezone(timezone) {
   return { tzName, city };
 }
 
+function formatRelativeTime(date) {
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 60) {
+    return diffMins > 0 ? `in ${diffMins}m` : "now";
+  } else if (diffHours < 24) {
+    return diffHours > 0 ? `in ${diffHours}h` : "today";
+  } else if (diffDays === 1) {
+    return "tomorrow";
+  } else if (diffDays < 7) {
+    return `in ${diffDays}d`;
+  } else {
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+}
+
+function formatReadableDateTime(date) {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const isToday =
+    date.toDateString() === today.toDateString();
+  const isTomorrow =
+    date.toDateString() === tomorrow.toDateString();
+
+  let dateStr = "";
+  if (isToday) {
+    dateStr = "Today";
+  } else if (isTomorrow) {
+    dateStr = "Tomorrow";
+  } else {
+    dateStr = date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
+  const timeStr = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return `${dateStr} at ${timeStr}`;
+}
+
+function getQuickDateOptions() {
+  const now = new Date();
+  const options = [];
+
+  // Today at 7pm
+  const today7pm = new Date(now);
+  today7pm.setHours(19, 0, 0, 0);
+  if (today7pm > now) {
+    options.push({
+      label: "Today 7pm",
+      getDate: () => today7pm,
+    });
+  }
+
+  // Tomorrow at 7pm
+  const tomorrow7pm = new Date(now);
+  tomorrow7pm.setDate(tomorrow7pm.getDate() + 1);
+  tomorrow7pm.setHours(19, 0, 0, 0);
+  options.push({
+    label: "Tomorrow 7pm",
+    getDate: () => tomorrow7pm,
+  });
+
+  // This weekend (next Saturday at 7pm)
+  const nextSaturday = new Date(now);
+  const daysUntilSaturday = (6 - now.getDay() + 7) % 7 || 7;
+  nextSaturday.setDate(now.getDate() + daysUntilSaturday);
+  nextSaturday.setHours(19, 0, 0, 0);
+  options.push({
+    label: "This Weekend",
+    getDate: () => nextSaturday,
+  });
+
+  // Next week (same day next week at 7pm)
+  const nextWeek = new Date(now);
+  nextWeek.setDate(now.getDate() + 7);
+  nextWeek.setHours(19, 0, 0, 0);
+  options.push({
+    label: "Next Week",
+    getDate: () => nextWeek,
+  });
+
+  return options;
+}
+
 export function CreateEventPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -567,28 +663,29 @@ export function CreateEventPage() {
               <div
                 style={{
                   marginBottom: "32px",
-                  background: "rgba(20, 16, 30, 0.2)",
-                  borderRadius: "16px",
-                  padding: "24px",
-                  border: "1px solid rgba(255,255,255,0.05)",
+                  background: "rgba(20, 16, 30, 0.3)",
+                  borderRadius: "20px",
+                  padding: "28px",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(10px)",
                 }}
               >
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "20px",
+                    gap: "10px",
+                    marginBottom: "24px",
                   }}
                 >
-                  <span style={{ fontSize: "18px" }}>🕒</span>
+                  <span style={{ fontSize: "20px" }}>🕒</span>
                   <div
                     style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
+                      fontSize: "12px",
+                      fontWeight: 700,
                       textTransform: "uppercase",
                       letterSpacing: "0.15em",
-                      opacity: 0.7,
+                      opacity: 0.9,
                     }}
                   >
                     Event Schedule
@@ -599,11 +696,11 @@ export function CreateEventPage() {
                   style={{
                     display: "grid",
                     gridTemplateColumns: "1fr auto",
-                    gap: "20px",
+                    gap: "24px",
                     alignItems: "start",
                   }}
                 >
-                  <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                     {/* start */}
                     <div>
                       <label
@@ -611,7 +708,7 @@ export function CreateEventPage() {
                           display: "flex",
                           alignItems: "center",
                           gap: "10px",
-                          marginBottom: "10px",
+                          marginBottom: "12px",
                           fontSize: "13px",
                           fontWeight: 600,
                           opacity: 0.9,
@@ -631,31 +728,122 @@ export function CreateEventPage() {
                         <span>Start Date & Time</span>
                         <span style={{ opacity: 0.5, fontWeight: 400 }}>*</span>
                       </label>
-                      <input
-                        type="datetime-local"
-                        value={
-                          startsAt
-                            ? new Date(startsAt).toISOString().slice(0, 16)
-                            : ""
-                        }
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            setStartsAt(new Date(e.target.value).toISOString());
-                          }
-                        }}
+                      
+                      {/* Quick shortcuts */}
+                      <div
                         style={{
-                          ...(focusedField === "startDateTime"
-                            ? focusedInputStyle
-                            : inputStyle),
-                          fontSize: "15px",
-                          padding: "12px 16px",
-                          width: "100%",
-                          cursor: "pointer",
+                          display: "flex",
+                          gap: "8px",
+                          marginBottom: "12px",
+                          flexWrap: "wrap",
                         }}
-                        onFocus={() => setFocusedField("startDateTime")}
-                        onBlur={() => setFocusedField(null)}
-                        required
-                      />
+                      >
+                        {getQuickDateOptions().map((option) => (
+                          <button
+                            key={option.label}
+                            type="button"
+                            onClick={() => {
+                              const date = option.getDate();
+                              setStartsAt(date.toISOString());
+                            }}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: "8px",
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              background: "rgba(255,255,255,0.05)",
+                              color: "#fff",
+                              fontSize: "12px",
+                              fontWeight: 500,
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                              opacity: 0.8,
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.opacity = "1";
+                              e.target.style.background = "rgba(139, 92, 246, 0.15)";
+                              e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.opacity = "0.8";
+                              e.target.style.background = "rgba(255,255,255,0.05)";
+                              e.target.style.borderColor = "rgba(255,255,255,0.1)";
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type="datetime-local"
+                          value={
+                            startsAt
+                              ? new Date(startsAt).toISOString().slice(0, 16)
+                              : ""
+                          }
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setStartsAt(new Date(e.target.value).toISOString());
+                            }
+                          }}
+                          style={{
+                            ...(focusedField === "startDateTime"
+                              ? focusedInputStyle
+                              : inputStyle),
+                            fontSize: "15px",
+                            padding: "14px 16px 14px 48px",
+                            width: "100%",
+                            cursor: "pointer",
+                            position: "relative",
+                          }}
+                          onFocus={() => setFocusedField("startDateTime")}
+                          onBlur={() => setFocusedField(null)}
+                          required
+                        />
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: "16px",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            fontSize: "18px",
+                            opacity: 0.7,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          📅
+                        </div>
+                        {startsAt && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              right: "16px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              fontSize: "11px",
+                              opacity: 0.6,
+                              pointerEvents: "none",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {formatRelativeTime(new Date(startsAt))}
+                          </div>
+                        )}
+                      </div>
+                      {startsAt && (
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            opacity: 0.7,
+                            marginTop: "8px",
+                            paddingLeft: "4px",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          {formatReadableDateTime(new Date(startsAt))}
+                        </div>
+                      )}
                     </div>
 
                     {/* end */}
@@ -665,7 +853,7 @@ export function CreateEventPage() {
                           display: "flex",
                           alignItems: "center",
                           gap: "10px",
-                          marginBottom: "10px",
+                          marginBottom: "12px",
                           fontSize: "13px",
                           fontWeight: 600,
                           opacity: 0.9,
@@ -685,57 +873,103 @@ export function CreateEventPage() {
                           (optional)
                         </span>
                       </label>
-                      <input
-                        type="datetime-local"
-                        value={
-                          endsAt
-                            ? new Date(endsAt).toISOString().slice(0, 16)
-                            : ""
-                        }
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            setEndsAt(new Date(e.target.value).toISOString());
-                          } else {
-                            setEndsAt("");
+
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type="datetime-local"
+                          value={
+                            endsAt
+                              ? new Date(endsAt).toISOString().slice(0, 16)
+                              : ""
                           }
-                        }}
-                        min={
-                          startsAt
-                            ? new Date(startsAt).toISOString().slice(0, 16)
-                            : undefined
-                        }
-                        style={{
-                          ...(focusedField === "endDateTime"
-                            ? focusedInputStyle
-                            : inputStyle),
-                          fontSize: "15px",
-                          padding: "12px 16px",
-                          width: "100%",
-                          cursor: "pointer",
-                        }}
-                        onFocus={() => setFocusedField("endDateTime")}
-                        onBlur={() => setFocusedField(null)}
-                      />
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setEndsAt(new Date(e.target.value).toISOString());
+                            } else {
+                              setEndsAt("");
+                            }
+                          }}
+                          min={
+                            startsAt
+                              ? new Date(startsAt).toISOString().slice(0, 16)
+                              : undefined
+                          }
+                          style={{
+                            ...(focusedField === "endDateTime"
+                              ? focusedInputStyle
+                              : inputStyle),
+                            fontSize: "15px",
+                            padding: "14px 16px 14px 48px",
+                            width: "100%",
+                            cursor: "pointer",
+                          }}
+                          onFocus={() => setFocusedField("endDateTime")}
+                          onBlur={() => setFocusedField(null)}
+                        />
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: "16px",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            fontSize: "18px",
+                            opacity: 0.7,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          📅
+                        </div>
+                        {endsAt && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              right: "16px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              fontSize: "11px",
+                              opacity: 0.6,
+                              pointerEvents: "none",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {formatRelativeTime(new Date(endsAt))}
+                          </div>
+                        )}
+                      </div>
+                      {endsAt && (
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            opacity: 0.7,
+                            marginTop: "8px",
+                            paddingLeft: "4px",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          {formatReadableDateTime(new Date(endsAt))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* timezone pill */}
                   <div
                     style={{
-                      padding: "16px 18px",
-                      background: "rgba(139, 92, 246, 0.1)",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(139, 92, 246, 0.2)",
+                      padding: "18px 20px",
+                      background: "rgba(139, 92, 246, 0.12)",
+                      borderRadius: "16px",
+                      border: "1px solid rgba(139, 92, 246, 0.25)",
                       fontSize: "12px",
                       textAlign: "center",
-                      minWidth: "140px",
+                      minWidth: "150px",
                       alignSelf: "center",
+                      boxShadow: "0 4px 16px rgba(139, 92, 246, 0.1)",
                     }}
                   >
                     <div
                       style={{
-                        fontSize: "20px",
-                        marginBottom: "8px",
+                        fontSize: "24px",
+                        marginBottom: "10px",
                         opacity: 0.9,
                       }}
                     >
@@ -744,8 +978,8 @@ export function CreateEventPage() {
                     <div
                       style={{
                         fontWeight: 700,
-                        marginBottom: "4px",
-                        fontSize: "14px",
+                        marginBottom: "6px",
+                        fontSize: "15px",
                         color: "#8b5cf6",
                       }}
                     >
@@ -753,8 +987,8 @@ export function CreateEventPage() {
                     </div>
                     <div
                       style={{
-                        opacity: 0.6,
-                        fontSize: "11px",
+                        opacity: 0.7,
+                        fontSize: "12px",
                         textTransform: "capitalize",
                       }}
                     >

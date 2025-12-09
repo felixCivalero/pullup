@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { EventCard } from "../components/EventCard";
-import { RsvpModal } from "../components/RsvpModal";
 import { useToast } from "../components/Toast";
 
 const API_BASE = "http://localhost:3001";
@@ -22,7 +21,6 @@ export function EventPage() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [showRsvpModal, setShowRsvpModal] = useState(false);
   const [rsvpLoading, setRsvpLoading] = useState(false);
 
   useEffect(() => {
@@ -102,12 +100,12 @@ export function EventPage() {
 
         if (res.status === 409 && err.error === "full") {
           showToast("Event is full and waitlist is disabled.", "error");
-          return;
+          return false;
         }
 
         if (res.status === 409 && err.error === "duplicate") {
           showToast("You've already RSVP'd for this event.", "error");
-          return;
+          return false;
         }
 
         throw new Error(err.error || "Failed to RSVP");
@@ -124,7 +122,7 @@ export function EventPage() {
         showToast("You're on the list. 🔥", "success");
       }
 
-      setShowRsvpModal(false);
+      return true; // Success
     } catch (err) {
       console.error(err);
       if (isNetworkError(err)) {
@@ -138,19 +136,10 @@ export function EventPage() {
   }
 
   return (
-    <>
-      <EventCard
-        event={event}
-        onRsvp={() => setShowRsvpModal(true)}
-      />
-      {showRsvpModal && (
-        <RsvpModal
-          event={event}
-          onClose={() => setShowRsvpModal(false)}
-          onSubmit={handleRsvpSubmit}
-          loading={rsvpLoading}
-        />
-      )}
-    </>
+    <EventCard
+      event={event}
+      onSubmit={handleRsvpSubmit}
+      loading={rsvpLoading}
+    />
   );
 }

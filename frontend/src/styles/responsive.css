@@ -21,6 +21,29 @@ body {
   box-sizing: border-box;
 }
 
+/* Wider container for desktop pages that need more space */
+@media (min-width: 1024px) {
+  .responsive-container-wide {
+    max-width: 1400px;
+    padding: 24px 32px;
+  }
+  
+  .responsive-container-wide .responsive-card {
+    padding: 40px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .responsive-container-wide {
+    max-width: 900px;
+    padding: 20px 24px;
+  }
+  
+  .responsive-container-wide .responsive-card {
+    padding: 32px;
+  }
+}
+
 /* 3. Card styling that looks good on all devices */
 .responsive-card {
   background: #0c0a12;

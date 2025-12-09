@@ -42,6 +42,8 @@ export function EventGuestsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dinnerFilter, setDinnerFilter] = useState("all");
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [editingGuest, setEditingGuest] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
   useEffect(() => {
     function handleMouseMove(e) {
@@ -73,6 +75,66 @@ export function EventGuestsPage() {
     }
     load();
   }, [id, showToast]);
+
+  async function handleUpdateGuest(rsvpId, updates) {
+    try {
+      const res = await fetch(`${API_BASE}/host/events/${id}/rsvps/${rsvpId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to update guest");
+      }
+
+      showToast("Guest updated successfully! ✨", "success");
+      setEditingGuest(null);
+
+      // Reload guests
+      const guestsRes = await fetch(`${API_BASE}/host/events/${id}/guests`);
+      if (guestsRes.ok) {
+        const data = await guestsRes.json();
+        setGuests(data.guests || []);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not update guest", "error");
+    }
+  }
+
+  async function handleDeleteGuest(guest) {
+    try {
+      const res = await fetch(
+        `${API_BASE}/host/events/${id}/rsvps/${guest.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to delete guest");
+      }
+
+      showToast("Guest deleted successfully", "success");
+      setShowDeleteConfirm(null);
+
+      // Reload guests
+      const guestsRes = await fetch(`${API_BASE}/host/events/${id}/guests`);
+      if (guestsRes.ok) {
+        const data = await guestsRes.json();
+        setGuests(data.guests || []);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Could not delete guest", "error");
+    }
+  }
+
+  function handleEditGuest(guest) {
+    setEditingGuest(guest);
+  }
 
   if (loading) {
     return (
@@ -859,6 +921,21 @@ export function EventGuestsPage() {
                     >
                       RSVP Date
                     </th>
+                    <th
+                      style={{
+                        padding: "20px 24px",
+                        textAlign: "center",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.12em",
+                        opacity: 0.95,
+                        color: "#fff",
+                        width: "120px",
+                      }}
+                    >
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1088,6 +1165,72 @@ export function EventGuestsPage() {
                           year: "numeric",
                         })}
                       </td>
+                      <td style={{ padding: "20px", textAlign: "center" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <button
+                            onClick={() => handleEditGuest(g)}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: "8px",
+                              border: "1px solid rgba(139, 92, 246, 0.4)",
+                              background: "rgba(139, 92, 246, 0.1)",
+                              color: "#a78bfa",
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.background =
+                                "rgba(139, 92, 246, 0.2)";
+                              e.target.style.borderColor =
+                                "rgba(139, 92, 246, 0.6)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.background =
+                                "rgba(139, 92, 246, 0.1)";
+                              e.target.style.borderColor =
+                                "rgba(139, 92, 246, 0.4)";
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(g)}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: "8px",
+                              border: "1px solid rgba(236, 72, 153, 0.4)",
+                              background: "rgba(236, 72, 153, 0.1)",
+                              color: "#f472b6",
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.background =
+                                "rgba(236, 72, 153, 0.2)";
+                              e.target.style.borderColor =
+                                "rgba(236, 72, 153, 0.6)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.background =
+                                "rgba(236, 72, 153, 0.1)";
+                              e.target.style.borderColor =
+                                "rgba(236, 72, 153, 0.4)";
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1096,6 +1239,25 @@ export function EventGuestsPage() {
           )}
         </div>
       </div>
+
+      {/* Edit Guest Modal */}
+      {editingGuest && (
+        <EditGuestModal
+          guest={editingGuest}
+          event={event}
+          onClose={() => setEditingGuest(null)}
+          onSave={(updates) => handleUpdateGuest(editingGuest.id, updates)}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <DeleteConfirmModal
+          guest={showDeleteConfirm}
+          onClose={() => setShowDeleteConfirm(null)}
+          onConfirm={() => handleDeleteGuest(showDeleteConfirm)}
+        />
+      )}
     </div>
   );
 }
@@ -1379,5 +1541,560 @@ function DinnerStatusBadge({ status }) {
     >
       {style.label}
     </span>
+  );
+}
+
+function EditGuestModal({ guest, event, onClose, onSave }) {
+  const [name, setName] = useState(guest.name || "");
+  const [email, setEmail] = useState(guest.email || "");
+  const [plusOnes, setPlusOnes] = useState(guest.plusOnes || 0);
+  const [status, setStatus] = useState(guest.status || "attending");
+  const [wantsDinner, setWantsDinner] = useState(guest.wantsDinner || false);
+  const [dinnerTimeSlot, setDinnerTimeSlot] = useState(
+    guest.dinnerTimeSlot || ""
+  );
+  const [dinnerPartySize, setDinnerPartySize] = useState(
+    guest.dinnerPartySize || guest.partySize || 1
+  );
+  const [loading, setLoading] = useState(false);
+
+  const maxPlusOnes = event.maxPlusOnesPerGuest || 0;
+
+  // Generate dinner time slots
+  const dinnerSlots =
+    event.dinnerEnabled && event.dinnerStartTime && event.dinnerEndTime
+      ? generateDinnerTimeSlots(event)
+      : [];
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+
+    const updates = {
+      name: name.trim() || null,
+      email: email.trim(),
+      plusOnes: Math.max(0, Math.min(maxPlusOnes, parseInt(plusOnes) || 0)),
+      status,
+      wantsDinner: event.dinnerEnabled ? wantsDinner : false,
+      dinnerTimeSlot: wantsDinner && dinnerTimeSlot ? dinnerTimeSlot : null,
+      dinnerPartySize: wantsDinner
+        ? Math.max(1, parseInt(dinnerPartySize) || 1)
+        : null,
+    };
+
+    onSave(updates);
+    setLoading(false);
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(0, 0, 0, 0.8)",
+        backdropFilter: "blur(4px)",
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "rgba(12, 10, 18, 0.95)",
+          backdropFilter: "blur(20px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "24px",
+          padding: "32px",
+          maxWidth: "600px",
+          width: "100%",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "24px",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "24px",
+              fontWeight: 700,
+              margin: 0,
+            }}
+          >
+            Edit Guest
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#9ca3af",
+              fontSize: "24px",
+              cursor: "pointer",
+              padding: "0",
+              width: "32px",
+              height: "32px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "8px",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "rgba(255,255,255,0.1)";
+              e.target.style.color = "#fff";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "transparent";
+              e.target.style.color = "#9ca3af";
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "20px" }}
+          >
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  opacity: 0.8,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(20, 16, 30, 0.6)",
+                  color: "#fff",
+                  fontSize: "15px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+                placeholder="Guest name"
+              />
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  opacity: 0.8,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                Email *
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(20, 16, 30, 0.6)",
+                  color: "#fff",
+                  fontSize: "15px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+                placeholder="guest@example.com"
+              />
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  opacity: 0.8,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                Plus-Ones ({maxPlusOnes} max)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max={maxPlusOnes}
+                value={plusOnes}
+                onChange={(e) =>
+                  setPlusOnes(
+                    Math.max(
+                      0,
+                      Math.min(maxPlusOnes, parseInt(e.target.value) || 0)
+                    )
+                  )
+                }
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(20, 16, 30, 0.6)",
+                  color: "#fff",
+                  fontSize: "15px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  opacity: 0.8,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                Status
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(20, 16, 30, 0.6)",
+                  color: "#fff",
+                  fontSize: "15px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="attending">Attending</option>
+                <option value="waitlist">Waitlist</option>
+              </select>
+            </div>
+
+            {event.dinnerEnabled && (
+              <>
+                <div>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={wantsDinner}
+                      onChange={(e) => setWantsDinner(e.target.checked)}
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                        cursor: "pointer",
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Wants Dinner
+                    </span>
+                  </label>
+                </div>
+
+                {wantsDinner && dinnerSlots.length > 0 && (
+                  <>
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          marginBottom: "8px",
+                          opacity: 0.8,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                        }}
+                      >
+                        Dinner Time Slot
+                      </label>
+                      <select
+                        value={dinnerTimeSlot}
+                        onChange={(e) => setDinnerTimeSlot(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "12px 16px",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "rgba(20, 16, 30, 0.6)",
+                          color: "#fff",
+                          fontSize: "15px",
+                          outline: "none",
+                          boxSizing: "border-box",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <option value="">Select time slot</option>
+                        {dinnerSlots.map((slot) => (
+                          <option key={slot} value={slot}>
+                            {new Date(slot).toLocaleTimeString("en-US", {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          marginBottom: "8px",
+                          opacity: 0.8,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                        }}
+                      >
+                        Dinner Party Size
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={dinnerPartySize}
+                        onChange={(e) =>
+                          setDinnerPartySize(
+                            Math.max(1, parseInt(e.target.value) || 1)
+                          )
+                        }
+                        style={{
+                          width: "100%",
+                          padding: "12px 16px",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "rgba(20, 16, 30, 0.6)",
+                          color: "#fff",
+                          fontSize: "15px",
+                          outline: "none",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              marginTop: "32px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                flex: 1,
+                padding: "14px 24px",
+                borderRadius: "12px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.05)",
+                color: "#fff",
+                fontSize: "15px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = "rgba(255,255,255,0.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = "rgba(255,255,255,0.05)";
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                flex: 1,
+                padding: "14px 24px",
+                borderRadius: "12px",
+                border: "none",
+                background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                color: "#fff",
+                fontSize: "15px",
+                fontWeight: 600,
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.6 : 1,
+                transition: "all 0.2s ease",
+              }}
+            >
+              {loading ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function DeleteConfirmModal({ guest, onClose, onConfirm }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(0, 0, 0, 0.8)",
+        backdropFilter: "blur(4px)",
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "rgba(12, 10, 18, 0.95)",
+          backdropFilter: "blur(20px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "24px",
+          padding: "32px",
+          maxWidth: "500px",
+          width: "100%",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          style={{
+            fontSize: "24px",
+            fontWeight: 700,
+            marginBottom: "16px",
+          }}
+        >
+          Delete Guest?
+        </h2>
+        <p
+          style={{
+            fontSize: "15px",
+            opacity: 0.8,
+            marginBottom: "24px",
+            lineHeight: "1.6",
+          }}
+        >
+          Are you sure you want to delete{" "}
+          <strong>{guest.name || guest.email}</strong>? This action cannot be
+          undone.
+        </p>
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "14px 24px",
+              borderRadius: "12px",
+              border: "1px solid rgba(255,255,255,0.2)",
+              background: "rgba(255,255,255,0.05)",
+              color: "#fff",
+              fontSize: "15px",
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "rgba(255,255,255,0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "rgba(255,255,255,0.05)";
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              flex: 1,
+              padding: "14px 24px",
+              borderRadius: "12px",
+              border: "none",
+              background: "linear-gradient(135deg, #ec4899 0%, #dc2626 100%)",
+              color: "#fff",
+              fontSize: "15px",
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = "scale(1.02)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = "scale(1)";
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

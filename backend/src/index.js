@@ -13,6 +13,9 @@ import {
   getRsvpsForEvent,
   generateDinnerTimeSlots,
   getDinnerSlotCounts,
+  findRsvpById,
+  updateRsvp,
+  deleteRsvp,
 } from "./data.js";
 
 dotenv.config();
@@ -291,6 +294,79 @@ app.get("/events/:slug/dinner-slots", (req, res) => {
     slots: enrichedSlots,
     maxSeatsPerSlot: event.dinnerMaxSeatsPerSlot,
   });
+});
+
+// ---------------------------
+// HOST: Update RSVP
+// ---------------------------
+app.put("/host/events/:eventId/rsvps/:rsvpId", (req, res) => {
+  const { eventId, rsvpId } = req.params;
+  const event = findEventById(eventId);
+  if (!event) return res.status(404).json({ error: "Event not found" });
+
+  const rsvp = findRsvpById(rsvpId);
+  if (!rsvp || rsvp.eventId !== eventId) {
+    return res.status(404).json({ error: "RSVP not found" });
+  }
+
+  const {
+    name,
+    email,
+    plusOnes,
+    status,
+    wantsDinner,
+    dinnerTimeSlot,
+    dinnerPartySize,
+  } = req.body;
+
+  const result = updateRsvp(rsvpId, {
+    name,
+    email,
+    plusOnes,
+    status,
+    wantsDinner,
+    dinnerTimeSlot,
+    dinnerPartySize,
+  });
+
+  if (result.error === "not_found") {
+    return res.status(404).json({ error: "RSVP not found" });
+  }
+
+  if (result.error === "invalid_email") {
+    return res.status(400).json({ error: "Invalid email format" });
+  }
+
+  if (result.error === "full") {
+    return res.status(409).json({
+      error: "full",
+      message: "Event is full and waitlist is disabled",
+    });
+  }
+
+  res.json(result.rsvp);
+});
+
+// ---------------------------
+// HOST: Delete RSVP
+// ---------------------------
+app.delete("/host/events/:eventId/rsvps/:rsvpId", (req, res) => {
+  const { eventId, rsvpId } = req.params;
+  const event = findEventById(eventId);
+  if (!event) return res.status(404).json({ error: "Event not found" });
+
+  const rsvp = findRsvpById(rsvpId);
+  if (!rsvp || rsvp.eventId !== eventId) {
+    return res.status(404).json({ error: "RSVP not found" });
+  }
+
+  const result = deleteRsvp(rsvpId);
+
+  if (result.error === "not_found") {
+    return res.status(404).json({ error: "RSVP not found" });
+  }
+
+  res.json({ success: true });
 });
 
 // ---------------------------

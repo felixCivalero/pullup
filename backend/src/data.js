@@ -391,3 +391,176 @@ export function addRsvp({
 export function getRsvpsForEvent(eventId) {
   return rsvps.filter((r) => r.eventId === eventId);
 }
+
+// Find RSVP by ID
+export function findRsvpById(rsvpId) {
+  return rsvps.find((r) => r.id === rsvpId) || null;
+}
+
+// Update RSVP
+export function updateRsvp(rsvpId, updates) {
+  const idx = rsvps.findIndex((r) => r.id === rsvpId);
+  if (idx === -1) return { error: "not_found" };
+
+  const rsvp = rsvps[idx];
+  const event = findEventById(rsvp.eventId);
+  if (!event) return { error: "event_not_found" };
+
+  // Validate email if provided
+  if (updates.email && !isValidEmail(updates.email.trim())) {
+    return { error: "invalid_email" };
+  }
+
+  // Handle plus-ones update
+  let plusOnes = rsvp.plusOnes;
+  if (updates.plusOnes !== undefined) {
+    const maxPlus =
+      typeof event.maxPlusOnesPerGuest === "number"
+        ? event.maxPlusOnesPerGuest
+        : 0;
+    plusOnes = Math.max(
+      0,
+      Math.min(
+        maxPlus,
+        Number.isFinite(updates.plusOnes) ? updates.plusOnes : 0
+      )
+    );
+  }
+  const partySize = 1 + plusOnes;
+
+  // Handle dinner party size update
+  let dinnerPartySize = rsvp.dinnerPartySize || partySize;
+  if (updates.dinnerPartySize !== undefined) {
+    dinnerPartySize = Math.max(
+      1,
+      Math.floor(Number(updates.dinnerPartySize) || partySize)
+    );
+  }
+
+  // Recalculate status based on capacity
+  const { attending } = getEventCounts(event.id);
+  const currentAttending = rsvps
+    .filter(
+      (r) =>
+        r.eventId === event.id && r.status === "attending" && r.id !== rsvpId
+    )
+    .reduce((sum, r) => sum + (r.partySize || 1), 0);
+
+  let status = rsvp.status;
+  if (updates.status !== undefined) {
+    status = updates.status;
+  } else {
+    // Auto-determine status based on capacity
+    if (
+      event.maxAttendees &&
+      currentAttending + partySize > event.maxAttendees
+    ) {
+      if (event.waitlistEnabled) {
+        status = "waitlist";
+      } else {
+        return { error: "full" };
+      }
+    } else {
+      status = "attending";
+    }
+  }
+
+  // Handle dinner status updates
+  let wantsDinner = rsvp.wantsDinner;
+  let dinnerStatus = rsvp.dinnerStatus;
+  let dinnerTimeSlot = rsvp.dinnerTimeSlot;
+
+  if (updates.wantsDinner !== undefined) {
+    wantsDinner = !!updates.wantsDinner && !!event.dinnerEnabled;
+
+    if (wantsDinner) {
+      // Validate time slot if provided
+      if (updates.dinnerTimeSlot) {
+        const availableSlots = generateDinnerTimeSlots(event);
+        if (availableSlots.includes(updates.dinnerTimeSlot)) {
+          dinnerTimeSlot = updates.dinnerTimeSlot;
+        }
+      } else if (!dinnerTimeSlot && event.dinnerEnabled) {
+        // Default to first available slot
+        const availableSlots = generateDinnerTimeSlots(event);
+        if (availableSlots.length > 0) {
+          dinnerTimeSlot = availableSlots[0];
+        }
+      }
+
+      // Recalculate dinner status
+      if (dinnerTimeSlot) {
+        const slotCounts = getDinnerSlotCounts(event.id);
+        const slotData = slotCounts[dinnerTimeSlot] || {
+          confirmed: 0,
+          waitlist: 0,
+        };
+
+        // Exclude current RSVP from counts
+        const currentSlotConfirmed = rsvps
+          .filter(
+            (r) =>
+              r.eventId === event.id &&
+              r.wantsDinner &&
+              r.dinnerTimeSlot === dinnerTimeSlot &&
+              r.dinnerStatus === "confirmed" &&
+              r.id !== rsvpId
+          )
+          .reduce((sum, r) => sum + (r.dinnerPartySize || r.partySize || 1), 0);
+
+        if (event.dinnerMaxSeatsPerSlot) {
+          if (
+            status === "attending" &&
+            currentSlotConfirmed + dinnerPartySize <=
+              event.dinnerMaxSeatsPerSlot
+          ) {
+            dinnerStatus = "confirmed";
+          } else {
+            if (event.dinnerOverflowAction === "cocktails") {
+              dinnerStatus = "cocktails";
+            } else if (event.dinnerOverflowAction === "both") {
+              dinnerStatus = "cocktails_waitlist";
+            } else {
+              dinnerStatus = "waitlist";
+            }
+          }
+        } else {
+          dinnerStatus = status === "attending" ? "confirmed" : "waitlist";
+        }
+      }
+    } else {
+      dinnerStatus = null;
+      dinnerTimeSlot = null;
+      dinnerPartySize = null;
+    }
+  }
+
+  // Update the RSVP
+  rsvps[idx] = {
+    ...rsvp,
+    ...(updates.name !== undefined && { name: updates.name || null }),
+    ...(updates.email !== undefined && {
+      email: updates.email.trim().toLowerCase(),
+    }),
+    status,
+    plusOnes,
+    partySize,
+    wantsDinner,
+    dinnerStatus,
+    dinnerTimeSlot,
+    dinnerPartySize: wantsDinner ? dinnerPartySize : null,
+  };
+
+  return { rsvp: rsvps[idx] };
+}
+
+// Delete RSVP
+export function deleteRsvp(rsvpId) {
+  const idx = rsvps.findIndex((r) => r.id === rsvpId);
+  if (idx === -1) return { error: "not_found" };
+
+  const rsvp = rsvps[idx];
+  rsvps.splice(idx, 1);
+
+  return { success: true, rsvp };
+}

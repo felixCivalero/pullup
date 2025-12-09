@@ -84,23 +84,6 @@ function formatReadableDateTime(date) {
   return `${dateStr} at ${timeStr}`;
 }
 
-// Get user's timezone
-function getUserTimezone() {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
-
-function formatTimezone(timezone) {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en", {
-    timeZone: timezone,
-    timeZoneName: "short",
-  });
-  const parts = formatter.formatToParts(now);
-  const tzName = parts.find((p) => p.type === "timeZoneName")?.value || "";
-  const city = timezone.split("/").pop()?.replace(/_/g, " ") || timezone;
-  return { tzName, city };
-}
-
 function getQuickDateOptions() {
   const now = new Date();
   const options = [];
@@ -184,10 +167,6 @@ export function ManageEventPage() {
           startsAtLocal: data.startsAt
             ? new Date(data.startsAt).toISOString().slice(0, 16)
             : "",
-          endsAtLocal: data.endsAt
-            ? new Date(data.endsAt).toISOString().slice(0, 16)
-            : "",
-          timezone: data.timezone || getUserTimezone(),
           dinnerStartTimeLocal: data.dinnerStartTime
             ? new Date(data.dinnerStartTime).toISOString().slice(0, 16)
             : "",
@@ -215,11 +194,6 @@ export function ManageEventPage() {
             typeof data.waitlistEnabled === "boolean"
               ? data.waitlistEnabled
               : true,
-          ticketType: data.ticketType || "free",
-          requireApproval: data.requireApproval || false,
-          theme: data.theme || "minimal",
-          calendar: data.calendar || "personal",
-          visibility: data.visibility || "public",
         });
         console.log("📥 [Load] Event loaded:", {
           eventImageUrl: data.imageUrl
@@ -371,10 +345,6 @@ export function ManageEventPage() {
         startsAt: event.startsAtLocal
           ? new Date(event.startsAtLocal).toISOString()
           : null,
-        endsAt: event.endsAtLocal
-          ? new Date(event.endsAtLocal).toISOString()
-          : null,
-        timezone: event.timezone || getUserTimezone(),
         maxAttendees,
         waitlistEnabled: !!event.waitlistEnabled,
         maxPlusOnesPerGuest,
@@ -388,11 +358,6 @@ export function ManageEventPage() {
         dinnerSeatingIntervalHours,
         dinnerMaxSeatsPerSlot,
         dinnerOverflowAction: event.dinnerOverflowAction || "waitlist",
-        ticketType: event.ticketType || "free",
-        requireApproval: !!event.requireApproval,
-        theme: event.theme || "minimal",
-        calendar: event.calendar || "personal",
-        visibility: event.visibility || "public",
         imageUrl: imageUrlToSend,
       };
 
@@ -477,10 +442,6 @@ export function ManageEventPage() {
         startsAtLocal: updated.startsAt
           ? new Date(updated.startsAt).toISOString().slice(0, 16)
           : "",
-        endsAtLocal: updated.endsAt
-          ? new Date(updated.endsAt).toISOString().slice(0, 16)
-          : "",
-        timezone: updated.timezone || getUserTimezone(),
         dinnerStartTimeLocal: updated.dinnerStartTime
           ? new Date(updated.dinnerStartTime).toISOString().slice(0, 16)
           : "",
@@ -1266,149 +1227,6 @@ export function ManageEventPage() {
                   </div>
                 )}
               </label>
-
-              {/* End Date & Time */}
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  marginTop: "24px",
-                  opacity: 0.9,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "12px",
-                      height: "12px",
-                      borderRadius: "50%",
-                      border: "2px solid rgba(255,255,255,0.3)",
-                      background: "transparent",
-                    }}
-                  />
-                  <span>End Date & Time</span>
-                  <span style={{ opacity: 0.5, fontWeight: 400 }}>
-                    (optional)
-                  </span>
-                </div>
-
-                <div style={{ position: "relative" }}>
-                  <input
-                    type="datetime-local"
-                    value={event.endsAtLocal || ""}
-                    onChange={(e) =>
-                      setEvent({ ...event, endsAtLocal: e.target.value })
-                    }
-                    min={event.startsAtLocal || undefined}
-                    onFocus={() => setFocusedField("endsAt")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...(focusedField === "endsAt"
-                        ? focusedInputStyle
-                        : inputStyle),
-                      fontSize: "15px",
-                      padding: "14px 16px 14px 48px",
-                      cursor: "pointer",
-                      width: "100%",
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: "16px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      fontSize: "18px",
-                      opacity: 0.7,
-                      pointerEvents: "none",
-                    }}
-                  >
-                    📅
-                  </div>
-                  {event.endsAtLocal && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        right: "16px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        fontSize: "11px",
-                        opacity: 0.6,
-                        pointerEvents: "none",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {formatRelativeTime(new Date(event.endsAtLocal))}
-                    </div>
-                  )}
-                </div>
-                {event.endsAtLocal && (
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      opacity: 0.7,
-                      marginTop: "8px",
-                      paddingLeft: "4px",
-                      fontStyle: "italic",
-                    }}
-                  >
-                    {formatReadableDateTime(new Date(event.endsAtLocal))}
-                  </div>
-                )}
-              </label>
-
-              {/* Timezone Display */}
-              {event.timezone && (
-                <div
-                  style={{
-                    marginTop: "24px",
-                    padding: "18px 20px",
-                    background: "rgba(139, 92, 246, 0.12)",
-                    borderRadius: "16px",
-                    border: "1px solid rgba(139, 92, 246, 0.25)",
-                    fontSize: "12px",
-                    textAlign: "center",
-                    boxShadow: "0 4px 16px rgba(139, 92, 246, 0.1)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "24px",
-                      marginBottom: "10px",
-                      opacity: 0.9,
-                    }}
-                  >
-                    🌐
-                  </div>
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      marginBottom: "6px",
-                      fontSize: "15px",
-                      color: "#8b5cf6",
-                    }}
-                  >
-                    {formatTimezone(event.timezone).tzName}
-                  </div>
-                  <div
-                    style={{
-                      opacity: 0.7,
-                      fontSize: "12px",
-                      textTransform: "capitalize",
-                    }}
-                  >
-                    {formatTimezone(event.timezone).city}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Capacity + waitlist */}
@@ -1527,328 +1345,6 @@ export function ManageEventPage() {
                   </label>
                 </div>
               </label>
-            </div>
-
-            {/* Event Options */}
-            <div
-              style={{
-                background: "rgba(20, 16, 30, 0.3)",
-                borderRadius: "20px",
-                padding: "28px",
-                border: "1px solid rgba(255,255,255,0.08)",
-                backdropFilter: "blur(10px)",
-                marginBottom: "24px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  marginBottom: "24px",
-                }}
-              >
-                <span style={{ fontSize: "20px" }}>⚙️</span>
-                <div
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.15em",
-                    opacity: 0.9,
-                  }}
-                >
-                  Event Options
-                </div>
-              </div>
-
-              {/* Ticket Type */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 14px",
-                  background: "rgba(20, 16, 30, 0.15)",
-                  borderRadius: "10px",
-                  marginBottom: "6px",
-                  border: "1px solid rgba(255,255,255,0.03)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "10px",
-                  }}
-                >
-                  <span style={{ fontSize: "15px" }}>🎫</span>
-                  <div>
-                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
-                      Tickets
-                    </div>
-                  </div>
-                </div>
-                <select
-                  value={event.ticketType || "free"}
-                  onChange={(e) =>
-                    setEvent({ ...event, ticketType: e.target.value })
-                  }
-                  style={{
-                    padding: "5px 20px 5px 10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.04)",
-                    background: "rgba(12, 10, 18, 0.4)",
-                    color: "#fff",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    appearance: "none",
-                    backgroundImage:
-                      "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "right 8px center",
-                    paddingRight: "28px",
-                  }}
-                >
-                  <option value="free">Free</option>
-                  <option value="paid">Paid</option>
-                </select>
-              </div>
-
-              {/* Require Approval */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 14px",
-                  background: "rgba(20, 16, 30, 0.15)",
-                  borderRadius: "10px",
-                  marginBottom: "6px",
-                  border: "1px solid rgba(255,255,255,0.03)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "10px",
-                  }}
-                >
-                  <span style={{ fontSize: "15px" }}>🤝</span>
-                  <div>
-                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
-                      Require Approval
-                    </div>
-                  </div>
-                </div>
-                <label
-                  style={{
-                    position: "relative",
-                    display: "inline-block",
-                    width: "40px",
-                    height: "20px",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={!!event.requireApproval}
-                    onChange={(e) =>
-                      setEvent({
-                        ...event,
-                        requireApproval: e.target.checked,
-                      })
-                    }
-                    style={{ display: "none" }}
-                  />
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      background: event.requireApproval
-                        ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
-                        : "rgba(255,255,255,0.1)",
-                      borderRadius: "10px",
-                      transition: "all 0.3s ease",
-                    }}
-                  >
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: "2px",
-                        left: event.requireApproval ? "22px" : "2px",
-                        width: "16px",
-                        height: "16px",
-                        background: "#fff",
-                        borderRadius: "50%",
-                        transition: "all 0.3s ease",
-                        boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                      }}
-                    />
-                  </span>
-                </label>
-              </div>
-
-              {/* Theme */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 14px",
-                  background: "rgba(20, 16, 30, 0.15)",
-                  borderRadius: "10px",
-                  marginBottom: "6px",
-                  border: "1px solid rgba(255,255,255,0.03)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "10px",
-                  }}
-                >
-                  <span style={{ fontSize: "15px" }}>🎨</span>
-                  <div>
-                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
-                      Theme
-                    </div>
-                  </div>
-                </div>
-                <select
-                  value={event.theme || "minimal"}
-                  onChange={(e) =>
-                    setEvent({ ...event, theme: e.target.value })
-                  }
-                  style={{
-                    padding: "5px 20px 5px 10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.04)",
-                    background: "rgba(12, 10, 18, 0.4)",
-                    color: "#fff",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    appearance: "none",
-                    backgroundImage:
-                      "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "right 8px center",
-                    paddingRight: "28px",
-                  }}
-                >
-                  <option value="minimal">Minimal</option>
-                </select>
-              </div>
-
-              {/* Calendar */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 14px",
-                  background: "rgba(20, 16, 30, 0.15)",
-                  borderRadius: "10px",
-                  marginBottom: "6px",
-                  border: "1px solid rgba(255,255,255,0.03)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "10px",
-                  }}
-                >
-                  <span style={{ fontSize: "15px" }}>📅</span>
-                  <div>
-                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
-                      Calendar
-                    </div>
-                  </div>
-                </div>
-                <select
-                  value={event.calendar || "personal"}
-                  onChange={(e) =>
-                    setEvent({ ...event, calendar: e.target.value })
-                  }
-                  style={{
-                    padding: "5px 20px 5px 10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.04)",
-                    background: "rgba(12, 10, 18, 0.4)",
-                    color: "#fff",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    appearance: "none",
-                    backgroundImage:
-                      "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "right 8px center",
-                    paddingRight: "28px",
-                  }}
-                >
-                  <option value="personal">Personal</option>
-                </select>
-              </div>
-
-              {/* Visibility */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 14px",
-                  background: "rgba(20, 16, 30, 0.15)",
-                  borderRadius: "10px",
-                  marginBottom: "6px",
-                  border: "1px solid rgba(255,255,255,0.03)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "10px",
-                  }}
-                >
-                  <span style={{ fontSize: "15px" }}>👁️</span>
-                  <div>
-                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
-                      Visibility
-                    </div>
-                  </div>
-                </div>
-                <select
-                  value={event.visibility || "public"}
-                  onChange={(e) =>
-                    setEvent({ ...event, visibility: e.target.value })
-                  }
-                  style={{
-                    padding: "5px 20px 5px 10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.04)",
-                    background: "rgba(12, 10, 18, 0.4)",
-                    color: "#fff",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    appearance: "none",
-                    backgroundImage:
-                      "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "right 8px center",
-                    paddingRight: "28px",
-                  }}
-                >
-                  <option value="public">Public</option>
-                  <option value="private">Private</option>
-                </select>
-              </div>
             </div>
 
             {/* Plus-ones + dinner */}

@@ -167,6 +167,19 @@ export function ManageEventPage() {
           startsAtLocal: data.startsAt
             ? new Date(data.startsAt).toISOString().slice(0, 16)
             : "",
+          endsAtLocal: data.endsAt
+            ? new Date(data.endsAt).toISOString().slice(0, 16)
+            : "",
+          timezone:
+            data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+          theme: data.theme || "minimal",
+          calendar: data.calendar || "personal",
+          visibility: data.visibility || "public",
+          ticketType: data.ticketType || "free",
+          requireApproval:
+            typeof data.requireApproval === "boolean"
+              ? data.requireApproval
+              : false,
           dinnerStartTimeLocal: data.dinnerStartTime
             ? new Date(data.dinnerStartTime).toISOString().slice(0, 16)
             : "",
@@ -345,6 +358,16 @@ export function ManageEventPage() {
         startsAt: event.startsAtLocal
           ? new Date(event.startsAtLocal).toISOString()
           : null,
+        endsAt: event.endsAtLocal
+          ? new Date(event.endsAtLocal).toISOString()
+          : null,
+        timezone:
+          event.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        theme: event.theme || "minimal",
+        calendar: event.calendar || "personal",
+        visibility: event.visibility || "public",
+        ticketType: event.ticketType || "free",
+        requireApproval: !!event.requireApproval,
         maxAttendees,
         waitlistEnabled: !!event.waitlistEnabled,
         maxPlusOnesPerGuest,
@@ -442,6 +465,19 @@ export function ManageEventPage() {
         startsAtLocal: updated.startsAt
           ? new Date(updated.startsAt).toISOString().slice(0, 16)
           : "",
+        endsAtLocal: updated.endsAt
+          ? new Date(updated.endsAt).toISOString().slice(0, 16)
+          : "",
+        timezone:
+          updated.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        theme: updated.theme || "minimal",
+        calendar: updated.calendar || "personal",
+        visibility: updated.visibility || "public",
+        ticketType: updated.ticketType || "free",
+        requireApproval:
+          typeof updated.requireApproval === "boolean"
+            ? updated.requireApproval
+            : false,
         dinnerStartTimeLocal: updated.dinnerStartTime
           ? new Date(updated.dinnerStartTime).toISOString().slice(0, 16)
           : "",
@@ -1226,6 +1262,362 @@ export function ManageEventPage() {
                     {formatReadableDateTime(new Date(event.startsAtLocal))}
                   </div>
                 )}
+              </label>
+
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginTop: "20px",
+                  opacity: 0.9,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      background:
+                        "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                      border: "2px solid rgba(255,255,255,0.1)",
+                      boxShadow: "0 0 0 2px rgba(139, 92, 246, 0.2)",
+                    }}
+                  />
+                  <span>End Date & Time</span>
+                  <span style={{ opacity: 0.5, fontWeight: 400 }}>
+                    (Optional)
+                  </span>
+                </div>
+                <div style={{ position: "relative", marginTop: "12px" }}>
+                  <input
+                    type="datetime-local"
+                    value={event.endsAtLocal || ""}
+                    onChange={(e) =>
+                      setEvent({ ...event, endsAtLocal: e.target.value })
+                    }
+                    onFocus={() => setFocusedField("endsAt")}
+                    onBlur={() => setFocusedField(null)}
+                    style={{
+                      ...(focusedField === "endsAt"
+                        ? focusedInputStyle
+                        : inputStyle),
+                      fontSize: "15px",
+                      padding: "14px 16px 14px 48px",
+                      cursor: "pointer",
+                      width: "100%",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "16px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      fontSize: "18px",
+                      opacity: 0.7,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    🕐
+                  </div>
+                </div>
+                {event.endsAtLocal && (
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      opacity: 0.7,
+                      marginTop: "8px",
+                      paddingLeft: "4px",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {formatReadableDateTime(new Date(event.endsAtLocal))}
+                  </div>
+                )}
+              </label>
+
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginTop: "20px",
+                  opacity: 0.9,
+                }}
+              >
+                Timezone
+                <select
+                  value={
+                    event.timezone ||
+                    Intl.DateTimeFormat().resolvedOptions().timeZone
+                  }
+                  onChange={(e) =>
+                    setEvent({ ...event, timezone: e.target.value })
+                  }
+                  onFocus={() => setFocusedField("timezone")}
+                  onBlur={() => setFocusedField(null)}
+                  style={{
+                    ...(focusedField === "timezone"
+                      ? focusedInputStyle
+                      : inputStyle),
+                    fontSize: "15px",
+                    cursor: "pointer",
+                    marginTop: "8px",
+                  }}
+                >
+                  {Intl.supportedValuesOf("timeZone").map((tz) => (
+                    <option key={tz} value={tz}>
+                      {tz.replace(/_/g, " ")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {/* Event Options */}
+            <div
+              style={{
+                background: "rgba(20, 16, 30, 0.3)",
+                borderRadius: "20px",
+                padding: "28px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                backdropFilter: "blur(10px)",
+                marginBottom: "24px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginBottom: "24px",
+                }}
+              >
+                <span style={{ fontSize: "20px" }}>⚙️</span>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.15em",
+                    opacity: 0.9,
+                  }}
+                >
+                  Event Options
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "20px",
+                }}
+              >
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    opacity: 0.9,
+                  }}
+                >
+                  Ticket Type
+                  <select
+                    value={event.ticketType || "free"}
+                    onChange={(e) =>
+                      setEvent({ ...event, ticketType: e.target.value })
+                    }
+                    onFocus={() => setFocusedField("ticketType")}
+                    onBlur={() => setFocusedField(null)}
+                    style={{
+                      ...(focusedField === "ticketType"
+                        ? focusedInputStyle
+                        : inputStyle),
+                      fontSize: "15px",
+                      cursor: "pointer",
+                      marginTop: "8px",
+                    }}
+                  >
+                    <option value="free">Free</option>
+                    <option value="paid">Paid</option>
+                  </select>
+                </label>
+
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    opacity: 0.9,
+                  }}
+                >
+                  Visibility
+                  <select
+                    value={event.visibility || "public"}
+                    onChange={(e) =>
+                      setEvent({ ...event, visibility: e.target.value })
+                    }
+                    onFocus={() => setFocusedField("visibility")}
+                    onBlur={() => setFocusedField(null)}
+                    style={{
+                      ...(focusedField === "visibility"
+                        ? focusedInputStyle
+                        : inputStyle),
+                      fontSize: "15px",
+                      cursor: "pointer",
+                      marginTop: "8px",
+                    }}
+                  >
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                  </select>
+                </label>
+
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    opacity: 0.9,
+                  }}
+                >
+                  Theme
+                  <select
+                    value={event.theme || "minimal"}
+                    onChange={(e) =>
+                      setEvent({ ...event, theme: e.target.value })
+                    }
+                    onFocus={() => setFocusedField("theme")}
+                    onBlur={() => setFocusedField(null)}
+                    style={{
+                      ...(focusedField === "theme"
+                        ? focusedInputStyle
+                        : inputStyle),
+                      fontSize: "15px",
+                      cursor: "pointer",
+                      marginTop: "8px",
+                    }}
+                  >
+                    <option value="minimal">Minimal</option>
+                  </select>
+                </label>
+
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    opacity: 0.9,
+                  }}
+                >
+                  Calendar
+                  <select
+                    value={event.calendar || "personal"}
+                    onChange={(e) =>
+                      setEvent({ ...event, calendar: e.target.value })
+                    }
+                    onFocus={() => setFocusedField("calendar")}
+                    onBlur={() => setFocusedField(null)}
+                    style={{
+                      ...(focusedField === "calendar"
+                        ? focusedInputStyle
+                        : inputStyle),
+                      fontSize: "15px",
+                      cursor: "pointer",
+                      marginTop: "8px",
+                    }}
+                  >
+                    <option value="personal">Personal</option>
+                    <option value="business">Business</option>
+                  </select>
+                </label>
+              </div>
+
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginTop: "20px",
+                  gap: "8px",
+                }}
+              >
+                <div style={{ opacity: 0.9 }}>Require Approval</div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "8px 12px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(20, 16, 30, 0.6)",
+                  }}
+                >
+                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                    Manually approve RSVPs before confirming
+                  </span>
+                  <label
+                    style={{
+                      position: "relative",
+                      display: "inline-block",
+                      width: "40px",
+                      height: "20px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!event.requireApproval}
+                      onChange={(e) =>
+                        setEvent({
+                          ...event,
+                          requireApproval: e.target.checked,
+                        })
+                      }
+                      style={{ display: "none" }}
+                    />
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: event.requireApproval
+                          ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
+                          : "rgba(255,255,255,0.15)",
+                        borderRadius: "10px",
+                        transition: "all 0.3s ease",
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: "2px",
+                          left: event.requireApproval ? "22px" : "2px",
+                          width: "16px",
+                          height: "16px",
+                          background: "#fff",
+                          borderRadius: "50%",
+                          transition: "all 0.3s ease",
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                        }}
+                      />
+                    </span>
+                  </label>
+                </div>
               </label>
             </div>
 

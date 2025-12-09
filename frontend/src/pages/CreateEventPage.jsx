@@ -75,10 +75,8 @@ function formatReadableDateTime(date) {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const isToday =
-    date.toDateString() === today.toDateString();
-  const isTomorrow =
-    date.toDateString() === tomorrow.toDateString();
+  const isToday = date.toDateString() === today.toDateString();
+  const isTomorrow = date.toDateString() === tomorrow.toDateString();
 
   let dateStr = "";
   if (isToday) {
@@ -99,6 +97,120 @@ function formatReadableDateTime(date) {
   });
 
   return `${dateStr} at ${timeStr}`;
+}
+
+// Helper function to convert ISO string to datetime-local format (local time)
+// This ensures the displayed time matches what the user selected, accounting for timezone
+function isoToLocalDateTime(isoString) {
+  if (!isoString) return "";
+  // Create Date object from ISO string (which is in UTC)
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "";
+
+  // Get local date/time components (not UTC)
+  // These methods automatically return values in the local timezone
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// Helper function to convert datetime-local string to ISO string
+// datetime-local inputs provide values in local time (e.g., "2025-12-10T19:00")
+// The key: when you create a Date from "YYYY-MM-DDTHH:mm" (without timezone),
+// JavaScript interprets it as local time. When we call toISOString(), it converts to UTC.
+// This is correct - we store in UTC, and when displaying, we convert back to local.
+function localDateTimeToIso(localDateTimeString) {
+  if (!localDateTimeString) return "";
+
+  // Parse the local datetime string
+  // Format: "YYYY-MM-DDTHH:mm" (local time, no timezone)
+  // JavaScript will interpret this as local time
+  const [datePart, timePart] = localDateTimeString.split("T");
+  if (!datePart || !timePart) return "";
+
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hours, minutes] = timePart.split(":").map(Number);
+
+  // Create a Date object in local time
+  // Using the Date constructor with individual components ensures local time interpretation
+  const localDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  if (isNaN(localDate.getTime())) return "";
+
+  // Convert to ISO string (UTC)
+  // When we convert back using isoToLocalDateTime, it will show the correct local time
+  return localDate.toISOString();
+}
+
+// Calculate cuisine timeslots based on time window and interval
+function calculateCuisineTimeslots(startTime, endTime, intervalHours) {
+  if (!startTime || !endTime || !intervalHours) {
+    return [];
+  }
+
+  try {
+    // Parse datetime-local strings to Date objects
+    const [startDatePart, startTimePart] = startTime.split("T");
+    const [endDatePart, endTimePart] = endTime.split("T");
+
+    if (!startDatePart || !startTimePart || !endDatePart || !endTimePart) {
+      return [];
+    }
+
+    const [startYear, startMonth, startDay] = startDatePart
+      .split("-")
+      .map(Number);
+    const [startHour, startMinute] = startTimePart.split(":").map(Number);
+    const [endYear, endMonth, endDay] = endDatePart.split("-").map(Number);
+    const [endHour, endMinute] = endTimePart.split(":").map(Number);
+
+    const startDate = new Date(
+      startYear,
+      startMonth - 1,
+      startDay,
+      startHour,
+      startMinute
+    );
+    const endDate = new Date(endYear, endMonth - 1, endDay, endHour, endMinute);
+    const interval = parseFloat(intervalHours);
+
+    if (
+      isNaN(startDate.getTime()) ||
+      isNaN(endDate.getTime()) ||
+      isNaN(interval) ||
+      interval <= 0
+    ) {
+      return [];
+    }
+
+    if (endDate <= startDate) {
+      return [];
+    }
+
+    const slots = [];
+    let currentTime = new Date(startDate);
+
+    while (currentTime <= endDate) {
+      // Format time as "18:00", "20:30", etc. (24-hour format)
+      const hours = currentTime.getHours();
+      const minutes = currentTime.getMinutes();
+      const timeStr = `${String(hours).padStart(2, "0")}:${String(
+        minutes
+      ).padStart(2, "0")}`;
+
+      slots.push(timeStr);
+
+      // Move to next slot
+      currentTime = new Date(currentTime.getTime() + interval * 60 * 60 * 1000);
+    }
+
+    return slots;
+  } catch (error) {
+    console.error("Error calculating timeslots:", error);
+    return [];
+  }
 }
 
 function getQuickDateOptions() {
@@ -165,7 +277,9 @@ export function CreateEventPage() {
   const [theme] = useState("minimal");
   const [calendar] = useState("personal");
   const [visibility] = useState("public");
-  const [ticketType, setTicketType] = useState("free");
+  const [sellTicketsEnabled, setSellTicketsEnabled] = useState(false);
+  const [ticketPrice, setTicketPrice] = useState("");
+  const [ticketCurrency, setTicketCurrency] = useState("USD");
   const [requireApproval, setRequireApproval] = useState(false);
 
   // NEW: plus-ones
@@ -184,6 +298,26 @@ export function CreateEventPage() {
   const [loading, setLoading] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMounted, setIsMounted] = useState(false);
+
+  // Stripe connection status - load from localStorage
+  const [stripeConnected, setStripeConnected] = useState(false);
+  const [stripeAccountEmail, setStripeAccountEmail] = useState("");
+
+  // Load Stripe connection status from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("pullup_user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.stripeConnected) {
+          setStripeConnected(true);
+          setStripeAccountEmail(parsed.stripeAccountEmail || "");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load Stripe status:", error);
+    }
+  }, []);
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
@@ -256,8 +390,39 @@ export function CreateEventPage() {
       // derive maxPlusOnesPerGuest
       const parsedMaxPlus =
         allowPlusOnes && maxPlusOnesPerGuest
-          ? Math.max(1, Math.min(3, parseInt(maxPlusOnesPerGuest, 10) || 1))
+          ? Math.max(1, Math.min(5, parseInt(maxPlusOnesPerGuest, 10) || 1))
           : 0;
+
+      // Calculate capacities
+      const cocktailCapacity = maxAttendees ? Number(maxAttendees) : null;
+
+      // Calculate food capacity: max seats per slot * number of timeslots
+      let foodCapacity = null;
+      if (
+        dinnerEnabled &&
+        dinnerStartTime &&
+        dinnerEndTime &&
+        dinnerSeatingIntervalHours &&
+        dinnerMaxSeatsPerSlot
+      ) {
+        const slots = calculateCuisineTimeslots(
+          dinnerStartTime,
+          dinnerEndTime,
+          dinnerSeatingIntervalHours
+        );
+        const maxSeatsPerSlot = Number(dinnerMaxSeatsPerSlot);
+        if (slots.length > 0 && maxSeatsPerSlot > 0) {
+          foodCapacity = slots.length * maxSeatsPerSlot;
+        }
+      }
+
+      // Calculate total capacity
+      // If either capacity is null (unlimited), total is also null (unlimited)
+      // Otherwise, sum the capacities
+      let totalCapacity = null;
+      if (cocktailCapacity !== null || foodCapacity !== null) {
+        totalCapacity = (cocktailCapacity || 0) + (foodCapacity || 0);
+      }
 
       const requestBody = {
         title,
@@ -267,11 +432,20 @@ export function CreateEventPage() {
         endsAt: endsAt ? new Date(endsAt).toISOString() : null,
         timezone,
         maxAttendees: maxAttendees ? Number(maxAttendees) : null,
+        cocktailCapacity,
+        foodCapacity,
+        totalCapacity,
         waitlistEnabled,
         theme,
         calendar,
         visibility,
-        ticketType,
+        ticketType: sellTicketsEnabled ? "paid" : "free",
+        ticketPrice:
+          sellTicketsEnabled && ticketPrice
+            ? Math.round(parseFloat(ticketPrice) * 100)
+            : null, // Convert to cents
+        ticketCurrency: sellTicketsEnabled ? ticketCurrency : null,
+        // Stripe product and price will be auto-created by backend
         requireApproval,
 
         // NEW
@@ -412,13 +586,10 @@ export function CreateEventPage() {
       `}</style>
 
       <div
+        className="responsive-container responsive-container-wide"
         style={{
           position: "relative",
           zIndex: 2,
-          maxWidth: "900px",
-          margin: "0 auto",
-          padding: "16px",
-          boxSizing: "border-box",
           opacity: isMounted ? 1 : 0,
           transform: isMounted ? "translateY(0)" : "translateY(20px)",
           transition: "all 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -426,246 +597,318 @@ export function CreateEventPage() {
       >
         <form onSubmit={handleCreate}>
           <div
+            className="responsive-card"
             style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(280px, 1fr) minmax(500px, 2fr)",
-              gap: "40px",
-              alignItems: "start",
+              background: "rgba(12, 10, 18, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              maxWidth: "800px",
+              margin: "0 auto",
             }}
-            className="create-event-grid"
           >
-            {/* LEFT: image */}
+            {/* Image at top - matching EventCard */}
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "24px",
-                position: "sticky",
-                top: "80px",
+                width: "100%",
+                aspectRatio: "16/9",
+                borderRadius: "16px",
+                overflow: "hidden",
+                marginBottom: "24px",
+                background: isDragging
+                  ? "rgba(139, 92, 246, 0.2)"
+                  : imagePreview
+                  ? "transparent"
+                  : "rgba(20, 16, 30, 0.3)",
+                border: isDragging
+                  ? "2px dashed rgba(139, 92, 246, 0.5)"
+                  : imagePreview
+                  ? "1px solid rgba(255,255,255,0.1)"
+                  : "1px solid rgba(255,255,255,0.06)",
+                position: "relative",
+                cursor: "pointer",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                transform: isDragging ? "scale(1.02)" : "scale(1)",
               }}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             >
-              <div
-                style={{
-                  aspectRatio: "1",
-                  borderRadius: "16px",
-                  overflow: "hidden",
-                  background: isDragging
-                    ? "rgba(139, 92, 246, 0.2)"
-                    : imagePreview
-                      ? "transparent"
-                      : "rgba(20, 16, 30, 0.3)",
-                  border: isDragging
-                    ? "2px dashed rgba(139, 92, 246, 0.5)"
-                    : imagePreview
-                      ? "1px solid rgba(255,255,255,0.1)"
-                      : "1px solid rgba(255,255,255,0.06)",
-                  position: "relative",
-                  cursor: "pointer",
-                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                  transform: isDragging ? "scale(1.02)" : "scale(1)",
-                }}
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                {imagePreview ? (
-                  <>
-                    <img
-                      src={imagePreview}
-                      alt="Event cover"
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background:
-                          "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        opacity: 0,
-                        transition: "opacity 0.3s ease",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-                      onMouseLeave={(e) => (e.currentTarget.style.opacity = "0")}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: "8px",
-                          color: "#fff",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "32px",
-                            marginBottom: "4px",
-                          }}
-                        >
-                          📷
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                          }}
-                        >
-                          Change Image
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div
+              {imagePreview ? (
+                <>
+                  <img
+                    src={imagePreview}
+                    alt="Event cover"
                     style={{
                       width: "100%",
                       height: "100%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "16px",
-                      background:
-                        "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(236, 72, 153, 0.12) 100%)",
-                      color: "#fff",
+                      objectFit: "cover",
                     }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "56px",
-                        opacity: 0.9,
-                        transition: "transform 0.3s ease",
-                      }}
-                    >
-                      🖼️
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 600,
-                        opacity: 0.9,
-                        textAlign: "center",
-                        padding: "0 16px",
-                      }}
-                    >
-                      {isDragging
-                        ? "Drop image here"
-                        : "Click or drag to upload"}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        opacity: 0.6,
-                        textAlign: "center",
-                        padding: "0 16px",
-                      }}
-                    >
-                      JPG, PNG, or GIF (max 5MB)
-                    </div>
-                  </div>
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  style={{ display: "none" }}
-                />
-                {imagePreview && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setImagePreview(null);
-                      setImageUrl(null);
-                      if (fileInputRef.current) {
-                        fileInputRef.current.value = "";
-                      }
-                    }}
+                  />
+                  <div
                     style={{
                       position: "absolute",
-                      top: "12px",
-                      right: "12px",
-                      width: "36px",
-                      height: "36px",
-                      borderRadius: "50%",
-                      background: "rgba(0,0,0,0.7)",
-                      backdropFilter: "blur(10px)",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background:
+                        "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
+                      opacity: 0,
+                      transition: "opacity 0.3s ease",
                     }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(239, 68, 68, 0.8)";
-                      e.target.style.transform = "scale(1.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "rgba(0,0,0,0.7)";
-                      e.target.style.transform = "scale(1)";
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "0")}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: "8px",
+                        color: "#fff",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "32px",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        📷
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        Change Image
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "16px",
+                    background:
+                      "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(236, 72, 153, 0.12) 100%)",
+                    color: "#fff",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "56px",
+                      opacity: 0.9,
+                      transition: "transform 0.3s ease",
                     }}
                   >
-                    ✕
-                  </button>
-                )}
+                    🖼️
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      opacity: 0.9,
+                      textAlign: "center",
+                      padding: "0 16px",
+                    }}
+                  >
+                    {isDragging ? "Drop image here" : "Click or drag to upload"}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      opacity: 0.6,
+                      textAlign: "center",
+                      padding: "0 16px",
+                    }}
+                  >
+                    JPG, PNG, or GIF (max 5MB)
+                  </div>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                style={{ display: "none" }}
+              />
+              {imagePreview && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImagePreview(null);
+                    setImageUrl(null);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = "";
+                    }
+                  }}
+                  style={{
+                    position: "absolute",
+                    top: "12px",
+                    right: "12px",
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "50%",
+                    background: "rgba(0,0,0,0.7)",
+                    backdropFilter: "blur(10px)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    fontSize: "16px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = "rgba(239, 68, 68, 0.8)";
+                    e.target.style.transform = "scale(1.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = "rgba(0,0,0,0.7)";
+                    e.target.style.transform = "scale(1)";
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* PULLUP · EVENT label - matching EventCard */}
+            <div
+              style={{
+                fontSize: "11px",
+                textTransform: "uppercase",
+                opacity: 0.7,
+                letterSpacing: "0.15em",
+                fontWeight: 600,
+                marginBottom: "16px",
+              }}
+            >
+              PULLUP · CREATE EVENT
+            </div>
+
+            {/* Title input - matching EventCard h1 */}
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Event Name"
+              required
+              style={{
+                width: "100%",
+                fontSize: "clamp(24px, 5vw, 32px)",
+                fontWeight: 700,
+                background: "transparent",
+                border: "none",
+                color: "rgba(255,255,255,0.98)",
+                outline: "none",
+                marginBottom: "8px",
+                padding: 0,
+                lineHeight: "1.2",
+              }}
+            />
+
+            {/* Description textarea - matching EventCard */}
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Tell people what to expect..."
+              style={{
+                width: "100%",
+                fontSize: "clamp(14px, 2vw, 16px)",
+                opacity: 0.8,
+                lineHeight: "1.6",
+                marginBottom: "24px",
+                background: "transparent",
+                border: "none",
+                color: "#fff",
+                outline: "none",
+                resize: "vertical",
+                minHeight: "60px",
+                fontFamily: "inherit",
+              }}
+            />
+
+            {/* Event Details Section - matching EventCard */}
+            <div
+              style={{
+                marginTop: "24px",
+                fontSize: "clamp(13px, 2vw, 15px)",
+                opacity: 0.9,
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                marginBottom: "32px",
+              }}
+            >
+              {/* Location */}
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <span>📍</span>
+                <LocationAutocomplete
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: "transparent",
+                    border: "none",
+                    borderBottom: "1px solid rgba(255,255,255,0.2)",
+                    borderRadius: 0,
+                    padding: "4px 8px",
+                    color: "#fff",
+                    fontSize: "inherit",
+                    outline: "none",
+                  }}
+                  placeholder="Add location"
+                  disabled={loading}
+                />
               </div>
             </div>
 
-            {/* RIGHT: form */}
+            {/* Advanced Options Section */}
             <div
               style={{
-                background: "rgba(12, 10, 18, 0.25)",
-                backdropFilter: "blur(20px)",
-                border: "1px solid rgba(255,255,255,0.05)",
-                borderRadius: "20px",
-                padding: "48px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                marginTop: "32px",
+                paddingTop: "32px",
+                borderTop: "1px solid rgba(255,255,255,0.1)",
               }}
             >
-              {/* title */}
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Event Name"
-                required
-                style={{
-                  width: "100%",
-                  fontSize: "clamp(36px, 7vw, 52px)",
-                  fontWeight: 400,
-                  background: "transparent",
-                  border: "none",
-                  color: "rgba(255,255,255,0.98)",
-                  outline: "none",
-                  marginBottom: "48px",
-                  padding: 0,
-                  lineHeight: 1.1,
-                  letterSpacing: "-0.02em",
-                }}
-              />
-
-              {/* date/time */}
               <div
                 style={{
-                  marginBottom: "32px",
+                  fontSize: "11px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.15em",
+                  opacity: 0.7,
+                  fontWeight: 600,
+                  marginBottom: "20px",
+                }}
+              >
+                EVENT SETTINGS
+              </div>
+
+              {/* Date/Time Configuration - Full Setup */}
+              <div
+                style={{
+                  marginBottom: "24px",
                   background: "rgba(20, 16, 30, 0.3)",
-                  borderRadius: "20px",
-                  padding: "28px",
+                  borderRadius: "16px",
+                  padding: "24px",
                   border: "1px solid rgba(255,255,255,0.08)",
                   backdropFilter: "blur(10px)",
                 }}
@@ -675,10 +918,10 @@ export function CreateEventPage() {
                     display: "flex",
                     alignItems: "center",
                     gap: "10px",
-                    marginBottom: "24px",
+                    marginBottom: "20px",
                   }}
                 >
-                  <span style={{ fontSize: "20px" }}>🕒</span>
+                  <span style={{ fontSize: "18px" }}>🕒</span>
                   <div
                     style={{
                       fontSize: "12px",
@@ -688,7 +931,7 @@ export function CreateEventPage() {
                       opacity: 0.9,
                     }}
                   >
-                    Event Schedule
+                    Date & Time
                   </div>
                 </div>
 
@@ -700,7 +943,13 @@ export function CreateEventPage() {
                     alignItems: "start",
                   }}
                 >
-                  <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "24px",
+                    }}
+                  >
                     {/* start */}
                     <div>
                       <label
@@ -728,7 +977,7 @@ export function CreateEventPage() {
                         <span>Start Date & Time</span>
                         <span style={{ opacity: 0.5, fontWeight: 400 }}>*</span>
                       </label>
-                      
+
                       {/* Quick shortcuts */}
                       <div
                         style={{
@@ -760,13 +1009,17 @@ export function CreateEventPage() {
                             }}
                             onMouseEnter={(e) => {
                               e.target.style.opacity = "1";
-                              e.target.style.background = "rgba(139, 92, 246, 0.15)";
-                              e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+                              e.target.style.background =
+                                "rgba(139, 92, 246, 0.15)";
+                              e.target.style.borderColor =
+                                "rgba(139, 92, 246, 0.3)";
                             }}
                             onMouseLeave={(e) => {
                               e.target.style.opacity = "0.8";
-                              e.target.style.background = "rgba(255,255,255,0.05)";
-                              e.target.style.borderColor = "rgba(255,255,255,0.1)";
+                              e.target.style.background =
+                                "rgba(255,255,255,0.05)";
+                              e.target.style.borderColor =
+                                "rgba(255,255,255,0.1)";
                             }}
                           >
                             {option.label}
@@ -777,14 +1030,10 @@ export function CreateEventPage() {
                       <div style={{ position: "relative" }}>
                         <input
                           type="datetime-local"
-                          value={
-                            startsAt
-                              ? new Date(startsAt).toISOString().slice(0, 16)
-                              : ""
-                          }
+                          value={isoToLocalDateTime(startsAt)}
                           onChange={(e) => {
                             if (e.target.value) {
-                              setStartsAt(new Date(e.target.value).toISOString());
+                              setStartsAt(localDateTimeToIso(e.target.value));
                             }
                           }}
                           style={{
@@ -877,23 +1126,15 @@ export function CreateEventPage() {
                       <div style={{ position: "relative" }}>
                         <input
                           type="datetime-local"
-                          value={
-                            endsAt
-                              ? new Date(endsAt).toISOString().slice(0, 16)
-                              : ""
-                          }
+                          value={isoToLocalDateTime(endsAt)}
                           onChange={(e) => {
                             if (e.target.value) {
-                              setEndsAt(new Date(e.target.value).toISOString());
+                              setEndsAt(localDateTimeToIso(e.target.value));
                             } else {
                               setEndsAt("");
                             }
                           }}
-                          min={
-                            startsAt
-                              ? new Date(startsAt).toISOString().slice(0, 16)
-                              : undefined
-                          }
+                          min={isoToLocalDateTime(startsAt) || undefined}
                           style={{
                             ...(focusedField === "endDateTime"
                               ? focusedInputStyle
@@ -955,21 +1196,21 @@ export function CreateEventPage() {
                   {/* timezone pill */}
                   <div
                     style={{
-                      padding: "18px 20px",
+                      padding: "8px 12px",
                       background: "rgba(139, 92, 246, 0.12)",
-                      borderRadius: "16px",
+                      borderRadius: "8px",
                       border: "1px solid rgba(139, 92, 246, 0.25)",
-                      fontSize: "12px",
+                      fontSize: "10px",
                       textAlign: "center",
-                      minWidth: "150px",
+                      minWidth: "80px",
                       alignSelf: "center",
-                      boxShadow: "0 4px 16px rgba(139, 92, 246, 0.1)",
+                      boxShadow: "0 2px 8px rgba(139, 92, 246, 0.1)",
                     }}
                   >
                     <div
                       style={{
-                        fontSize: "24px",
-                        marginBottom: "10px",
+                        fontSize: "14px",
+                        marginBottom: "4px",
                         opacity: 0.9,
                       }}
                     >
@@ -977,9 +1218,9 @@ export function CreateEventPage() {
                     </div>
                     <div
                       style={{
-                        fontWeight: 700,
-                        marginBottom: "6px",
-                        fontSize: "15px",
+                        fontWeight: 600,
+                        marginBottom: "2px",
+                        fontSize: "11px",
                         color: "#8b5cf6",
                       }}
                     >
@@ -988,7 +1229,7 @@ export function CreateEventPage() {
                     <div
                       style={{
                         opacity: 0.7,
-                        fontSize: "12px",
+                        fontSize: "9px",
                         textTransform: "capitalize",
                       }}
                     >
@@ -996,76 +1237,6 @@ export function CreateEventPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* location */}
-              <div style={{ marginBottom: "28px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "9px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.2em",
-                    opacity: 0.4,
-                    marginBottom: "10px",
-                  }}
-                >
-                  <span>📍</span>
-                  <span>Add Event Location</span>
-                </div>
-                <LocationAutocomplete
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  style={{
-                    ...(focusedField === "location"
-                      ? focusedInputStyle
-                      : inputStyle),
-                    padding: "10px 12px",
-                  }}
-                  onFocus={() => setFocusedField("location")}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="Offline location or virtual link"
-                  disabled={loading}
-                />
-              </div>
-
-              {/* description */}
-              <div style={{ marginBottom: "36px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "9px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.2em",
-                    opacity: 0.4,
-                    marginBottom: "10px",
-                  }}
-                >
-                  <span>📄</span>
-                  <span>Add Description</span>
-                </div>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onFocus={() => setFocusedField("description")}
-                  onBlur={() => setFocusedField(null)}
-                  style={{
-                    ...(focusedField === "description"
-                      ? focusedInputStyle
-                      : inputStyle),
-                    minHeight: "100px",
-                    resize: "vertical",
-                    fontFamily: "inherit",
-                    padding: "10px 12px",
-                  }}
-                  placeholder="Tell people what to expect..."
-                />
               </div>
 
               {/* event options */}
@@ -1081,52 +1252,10 @@ export function CreateEventPage() {
                   Event Options
                 </h3>
 
-                {/* tickets */}
-                <OptionRow
-                  icon="🎫"
-                  label="Tickets"
-                  right={
-                    <select
-                      value={ticketType}
-                      onChange={(e) => setTicketType(e.target.value)}
-                      style={{
-                        padding: "5px 20px 5px 10px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(255,255,255,0.04)",
-                        background: "rgba(12, 10, 18, 0.4)",
-                        color: "#fff",
-                        fontSize: "14px",
-                        cursor: "pointer",
-                        appearance: "none",
-                        backgroundImage:
-                          "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 8px center",
-                        paddingRight: "28px",
-                      }}
-                    >
-                      <option value="free">Free</option>
-                      <option value="paid">Paid</option>
-                    </select>
-                  }
-                />
-
-                {/* approval */}
-                <OptionRow
-                  icon="🤝"
-                  label="Require Approval"
-                  right={
-                    <Toggle
-                      checked={requireApproval}
-                      onChange={setRequireApproval}
-                    />
-                  }
-                />
-
                 {/* capacity */}
                 <OptionRow
                   icon="👥"
-                  label="Capacity"
+                  label="Cocktail capacity"
                   right={
                     <input
                       type="number"
@@ -1148,6 +1277,28 @@ export function CreateEventPage() {
                     />
                   }
                 />
+                {/* waitlist */}
+                <OptionRow
+                  icon="🔄"
+                  label="Enable waitlist when full"
+                  right={
+                    <Toggle
+                      checked={waitlistEnabled}
+                      onChange={setWaitlistEnabled}
+                    />
+                  }
+                />
+                {/* approval */}
+                <OptionRow
+                  icon="🤝"
+                  label="Require Approval"
+                  right={
+                    <Toggle
+                      checked={requireApproval}
+                      onChange={setRequireApproval}
+                    />
+                  }
+                />
 
                 {/* PLUS-ONES */}
                 <OptionRow
@@ -1158,15 +1309,11 @@ export function CreateEventPage() {
                     <div
                       style={{ display: "flex", alignItems: "center", gap: 10 }}
                     >
-                      <Toggle
-                        checked={allowPlusOnes}
-                        onChange={setAllowPlusOnes}
-                      />
                       {allowPlusOnes && (
                         <input
                           type="number"
                           min="1"
-                          max="3"
+                          max="5"
                           value={maxPlusOnesPerGuest}
                           onChange={(e) =>
                             setMaxPlusOnesPerGuest(e.target.value)
@@ -1184,6 +1331,10 @@ export function CreateEventPage() {
                           }}
                         />
                       )}
+                      <Toggle
+                        checked={allowPlusOnes}
+                        onChange={setAllowPlusOnes}
+                      />
                     </div>
                   }
                 />
@@ -1191,8 +1342,8 @@ export function CreateEventPage() {
                 {/* DINNER */}
                 <OptionRow
                   icon="🍽️"
-                  label="Dinner Option"
-                  description="Offer an optional dinner slot with limited seats."
+                  label="Food Serving Options"
+                  description="Offer an optional food serving slot with limited seats."
                   right={
                     <div
                       style={{ display: "flex", alignItems: "center", gap: 10 }}
@@ -1237,7 +1388,7 @@ export function CreateEventPage() {
                           opacity: 0.9,
                         }}
                       >
-                        Dinner Configuration
+                        Cuisine Configuration
                       </div>
                     </div>
 
@@ -1253,7 +1404,7 @@ export function CreateEventPage() {
                           marginBottom: "12px",
                         }}
                       >
-                        Dinner Time Window
+                        Cuisine Time Window
                       </div>
                       <div
                         style={{
@@ -1271,14 +1422,13 @@ export function CreateEventPage() {
                               marginBottom: "8px",
                             }}
                           >
-                            Start Time <span style={{ color: "#ef4444" }}>*</span>
+                            First Slot Start{" "}
+                            <span style={{ color: "#ef4444" }}>*</span>
                           </label>
                           <input
                             type="datetime-local"
                             value={dinnerStartTime}
-                            onChange={(e) =>
-                              setDinnerStartTime(e.target.value)
-                            }
+                            onChange={(e) => setDinnerStartTime(e.target.value)}
                             required={dinnerEnabled}
                             style={{
                               ...inputStyle,
@@ -1298,7 +1448,8 @@ export function CreateEventPage() {
                               marginBottom: "8px",
                             }}
                           >
-                            End Time <span style={{ color: "#ef4444" }}>*</span>
+                            Last Slot Start{" "}
+                            <span style={{ color: "#ef4444" }}>*</span>
                           </label>
                           <input
                             type="datetime-local"
@@ -1348,7 +1499,7 @@ export function CreateEventPage() {
                               marginBottom: "8px",
                             }}
                           >
-                            Hours Between Seatings
+                            Hours per slot
                           </label>
                           <input
                             type="number"
@@ -1367,15 +1518,96 @@ export function CreateEventPage() {
                               width: "100%",
                             }}
                           />
-                          <div
-                            style={{
-                              fontSize: "10px",
-                              opacity: 0.6,
-                              marginTop: "4px",
-                            }}
-                          >
-                            e.g., 2 = seatings at 6pm, 8pm, 10pm
-                          </div>
+                          {dinnerStartTime &&
+                            dinnerEndTime &&
+                            dinnerSeatingIntervalHours && (
+                              <div
+                                style={{
+                                  marginTop: "10px",
+                                  padding: "12px 14px",
+                                  background: "rgba(139, 92, 246, 0.08)",
+                                  borderRadius: "8px",
+                                  border: "1px solid rgba(139, 92, 246, 0.15)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    marginBottom: "8px",
+                                    fontSize: "10px",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.08em",
+                                    opacity: 0.75,
+                                    color: "rgba(139, 92, 246, 0.9)",
+                                  }}
+                                >
+                                  Calculated Timeslots
+                                </div>
+                                {(() => {
+                                  const slots = calculateCuisineTimeslots(
+                                    dinnerStartTime,
+                                    dinnerEndTime,
+                                    dinnerSeatingIntervalHours
+                                  );
+                                  if (slots.length === 0) {
+                                    return (
+                                      <div
+                                        style={{
+                                          fontSize: "11px",
+                                          opacity: 0.6,
+                                          fontStyle: "italic",
+                                        }}
+                                      >
+                                        Invalid time window or interval
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: "6px",
+                                      }}
+                                    >
+                                      {slots.map((slot, index) => (
+                                        <span
+                                          key={index}
+                                          style={{
+                                            padding: "4px 10px",
+                                            background:
+                                              "rgba(139, 92, 246, 0.15)",
+                                            borderRadius: "6px",
+                                            border:
+                                              "1px solid rgba(139, 92, 246, 0.25)",
+                                            fontSize: "12px",
+                                            fontWeight: 500,
+                                            color: "rgba(255, 255, 255, 0.95)",
+                                            fontFamily: "monospace",
+                                            letterSpacing: "0.5px",
+                                          }}
+                                        >
+                                          {slot}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          {(!dinnerStartTime ||
+                            !dinnerEndTime ||
+                            !dinnerSeatingIntervalHours) && (
+                            <div
+                              style={{
+                                fontSize: "10px",
+                                opacity: 0.6,
+                                marginTop: "4px",
+                              }}
+                            >
+                              Set time window above to see calculated timeslots
+                            </div>
+                          )}
                         </div>
                         <div>
                           <label
@@ -1481,9 +1713,7 @@ export function CreateEventPage() {
                                 transition: "all 0.2s ease",
                               }}
                               onMouseEnter={(e) => {
-                                if (
-                                  dinnerOverflowAction !== option.value
-                                ) {
+                                if (dinnerOverflowAction !== option.value) {
                                   e.currentTarget.style.background =
                                     "rgba(20, 16, 30, 0.6)";
                                   e.currentTarget.style.borderColor =
@@ -1491,9 +1721,7 @@ export function CreateEventPage() {
                                 }
                               }}
                               onMouseLeave={(e) => {
-                                if (
-                                  dinnerOverflowAction !== option.value
-                                ) {
+                                if (dinnerOverflowAction !== option.value) {
                                   e.currentTarget.style.background =
                                     "rgba(20, 16, 30, 0.4)";
                                   e.currentTarget.style.borderColor =
@@ -1580,58 +1808,351 @@ export function CreateEventPage() {
                   </div>
                 )}
               </div>
+              {/* tickets */}
+              <OptionRow
+                icon="🎫"
+                label="Sell tickets to this event"
+                right={
+                  <Toggle
+                    checked={sellTicketsEnabled}
+                    onChange={setSellTicketsEnabled}
+                  />
+                }
+              />
 
-              {/* waitlist */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  marginBottom: "36px",
-                  padding: "10px 14px",
-                  background: "rgba(20, 16, 30, 0.15)",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.03)",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={waitlistEnabled}
-                  onChange={(e) => setWaitlistEnabled(e.target.checked)}
+              {sellTicketsEnabled && (
+                <div
                   style={{
-                    width: "18px",
-                    height: "18px",
-                    cursor: "pointer",
-                    accentColor: "#8b5cf6",
+                    marginTop: "16px",
+                    padding: "24px",
+                    borderRadius: "16px",
+                    border: "1px solid rgba(139, 92, 246, 0.2)",
+                    background:
+                      "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "20px",
                   }}
-                />
-                <span style={{ fontSize: "14px", opacity: 0.85 }}>
-                  Enable waitlist when full
-                </span>
-              </div>
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    <span style={{ fontSize: "20px" }}>🎫</span>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        opacity: 0.9,
+                      }}
+                    >
+                      Ticket Configuration
+                    </div>
+                  </div>
 
-              {/* submit */}
+                  {/* Stripe Connection Check */}
+                  {!stripeConnected && (
+                    <div
+                      style={{
+                        padding: "16px",
+                        borderRadius: "12px",
+                        border: "1px solid rgba(251, 191, 36, 0.3)",
+                        background: "rgba(251, 191, 36, 0.1)",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "12px",
+                      }}
+                    >
+                      <div style={{ fontSize: "20px", flexShrink: 0 }}>⚠️</div>
+                      <div style={{ flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: 600,
+                            marginBottom: "6px",
+                          }}
+                        >
+                          Stripe Account Required
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            opacity: 0.8,
+                            marginBottom: "12px",
+                            lineHeight: "1.5",
+                          }}
+                        >
+                          You need to connect your Stripe account to accept
+                          payments for this event.
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Save current state and navigate to integrations
+                              navigate("/home?tab=integrations");
+                            }}
+                            style={{
+                              padding: "8px 16px",
+                              borderRadius: "8px",
+                              border: "none",
+                              background:
+                                "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                              color: "#fff",
+                              fontSize: "13px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.transform = "scale(1.02)";
+                              e.target.style.boxShadow =
+                                "0 4px 12px rgba(139, 92, 246, 0.4)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.transform = "scale(1)";
+                              e.target.style.boxShadow = "none";
+                            }}
+                          >
+                            Connect Stripe
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Inline connection (mock for now)
+                              // TODO: Implement actual Stripe OAuth flow
+                              setStripeConnected(true);
+                              setStripeAccountEmail("felix.civalero@gmail.com");
+
+                              // Update localStorage
+                              try {
+                                const stored =
+                                  localStorage.getItem("pullup_user");
+                                const user = stored ? JSON.parse(stored) : {};
+                                user.stripeConnected = true;
+                                user.stripeAccountEmail =
+                                  "felix.civalero@gmail.com";
+                                localStorage.setItem(
+                                  "pullup_user",
+                                  JSON.stringify(user)
+                                );
+                              } catch (error) {
+                                console.error(
+                                  "Failed to save Stripe status:",
+                                  error
+                                );
+                              }
+
+                              showToast(
+                                "Stripe connected successfully! 💳",
+                                "success"
+                              );
+                            }}
+                            style={{
+                              padding: "8px 16px",
+                              borderRadius: "8px",
+                              border: "1px solid rgba(255,255,255,0.2)",
+                              background: "rgba(255,255,255,0.05)",
+                              color: "#fff",
+                              fontSize: "13px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.background =
+                                "rgba(255,255,255,0.1)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.background =
+                                "rgba(255,255,255,0.05)";
+                            }}
+                          >
+                            Connect Here
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {stripeConnected && stripeAccountEmail && (
+                    <div
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        background: "rgba(34, 197, 94, 0.1)",
+                        border: "1px solid rgba(34, 197, 94, 0.2)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        fontSize: "12px",
+                      }}
+                    >
+                      <span>✓</span>
+                      <span style={{ opacity: 0.9 }}>
+                        Connected as {stripeAccountEmail}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Price and Currency */}
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        opacity: 0.7,
+                        marginBottom: "12px",
+                      }}
+                    >
+                      Price & Currency
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 120px",
+                        gap: "12px",
+                      }}
+                    >
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "12px",
+                            opacity: 0.8,
+                            marginBottom: "8px",
+                          }}
+                        >
+                          Ticket Price{" "}
+                          <span style={{ color: "#ef4444" }}>*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={ticketPrice}
+                          onChange={(e) => setTicketPrice(e.target.value)}
+                          placeholder="0.00"
+                          required={sellTicketsEnabled}
+                          style={{
+                            ...inputStyle,
+                            fontSize: "14px",
+                            padding: "12px 14px",
+                            width: "100%",
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "12px",
+                            opacity: 0.8,
+                            marginBottom: "8px",
+                          }}
+                        >
+                          Currency <span style={{ color: "#ef4444" }}>*</span>
+                        </label>
+                        <select
+                          value={ticketCurrency}
+                          onChange={(e) => setTicketCurrency(e.target.value)}
+                          required={sellTicketsEnabled}
+                          style={{
+                            ...inputStyle,
+                            fontSize: "14px",
+                            padding: "12px 14px",
+                            width: "100%",
+                            cursor: "pointer",
+                            appearance: "none",
+                            backgroundImage:
+                              "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
+                            backgroundRepeat: "no-repeat",
+                            backgroundPosition: "right 8px center",
+                            paddingRight: "28px",
+                          }}
+                        >
+                          <option value="USD">USD ($)</option>
+                          <option value="EUR">EUR (€)</option>
+                          <option value="GBP">GBP (£)</option>
+                          <option value="SEK">SEK (kr)</option>
+                          <option value="DKK">DKK (kr)</option>
+                          <option value="NOK">NOK (kr)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Info about automatic Stripe creation */}
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      borderRadius: "8px",
+                      background: "rgba(139, 92, 246, 0.1)",
+                      border: "1px solid rgba(139, 92, 246, 0.2)",
+                      fontSize: "12px",
+                      opacity: 0.8,
+                      lineHeight: "1.5",
+                    }}
+                  >
+                    <strong>💡 Automatic Setup:</strong> When you create this
+                    event, a Stripe product and price will be automatically
+                    created using the event name, description, and ticket price
+                    you've entered above. No manual setup required!
+                  </div>
+                </div>
+              )}
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={loading}
                 style={{
+                  marginTop: "32px",
                   width: "100%",
-                  padding: "16px 24px",
-                  borderRadius: "10px",
+                  padding: "14px 20px",
+                  borderRadius: "999px",
                   border: "none",
                   background: loading
                     ? "#666"
                     : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
                   color: "#fff",
                   fontWeight: 700,
-                  fontSize: "13px",
+                  fontSize: "16px",
                   cursor: loading ? "not-allowed" : "pointer",
-                  opacity: loading ? 0.7 : 1,
                   boxShadow: loading
                     ? "none"
-                    : "0 8px 24px rgba(139, 92, 246, 0.4)",
+                    : "0 10px 30px rgba(139, 92, 246, 0.4)",
+                  transition: "all 0.3s ease",
                   textTransform: "uppercase",
-                  letterSpacing: "0.12em",
+                  letterSpacing: "0.05em",
+                  opacity: loading ? 0.7 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow =
+                      "0 15px 40px rgba(139, 92, 246, 0.6)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!loading) {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow =
+                      "0 10px 30px rgba(139, 92, 246, 0.4)";
+                  }
                 }}
               >
                 {loading ? "Creating…" : "Create Event"}

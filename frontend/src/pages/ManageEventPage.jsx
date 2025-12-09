@@ -35,6 +35,74 @@ const focusedInputStyle = {
   boxShadow: "0 0 0 3px rgba(139, 92, 246, 0.1)",
 };
 
+// Helper function to calculate cuisine timeslots (same as CreateEventPage)
+function calculateCuisineTimeslots(startTime, endTime, intervalHours) {
+  if (!startTime || !endTime || !intervalHours) {
+    return [];
+  }
+
+  try {
+    // Parse datetime-local strings to Date objects
+    const [startDatePart, startTimePart] = startTime.split("T");
+    const [endDatePart, endTimePart] = endTime.split("T");
+
+    if (!startDatePart || !startTimePart || !endDatePart || !endTimePart) {
+      return [];
+    }
+
+    const [startYear, startMonth, startDay] = startDatePart
+      .split("-")
+      .map(Number);
+    const [startHour, startMinute] = startTimePart.split(":").map(Number);
+    const [endYear, endMonth, endDay] = endDatePart.split("-").map(Number);
+    const [endHour, endMinute] = endTimePart.split(":").map(Number);
+
+    const startDate = new Date(
+      startYear,
+      startMonth - 1,
+      startDay,
+      startHour,
+      startMinute
+    );
+    const endDate = new Date(endYear, endMonth - 1, endDay, endHour, endMinute);
+    const interval = parseFloat(intervalHours);
+
+    if (
+      isNaN(startDate.getTime()) ||
+      isNaN(endDate.getTime()) ||
+      isNaN(interval) ||
+      interval <= 0
+    ) {
+      return [];
+    }
+
+    if (endDate <= startDate) {
+      return [];
+    }
+
+    const slots = [];
+    let currentTime = new Date(startDate);
+
+    while (currentTime <= endDate) {
+      // Format time as "18:00", "20:30", etc. (24-hour format)
+      const hours = currentTime.getHours();
+      const minutes = currentTime.getMinutes();
+      const formattedTime = `${String(hours).padStart(2, "0")}:${String(
+        minutes
+      ).padStart(2, "0")}`;
+      slots.push(formattedTime);
+
+      // Move to next slot
+      currentTime = new Date(currentTime.getTime() + interval * 60 * 60 * 1000);
+    }
+
+    return slots;
+  } catch (error) {
+    console.error("Error calculating timeslots:", error);
+    return [];
+  }
+}
+
 function formatRelativeTime(date) {
   const now = new Date();
   const diffMs = date.getTime() - now.getTime();
@@ -335,6 +403,95 @@ export function ManageEventPage() {
         event.dinnerSeatingIntervalHoursInput || 2
       );
 
+      // Calculate capacities (same logic as CreateEventPage)
+      const cocktailCapacity = maxAttendees ? Number(maxAttendees) : null;
+
+      // Calculate food capacity: max seats per slot * number of timeslots
+      let foodCapacity = null;
+      if (
+        event.dinnerEnabled &&
+        event.dinnerStartTimeLocal &&
+        event.dinnerEndTimeLocal &&
+        dinnerSeatingIntervalHours &&
+        dinnerMaxSeatsPerSlot
+      ) {
+        // Helper function to calculate number of timeslots
+        const calculateTimeslotCount = (startTime, endTime, intervalHours) => {
+          if (!startTime || !endTime || !intervalHours) return 0;
+          try {
+            const [startDatePart, startTimePart] = startTime.split("T");
+            const [endDatePart, endTimePart] = endTime.split("T");
+            if (
+              !startDatePart ||
+              !startTimePart ||
+              !endDatePart ||
+              !endTimePart
+            )
+              return 0;
+            const [startYear, startMonth, startDay] = startDatePart
+              .split("-")
+              .map(Number);
+            const [startHour, startMinute] = startTimePart
+              .split(":")
+              .map(Number);
+            const [endYear, endMonth, endDay] = endDatePart
+              .split("-")
+              .map(Number);
+            const [endHour, endMinute] = endTimePart.split(":").map(Number);
+            const startDate = new Date(
+              startYear,
+              startMonth - 1,
+              startDay,
+              startHour,
+              startMinute
+            );
+            const endDate = new Date(
+              endYear,
+              endMonth - 1,
+              endDay,
+              endHour,
+              endMinute
+            );
+            const interval = parseFloat(intervalHours);
+            if (
+              isNaN(startDate.getTime()) ||
+              isNaN(endDate.getTime()) ||
+              isNaN(interval) ||
+              interval <= 0
+            )
+              return 0;
+            if (endDate <= startDate) return 0;
+            let count = 0;
+            let currentTime = new Date(startDate);
+            while (currentTime <= endDate) {
+              count++;
+              currentTime = new Date(
+                currentTime.getTime() + interval * 60 * 60 * 1000
+              );
+            }
+            return count;
+          } catch (error) {
+            return 0;
+          }
+        };
+
+        const slotCount = calculateTimeslotCount(
+          event.dinnerStartTimeLocal,
+          event.dinnerEndTimeLocal,
+          dinnerSeatingIntervalHours
+        );
+        const maxSeatsPerSlot = Number(dinnerMaxSeatsPerSlot);
+        if (slotCount > 0 && maxSeatsPerSlot > 0) {
+          foodCapacity = slotCount * maxSeatsPerSlot;
+        }
+      }
+
+      // Calculate total capacity
+      let totalCapacity = null;
+      if (cocktailCapacity !== null || foodCapacity !== null) {
+        totalCapacity = (cocktailCapacity || 0) + (foodCapacity || 0);
+      }
+
       // Determine what imageUrl to send
       const imageUrlToSend =
         imagePreview !== undefined ? imagePreview : event.imageUrl || null;
@@ -382,6 +539,9 @@ export function ManageEventPage() {
         dinnerMaxSeatsPerSlot,
         dinnerOverflowAction: event.dinnerOverflowAction || "waitlist",
         imageUrl: imageUrlToSend,
+        cocktailCapacity,
+        foodCapacity,
+        totalCapacity,
       };
 
       console.log("💾 [Save] Request body:", {
@@ -1761,7 +1921,7 @@ export function ManageEventPage() {
                 <input
                   type="number"
                   min="0"
-                  max="3"
+                  max="5"
                   value={event.maxPlusOnesPerGuestInput}
                   onChange={(e) =>
                     setEvent({
@@ -1890,7 +2050,7 @@ export function ManageEventPage() {
                       opacity: 0.9,
                     }}
                   >
-                    Dinner Configuration
+                    Cuisine Configuration
                   </div>
                 </div>
 
@@ -1906,7 +2066,7 @@ export function ManageEventPage() {
                       marginBottom: "12px",
                     }}
                   >
-                    Dinner Time Window
+                    Cuisine Time Window
                   </div>
                   <div
                     style={{
@@ -1915,15 +2075,18 @@ export function ManageEventPage() {
                       gap: "12px",
                     }}
                   >
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "12px",
-                        opacity: 0.8,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Start Time
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "12px",
+                          opacity: 0.8,
+                          marginBottom: "8px",
+                        }}
+                      >
+                        First Slot Start{" "}
+                        <span style={{ color: "#ef4444" }}>*</span>
+                      </label>
                       <input
                         type="datetime-local"
                         value={event.dinnerStartTimeLocal || ""}
@@ -1933,6 +2096,7 @@ export function ManageEventPage() {
                             dinnerStartTimeLocal: e.target.value,
                           })
                         }
+                        required={event.dinnerEnabled}
                         onFocus={() => setFocusedField("dinnerStartTime")}
                         onBlur={() => setFocusedField(null)}
                         style={{
@@ -1941,21 +2105,23 @@ export function ManageEventPage() {
                             : inputStyle),
                           fontSize: "14px",
                           padding: "12px 14px",
-                          marginTop: "8px",
+                          width: "100%",
                           cursor: "pointer",
                         }}
                       />
-                    </label>
-
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "12px",
-                        opacity: 0.8,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      End Time
+                    </div>
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "12px",
+                          opacity: 0.8,
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Last Slot Start{" "}
+                        <span style={{ color: "#ef4444" }}>*</span>
+                      </label>
                       <input
                         type="datetime-local"
                         value={event.dinnerEndTimeLocal || ""}
@@ -1965,6 +2131,8 @@ export function ManageEventPage() {
                             dinnerEndTimeLocal: e.target.value,
                           })
                         }
+                        required={event.dinnerEnabled}
+                        min={event.dinnerStartTimeLocal || undefined}
                         onFocus={() => setFocusedField("dinnerEndTime")}
                         onBlur={() => setFocusedField(null)}
                         style={{
@@ -1973,11 +2141,11 @@ export function ManageEventPage() {
                             : inputStyle),
                           fontSize: "14px",
                           padding: "12px 14px",
-                          marginTop: "8px",
+                          width: "100%",
                           cursor: "pointer",
                         }}
                       />
-                    </label>
+                    </div>
                   </div>
                 </div>
 
@@ -2002,15 +2170,17 @@ export function ManageEventPage() {
                       gap: "12px",
                     }}
                   >
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "12px",
-                        opacity: 0.8,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Hours Between Seatings
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "12px",
+                          opacity: 0.8,
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Hours per slot
+                      </label>
                       <input
                         type="number"
                         min="0.5"
@@ -2023,6 +2193,7 @@ export function ManageEventPage() {
                             dinnerSeatingIntervalHoursInput: e.target.value,
                           })
                         }
+                        placeholder="2"
                         onFocus={() => setFocusedField("dinnerInterval")}
                         onBlur={() => setFocusedField(null)}
                         style={{
@@ -2031,31 +2202,121 @@ export function ManageEventPage() {
                             : inputStyle),
                           fontSize: "14px",
                           padding: "12px 14px",
-                          marginTop: "8px",
+                          width: "100%",
                         }}
                       />
-                    </label>
-
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "12px",
-                        opacity: 0.8,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Max Seats Per Slot
+                      {event.dinnerStartTimeLocal &&
+                        event.dinnerEndTimeLocal &&
+                        event.dinnerSeatingIntervalHoursInput && (
+                          <div
+                            style={{
+                              marginTop: "10px",
+                              padding: "12px 14px",
+                              background: "rgba(139, 92, 246, 0.08)",
+                              borderRadius: "8px",
+                              border: "1px solid rgba(139, 92, 246, 0.15)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                marginBottom: "8px",
+                                fontSize: "10px",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.08em",
+                                opacity: 0.75,
+                                color: "rgba(139, 92, 246, 0.9)",
+                              }}
+                            >
+                              Calculated Timeslots
+                            </div>
+                            {(() => {
+                              const slots = calculateCuisineTimeslots(
+                                event.dinnerStartTimeLocal,
+                                event.dinnerEndTimeLocal,
+                                event.dinnerSeatingIntervalHoursInput
+                              );
+                              if (slots.length === 0) {
+                                return (
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      opacity: 0.6,
+                                      fontStyle: "italic",
+                                    }}
+                                  >
+                                    Invalid time window or interval
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    gap: "6px",
+                                  }}
+                                >
+                                  {slots.map((slot, index) => (
+                                    <span
+                                      key={index}
+                                      style={{
+                                        padding: "4px 10px",
+                                        background: "rgba(139, 92, 246, 0.15)",
+                                        borderRadius: "6px",
+                                        border:
+                                          "1px solid rgba(139, 92, 246, 0.25)",
+                                        fontSize: "12px",
+                                        fontWeight: 500,
+                                        color: "rgba(255, 255, 255, 0.95)",
+                                        fontFamily: "monospace",
+                                        letterSpacing: "0.5px",
+                                      }}
+                                    >
+                                      {slot}
+                                    </span>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      {(!event.dinnerStartTimeLocal ||
+                        !event.dinnerEndTimeLocal ||
+                        !event.dinnerSeatingIntervalHoursInput) && (
+                        <div
+                          style={{
+                            fontSize: "10px",
+                            opacity: 0.6,
+                            marginTop: "4px",
+                          }}
+                        >
+                          Set time window above to see calculated timeslots
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "12px",
+                          opacity: 0.8,
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Max Seats Per Slot
+                      </label>
                       <input
                         type="number"
                         min="1"
                         value={event.dinnerMaxSeatsPerSlotInput || ""}
-                        placeholder="Unlimited"
                         onChange={(e) =>
                           setEvent({
                             ...event,
                             dinnerMaxSeatsPerSlotInput: e.target.value,
                           })
                         }
+                        placeholder="Unlimited"
                         onFocus={() => setFocusedField("dinnerSeats")}
                         onBlur={() => setFocusedField(null)}
                         style={{
@@ -2064,10 +2325,19 @@ export function ManageEventPage() {
                             : inputStyle),
                           fontSize: "14px",
                           padding: "12px 14px",
-                          marginTop: "8px",
+                          width: "100%",
                         }}
                       />
-                    </label>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          opacity: 0.6,
+                          marginTop: "4px",
+                        }}
+                      >
+                        Leave empty for unlimited
+                      </div>
+                    </div>
                   </div>
                 </div>
 

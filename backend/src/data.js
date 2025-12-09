@@ -24,7 +24,7 @@ export const events = [
     requireApproval: false,
 
     // NEW: plus-ones
-    maxPlusOnesPerGuest: 3, // 0 = no plus-ones, 1–3 allowed
+    maxPlusOnesPerGuest: 5, // 0 = no plus-ones, 1–5 allowed
 
     // NEW: dinner add-on
     dinnerEnabled: false,
@@ -34,11 +34,26 @@ export const events = [
     dinnerMaxSeatsPerSlot: null, // max seats per time slot (null = unlimited)
     dinnerOverflowAction: "waitlist", // "waitlist" | "cocktails" | "both"
 
+    // Stripe fields
+    ticketPrice: null,
+
+    // Capacity fields
+    cocktailCapacity: 100, // Cocktail capacity (from maxAttendees)
+    foodCapacity: null, // Food capacity (null when dinner disabled)
+    totalCapacity: 100, // Total capacity (cocktail + food)
+
     createdAt: new Date().toISOString(),
   },
 ];
 
+// People/Contacts table - unique by email
+export const people = [];
+
+// RSVPs table - links people to events
 export const rsvps = [];
+
+// Payments table - stores payment records
+export const payments = [];
 
 // ---------------------------
 // Slug helpers
@@ -90,6 +105,16 @@ export function createEvent({
   dinnerSeatingIntervalHours = 2,
   dinnerMaxSeatsPerSlot = null,
   dinnerOverflowAction = "waitlist",
+
+  // Stripe fields
+  ticketPrice = null, // Price in cents (e.g., 2000 = $20.00)
+  stripeProductId = null,
+  stripePriceId = null,
+
+  // Capacity fields
+  cocktailCapacity = null,
+  foodCapacity = null,
+  totalCapacity = null,
 }) {
   const baseSlug = slugify(title || "event");
   const slug = ensureUniqueSlug(baseSlug);
@@ -116,7 +141,7 @@ export function createEvent({
 
     maxPlusOnesPerGuest:
       typeof maxPlusOnesPerGuest === "number"
-        ? Math.max(0, Math.min(3, maxPlusOnesPerGuest))
+        ? Math.max(0, Math.min(5, maxPlusOnesPerGuest))
         : 0,
 
     dinnerEnabled: !!dinnerEnabled,
@@ -136,6 +161,17 @@ export function createEvent({
       dinnerOverflowAction === "waitlist"
         ? dinnerOverflowAction
         : "waitlist",
+
+    // Stripe fields
+    ticketPrice:
+      ticketType === "paid" && ticketPrice ? Number(ticketPrice) : null,
+    stripeProductId: stripeProductId || null,
+    stripePriceId: stripePriceId || null,
+
+    // Capacity fields
+    cocktailCapacity: cocktailCapacity ? Number(cocktailCapacity) : null,
+    foodCapacity: foodCapacity ? Number(foodCapacity) : null,
+    totalCapacity: totalCapacity ? Number(totalCapacity) : null,
   };
 
   events.push(event);
@@ -168,13 +204,14 @@ export function updateEvent(id, updates) {
 
 // Count attending / waitlist based on partySize
 export function getEventCounts(eventId) {
+  // Use totalGuests for accurate capacity counting (accounts for dinner overlaps)
   const attending = rsvps
     .filter((r) => r.eventId === eventId && r.status === "attending")
-    .reduce((sum, r) => sum + (r.partySize || 1), 0);
+    .reduce((sum, r) => sum + (r.totalGuests ?? r.partySize ?? 1), 0);
 
   const waitlist = rsvps
     .filter((r) => r.eventId === eventId && r.status === "waitlist")
-    .reduce((sum, r) => sum + (r.partySize || 1), 0);
+    .reduce((sum, r) => sum + (r.totalGuests ?? r.partySize ?? 1), 0);
 
   return { attending, waitlist };
 }
@@ -208,6 +245,7 @@ export function getDinnerSlotCounts(eventId) {
   const slotCounts = {};
 
   slots.forEach((slotTime) => {
+    // Use dinnerPartySize for accurate slot capacity counting
     const confirmed = rsvps
       .filter(
         (r) =>
@@ -216,7 +254,7 @@ export function getDinnerSlotCounts(eventId) {
           r.dinnerTimeSlot === slotTime &&
           r.dinnerStatus === "confirmed"
       )
-      .reduce((sum, r) => sum + (r.partySize || 1), 0);
+      .reduce((sum, r) => sum + (r.dinnerPartySize || r.partySize || 1), 0);
 
     const waitlist = rsvps
       .filter(
@@ -226,7 +264,7 @@ export function getDinnerSlotCounts(eventId) {
           r.dinnerTimeSlot === slotTime &&
           r.dinnerStatus === "waitlist"
       )
-      .reduce((sum, r) => sum + (r.partySize || 1), 0);
+      .reduce((sum, r) => sum + (r.dinnerPartySize || r.partySize || 1), 0);
 
     slotCounts[slotTime] = { confirmed, waitlist };
   });
@@ -259,6 +297,164 @@ function isValidEmail(email) {
   return re.test(email);
 }
 
+// ---------------------------
+// People/Contacts CRUD
+// ---------------------------
+
+// Find or create a person by email
+export function findOrCreatePerson(email, name = null) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Try to find existing person
+  let person = people.find((p) => p.email === normalizedEmail);
+
+  if (!person) {
+    // Create new person
+    person = {
+      id: `person_${Date.now()}`,
+      email: normalizedEmail,
+      name: name || null,
+      phone: null,
+      notes: null,
+      tags: [],
+      stripeCustomerId: null, // Will be set when first payment is made
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    people.push(person);
+  } else {
+    // Update name if provided and different
+    if (name && name.trim() && person.name !== name.trim()) {
+      person.name = name.trim();
+      person.updatedAt = new Date().toISOString();
+    }
+  }
+
+  return person;
+}
+
+// Find person by ID
+export function findPersonById(personId) {
+  return people.find((p) => p.id === personId) || null;
+}
+
+// Find person by email
+export function findPersonByEmail(email) {
+  const normalizedEmail = email.trim().toLowerCase();
+  return people.find((p) => p.email === normalizedEmail) || null;
+}
+
+// Update person
+export function updatePerson(personId, updates) {
+  const idx = people.findIndex((p) => p.id === personId);
+  if (idx === -1) return { error: "not_found" };
+
+  people[idx] = {
+    ...people[idx],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+
+  return { person: people[idx] };
+}
+
+// Update person's Stripe customer ID
+export function updatePersonStripeCustomerId(personId, stripeCustomerId) {
+  const idx = people.findIndex((p) => p.id === personId);
+  if (idx === -1) return { error: "not_found" };
+
+  people[idx].stripeCustomerId = stripeCustomerId;
+  people[idx].updatedAt = new Date().toISOString();
+
+  return { person: people[idx] };
+}
+
+// Get all people with their event statistics
+export function getAllPeopleWithStats() {
+  return people
+    .map((person) => {
+      const personRsvps = rsvps.filter((r) => r.personId === person.id);
+
+      const eventsAttended = personRsvps.filter(
+        (r) => r.status === "attending"
+      ).length;
+      const eventsWaitlisted = personRsvps.filter(
+        (r) => r.status === "waitlist"
+      ).length;
+      const totalEvents = personRsvps.length;
+      const totalGuestsBrought = personRsvps.reduce(
+        (sum, r) => sum + (r.plusOnes || 0),
+        0
+      );
+      const totalDinners = personRsvps.filter(
+        (r) => r.wantsDinner === true
+      ).length;
+      const totalDinnerGuests = personRsvps.reduce(
+        (sum, r) =>
+          sum + (r.wantsDinner && r.dinnerPartySize ? r.dinnerPartySize : 0),
+        0
+      );
+
+      // Get event details for each RSVP
+      const eventHistory = personRsvps
+        .map((rsvp) => {
+          const event = findEventById(rsvp.eventId);
+          return {
+            rsvpId: rsvp.id,
+            eventId: rsvp.eventId,
+            eventTitle: event?.title || "Unknown Event",
+            eventSlug: event?.slug || null,
+            eventDate: event?.startsAt || null,
+            status: rsvp.status,
+            plusOnes: rsvp.plusOnes || 0,
+            wantsDinner: rsvp.wantsDinner || false,
+            dinnerStatus: rsvp.dinnerStatus || null,
+            dinnerTimeSlot: rsvp.dinnerTimeSlot || null,
+            dinnerPartySize: rsvp.dinnerPartySize || null,
+            rsvpDate: rsvp.createdAt,
+          };
+        })
+        .sort((a, b) => {
+          // Sort by event date (most recent first)
+          if (!a.eventDate) return 1;
+          if (!b.eventDate) return -1;
+          return new Date(b.eventDate) - new Date(a.eventDate);
+        });
+
+      return {
+        ...person,
+        stats: {
+          totalEvents,
+          eventsAttended,
+          eventsWaitlisted,
+          totalGuestsBrought,
+          totalDinners,
+          totalDinnerGuests,
+        },
+        eventHistory,
+      };
+    })
+    .sort((a, b) => {
+      // Sort by most recent activity (most recent RSVP first)
+      const aLatest = a.eventHistory[0]?.rsvpDate || a.createdAt;
+      const bLatest = b.eventHistory[0]?.rsvpDate || b.createdAt;
+      return new Date(bLatest) - new Date(aLatest);
+    });
+}
+
+// Helper function to calculate total unique guests
+// partySize = cocktail party (booker + plus-ones)
+// dinnerPartySize = total dinner party (ALWAYS includes the booker if they want dinner)
+function calculateTotalGuests(partySize, dinnerPartySize) {
+  if (!dinnerPartySize || dinnerPartySize === 0) {
+    return partySize;
+  }
+  // dinnerPartySize represents TOTAL people for dinner (including booker)
+  // The booker is ALWAYS counted in both partySize and dinnerPartySize
+  // Formula: cocktail party + dinner party - booker (counted twice)
+  return partySize + (dinnerPartySize - 1);
+}
+
 // plusOnes = 0–3, wantsDinner = boolean, dinnerTimeSlot = ISO string, dinnerPartySize = number
 export function addRsvp({
   slug,
@@ -278,9 +474,12 @@ export function addRsvp({
 
   const normalizedEmail = email.trim().toLowerCase();
 
-  // Check for duplicate RSVP for this event
+  // Find or create person
+  const person = findOrCreatePerson(normalizedEmail, name);
+
+  // Check for duplicate RSVP for this event (same person, same event)
   const existingRsvp = rsvps.find(
-    (r) => r.eventId === event.id && r.email.toLowerCase() === normalizedEmail
+    (r) => r.eventId === event.id && r.personId === person.id
   );
   if (existingRsvp) {
     return { error: "duplicate", rsvp: existingRsvp };
@@ -297,12 +496,29 @@ export function addRsvp({
   );
   const partySize = 1 + clampedPlusOnes;
 
+  // Dinner allocation with time slots (needed for capacity calculation)
+  let dinnerStatus = null;
+  let finalWantsDinner = !!wantsDinner && !!event.dinnerEnabled;
+  let finalDinnerTimeSlot = null;
+  // dinnerPartySize represents TOTAL people for dinner (including the booker)
+  // Defaults to partySize if not specified
+  let finalDinnerPartySize = partySize;
+
   const { attending } = getEventCounts(event.id);
 
   let status = "attending";
 
-  // Capacity check for whole party
-  if (event.maxAttendees && attending + partySize > event.maxAttendees) {
+  // Capacity check for cocktail party using cocktailCapacity
+  // Use totalGuests for accurate capacity check
+  const totalGuestsForCheck = calculateTotalGuests(
+    partySize,
+    finalWantsDinner ? finalDinnerPartySize : null
+  );
+
+  if (
+    event.cocktailCapacity != null &&
+    attending + totalGuestsForCheck > event.cocktailCapacity
+  ) {
     if (event.waitlistEnabled) {
       status = "waitlist";
     } else {
@@ -310,18 +526,7 @@ export function addRsvp({
     }
   }
 
-  // Dinner allocation with time slots
-  let dinnerStatus = null;
-  let finalWantsDinner = !!wantsDinner && !!event.dinnerEnabled;
-  let finalDinnerTimeSlot = null;
-  let finalDinnerPartySize = partySize;
-
   if (finalWantsDinner) {
-    // Use provided dinner party size if specified, otherwise use event party size
-    if (dinnerPartySize !== null && Number.isFinite(dinnerPartySize)) {
-      finalDinnerPartySize = Math.max(1, Math.floor(Number(dinnerPartySize)));
-    }
-
     // Validate time slot
     const availableSlots = generateDinnerTimeSlots(event);
     if (dinnerTimeSlot && availableSlots.includes(dinnerTimeSlot)) {
@@ -340,12 +545,9 @@ export function addRsvp({
       };
 
       if (event.dinnerMaxSeatsPerSlot) {
-        // Limited seats per slot
-        if (
-          status === "attending" &&
-          slotData.confirmed + finalDinnerPartySize <=
-            event.dinnerMaxSeatsPerSlot
-        ) {
+        // Limited seats per slot - check if there's room
+        const availableSeats = event.dinnerMaxSeatsPerSlot - slotData.confirmed;
+        if (status === "attending" && finalDinnerPartySize <= availableSeats) {
           dinnerStatus = "confirmed";
         } else {
           // Check overflow action
@@ -367,12 +569,17 @@ export function addRsvp({
     }
   }
 
+  // Calculate total unique guests
+  const totalGuests = calculateTotalGuests(
+    partySize,
+    finalWantsDinner ? finalDinnerPartySize : null
+  );
+
   const rsvp = {
     id: `rsvp_${Date.now()}`,
+    personId: person.id, // Link to person
     eventId: event.id,
     slug,
-    name: name || null,
-    email: normalizedEmail,
     status, // "attending" | "waitlist"
     plusOnes: clampedPlusOnes,
     partySize,
@@ -380,6 +587,9 @@ export function addRsvp({
     dinnerStatus, // "confirmed" | "waitlist" | null
     dinnerTimeSlot: finalDinnerTimeSlot, // ISO datetime string
     dinnerPartySize: finalWantsDinner ? finalDinnerPartySize : null,
+    totalGuests, // Calculated once and stored
+    paymentId: null, // Link to payment record
+    paymentStatus: event.ticketType === "paid" ? "unpaid" : null, // "unpaid" | "pending" | "paid" | "refunded"
     createdAt: new Date().toISOString(),
   };
 
@@ -389,12 +599,31 @@ export function addRsvp({
 }
 
 export function getRsvpsForEvent(eventId) {
-  return rsvps.filter((r) => r.eventId === eventId);
+  const eventRsvps = rsvps.filter((r) => r.eventId === eventId);
+
+  // Enrich RSVPs with person data for backward compatibility
+  return eventRsvps.map((rsvp) => {
+    const person = findPersonById(rsvp.personId);
+    return {
+      ...rsvp,
+      name: person?.name || null,
+      email: person?.email || null,
+    };
+  });
 }
 
-// Find RSVP by ID
+// Find RSVP by ID (enriched with person data)
 export function findRsvpById(rsvpId) {
-  return rsvps.find((r) => r.id === rsvpId) || null;
+  const rsvp = rsvps.find((r) => r.id === rsvpId);
+  if (!rsvp) return null;
+
+  // Enrich with person data for backward compatibility
+  const person = findPersonById(rsvp.personId);
+  return {
+    ...rsvp,
+    name: person?.name || null,
+    email: person?.email || null,
+  };
 }
 
 // Update RSVP
@@ -406,9 +635,35 @@ export function updateRsvp(rsvpId, updates) {
   const event = findEventById(rsvp.eventId);
   if (!event) return { error: "event_not_found" };
 
-  // Validate email if provided
-  if (updates.email && !isValidEmail(updates.email.trim())) {
-    return { error: "invalid_email" };
+  // Handle email/name updates - update person record
+  if (updates.email || updates.name) {
+    const person = findPersonById(rsvp.personId);
+    if (!person) return { error: "person_not_found" };
+
+    if (updates.email) {
+      const normalizedEmail = updates.email.trim().toLowerCase();
+      if (!isValidEmail(normalizedEmail)) {
+        return { error: "invalid_email" };
+      }
+
+      // If email changed, check if person with new email exists
+      if (normalizedEmail !== person.email) {
+        const existingPerson = findPersonByEmail(normalizedEmail);
+        if (existingPerson) {
+          // Merge: update RSVP to point to existing person
+          rsvp.personId = existingPerson.id;
+        } else {
+          // Update person's email
+          person.email = normalizedEmail;
+          person.updatedAt = new Date().toISOString();
+        }
+      }
+    }
+
+    if (updates.name) {
+      person.name = updates.name.trim() || null;
+      person.updatedAt = new Date().toISOString();
+    }
   }
 
   // Handle plus-ones update
@@ -437,6 +692,12 @@ export function updateRsvp(rsvpId, updates) {
     );
   }
 
+  // Calculate total guests for capacity check
+  const totalGuestsForCheck = calculateTotalGuests(
+    partySize,
+    wantsDinner ? dinnerPartySize : null
+  );
+
   // Recalculate status based on capacity
   const { attending } = getEventCounts(event.id);
   const currentAttending = rsvps
@@ -444,16 +705,16 @@ export function updateRsvp(rsvpId, updates) {
       (r) =>
         r.eventId === event.id && r.status === "attending" && r.id !== rsvpId
     )
-    .reduce((sum, r) => sum + (r.partySize || 1), 0);
+    .reduce((sum, r) => sum + (r.totalGuests ?? r.partySize ?? 1), 0);
 
   let status = rsvp.status;
   if (updates.status !== undefined) {
     status = updates.status;
   } else {
-    // Auto-determine status based on capacity
+    // Auto-determine status based on cocktail capacity
     if (
-      event.maxAttendees &&
-      currentAttending + partySize > event.maxAttendees
+      event.cocktailCapacity != null &&
+      currentAttending + totalGuestsForCheck > event.cocktailCapacity
     ) {
       if (event.waitlistEnabled) {
         status = "waitlist";
@@ -509,11 +770,10 @@ export function updateRsvp(rsvpId, updates) {
           .reduce((sum, r) => sum + (r.dinnerPartySize || r.partySize || 1), 0);
 
         if (event.dinnerMaxSeatsPerSlot) {
-          if (
-            status === "attending" &&
-            currentSlotConfirmed + dinnerPartySize <=
-              event.dinnerMaxSeatsPerSlot
-          ) {
+          // Check if there's room in the slot
+          const availableSeats =
+            event.dinnerMaxSeatsPerSlot - currentSlotConfirmed;
+          if (status === "attending" && dinnerPartySize <= availableSeats) {
             dinnerStatus = "confirmed";
           } else {
             if (event.dinnerOverflowAction === "cocktails") {
@@ -535,13 +795,15 @@ export function updateRsvp(rsvpId, updates) {
     }
   }
 
+  // Calculate total unique guests
+  const totalGuests = calculateTotalGuests(
+    partySize,
+    wantsDinner ? dinnerPartySize : null
+  );
+
   // Update the RSVP
   rsvps[idx] = {
     ...rsvp,
-    ...(updates.name !== undefined && { name: updates.name || null }),
-    ...(updates.email !== undefined && {
-      email: updates.email.trim().toLowerCase(),
-    }),
     status,
     plusOnes,
     partySize,
@@ -549,9 +811,19 @@ export function updateRsvp(rsvpId, updates) {
     dinnerStatus,
     dinnerTimeSlot,
     dinnerPartySize: wantsDinner ? dinnerPartySize : null,
+    totalGuests, // Recalculated and stored
   };
 
-  return { rsvp: rsvps[idx] };
+  // Return enriched RSVP with person data
+  const updatedRsvp = rsvps[idx];
+  const person = findPersonById(updatedRsvp.personId);
+  return {
+    rsvp: {
+      ...updatedRsvp,
+      name: person?.name || null,
+      email: person?.email || null,
+    },
+  };
 }
 
 // Delete RSVP
@@ -560,7 +832,130 @@ export function deleteRsvp(rsvpId) {
   if (idx === -1) return { error: "not_found" };
 
   const rsvp = rsvps[idx];
+  // Enrich with person data before returning
+  const person = findPersonById(rsvp.personId);
+  const enrichedRsvp = {
+    ...rsvp,
+    name: person?.name || null,
+    email: person?.email || null,
+  };
+
   rsvps.splice(idx, 1);
 
-  return { success: true, rsvp };
+  return { success: true, rsvp: enrichedRsvp };
+}
+
+// ---------------------------
+// Payment CRUD
+// ---------------------------
+
+// Create payment record
+export function createPayment({
+  userId,
+  eventId,
+  rsvpId = null,
+  stripePaymentIntentId,
+  stripeCustomerId,
+  stripeChargeId = null,
+  stripeCheckoutSessionId = null,
+  amount,
+  currency = "usd",
+  status = "pending",
+  paymentMethod = null,
+  description = null,
+  receiptUrl = null,
+}) {
+  const payment = {
+    id: `payment_${Date.now()}`,
+    userId,
+    eventId,
+    rsvpId,
+    stripePaymentIntentId,
+    stripeCustomerId,
+    stripeChargeId,
+    stripeCheckoutSessionId,
+    amount: Number(amount),
+    currency,
+    status, // "pending" | "succeeded" | "failed" | "refunded" | "canceled"
+    paymentMethod,
+    description,
+    receiptUrl,
+    refundedAmount: 0,
+    refundedAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    paidAt: null,
+    metadata: {},
+  };
+
+  payments.push(payment);
+
+  // Link payment to RSVP if provided
+  if (rsvpId) {
+    const rsvpIdx = rsvps.findIndex((r) => r.id === rsvpId);
+    if (rsvpIdx !== -1) {
+      rsvps[rsvpIdx].paymentId = payment.id;
+      rsvps[rsvpIdx].paymentStatus =
+        status === "succeeded" ? "paid" : "pending";
+    }
+  }
+
+  return payment;
+}
+
+// Find payment by ID
+export function findPaymentById(paymentId) {
+  return payments.find((p) => p.id === paymentId) || null;
+}
+
+// Find payment by Stripe Payment Intent ID
+export function findPaymentByStripePaymentIntentId(stripePaymentIntentId) {
+  return (
+    payments.find((p) => p.stripePaymentIntentId === stripePaymentIntentId) ||
+    null
+  );
+}
+
+// Find payment by Stripe Charge ID
+export function findPaymentByStripeChargeId(stripeChargeId) {
+  return payments.find((p) => p.stripeChargeId === stripeChargeId) || null;
+}
+
+// Update payment
+export function updatePayment(paymentId, updates) {
+  const idx = payments.findIndex((p) => p.id === paymentId);
+  if (idx === -1) return { error: "not_found" };
+
+  payments[idx] = {
+    ...payments[idx],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Update linked RSVP payment status
+  if (payments[idx].rsvpId) {
+    const rsvpIdx = rsvps.findIndex((r) => r.id === payments[idx].rsvpId);
+    if (rsvpIdx !== -1) {
+      const paymentStatus = payments[idx].status;
+      if (paymentStatus === "succeeded") {
+        rsvps[rsvpIdx].paymentStatus = "paid";
+      } else if (paymentStatus === "refunded") {
+        rsvps[rsvpIdx].paymentStatus = "refunded";
+      } else if (paymentStatus === "failed" || paymentStatus === "canceled") {
+        rsvps[rsvpIdx].paymentStatus = "unpaid";
+      }
+    }
+  }
+
+  return { payment: payments[idx] };
+}
+
+// Get payments for user
+export function getPaymentsForUser(userId) {
+  return payments.filter((p) => p.userId === userId);
+}
+
+// Get payments for event
+export function getPaymentsForEvent(eventId) {
+  return payments.filter((p) => p.eventId === eventId);
 }

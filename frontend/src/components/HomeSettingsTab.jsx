@@ -2,30 +2,31 @@
 import { useState } from "react";
 
 export function SettingsTab({ user, setUser, showToast }) {
-  const [brandingLinks, setBrandingLinks] = useState({
+  // Initialize from user state with defaults
+  const brandingLinks = user.brandingLinks || {
     instagram: "",
     x: "",
     youtube: "",
     tiktok: "",
     linkedin: "",
     website: "",
-  });
-  const [emails, setEmails] = useState([
-    { email: "felix.civalero@gmail.com", primary: true },
-  ]);
-  const [mobileNumber, setMobileNumber] = useState("+46 70 123 45 67");
-  const [thirdPartyAccounts, setThirdPartyAccounts] = useState([
+  };
+  const emails = user.emails || [
+    { email: user.email || "felix.civalero@gmail.com", primary: true },
+  ];
+  const mobileNumber = user.mobileNumber || "";
+  const thirdPartyAccounts = user.thirdPartyAccounts || [
     {
       id: "google",
       name: "Google",
-      email: "felix.civalero@gmail.com",
-      linked: true,
+      email: user.email || "felix.civalero@gmail.com",
+      linked: false,
     },
     { id: "apple", name: "Apple", linked: false },
     { id: "zoom", name: "Zoom", linked: false },
     { id: "solana", name: "Solana", linked: false },
     { id: "ethereum", name: "Ethereum", linked: false },
-  ]);
+  ];
   const [activeDevices] = useState([
     {
       id: "1",
@@ -36,21 +37,31 @@ export function SettingsTab({ user, setUser, showToast }) {
   ]);
 
   function handleSave() {
+    // All changes are already in user state via setUser calls
     showToast("Settings saved successfully! ✨", "success");
   }
 
   function handleAddEmail() {
-    setEmails([...emails, { email: "", primary: false }]);
+    setUser({
+      ...user,
+      emails: [...emails, { email: "", primary: false }],
+    });
   }
 
   function handleRemoveBrandingLink(platform) {
-    setBrandingLinks({ ...brandingLinks, [platform]: "" });
+    setUser({
+      ...user,
+      brandingLinks: { ...brandingLinks, [platform]: "" },
+    });
   }
 
   function handleLinkThirdParty(id) {
-    setThirdPartyAccounts((prev) =>
-      prev.map((acc) => (acc.id === id ? { ...acc, linked: !acc.linked } : acc))
-    );
+    setUser({
+      ...user,
+      thirdPartyAccounts: thirdPartyAccounts.map((acc) =>
+        acc.id === id ? { ...acc, linked: !acc.linked } : acc
+      ),
+    });
   }
 
   return (
@@ -72,7 +83,7 @@ export function SettingsTab({ user, setUser, showToast }) {
           <div
             style={{ display: "flex", flexDirection: "column", gap: "20px" }}
           >
-            {/* Name */}
+            {/* Brand */}
             <label style={{ display: "block" }}>
               <div
                 style={{
@@ -84,7 +95,41 @@ export function SettingsTab({ user, setUser, showToast }) {
                   opacity: 0.9,
                 }}
               >
-                Name
+                Brand
+              </div>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  value={user.brand || ""}
+                  onChange={(e) => setUser({ ...user, brand: e.target.value })}
+                  placeholder="Brand"
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px 12px 16px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(20, 16, 30, 0.6)",
+                    color: "#fff",
+                    fontSize: "15px",
+                    outline: "none",
+                  }}
+                />
+              </div>
+            </label>
+
+            {/* Host Name */}
+            <label style={{ display: "block" }}>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  opacity: 0.9,
+                }}
+              >
+                Host Name
               </div>
               <input
                 type="text"
@@ -101,53 +146,6 @@ export function SettingsTab({ user, setUser, showToast }) {
                   outline: "none",
                 }}
               />
-            </label>
-
-            {/* Username */}
-            <label style={{ display: "block" }}>
-              <div
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                }}
-              >
-                Username
-              </div>
-              <div style={{ position: "relative" }}>
-                <span
-                  style={{
-                    position: "absolute",
-                    left: "12px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "rgba(255,255,255,0.5)",
-                  }}
-                >
-                  @
-                </span>
-                <input
-                  type="text"
-                  value={user.username}
-                  onChange={(e) =>
-                    setUser({ ...user, username: e.target.value })
-                  }
-                  placeholder="username"
-                  style={{
-                    width: "100%",
-                    padding: "12px 16px 12px 28px",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgba(20, 16, 30, 0.6)",
-                    color: "#fff",
-                    fontSize: "15px",
-                    outline: "none",
-                  }}
-                />
-              </div>
             </label>
 
             {/* Bio */}
@@ -231,9 +229,12 @@ export function SettingsTab({ user, setUser, showToast }) {
                     type="text"
                     value={brandingLinks.instagram}
                     onChange={(e) =>
-                      setBrandingLinks({
-                        ...brandingLinks,
-                        instagram: e.target.value,
+                      setUser({
+                        ...user,
+                        brandingLinks: {
+                          ...brandingLinks,
+                          instagram: e.target.value,
+                        },
                       })
                     }
                     placeholder="username"
@@ -264,7 +265,10 @@ export function SettingsTab({ user, setUser, showToast }) {
                     type="text"
                     value={brandingLinks.x}
                     onChange={(e) =>
-                      setBrandingLinks({ ...brandingLinks, x: e.target.value })
+                      setUser({
+                        ...user,
+                        brandingLinks: { ...brandingLinks, x: e.target.value },
+                      })
                     }
                     placeholder="username"
                     style={{
@@ -313,9 +317,12 @@ export function SettingsTab({ user, setUser, showToast }) {
                     type="text"
                     value={brandingLinks.youtube}
                     onChange={(e) =>
-                      setBrandingLinks({
-                        ...brandingLinks,
-                        youtube: e.target.value,
+                      setUser({
+                        ...user,
+                        brandingLinks: {
+                          ...brandingLinks,
+                          youtube: e.target.value,
+                        },
                       })
                     }
                     placeholder="username"
@@ -348,9 +355,12 @@ export function SettingsTab({ user, setUser, showToast }) {
                     type="text"
                     value={brandingLinks.tiktok}
                     onChange={(e) =>
-                      setBrandingLinks({
-                        ...brandingLinks,
-                        tiktok: e.target.value,
+                      setUser({
+                        ...user,
+                        brandingLinks: {
+                          ...brandingLinks,
+                          tiktok: e.target.value,
+                        },
                       })
                     }
                     placeholder="username"
@@ -383,9 +393,12 @@ export function SettingsTab({ user, setUser, showToast }) {
                     type="text"
                     value={brandingLinks.linkedin}
                     onChange={(e) =>
-                      setBrandingLinks({
-                        ...brandingLinks,
-                        linkedin: e.target.value,
+                      setUser({
+                        ...user,
+                        brandingLinks: {
+                          ...brandingLinks,
+                          linkedin: e.target.value,
+                        },
                       })
                     }
                     placeholder="/in/handle"
@@ -415,9 +428,12 @@ export function SettingsTab({ user, setUser, showToast }) {
                     type="text"
                     value={brandingLinks.website}
                     onChange={(e) =>
-                      setBrandingLinks({
-                        ...brandingLinks,
-                        website: e.target.value,
+                      setUser({
+                        ...user,
+                        brandingLinks: {
+                          ...brandingLinks,
+                          website: e.target.value,
+                        },
                       })
                     }
                     placeholder="Your website"
@@ -433,57 +449,6 @@ export function SettingsTab({ user, setUser, showToast }) {
                     }}
                   />
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right side: profile picture */}
-          <div>
-            <div
-              style={{
-                fontSize: "13px",
-                fontWeight: 600,
-                marginBottom: "8px",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                opacity: 0.9,
-              }}
-            >
-              Profile Picture
-            </div>
-            <div
-              style={{
-                width: "120px",
-                height: "120px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "48px",
-                position: "relative",
-                cursor: "pointer",
-                border: "2px solid rgba(255,255,255,0.1)",
-              }}
-            >
-              😊
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: "4px",
-                  right: "4px",
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "50%",
-                  background: "rgba(0,0,0,0.7)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "2px solid rgba(255,255,255,0.2)",
-                  fontSize: "16px",
-                }}
-              >
-                ⬆️
               </div>
             </div>
           </div>
@@ -602,7 +567,7 @@ export function SettingsTab({ user, setUser, showToast }) {
           <input
             type="tel"
             value={mobileNumber}
-            onChange={(e) => setMobileNumber(e.target.value)}
+            onChange={(e) => setUser({ ...user, mobileNumber: e.target.value })}
             style={{
               flex: 1,
               padding: "12px 16px",
@@ -757,27 +722,6 @@ export function SettingsTab({ user, setUser, showToast }) {
               </button>
             </div>
           ))}
-        </div>
-      </SettingsSection>
-
-      {/* ACCOUNT SYNCING */}
-      <SettingsSection
-        title="Account Syncing"
-        description="Sync your events and contacts with external services."
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <SyncItem
-            icon="📅"
-            title="Calendar Syncing"
-            description="Sync your PullUp events with your Google, Outlook, or Apple calendar."
-            buttonText="Add iCal Subscription"
-          />
-          <SyncItem
-            icon="G"
-            title="Sync Contacts with Google"
-            description="Sync your Gmail contacts to easily invite them to your events."
-            buttonText="Enable Syncing"
-          />
         </div>
       </SettingsSection>
 
@@ -941,55 +885,6 @@ function SettingsSection({ title, description, children, actionButton }) {
 }
 
 export function SecurityItem({ icon, title, description, buttonText }) {
-  return (
-    <div
-      style={{
-        padding: "16px",
-        background: "rgba(20, 16, 30, 0.6)",
-        borderRadius: "12px",
-        border: "1px solid rgba(255,255,255,0.05)",
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: "16px",
-      }}
-    >
-      <div style={{ display: "flex", gap: "12px", flex: 1 }}>
-        <span style={{ fontSize: "20px", marginTop: "2px" }}>{icon}</span>
-        <div>
-          <div
-            style={{
-              fontSize: "15px",
-              fontWeight: 600,
-              marginBottom: "4px",
-            }}
-          >
-            {title}
-          </div>
-          <div style={{ fontSize: "13px", opacity: 0.7 }}>{description}</div>
-        </div>
-      </div>
-      <button
-        type="button"
-        style={{
-          padding: "8px 16px",
-          borderRadius: "8px",
-          border: "1px solid rgba(255,255,255,0.1)",
-          background: "rgba(139, 92, 246, 0.2)",
-          color: "#fff",
-          fontSize: "13px",
-          fontWeight: 600,
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {buttonText}
-      </button>
-    </div>
-  );
-}
-
-export function SyncItem({ icon, title, description, buttonText }) {
   return (
     <div
       style={{

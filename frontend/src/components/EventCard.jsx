@@ -36,8 +36,12 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
   const [dinnerSlots, setDinnerSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
-  const hasCapacity =
-    typeof event.maxAttendees === "number" && event.maxAttendees > 0;
+  // Use stored capacity fields
+  const cocktailCapacity = event.cocktailCapacity ?? null;
+  const foodCapacity = event.foodCapacity ?? null;
+  const totalCapacity = event.totalCapacity ?? null;
+  const hasCapacity = cocktailCapacity !== null && cocktailCapacity > 0;
+
   const maxPlusOnes =
     typeof event.maxPlusOnesPerGuest === "number" &&
     event.maxPlusOnesPerGuest > 0
@@ -98,6 +102,33 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
       return;
     }
 
+    // Validate dinner capacity before submission
+    if (wantsDinner && dinnerTimeSlot) {
+      const selectedSlot = dinnerSlots.find((s) => s.time === dinnerTimeSlot);
+      if (selectedSlot) {
+        // Check if dinner party size exceeds available spots
+        if (
+          selectedSlot.remaining !== null &&
+          dinnerPartySize > selectedSlot.remaining
+        ) {
+          setError(
+            `Only ${selectedSlot.remaining} spot${
+              selectedSlot.remaining === 1 ? "" : "s"
+            } available in this time slot. Please reduce your party size or choose another time.`
+          );
+          return;
+        }
+
+        // Warn if slot is not available
+        if (!selectedSlot.available) {
+          setError(
+            "This time slot is no longer available. Please select another time."
+          );
+          return;
+        }
+      }
+    }
+
     if (onSubmit) {
       try {
         const result = await onSubmit({
@@ -128,254 +159,302 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
 
   return (
     <div
+      className="responsive-card"
       style={{
         background:
-          "linear-gradient(145deg, rgba(37, 19, 47, 0.9), rgba(66, 27, 79, 0.9))",
-        padding: "clamp(24px, 5vw, 40px)",
-        borderRadius: "24px",
-        maxWidth: "480px",
-        width: "100%",
-        margin: "40px auto",
-        boxShadow:
-          "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)",
+          "linear-gradient(135deg, rgba(12, 10, 18, 0.95) 0%, rgba(20, 16, 30, 0.9) 100%)",
+        backdropFilter: "blur(20px)",
+        border: "1px solid rgba(255,255,255,0.08)",
         color: "#fff",
         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-        backdropFilter: "blur(10px)",
-        border: "1px solid rgba(255,255,255,0.1)",
-        transition: "all 0.3s ease",
+        transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+        maxWidth: "900px",
+        margin: "0 auto",
+        boxShadow:
+          "0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(139, 92, 246, 0.1)",
+        position: "relative",
+        overflow: "hidden",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-4px)";
+        e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.4)";
         e.currentTarget.style.boxShadow =
-          "0 30px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(139, 92, 246, 0.3)";
+          "0 30px 80px rgba(139, 92, 246, 0.3), 0 0 0 1px rgba(139, 92, 246, 0.2)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
         e.currentTarget.style.boxShadow =
-          "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)";
+          "0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(139, 92, 246, 0.1)";
       }}
     >
-      {event.imageUrl && (
-        <div
-          style={{
-            width: "100%",
-            aspectRatio: "16/9",
-            borderRadius: "16px",
-            overflow: "hidden",
-            marginBottom: "24px",
-            background: "rgba(0,0,0,0.2)",
-          }}
-        >
-          <img
-            src={event.imageUrl}
-            alt={event.title}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          />
-        </div>
-      )}
-
+      {/* Subtle gradient overlay */}
       <div
         style={{
-          fontSize: "11px",
-          textTransform: "uppercase",
-          opacity: 0.7,
-          letterSpacing: "0.15em",
-          fontWeight: 600,
-          marginBottom: "16px",
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "200px",
+          background:
+            "linear-gradient(180deg, rgba(139, 92, 246, 0.1) 0%, transparent 100%)",
+          pointerEvents: "none",
+          zIndex: 0,
         }}
-      >
-        PULLUP · EVENT
-      </div>
-
-      <h1
-        style={{
-          fontSize: "clamp(24px, 5vw, 32px)",
-          margin: "0 0 8px 0",
-          fontWeight: 700,
-          lineHeight: "1.2",
-        }}
-      >
-        {event.title}
-      </h1>
-
-      {event.description && (
-        <p
-          style={{
-            fontSize: "clamp(14px, 2vw, 16px)",
-            opacity: 0.8,
-            lineHeight: "1.6",
-            marginBottom: "24px",
-          }}
-        >
-          {event.description}
-        </p>
-      )}
-
-      <div
-        style={{
-          marginTop: "24px",
-          fontSize: "clamp(13px, 2vw, 15px)",
-          opacity: 0.9,
-          display: "flex",
-          flexDirection: "column",
-          gap: "8px",
-        }}
-      >
-        {event.location && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span>📍</span>
-            <span>{event.location}</span>
-          </div>
-        )}
-        {event.startsAt && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span>🕒</span>
-            <span>{new Date(event.startsAt).toLocaleString()}</span>
-          </div>
-        )}
-
-        {hasCapacity && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span>👥</span>
-            <span>Max {event.maxAttendees} attending</span>
-          </div>
-        )}
-
-        {maxPlusOnes > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span>➕</span>
-            <span>Bring up to {maxPlusOnes} friends</span>
-          </div>
-        )}
-
-        {dinnerEnabled && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span>🍽️</span>
-              <span>Dinner option available</span>
-            </div>
-            {dinnerStartTime && dinnerEndTime && (
-              <div
-                style={{
-                  fontSize: "12px",
-                  opacity: 0.75,
-                  paddingLeft: "24px",
-                }}
-              >
-                {dinnerStartTime.toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}{" "}
-                -{" "}
-                {dinnerEndTime.toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </div>
-            )}
-            {dinnerStartTime && dinnerEndTime && (
-              <div
-                style={{
-                  fontSize: "11px",
-                  opacity: 0.65,
-                  paddingLeft: "24px",
-                }}
-              >
-                Seatings every {dinnerSeatingIntervalHours}{" "}
-                {dinnerSeatingIntervalHours === 1 ? "hour" : "hours"}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* RSVP Form */}
-      {onSubmit && (
-        <form onSubmit={handleSubmit} style={{ marginTop: "32px" }}>
+      />
+      <div style={{ position: "relative", zIndex: 1, padding: "40px" }}>
+        {event.imageUrl && (
           <div
             style={{
-              paddingTop: "32px",
-              borderTop: "1px solid rgba(255,255,255,0.1)",
+              width: "100%",
+              aspectRatio: "16/9",
+              borderRadius: "20px",
+              overflow: "hidden",
+              marginBottom: "32px",
+              background: "rgba(0,0,0,0.3)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              boxShadow:
+                "0 20px 60px rgba(0,0,0,0.5), inset 0 0 100px rgba(139, 92, 246, 0.1)",
+              position: "relative",
             }}
           >
             <div
               style={{
-                fontSize: "11px",
-                textTransform: "uppercase",
-                letterSpacing: "0.15em",
-                opacity: 0.7,
-                fontWeight: 600,
-                marginBottom: "20px",
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background:
+                  "linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.4) 100%)",
+                zIndex: 1,
+                pointerEvents: "none",
+              }}
+            />
+            <img
+              src={event.imageUrl}
+              alt={event.title}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.transform = "scale(1.05)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = "scale(1)";
+              }}
+            />
+          </div>
+        )}
+
+        <div
+          style={{
+            fontSize: "10px",
+            textTransform: "uppercase",
+            opacity: 0.6,
+            letterSpacing: "0.2em",
+            fontWeight: 700,
+            marginBottom: "20px",
+            background:
+              "linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%)",
+            padding: "6px 12px",
+            borderRadius: "8px",
+            display: "inline-block",
+            border: "1px solid rgba(139, 92, 246, 0.3)",
+          }}
+        >
+          PULLUP · EVENT
+        </div>
+
+        <h1
+          style={{
+            fontSize: "clamp(32px, 6vw, 48px)",
+            margin: "0 0 16px 0",
+            fontWeight: 800,
+            lineHeight: "1.1",
+            background:
+              "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.9) 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {event.title}
+        </h1>
+
+        {event.description && (
+          <p
+            style={{
+              fontSize: "clamp(15px, 2.5vw, 18px)",
+              opacity: 0.85,
+              lineHeight: "1.7",
+              marginBottom: "32px",
+              fontWeight: 400,
+              color: "rgba(255,255,255,0.9)",
+            }}
+          >
+            {event.description}
+          </p>
+        )}
+
+        <div
+          style={{
+            marginTop: "32px",
+            marginBottom: "32px",
+            padding: "24px",
+            background: "rgba(20, 16, 30, 0.5)",
+            borderRadius: "16px",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: "16px",
+            }}
+          >
+            {event.location && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  padding: "12px",
+                  background: "rgba(139, 92, 246, 0.1)",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(139, 92, 246, 0.2)",
+                }}
+              >
+                <span style={{ fontSize: "20px", lineHeight: "1" }}>📍</span>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      textTransform: "uppercase",
+                      opacity: 0.6,
+                      letterSpacing: "0.1em",
+                      marginBottom: "4px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Location
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#fff",
+                    }}
+                  >
+                    {event.location}
+                  </div>
+                </div>
+              </div>
+            )}
+            {event.startsAt && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  padding: "12px",
+                  background: "rgba(236, 72, 153, 0.1)",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(236, 72, 153, 0.2)",
+                }}
+              >
+                <span style={{ fontSize: "20px", lineHeight: "1" }}>🕒</span>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      textTransform: "uppercase",
+                      opacity: 0.6,
+                      letterSpacing: "0.1em",
+                      marginBottom: "4px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Date & Time
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#fff",
+                    }}
+                  >
+                    {new Date(event.startsAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      opacity: 0.8,
+                      marginTop: "2px",
+                    }}
+                  >
+                    {new Date(event.startsAt).toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RSVP Form */}
+        {onSubmit && (
+          <form onSubmit={handleSubmit} style={{ marginTop: "40px" }}>
+            <div
+              style={{
+                paddingTop: "40px",
+                borderTop: "2px solid rgba(255,255,255,0.1)",
+                background:
+                  "linear-gradient(to bottom, transparent 0%, rgba(139, 92, 246, 0.05) 100%)",
+                borderRadius: "20px",
+                padding: "40px",
+                margin: "0 -40px -40px -40px",
               }}
             >
-              RSVP
-            </div>
-
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-            >
-              {/* Email */}
-              <label
+              <div
                 style={{
-                  display: "block",
                   fontSize: "12px",
-                  fontWeight: 600,
-                  opacity: 0.9,
                   textTransform: "uppercase",
-                  letterSpacing: "0.05em",
+                  letterSpacing: "0.2em",
+                  opacity: 0.8,
+                  fontWeight: 700,
+                  marginBottom: "24px",
+                  background:
+                    "linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%)",
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  display: "inline-block",
+                  border: "1px solid rgba(139, 92, 246, 0.3)",
                 }}
               >
-                Email <span style={{ color: "#ef4444" }}>*</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setError("");
-                  }}
-                  style={{
-                    ...inputStyle,
-                    ...(error
-                      ? {
-                          border: "1px solid #ef4444",
-                          boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.1)",
-                        }
-                      : {}),
-                  }}
-                  placeholder="you@example.com"
-                  disabled={loading}
-                  autoFocus
-                />
-              </label>
+                RSVP
+              </div>
 
-              {/* Name */}
-              <label
+              <div
                 style={{
-                  display: "block",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  opacity: 0.9,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "16px",
                 }}
               >
-                Name <span style={{ opacity: 0.5 }}>(optional)</span>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  style={inputStyle}
-                  placeholder="Your name"
-                  disabled={loading}
-                />
-              </label>
-
-              {/* Plus-ones */}
-              {maxPlusOnes > 0 && (
+                {/* Email */}
                 <label
                   style={{
                     display: "block",
@@ -386,285 +465,378 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                     letterSpacing: "0.05em",
                   }}
                 >
-                  Bringing friends? (0–{maxPlusOnes})
+                  Email <span style={{ color: "#ef4444" }}>*</span>
                   <input
-                    type="number"
-                    min="0"
-                    max={maxPlusOnes}
-                    value={plusOnes}
+                    type="email"
+                    value={email}
                     onChange={(e) => {
-                      const val = Math.max(
-                        0,
-                        Math.min(maxPlusOnes, parseInt(e.target.value, 10) || 0)
-                      );
-                      setPlusOnes(val);
+                      setEmail(e.target.value);
+                      setError("");
                     }}
+                    style={{
+                      ...inputStyle,
+                      ...(error
+                        ? {
+                            border: "1px solid #ef4444",
+                            boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.1)",
+                          }
+                        : {}),
+                    }}
+                    placeholder="you@example.com"
+                    disabled={loading}
+                    autoFocus
+                  />
+                </label>
+
+                {/* Name */}
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    opacity: 0.9,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  Name <span style={{ opacity: 0.5 }}>(optional)</span>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     style={inputStyle}
-                    placeholder="0"
+                    placeholder="Your name"
                     disabled={loading}
                   />
                 </label>
-              )}
 
-              {/* Dinner */}
-              {event.dinnerEnabled && (
-                <div
-                  style={{
-                    padding: "16px",
-                    background: "rgba(139, 92, 246, 0.1)",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(139, 92, 246, 0.2)",
-                  }}
-                >
+                {/* Plus-ones */}
+                {maxPlusOnes > 0 && (
                   <label
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      marginBottom: wantsDinner ? "16px" : "0",
-                      cursor: "pointer",
+                      display: "block",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      opacity: 0.9,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
                     }}
                   >
+                    Bringing friends? (0–{maxPlusOnes})
                     <input
-                      type="checkbox"
-                      checked={wantsDinner}
-                      onChange={(e) => setWantsDinner(e.target.checked)}
-                      disabled={loading || loadingSlots}
-                      style={{
-                        width: "20px",
-                        height: "20px",
-                        cursor: "pointer",
-                        accentColor: "#8b5cf6",
+                      type="number"
+                      min="0"
+                      max={maxPlusOnes}
+                      value={plusOnes}
+                      onChange={(e) => {
+                        const val = Math.max(
+                          0,
+                          Math.min(
+                            maxPlusOnes,
+                            parseInt(e.target.value, 10) || 0
+                          )
+                        );
+                        setPlusOnes(val);
                       }}
+                      style={inputStyle}
+                      placeholder="0"
+                      disabled={loading}
                     />
-                    <span
+                  </label>
+                )}
+
+                {/* Dinner */}
+                {event.dinnerEnabled && (
+                  <div
+                    style={{
+                      padding: "16px",
+                      background: "rgba(139, 92, 246, 0.1)",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(139, 92, 246, 0.2)",
+                    }}
+                  >
+                    <label
                       style={{
-                        fontSize: "14px",
-                        fontWeight: 600,
-                        opacity: 0.9,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        marginBottom: wantsDinner ? "16px" : "0",
+                        cursor: "pointer",
                       }}
                     >
-                      🍽️ Join for dinner
-                    </span>
-                  </label>
+                      <input
+                        type="checkbox"
+                        checked={wantsDinner}
+                        onChange={(e) => setWantsDinner(e.target.checked)}
+                        disabled={loading || loadingSlots}
+                        style={{
+                          width: "20px",
+                          height: "20px",
+                          cursor: "pointer",
+                          accentColor: "#8b5cf6",
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          opacity: 0.9,
+                        }}
+                      >
+                        🍽️ Join for dinner
+                      </span>
+                    </label>
 
-                  {wantsDinner && (
-                    <div style={{ marginTop: "16px" }}>
-                      {loadingSlots ? (
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            opacity: 0.7,
-                            textAlign: "center",
-                            padding: "12px",
-                          }}
-                        >
-                          Loading available times...
-                        </div>
-                      ) : dinnerSlots.length === 0 ? (
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            opacity: 0.7,
-                            textAlign: "center",
-                            padding: "12px",
-                          }}
-                        >
-                          No dinner slots available
-                        </div>
-                      ) : (
-                        <>
+                    {wantsDinner && (
+                      <div style={{ marginTop: "16px" }}>
+                        {loadingSlots ? (
                           <div
                             style={{
-                              fontSize: "11px",
-                              fontWeight: 600,
-                              marginBottom: "12px",
-                              opacity: 0.8,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
+                              fontSize: "12px",
+                              opacity: 0.7,
+                              textAlign: "center",
+                              padding: "12px",
                             }}
                           >
-                            Select Time Slot
+                            Loading available times...
                           </div>
+                        ) : dinnerSlots.length === 0 ? (
                           <div
                             style={{
-                              display: "grid",
-                              gridTemplateColumns:
-                                "repeat(auto-fill, minmax(100px, 1fr))",
-                              gap: "8px",
-                              marginBottom: "16px",
+                              fontSize: "12px",
+                              opacity: 0.7,
+                              textAlign: "center",
+                              padding: "12px",
                             }}
                           >
-                            {dinnerSlots.map((slot) => (
-                              <button
-                                key={slot.time}
-                                type="button"
-                                onClick={() => setDinnerTimeSlot(slot.time)}
-                                disabled={!slot.available || loading}
-                                style={{
-                                  padding: "10px 8px",
-                                  borderRadius: "8px",
-                                  border:
-                                    dinnerTimeSlot === slot.time
-                                      ? "2px solid #8b5cf6"
-                                      : "1px solid rgba(255,255,255,0.2)",
-                                  background:
-                                    dinnerTimeSlot === slot.time
-                                      ? "rgba(139, 92, 246, 0.2)"
-                                      : slot.available
-                                      ? "rgba(20, 16, 30, 0.6)"
-                                      : "rgba(20, 16, 30, 0.3)",
-                                  color: slot.available
-                                    ? "#fff"
-                                    : "rgba(255,255,255,0.4)",
-                                  fontSize: "11px",
-                                  cursor:
-                                    slot.available && !loading
-                                      ? "pointer"
-                                      : "not-allowed",
-                                  opacity: slot.available ? 1 : 0.5,
-                                  transition: "all 0.2s ease",
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (slot.available && !loading) {
-                                    e.target.style.background =
-                                      "rgba(139, 92, 246, 0.3)";
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (slot.available && !loading) {
-                                    e.target.style.background =
+                            No dinner slots available
+                          </div>
+                        ) : (
+                          <>
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                marginBottom: "12px",
+                                opacity: 0.8,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.05em",
+                              }}
+                            >
+                              Select Time Slot
+                            </div>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns:
+                                  "repeat(auto-fill, minmax(100px, 1fr))",
+                                gap: "8px",
+                                marginBottom: "16px",
+                              }}
+                            >
+                              {dinnerSlots.map((slot) => (
+                                <button
+                                  key={slot.time}
+                                  type="button"
+                                  onClick={() => setDinnerTimeSlot(slot.time)}
+                                  disabled={!slot.available || loading}
+                                  style={{
+                                    padding: "10px 8px",
+                                    borderRadius: "8px",
+                                    border:
+                                      dinnerTimeSlot === slot.time
+                                        ? "2px solid #8b5cf6"
+                                        : "1px solid rgba(255,255,255,0.2)",
+                                    background:
                                       dinnerTimeSlot === slot.time
                                         ? "rgba(139, 92, 246, 0.2)"
-                                        : "rgba(20, 16, 30, 0.6)";
-                                  }
+                                        : slot.available
+                                        ? "rgba(20, 16, 30, 0.6)"
+                                        : "rgba(20, 16, 30, 0.3)",
+                                    color: slot.available
+                                      ? "#fff"
+                                      : "rgba(255,255,255,0.4)",
+                                    fontSize: "11px",
+                                    cursor:
+                                      slot.available && !loading
+                                        ? "pointer"
+                                        : "not-allowed",
+                                    opacity: slot.available ? 1 : 0.5,
+                                    transition: "all 0.2s ease",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (slot.available && !loading) {
+                                      e.target.style.background =
+                                        "rgba(139, 92, 246, 0.3)";
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (slot.available && !loading) {
+                                      e.target.style.background =
+                                        dinnerTimeSlot === slot.time
+                                          ? "rgba(139, 92, 246, 0.2)"
+                                          : "rgba(20, 16, 30, 0.6)";
+                                    }
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600 }}>
+                                    {new Date(slot.time).toLocaleTimeString(
+                                      "en-US",
+                                      {
+                                        hour: "numeric",
+                                        minute: "2-digit",
+                                      }
+                                    )}
+                                  </div>
+                                  {slot.remaining !== null && (
+                                    <div
+                                      style={{
+                                        fontSize: "9px",
+                                        opacity: 0.7,
+                                        marginTop: "2px",
+                                      }}
+                                    >
+                                      {slot.remaining} left
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                marginBottom: "8px",
+                                opacity: 0.8,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.05em",
+                              }}
+                            >
+                              Party Size for Dinner
+                              <input
+                                type="number"
+                                min="1"
+                                value={dinnerPartySize}
+                                onChange={(e) => {
+                                  const val = Math.max(
+                                    1,
+                                    parseInt(e.target.value, 10) || 1
+                                  );
+                                  setDinnerPartySize(val);
+                                }}
+                                style={{
+                                  ...inputStyle,
+                                  marginTop: "8px",
+                                  fontSize: "14px",
+                                }}
+                                placeholder="1"
+                                disabled={loading}
+                              />
+                              <div
+                                style={{
+                                  fontSize: "10px",
+                                  opacity: 0.6,
+                                  marginTop: "4px",
+                                  fontStyle: "italic",
                                 }}
                               >
-                                <div style={{ fontWeight: 600 }}>
-                                  {new Date(slot.time).toLocaleTimeString(
-                                    "en-US",
-                                    {
-                                      hour: "numeric",
-                                      minute: "2-digit",
-                                    }
-                                  )}
-                                </div>
-                                {slot.remaining !== null && (
-                                  <div
-                                    style={{
-                                      fontSize: "9px",
-                                      opacity: 0.7,
-                                      marginTop: "2px",
-                                    }}
-                                  >
-                                    {slot.remaining} left
-                                  </div>
-                                )}
-                              </button>
-                            ))}
-                          </div>
+                                Total number of people for dinner (including
+                                you)
+                              </div>
+                            </label>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                          <label
-                            style={{
-                              display: "block",
-                              fontSize: "11px",
-                              fontWeight: 600,
-                              marginBottom: "8px",
-                              opacity: 0.8,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
-                            }}
-                          >
-                            Party Size for Dinner
-                            <input
-                              type="number"
-                              min="1"
-                              value={dinnerPartySize}
-                              onChange={(e) => {
-                                const val = Math.max(
-                                  1,
-                                  parseInt(e.target.value, 10) || 1
-                                );
-                                setDinnerPartySize(val);
-                              }}
-                              style={{
-                                ...inputStyle,
-                                marginTop: "8px",
-                                fontSize: "14px",
-                              }}
-                              placeholder="1"
-                              disabled={loading}
-                            />
-                          </label>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+                {/* Error */}
+                {error && (
+                  <div
+                    style={{
+                      color: "#ef4444",
+                      fontSize: "12px",
+                      padding: "12px",
+                      background: "rgba(239, 68, 68, 0.1)",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(239, 68, 68, 0.3)",
+                    }}
+                  >
+                    {error}
+                  </div>
+                )}
 
-              {/* Error */}
-              {error && (
-                <div
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={loading}
                   style={{
-                    color: "#ef4444",
-                    fontSize: "12px",
-                    padding: "12px",
-                    background: "rgba(239, 68, 68, 0.1)",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                    marginTop: "16px",
+                    width: "100%",
+                    padding: "18px 24px",
+                    borderRadius: "16px",
+                    border: "none",
+                    background: loading
+                      ? "#666"
+                      : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontSize: "16px",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    boxShadow: loading
+                      ? "none"
+                      : "0 10px 40px rgba(139, 92, 246, 0.5), 0 0 0 1px rgba(255,255,255,0.1)",
+                    transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    opacity: loading ? 0.7 : 1,
+                    position: "relative",
+                    overflow: "hidden",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loading) {
+                      e.target.style.transform = "translateY(-3px) scale(1.01)";
+                      e.target.style.boxShadow =
+                        "0 20px 60px rgba(139, 92, 246, 0.7), 0 0 0 1px rgba(255,255,255,0.2)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loading) {
+                      e.target.style.transform = "translateY(0) scale(1)";
+                      e.target.style.boxShadow =
+                        "0 10px 40px rgba(139, 92, 246, 0.5), 0 0 0 1px rgba(255,255,255,0.1)";
+                    }
                   }}
                 >
-                  {error}
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  marginTop: "8px",
-                  width: "100%",
-                  padding: "14px 20px",
-                  borderRadius: "999px",
-                  border: "none",
-                  background: loading
-                    ? "#666"
-                    : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: "16px",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  boxShadow: loading
-                    ? "none"
-                    : "0 10px 30px rgba(139, 92, 246, 0.4)",
-                  transition: "all 0.3s ease",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: loading ? 0.7 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading) {
-                    e.target.style.transform = "translateY(-2px)";
-                    e.target.style.boxShadow =
-                      "0 15px 40px rgba(139, 92, 246, 0.6)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!loading) {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow =
-                      "0 10px 30px rgba(139, 92, 246, 0.4)";
-                  }
-                }}
-              >
-                {loading ? "Submitting…" : label}
-              </button>
+                  <span style={{ position: "relative", zIndex: 1 }}>
+                    {loading ? "Submitting…" : label}
+                  </span>
+                  {!loading && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: "-100%",
+                        width: "100%",
+                        height: "100%",
+                        background:
+                          "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+                        transition: "left 0.6s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.left = "100%";
+                      }}
+                    />
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
-        </form>
-      )}
+          </form>
+        )}
+      </div>
     </div>
   );
 }

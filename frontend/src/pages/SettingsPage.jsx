@@ -10,7 +10,7 @@ export function SettingsPage() {
   // Mock user data
   const [user, setUser] = useState({
     name: "Felix civalero",
-    username: "",
+    brand: "",
     email: "felix.civalero@gmail.com",
     bio: "",
     profilePicture: null,
@@ -125,7 +125,13 @@ export function SettingsPage() {
                 alignItems: "start",
               }}
             >
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "20px",
+                }}
+              >
                 <label style={{ display: "block" }}>
                   <div
                     style={{
@@ -167,7 +173,7 @@ export function SettingsPage() {
                       opacity: 0.9,
                     }}
                   >
-                    Username
+                    Brand
                   </div>
                   <div style={{ position: "relative" }}>
                     <span
@@ -178,16 +184,14 @@ export function SettingsPage() {
                         transform: "translateY(-50%)",
                         color: "rgba(255,255,255,0.5)",
                       }}
-                    >
-                      @
-                    </span>
+                    ></span>
                     <input
                       type="text"
-                      value={user.username}
+                      value={user.brand || ""}
                       onChange={(e) =>
-                        setUser({ ...user, username: e.target.value })
+                        setUser({ ...user, brand: e.target.value })
                       }
-                      placeholder="username"
+                      placeholder="brand"
                       style={{
                         width: "100%",
                         padding: "12px 16px 12px 28px",
@@ -312,7 +316,8 @@ export function SettingsPage() {
               }}
               onMouseLeave={(e) => {
                 e.target.style.transform = "translateY(0)";
-                e.target.style.boxShadow = "0 10px 30px rgba(139, 92, 246, 0.4)";
+                e.target.style.boxShadow =
+                  "0 10px 30px rgba(139, 92, 246, 0.4)";
               }}
             >
               🔒 Save Changes
@@ -343,4 +348,3 @@ function TabButton({ label, active }) {
     </button>
   );
 }
-

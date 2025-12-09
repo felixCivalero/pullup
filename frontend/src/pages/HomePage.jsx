@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "../components/Toast";
 
 import { ProfileHeader } from "../components/HomeProfileHeader";
 import { TabButton } from "../components/HomeTabs";
 import { EventsTab } from "../components/HomeEventsTab";
 import { SettingsTab } from "../components/HomeSettingsTab";
-import { PaymentsTab } from "../components/HomePaymentsTab";
+import { IntegrationsTab } from "../components/HomeIntegrationsTab";
 import { CrmTab } from "../components/HomeCrmTab";
 
 const API_BASE = "http://localhost:3001";
@@ -21,25 +21,131 @@ function isNetworkError(error) {
 
 export function HomePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
 
   const [events, setEvents] = useState(null);
   const [loading, setLoading] = useState(true);
   const [networkError, setNetworkError] = useState(false);
 
-  const [activeTab, setActiveTab] = useState("events"); // "events" | "settings" | "payments" | "crm"
+  // Check for tab query parameter
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("tab") || "events";
+  }); // "events" | "settings" | "integrations" | "crm"
   const [eventFilter, setEventFilter] = useState("upcoming"); // "upcoming" | "past"
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
+  // Load user data from localStorage or use defaults
+  const loadUserFromStorage = () => {
+    try {
+      const stored = localStorage.getItem("pullup_user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          name: parsed.name || "Felix civalero",
+          brand: parsed.brand || parsed.username || "", // Support migration from username
+          email: parsed.email || "felix.civalero@gmail.com",
+          bio: parsed.bio || "",
+          profilePicture: parsed.profilePicture || null,
+          joinedDate: parsed.joinedDate || "August 2024",
+          // Settings fields
+          brandingLinks: parsed.brandingLinks || {
+            instagram: "",
+            x: "",
+            youtube: "",
+            tiktok: "",
+            linkedin: "",
+            website: "",
+          },
+          emails: parsed.emails || [
+            {
+              email: parsed.email || "felix.civalero@gmail.com",
+              primary: true,
+            },
+          ],
+          mobileNumber: parsed.mobileNumber || "",
+          thirdPartyAccounts: parsed.thirdPartyAccounts || [
+            {
+              id: "google",
+              name: "Google",
+              email: parsed.email || "felix.civalero@gmail.com",
+              linked: false,
+            },
+            { id: "apple", name: "Apple", linked: false },
+            { id: "zoom", name: "Zoom", linked: false },
+            { id: "solana", name: "Solana", linked: false },
+            { id: "ethereum", name: "Ethereum", linked: false },
+          ],
+        };
+      }
+    } catch (error) {
+      console.error("Failed to load user from localStorage:", error);
+    }
+    // Default user data
+    return {
+      name: "Felix civalero",
+      brand: "",
+      email: "felix.civalero@gmail.com",
+      bio: "",
+      profilePicture: null,
+      joinedDate: "August 2024",
+      // Settings fields
+      brandingLinks: {
+        instagram: "",
+        x: "",
+        youtube: "",
+        tiktok: "",
+        linkedin: "",
+        website: "",
+      },
+      emails: [{ email: "felix.civalero@gmail.com", primary: true }],
+      mobileNumber: "",
+      thirdPartyAccounts: [
+        {
+          id: "google",
+          name: "Google",
+          email: "felix.civalero@gmail.com",
+          linked: false,
+        },
+        { id: "apple", name: "Apple", linked: false },
+        { id: "zoom", name: "Zoom", linked: false },
+        { id: "solana", name: "Solana", linked: false },
+        { id: "ethereum", name: "Ethereum", linked: false },
+      ],
+    };
+  };
+
   // Mock user – later replace with auth context
-  const [user, setUser] = useState({
-    name: "Felix civalero",
-    username: "",
-    email: "felix.civalero@gmail.com",
-    bio: "",
-    profilePicture: null,
-    joinedDate: "August 2024",
-  });
+  const [user, setUser] = useState(loadUserFromStorage);
+
+  // Save user data to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("pullup_user", JSON.stringify(user));
+    } catch (error) {
+      console.error("Failed to save user to localStorage:", error);
+      // Handle quota exceeded error
+      if (error.name === "QuotaExceededError") {
+        showToast(
+          "Storage limit reached. Profile picture may not persist.",
+          "error"
+        );
+      }
+    }
+  }, [user, showToast]);
+
+  // Sync activeTab with URL query parameter
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get("tab");
+    if (
+      tabParam &&
+      ["events", "settings", "integrations", "crm"].includes(tabParam)
+    ) {
+      setActiveTab(tabParam);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     function handleMouseMove(e) {
@@ -76,9 +182,24 @@ export function HomePage() {
 
   if (loading) {
     return (
-      <div className="page-with-header" style={pageBg}>
-        <div className="responsive-container">
-          <div className="responsive-card" style={cardShell({ center: true })}>
+      <div
+        className="page-with-header"
+        style={{
+          minHeight: "100vh",
+          position: "relative",
+          background:
+            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+        }}
+      >
+        <div className="responsive-container responsive-container-wide">
+          <div
+            className="responsive-card"
+            style={{
+              background: "rgba(12, 10, 18, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(255,255,255,0.05)",
+            }}
+          >
             <div style={{ fontSize: "18px", opacity: 0.8 }}>
               Loading events…
             </div>
@@ -90,9 +211,24 @@ export function HomePage() {
 
   if (networkError) {
     return (
-      <div className="page-with-header" style={pageBg}>
-        <div className="responsive-container">
-          <div className="responsive-card" style={cardShell({ center: true })}>
+      <div
+        className="page-with-header"
+        style={{
+          minHeight: "100vh",
+          position: "relative",
+          background:
+            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+        }}
+      >
+        <div className="responsive-container responsive-container-wide">
+          <div
+            className="responsive-card"
+            style={{
+              background: "rgba(12, 10, 18, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(255,255,255,0.05)",
+            }}
+          >
             <h2 style={{ marginBottom: "8px", fontSize: "24px" }}>
               Connection Error
             </h2>
@@ -110,13 +246,22 @@ export function HomePage() {
   }
 
   return (
-    <div className="page-with-header" style={pageBg}>
-      {/* cursor glow */}
+    <div
+      className="page-with-header"
+      style={{
+        minHeight: "100vh",
+        position: "relative",
+        background:
+          "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+        paddingBottom: "40px",
+      }}
+    >
+      {/* Cursor glow effect */}
       <div
         style={{
           position: "fixed",
-          width: 600,
-          height: 600,
+          width: "600px",
+          height: "600px",
           borderRadius: "50%",
           background:
             "radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%)",
@@ -129,32 +274,24 @@ export function HomePage() {
       />
 
       <div
-        className="responsive-container"
+        className="responsive-container responsive-container-wide"
         style={{ position: "relative", zIndex: 2 }}
       >
-        <div className="responsive-card" style={cardShell({ center: false })}>
-          {/* Create Event */}
-          <div style={{ paddingBottom: 32 }}>
-            <button
-              onClick={() => navigate("/create")}
-              style={primaryBtnWide}
-              onMouseEnter={(e) => {
-                e.target.style.transform = "translateY(-2px)";
-                e.target.style.boxShadow =
-                  "0 15px 40px rgba(139, 92, 246, 0.6)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.transform = "translateY(0)";
-                e.target.style.boxShadow =
-                  "0 10px 30px rgba(139, 92, 246, 0.4)";
-              }}
-            >
-              + Create New Event
-            </button>
-          </div>
-
+        <div
+          className="responsive-card"
+          style={{
+            background: "rgba(12, 10, 18, 0.6)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255,255,255,0.05)",
+          }}
+        >
           {/* Profile header */}
-          <ProfileHeader user={user} stats={stats} />
+          <ProfileHeader
+            user={user}
+            stats={stats}
+            setUser={setUser}
+            showToast={showToast}
+          />
 
           {/* Main tabs */}
           <div
@@ -178,9 +315,9 @@ export function HomePage() {
               onClick={() => setActiveTab("crm")}
             />
             <TabButton
-              label="Payments"
-              active={activeTab === "payments"}
-              onClick={() => setActiveTab("payments")}
+              label="Integrations"
+              active={activeTab === "integrations"}
+              onClick={() => setActiveTab("integrations")}
             />
             <TabButton
               label="Settings"
@@ -202,32 +339,13 @@ export function HomePage() {
             <SettingsTab user={user} setUser={setUser} showToast={showToast} />
           )}
 
-          {activeTab === "payments" && <PaymentsTab />}
+          {activeTab === "integrations" && <IntegrationsTab />}
 
           {activeTab === "crm" && <CrmTab />}
         </div>
       </div>
     </div>
   );
-}
-
-const pageBg = {
-  minHeight: "100vh",
-  position: "relative",
-  background:
-    "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
-};
-
-function cardShell({ center }) {
-  return {
-    width: "100%",
-    maxWidth: 900,
-    margin: center ? "0 auto" : "0 auto",
-    background: "rgba(12, 10, 18, 0.6)",
-    backdropFilter: "blur(10px)",
-    border: "1px solid rgba(255,255,255,0.05)",
-    textAlign: center ? "center" : "left",
-  };
 }
 
 const primaryBtn = {
@@ -239,12 +357,4 @@ const primaryBtn = {
   fontWeight: 600,
   fontSize: 14,
   cursor: "pointer",
-};
-
-const primaryBtnWide = {
-  ...primaryBtn,
-  width: "100%",
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
 };

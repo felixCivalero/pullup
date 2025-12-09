@@ -240,23 +240,35 @@ export function EventGuestsPage() {
   }
 
   // Stats - count people, not just RSVPs
-  // Restructured to ensure all calculations are consistent:
-  // - Cocktail List = all people attending the event (base partySize)
-  // - Dinner Confirmed = people confirmed for dinner (dinnerPartySize)
-  // - Cocktails Only = people on cocktail list who are NOT confirmed for dinner
-  // - Attending = Cocktails Only + Dinner Confirmed
+  // Use stored totalGuests value (calculated once in backend) for consistency
   const stats = guests.reduce(
     (acc, g) => {
+      // Use stored totalGuests, fallback to partySize for backward compatibility
+      const totalGuests = g.totalGuests ?? g.partySize ?? 1;
       const partySize = g.partySize || 1;
       const dinnerPartySize = g.dinnerPartySize || partySize;
 
+      // Count waitlist using totalGuests
       if (g.status === "waitlist") {
-        acc.waitlist += partySize;
+        acc.waitlist += totalGuests;
       }
 
-      // Count all attending guests in cocktail list
+      // Count all attending guests using totalGuests
       if (g.status === "attending") {
+        acc.attending += totalGuests;
+        // Also track cocktail list (partySize) for display purposes
         acc.cocktailList += partySize;
+
+        // Calculate cocktails-only for this guest
+        // If confirmed for dinner: cocktailsOnly = totalGuests - dinnerPartySize
+        // If not confirmed for dinner: cocktailsOnly = totalGuests
+        if (g.wantsDinner && g.dinnerStatus === "confirmed") {
+          // This guest has people going to dinner, so subtract dinner party from total
+          acc.cocktailsOnly += Math.max(0, totalGuests - dinnerPartySize);
+        } else {
+          // This guest has no confirmed dinner, so all their guests are cocktails-only
+          acc.cocktailsOnly += totalGuests;
+        }
       }
 
       // Count dinner-related stats
@@ -277,34 +289,17 @@ export function EventGuestsPage() {
     },
     {
       waitlist: 0,
+      attending: 0,
       cocktailList: 0,
+      cocktailsOnly: 0,
       dinnerConfirmed: 0,
       dinnerWaitlist: 0,
       dinnerCocktails: 0,
     }
   );
 
-  // Calculate cocktails only: people on cocktail list who are NOT confirmed for dinner
-  // For each guest confirmed for dinner, we need to subtract the overlap
-  // The overlap is the minimum of their cocktail list size and dinner party size
-  let cocktailsOnly = stats.cocktailList;
-  guests.forEach((g) => {
-    if (
-      g.status === "attending" &&
-      g.wantsDinner &&
-      g.dinnerStatus === "confirmed"
-    ) {
-      const partySize = g.partySize || 1;
-      const dinnerPartySize = g.dinnerPartySize || partySize;
-      // Subtract the overlap: people from cocktail list who are going to dinner
-      const overlap = Math.min(partySize, dinnerPartySize);
-      cocktailsOnly -= overlap;
-    }
-  });
-  stats.cocktailsOnly = Math.max(0, cocktailsOnly);
-
-  // Attending = Cocktails Only + Dinner Confirmed
-  const attending = stats.cocktailsOnly + stats.dinnerConfirmed;
+  // Use the calculated attending value
+  const attending = stats.attending;
 
   // Debug: Log stats calculation
   console.log("🔍 [Stats Debug]:", {
@@ -312,30 +307,26 @@ export function EventGuestsPage() {
     dinnerConfirmed: stats.dinnerConfirmed,
     cocktailsOnly: stats.cocktailsOnly,
     attending,
-    calculation: `${stats.cocktailsOnly} (cocktails only) + ${stats.dinnerConfirmed} (dinner confirmed) = ${attending} (attending)`,
+    calculation: `Total Attending: ${attending} (sum of totalGuests), Cocktails Only: ${stats.cocktailsOnly} (attending - dinner confirmed), Dinner Confirmed: ${stats.dinnerConfirmed}`,
   });
 
-  // Capacities
-  const cocktailCapacity = event.maxAttendees || null;
+  // Capacities - use stored values from event object
+  const cocktailCapacity = event.cocktailCapacity ?? null;
+  // Cocktail spots left = capacity - cocktails only (people attending cocktails but not dinner)
   const cocktailSpotsLeft =
     cocktailCapacity != null
-      ? Math.max(cocktailCapacity - stats.cocktailList, 0)
+      ? Math.max(cocktailCapacity - stats.cocktailsOnly, 0)
       : null;
 
-  // Dinner capacity = sum of all time slots capacity
-  // If dinnerMaxSeatsPerSlot is set, calculate total across all slots
-  let dinnerCapacity = null;
-  if (event.dinnerEnabled && event.dinnerMaxSeatsPerSlot) {
-    const slots = generateDinnerTimeSlots(event);
-    dinnerCapacity = slots.length * event.dinnerMaxSeatsPerSlot;
-  }
-  const dinnerSpotsLeft =
-    dinnerCapacity != null
-      ? Math.max(dinnerCapacity - stats.dinnerConfirmed, 0)
+  // Food capacity (stored in event object)
+  const foodCapacity = event.foodCapacity ?? null;
+  const foodSpotsLeft =
+    foodCapacity != null
+      ? Math.max(foodCapacity - stats.dinnerConfirmed, 0)
       : null;
 
-  // Total capacity and spots (for overall event)
-  const totalCapacity = event.maxAttendees || null;
+  // Total capacity (stored in event object)
+  const totalCapacity = event.totalCapacity ?? null;
   const totalSpotsLeft =
     totalCapacity != null ? Math.max(totalCapacity - attending, 0) : null;
 
@@ -553,74 +544,8 @@ export function EventGuestsPage() {
               gap: "20px",
             }}
           >
-            <StatCard
-              icon="👥"
-              label="Total attending"
-              value={attending}
-              color="linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
-            />
-            <StatCard
-              icon="📋"
-              label="Waitlist"
-              value={stats.waitlist}
-              color="#ec4899"
-            />
-            {event.dinnerEnabled && (
-              <>
-                <StatCard
-                  icon="🍽️"
-                  label="Dinner Confirmed"
-                  value={stats.dinnerConfirmed}
-                  color="#10b981"
-                />
-                <StatCard
-                  icon="🥂"
-                  label="Cocktails"
-                  value={stats.cocktailsOnly}
-                  color="#f59e0b"
-                />
-                {stats.dinnerWaitlist > 0 && (
-                  <StatCard
-                    icon="⏳"
-                    label="Dinner Waitlist"
-                    value={stats.dinnerWaitlist}
-                    color="#ec4899"
-                  />
-                )}
-                {cocktailCapacity != null && (
-                  <>
-                    <StatCard
-                      icon="🥂"
-                      label="Cocktail Capacity"
-                      value={cocktailCapacity}
-                      color="#f59e0b"
-                    />
-                    <StatCard
-                      icon="✨"
-                      label="Cocktail Spots Left"
-                      value={cocktailSpotsLeft}
-                      color="#f59e0b"
-                    />
-                  </>
-                )}
-                {dinnerCapacity != null && (
-                  <>
-                    <StatCard
-                      icon="🍽️"
-                      label="Dinner Capacity"
-                      value={dinnerCapacity}
-                      color="#10b981"
-                    />
-                    <StatCard
-                      icon="✨"
-                      label="Dinner Spots Left"
-                      value={dinnerSpotsLeft}
-                      color="#10b981"
-                    />
-                  </>
-                )}
-              </>
-            )}
+            {/* Overview Section */}
+
             {totalCapacity != null && (
               <>
                 <StatCard
@@ -630,6 +555,12 @@ export function EventGuestsPage() {
                   color="#fff"
                 />
                 <StatCard
+                  icon="👥"
+                  label="Total attending"
+                  value={attending}
+                  color="linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
+                />
+                <StatCard
                   icon="✨"
                   label="Total Spots Left"
                   value={totalSpotsLeft}
@@ -637,6 +568,70 @@ export function EventGuestsPage() {
                 />
               </>
             )}
+
+            {/* Cocktail Section */}
+            {cocktailCapacity != null && (
+              <>
+                <StatCard
+                  icon="🥂"
+                  label="Cocktail Capacity"
+                  value={cocktailCapacity}
+                  color="#f59e0b"
+                />
+                {event.dinnerEnabled && (
+                  <StatCard
+                    icon="🥂"
+                    label="Cocktails"
+                    value={stats.cocktailsOnly}
+                    color="#f59e0b"
+                  />
+                )}
+                <StatCard
+                  icon="✨"
+                  label="Cocktail Spots Left"
+                  value={cocktailSpotsLeft}
+                  color="#f59e0b"
+                />
+              </>
+            )}
+
+            {/* Dinner Section */}
+            {event.dinnerEnabled && foodCapacity != null && (
+              <>
+                <StatCard
+                  icon="🍽️"
+                  label="Dinner Capacity"
+                  value={foodCapacity}
+                  color="#10b981"
+                />
+                <StatCard
+                  icon="🍽️"
+                  label="Dinner Confirmed"
+                  value={stats.dinnerConfirmed}
+                  color="#10b981"
+                />
+                <StatCard
+                  icon="✨"
+                  label="Dinner Spots Left"
+                  value={foodSpotsLeft}
+                  color="#10b981"
+                />
+                {stats.dinnerWaitlist > 0 && (
+                  <StatCard
+                    icon="⏳"
+                    label="Dinner Waitlist"
+                    value={stats.dinnerWaitlist}
+                    color="#ec4899"
+                  />
+                )}
+              </>
+            )}
+            <StatCard
+              icon="📋"
+              label="Waitlist"
+              value={stats.waitlist}
+              color="#ec4899"
+            />
           </div>
 
           {/* Filters */}
@@ -735,21 +730,6 @@ export function EventGuestsPage() {
                       label="No Dinner"
                       active={dinnerFilter === "no_dinner"}
                       onClick={() => setDinnerFilter("no_dinner")}
-                    />
-                    <FilterChip
-                      label="Dinner Confirmed"
-                      active={dinnerFilter === "dinner_confirmed"}
-                      onClick={() => setDinnerFilter("dinner_confirmed")}
-                    />
-                    <FilterChip
-                      label="Cocktails"
-                      active={dinnerFilter === "cocktails"}
-                      onClick={() => setDinnerFilter("cocktails")}
-                    />
-                    <FilterChip
-                      label="Dinner Waitlist"
-                      active={dinnerFilter === "dinner_waitlist"}
-                      onClick={() => setDinnerFilter("dinner_waitlist")}
                     />
                   </div>
                 </div>
@@ -873,7 +853,7 @@ export function EventGuestsPage() {
                             color: "#fff",
                           }}
                         >
-                          Total Guests
+                          Total Attending
                         </th>
                         <th
                           style={{
@@ -995,48 +975,41 @@ export function EventGuestsPage() {
                         <>
                           <td style={{ padding: "20px", textAlign: "center" }}>
                             {(() => {
-                              // Cocktail List = base party size with plus-ones badge
-                              const cocktailListBase = g.partySize || 1;
+                              // Cocktail List = only show plus-ones badge (total guests shown in separate column)
                               const plusOnes = g.plusOnes || 0;
 
-                              return (
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    gap: "6px",
-                                  }}
-                                >
+                              if (plusOnes > 0) {
+                                return (
                                   <div
                                     style={{
-                                      fontSize: "16px",
-                                      fontWeight: 700,
+                                      fontSize: "11px",
+                                      opacity: 0.9,
+                                      padding: "4px 10px",
+                                      background: "rgba(245, 158, 11, 0.15)",
+                                      borderRadius: "6px",
+                                      border:
+                                        "1px solid rgba(245, 158, 11, 0.3)",
                                       color: "#f59e0b",
+                                      fontWeight: 600,
+                                      display: "inline-block",
                                     }}
                                   >
-                                    {cocktailListBase}
+                                    +{plusOnes} guest{plusOnes > 1 ? "s" : ""}
                                   </div>
-                                  {plusOnes > 0 && (
-                                    <div
-                                      style={{
-                                        fontSize: "11px",
-                                        opacity: 0.8,
-                                        padding: "3px 8px",
-                                        background: "rgba(245, 158, 11, 0.15)",
-                                        borderRadius: "6px",
-                                        border:
-                                          "1px solid rgba(245, 158, 11, 0.3)",
-                                        color: "#f59e0b",
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      +{plusOnes} guest
-                                      {plusOnes > 1 ? "s" : ""}
-                                    </div>
-                                  )}
-                                </div>
-                              );
+                                );
+                              } else {
+                                return (
+                                  <span
+                                    style={{
+                                      fontSize: "14px",
+                                      opacity: 0.5,
+                                      color: "#fff",
+                                    }}
+                                  >
+                                    —
+                                  </span>
+                                );
+                              }
                             })()}
                           </td>
                           <td style={{ padding: "20px", textAlign: "center" }}>
@@ -1065,15 +1038,28 @@ export function EventGuestsPage() {
                           </td>
                           <td style={{ padding: "20px", textAlign: "center" }}>
                             {(() => {
-                              // Total Guests = Dinner Party + Cocktail List (base only, plus-ones are just info)
-                              const cocktailListBase = g.partySize || 1;
-                              const dinnerPartySize =
-                                g.dinnerStatus === "confirmed" &&
-                                g.dinnerPartySize
-                                  ? g.dinnerPartySize
-                                  : 0;
-                              const totalGuests =
-                                cocktailListBase + dinnerPartySize;
+                              // Use stored totalGuests (calculated once in backend)
+                              // Fallback to calculation for backward compatibility
+                              let totalGuests = g.totalGuests;
+
+                              if (
+                                totalGuests === undefined ||
+                                totalGuests === null
+                              ) {
+                                // Backward compatibility: calculate if not stored
+                                const cocktailListBase = g.partySize || 1;
+                                const dinnerPartySize =
+                                  g.dinnerStatus === "confirmed" &&
+                                  g.dinnerPartySize
+                                    ? g.dinnerPartySize
+                                    : 0;
+
+                                totalGuests = cocktailListBase;
+                                if (dinnerPartySize > 0) {
+                                  totalGuests =
+                                    cocktailListBase + (dinnerPartySize - 1);
+                                }
+                              }
 
                               return (
                                 <div
@@ -1924,6 +1910,16 @@ function EditGuestModal({ guest, event, onClose, onSave }) {
                           boxSizing: "border-box",
                         }}
                       />
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          opacity: 0.6,
+                          marginTop: "4px",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        Total number of people for dinner (including the guest)
+                      </div>
                     </div>
                   </>
                 )}

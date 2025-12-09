@@ -50,6 +50,34 @@ export function ProtectedLayout() {
           PullUp {isHome ? "· Home" : ""}
         </button>
 
+        <button
+          onClick={() => handleNav("/create")}
+          style={{
+            padding: "8px 16px",
+            borderRadius: "999px",
+            border: "none",
+            background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: "12px",
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+            cursor: "pointer",
+            transition: "all 0.3s ease",
+            boxShadow: "0 4px 12px rgba(139, 92, 246, 0.3)",
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.transform = "translateY(-1px)";
+            e.target.style.boxShadow = "0 6px 16px rgba(139, 92, 246, 0.4)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.transform = "translateY(0)";
+            e.target.style.boxShadow = "0 4px 12px rgba(139, 92, 246, 0.3)";
+          }}
+        >
+          + create event
+        </button>
+
         {/* Hamburger */}
         {/* <button
           onClick={() => setOpen((o) => !o)}

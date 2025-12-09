@@ -53,16 +53,25 @@ export function EventPage() {
       <div
         style={{
           minHeight: "100vh",
-          background: "#05040A",
-          color: "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily:
-            "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+          position: "relative",
+          background:
+            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+          padding: "40px 16px",
         }}
       >
-        Loading event…
+        <div className="responsive-container responsive-container-wide">
+          <div
+            className="responsive-card"
+            style={{
+              background: "rgba(12, 10, 18, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "18px", opacity: 0.8 }}>Loading event…</div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -72,16 +81,27 @@ export function EventPage() {
       <div
         style={{
           minHeight: "100vh",
-          background: "#05040A",
-          color: "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily:
-            "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+          position: "relative",
+          background:
+            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+          padding: "40px 16px",
         }}
       >
-        Event not found.
+        <div className="responsive-container responsive-container-wide">
+          <div
+            className="responsive-card"
+            style={{
+              background: "rgba(12, 10, 18, 0.6)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "18px", opacity: 0.8 }}>
+              Event not found.
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -113,14 +133,53 @@ export function EventPage() {
 
       const body = await res.json();
 
-      if (body.status === "waitlist") {
-        showToast(
-          "The event is full. You've been added to the waitlist. 👀",
-          "info"
-        );
+      // Handle different status scenarios with appropriate messages
+      const statusDetails = body.statusDetails || {
+        cocktailStatus: body.rsvp?.status || "attending",
+        dinnerStatus: body.rsvp?.dinnerStatus || null,
+        wantsDinner: body.rsvp?.wantsDinner || false,
+      };
+
+      const cocktailStatus = statusDetails.cocktailStatus;
+      const dinnerStatus = statusDetails.dinnerStatus;
+      const wantsDinner = statusDetails.wantsDinner;
+
+      // Build appropriate message based on status
+      let message = "";
+      let toastType = "success";
+
+      if (cocktailStatus === "waitlist") {
+        // On waitlist for cocktails
+        message = "The event is full. You've been added to the waitlist. 👀";
+        toastType = "info";
+      } else if (wantsDinner) {
+        // Wants dinner - check dinner status
+        if (dinnerStatus === "waitlist") {
+          message =
+            "You're confirmed for cocktails! 🥂 However, the dinner slot is full. You've been added to the dinner waitlist. 👀";
+          toastType = "info";
+        } else if (dinnerStatus === "cocktails") {
+          message =
+            "You're confirmed for cocktails! 🥂 The dinner slot is full, so you'll join us for cocktails after dinner.";
+          toastType = "info";
+        } else if (dinnerStatus === "cocktails_waitlist") {
+          message =
+            "You're confirmed for cocktails! 🥂 The dinner slot is full. You're on the dinner waitlist and will join for cocktails. 👀";
+          toastType = "info";
+        } else if (dinnerStatus === "confirmed") {
+          message = "You're confirmed for cocktails and dinner! 🔥";
+          toastType = "success";
+        } else {
+          message = "You're on the list! 🔥";
+          toastType = "success";
+        }
       } else {
-        showToast("You're on the list. 🔥", "success");
+        // Just cocktails, confirmed
+        message = "You're on the list! 🔥";
+        toastType = "success";
       }
+
+      showToast(message, toastType);
 
       return true; // Success
     } catch (err) {
@@ -136,10 +195,22 @@ export function EventPage() {
   }
 
   return (
-    <EventCard
-      event={event}
-      onSubmit={handleRsvpSubmit}
-      loading={rsvpLoading}
-    />
+    <div
+      style={{
+        minHeight: "100vh",
+        position: "relative",
+        background:
+          "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+        padding: "40px 16px",
+      }}
+    >
+      <div className="responsive-container responsive-container-wide">
+        <EventCard
+          event={event}
+          onSubmit={handleRsvpSubmit}
+          loading={rsvpLoading}
+        />
+      </div>
+    </div>
   );
 }

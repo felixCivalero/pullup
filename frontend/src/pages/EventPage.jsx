@@ -181,6 +181,19 @@ export function EventPage() {
 
       showToast(message, toastType);
 
+      // Refetch event data to update capacity after RSVP
+      // This updates the event state which will cause EventCard to re-render with new capacity
+      try {
+        const eventRes = await fetch(`${API_BASE}/events/${event.slug}`);
+        if (eventRes.ok) {
+          const updatedEvent = await eventRes.json();
+          setEvent(updatedEvent);
+        }
+      } catch (err) {
+        console.error("Failed to refresh event data", err);
+        // Don't show error to user - capacity will update on next page load
+      }
+
       return true; // Success
     } catch (err) {
       console.error(err);

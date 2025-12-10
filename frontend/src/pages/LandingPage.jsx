@@ -162,7 +162,7 @@ export function LandingPage() {
                     "0 10px 30px rgba(139, 92, 246, 0.4)";
                 }}
               >
-                Make 'em pull up now
+                Start free now
               </button>
               <button
                 onClick={() => navigate("/home")}

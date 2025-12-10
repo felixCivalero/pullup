@@ -83,8 +83,11 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
         .finally(() => {
           setLoadingSlots(false);
         });
+    } else {
+      // Clear dinner slots if dinner is disabled
+      setDinnerSlots([]);
     }
-  }, [event.dinnerEnabled, event.slug]);
+  }, [event.dinnerEnabled, event.slug, event._attendance?.cocktailSpotsLeft]); // Refetch dinner slots when capacity updates
 
   async function handleSubmit(e) {
     e.preventDefault();

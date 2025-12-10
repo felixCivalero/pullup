@@ -3,48 +3,7 @@
 // ---------------------------
 // In-memory data
 // ---------------------------
-export const events = [
-  {
-    id: "evt_1",
-    slug: "pullup-launch-party",
-    title: "PullUp Launch Party",
-    description: "...",
-    location: "Stockholm",
-    startsAt: "2025-12-31T21:00:00Z",
-    endsAt: null,
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    isPaid: false,
-    ticketType: "free",
-    maxAttendees: 100, // null = unlimited
-    waitlistEnabled: true, // waiting list toggle
-    imageUrl: null,
-    theme: "minimal",
-    calendar: "personal",
-    visibility: "public",
-    requireApproval: false,
-
-    // NEW: plus-ones
-    maxPlusOnesPerGuest: 5, // 0 = no plus-ones, 1–5 allowed
-
-    // NEW: dinner add-on
-    dinnerEnabled: false,
-    dinnerStartTime: null, // ISO datetime string for dinner start
-    dinnerEndTime: null, // ISO datetime string for dinner end
-    dinnerSeatingIntervalHours: 2, // hours between seatings (default 2)
-    dinnerMaxSeatsPerSlot: null, // max seats per time slot (null = unlimited)
-    dinnerOverflowAction: "waitlist", // "waitlist" | "cocktails" | "both"
-
-    // Stripe fields
-    ticketPrice: null,
-
-    // Capacity fields
-    cocktailCapacity: 100, // Cocktail capacity (from maxAttendees)
-    foodCapacity: null, // Food capacity (null when dinner disabled)
-    totalCapacity: 100, // Total capacity (cocktail + food)
-
-    createdAt: new Date().toISOString(),
-  },
-];
+export const events = [];
 
 // People/Contacts table - unique by email
 export const people = [];

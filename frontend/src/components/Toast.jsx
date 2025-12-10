@@ -1,19 +1,26 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 
 const ToastContext = createContext(null);
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = (message, type = "info", duration = 4000) => {
+  const showToast = useCallback((message, type = "info", duration = 4000) => {
     const id = Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, message, type, duration }]);
     return id;
-  };
+  }, []);
 
-  const removeToast = (id) => {
+  const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+  }, []);
 
   return (
     <ToastContext.Provider value={{ showToast }}>
@@ -40,14 +47,21 @@ function ToastContainer({ toasts, removeToast }) {
 }
 
 function Toast({ message, type = "info", onClose, duration = 4000 }) {
+  const onCloseRef = useRef(onClose);
+
+  // Keep ref updated
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (duration > 0) {
       const timer = setTimeout(() => {
-        onClose();
+        onCloseRef.current();
       }, duration);
       return () => clearTimeout(timer);
     }
-  }, [duration, onClose]);
+  }, [duration]); // Removed onClose from dependencies
 
   const bgColor =
     type === "success"
@@ -102,4 +116,3 @@ export function useToast() {
   }
   return context;
 }
-

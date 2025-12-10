@@ -595,182 +595,32 @@ export function EventGuestsPage() {
             >
               👥 Guests
             </div>
+            <button
+              onClick={() => navigate(`/app/events/${id}/manage?tab=edit`)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#9ca3af",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                padding: "12px 20px",
+                borderRadius: "8px 8px 0 0",
+                fontWeight: 500,
+                borderBottom: "2px solid transparent",
+                marginBottom: "-2px",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.color = "#fff";
+                e.target.style.background = "rgba(255,255,255,0.05)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.color = "#9ca3af";
+                e.target.style.background = "transparent";
+              }}
+            >
+              Edit
+            </button>
           </div>
-
-          {/* Summary Stats */}
-          <div
-            style={{
-              marginBottom: "32px",
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: "20px",
-            }}
-          >
-            {/* Overview Section */}
-            {totalCapacity != null && (
-              <>
-                <StatCard
-                  icon="📊"
-                  label="Total Capacity"
-                  value={`${attending}/${totalCapacity}`}
-                  color="#fff"
-                />
-              </>
-            )}
-
-            {/* Cocktail Section */}
-            {cocktailCapacity != null && (
-              <>
-                <StatCard
-                  icon="🥂"
-                  label="Cocktail Capacity"
-                  value={`${stats.cocktailsOnly}/${cocktailCapacity}`}
-                  color="#f59e0b"
-                />
-              </>
-            )}
-
-            {/* Waitlist */}
-            <StatCard
-              icon="📋"
-              label="Waitlist"
-              value={stats.waitlist}
-              color="#ec4899"
-            />
-          </div>
-
-          {/* Dinner Slots Section */}
-          {event &&
-            event.dinnerEnabled &&
-            event.dinnerMaxSeatsPerSlot &&
-            dinnerSlots.length > 0 && (
-              <div
-                style={{
-                  marginBottom: "32px",
-                  padding: "28px",
-                  background:
-                    "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(139, 92, 246, 0.06) 100%)",
-                  borderRadius: "18px",
-                  border: "1px solid rgba(16, 185, 129, 0.25)",
-                  backdropFilter: "blur(10px)",
-                  boxShadow: "0 8px 32px rgba(16, 185, 129, 0.1)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "24px",
-                  }}
-                >
-                  <span style={{ fontSize: "22px" }}>🍽️</span>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      opacity: 0.95,
-                      color: "#10b981",
-                    }}
-                  >
-                    Dinner Slots
-                  </div>
-                </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                    gap: "16px",
-                  }}
-                >
-                  {dinnerSlots.map((slot) => {
-                    const slotTime = new Date(slot.time);
-                    const confirmed = slot.confirmed || 0;
-                    const capacity = event.dinnerMaxSeatsPerSlot;
-                    return (
-                      <div
-                        key={slot.time}
-                        style={{
-                          padding: "18px",
-                          background: "rgba(20, 16, 30, 0.7)",
-                          borderRadius: "14px",
-                          border: "1px solid rgba(16, 185, 129, 0.25)",
-                          transition: "all 0.3s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                          e.currentTarget.style.borderColor =
-                            "rgba(16, 185, 129, 0.4)";
-                          e.currentTarget.style.boxShadow =
-                            "0 4px 16px rgba(16, 185, 129, 0.2)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = "translateY(0)";
-                          e.currentTarget.style.borderColor =
-                            "rgba(16, 185, 129, 0.25)";
-                          e.currentTarget.style.boxShadow = "none";
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "11px",
-                            fontWeight: 600,
-                            opacity: 0.75,
-                            marginBottom: "10px",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.08em",
-                            color: "rgba(255, 255, 255, 0.8)",
-                          }}
-                        >
-                          {slotTime.toLocaleTimeString("en-US", {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "28px",
-                            fontWeight: 700,
-                            color: "#10b981",
-                            display: "flex",
-                            alignItems: "baseline",
-                            gap: "6px",
-                            lineHeight: "1",
-                          }}
-                        >
-                          <span>{confirmed}</span>
-                          <span
-                            style={{
-                              fontSize: "18px",
-                              opacity: 0.5,
-                              fontWeight: 500,
-                              color: "rgba(255, 255, 255, 0.6)",
-                            }}
-                          >
-                            /{capacity}
-                          </span>
-                        </div>
-                        {slot.waitlist > 0 && (
-                          <div
-                            style={{
-                              fontSize: "11px",
-                              color: "#ec4899",
-                              marginTop: "8px",
-                              opacity: 0.9,
-                              fontWeight: 600,
-                            }}
-                          >
-                            {slot.waitlist} on waitlist
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
           {/* Guests Table */}
           {sortedGuests.length === 0 ? (

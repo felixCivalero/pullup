@@ -103,6 +103,297 @@ function calculateCuisineTimeslots(startTime, endTime, intervalHours) {
   }
 }
 
+// Overview Tab Component - shows event statistics
+function OverviewTabContent({ event, guests, dinnerSlots }) {
+  // Calculate stats from guests
+  const stats = guests.reduce(
+    (acc, g) => {
+      const totalGuests = g.totalGuests ?? g.partySize ?? 1;
+      const partySize = g.partySize || 1;
+      const dinnerPartySize = g.dinnerPartySize || partySize;
+
+      if (g.status === "waitlist") {
+        acc.waitlist += totalGuests;
+      }
+
+      if (g.status === "attending") {
+        acc.attending += totalGuests;
+        acc.cocktailList += partySize;
+
+        if (g.wantsDinner && g.dinnerStatus === "confirmed") {
+          acc.cocktailsOnly += Math.max(0, totalGuests - dinnerPartySize);
+        } else {
+          acc.cocktailsOnly += totalGuests;
+        }
+      }
+
+      if (g.wantsDinner) {
+        if (g.dinnerStatus === "confirmed") {
+          acc.dinnerConfirmed += dinnerPartySize;
+        } else if (g.dinnerStatus === "cocktails") {
+          acc.dinnerCocktails += dinnerPartySize;
+        } else if (g.dinnerStatus === "cocktails_waitlist") {
+          acc.dinnerCocktails += dinnerPartySize;
+          acc.dinnerWaitlist += dinnerPartySize;
+        } else if (g.dinnerStatus === "waitlist") {
+          acc.dinnerWaitlist += dinnerPartySize;
+        }
+      }
+
+      return acc;
+    },
+    {
+      waitlist: 0,
+      attending: 0,
+      cocktailList: 0,
+      cocktailsOnly: 0,
+      dinnerConfirmed: 0,
+      dinnerWaitlist: 0,
+      dinnerCocktails: 0,
+    }
+  );
+
+  const attending = stats.attending;
+  const cocktailCapacity = event.cocktailCapacity ?? null;
+  const totalCapacity = event.totalCapacity ?? null;
+
+  return (
+    <>
+      {/* Summary Stats */}
+      <div
+        style={{
+          marginBottom: "32px",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "20px",
+        }}
+      >
+        {totalCapacity != null && (
+          <StatCard
+            icon="📊"
+            label="Total Capacity"
+            value={`${attending}/${totalCapacity}`}
+            color="#fff"
+          />
+        )}
+
+        {cocktailCapacity != null && (
+          <StatCard
+            icon="🥂"
+            label="Cocktail Capacity"
+            value={`${stats.cocktailsOnly}/${cocktailCapacity}`}
+            color="#f59e0b"
+          />
+        )}
+
+        <StatCard
+          icon="📋"
+          label="Waitlist"
+          value={stats.waitlist}
+          color="#ec4899"
+        />
+      </div>
+
+      {/* Dinner Slots Section */}
+      {event.dinnerEnabled &&
+        event.dinnerMaxSeatsPerSlot &&
+        dinnerSlots.length > 0 && (
+          <div
+            style={{
+              marginBottom: "32px",
+              padding: "28px",
+              background:
+                "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(139, 92, 246, 0.06) 100%)",
+              borderRadius: "18px",
+              border: "1px solid rgba(16, 185, 129, 0.25)",
+              backdropFilter: "blur(10px)",
+              boxShadow: "0 8px 32px rgba(16, 185, 129, 0.1)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                marginBottom: "24px",
+              }}
+            >
+              <span style={{ fontSize: "22px" }}>🍽️</span>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                  opacity: 0.95,
+                  color: "#10b981",
+                }}
+              >
+                Dinner Slots
+              </div>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "16px",
+              }}
+            >
+              {dinnerSlots.map((slot) => {
+                const slotTime = new Date(slot.time);
+                const confirmed = slot.confirmed || 0;
+                const capacity = event.dinnerMaxSeatsPerSlot;
+                return (
+                  <div
+                    key={slot.time}
+                    style={{
+                      padding: "18px",
+                      background: "rgba(20, 16, 30, 0.7)",
+                      borderRadius: "14px",
+                      border: "1px solid rgba(16, 185, 129, 0.25)",
+                      transition: "all 0.3s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.borderColor =
+                        "rgba(16, 185, 129, 0.4)";
+                      e.currentTarget.style.boxShadow =
+                        "0 4px 16px rgba(16, 185, 129, 0.2)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.borderColor =
+                        "rgba(16, 185, 129, 0.25)";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        opacity: 0.75,
+                        marginBottom: "10px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        color: "rgba(255, 255, 255, 0.8)",
+                      }}
+                    >
+                      {slotTime.toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "28px",
+                        fontWeight: 700,
+                        color: "#10b981",
+                        display: "flex",
+                        alignItems: "baseline",
+                        gap: "6px",
+                        lineHeight: "1",
+                      }}
+                    >
+                      <span>{confirmed}</span>
+                      <span
+                        style={{
+                          fontSize: "18px",
+                          opacity: 0.5,
+                          fontWeight: 500,
+                          color: "rgba(255, 255, 255, 0.6)",
+                        }}
+                      >
+                        /{capacity}
+                      </span>
+                    </div>
+                    {slot.waitlist > 0 && (
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#ec4899",
+                          marginTop: "8px",
+                          opacity: 0.9,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {slot.waitlist} on waitlist
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+    </>
+  );
+}
+
+// StatCard component for Overview tab
+function StatCard({ icon, label, value, color }) {
+  const isGradient = color.includes("gradient");
+  return (
+    <div
+      style={{
+        padding: "20px",
+        background: "rgba(20, 16, 30, 0.6)",
+        borderRadius: "16px",
+        border: "1px solid rgba(255,255,255,0.08)",
+        backdropFilter: "blur(10px)",
+        transition: "all 0.3s ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.3)";
+        e.currentTarget.style.boxShadow = "0 8px 24px rgba(139, 92, 246, 0.2)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    >
+      <div
+        style={{
+          fontSize: "24px",
+          marginBottom: "8px",
+          opacity: 0.9,
+        }}
+      >
+        {icon}
+      </div>
+      <div
+        style={{
+          fontSize: "10px",
+          opacity: 0.7,
+          marginBottom: "8px",
+          textTransform: "uppercase",
+          letterSpacing: "0.1em",
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "32px",
+          fontWeight: 700,
+          ...(isGradient
+            ? {
+                background: color,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }
+            : { color }),
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function formatRelativeTime(date) {
   const now = new Date();
   const diffMs = date.getTime() - now.getTime();
@@ -201,7 +492,6 @@ export function ManageEventPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
-
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -212,6 +502,9 @@ export function ManageEventPage() {
   const [hasUnsavedImage, setHasUnsavedImage] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [guestsCount, setGuestsCount] = useState(0);
+  const [activeTab, setActiveTab] = useState("overview"); // "overview" or "edit"
+  const [guests, setGuests] = useState([]);
+  const [dinnerSlots, setDinnerSlots] = useState([]);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -221,6 +514,15 @@ export function ManageEventPage() {
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
+
+  // Update activeTab when URL changes
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabFromUrl = urlParams.get("tab") || "overview";
+    if (tabFromUrl === "overview" || tabFromUrl === "edit") {
+      setActiveTab(tabFromUrl);
+    }
+  }, [window.location.search]);
 
   useEffect(() => {
     async function load() {
@@ -306,12 +608,28 @@ export function ManageEventPage() {
           );
         }
 
-        // Fetch guests count
+        // Fetch guests data for Overview tab
         try {
           const guestsRes = await fetch(`${API_BASE}/host/events/${id}/guests`);
           if (guestsRes.ok) {
             const guestsData = await guestsRes.json();
+            setGuests(guestsData.guests || []);
             setGuestsCount(guestsData.guests?.length || 0);
+
+            // Load dinner slots if dinner is enabled
+            if (data.dinnerEnabled && data.slug) {
+              try {
+                const slotsRes = await fetch(
+                  `${API_BASE}/events/${data.slug}/dinner-slots`
+                );
+                if (slotsRes.ok) {
+                  const slotsData = await slotsRes.json();
+                  setDinnerSlots(slotsData.slots || []);
+                }
+              } catch (err) {
+                console.error("Failed to load dinner slots", err);
+              }
+            }
           }
         } catch (err) {
           // Ignore guest count errors
@@ -1126,19 +1444,44 @@ export function ManageEventPage() {
               paddingBottom: "0",
             }}
           >
-            <div
+            <button
+              onClick={() => {
+                setActiveTab("overview");
+                navigate(`/app/events/${id}/manage`);
+              }}
               style={{
                 padding: "12px 20px",
-                fontWeight: 700,
-                color: "#fff",
-                borderBottom: "2px solid #8b5cf6",
+                fontWeight: activeTab === "overview" ? 700 : 500,
+                color: activeTab === "overview" ? "#fff" : "#9ca3af",
+                borderBottom:
+                  activeTab === "overview"
+                    ? "2px solid #8b5cf6"
+                    : "2px solid transparent",
                 marginBottom: "-2px",
-                background: "rgba(139, 92, 246, 0.1)",
+                background:
+                  activeTab === "overview"
+                    ? "rgba(139, 92, 246, 0.1)"
+                    : "transparent",
                 borderRadius: "8px 8px 0 0",
+                border: "none",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== "overview") {
+                  e.target.style.color = "#fff";
+                  e.target.style.background = "rgba(255,255,255,0.05)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== "overview") {
+                  e.target.style.color = "#9ca3af";
+                  e.target.style.background = "transparent";
+                }
               }}
             >
               Overview
-            </div>
+            </button>
             <button
               onClick={() => navigate(`/app/events/${id}/guests`)}
               style={{
@@ -1164,1185 +1507,948 @@ export function ManageEventPage() {
             >
               👥 Guests ({guestsCount})
             </button>
+            <button
+              onClick={() => {
+                setActiveTab("edit");
+                navigate(`/app/events/${id}/manage?tab=edit`);
+              }}
+              style={{
+                padding: "12px 20px",
+                fontWeight: activeTab === "edit" ? 700 : 500,
+                color: activeTab === "edit" ? "#fff" : "#9ca3af",
+                borderBottom:
+                  activeTab === "edit"
+                    ? "2px solid #8b5cf6"
+                    : "2px solid transparent",
+                marginBottom: "-2px",
+                background:
+                  activeTab === "edit"
+                    ? "rgba(139, 92, 246, 0.1)"
+                    : "transparent",
+                borderRadius: "8px 8px 0 0",
+                border: "none",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== "edit") {
+                  e.target.style.color = "#fff";
+                  e.target.style.background = "rgba(255,255,255,0.05)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== "edit") {
+                  e.target.style.color = "#9ca3af";
+                  e.target.style.background = "transparent";
+                }
+              }}
+            >
+              Edit
+            </button>
           </div>
 
-          <form
-            onSubmit={handleSave}
-            style={{
-              background: "rgba(20, 16, 30, 0.4)",
-              padding: "32px",
-              borderRadius: "20px",
-              border: "1px solid rgba(255,255,255,0.05)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "24px",
-            }}
-          >
-            {/* Basic info */}
-            <label
-              style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                opacity: 0.9,
-              }}
-            >
-              Title
-              <input
-                value={event.title || ""}
-                onChange={(e) => setEvent({ ...event, title: e.target.value })}
-                onFocus={() => setFocusedField("title")}
-                onBlur={() => setFocusedField(null)}
-                style={
-                  focusedField === "title" ? focusedInputStyle : inputStyle
-                }
-              />
-            </label>
+          {/* Overview Tab Content */}
+          {activeTab === "overview" && event && (
+            <OverviewTabContent
+              event={event}
+              guests={guests}
+              dinnerSlots={dinnerSlots}
+            />
+          )}
 
-            <label
+          {/* Edit Tab Content */}
+          {activeTab === "edit" && (
+            <form
+              onSubmit={handleSave}
               style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                opacity: 0.9,
-              }}
-            >
-              Description
-              <textarea
-                value={event.description || ""}
-                onChange={(e) =>
-                  setEvent({ ...event, description: e.target.value })
-                }
-                onFocus={() => setFocusedField("description")}
-                onBlur={() => setFocusedField(null)}
-                style={{
-                  ...(focusedField === "description"
-                    ? focusedInputStyle
-                    : inputStyle),
-                  minHeight: "100px",
-                  resize: "vertical",
-                  fontFamily: "inherit",
-                }}
-              />
-            </label>
-
-            <label
-              style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                opacity: 0.9,
-              }}
-            >
-              Location
-              <LocationAutocomplete
-                value={event.location || ""}
-                onChange={(e) =>
-                  setEvent({ ...event, location: e.target.value })
-                }
-                onFocus={() => setFocusedField("location")}
-                onBlur={() => setFocusedField(null)}
-                style={
-                  focusedField === "location" ? focusedInputStyle : inputStyle
-                }
-                disabled={saving}
-              />
-            </label>
-
-            <div
-              style={{
-                background: "rgba(20, 16, 30, 0.3)",
+                background: "rgba(20, 16, 30, 0.4)",
+                padding: "32px",
                 borderRadius: "20px",
-                padding: "28px",
-                border: "1px solid rgba(255,255,255,0.08)",
-                backdropFilter: "blur(10px)",
-                marginBottom: "24px",
+                border: "1px solid rgba(255,255,255,0.05)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "24px",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  marginBottom: "24px",
-                }}
-              >
-                <span style={{ fontSize: "20px" }}>🕒</span>
-                <div
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.15em",
-                    opacity: 0.9,
-                  }}
-                >
-                  Event Schedule
-                </div>
-              </div>
-
+              {/* Basic info */}
               <label
                 style={{
                   display: "block",
                   fontSize: "13px",
                   fontWeight: 600,
-                  marginBottom: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
                   opacity: 0.9,
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "12px",
-                      height: "12px",
-                      borderRadius: "50%",
-                      background:
-                        "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                      border: "2px solid rgba(255,255,255,0.1)",
-                      boxShadow: "0 0 0 2px rgba(139, 92, 246, 0.2)",
-                    }}
-                  />
-                  <span>Start Date & Time</span>
-                  <span style={{ opacity: 0.5, fontWeight: 400 }}>*</span>
-                </div>
-
-                {/* Quick shortcuts */}
-                {getQuickDateOptions().map((option) => (
-                  <button
-                    key={option.label}
-                    type="button"
-                    onClick={() => {
-                      const date = option.getDate();
-                      setEvent({
-                        ...event,
-                        startsAtLocal: date.toISOString().slice(0, 16),
-                      });
-                    }}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(255,255,255,0.05)",
-                      color: "#fff",
-                      fontSize: "12px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      opacity: 0.8,
-                      marginRight: "8px",
-                      marginBottom: "8px",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.opacity = "1";
-                      e.target.style.background = "rgba(139, 92, 246, 0.15)";
-                      e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.opacity = "0.8";
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                      e.target.style.borderColor = "rgba(255,255,255,0.1)";
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-
-                <div style={{ position: "relative", marginTop: "12px" }}>
-                  <input
-                    type="datetime-local"
-                    value={event.startsAtLocal || ""}
-                    onChange={(e) =>
-                      setEvent({ ...event, startsAtLocal: e.target.value })
-                    }
-                    onFocus={() => setFocusedField("startsAt")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...(focusedField === "startsAt"
-                        ? focusedInputStyle
-                        : inputStyle),
-                      fontSize: "15px",
-                      padding: "14px 16px 14px 48px",
-                      cursor: "pointer",
-                      width: "100%",
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: "16px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      fontSize: "18px",
-                      opacity: 0.7,
-                      pointerEvents: "none",
-                    }}
-                  >
-                    📅
-                  </div>
-                  {event.startsAtLocal && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        right: "16px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        fontSize: "11px",
-                        opacity: 0.6,
-                        pointerEvents: "none",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {formatRelativeTime(new Date(event.startsAtLocal))}
-                    </div>
-                  )}
-                </div>
-                {event.startsAtLocal && (
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      opacity: 0.7,
-                      marginTop: "8px",
-                      paddingLeft: "4px",
-                      fontStyle: "italic",
-                    }}
-                  >
-                    {formatReadableDateTime(new Date(event.startsAtLocal))}
-                  </div>
-                )}
-              </label>
-
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  marginTop: "20px",
-                  opacity: 0.9,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "12px",
-                      height: "12px",
-                      borderRadius: "50%",
-                      background:
-                        "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                      border: "2px solid rgba(255,255,255,0.1)",
-                      boxShadow: "0 0 0 2px rgba(139, 92, 246, 0.2)",
-                    }}
-                  />
-                  <span>End Date & Time</span>
-                  <span style={{ opacity: 0.5, fontWeight: 400 }}>
-                    (Optional)
-                  </span>
-                </div>
-                <div style={{ position: "relative", marginTop: "12px" }}>
-                  <input
-                    type="datetime-local"
-                    value={event.endsAtLocal || ""}
-                    onChange={(e) =>
-                      setEvent({ ...event, endsAtLocal: e.target.value })
-                    }
-                    onFocus={() => setFocusedField("endsAt")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...(focusedField === "endsAt"
-                        ? focusedInputStyle
-                        : inputStyle),
-                      fontSize: "15px",
-                      padding: "14px 16px 14px 48px",
-                      cursor: "pointer",
-                      width: "100%",
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: "16px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      fontSize: "18px",
-                      opacity: 0.7,
-                      pointerEvents: "none",
-                    }}
-                  >
-                    🕐
-                  </div>
-                </div>
-                {event.endsAtLocal && (
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      opacity: 0.7,
-                      marginTop: "8px",
-                      paddingLeft: "4px",
-                      fontStyle: "italic",
-                    }}
-                  >
-                    {formatReadableDateTime(new Date(event.endsAtLocal))}
-                  </div>
-                )}
-              </label>
-
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  marginTop: "20px",
-                  opacity: 0.9,
-                }}
-              >
-                Timezone
-                <select
-                  value={
-                    event.timezone ||
-                    Intl.DateTimeFormat().resolvedOptions().timeZone
-                  }
+                Title
+                <input
+                  value={event.title || ""}
                   onChange={(e) =>
-                    setEvent({ ...event, timezone: e.target.value })
+                    setEvent({ ...event, title: e.target.value })
                   }
-                  onFocus={() => setFocusedField("timezone")}
+                  onFocus={() => setFocusedField("title")}
+                  onBlur={() => setFocusedField(null)}
+                  style={
+                    focusedField === "title" ? focusedInputStyle : inputStyle
+                  }
+                />
+              </label>
+
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  opacity: 0.9,
+                }}
+              >
+                Description
+                <textarea
+                  value={event.description || ""}
+                  onChange={(e) =>
+                    setEvent({ ...event, description: e.target.value })
+                  }
+                  onFocus={() => setFocusedField("description")}
                   onBlur={() => setFocusedField(null)}
                   style={{
-                    ...(focusedField === "timezone"
+                    ...(focusedField === "description"
                       ? focusedInputStyle
                       : inputStyle),
-                    fontSize: "15px",
-                    cursor: "pointer",
-                    marginTop: "8px",
+                    minHeight: "100px",
+                    resize: "vertical",
+                    fontFamily: "inherit",
                   }}
-                >
-                  {Intl.supportedValuesOf("timeZone").map((tz) => (
-                    <option key={tz} value={tz}>
-                      {tz.replace(/_/g, " ")}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
-            </div>
 
-            {/* Event Options */}
-            <div
-              style={{
-                background: "rgba(20, 16, 30, 0.3)",
-                borderRadius: "20px",
-                padding: "28px",
-                border: "1px solid rgba(255,255,255,0.08)",
-                backdropFilter: "blur(10px)",
-                marginBottom: "24px",
-              }}
-            >
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  opacity: 0.9,
+                }}
+              >
+                Location
+                <LocationAutocomplete
+                  value={event.location || ""}
+                  onChange={(e) =>
+                    setEvent({ ...event, location: e.target.value })
+                  }
+                  onFocus={() => setFocusedField("location")}
+                  onBlur={() => setFocusedField(null)}
+                  style={
+                    focusedField === "location" ? focusedInputStyle : inputStyle
+                  }
+                  disabled={saving}
+                />
+              </label>
+
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
+                  background: "rgba(20, 16, 30, 0.3)",
+                  borderRadius: "20px",
+                  padding: "28px",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(10px)",
                   marginBottom: "24px",
                 }}
               >
-                <span style={{ fontSize: "20px" }}>⚙️</span>
-                <div
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.15em",
-                    opacity: 0.9,
-                  }}
-                >
-                  Event Options
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "20px",
-                }}
-              >
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    opacity: 0.9,
-                  }}
-                >
-                  Ticket Type
-                  <select
-                    value={event.ticketType || "free"}
-                    onChange={(e) =>
-                      setEvent({ ...event, ticketType: e.target.value })
-                    }
-                    onFocus={() => setFocusedField("ticketType")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...(focusedField === "ticketType"
-                        ? focusedInputStyle
-                        : inputStyle),
-                      fontSize: "15px",
-                      cursor: "pointer",
-                      marginTop: "8px",
-                    }}
-                  >
-                    <option value="free">Free</option>
-                    <option value="paid">Paid</option>
-                  </select>
-                </label>
-
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    opacity: 0.9,
-                  }}
-                >
-                  Visibility
-                  <select
-                    value={event.visibility || "public"}
-                    onChange={(e) =>
-                      setEvent({ ...event, visibility: e.target.value })
-                    }
-                    onFocus={() => setFocusedField("visibility")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...(focusedField === "visibility"
-                        ? focusedInputStyle
-                        : inputStyle),
-                      fontSize: "15px",
-                      cursor: "pointer",
-                      marginTop: "8px",
-                    }}
-                  >
-                    <option value="public">Public</option>
-                    <option value="private">Private</option>
-                  </select>
-                </label>
-
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    opacity: 0.9,
-                  }}
-                >
-                  Theme
-                  <select
-                    value={event.theme || "minimal"}
-                    onChange={(e) =>
-                      setEvent({ ...event, theme: e.target.value })
-                    }
-                    onFocus={() => setFocusedField("theme")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...(focusedField === "theme"
-                        ? focusedInputStyle
-                        : inputStyle),
-                      fontSize: "15px",
-                      cursor: "pointer",
-                      marginTop: "8px",
-                    }}
-                  >
-                    <option value="minimal">Minimal</option>
-                  </select>
-                </label>
-
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    opacity: 0.9,
-                  }}
-                >
-                  Calendar
-                  <select
-                    value={event.calendar || "personal"}
-                    onChange={(e) =>
-                      setEvent({ ...event, calendar: e.target.value })
-                    }
-                    onFocus={() => setFocusedField("calendar")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...(focusedField === "calendar"
-                        ? focusedInputStyle
-                        : inputStyle),
-                      fontSize: "15px",
-                      cursor: "pointer",
-                      marginTop: "8px",
-                    }}
-                  >
-                    <option value="personal">Personal</option>
-                    <option value="business">Business</option>
-                  </select>
-                </label>
-              </div>
-
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  marginTop: "20px",
-                  gap: "8px",
-                }}
-              >
-                <div style={{ opacity: 0.9 }}>Require Approval</div>
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: "10px",
-                    padding: "8px 12px",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgba(20, 16, 30, 0.6)",
+                    marginBottom: "24px",
                   }}
                 >
-                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
-                    Manually approve RSVPs before confirming
-                  </span>
-                  <label
-                    style={{
-                      position: "relative",
-                      display: "inline-block",
-                      width: "40px",
-                      height: "20px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={!!event.requireApproval}
-                      onChange={(e) =>
-                        setEvent({
-                          ...event,
-                          requireApproval: e.target.checked,
-                        })
-                      }
-                      style={{ display: "none" }}
-                    />
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: event.requireApproval
-                          ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
-                          : "rgba(255,255,255,0.15)",
-                        borderRadius: "10px",
-                        transition: "all 0.3s ease",
-                      }}
-                    >
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: "2px",
-                          left: event.requireApproval ? "22px" : "2px",
-                          width: "16px",
-                          height: "16px",
-                          background: "#fff",
-                          borderRadius: "50%",
-                          transition: "all 0.3s ease",
-                          boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                        }}
-                      />
-                    </span>
-                  </label>
-                </div>
-              </label>
-            </div>
-
-            {/* Capacity + waitlist */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.2fr 1fr",
-                gap: "16px",
-                alignItems: "flex-end",
-              }}
-            >
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                }}
-              >
-                Max attendees
-                <input
-                  type="number"
-                  min="1"
-                  value={event.maxAttendeesInput}
-                  placeholder="Unlimited"
-                  onChange={(e) =>
-                    setEvent({ ...event, maxAttendeesInput: e.target.value })
-                  }
-                  onFocus={() => setFocusedField("maxAttendees")}
-                  onBlur={() => setFocusedField(null)}
-                  style={
-                    focusedField === "maxAttendees"
-                      ? focusedInputStyle
-                      : inputStyle
-                  }
-                />
-              </label>
-
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                  gap: "8px",
-                }}
-              >
-                Waitlist
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "8px 12px",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgba(20, 16, 30, 0.6)",
-                  }}
-                >
-                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
-                    Enable waitlist when full
-                  </span>
-                  <label
-                    style={{
-                      position: "relative",
-                      display: "inline-block",
-                      width: "40px",
-                      height: "20px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={!!event.waitlistEnabled}
-                      onChange={(e) =>
-                        setEvent({
-                          ...event,
-                          waitlistEnabled: e.target.checked,
-                        })
-                      }
-                      style={{ display: "none" }}
-                    />
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: event.waitlistEnabled
-                          ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
-                          : "rgba(255,255,255,0.15)",
-                        borderRadius: "10px",
-                        transition: "all 0.3s ease",
-                      }}
-                    >
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: "2px",
-                          left: event.waitlistEnabled ? "22px" : "2px",
-                          width: "16px",
-                          height: "16px",
-                          background: "#fff",
-                          borderRadius: "50%",
-                          transition: "all 0.3s ease",
-                          boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                        }}
-                      />
-                    </span>
-                  </label>
-                </div>
-              </label>
-            </div>
-
-            {/* Plus-ones + dinner */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "16px",
-              }}
-            >
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                }}
-              >
-                Max plus-ones per guest
-                <input
-                  type="number"
-                  min="0"
-                  max="5"
-                  value={event.maxPlusOnesPerGuestInput}
-                  onChange={(e) =>
-                    setEvent({
-                      ...event,
-                      maxPlusOnesPerGuestInput: e.target.value,
-                    })
-                  }
-                  onFocus={() => setFocusedField("maxPlusOnes")}
-                  onBlur={() => setFocusedField(null)}
-                  style={
-                    focusedField === "maxPlusOnes"
-                      ? focusedInputStyle
-                      : inputStyle
-                  }
-                />
-              </label>
-
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                  gap: "8px",
-                }}
-              >
-                Dinner option
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "8px 12px",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgba(20, 16, 30, 0.6)",
-                  }}
-                >
-                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
-                    Allow guests to opt into dinner
-                  </span>
-                  <label
-                    style={{
-                      position: "relative",
-                      display: "inline-block",
-                      width: "40px",
-                      height: "20px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={!!event.dinnerEnabled}
-                      onChange={(e) =>
-                        setEvent({
-                          ...event,
-                          dinnerEnabled: e.target.checked,
-                        })
-                      }
-                      style={{ display: "none" }}
-                    />
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: event.dinnerEnabled
-                          ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
-                          : "rgba(255,255,255,0.15)",
-                        borderRadius: "10px",
-                        transition: "all 0.3s ease",
-                      }}
-                    >
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: "2px",
-                          left: event.dinnerEnabled ? "22px" : "2px",
-                          width: "16px",
-                          height: "16px",
-                          background: "#fff",
-                          borderRadius: "50%",
-                          transition: "all 0.3s ease",
-                          boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                        }}
-                      />
-                    </span>
-                  </label>
-                </div>
-              </label>
-            </div>
-
-            {event.dinnerEnabled && (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "20px",
-                  padding: "24px",
-                  background:
-                    "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%)",
-                  borderRadius: "16px",
-                  border: "1px solid rgba(139, 92, 246, 0.2)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    marginBottom: "4px",
-                  }}
-                >
-                  <span style={{ fontSize: "20px" }}>🍽️</span>
+                  <span style={{ fontSize: "20px" }}>🕒</span>
                   <div
                     style={{
                       fontSize: "12px",
                       fontWeight: 700,
                       textTransform: "uppercase",
-                      letterSpacing: "0.1em",
+                      letterSpacing: "0.15em",
                       opacity: 0.9,
                     }}
                   >
-                    Cuisine Configuration
+                    Event Schedule
                   </div>
                 </div>
 
-                {/* Time Range */}
-                <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    marginBottom: "12px",
+                    opacity: 0.9,
+                  }}
+                >
                   <div
                     style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      opacity: 0.7,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
                       marginBottom: "12px",
                     }}
                   >
-                    Cuisine Time Window
+                    <div
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        borderRadius: "50%",
+                        background:
+                          "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                        border: "2px solid rgba(255,255,255,0.1)",
+                        boxShadow: "0 0 0 2px rgba(139, 92, 246, 0.2)",
+                      }}
+                    />
+                    <span>Start Date & Time</span>
+                    <span style={{ opacity: 0.5, fontWeight: 400 }}>*</span>
                   </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "12px",
-                    }}
-                  >
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "12px",
-                          opacity: 0.8,
-                          marginBottom: "8px",
-                        }}
-                      >
-                        First Slot Start{" "}
-                        <span style={{ color: "#ef4444" }}>*</span>
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={event.dinnerStartTimeLocal || ""}
-                        onChange={(e) =>
-                          setEvent({
-                            ...event,
-                            dinnerStartTimeLocal: e.target.value,
-                          })
-                        }
-                        required={event.dinnerEnabled}
-                        onFocus={() => setFocusedField("dinnerStartTime")}
-                        onBlur={() => setFocusedField(null)}
-                        style={{
-                          ...(focusedField === "dinnerStartTime"
-                            ? focusedInputStyle
-                            : inputStyle),
-                          fontSize: "14px",
-                          padding: "12px 14px",
-                          width: "100%",
-                          cursor: "pointer",
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "12px",
-                          opacity: 0.8,
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Last Slot Start{" "}
-                        <span style={{ color: "#ef4444" }}>*</span>
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={event.dinnerEndTimeLocal || ""}
-                        onChange={(e) =>
-                          setEvent({
-                            ...event,
-                            dinnerEndTimeLocal: e.target.value,
-                          })
-                        }
-                        required={event.dinnerEnabled}
-                        min={event.dinnerStartTimeLocal || undefined}
-                        onFocus={() => setFocusedField("dinnerEndTime")}
-                        onBlur={() => setFocusedField(null)}
-                        style={{
-                          ...(focusedField === "dinnerEndTime"
-                            ? focusedInputStyle
-                            : inputStyle),
-                          fontSize: "14px",
-                          padding: "12px 14px",
-                          width: "100%",
-                          cursor: "pointer",
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
 
-                {/* Seating Configuration */}
-                <div>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      opacity: 0.7,
-                      marginBottom: "12px",
-                    }}
-                  >
-                    Seating Settings
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "12px",
-                    }}
-                  >
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "12px",
-                          opacity: 0.8,
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Hours per slot
-                      </label>
-                      <input
-                        type="number"
-                        min="0.5"
-                        max="12"
-                        step="0.5"
-                        value={event.dinnerSeatingIntervalHoursInput || "2"}
-                        onChange={(e) =>
-                          setEvent({
-                            ...event,
-                            dinnerSeatingIntervalHoursInput: e.target.value,
-                          })
-                        }
-                        placeholder="2"
-                        onFocus={() => setFocusedField("dinnerInterval")}
-                        onBlur={() => setFocusedField(null)}
-                        style={{
-                          ...(focusedField === "dinnerInterval"
-                            ? focusedInputStyle
-                            : inputStyle),
-                          fontSize: "14px",
-                          padding: "12px 14px",
-                          width: "100%",
-                        }}
-                      />
-                      {event.dinnerStartTimeLocal &&
-                        event.dinnerEndTimeLocal &&
-                        event.dinnerSeatingIntervalHoursInput && (
-                          <div
-                            style={{
-                              marginTop: "10px",
-                              padding: "12px 14px",
-                              background: "rgba(139, 92, 246, 0.08)",
-                              borderRadius: "8px",
-                              border: "1px solid rgba(139, 92, 246, 0.15)",
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontWeight: 600,
-                                marginBottom: "8px",
-                                fontSize: "10px",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.08em",
-                                opacity: 0.75,
-                                color: "rgba(139, 92, 246, 0.9)",
-                              }}
-                            >
-                              Calculated Timeslots
-                            </div>
-                            {(() => {
-                              const slots = calculateCuisineTimeslots(
-                                event.dinnerStartTimeLocal,
-                                event.dinnerEndTimeLocal,
-                                event.dinnerSeatingIntervalHoursInput
-                              );
-                              if (slots.length === 0) {
-                                return (
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.6,
-                                      fontStyle: "italic",
-                                    }}
-                                  >
-                                    Invalid time window or interval
-                                  </div>
-                                );
-                              }
-                              return (
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    flexWrap: "wrap",
-                                    gap: "6px",
-                                  }}
-                                >
-                                  {slots.map((slot, index) => (
-                                    <span
-                                      key={index}
-                                      style={{
-                                        padding: "4px 10px",
-                                        background: "rgba(139, 92, 246, 0.15)",
-                                        borderRadius: "6px",
-                                        border:
-                                          "1px solid rgba(139, 92, 246, 0.25)",
-                                        fontSize: "12px",
-                                        fontWeight: 500,
-                                        color: "rgba(255, 255, 255, 0.95)",
-                                        fontFamily: "monospace",
-                                        letterSpacing: "0.5px",
-                                      }}
-                                    >
-                                      {slot}
-                                    </span>
-                                  ))}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      {(!event.dinnerStartTimeLocal ||
-                        !event.dinnerEndTimeLocal ||
-                        !event.dinnerSeatingIntervalHoursInput) && (
-                        <div
-                          style={{
-                            fontSize: "10px",
-                            opacity: 0.6,
-                            marginTop: "4px",
-                          }}
-                        >
-                          Set time window above to see calculated timeslots
-                        </div>
-                      )}
+                  {/* Quick shortcuts */}
+                  {getQuickDateOptions().map((option) => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      onClick={() => {
+                        const date = option.getDate();
+                        setEvent({
+                          ...event,
+                          startsAtLocal: date.toISOString().slice(0, 16),
+                        });
+                      }}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: "rgba(255,255,255,0.05)",
+                        color: "#fff",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        opacity: 0.8,
+                        marginRight: "8px",
+                        marginBottom: "8px",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.opacity = "1";
+                        e.target.style.background = "rgba(139, 92, 246, 0.15)";
+                        e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.opacity = "0.8";
+                        e.target.style.background = "rgba(255,255,255,0.05)";
+                        e.target.style.borderColor = "rgba(255,255,255,0.1)";
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+
+                  <div style={{ position: "relative", marginTop: "12px" }}>
+                    <input
+                      type="datetime-local"
+                      value={event.startsAtLocal || ""}
+                      onChange={(e) =>
+                        setEvent({ ...event, startsAtLocal: e.target.value })
+                      }
+                      onFocus={() => setFocusedField("startsAt")}
+                      onBlur={() => setFocusedField(null)}
+                      style={{
+                        ...(focusedField === "startsAt"
+                          ? focusedInputStyle
+                          : inputStyle),
+                        fontSize: "15px",
+                        padding: "14px 16px 14px 48px",
+                        cursor: "pointer",
+                        width: "100%",
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: "16px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        fontSize: "18px",
+                        opacity: 0.7,
+                        pointerEvents: "none",
+                      }}
+                    >
+                      📅
                     </div>
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "12px",
-                          opacity: 0.8,
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Max Seats Per Slot
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={event.dinnerMaxSeatsPerSlotInput || ""}
-                        onChange={(e) =>
-                          setEvent({
-                            ...event,
-                            dinnerMaxSeatsPerSlotInput: e.target.value,
-                          })
-                        }
-                        placeholder="Unlimited"
-                        onFocus={() => setFocusedField("dinnerSeats")}
-                        onBlur={() => setFocusedField(null)}
-                        style={{
-                          ...(focusedField === "dinnerSeats"
-                            ? focusedInputStyle
-                            : inputStyle),
-                          fontSize: "14px",
-                          padding: "12px 14px",
-                          width: "100%",
-                        }}
-                      />
+                    {event.startsAtLocal && (
                       <div
                         style={{
-                          fontSize: "10px",
+                          position: "absolute",
+                          right: "16px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          fontSize: "11px",
                           opacity: 0.6,
-                          marginTop: "4px",
+                          pointerEvents: "none",
+                          fontWeight: 600,
                         }}
                       >
-                        Leave empty for unlimited
+                        {formatRelativeTime(new Date(event.startsAtLocal))}
                       </div>
+                    )}
+                  </div>
+                  {event.startsAtLocal && (
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        opacity: 0.7,
+                        marginTop: "8px",
+                        paddingLeft: "4px",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      {formatReadableDateTime(new Date(event.startsAtLocal))}
                     </div>
+                  )}
+                </label>
+
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    marginTop: "20px",
+                    opacity: 0.9,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        borderRadius: "50%",
+                        background:
+                          "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                        border: "2px solid rgba(255,255,255,0.1)",
+                        boxShadow: "0 0 0 2px rgba(139, 92, 246, 0.2)",
+                      }}
+                    />
+                    <span>End Date & Time</span>
+                    <span style={{ opacity: 0.5, fontWeight: 400 }}>
+                      (Optional)
+                    </span>
+                  </div>
+                  <div style={{ position: "relative", marginTop: "12px" }}>
+                    <input
+                      type="datetime-local"
+                      value={event.endsAtLocal || ""}
+                      onChange={(e) =>
+                        setEvent({ ...event, endsAtLocal: e.target.value })
+                      }
+                      onFocus={() => setFocusedField("endsAt")}
+                      onBlur={() => setFocusedField(null)}
+                      style={{
+                        ...(focusedField === "endsAt"
+                          ? focusedInputStyle
+                          : inputStyle),
+                        fontSize: "15px",
+                        padding: "14px 16px 14px 48px",
+                        cursor: "pointer",
+                        width: "100%",
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: "16px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        fontSize: "18px",
+                        opacity: 0.7,
+                        pointerEvents: "none",
+                      }}
+                    >
+                      🕐
+                    </div>
+                  </div>
+                  {event.endsAtLocal && (
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        opacity: 0.7,
+                        marginTop: "8px",
+                        paddingLeft: "4px",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      {formatReadableDateTime(new Date(event.endsAtLocal))}
+                    </div>
+                  )}
+                </label>
+
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    marginTop: "20px",
+                    opacity: 0.9,
+                  }}
+                >
+                  Timezone
+                  <select
+                    value={
+                      event.timezone ||
+                      Intl.DateTimeFormat().resolvedOptions().timeZone
+                    }
+                    onChange={(e) =>
+                      setEvent({ ...event, timezone: e.target.value })
+                    }
+                    onFocus={() => setFocusedField("timezone")}
+                    onBlur={() => setFocusedField(null)}
+                    style={{
+                      ...(focusedField === "timezone"
+                        ? focusedInputStyle
+                        : inputStyle),
+                      fontSize: "15px",
+                      cursor: "pointer",
+                      marginTop: "8px",
+                    }}
+                  >
+                    {Intl.supportedValuesOf("timeZone").map((tz) => (
+                      <option key={tz} value={tz}>
+                        {tz.replace(/_/g, " ")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Event Options */}
+              <div
+                style={{
+                  background: "rgba(20, 16, 30, 0.3)",
+                  borderRadius: "20px",
+                  padding: "28px",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(10px)",
+                  marginBottom: "24px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    marginBottom: "24px",
+                  }}
+                >
+                  <span style={{ fontSize: "20px" }}>⚙️</span>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.15em",
+                      opacity: 0.9,
+                    }}
+                  >
+                    Event Options
                   </div>
                 </div>
 
-                {/* Overflow Handling */}
-                {event.dinnerMaxSeatsPerSlotInput && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "20px",
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      opacity: 0.9,
+                    }}
+                  >
+                    Ticket Type
+                    <select
+                      value={event.ticketType || "free"}
+                      onChange={(e) =>
+                        setEvent({ ...event, ticketType: e.target.value })
+                      }
+                      onFocus={() => setFocusedField("ticketType")}
+                      onBlur={() => setFocusedField(null)}
+                      style={{
+                        ...(focusedField === "ticketType"
+                          ? focusedInputStyle
+                          : inputStyle),
+                        fontSize: "15px",
+                        cursor: "pointer",
+                        marginTop: "8px",
+                      }}
+                    >
+                      <option value="free">Free</option>
+                      <option value="paid">Paid</option>
+                    </select>
+                  </label>
+
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      opacity: 0.9,
+                    }}
+                  >
+                    Visibility
+                    <select
+                      value={event.visibility || "public"}
+                      onChange={(e) =>
+                        setEvent({ ...event, visibility: e.target.value })
+                      }
+                      onFocus={() => setFocusedField("visibility")}
+                      onBlur={() => setFocusedField(null)}
+                      style={{
+                        ...(focusedField === "visibility"
+                          ? focusedInputStyle
+                          : inputStyle),
+                        fontSize: "15px",
+                        cursor: "pointer",
+                        marginTop: "8px",
+                      }}
+                    >
+                      <option value="public">Public</option>
+                      <option value="private">Private</option>
+                    </select>
+                  </label>
+
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      opacity: 0.9,
+                    }}
+                  >
+                    Theme
+                    <select
+                      value={event.theme || "minimal"}
+                      onChange={(e) =>
+                        setEvent({ ...event, theme: e.target.value })
+                      }
+                      onFocus={() => setFocusedField("theme")}
+                      onBlur={() => setFocusedField(null)}
+                      style={{
+                        ...(focusedField === "theme"
+                          ? focusedInputStyle
+                          : inputStyle),
+                        fontSize: "15px",
+                        cursor: "pointer",
+                        marginTop: "8px",
+                      }}
+                    >
+                      <option value="minimal">Minimal</option>
+                    </select>
+                  </label>
+
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      opacity: 0.9,
+                    }}
+                  >
+                    Calendar
+                    <select
+                      value={event.calendar || "personal"}
+                      onChange={(e) =>
+                        setEvent({ ...event, calendar: e.target.value })
+                      }
+                      onFocus={() => setFocusedField("calendar")}
+                      onBlur={() => setFocusedField(null)}
+                      style={{
+                        ...(focusedField === "calendar"
+                          ? focusedInputStyle
+                          : inputStyle),
+                        fontSize: "15px",
+                        cursor: "pointer",
+                        marginTop: "8px",
+                      }}
+                    >
+                      <option value="personal">Personal</option>
+                      <option value="business">Business</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    marginTop: "20px",
+                    gap: "8px",
+                  }}
+                >
+                  <div style={{ opacity: 0.9 }}>Require Approval</div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "8px 12px",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(20, 16, 30, 0.6)",
+                    }}
+                  >
+                    <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                      Manually approve RSVPs before confirming
+                    </span>
+                    <label
+                      style={{
+                        position: "relative",
+                        display: "inline-block",
+                        width: "40px",
+                        height: "20px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!event.requireApproval}
+                        onChange={(e) =>
+                          setEvent({
+                            ...event,
+                            requireApproval: e.target.checked,
+                          })
+                        }
+                        style={{ display: "none" }}
+                      />
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: event.requireApproval
+                            ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
+                            : "rgba(255,255,255,0.15)",
+                          borderRadius: "10px",
+                          transition: "all 0.3s ease",
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: "2px",
+                            left: event.requireApproval ? "22px" : "2px",
+                            width: "16px",
+                            height: "16px",
+                            background: "#fff",
+                            borderRadius: "50%",
+                            transition: "all 0.3s ease",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                          }}
+                        />
+                      </span>
+                    </label>
+                  </div>
+                </label>
+              </div>
+
+              {/* Capacity + waitlist */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.2fr 1fr",
+                  gap: "16px",
+                  alignItems: "flex-end",
+                }}
+              >
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    opacity: 0.9,
+                  }}
+                >
+                  Max attendees
+                  <input
+                    type="number"
+                    min="1"
+                    value={event.maxAttendeesInput}
+                    placeholder="Unlimited"
+                    onChange={(e) =>
+                      setEvent({ ...event, maxAttendeesInput: e.target.value })
+                    }
+                    onFocus={() => setFocusedField("maxAttendees")}
+                    onBlur={() => setFocusedField(null)}
+                    style={
+                      focusedField === "maxAttendees"
+                        ? focusedInputStyle
+                        : inputStyle
+                    }
+                  />
+                </label>
+
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    opacity: 0.9,
+                    gap: "8px",
+                  }}
+                >
+                  Waitlist
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "8px 12px",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(20, 16, 30, 0.6)",
+                    }}
+                  >
+                    <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                      Enable waitlist when full
+                    </span>
+                    <label
+                      style={{
+                        position: "relative",
+                        display: "inline-block",
+                        width: "40px",
+                        height: "20px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!event.waitlistEnabled}
+                        onChange={(e) =>
+                          setEvent({
+                            ...event,
+                            waitlistEnabled: e.target.checked,
+                          })
+                        }
+                        style={{ display: "none" }}
+                      />
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: event.waitlistEnabled
+                            ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
+                            : "rgba(255,255,255,0.15)",
+                          borderRadius: "10px",
+                          transition: "all 0.3s ease",
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: "2px",
+                            left: event.waitlistEnabled ? "22px" : "2px",
+                            width: "16px",
+                            height: "16px",
+                            background: "#fff",
+                            borderRadius: "50%",
+                            transition: "all 0.3s ease",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                          }}
+                        />
+                      </span>
+                    </label>
+                  </div>
+                </label>
+              </div>
+
+              {/* Plus-ones + dinner */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "16px",
+                }}
+              >
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    opacity: 0.9,
+                  }}
+                >
+                  Max plus-ones per guest
+                  <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    value={event.maxPlusOnesPerGuestInput}
+                    onChange={(e) =>
+                      setEvent({
+                        ...event,
+                        maxPlusOnesPerGuestInput: e.target.value,
+                      })
+                    }
+                    onFocus={() => setFocusedField("maxPlusOnes")}
+                    onBlur={() => setFocusedField(null)}
+                    style={
+                      focusedField === "maxPlusOnes"
+                        ? focusedInputStyle
+                        : inputStyle
+                    }
+                  />
+                </label>
+
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    opacity: 0.9,
+                    gap: "8px",
+                  }}
+                >
+                  Dinner option
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "8px 12px",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(20, 16, 30, 0.6)",
+                    }}
+                  >
+                    <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                      Allow guests to opt into dinner
+                    </span>
+                    <label
+                      style={{
+                        position: "relative",
+                        display: "inline-block",
+                        width: "40px",
+                        height: "20px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!event.dinnerEnabled}
+                        onChange={(e) =>
+                          setEvent({
+                            ...event,
+                            dinnerEnabled: e.target.checked,
+                          })
+                        }
+                        style={{ display: "none" }}
+                      />
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: event.dinnerEnabled
+                            ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
+                            : "rgba(255,255,255,0.15)",
+                          borderRadius: "10px",
+                          transition: "all 0.3s ease",
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: "2px",
+                            left: event.dinnerEnabled ? "22px" : "2px",
+                            width: "16px",
+                            height: "16px",
+                            background: "#fff",
+                            borderRadius: "50%",
+                            transition: "all 0.3s ease",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                          }}
+                        />
+                      </span>
+                    </label>
+                  </div>
+                </label>
+              </div>
+
+              {event.dinnerEnabled && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "20px",
+                    padding: "24px",
+                    background:
+                      "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%)",
+                    borderRadius: "16px",
+                    border: "1px solid rgba(139, 92, 246, 0.2)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    <span style={{ fontSize: "20px" }}>🍽️</span>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        opacity: 0.9,
+                      }}
+                    >
+                      Cuisine Configuration
+                    </div>
+                  </div>
+
+                  {/* Time Range */}
                   <div>
                     <div
                       style={{
@@ -2354,176 +2460,466 @@ export function ManageEventPage() {
                         marginBottom: "12px",
                       }}
                     >
-                      When Dinner Seats Are Full
+                      Cuisine Time Window
                     </div>
                     <div
                       style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "10px",
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "12px",
                       }}
                     >
-                      {[
-                        {
-                          value: "waitlist",
-                          label: "Add to Waitlist",
-                          description:
-                            "Keep them on the waitlist for dinner seats",
-                          icon: "📋",
-                        },
-                        {
-                          value: "cocktails",
-                          label: "Invite for Cocktails",
-                          description:
-                            "Invite them to join for cocktails after dinner",
-                          icon: "🥂",
-                        },
-                        {
-                          value: "both",
-                          label: "Both Options",
-                          description:
-                            "Add to waitlist AND invite for cocktails",
-                          icon: "✨",
-                        },
-                      ].map((option) => (
+                      <div>
                         <label
-                          key={option.value}
                           style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: "12px",
-                            padding: "14px",
-                            borderRadius: "12px",
-                            border:
-                              event.dinnerOverflowAction === option.value
-                                ? "2px solid #8b5cf6"
-                                : "1px solid rgba(255,255,255,0.1)",
-                            background:
-                              event.dinnerOverflowAction === option.value
-                                ? "rgba(139, 92, 246, 0.15)"
-                                : "rgba(20, 16, 30, 0.4)",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                          }}
-                          onMouseEnter={(e) => {
-                            if (event.dinnerOverflowAction !== option.value) {
-                              e.currentTarget.style.background =
-                                "rgba(20, 16, 30, 0.6)";
-                              e.currentTarget.style.borderColor =
-                                "rgba(255,255,255,0.2)";
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (event.dinnerOverflowAction !== option.value) {
-                              e.currentTarget.style.background =
-                                "rgba(20, 16, 30, 0.4)";
-                              e.currentTarget.style.borderColor =
-                                "rgba(255,255,255,0.1)";
-                            }
+                            display: "block",
+                            fontSize: "12px",
+                            opacity: 0.8,
+                            marginBottom: "8px",
                           }}
                         >
-                          <input
-                            type="radio"
-                            name="dinnerOverflow"
-                            value={option.value}
-                            checked={
-                              event.dinnerOverflowAction === option.value
-                            }
-                            onChange={(e) =>
-                              setEvent({
-                                ...event,
-                                dinnerOverflowAction: e.target.value,
-                              })
-                            }
-                            style={{
-                              marginTop: "2px",
-                              width: "18px",
-                              height: "18px",
-                              cursor: "pointer",
-                              accentColor: "#8b5cf6",
-                            }}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              <span style={{ fontSize: "16px" }}>
-                                {option.icon}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: "14px",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {option.label}
-                              </span>
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                opacity: 0.7,
-                                paddingLeft: "24px",
-                              }}
-                            >
-                              {option.description}
-                            </div>
-                          </div>
+                          First Slot Start{" "}
+                          <span style={{ color: "#ef4444" }}>*</span>
                         </label>
-                      ))}
+                        <input
+                          type="datetime-local"
+                          value={event.dinnerStartTimeLocal || ""}
+                          onChange={(e) =>
+                            setEvent({
+                              ...event,
+                              dinnerStartTimeLocal: e.target.value,
+                            })
+                          }
+                          required={event.dinnerEnabled}
+                          onFocus={() => setFocusedField("dinnerStartTime")}
+                          onBlur={() => setFocusedField(null)}
+                          style={{
+                            ...(focusedField === "dinnerStartTime"
+                              ? focusedInputStyle
+                              : inputStyle),
+                            fontSize: "14px",
+                            padding: "12px 14px",
+                            width: "100%",
+                            cursor: "pointer",
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "12px",
+                            opacity: 0.8,
+                            marginBottom: "8px",
+                          }}
+                        >
+                          Last Slot Start{" "}
+                          <span style={{ color: "#ef4444" }}>*</span>
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={event.dinnerEndTimeLocal || ""}
+                          onChange={(e) =>
+                            setEvent({
+                              ...event,
+                              dinnerEndTimeLocal: e.target.value,
+                            })
+                          }
+                          required={event.dinnerEnabled}
+                          min={event.dinnerStartTimeLocal || undefined}
+                          onFocus={() => setFocusedField("dinnerEndTime")}
+                          onBlur={() => setFocusedField(null)}
+                          style={{
+                            ...(focusedField === "dinnerEndTime"
+                              ? focusedInputStyle
+                              : inputStyle),
+                            fontSize: "14px",
+                            padding: "12px 14px",
+                            width: "100%",
+                            cursor: "pointer",
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
 
-            <button
-              type="submit"
-              disabled={saving}
-              style={{
-                marginTop: "8px",
-                padding: "14px 28px",
-                borderRadius: "999px",
-                border: "none",
-                background: saving
-                  ? "#666"
-                  : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: "15px",
-                cursor: saving ? "not-allowed" : "pointer",
-                opacity: saving ? 0.7 : 1,
-                boxShadow: saving
-                  ? "none"
-                  : "0 10px 30px rgba(139, 92, 246, 0.4)",
-                transition: "all 0.3s ease",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                alignSelf: "flex-start",
-              }}
-              onMouseEnter={(e) => {
-                if (!saving) {
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow =
-                    "0 15px 40px rgba(139, 92, 246, 0.6)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!saving) {
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow =
-                    "0 10px 30px rgba(139, 92, 246, 0.4)";
-                }
-              }}
-            >
-              {saving ? "Saving…" : "Save changes"}
-            </button>
-          </form>
+                  {/* Seating Configuration */}
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        opacity: 0.7,
+                        marginBottom: "12px",
+                      }}
+                    >
+                      Seating Settings
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "12px",
+                      }}
+                    >
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "12px",
+                            opacity: 0.8,
+                            marginBottom: "8px",
+                          }}
+                        >
+                          Hours per slot
+                        </label>
+                        <input
+                          type="number"
+                          min="0.5"
+                          max="12"
+                          step="0.5"
+                          value={event.dinnerSeatingIntervalHoursInput || "2"}
+                          onChange={(e) =>
+                            setEvent({
+                              ...event,
+                              dinnerSeatingIntervalHoursInput: e.target.value,
+                            })
+                          }
+                          placeholder="2"
+                          onFocus={() => setFocusedField("dinnerInterval")}
+                          onBlur={() => setFocusedField(null)}
+                          style={{
+                            ...(focusedField === "dinnerInterval"
+                              ? focusedInputStyle
+                              : inputStyle),
+                            fontSize: "14px",
+                            padding: "12px 14px",
+                            width: "100%",
+                          }}
+                        />
+                        {event.dinnerStartTimeLocal &&
+                          event.dinnerEndTimeLocal &&
+                          event.dinnerSeatingIntervalHoursInput && (
+                            <div
+                              style={{
+                                marginTop: "10px",
+                                padding: "12px 14px",
+                                background: "rgba(139, 92, 246, 0.08)",
+                                borderRadius: "8px",
+                                border: "1px solid rgba(139, 92, 246, 0.15)",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontWeight: 600,
+                                  marginBottom: "8px",
+                                  fontSize: "10px",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.08em",
+                                  opacity: 0.75,
+                                  color: "rgba(139, 92, 246, 0.9)",
+                                }}
+                              >
+                                Calculated Timeslots
+                              </div>
+                              {(() => {
+                                const slots = calculateCuisineTimeslots(
+                                  event.dinnerStartTimeLocal,
+                                  event.dinnerEndTimeLocal,
+                                  event.dinnerSeatingIntervalHoursInput
+                                );
+                                if (slots.length === 0) {
+                                  return (
+                                    <div
+                                      style={{
+                                        fontSize: "11px",
+                                        opacity: 0.6,
+                                        fontStyle: "italic",
+                                      }}
+                                    >
+                                      Invalid time window or interval
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexWrap: "wrap",
+                                      gap: "6px",
+                                    }}
+                                  >
+                                    {slots.map((slot, index) => (
+                                      <span
+                                        key={index}
+                                        style={{
+                                          padding: "4px 10px",
+                                          background:
+                                            "rgba(139, 92, 246, 0.15)",
+                                          borderRadius: "6px",
+                                          border:
+                                            "1px solid rgba(139, 92, 246, 0.25)",
+                                          fontSize: "12px",
+                                          fontWeight: 500,
+                                          color: "rgba(255, 255, 255, 0.95)",
+                                          fontFamily: "monospace",
+                                          letterSpacing: "0.5px",
+                                        }}
+                                      >
+                                        {slot}
+                                      </span>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        {(!event.dinnerStartTimeLocal ||
+                          !event.dinnerEndTimeLocal ||
+                          !event.dinnerSeatingIntervalHoursInput) && (
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              opacity: 0.6,
+                              marginTop: "4px",
+                            }}
+                          >
+                            Set time window above to see calculated timeslots
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "12px",
+                            opacity: 0.8,
+                            marginBottom: "8px",
+                          }}
+                        >
+                          Max Seats Per Slot
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={event.dinnerMaxSeatsPerSlotInput || ""}
+                          onChange={(e) =>
+                            setEvent({
+                              ...event,
+                              dinnerMaxSeatsPerSlotInput: e.target.value,
+                            })
+                          }
+                          placeholder="Unlimited"
+                          onFocus={() => setFocusedField("dinnerSeats")}
+                          onBlur={() => setFocusedField(null)}
+                          style={{
+                            ...(focusedField === "dinnerSeats"
+                              ? focusedInputStyle
+                              : inputStyle),
+                            fontSize: "14px",
+                            padding: "12px 14px",
+                            width: "100%",
+                          }}
+                        />
+                        <div
+                          style={{
+                            fontSize: "10px",
+                            opacity: 0.6,
+                            marginTop: "4px",
+                          }}
+                        >
+                          Leave empty for unlimited
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Overflow Handling */}
+                  {event.dinnerMaxSeatsPerSlotInput && (
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          opacity: 0.7,
+                          marginBottom: "12px",
+                        }}
+                      >
+                        When Dinner Seats Are Full
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "10px",
+                        }}
+                      >
+                        {[
+                          {
+                            value: "waitlist",
+                            label: "Add to Waitlist",
+                            description:
+                              "Keep them on the waitlist for dinner seats",
+                            icon: "📋",
+                          },
+                          {
+                            value: "cocktails",
+                            label: "Invite for Cocktails",
+                            description:
+                              "Invite them to join for cocktails after dinner",
+                            icon: "🥂",
+                          },
+                          {
+                            value: "both",
+                            label: "Both Options",
+                            description:
+                              "Add to waitlist AND invite for cocktails",
+                            icon: "✨",
+                          },
+                        ].map((option) => (
+                          <label
+                            key={option.value}
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: "12px",
+                              padding: "14px",
+                              borderRadius: "12px",
+                              border:
+                                event.dinnerOverflowAction === option.value
+                                  ? "2px solid #8b5cf6"
+                                  : "1px solid rgba(255,255,255,0.1)",
+                              background:
+                                event.dinnerOverflowAction === option.value
+                                  ? "rgba(139, 92, 246, 0.15)"
+                                  : "rgba(20, 16, 30, 0.4)",
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              if (event.dinnerOverflowAction !== option.value) {
+                                e.currentTarget.style.background =
+                                  "rgba(20, 16, 30, 0.6)";
+                                e.currentTarget.style.borderColor =
+                                  "rgba(255,255,255,0.2)";
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (event.dinnerOverflowAction !== option.value) {
+                                e.currentTarget.style.background =
+                                  "rgba(20, 16, 30, 0.4)";
+                                e.currentTarget.style.borderColor =
+                                  "rgba(255,255,255,0.1)";
+                              }
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="dinnerOverflow"
+                              value={option.value}
+                              checked={
+                                event.dinnerOverflowAction === option.value
+                              }
+                              onChange={(e) =>
+                                setEvent({
+                                  ...event,
+                                  dinnerOverflowAction: e.target.value,
+                                })
+                              }
+                              style={{
+                                marginTop: "2px",
+                                width: "18px",
+                                height: "18px",
+                                cursor: "pointer",
+                                accentColor: "#8b5cf6",
+                              }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "8px",
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                <span style={{ fontSize: "16px" }}>
+                                  {option.icon}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: "14px",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {option.label}
+                                </span>
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  opacity: 0.7,
+                                  paddingLeft: "24px",
+                                }}
+                              >
+                                {option.description}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={saving}
+                style={{
+                  marginTop: "8px",
+                  padding: "14px 28px",
+                  borderRadius: "999px",
+                  border: "none",
+                  background: saving
+                    ? "#666"
+                    : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: "15px",
+                  cursor: saving ? "not-allowed" : "pointer",
+                  opacity: saving ? 0.7 : 1,
+                  boxShadow: saving
+                    ? "none"
+                    : "0 10px 30px rgba(139, 92, 246, 0.4)",
+                  transition: "all 0.3s ease",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  alignSelf: "flex-start",
+                }}
+                onMouseEnter={(e) => {
+                  if (!saving) {
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow =
+                      "0 15px 40px rgba(139, 92, 246, 0.6)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!saving) {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow =
+                      "0 10px 30px rgba(139, 92, 246, 0.4)";
+                  }
+                }}
+              >
+                {saving ? "Saving…" : "Save changes"}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

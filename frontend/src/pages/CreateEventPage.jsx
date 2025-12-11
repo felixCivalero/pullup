@@ -1653,131 +1653,38 @@ export function CreateEventPage() {
                       <div>
                         <div
                           style={{
-                            fontSize: "11px",
-                            fontWeight: 600,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            opacity: 0.7,
-                            marginBottom: "12px",
-                          }}
-                        >
-                          When Dinner Seats Are Full
-                        </div>
-                        <div
-                          style={{
+                            padding: "14px",
+                            borderRadius: "12px",
+                            border: "1px solid rgba(139, 92, 246, 0.3)",
+                            background: "rgba(139, 92, 246, 0.1)",
                             display: "flex",
-                            flexDirection: "column",
-                            gap: "10px",
+                            alignItems: "flex-start",
+                            gap: "12px",
                           }}
                         >
-                          {[
-                            {
-                              value: "waitlist",
-                              label: "Add to Waitlist",
-                              description:
-                                "Keep them on the waitlist for dinner seats",
-                              icon: "📋",
-                            },
-                            {
-                              value: "cocktails",
-                              label: "Invite for Cocktails",
-                              description:
-                                "Invite them to join for cocktails after dinner",
-                              icon: "🥂",
-                            },
-                            {
-                              value: "both",
-                              label: "Both Options",
-                              description:
-                                "Add to waitlist AND invite for cocktails",
-                              icon: "✨",
-                            },
-                          ].map((option) => (
-                            <label
-                              key={option.value}
+                          <span style={{ fontSize: "16px" }}>📋</span>
+                          <div style={{ flex: 1 }}>
+                            <div
                               style={{
-                                display: "flex",
-                                alignItems: "flex-start",
-                                gap: "12px",
-                                padding: "14px",
-                                borderRadius: "12px",
-                                border:
-                                  dinnerOverflowAction === option.value
-                                    ? "2px solid #8b5cf6"
-                                    : "1px solid rgba(255,255,255,0.1)",
-                                background:
-                                  dinnerOverflowAction === option.value
-                                    ? "rgba(139, 92, 246, 0.15)"
-                                    : "rgba(20, 16, 30, 0.4)",
-                                cursor: "pointer",
-                                transition: "all 0.2s ease",
-                              }}
-                              onMouseEnter={(e) => {
-                                if (dinnerOverflowAction !== option.value) {
-                                  e.currentTarget.style.background =
-                                    "rgba(20, 16, 30, 0.6)";
-                                  e.currentTarget.style.borderColor =
-                                    "rgba(255,255,255,0.2)";
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (dinnerOverflowAction !== option.value) {
-                                  e.currentTarget.style.background =
-                                    "rgba(20, 16, 30, 0.4)";
-                                  e.currentTarget.style.borderColor =
-                                    "rgba(255,255,255,0.1)";
-                                }
+                                fontWeight: 600,
+                                fontSize: "14px",
+                                color: "#fff",
+                                marginBottom: "4px",
                               }}
                             >
-                              <input
-                                type="radio"
-                                name="dinnerOverflow"
-                                value={option.value}
-                                checked={dinnerOverflowAction === option.value}
-                                onChange={(e) =>
-                                  setDinnerOverflowAction(e.target.value)
-                                }
-                                style={{
-                                  marginTop: "2px",
-                                  width: "18px",
-                                  height: "18px",
-                                  cursor: "pointer",
-                                  accentColor: "#8b5cf6",
-                                }}
-                              />
-                              <div style={{ flex: 1 }}>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "8px",
-                                    marginBottom: "4px",
-                                  }}
-                                >
-                                  <span style={{ fontSize: "16px" }}>
-                                    {option.icon}
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: "14px",
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {option.label}
-                                  </span>
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: "12px",
-                                    opacity: 0.7,
-                                    paddingLeft: "24px",
-                                  }}
-                                >
-                                  {option.description}
-                                </div>
-                              </div>
-                            </label>
-                          ))}
+                              Add to Waitlist
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                opacity: 0.7,
+                                color: "rgba(255,255,255,0.8)",
+                              }}
+                            >
+                              When dinner seats are full, guests will be added
+                              to the waitlist
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}

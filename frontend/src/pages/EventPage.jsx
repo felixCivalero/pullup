@@ -135,47 +135,53 @@ export function EventPage() {
 
       // Handle different status scenarios with appropriate messages
       const statusDetails = body.statusDetails || {
+        bookingStatus:
+          body.rsvp?.bookingStatus ||
+          (body.rsvp?.status === "attending" ? "CONFIRMED" : "WAITLIST"),
+        dinnerBookingStatus:
+          body.rsvp?.dinner?.bookingStatus ||
+          (body.rsvp?.dinnerStatus === "confirmed"
+            ? "CONFIRMED"
+            : body.rsvp?.dinnerStatus === "waitlist"
+            ? "WAITLIST"
+            : null),
+        wantsDinner:
+          body.rsvp?.dinner?.enabled || body.rsvp?.wantsDinner || false,
+        // Backward compatibility
         cocktailStatus: body.rsvp?.status || "attending",
         dinnerStatus: body.rsvp?.dinnerStatus || null,
-        wantsDinner: body.rsvp?.wantsDinner || false,
       };
 
-      const cocktailStatus = statusDetails.cocktailStatus;
-      const dinnerStatus = statusDetails.dinnerStatus;
+      const bookingStatus =
+        statusDetails.bookingStatus ||
+        (statusDetails.cocktailStatus === "attending"
+          ? "CONFIRMED"
+          : "WAITLIST");
+      const dinnerBookingStatus =
+        statusDetails.dinnerBookingStatus ||
+        (statusDetails.dinnerStatus === "confirmed"
+          ? "CONFIRMED"
+          : statusDetails.dinnerStatus === "waitlist"
+          ? "WAITLIST"
+          : null);
       const wantsDinner = statusDetails.wantsDinner;
 
       // Build appropriate message based on status
       let message = "";
       let toastType = "success";
 
-      if (cocktailStatus === "waitlist") {
-        // On waitlist for cocktails
-        message = "The event is full. You've been added to the waitlist. 👀";
+      if (bookingStatus === "WAITLIST") {
+        // Entire booking is on waitlist (all-or-nothing)
+        message =
+          "You've been added to the waitlist. 👀 We'll notify you if spots become available!";
         toastType = "info";
-      } else if (wantsDinner) {
-        // Wants dinner - check dinner status
-        if (dinnerStatus === "waitlist") {
-          message =
-            "You're confirmed for cocktails! 🥂 However, the dinner slot is full. You've been added to the dinner waitlist. 👀";
-          toastType = "info";
-        } else if (dinnerStatus === "cocktails") {
-          message =
-            "You're confirmed for cocktails! 🥂 The dinner slot is full, so you'll join us for cocktails after dinner.";
-          toastType = "info";
-        } else if (dinnerStatus === "cocktails_waitlist") {
-          message =
-            "You're confirmed for cocktails! 🥂 The dinner slot is full. You're on the dinner waitlist and will join for cocktails. 👀";
-          toastType = "info";
-        } else if (dinnerStatus === "confirmed") {
+      } else {
+        // Fully confirmed
+        if (wantsDinner && dinnerBookingStatus === "CONFIRMED") {
           message = "You're confirmed for cocktails and dinner! 🔥";
-          toastType = "success";
         } else {
           message = "You're on the list! 🔥";
-          toastType = "success";
         }
-      } else {
-        // Just cocktails, confirmed
-        message = "You're on the list! 🔥";
         toastType = "success";
       }
 

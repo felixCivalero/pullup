@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useToast } from "../components/Toast";
 
@@ -42,9 +42,15 @@ export function EventGuestsPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [editingGuest, setEditingGuest] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [pulledUpModalGuest, setPulledUpModalGuest] = useState(null);
   const [dinnerSlots, setDinnerSlots] = useState([]);
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
+  const [statusFilter, setStatusFilter] = useState("all"); // "all", "attending", "waitlist"
+  const [pullUpFilter, setPullUpFilter] = useState("all"); // "all", "none", "partial", "full"
+
+  // Debounce timers for number inputs
+  const debounceTimers = useRef({});
 
   useEffect(() => {
     function handleMouseMove(e) {
@@ -90,7 +96,98 @@ export function EventGuestsPage() {
       }
     }
     load();
+
+    // Cleanup: flush pending changes and clear timers on unmount
+    return () => {
+      // Flush all pending debounced calls before unmounting
+      Object.keys(debounceTimers.current).forEach((rsvpId) => {
+        const timer = debounceTimers.current[rsvpId];
+        if (timer) {
+          clearTimeout(timer);
+          // Get the current guest state from the closure
+          setGuests((currentGuests) => {
+            const guest = currentGuests.find((g) => g.id === rsvpId);
+            if (guest) {
+              // Fire and forget - persist the change
+              persistPulledUpChange(
+                rsvpId,
+                guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? null,
+                guest.cocktailOnlyPullUpCount ??
+                  guest.pulledUpForCocktails ??
+                  null
+              );
+            }
+            return currentGuests;
+          });
+          delete debounceTimers.current[rsvpId];
+        }
+      });
+      debounceTimers.current = {};
+    };
   }, [id, showToast]);
+
+  // Refetch guests when component mounts or when returning to tab
+  // This ensures we always have the latest data from the server
+  useEffect(() => {
+    let isMounted = true;
+
+    const flushAndRefetch = async () => {
+      // Flush any pending debounced changes
+      Object.keys(debounceTimers.current).forEach((rsvpId) => {
+        const timer = debounceTimers.current[rsvpId];
+        if (timer) {
+          clearTimeout(timer);
+          setGuests((currentGuests) => {
+            const guest = currentGuests.find((g) => g.id === rsvpId);
+            if (guest) {
+              persistPulledUpChange(
+                rsvpId,
+                guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? null,
+                guest.cocktailOnlyPullUpCount ??
+                  guest.pulledUpForCocktails ??
+                  null
+              );
+            }
+            return currentGuests;
+          });
+          delete debounceTimers.current[rsvpId];
+        }
+      });
+
+      // Wait a bit for pending API calls to complete, then refetch
+      setTimeout(async () => {
+        if (!isMounted) return;
+        try {
+          const res = await fetch(`${API_BASE}/host/events/${id}/guests`);
+          if (res.ok && isMounted) {
+            const data = await res.json();
+            setGuests(data.guests || []);
+          }
+        } catch (err) {
+          console.error("Failed to refetch guests", err);
+        }
+      }, 300);
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        flushAndRefetch();
+      }
+    };
+
+    const handleFocus = () => {
+      flushAndRefetch();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      isMounted = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [id]);
 
   async function handleUpdateGuest(rsvpId, updates) {
     try {
@@ -148,8 +245,113 @@ export function EventGuestsPage() {
     }
   }
 
+  // Update local state immediately (optimistic update)
+  function updateLocalPulledUpState(
+    rsvpId,
+    dinnerPullUpCount,
+    cocktailOnlyPullUpCount
+  ) {
+    setGuests((prev) =>
+      prev.map((g) =>
+        g.id === rsvpId
+          ? {
+              ...g,
+              dinnerPullUpCount: dinnerPullUpCount || 0,
+              cocktailOnlyPullUpCount: cocktailOnlyPullUpCount || 0,
+              // Backward compatibility
+              pulledUpForDinner: dinnerPullUpCount || null,
+              pulledUpForCocktails: cocktailOnlyPullUpCount || null,
+              pulledUp:
+                (dinnerPullUpCount && dinnerPullUpCount > 0) ||
+                (cocktailOnlyPullUpCount && cocktailOnlyPullUpCount > 0),
+              pulledUpCount:
+                (dinnerPullUpCount || 0) + (cocktailOnlyPullUpCount || 0) ||
+                null,
+            }
+          : g
+      )
+    );
+  }
+
+  // API call to persist changes
+  async function persistPulledUpChange(
+    rsvpId,
+    dinnerPullUpCount,
+    cocktailOnlyPullUpCount
+  ) {
+    try {
+      const res = await fetch(`${API_BASE}/host/events/${id}/rsvps/${rsvpId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pulledUpForDinner: pulledUpForDinner || null,
+          pulledUpForCocktails: pulledUpForCocktails || null,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update pulled up status");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Could not update pulled up status", "error");
+      // Reload guests on error to get correct state
+      const guestsRes = await fetch(`${API_BASE}/host/events/${id}/guests`);
+      if (guestsRes.ok) {
+        const data = await guestsRes.json();
+        setGuests(data.guests || []);
+      }
+    }
+  }
+
+  // Handle pulled up change - immediate for checkboxes, debounced for number inputs
+  function handlePulledUpChange(
+    rsvpId,
+    dinnerPullUpCount,
+    cocktailOnlyPullUpCount,
+    debounce = false
+  ) {
+    // Update local state immediately for instant UI feedback
+    updateLocalPulledUpState(
+      rsvpId,
+      dinnerPullUpCount,
+      cocktailOnlyPullUpCount
+    );
+
+    if (debounce) {
+      // Clear existing timer for this RSVP
+      if (debounceTimers.current[rsvpId]) {
+        clearTimeout(debounceTimers.current[rsvpId]);
+      }
+      // Set new timer to persist after 300ms of no changes (reduced for faster persistence)
+      debounceTimers.current[rsvpId] = setTimeout(() => {
+        persistPulledUpChange(
+          rsvpId,
+          dinnerPullUpCount,
+          cocktailOnlyPullUpCount
+        );
+        delete debounceTimers.current[rsvpId];
+      }, 300);
+    } else {
+      // Immediate API call for checkbox toggles
+      persistPulledUpChange(rsvpId, dinnerPullUpCount, cocktailOnlyPullUpCount);
+    }
+  }
+
   function handleEditGuest(guest) {
     setEditingGuest(guest);
+  }
+
+  function handleRowClick(guest, e) {
+    // Don't open modal if clicking on action buttons or inputs
+    if (
+      e.target.closest("button") ||
+      e.target.closest("input") ||
+      e.target.closest("select")
+    ) {
+      return;
+    }
+    setPulledUpModalGuest(guest);
   }
 
   if (loading) {
@@ -265,25 +467,26 @@ export function EventGuestsPage() {
       const dinnerPartySize = g.dinnerPartySize || partySize;
 
       // Count waitlist using totalGuests
-      if (g.status === "waitlist") {
+      if (g.bookingStatus === "WAITLIST" || g.status === "waitlist") {
         acc.waitlist += totalGuests;
       }
 
       // Count all attending guests using totalGuests
       if (g.status === "attending") {
-        acc.attending += totalGuests;
+        acc.attending += partySize; // Use partySize, not totalGuests
         // Also track cocktail list (partySize) for display purposes
         acc.cocktailList += partySize;
 
         // Calculate cocktails-only for this guest
-        // If confirmed for dinner: cocktailsOnly = totalGuests - dinnerPartySize
-        // If not confirmed for dinner: cocktailsOnly = totalGuests
-        if (g.wantsDinner && g.dinnerStatus === "confirmed") {
-          // This guest has people going to dinner, so subtract dinner party from total
-          acc.cocktailsOnly += Math.max(0, totalGuests - dinnerPartySize);
+        const wantsDinner = g.dinner?.enabled || g.wantsDinner || false;
+        const plusOnes = g.plusOnes ?? 0;
+
+        // If no dinner: all partySize is cocktails-only (booker + plusOnes)
+        // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
+        if (wantsDinner) {
+          acc.cocktailsOnly += plusOnes; // Only plusOnes are cocktails-only
         } else {
-          // This guest has no confirmed dinner, so all their guests are cocktails-only
-          acc.cocktailsOnly += totalGuests;
+          acc.cocktailsOnly += partySize; // Entire party is cocktails-only
         }
       }
 
@@ -346,8 +549,60 @@ export function EventGuestsPage() {
   const totalSpotsLeft =
     totalCapacity != null ? Math.max(totalCapacity - attending, 0) : null;
 
-  // No filtering - all guests are shown (can be sorted)
-  const filteredGuests = guests;
+  // Filter guests by status and pull-up status
+  const filteredGuests = guests.filter((g) => {
+    // Status filter
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "attending" &&
+        (g.bookingStatus === "CONFIRMED" || g.status === "attending")) ||
+      (statusFilter === "waitlist" &&
+        (g.bookingStatus === "WAITLIST" || g.status === "waitlist"));
+
+    if (!matchesStatus) return false;
+
+    // Pull-up status filter (only applies to confirmed/attending guests)
+    // If filter is "all", pass through all guests that match status
+    if (pullUpFilter === "all") return true;
+
+    // For waitlisted guests, they can't have pull-up status
+    // So if filtering by pull-up status, exclude waitlisted guests
+    const isConfirmed =
+      g.bookingStatus === "CONFIRMED" || g.status === "attending";
+    if (!isConfirmed) return false;
+
+    // Calculate pull-up status for confirmed guests
+    const dinnerPullUpCount = g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0;
+    const cocktailOnlyPullUpCount =
+      g.cocktailOnlyPullUpCount ?? g.pulledUpForCocktails ?? 0;
+
+    const totalGuests = g.totalGuests ?? g.partySize ?? 1;
+    const dinnerPartySize = g.dinner?.partySize ?? g.dinnerPartySize ?? 0;
+    const wantsDinner = g.dinner?.enabled ?? g.wantsDinner ?? false;
+    // With new model: partySize = dinnerPartySize + plusOnes
+    // So cocktailOnlyMax = plusOnes
+    const plusOnes = g.plusOnes ?? 0;
+    const cocktailOnlyMax = plusOnes;
+
+    const totalExpected = dinnerPartySize + cocktailOnlyMax;
+    const totalArrived = dinnerPullUpCount + cocktailOnlyPullUpCount;
+
+    let pullUpStatus = "NONE";
+    if (totalArrived === 0) {
+      pullUpStatus = "NONE";
+    } else if (totalArrived > 0 && totalArrived < totalExpected) {
+      pullUpStatus = "PARTIAL";
+    } else if (totalArrived === totalExpected) {
+      pullUpStatus = "FULL";
+    }
+
+    // Match pull-up filter
+    if (pullUpFilter === "none" && pullUpStatus === "NONE") return true;
+    if (pullUpFilter === "partial" && pullUpStatus === "PARTIAL") return true;
+    if (pullUpFilter === "full" && pullUpStatus === "FULL") return true;
+
+    return false;
+  });
 
   // Sorting function
   const handleSort = (column) => {
@@ -622,6 +877,113 @@ export function EventGuestsPage() {
             </button>
           </div>
 
+          {/* Filter Controls */}
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              marginBottom: "20px",
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <label
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  opacity: 0.7,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                Status:
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(20, 16, 30, 0.6)",
+                  color: "#fff",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  outline: "none",
+                }}
+              >
+                <option value="all">All</option>
+                <option value="attending">Attending</option>
+                <option value="waitlist">Waitlist</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <label
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  opacity: 0.7,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                Pull-Up:
+              </label>
+              <select
+                value={pullUpFilter}
+                onChange={(e) => setPullUpFilter(e.target.value)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(20, 16, 30, 0.6)",
+                  color: "#fff",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  outline: "none",
+                }}
+              >
+                <option value="all">All</option>
+                <option value="none">Haven't pulled up</option>
+                <option value="partial">Partially pulled up</option>
+                <option value="full">All pulled up</option>
+              </select>
+            </div>
+
+            {(statusFilter !== "all" || pullUpFilter !== "all") && (
+              <button
+                onClick={() => {
+                  setStatusFilter("all");
+                  setPullUpFilter("all");
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(236, 72, 153, 0.2)",
+                  color: "#f472b6",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  outline: "none",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = "rgba(236, 72, 153, 0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = "rgba(236, 72, 153, 0.2)";
+                }}
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+
           {/* Guests Table */}
           {sortedGuests.length === 0 ? (
             <div
@@ -748,6 +1110,21 @@ export function EventGuestsPage() {
                         letterSpacing: "0.12em",
                         opacity: 0.95,
                         color: "#fff",
+                        width: "140px",
+                      }}
+                    >
+                      Pulled Up
+                    </th>
+                    <th
+                      style={{
+                        padding: "20px 24px",
+                        textAlign: "center",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.12em",
+                        opacity: 0.95,
+                        color: "#fff",
                         width: "120px",
                       }}
                     >
@@ -759,6 +1136,7 @@ export function EventGuestsPage() {
                   {sortedGuests.map((g, idx) => (
                     <tr
                       key={g.id}
+                      onClick={(e) => handleRowClick(g, e)}
                       style={{
                         borderBottom:
                           idx < sortedGuests.length - 1
@@ -769,6 +1147,7 @@ export function EventGuestsPage() {
                           idx % 2 === 0
                             ? "transparent"
                             : "rgba(255,255,255,0.01)",
+                        cursor: "pointer",
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background =
@@ -812,8 +1191,9 @@ export function EventGuestsPage() {
                         <>
                           <td style={{ padding: "20px", textAlign: "center" }}>
                             {(() => {
-                              // Cocktail List = only show plus-ones badge (total guests shown in separate column)
-                              const plusOnes = g.plusOnes || 0;
+                              // Cocktail List = plusOnes (cocktails-only people)
+                              // With new model: partySize = dinnerPartySize + plusOnes
+                              const plusOnes = g.plusOnes ?? 0;
 
                               if (plusOnes > 0) {
                                 return (
@@ -834,19 +1214,19 @@ export function EventGuestsPage() {
                                     +{plusOnes} guest{plusOnes > 1 ? "s" : ""}
                                   </div>
                                 );
-                              } else {
-                                return (
-                                  <span
-                                    style={{
-                                      fontSize: "14px",
-                                      opacity: 0.5,
-                                      color: "#fff",
-                                    }}
-                                  >
-                                    —
-                                  </span>
-                                );
                               }
+
+                              return (
+                                <span
+                                  style={{
+                                    fontSize: "14px",
+                                    opacity: 0.5,
+                                    color: "#fff",
+                                  }}
+                                >
+                                  —
+                                </span>
+                              );
                             })()}
                           </td>
                           <td style={{ padding: "20px", textAlign: "center" }}>
@@ -875,28 +1255,8 @@ export function EventGuestsPage() {
                           </td>
                           <td style={{ padding: "20px", textAlign: "center" }}>
                             {(() => {
-                              // Use stored totalGuests (calculated once in backend)
-                              // Fallback to calculation for backward compatibility
-                              let totalGuests = g.totalGuests;
-
-                              if (
-                                totalGuests === undefined ||
-                                totalGuests === null
-                              ) {
-                                // Backward compatibility: calculate if not stored
-                                const cocktailListBase = g.partySize || 1;
-                                const dinnerPartySize =
-                                  g.dinnerStatus === "confirmed" &&
-                                  g.dinnerPartySize
-                                    ? g.dinnerPartySize
-                                    : 0;
-
-                                totalGuests = cocktailListBase;
-                                if (dinnerPartySize > 0) {
-                                  totalGuests =
-                                    cocktailListBase + (dinnerPartySize - 1);
-                                }
-                              }
+                              // TOTAL ATTENDING = partySize (total unique guests)
+                              const partySize = g.partySize || 1;
 
                               return (
                                 <div
@@ -906,7 +1266,7 @@ export function EventGuestsPage() {
                                     color: "#fff",
                                   }}
                                 >
-                                  {totalGuests}
+                                  {partySize}
                                 </div>
                               );
                             })()}
@@ -992,12 +1352,88 @@ export function EventGuestsPage() {
                         <div
                           style={{
                             display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          {(() => {
+                            const cocktailsPulledUp =
+                              g.cocktailOnlyPullUpCount ??
+                              g.pulledUpForCocktails ??
+                              0;
+                            const dinnerPulledUp =
+                              g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0;
+                            const hasAnyPulledUp =
+                              cocktailsPulledUp > 0 || dinnerPulledUp > 0;
+
+                            if (!hasAnyPulledUp) {
+                              return (
+                                <span
+                                  style={{
+                                    fontSize: "12px",
+                                    opacity: 0.5,
+                                    color: "rgba(255,255,255,0.5)",
+                                    fontStyle: "italic",
+                                  }}
+                                >
+                                  Not checked in
+                                </span>
+                              );
+                            }
+
+                            return (
+                              <>
+                                {cocktailsPulledUp > 0 && (
+                                  <div
+                                    style={{
+                                      fontSize: "12px",
+                                      fontWeight: 600,
+                                      color: "#f59e0b",
+                                      padding: "4px 8px",
+                                      background: "rgba(245, 158, 11, 0.15)",
+                                      borderRadius: "6px",
+                                      border:
+                                        "1px solid rgba(245, 158, 11, 0.3)",
+                                    }}
+                                  >
+                                    🥂 {cocktailsPulledUp}
+                                  </div>
+                                )}
+                                {dinnerPulledUp > 0 && (
+                                  <div
+                                    style={{
+                                      fontSize: "12px",
+                                      fontWeight: 600,
+                                      color: "#10b981",
+                                      padding: "4px 8px",
+                                      background: "rgba(16, 185, 129, 0.15)",
+                                      borderRadius: "6px",
+                                      border:
+                                        "1px solid rgba(16, 185, 129, 0.3)",
+                                    }}
+                                  >
+                                    🍽️ {dinnerPulledUp}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </td>
+                      <td style={{ padding: "20px", textAlign: "center" }}>
+                        <div
+                          style={{
+                            display: "flex",
                             gap: "8px",
                             justifyContent: "center",
                           }}
                         >
                           <button
-                            onClick={() => handleEditGuest(g)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditGuest(g);
+                            }}
                             style={{
                               padding: "6px 12px",
                               borderRadius: "8px",
@@ -1025,7 +1461,10 @@ export function EventGuestsPage() {
                             Edit
                           </button>
                           <button
-                            onClick={() => setShowDeleteConfirm(g)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowDeleteConfirm(g);
+                            }}
                             style={{
                               padding: "6px 12px",
                               borderRadius: "8px",
@@ -1070,6 +1509,54 @@ export function EventGuestsPage() {
           event={event}
           onClose={() => setEditingGuest(null)}
           onSave={(updates) => handleUpdateGuest(editingGuest.id, updates)}
+        />
+      )}
+
+      {/* Pulled Up Modal */}
+      {pulledUpModalGuest && (
+        <PulledUpModal
+          guest={pulledUpModalGuest}
+          event={event}
+          onClose={() => setPulledUpModalGuest(null)}
+          onSave={async (dinnerPullUpCount, cocktailOnlyPullUpCount) => {
+            try {
+              const res = await fetch(
+                `${API_BASE}/host/events/${id}/rsvps/${pulledUpModalGuest.id}`,
+                {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    dinnerPullUpCount: dinnerPullUpCount || 0,
+                    cocktailOnlyPullUpCount: cocktailOnlyPullUpCount || 0,
+                    // Backward compatibility
+                    pulledUpForDinner: dinnerPullUpCount || null,
+                    pulledUpForCocktails: cocktailOnlyPullUpCount || null,
+                  }),
+                }
+              );
+
+              if (!res.ok) {
+                throw new Error("Failed to update pulled up status");
+              }
+
+              // Refetch guests to get latest data
+              const guestsRes = await fetch(
+                `${API_BASE}/host/events/${id}/guests`
+              );
+              if (guestsRes.ok) {
+                const data = await guestsRes.json();
+                setGuests(data.guests || []);
+              }
+
+              setPulledUpModalGuest(null);
+              showToast("Check-in status updated successfully! ✨", "success");
+              return true; // Success
+            } catch (err) {
+              console.error(err);
+              showToast("Could not update check-in status", "error");
+              return false; // Error
+            }
+          }}
         />
       )}
 
@@ -1240,6 +1727,32 @@ function SortableHeader({
 function CombinedStatusBadge({ guest }) {
   const { status, wantsDinner, dinnerStatus } = guest;
 
+  // Get pull-up counts (new model with backward compatibility)
+  const dinnerPullUpCount =
+    guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? 0;
+  const cocktailOnlyPullUpCount =
+    guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? 0;
+
+  // Calculate expected counts for arrival status
+  const totalGuests = guest.totalGuests ?? guest.partySize ?? 1;
+  const dinnerPartySize = guest.dinner?.partySize ?? guest.dinnerPartySize ?? 0;
+  const cocktailOnlyMax = wantsDinner
+    ? Math.max(0, totalGuests - dinnerPartySize)
+    : totalGuests;
+
+  const totalExpected = dinnerPartySize + cocktailOnlyMax;
+  const totalArrived = dinnerPullUpCount + cocktailOnlyPullUpCount;
+
+  // Derive pull-up status
+  let pullUpStatus = "NONE";
+  if (totalArrived === 0) {
+    pullUpStatus = "NONE";
+  } else if (totalArrived > 0 && totalArrived < totalExpected) {
+    pullUpStatus = "PARTIAL";
+  } else if (totalArrived === totalExpected) {
+    pullUpStatus = "FULL";
+  }
+
   // Determine combined status label
   let label = "";
   let bg = "";
@@ -1305,24 +1818,60 @@ function CombinedStatusBadge({ guest }) {
     color = status === "attending" ? "#a78bfa" : "#f472b6";
   }
 
+  // Add arrival status indicator (only for CONFIRMED bookings)
+  let arrivalIndicator = "";
+  if (
+    (guest.bookingStatus === "CONFIRMED" || status === "attending") &&
+    totalExpected > 0
+  ) {
+    if (pullUpStatus === "FULL") {
+      arrivalIndicator = "all pulled up";
+    } else if (pullUpStatus === "PARTIAL") {
+      arrivalIndicator = `${totalArrived}/${totalExpected} pulled up`;
+    } else {
+      arrivalIndicator = "haven't pulled up";
+    }
+  }
+
   return (
-    <span
-      style={{
-        fontSize: "10px",
-        fontWeight: 700,
-        padding: "6px 12px",
-        borderRadius: "999px",
-        background: bg,
-        border: `1.5px solid ${border}`,
-        color: color,
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        display: "inline-block",
-        lineHeight: "1.3",
-      }}
-    >
-      {label}
-    </span>
+    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <span
+        style={{
+          fontSize: "10px",
+          fontWeight: 700,
+          padding: "6px 12px",
+          borderRadius: "999px",
+          background: bg,
+          border: `1.5px solid ${border}`,
+          color: color,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          display: "inline-block",
+          lineHeight: "1.3",
+        }}
+      >
+        {label}
+      </span>
+      {arrivalIndicator && (
+        <span
+          style={{
+            fontSize: "9px",
+            fontWeight: 500,
+            color:
+              pullUpStatus === "FULL"
+                ? "#10b981"
+                : pullUpStatus === "PARTIAL"
+                ? "#f59e0b"
+                : "rgba(255,255,255,0.5)",
+            textTransform: "none",
+            letterSpacing: "0.02em",
+            marginTop: "2px",
+          }}
+        >
+          {arrivalIndicator}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -1417,18 +1966,52 @@ function DinnerStatusBadge({ status }) {
 function EditGuestModal({ guest, event, onClose, onSave }) {
   const [name, setName] = useState(guest.name || "");
   const [email, setEmail] = useState(guest.email || "");
-  const [plusOnes, setPlusOnes] = useState(guest.plusOnes || 0);
-  const [status, setStatus] = useState(guest.status || "attending");
-  const [wantsDinner, setWantsDinner] = useState(guest.wantsDinner || false);
-  const [dinnerTimeSlot, setDinnerTimeSlot] = useState(
-    guest.dinnerTimeSlot || ""
+
+  // Use new model fields with backward compatibility
+  const guestPartySize = guest.partySize || 1;
+  const guestDinnerPartySize =
+    guest.dinner?.partySize || guest.dinnerPartySize || 0;
+  const guestWantsDinner = guest.dinner?.enabled || guest.wantsDinner || false;
+  const guestDinnerTimeSlot =
+    guest.dinner?.slotTime || guest.dinnerTimeSlot || "";
+
+  // Initialize plusOnes - if dinnerPartySize > partySize, adjust accordingly
+  const initialPlusOnes =
+    guest.plusOnes !== undefined
+      ? guest.plusOnes
+      : Math.max(0, guestPartySize - 1);
+
+  const [plusOnes, setPlusOnes] = useState(initialPlusOnes);
+  const [status, setStatus] = useState(
+    guest.bookingStatus === "CONFIRMED"
+      ? "attending"
+      : guest.bookingStatus === "WAITLIST"
+      ? "waitlist"
+      : guest.status || "attending"
   );
+  const [wantsDinner, setWantsDinner] = useState(guestWantsDinner);
+  const [dinnerTimeSlot, setDinnerTimeSlot] = useState(guestDinnerTimeSlot);
   const [dinnerPartySize, setDinnerPartySize] = useState(
-    guest.dinnerPartySize || guest.partySize || 1
+    guestDinnerPartySize > 0 ? guestDinnerPartySize : guestPartySize
+  );
+  // Use new model fields with backward compatibility
+  const [pulledUpForDinner, setPulledUpForDinner] = useState(
+    guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? null
+  );
+  const [pulledUpForCocktails, setPulledUpForCocktails] = useState(
+    guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? null
   );
   const [loading, setLoading] = useState(false);
 
   const maxPlusOnes = event.maxPlusOnesPerGuest || 0;
+
+  // Derive dinnerStatus from new model with backward compatibility
+  const dinnerStatus =
+    guest.dinner?.bookingStatus === "CONFIRMED"
+      ? "confirmed"
+      : guest.dinner?.bookingStatus === "WAITLIST"
+      ? "waitlist"
+      : guest.dinnerStatus || null;
 
   // Generate dinner time slots
   const dinnerSlots =
@@ -1440,16 +2023,26 @@ function EditGuestModal({ guest, event, onClose, onSave }) {
     e.preventDefault();
     setLoading(true);
 
+    // Map status to bookingStatus for backend
+    const bookingStatus = status === "attending" ? "CONFIRMED" : "WAITLIST";
+
     const updates = {
       name: name.trim() || null,
       email: email.trim(),
       plusOnes: Math.max(0, Math.min(maxPlusOnes, parseInt(plusOnes) || 0)),
-      status,
+      status, // Backward compatibility
+      bookingStatus, // New model field
       wantsDinner: event.dinnerEnabled ? wantsDinner : false,
       dinnerTimeSlot: wantsDinner && dinnerTimeSlot ? dinnerTimeSlot : null,
       dinnerPartySize: wantsDinner
         ? Math.max(1, parseInt(dinnerPartySize) || 1)
         : null,
+      // Use new model field names
+      dinnerPullUpCount: pulledUpForDinner || 0,
+      cocktailOnlyPullUpCount: pulledUpForCocktails || 0,
+      // Backward compatibility
+      pulledUpForDinner: pulledUpForDinner || null,
+      pulledUpForCocktails: pulledUpForCocktails || null,
     };
 
     onSave(updates);
@@ -1809,6 +2402,207 @@ function EditGuestModal({ guest, event, onClose, onSave }) {
                 )}
               </>
             )}
+
+            {/* Pulled Up Section */}
+            <div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  marginBottom: "12px",
+                  opacity: 0.8,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                Check-In Status
+              </div>
+
+              {/* Cocktails Check-in */}
+              <div style={{ marginBottom: "16px" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    cursor: "pointer",
+                    userSelect: "none",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={(pulledUpForCocktails ?? 0) > 0}
+                    onChange={(e) => {
+                      const totalGuests =
+                        guest.totalGuests ?? guest.partySize ?? 1;
+                      const guestDinnerPartySize =
+                        wantsDinner && dinnerStatus === "confirmed"
+                          ? dinnerPartySize || 0
+                          : 0;
+                      const cocktailsMax =
+                        wantsDinner && dinnerStatus === "confirmed"
+                          ? Math.max(0, totalGuests - guestDinnerPartySize)
+                          : totalGuests;
+
+                      if (e.target.checked) {
+                        setPulledUpForCocktails(cocktailsMax);
+                      } else {
+                        setPulledUpForCocktails(null);
+                      }
+                    }}
+                    style={{
+                      width: "20px",
+                      height: "20px",
+                      cursor: "pointer",
+                      accentColor: "#f59e0b",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color:
+                        (pulledUpForCocktails ?? 0) > 0 ? "#f59e0b" : "#fff",
+                    }}
+                  >
+                    🥂 Cocktails
+                  </span>
+                </label>
+                {(pulledUpForCocktails ?? 0) > 0 && (
+                  <div style={{ marginLeft: "30px", marginTop: "8px" }}>
+                    <input
+                      type="number"
+                      min="0"
+                      max={(() => {
+                        const totalGuests =
+                          guest.totalGuests ?? guest.partySize ?? 1;
+                        const guestDinnerPartySize =
+                          wantsDinner && dinnerStatus === "confirmed"
+                            ? dinnerPartySize || 0
+                            : 0;
+                        return wantsDinner && dinnerStatus === "confirmed"
+                          ? Math.max(0, totalGuests - guestDinnerPartySize)
+                          : totalGuests;
+                      })()}
+                      value={pulledUpForCocktails || 0}
+                      onChange={(e) => {
+                        const totalGuests =
+                          guest.totalGuests ?? guest.partySize ?? 1;
+                        const guestDinnerPartySize =
+                          wantsDinner && dinnerStatus === "confirmed"
+                            ? dinnerPartySize || 0
+                            : 0;
+                        const cocktailsMax =
+                          wantsDinner && dinnerStatus === "confirmed"
+                            ? Math.max(0, totalGuests - guestDinnerPartySize)
+                            : totalGuests;
+                        const count = Math.max(
+                          0,
+                          Math.min(
+                            cocktailsMax,
+                            parseInt(e.target.value, 10) || 0
+                          )
+                        );
+                        setPulledUpForCocktails(count || null);
+                      }}
+                      style={{
+                        width: "80px",
+                        padding: "12px 16px",
+                        borderRadius: "12px",
+                        border: "1px solid rgba(245, 158, 11, 0.3)",
+                        background: "rgba(245, 158, 11, 0.1)",
+                        color: "#f59e0b",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        textAlign: "center",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Dinner Check-in */}
+              {wantsDinner && dinnerStatus === "confirmed" && (
+                <div>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      cursor: "pointer",
+                      userSelect: "none",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={(pulledUpForDinner ?? 0) > 0}
+                      onChange={(e) => {
+                        const dinnerMax = dinnerPartySize || 1;
+                        if (e.target.checked) {
+                          setPulledUpForDinner(dinnerMax);
+                        } else {
+                          setPulledUpForDinner(null);
+                        }
+                      }}
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                        cursor: "pointer",
+                        accentColor: "#10b981",
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color:
+                          (pulledUpForDinner ?? 0) > 0 ? "#10b981" : "#fff",
+                      }}
+                    >
+                      🍽️ Dinner
+                    </span>
+                  </label>
+                  {(pulledUpForDinner ?? 0) > 0 && (
+                    <div style={{ marginLeft: "30px", marginTop: "8px" }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max={dinnerPartySize || 1}
+                        value={pulledUpForDinner || 0}
+                        onChange={(e) => {
+                          const dinnerMax = dinnerPartySize || 1;
+                          const count = Math.max(
+                            0,
+                            Math.min(
+                              dinnerMax,
+                              parseInt(e.target.value, 10) || 0
+                            )
+                          );
+                          setPulledUpForDinner(count || null);
+                        }}
+                        style={{
+                          width: "80px",
+                          padding: "12px 16px",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(16, 185, 129, 0.3)",
+                          background: "rgba(16, 185, 129, 0.1)",
+                          color: "#10b981",
+                          fontSize: "15px",
+                          fontWeight: 600,
+                          textAlign: "center",
+                          outline: "none",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div
@@ -1860,6 +2654,335 @@ function EditGuestModal({ guest, event, onClose, onSave }) {
               }}
             >
               {loading ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PulledUpModal({ guest, event, onClose, onSave }) {
+  const [dinnerPullUpCount, setDinnerPullUpCount] = useState(
+    guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? 0
+  );
+  const [cocktailOnlyPullUpCount, setCocktailOnlyPullUpCount] = useState(
+    guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? 0
+  );
+  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const totalGuests = guest.totalGuests ?? guest.partySize ?? 1;
+  const dinnerPartySize = guest.dinner?.partySize ?? guest.dinnerPartySize ?? 0;
+  const dinnerConfirmed =
+    guest.dinner?.bookingStatus === "CONFIRMED" ||
+    guest.dinnerStatus === "confirmed";
+  const wantsDinner = guest.dinner?.enabled ?? guest.wantsDinner ?? false;
+  const cocktailsMax =
+    wantsDinner && dinnerConfirmed
+      ? Math.max(0, totalGuests - dinnerPartySize)
+      : totalGuests;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    setSaved(false);
+
+    try {
+      const success = await onSave(
+        dinnerPullUpCount || 0,
+        cocktailOnlyPullUpCount || 0
+      );
+
+      if (success) {
+        setSaved(true);
+        setTimeout(() => {
+          onClose();
+        }, 1000);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(0, 0, 0, 0.8)",
+        backdropFilter: "blur(4px)",
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "rgba(12, 10, 18, 0.95)",
+          backdropFilter: "blur(20px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "24px",
+          padding: "32px",
+          maxWidth: "500px",
+          width: "100%",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "24px",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "24px",
+              fontWeight: 700,
+              color: "#fff",
+            }}
+          >
+            Check-In Status
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "rgba(255,255,255,0.6)",
+              fontSize: "24px",
+              cursor: "pointer",
+              padding: "0",
+              width: "32px",
+              height: "32px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "8px",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "rgba(255,255,255,0.1)";
+              e.target.style.color = "#fff";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "transparent";
+              e.target.style.color = "rgba(255,255,255,0.6)";
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div
+          style={{
+            marginBottom: "20px",
+            padding: "16px",
+            background: "rgba(139, 92, 246, 0.1)",
+            borderRadius: "12px",
+            border: "1px solid rgba(139, 92, 246, 0.2)",
+          }}
+        >
+          <div style={{ fontSize: "14px", opacity: 0.8, marginBottom: "8px" }}>
+            {guest.name || "Guest"}
+          </div>
+          <div style={{ fontSize: "12px", opacity: 0.6 }}>{guest.email}</div>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          {/* Cocktails Check-in */}
+          <div style={{ marginBottom: "24px" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "13px",
+                fontWeight: 600,
+                marginBottom: "12px",
+                opacity: 0.9,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                color: "#f59e0b",
+              }}
+            >
+              🥂 Cocktails
+            </label>
+            <input
+              type="number"
+              min="0"
+              max={cocktailsMax}
+              value={cocktailOnlyPullUpCount || 0}
+              onChange={(e) => {
+                const count = Math.max(
+                  0,
+                  Math.min(cocktailsMax, parseInt(e.target.value, 10) || 0)
+                );
+                setCocktailOnlyPullUpCount(count || 0);
+              }}
+              style={{
+                width: "100%",
+                padding: "14px 16px",
+                borderRadius: "12px",
+                border: "1px solid rgba(245, 158, 11, 0.3)",
+                background: "rgba(245, 158, 11, 0.1)",
+                color: "#f59e0b",
+                fontSize: "18px",
+                fontWeight: 600,
+                textAlign: "center",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+            <div
+              style={{
+                fontSize: "11px",
+                opacity: 0.6,
+                marginTop: "6px",
+                textAlign: "center",
+              }}
+            >
+              Max: {cocktailsMax} {cocktailsMax === 1 ? "person" : "people"}
+            </div>
+          </div>
+
+          {/* Dinner Check-in */}
+          {wantsDinner && dinnerConfirmed && (
+            <div style={{ marginBottom: "24px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginBottom: "12px",
+                  opacity: 0.9,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                  color: "#10b981",
+                }}
+              >
+                🍽️ Dinner
+              </label>
+              <input
+                type="number"
+                min="0"
+                max={dinnerPartySize}
+                value={dinnerPullUpCount || 0}
+                onChange={(e) => {
+                  const count = Math.max(
+                    0,
+                    Math.min(dinnerPartySize, parseInt(e.target.value, 10) || 0)
+                  );
+                  setDinnerPullUpCount(count || 0);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "14px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                  background: "rgba(16, 185, 129, 0.1)",
+                  color: "#10b981",
+                  fontSize: "18px",
+                  fontWeight: 600,
+                  textAlign: "center",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+              <div
+                style={{
+                  fontSize: "11px",
+                  opacity: 0.6,
+                  marginTop: "6px",
+                  textAlign: "center",
+                }}
+              >
+                Max: {dinnerPartySize}{" "}
+                {dinnerPartySize === 1 ? "person" : "people"}
+              </div>
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              marginTop: "32px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              style={{
+                flex: 1,
+                padding: "14px 24px",
+                borderRadius: "12px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.05)",
+                color: "#fff",
+                fontSize: "15px",
+                fontWeight: 600,
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.5 : 1,
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.target.style.background = "rgba(255,255,255,0.1)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  e.target.style.background = "rgba(255,255,255,0.05)";
+                }
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || saved}
+              style={{
+                flex: 1,
+                padding: "14px 24px",
+                borderRadius: "12px",
+                border: "none",
+                background: saved
+                  ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+                  : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                color: "#fff",
+                fontSize: "15px",
+                fontWeight: 600,
+                cursor: loading || saved ? "not-allowed" : "pointer",
+                opacity: loading ? 0.6 : 1,
+                transition: "all 0.2s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+              }}
+            >
+              {loading ? (
+                <>
+                  <span>⏳</span> Saving...
+                </>
+              ) : saved ? (
+                <>
+                  <span>✓</span> Saved!
+                </>
+              ) : (
+                "Save"
+              )}
             </button>
           </div>
         </form>

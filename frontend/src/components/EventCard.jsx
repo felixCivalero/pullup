@@ -44,6 +44,45 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
 
   // Get attendance data for capacity warnings
   const cocktailSpotsLeft = event._attendance?.cocktailSpotsLeft ?? null;
+  const confirmed = event._attendance?.confirmed ?? 0;
+
+  // Calculate if booking will go to waitlist (all-or-nothing)
+  // Calculate partySize based on whether dinner is selected
+  // - If no dinner: partySize = 1 (booker) + plusOnes (cocktails-only guests)
+  // - If dinner: partySize = dinnerPartySize (includes booker) + plusOnes (cocktails-only guests)
+  const dinnerPartySizeValue =
+    wantsDinner && dinnerPartySize ? dinnerPartySize : 0;
+  const partySize = wantsDinner
+    ? dinnerPartySizeValue + plusOnes // Dinner includes booker, add cocktails-only
+    : 1 + plusOnes; // No dinner: booker + cocktails-only guests
+
+  // Calculate cocktails-only spots this booking will use
+  // If no dinner: all partySize is cocktails-only (booker + plusOnes)
+  // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
+  const cocktailsOnlyForThisBooking = wantsDinner
+    ? plusOnes // Only plusOnes are cocktails-only
+    : partySize; // Entire party is cocktails-only
+
+  // Check cocktail capacity (all-or-nothing)
+  const willGoToWaitlistForCocktails =
+    cocktailCapacity !== null &&
+    cocktailSpotsLeft !== null &&
+    cocktailsOnlyForThisBooking > cocktailSpotsLeft;
+
+  // Check dinner capacity
+  const selectedDinnerSlot =
+    wantsDinner && dinnerTimeSlot
+      ? dinnerSlots.find((s) => s.time === dinnerTimeSlot)
+      : null;
+  const willGoToWaitlistForDinner =
+    wantsDinner &&
+    selectedDinnerSlot &&
+    selectedDinnerSlot.remaining !== null &&
+    dinnerPartySize > selectedDinnerSlot.remaining;
+
+  // Entire booking goes to waitlist if either capacity is exceeded
+  const willGoToWaitlist =
+    willGoToWaitlistForCocktails || willGoToWaitlistForDinner;
 
   const maxPlusOnes =
     typeof event.maxPlusOnesPerGuest === "number" &&
@@ -120,19 +159,6 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
     if (wantsDinner && dinnerTimeSlot) {
       const selectedSlot = dinnerSlots.find((s) => s.time === dinnerTimeSlot);
       if (selectedSlot) {
-        // Check if dinner party size exceeds available spots
-        if (
-          selectedSlot.remaining !== null &&
-          dinnerPartySize > selectedSlot.remaining
-        ) {
-          setError(
-            `Only ${selectedSlot.remaining} spot${
-              selectedSlot.remaining === 1 ? "" : "s"
-            } available in this time slot. Please reduce your party size or choose another time.`
-          );
-          return;
-        }
-
         // Warn if slot is not available
         if (!selectedSlot.available) {
           setError(
@@ -140,6 +166,8 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
           );
           return;
         }
+        // Note: We allow booking even if capacity exceeded - it will go to waitlist
+        // The UI already shows this with the button text change
       }
     }
 
@@ -950,28 +978,118 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                         lineHeight: "1.5",
                       }}
                     >
-                      Your total party is{" "}
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          color: "#fff",
-                          background:
-                            "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                          WebkitBackgroundClip: "text",
-                          WebkitTextFillColor: "transparent",
-                          backgroundClip: "text",
-                        }}
-                      >
-                        {(() => {
-                          const partySize = 1 + plusOnes;
-                          if (wantsDinner) {
-                            // Total unique guests = partySize + (dinnerPartySize - 1)
-                            return partySize + (dinnerPartySize - 1);
-                          }
-                          return partySize;
-                        })()}
-                      </span>{" "}
-                      including you
+                      {(() => {
+                        // Calculate partySize based on whether dinner is selected
+                        const dinnerPartySizeValue =
+                          wantsDinner && dinnerPartySize ? dinnerPartySize : 0;
+                        const totalPartySize = wantsDinner
+                          ? dinnerPartySizeValue + plusOnes // Dinner includes booker, add cocktails-only
+                          : 1 + plusOnes; // No dinner: booker + cocktails-only guests
+                        const cocktailOnlyCount = plusOnes;
+
+                        // Show breakdown if dinner is selected
+                        if (wantsDinner && dinnerPartySizeValue > 0) {
+                          return (
+                            <>
+                              Your total party is{" "}
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  color: "#fff",
+                                  background:
+                                    "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                                  WebkitBackgroundClip: "text",
+                                  WebkitTextFillColor: "transparent",
+                                  backgroundClip: "text",
+                                }}
+                              >
+                                {totalPartySize}
+                              </span>{" "}
+                              including you
+                              {cocktailOnlyCount > 0 && (
+                                <>
+                                  {" "}
+                                  ({dinnerPartySizeValue} for dinner
+                                  {cocktailOnlyCount > 0 &&
+                                    `, ${cocktailOnlyCount} for cocktails only`}
+                                  )
+                                </>
+                              )}
+                              {cocktailOnlyCount === 0 && (
+                                <> (all {dinnerPartySizeValue} for dinner)</>
+                              )}
+                            </>
+                          );
+                        }
+
+                        // No dinner selected
+                        return (
+                          <>
+                            Your total party is{" "}
+                            <span
+                              style={{
+                                fontWeight: 700,
+                                color: "#fff",
+                                background:
+                                  "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                                WebkitBackgroundClip: "text",
+                                WebkitTextFillColor: "transparent",
+                                backgroundClip: "text",
+                              }}
+                            >
+                              {totalPartySize}
+                            </span>{" "}
+                            including you
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Capacity Warning */}
+                {willGoToWaitlist && event.waitlistEnabled && (
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      padding: "16px 20px",
+                      background: "rgba(236, 72, 153, 0.15)",
+                      borderRadius: "14px",
+                      border: "1px solid rgba(236, 72, 153, 0.3)",
+                      fontSize: "13px",
+                      color: "#f472b6",
+                      lineHeight: "1.6",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        marginBottom: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        fontSize: "14px",
+                      }}
+                    >
+                      <span style={{ fontSize: "18px" }}>👀</span>
+                      <span>You'll be added to the waitlist</span>
+                    </div>
+                    <div style={{ opacity: 0.9 }}>
+                      {willGoToWaitlistForCocktails && (
+                        <div style={{ marginBottom: "4px" }}>
+                          • Cocktail capacity: {cocktailSpotsLeft} spot
+                          {cocktailSpotsLeft === 1 ? "" : "s"} available, you're
+                          requesting {cocktailsOnlyForThisBooking}
+                        </div>
+                      )}
+                      {willGoToWaitlistForDinner && selectedDinnerSlot && (
+                        <div>
+                          • Dinner capacity: {selectedDinnerSlot.remaining} spot
+                          {selectedDinnerSlot.remaining === 1 ? "" : "s"}{" "}
+                          available in this time slot, you're requesting{" "}
+                          {dinnerPartySize}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -979,7 +1097,9 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={
+                    loading || (!event.waitlistEnabled && willGoToWaitlist)
+                  }
                   style={{
                     marginTop: "16px",
                     width: "100%",
@@ -988,38 +1108,61 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                     border: "none",
                     background: loading
                       ? "#666"
+                      : willGoToWaitlist
+                      ? "linear-gradient(135deg, #ec4899 0%, #be185d 100%)"
                       : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
                     color: "#fff",
                     fontWeight: 700,
                     fontSize: "16px",
-                    cursor: loading ? "not-allowed" : "pointer",
-                    boxShadow: loading
-                      ? "none"
-                      : "0 10px 40px rgba(139, 92, 246, 0.5), 0 0 0 1px rgba(255,255,255,0.1)",
+                    cursor:
+                      loading || (!event.waitlistEnabled && willGoToWaitlist)
+                        ? "not-allowed"
+                        : "pointer",
+                    boxShadow:
+                      loading || (!event.waitlistEnabled && willGoToWaitlist)
+                        ? "none"
+                        : willGoToWaitlist
+                        ? "0 10px 40px rgba(236, 72, 153, 0.5), 0 0 0 1px rgba(255,255,255,0.1)"
+                        : "0 10px 40px rgba(139, 92, 246, 0.5), 0 0 0 1px rgba(255,255,255,0.1)",
                     transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
                     textTransform: "uppercase",
                     letterSpacing: "0.1em",
-                    opacity: loading ? 0.7 : 1,
+                    opacity:
+                      loading || (!event.waitlistEnabled && willGoToWaitlist)
+                        ? 0.7
+                        : 1,
                     position: "relative",
                     overflow: "hidden",
                   }}
                   onMouseEnter={(e) => {
-                    if (!loading) {
+                    if (
+                      !loading &&
+                      !(!event.waitlistEnabled && willGoToWaitlist)
+                    ) {
                       e.target.style.transform = "translateY(-3px) scale(1.01)";
-                      e.target.style.boxShadow =
-                        "0 20px 60px rgba(139, 92, 246, 0.7), 0 0 0 1px rgba(255,255,255,0.2)";
+                      e.target.style.boxShadow = willGoToWaitlist
+                        ? "0 20px 60px rgba(236, 72, 153, 0.7), 0 0 0 1px rgba(255,255,255,0.2)"
+                        : "0 20px 60px rgba(139, 92, 246, 0.7), 0 0 0 1px rgba(255,255,255,0.2)";
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (!loading) {
+                    if (
+                      !loading &&
+                      !(!event.waitlistEnabled && willGoToWaitlist)
+                    ) {
                       e.target.style.transform = "translateY(0) scale(1)";
-                      e.target.style.boxShadow =
-                        "0 10px 40px rgba(139, 92, 246, 0.5), 0 0 0 1px rgba(255,255,255,0.1)";
+                      e.target.style.boxShadow = willGoToWaitlist
+                        ? "0 10px 40px rgba(236, 72, 153, 0.5), 0 0 0 1px rgba(255,255,255,0.1)"
+                        : "0 10px 40px rgba(139, 92, 246, 0.5), 0 0 0 1px rgba(255,255,255,0.1)";
                     }
                   }}
                 >
                   <span style={{ position: "relative", zIndex: 1 }}>
-                    {loading ? "Submitting…" : label}
+                    {loading
+                      ? "Submitting…"
+                      : willGoToWaitlist && event.waitlistEnabled
+                      ? "Join Waitlist"
+                      : label}
                   </span>
                   {!loading && (
                     <div

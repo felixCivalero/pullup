@@ -44,13 +44,6 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // ---------------------------
-// Health check
-// ---------------------------
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", service: "pullup-api" });
-});
-
-// ---------------------------
 // PUBLIC: List all events
 // ---------------------------
 app.get("/events", (req, res) => {
@@ -67,7 +60,7 @@ app.get("/events/:slug", (req, res) => {
   if (!event) return res.status(404).json({ error: "Event not found" });
 
   // Include current attendance counts for capacity warnings
-  const { attending } = getEventCounts(event.id);
+  const { confirmed, waitlist } = getEventCounts(event.id);
   // Calculate cocktails-only (people attending cocktails but not confirmed for dinner)
   const cocktailsOnly = getCocktailsOnlyCount(event.id);
   const cocktailSpotsLeft =
@@ -78,7 +71,8 @@ app.get("/events/:slug", (req, res) => {
   res.json({
     ...event,
     _attendance: {
-      attending,
+      confirmed,
+      waitlist,
       cocktailSpotsLeft,
     },
   });
@@ -266,9 +260,20 @@ app.post("/events/:slug/rsvp", (req, res) => {
     event: result.event,
     rsvp: result.rsvp,
     statusDetails: {
-      cocktailStatus: result.rsvp.status, // "attending" | "waitlist"
-      dinnerStatus: result.rsvp.dinnerStatus, // "confirmed" | "waitlist" | "cocktails" | "cocktails_waitlist" | null
-      wantsDinner: result.rsvp.wantsDinner,
+      bookingStatus:
+        result.rsvp.bookingStatus ||
+        (result.rsvp.status === "attending" ? "CONFIRMED" : "WAITLIST"), // "CONFIRMED" | "WAITLIST"
+      dinnerBookingStatus:
+        result.rsvp.dinner?.bookingStatus ||
+        (result.rsvp.dinnerStatus === "confirmed"
+          ? "CONFIRMED"
+          : result.rsvp.dinnerStatus === "waitlist"
+          ? "WAITLIST"
+          : null), // "CONFIRMED" | "WAITLIST" | null
+      wantsDinner: result.rsvp.dinner?.enabled || result.rsvp.wantsDinner,
+      // Backward compatibility
+      cocktailStatus: result.rsvp.status,
+      dinnerStatus: result.rsvp.dinnerStatus,
     },
   });
 });
@@ -428,20 +433,34 @@ app.put("/host/events/:eventId/rsvps/:rsvpId", (req, res) => {
     name,
     email,
     plusOnes,
-    status,
+    bookingStatus,
+    status, // Backward compatibility
     wantsDinner,
     dinnerTimeSlot,
+    "dinner.slotTime": dinnerSlotTime,
     dinnerPartySize,
+    "dinner.bookingStatus": dinnerBookingStatus,
+    dinnerPullUpCount,
+    cocktailOnlyPullUpCount,
+    pulledUpForDinner, // Backward compatibility
+    pulledUpForCocktails, // Backward compatibility
   } = req.body;
 
   const result = updateRsvp(rsvpId, {
     name,
     email,
     plusOnes,
-    status,
+    bookingStatus,
+    status, // Backward compatibility
     wantsDinner,
-    dinnerTimeSlot,
+    dinnerTimeSlot: dinnerTimeSlot || dinnerSlotTime,
+    "dinner.slotTime": dinnerSlotTime,
     dinnerPartySize,
+    "dinner.bookingStatus": dinnerBookingStatus,
+    dinnerPullUpCount,
+    cocktailOnlyPullUpCount,
+    pulledUpForDinner, // Backward compatibility
+    pulledUpForCocktails, // Backward compatibility
   });
 
   if (result.error === "not_found") {

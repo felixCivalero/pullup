@@ -112,32 +112,60 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
       const partySize = g.partySize || 1;
       const dinnerPartySize = g.dinnerPartySize || partySize;
 
-      if (g.status === "waitlist") {
+      const bookingStatus =
+        g.bookingStatus ||
+        (g.status === "attending"
+          ? "CONFIRMED"
+          : g.status === "waitlist"
+          ? "WAITLIST"
+          : "CANCELLED");
+      const wantsDinner = g.dinner?.enabled || g.wantsDinner;
+      const dinnerBookingStatus =
+        g.dinner?.bookingStatus ||
+        (g.dinnerStatus === "confirmed"
+          ? "CONFIRMED"
+          : g.dinnerStatus === "waitlist"
+          ? "WAITLIST"
+          : null);
+      const dinnerPartySizeNew = g.dinner?.partySize || dinnerPartySize;
+
+      if (bookingStatus === "WAITLIST" || g.status === "waitlist") {
         acc.waitlist += totalGuests;
       }
 
-      if (g.status === "attending") {
-        acc.attending += totalGuests;
+      if (bookingStatus === "CONFIRMED" || g.status === "attending") {
+        acc.attending += partySize; // Use partySize, not totalGuests
         acc.cocktailList += partySize;
 
-        if (g.wantsDinner && g.dinnerStatus === "confirmed") {
-          acc.cocktailsOnly += Math.max(0, totalGuests - dinnerPartySize);
+        // Calculate cocktails-only for this guest
+        const plusOnes = g.plusOnes ?? 0;
+
+        // If no dinner: all partySize is cocktails-only (booker + plusOnes)
+        // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
+        if (wantsDinner && dinnerBookingStatus === "CONFIRMED") {
+          acc.cocktailsOnly += plusOnes; // Only plusOnes are cocktails-only
         } else {
-          acc.cocktailsOnly += totalGuests;
+          acc.cocktailsOnly += partySize; // Entire party is cocktails-only
         }
       }
 
-      if (g.wantsDinner) {
-        if (g.dinnerStatus === "confirmed") {
-          acc.dinnerConfirmed += dinnerPartySize;
-        } else if (g.dinnerStatus === "cocktails") {
-          acc.dinnerCocktails += dinnerPartySize;
-        } else if (g.dinnerStatus === "cocktails_waitlist") {
-          acc.dinnerCocktails += dinnerPartySize;
-          acc.dinnerWaitlist += dinnerPartySize;
-        } else if (g.dinnerStatus === "waitlist") {
-          acc.dinnerWaitlist += dinnerPartySize;
+      if (wantsDinner) {
+        if (dinnerBookingStatus === "CONFIRMED") {
+          acc.dinnerConfirmed += dinnerPartySizeNew;
+        } else if (dinnerBookingStatus === "WAITLIST") {
+          acc.dinnerWaitlist += dinnerPartySizeNew;
         }
+      }
+
+      // Calculate pulled up stats
+      const cocktailsPulledUp =
+        g.cocktailOnlyPullUpCount ?? g.pulledUpForCocktails ?? 0;
+      const dinnerPulledUp = g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0;
+      if (cocktailsPulledUp > 0) {
+        acc.cocktailsPulledUp += cocktailsPulledUp;
+      }
+      if (dinnerPulledUp > 0) {
+        acc.dinnerPulledUp += dinnerPulledUp;
       }
 
       return acc;
@@ -150,8 +178,14 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
       dinnerConfirmed: 0,
       dinnerWaitlist: 0,
       dinnerCocktails: 0,
+      pulledUpTotal: 0,
+      cocktailsPulledUp: 0,
+      dinnerPulledUp: 0,
     }
   );
+
+  // Calculate total pulled up (sum of both)
+  stats.pulledUpTotal = stats.cocktailsPulledUp + stats.dinnerPulledUp;
 
   const attending = stats.attending;
   const cocktailCapacity = event.cocktailCapacity ?? null;
@@ -191,6 +225,30 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
           label="Waitlist"
           value={stats.waitlist}
           color="#ec4899"
+        />
+
+        <StatCard
+          icon="✓"
+          label="Pulled Up"
+          value={`${stats.pulledUpTotal}/${attending}`}
+          color="#10b981"
+        />
+      </div>
+
+      {/* Pulled Up Details */}
+      <div
+        style={{
+          marginBottom: "32px",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "20px",
+        }}
+      >
+        <StatCard
+          icon="🥂✓"
+          label="Cocktails Pulled Up"
+          value={`${stats.cocktailsPulledUp}/${stats.cocktailsOnly}`}
+          color="#f59e0b"
         />
       </div>
 
@@ -243,6 +301,29 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                 const slotTime = new Date(slot.time);
                 const confirmed = slot.confirmed || 0;
                 const capacity = event.dinnerMaxSeatsPerSlot;
+
+                // Calculate pulled up count for this specific slot
+                const slotPulledUp = guests
+                  .filter((g) => {
+                    const wantsDinner = g.dinner?.enabled || g.wantsDinner;
+                    const slotMatches =
+                      g.dinner?.slotTime === slot.time ||
+                      g.dinnerTimeSlot === slot.time;
+                    const isConfirmed =
+                      g.dinner?.bookingStatus === "CONFIRMED" ||
+                      g.dinnerStatus === "confirmed";
+                    const hasPulledUp =
+                      (g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0) > 0;
+                    return (
+                      wantsDinner && slotMatches && isConfirmed && hasPulledUp
+                    );
+                  })
+                  .reduce(
+                    (sum, g) =>
+                      sum + (g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0),
+                    0
+                  );
+
                 return (
                   <div
                     key={slot.time}
@@ -292,6 +373,7 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                         alignItems: "baseline",
                         gap: "6px",
                         lineHeight: "1",
+                        marginBottom: "8px",
                       }}
                     >
                       <span>{confirmed}</span>
@@ -304,6 +386,30 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                         }}
                       >
                         /{capacity}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "20px",
+                        fontWeight: 700,
+                        color: "#10b981",
+                        display: "flex",
+                        alignItems: "baseline",
+                        gap: "6px",
+                        lineHeight: "1",
+                        opacity: slotPulledUp > 0 ? 1 : 0.5,
+                      }}
+                    >
+                      <span>✓ {slotPulledUp}</span>
+                      <span
+                        style={{
+                          fontSize: "14px",
+                          opacity: 0.6,
+                          fontWeight: 500,
+                          color: "rgba(255, 255, 255, 0.6)",
+                        }}
+                      >
+                        /{confirmed} pulled up
                       </span>
                     </div>
                     {slot.waitlist > 0 && (
@@ -2741,136 +2847,38 @@ export function ManageEventPage() {
                     <div>
                       <div
                         style={{
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          opacity: 0.7,
-                          marginBottom: "12px",
-                        }}
-                      >
-                        When Dinner Seats Are Full
-                      </div>
-                      <div
-                        style={{
+                          padding: "14px",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          background: "rgba(139, 92, 246, 0.1)",
                           display: "flex",
-                          flexDirection: "column",
-                          gap: "10px",
+                          alignItems: "flex-start",
+                          gap: "12px",
                         }}
                       >
-                        {[
-                          {
-                            value: "waitlist",
-                            label: "Add to Waitlist",
-                            description:
-                              "Keep them on the waitlist for dinner seats",
-                            icon: "📋",
-                          },
-                          {
-                            value: "cocktails",
-                            label: "Invite for Cocktails",
-                            description:
-                              "Invite them to join for cocktails after dinner",
-                            icon: "🥂",
-                          },
-                          {
-                            value: "both",
-                            label: "Both Options",
-                            description:
-                              "Add to waitlist AND invite for cocktails",
-                            icon: "✨",
-                          },
-                        ].map((option) => (
-                          <label
-                            key={option.value}
+                        <span style={{ fontSize: "16px" }}>📋</span>
+                        <div style={{ flex: 1 }}>
+                          <div
                             style={{
-                              display: "flex",
-                              alignItems: "flex-start",
-                              gap: "12px",
-                              padding: "14px",
-                              borderRadius: "12px",
-                              border:
-                                event.dinnerOverflowAction === option.value
-                                  ? "2px solid #8b5cf6"
-                                  : "1px solid rgba(255,255,255,0.1)",
-                              background:
-                                event.dinnerOverflowAction === option.value
-                                  ? "rgba(139, 92, 246, 0.15)"
-                                  : "rgba(20, 16, 30, 0.4)",
-                              cursor: "pointer",
-                              transition: "all 0.2s ease",
-                            }}
-                            onMouseEnter={(e) => {
-                              if (event.dinnerOverflowAction !== option.value) {
-                                e.currentTarget.style.background =
-                                  "rgba(20, 16, 30, 0.6)";
-                                e.currentTarget.style.borderColor =
-                                  "rgba(255,255,255,0.2)";
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (event.dinnerOverflowAction !== option.value) {
-                                e.currentTarget.style.background =
-                                  "rgba(20, 16, 30, 0.4)";
-                                e.currentTarget.style.borderColor =
-                                  "rgba(255,255,255,0.1)";
-                              }
+                              fontWeight: 600,
+                              fontSize: "14px",
+                              color: "#fff",
+                              marginBottom: "4px",
                             }}
                           >
-                            <input
-                              type="radio"
-                              name="dinnerOverflow"
-                              value={option.value}
-                              checked={
-                                event.dinnerOverflowAction === option.value
-                              }
-                              onChange={(e) =>
-                                setEvent({
-                                  ...event,
-                                  dinnerOverflowAction: e.target.value,
-                                })
-                              }
-                              style={{
-                                marginTop: "2px",
-                                width: "18px",
-                                height: "18px",
-                                cursor: "pointer",
-                                accentColor: "#8b5cf6",
-                              }}
-                            />
-                            <div style={{ flex: 1 }}>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "8px",
-                                  marginBottom: "4px",
-                                }}
-                              >
-                                <span style={{ fontSize: "16px" }}>
-                                  {option.icon}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: "14px",
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {option.label}
-                                </span>
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: "12px",
-                                  opacity: 0.7,
-                                  paddingLeft: "24px",
-                                }}
-                              >
-                                {option.description}
-                              </div>
-                            </div>
-                          </label>
-                        ))}
+                            Add to Waitlist
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              opacity: 0.7,
+                              color: "rgba(255,255,255,0.8)",
+                            }}
+                          >
+                            When dinner seats are full, guests will be added to
+                            the waitlist
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}

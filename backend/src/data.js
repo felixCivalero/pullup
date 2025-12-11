@@ -114,12 +114,7 @@ export function createEvent({
     dinnerMaxSeatsPerSlot: dinnerMaxSeatsPerSlot
       ? Number(dinnerMaxSeatsPerSlot)
       : null,
-    dinnerOverflowAction:
-      dinnerOverflowAction === "cocktails" ||
-      dinnerOverflowAction === "both" ||
-      dinnerOverflowAction === "waitlist"
-        ? dinnerOverflowAction
-        : "waitlist",
+    dinnerOverflowAction: "waitlist", // Always use waitlist (removed cocktails/both options)
 
     // Stripe fields
     ticketPrice:
@@ -161,34 +156,47 @@ export function updateEvent(id, updates) {
 // RSVP Logic
 // ---------------------------
 
-// Count attending / waitlist based on partySize
+// Count confirmed / waitlist based on partySize
 export function getEventCounts(eventId) {
   // Use totalGuests for accurate capacity counting (accounts for dinner overlaps)
-  const attending = rsvps
-    .filter((r) => r.eventId === eventId && r.status === "attending")
+  const confirmed = rsvps
+    .filter(
+      (r) =>
+        r.eventId === eventId &&
+        (r.bookingStatus === "CONFIRMED" || r.status === "attending")
+    )
     .reduce((sum, r) => sum + (r.totalGuests ?? r.partySize ?? 1), 0);
 
   const waitlist = rsvps
-    .filter((r) => r.eventId === eventId && r.status === "waitlist")
+    .filter(
+      (r) =>
+        r.eventId === eventId &&
+        (r.bookingStatus === "WAITLIST" || r.status === "waitlist")
+    )
     .reduce((sum, r) => sum + (r.totalGuests ?? r.partySize ?? 1), 0);
 
-  return { attending, waitlist };
+  return { confirmed, waitlist };
 }
 
 // Calculate cocktails-only count (people attending cocktails but not confirmed for dinner)
 export function getCocktailsOnlyCount(eventId) {
   return rsvps
-    .filter((r) => r.eventId === eventId && r.status === "attending")
+    .filter(
+      (r) =>
+        r.eventId === eventId &&
+        (r.bookingStatus === "CONFIRMED" || r.status === "attending")
+    )
     .reduce((sum, r) => {
-      const totalGuests = r.totalGuests ?? r.partySize ?? 1;
-      const dinnerPartySize = r.dinnerPartySize || r.partySize || 1;
+      const wantsDinner = r.dinner?.enabled || r.wantsDinner || false;
+      const plusOnes = r.plusOnes ?? 0;
 
-      // If confirmed for dinner: cocktailsOnly = totalGuests - dinnerPartySize
-      // If not confirmed for dinner: cocktailsOnly = totalGuests
-      if (r.wantsDinner && r.dinnerStatus === "confirmed") {
-        return sum + Math.max(0, totalGuests - dinnerPartySize);
+      // If no dinner: all partySize is cocktails-only (booker + plusOnes)
+      // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
+      if (wantsDinner) {
+        return sum + plusOnes; // Only plusOnes are cocktails-only
       } else {
-        return sum + totalGuests;
+        const partySize = r.partySize ?? 1;
+        return sum + partySize; // Entire party is cocktails-only
       }
     }, 0);
 }
@@ -224,24 +232,36 @@ export function getDinnerSlotCounts(eventId) {
   slots.forEach((slotTime) => {
     // Use dinnerPartySize for accurate slot capacity counting
     const confirmed = rsvps
-      .filter(
-        (r) =>
-          r.eventId === eventId &&
-          r.wantsDinner &&
-          r.dinnerTimeSlot === slotTime &&
-          r.dinnerStatus === "confirmed"
-      )
-      .reduce((sum, r) => sum + (r.dinnerPartySize || r.partySize || 1), 0);
+      .filter((r) => {
+        const hasDinner = r.dinner?.enabled || r.wantsDinner;
+        const slotMatches =
+          r.dinner?.slotTime === slotTime || r.dinnerTimeSlot === slotTime;
+        const isConfirmed =
+          r.dinner?.bookingStatus === "CONFIRMED" ||
+          r.dinnerStatus === "confirmed";
+        return r.eventId === eventId && hasDinner && slotMatches && isConfirmed;
+      })
+      .reduce(
+        (sum, r) =>
+          sum + (r.dinner?.partySize || r.dinnerPartySize || r.partySize || 1),
+        0
+      );
 
     const waitlist = rsvps
-      .filter(
-        (r) =>
-          r.eventId === eventId &&
-          r.wantsDinner &&
-          r.dinnerTimeSlot === slotTime &&
-          r.dinnerStatus === "waitlist"
-      )
-      .reduce((sum, r) => sum + (r.dinnerPartySize || r.partySize || 1), 0);
+      .filter((r) => {
+        const hasDinner = r.dinner?.enabled || r.wantsDinner;
+        const slotMatches =
+          r.dinner?.slotTime === slotTime || r.dinnerTimeSlot === slotTime;
+        const isWaitlist =
+          r.dinner?.bookingStatus === "WAITLIST" ||
+          r.dinnerStatus === "waitlist";
+        return r.eventId === eventId && hasDinner && slotMatches && isWaitlist;
+      })
+      .reduce(
+        (sum, r) =>
+          sum + (r.dinner?.partySize || r.dinnerPartySize || r.partySize || 1),
+        0
+      );
 
     slotCounts[slotTime] = { confirmed, waitlist };
   });
@@ -252,17 +272,22 @@ export function getDinnerSlotCounts(eventId) {
 // Dinner seat counts (legacy - total across all slots)
 export function getDinnerCounts(eventId) {
   const dinnerConfirmedSeats = rsvps
-    .filter(
-      (r) =>
-        r.eventId === eventId && r.wantsDinner && r.dinnerStatus === "confirmed"
-    )
+    .filter((r) => {
+      const hasDinner = r.dinner?.enabled || r.wantsDinner;
+      const isConfirmed =
+        r.dinner?.bookingStatus === "CONFIRMED" ||
+        r.dinnerStatus === "confirmed";
+      return r.eventId === eventId && hasDinner && isConfirmed;
+    })
     .reduce((sum, r) => sum + (r.partySize || 1), 0);
 
   const dinnerWaitlistSeats = rsvps
-    .filter(
-      (r) =>
-        r.eventId === eventId && r.wantsDinner && r.dinnerStatus === "waitlist"
-    )
+    .filter((r) => {
+      const hasDinner = r.dinner?.enabled || r.wantsDinner;
+      const isWaitlist =
+        r.dinner?.bookingStatus === "WAITLIST" || r.dinnerStatus === "waitlist";
+      return r.eventId === eventId && hasDinner && isWaitlist;
+    })
     .reduce((sum, r) => sum + (r.partySize || 1), 0);
 
   return { dinnerConfirmedSeats, dinnerWaitlistSeats };
@@ -353,10 +378,10 @@ export function getAllPeopleWithStats() {
       const personRsvps = rsvps.filter((r) => r.personId === person.id);
 
       const eventsAttended = personRsvps.filter(
-        (r) => r.status === "attending"
+        (r) => r.bookingStatus === "CONFIRMED" || r.status === "attending"
       ).length;
       const eventsWaitlisted = personRsvps.filter(
-        (r) => r.status === "waitlist"
+        (r) => r.bookingStatus === "WAITLIST" || r.status === "waitlist"
       ).length;
       const totalEvents = personRsvps.length;
       const totalGuestsBrought = personRsvps.reduce(
@@ -364,11 +389,15 @@ export function getAllPeopleWithStats() {
         0
       );
       const totalDinners = personRsvps.filter(
-        (r) => r.wantsDinner === true
+        (r) => r.dinner?.enabled || r.wantsDinner === true
       ).length;
       const totalDinnerGuests = personRsvps.reduce(
         (sum, r) =>
-          sum + (r.wantsDinner && r.dinnerPartySize ? r.dinnerPartySize : 0),
+          sum +
+          ((r.dinner?.enabled || r.wantsDinner) &&
+          (r.dinner?.partySize || r.dinnerPartySize)
+            ? r.dinner?.partySize || r.dinnerPartySize
+            : 0),
         0
       );
 
@@ -382,12 +411,15 @@ export function getAllPeopleWithStats() {
             eventTitle: event?.title || "Unknown Event",
             eventSlug: event?.slug || null,
             eventDate: event?.startsAt || null,
-            status: rsvp.status,
+            status: rsvp.bookingStatus || rsvp.status,
             plusOnes: rsvp.plusOnes || 0,
-            wantsDinner: rsvp.wantsDinner || false,
-            dinnerStatus: rsvp.dinnerStatus || null,
-            dinnerTimeSlot: rsvp.dinnerTimeSlot || null,
-            dinnerPartySize: rsvp.dinnerPartySize || null,
+            wantsDinner: rsvp.dinner?.enabled || rsvp.wantsDinner || false,
+            dinnerStatus:
+              rsvp.dinner?.bookingStatus || rsvp.dinnerStatus || null,
+            dinnerTimeSlot:
+              rsvp.dinner?.slotTime || rsvp.dinnerTimeSlot || null,
+            dinnerPartySize:
+              rsvp.dinner?.partySize || rsvp.dinnerPartySize || null,
             rsvpDate: rsvp.createdAt,
           };
         })
@@ -421,15 +453,12 @@ export function getAllPeopleWithStats() {
 
 // Helper function to calculate total unique guests
 // partySize = cocktail party (booker + plus-ones)
-// dinnerPartySize = total dinner party (ALWAYS includes the booker if they want dinner)
+// Legacy helper: totalGuests should just be partySize
+// dinnerPartySize is a subset of partySize (how many from the party are going to dinner)
 function calculateTotalGuests(partySize, dinnerPartySize) {
-  if (!dinnerPartySize || dinnerPartySize === 0) {
-    return partySize;
-  }
-  // dinnerPartySize represents TOTAL people for dinner (including booker)
-  // The booker is ALWAYS counted in both partySize and dinnerPartySize
-  // Formula: cocktail party + dinner party - booker (counted twice)
-  return partySize + (dinnerPartySize - 1);
+  // With the new model, total unique guests is always partySize
+  // dinnerPartySize is just how many of those partySize guests are going to dinner
+  return partySize;
 }
 
 // plusOnes = 0–3, wantsDinner = boolean, dinnerTimeSlot = ISO string, dinnerPartySize = number
@@ -471,33 +500,53 @@ export function addRsvp({
     0,
     Math.min(maxPlus, Number.isFinite(plusOnes) ? plusOnes : 0)
   );
-  const partySize = 1 + clampedPlusOnes;
 
   // Dinner allocation with time slots (needed for capacity calculation)
   let dinnerStatus = null;
   let finalWantsDinner = !!wantsDinner && !!event.dinnerEnabled;
   let finalDinnerTimeSlot = null;
   // dinnerPartySize represents TOTAL people for dinner (including the booker)
-  // Defaults to partySize if not specified
-  let finalDinnerPartySize = partySize;
+  // Use provided dinnerPartySize if specified, otherwise default to 0 (no dinner)
+  let finalDinnerPartySize = 0;
+  if (
+    dinnerPartySize !== null &&
+    dinnerPartySize !== undefined &&
+    finalWantsDinner
+  ) {
+    finalDinnerPartySize = Math.max(
+      1,
+      Math.floor(Number(dinnerPartySize) || 1)
+    );
+  }
 
-  const { attending } = getEventCounts(event.id);
+  // Calculate partySize based on whether dinner is selected
+  // - If no dinner: partySize = 1 (booker) + plusOnes (cocktails-only guests)
+  // - If dinner: partySize = dinnerPartySize (includes booker) + plusOnes (cocktails-only guests)
+  const finalPlusOnes = clampedPlusOnes; // Keep original plusOnes (cocktails-only)
+  const partySize = finalWantsDinner
+    ? finalDinnerPartySize + clampedPlusOnes // Dinner includes booker, add cocktails-only
+    : 1 + clampedPlusOnes; // No dinner: booker + cocktails-only guests
 
-  let status = "attending";
+  const { confirmed } = getEventCounts(event.id);
+
+  // Calculate current cocktails-only count (all existing confirmed RSVPs)
+  const currentCocktailsOnly = getCocktailsOnlyCount(event.id);
+
+  let bookingStatus = "CONFIRMED";
 
   // Capacity check for cocktail party using cocktailCapacity
-  // Use totalGuests for accurate capacity check
-  const totalGuestsForCheck = calculateTotalGuests(
-    partySize,
-    finalWantsDinner ? finalDinnerPartySize : null
-  );
+  // Calculate how many cocktails-only spots this NEW booking will use
+  // Since partySize = dinnerPartySize + plusOnes, cocktails-only = plusOnes
+  const cocktailsOnlyForThisBooking = finalPlusOnes;
 
+  // Check if there's enough cocktail capacity (all-or-nothing)
+  // Compare: current cocktails-only + new booking's cocktails-only vs capacity
   if (
     event.cocktailCapacity != null &&
-    attending + totalGuestsForCheck > event.cocktailCapacity
+    currentCocktailsOnly + cocktailsOnlyForThisBooking > event.cocktailCapacity
   ) {
     if (event.waitlistEnabled) {
-      status = "waitlist";
+      bookingStatus = "WAITLIST";
     } else {
       return { error: "full", event };
     }
@@ -575,23 +624,24 @@ export function addRsvp({
       };
 
       if (event.dinnerMaxSeatsPerSlot) {
-        // Limited seats per slot - check if there's room
+        // Limited seats per slot - all-or-nothing: entire party goes to waitlist if capacity exceeded
         const availableSeats = event.dinnerMaxSeatsPerSlot - slotData.confirmed;
-        if (status === "attending" && finalDinnerPartySize <= availableSeats) {
-          dinnerStatus = "confirmed";
+        if (
+          finalDinnerPartySize <= availableSeats &&
+          bookingStatus === "CONFIRMED"
+        ) {
+          dinnerStatus = "CONFIRMED";
         } else {
-          // Check overflow action
-          if (event.dinnerOverflowAction === "cocktails") {
-            dinnerStatus = "cocktails"; // Invite for cocktails instead
-          } else if (event.dinnerOverflowAction === "both") {
-            dinnerStatus = "cocktails_waitlist"; // Both cocktails and waitlist
-          } else {
-            dinnerStatus = "waitlist"; // Default waitlist
+          // Entire dinner party goes to waitlist if capacity exceeded
+          dinnerStatus = "WAITLIST";
+          // If dinner goes to waitlist, entire event booking also goes to waitlist
+          if (bookingStatus === "CONFIRMED") {
+            bookingStatus = "WAITLIST";
           }
         }
       } else {
-        // Unlimited seats per slot
-        dinnerStatus = status === "attending" ? "confirmed" : "waitlist";
+        // Unlimited seats per slot - follow event-level booking status
+        dinnerStatus = bookingStatus === "CONFIRMED" ? "CONFIRMED" : "WAITLIST";
       }
     } else {
       // No valid time slot available
@@ -610,16 +660,43 @@ export function addRsvp({
     personId: person.id, // Link to person
     eventId: event.id,
     slug,
-    status, // "attending" | "waitlist"
-    plusOnes: clampedPlusOnes,
+    bookingStatus, // "CONFIRMED" | "WAITLIST" | "CANCELLED"
+    status:
+      bookingStatus === "CONFIRMED"
+        ? "attending"
+        : bookingStatus === "WAITLIST"
+        ? "waitlist"
+        : "cancelled", // Backward compatibility
+    plusOnes: finalPlusOnes,
     partySize,
+    dinner: finalWantsDinner
+      ? {
+          enabled: true,
+          partySize: finalDinnerPartySize,
+          slotTime: finalDinnerTimeSlot,
+          bookingStatus: dinnerStatus, // "CONFIRMED" | "WAITLIST"
+        }
+      : null,
+    // Backward compatibility fields
     wantsDinner: finalWantsDinner,
-    dinnerStatus, // "confirmed" | "waitlist" | null
-    dinnerTimeSlot: finalDinnerTimeSlot, // ISO datetime string
+    dinnerStatus:
+      dinnerStatus === "CONFIRMED"
+        ? "confirmed"
+        : dinnerStatus === "WAITLIST"
+        ? "waitlist"
+        : null,
+    dinnerTimeSlot: finalDinnerTimeSlot,
     dinnerPartySize: finalWantsDinner ? finalDinnerPartySize : null,
     totalGuests, // Calculated once and stored
     paymentId: null, // Link to payment record
     paymentStatus: event.ticketType === "paid" ? "unpaid" : null, // "unpaid" | "pending" | "paid" | "refunded"
+    dinnerPullUpCount: 0, // Number of dinner guests who have arrived
+    cocktailOnlyPullUpCount: 0, // Number of cocktails-only guests who have arrived
+    // Backward compatibility fields
+    pulledUp: false,
+    pulledUpCount: null,
+    pulledUpForDinner: null,
+    pulledUpForCocktails: null,
     createdAt: new Date().toISOString(),
   };
 
@@ -711,7 +788,7 @@ export function updateRsvp(rsvpId, updates) {
       )
     );
   }
-  const partySize = 1 + plusOnes;
+  let partySize = 1 + plusOnes;
 
   // Handle dinner status updates (need to determine wantsDinner first)
   let wantsDinner = rsvp.wantsDinner;
@@ -720,13 +797,23 @@ export function updateRsvp(rsvpId, updates) {
   }
 
   // Handle dinner party size update
-  let dinnerPartySize = rsvp.dinnerPartySize || partySize;
-  if (updates.dinnerPartySize !== undefined) {
-    dinnerPartySize = Math.max(
-      1,
-      Math.floor(Number(updates.dinnerPartySize) || partySize)
-    );
+  let dinnerPartySize = 0;
+  if (wantsDinner) {
+    dinnerPartySize = rsvp.dinnerPartySize || 0;
+    if (updates.dinnerPartySize !== undefined) {
+      dinnerPartySize = Math.max(
+        1,
+        Math.floor(Number(updates.dinnerPartySize) || 1)
+      );
+    }
   }
+
+  // Calculate partySize based on whether dinner is selected
+  // - If no dinner: partySize = 1 (booker) + plusOnes (cocktails-only guests)
+  // - If dinner: partySize = dinnerPartySize (includes booker) + plusOnes (cocktails-only guests)
+  partySize = wantsDinner
+    ? dinnerPartySize + plusOnes // Dinner includes booker, add cocktails-only
+    : 1 + plusOnes; // No dinner: booker + cocktails-only guests
 
   // Calculate total guests for capacity check
   const totalGuestsForCheck = calculateTotalGuests(
@@ -734,47 +821,126 @@ export function updateRsvp(rsvpId, updates) {
     wantsDinner ? dinnerPartySize : null
   );
 
-  // Recalculate status based on capacity
-  const { attending } = getEventCounts(event.id);
-  const currentAttending = rsvps
+  // Recalculate bookingStatus based on capacity
+  const { confirmed } = getEventCounts(event.id);
+
+  // Calculate current cocktails-only count (excluding this RSVP)
+  const currentCocktailsOnly = rsvps
     .filter(
       (r) =>
-        r.eventId === event.id && r.status === "attending" && r.id !== rsvpId
+        r.eventId === event.id &&
+        (r.bookingStatus === "CONFIRMED" || r.status === "attending") &&
+        r.id !== rsvpId
     )
-    .reduce((sum, r) => sum + (r.totalGuests ?? r.partySize ?? 1), 0);
+    .reduce((sum, r) => {
+      const wantsDinner = r.dinner?.enabled || r.wantsDinner || false;
+      const plusOnes = r.plusOnes ?? 0;
+      const partySize = r.partySize ?? 1;
 
-  let status = rsvp.status;
-  if (updates.status !== undefined) {
-    status = updates.status;
+      // If no dinner: all partySize is cocktails-only (booker + plusOnes)
+      // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
+      if (wantsDinner) {
+        return sum + plusOnes; // Only plusOnes are cocktails-only
+      } else {
+        return sum + partySize; // Entire party is cocktails-only
+      }
+    }, 0);
+
+  // Calculate cocktails-only spots for this updated booking
+  // If no dinner: all partySize is cocktails-only (booker + plusOnes)
+  // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
+  const cocktailsOnlyForThisBooking = wantsDinner
+    ? plusOnes // Only plusOnes are cocktails-only
+    : partySize; // Entire party is cocktails-only
+
+  let bookingStatus =
+    rsvp.bookingStatus ||
+    (rsvp.status === "attending"
+      ? "CONFIRMED"
+      : rsvp.status === "waitlist"
+      ? "WAITLIST"
+      : "CANCELLED");
+  if (updates.bookingStatus !== undefined) {
+    bookingStatus = updates.bookingStatus;
+  } else if (updates.status !== undefined) {
+    // Backward compatibility: convert old status to bookingStatus
+    bookingStatus =
+      updates.status === "attending"
+        ? "CONFIRMED"
+        : updates.status === "waitlist"
+        ? "WAITLIST"
+        : "CANCELLED";
   } else {
-    // Auto-determine status based on cocktail capacity
+    // Auto-determine bookingStatus based on cocktail capacity (all-or-nothing)
     if (
       event.cocktailCapacity != null &&
-      currentAttending + totalGuestsForCheck > event.cocktailCapacity
+      currentCocktailsOnly + cocktailsOnlyForThisBooking >
+        event.cocktailCapacity
     ) {
       if (event.waitlistEnabled) {
-        status = "waitlist";
+        bookingStatus = "WAITLIST";
       } else {
         return { error: "full" };
       }
     } else {
-      status = "attending";
+      bookingStatus = "CONFIRMED";
     }
   }
 
-  // Handle dinner status updates (wantsDinner already determined above)
-  let dinnerStatus = rsvp.dinnerStatus;
-  let dinnerTimeSlot = rsvp.dinnerTimeSlot;
+  // Rule: If bookingStatus !== "CONFIRMED", reset pull-up counts to 0 (unless explicitly updating them)
+  if (bookingStatus !== "CONFIRMED") {
+    // Only reset if not explicitly updating pull-up counts (to allow clearing them)
+    if (
+      updates.dinnerPullUpCount === undefined &&
+      updates.pulledUpForDinner === undefined
+    ) {
+      dinnerPullUpCount = 0;
+      pulledUpForDinner = null;
+    }
+    if (
+      updates.cocktailOnlyPullUpCount === undefined &&
+      updates.pulledUpForCocktails === undefined
+    ) {
+      cocktailOnlyPullUpCount = 0;
+      pulledUpForCocktails = null;
+    }
+  }
 
-  if (updates.wantsDinner !== undefined) {
+  // Backward compatibility: derive status from bookingStatus
+  const status =
+    bookingStatus === "CONFIRMED"
+      ? "attending"
+      : bookingStatus === "WAITLIST"
+      ? "waitlist"
+      : "cancelled";
+
+  // Handle dinner status updates (wantsDinner already determined above)
+  let dinnerBookingStatus =
+    rsvp.dinner?.bookingStatus ||
+    (rsvp.dinnerStatus === "confirmed"
+      ? "CONFIRMED"
+      : rsvp.dinnerStatus === "waitlist"
+      ? "WAITLIST"
+      : null);
+  let dinnerTimeSlot = rsvp.dinner?.slotTime || rsvp.dinnerTimeSlot;
+
+  if (
+    updates.wantsDinner !== undefined ||
+    updates["dinner.bookingStatus"] !== undefined ||
+    updates.dinnerTimeSlot !== undefined
+  ) {
     // wantsDinner already updated above, but handle time slot validation
 
     if (wantsDinner) {
       // Validate time slot if provided
-      if (updates.dinnerTimeSlot) {
+      if (
+        updates.dinnerTimeSlot !== undefined ||
+        updates["dinner.slotTime"] !== undefined
+      ) {
+        const slotToUse = updates.dinnerTimeSlot || updates["dinner.slotTime"];
         const availableSlots = generateDinnerTimeSlots(event);
-        if (availableSlots.includes(updates.dinnerTimeSlot)) {
-          dinnerTimeSlot = updates.dinnerTimeSlot;
+        if (slotToUse && availableSlots.includes(slotToUse)) {
+          dinnerTimeSlot = slotToUse;
         }
       } else if (!dinnerTimeSlot && event.dinnerEnabled) {
         // Default to first available slot
@@ -784,7 +950,7 @@ export function updateRsvp(rsvpId, updates) {
         }
       }
 
-      // Recalculate dinner status
+      // Recalculate dinner bookingStatus
       if (dinnerTimeSlot) {
         const slotCounts = getDinnerSlotCounts(event.id);
         const slotData = slotCounts[dinnerTimeSlot] || {
@@ -794,59 +960,251 @@ export function updateRsvp(rsvpId, updates) {
 
         // Exclude current RSVP from counts
         const currentSlotConfirmed = rsvps
-          .filter(
-            (r) =>
+          .filter((r) => {
+            const hasDinner = r.dinner?.enabled || r.wantsDinner;
+            const slotMatches =
+              (r.dinner?.slotTime || r.dinnerTimeSlot) === dinnerTimeSlot;
+            const isConfirmed =
+              r.dinner?.bookingStatus === "CONFIRMED" ||
+              r.dinnerStatus === "confirmed";
+            return (
               r.eventId === event.id &&
-              r.wantsDinner &&
-              r.dinnerTimeSlot === dinnerTimeSlot &&
-              r.dinnerStatus === "confirmed" &&
+              hasDinner &&
+              slotMatches &&
+              isConfirmed &&
               r.id !== rsvpId
-          )
-          .reduce((sum, r) => sum + (r.dinnerPartySize || r.partySize || 1), 0);
+            );
+          })
+          .reduce(
+            (sum, r) =>
+              sum +
+              (r.dinner?.partySize || r.dinnerPartySize || r.partySize || 1),
+            0
+          );
 
-        if (event.dinnerMaxSeatsPerSlot) {
-          // Check if there's room in the slot
+        if (updates["dinner.bookingStatus"] !== undefined) {
+          dinnerBookingStatus = updates["dinner.bookingStatus"];
+        } else if (event.dinnerMaxSeatsPerSlot) {
+          // Check if there's room in the slot (all-or-nothing)
           const availableSeats =
             event.dinnerMaxSeatsPerSlot - currentSlotConfirmed;
-          if (status === "attending" && dinnerPartySize <= availableSeats) {
-            dinnerStatus = "confirmed";
+          if (
+            bookingStatus === "CONFIRMED" &&
+            dinnerPartySize <= availableSeats
+          ) {
+            dinnerBookingStatus = "CONFIRMED";
           } else {
-            if (event.dinnerOverflowAction === "cocktails") {
-              dinnerStatus = "cocktails";
-            } else if (event.dinnerOverflowAction === "both") {
-              dinnerStatus = "cocktails_waitlist";
-            } else {
-              dinnerStatus = "waitlist";
+            // Entire dinner party goes to waitlist if capacity exceeded
+            dinnerBookingStatus = "WAITLIST";
+            // If dinner goes to waitlist, entire event booking also goes to waitlist
+            if (bookingStatus === "CONFIRMED") {
+              bookingStatus = "WAITLIST";
             }
           }
         } else {
-          dinnerStatus = status === "attending" ? "confirmed" : "waitlist";
+          dinnerBookingStatus =
+            bookingStatus === "CONFIRMED" ? "CONFIRMED" : "WAITLIST";
         }
       }
     } else {
-      dinnerStatus = null;
+      dinnerBookingStatus = null;
       dinnerTimeSlot = null;
       dinnerPartySize = null;
     }
   }
+  // Backward compatibility: derive dinnerStatus from dinnerBookingStatus
+  const dinnerStatus =
+    dinnerBookingStatus === "CONFIRMED"
+      ? "confirmed"
+      : dinnerBookingStatus === "WAITLIST"
+      ? "waitlist"
+      : null;
 
-  // Calculate total unique guests
-  const totalGuests = calculateTotalGuests(
-    partySize,
-    wantsDinner ? dinnerPartySize : null
-  );
+  // Calculate total unique guests (always partySize with new model)
+  const totalGuests = partySize;
+
+  // Handle pulled up status updates
+  let dinnerPullUpCount = rsvp.dinnerPullUpCount ?? rsvp.pulledUpForDinner ?? 0;
+  let cocktailOnlyPullUpCount =
+    rsvp.cocktailOnlyPullUpCount ?? rsvp.pulledUpForCocktails ?? 0;
+
+  // Backward compatibility: also check old field names
+  let pulledUpForDinner = rsvp.pulledUpForDinner ?? null;
+  let pulledUpForCocktails = rsvp.pulledUpForCocktails ?? null;
+
+  // Update dinner check-in (new field name)
+  if (updates.dinnerPullUpCount !== undefined) {
+    // Rule: If bookingStatus !== "CONFIRMED", prevent non-zero pull-up counts
+    if (bookingStatus !== "CONFIRMED") {
+      dinnerPullUpCount = 0;
+      pulledUpForDinner = null;
+    } else {
+      const maxDinner =
+        wantsDinner && dinnerBookingStatus === "CONFIRMED"
+          ? Math.min(dinnerPartySize || 0, totalGuests)
+          : 0;
+      dinnerPullUpCount = Math.max(
+        0,
+        Math.min(maxDinner, Math.floor(Number(updates.dinnerPullUpCount) || 0))
+      );
+      // Also update backward compatibility field
+      pulledUpForDinner = dinnerPullUpCount > 0 ? dinnerPullUpCount : null;
+    }
+  } else if (updates.pulledUpForDinner !== undefined) {
+    // Backward compatibility: handle old field name
+    // Rule: If bookingStatus !== "CONFIRMED", prevent non-zero pull-up counts
+    if (bookingStatus !== "CONFIRMED") {
+      dinnerPullUpCount = 0;
+      pulledUpForDinner = null;
+    } else if (
+      updates.pulledUpForDinner === null ||
+      updates.pulledUpForDinner === 0
+    ) {
+      dinnerPullUpCount = 0;
+      pulledUpForDinner = null;
+    } else {
+      const maxDinner =
+        wantsDinner &&
+        (dinnerBookingStatus === "CONFIRMED" || dinnerStatus === "confirmed")
+          ? Math.min(dinnerPartySize || 0, totalGuests)
+          : 0;
+      dinnerPullUpCount = Math.max(
+        0,
+        Math.min(maxDinner, Math.floor(Number(updates.pulledUpForDinner) || 0))
+      );
+      pulledUpForDinner = dinnerPullUpCount > 0 ? dinnerPullUpCount : null;
+    }
+  }
+
+  // Update cocktails check-in (new field name)
+  if (updates.cocktailOnlyPullUpCount !== undefined) {
+    // Rule: If bookingStatus !== "CONFIRMED", prevent non-zero pull-up counts
+    if (bookingStatus !== "CONFIRMED") {
+      cocktailOnlyPullUpCount = 0;
+      pulledUpForCocktails = null;
+    } else {
+      const cocktailsOnly =
+        wantsDinner && dinnerBookingStatus === "CONFIRMED"
+          ? Math.max(0, totalGuests - (dinnerPartySize || 0))
+          : totalGuests;
+      cocktailOnlyPullUpCount = Math.max(
+        0,
+        Math.min(
+          cocktailsOnly,
+          Math.floor(Number(updates.cocktailOnlyPullUpCount) || 0)
+        )
+      );
+      // Also update backward compatibility field
+      pulledUpForCocktails =
+        cocktailOnlyPullUpCount > 0 ? cocktailOnlyPullUpCount : null;
+    }
+  } else if (updates.pulledUpForCocktails !== undefined) {
+    // Backward compatibility: handle old field name
+    // Rule: If bookingStatus !== "CONFIRMED", prevent non-zero pull-up counts
+    if (bookingStatus !== "CONFIRMED") {
+      cocktailOnlyPullUpCount = 0;
+      pulledUpForCocktails = null;
+    } else if (
+      updates.pulledUpForCocktails === null ||
+      updates.pulledUpForCocktails === 0
+    ) {
+      cocktailOnlyPullUpCount = 0;
+      pulledUpForCocktails = null;
+    } else {
+      const cocktailsOnly =
+        wantsDinner &&
+        (dinnerBookingStatus === "CONFIRMED" || dinnerStatus === "confirmed")
+          ? Math.max(0, totalGuests - (dinnerPartySize || 0))
+          : totalGuests;
+      cocktailOnlyPullUpCount = Math.max(
+        0,
+        Math.min(
+          cocktailsOnly,
+          Math.floor(Number(updates.pulledUpForCocktails) || 0)
+        )
+      );
+      pulledUpForCocktails =
+        cocktailOnlyPullUpCount > 0 ? cocktailOnlyPullUpCount : null;
+    }
+  }
+
+  // Backward compatibility: handle old pulledUp/pulledUpCount updates
+  if (
+    updates.pulledUp !== undefined &&
+    updates.dinnerPullUpCount === undefined &&
+    updates.cocktailOnlyPullUpCount === undefined &&
+    updates.pulledUpForDinner === undefined &&
+    updates.pulledUpForCocktails === undefined
+  ) {
+    if (!updates.pulledUp) {
+      dinnerPullUpCount = 0;
+      cocktailOnlyPullUpCount = 0;
+      pulledUpForDinner = null;
+      pulledUpForCocktails = null;
+    } else if (updates.pulledUpCount !== undefined) {
+      // Distribute the count: if they want dinner, assume it's for dinner; otherwise cocktails
+      if (
+        wantsDinner &&
+        (dinnerBookingStatus === "CONFIRMED" || dinnerStatus === "confirmed")
+      ) {
+        const dinnerMax = Math.min(dinnerPartySize || 0, totalGuests);
+        dinnerPullUpCount = Math.min(
+          dinnerMax,
+          Math.floor(Number(updates.pulledUpCount) || totalGuests)
+        );
+        cocktailOnlyPullUpCount = Math.max(
+          0,
+          Math.floor(Number(updates.pulledUpCount) || totalGuests) -
+            dinnerPullUpCount
+        );
+        pulledUpForDinner = dinnerPullUpCount > 0 ? dinnerPullUpCount : null;
+        pulledUpForCocktails =
+          cocktailOnlyPullUpCount > 0 ? cocktailOnlyPullUpCount : null;
+      } else {
+        cocktailOnlyPullUpCount = Math.min(
+          totalGuests,
+          Math.floor(Number(updates.pulledUpCount) || totalGuests)
+        );
+        pulledUpForCocktails =
+          cocktailOnlyPullUpCount > 0 ? cocktailOnlyPullUpCount : null;
+      }
+    }
+  }
+
+  // Derive pulledUp and pulledUpCount for backward compatibility
+  const pulledUp = dinnerPullUpCount > 0 || cocktailOnlyPullUpCount > 0;
+  const pulledUpCount = pulledUp
+    ? dinnerPullUpCount + cocktailOnlyPullUpCount
+    : null;
 
   // Update the RSVP
   rsvps[idx] = {
     ...rsvp,
-    status,
+    bookingStatus,
+    status, // Backward compatibility
     plusOnes,
     partySize,
+    dinner: wantsDinner
+      ? {
+          enabled: true,
+          partySize: dinnerPartySize,
+          slotTime: dinnerTimeSlot,
+          bookingStatus: dinnerBookingStatus,
+        }
+      : null,
+    // Backward compatibility fields
     wantsDinner,
     dinnerStatus,
     dinnerTimeSlot,
     dinnerPartySize: wantsDinner ? dinnerPartySize : null,
     totalGuests, // Recalculated and stored
+    dinnerPullUpCount,
+    cocktailOnlyPullUpCount,
+    // Backward compatibility fields
+    pulledUp,
+    pulledUpCount,
+    pulledUpForDinner,
+    pulledUpForCocktails,
   };
 
   // Return enriched RSVP with person data

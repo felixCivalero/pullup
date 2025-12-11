@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useToast } from "../components/Toast";
 
-const API_BASE = "http://localhost:3001";
+import { authenticatedFetch, API_BASE } from "../lib/api.js";
 
 function isNetworkError(error) {
   return (
@@ -64,7 +64,7 @@ export function EventGuestsPage() {
     async function load() {
       setNetworkError(false);
       try {
-        const res = await fetch(`${API_BASE}/host/events/${id}/guests`);
+        const res = await authenticatedFetch(`/host/events/${id}/guests`);
         if (!res.ok) throw new Error("Failed to load guests");
         const data = await res.json();
         setEvent(data.event);
@@ -158,7 +158,7 @@ export function EventGuestsPage() {
       setTimeout(async () => {
         if (!isMounted) return;
         try {
-          const res = await fetch(`${API_BASE}/host/events/${id}/guests`);
+          const res = await authenticatedFetch(`/host/events/${id}/guests`);
           if (res.ok && isMounted) {
             const data = await res.json();
             setGuests(data.guests || []);
@@ -191,11 +191,14 @@ export function EventGuestsPage() {
 
   async function handleUpdateGuest(rsvpId, updates) {
     try {
-      const res = await fetch(`${API_BASE}/host/events/${id}/rsvps/${rsvpId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
+      const res = await authenticatedFetch(
+        `/host/events/${id}/rsvps/${rsvpId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        }
+      );
 
       if (!res.ok) {
         const error = await res.json();
@@ -280,14 +283,17 @@ export function EventGuestsPage() {
     cocktailOnlyPullUpCount
   ) {
     try {
-      const res = await fetch(`${API_BASE}/host/events/${id}/rsvps/${rsvpId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pulledUpForDinner: pulledUpForDinner || null,
-          pulledUpForCocktails: pulledUpForCocktails || null,
-        }),
-      });
+      const res = await authenticatedFetch(
+        `/host/events/${id}/rsvps/${rsvpId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pulledUpForDinner: pulledUpForDinner || null,
+            pulledUpForCocktails: pulledUpForCocktails || null,
+          }),
+        }
+      );
 
       if (!res.ok) {
         throw new Error("Failed to update pulled up status");

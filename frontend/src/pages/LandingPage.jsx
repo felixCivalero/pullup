@@ -1,9 +1,30 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
 
 export function LandingPage() {
   const navigate = useNavigate();
+  const { signInWithGoogle, user } = useAuth();
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [signingIn, setSigningIn] = useState(false);
+
+  // If user is already logged in, redirect to home
+  useEffect(() => {
+    if (user) {
+      navigate("/home");
+    }
+  }, [user, navigate]);
+
+  const handleSignIn = async () => {
+    try {
+      setSigningIn(true);
+      await signInWithGoogle();
+      // OAuth redirect will happen automatically
+    } catch (error) {
+      console.error("Sign in error:", error);
+      setSigningIn(false);
+    }
+  };
 
   useEffect(() => {
     function handleMouseMove(e) {
@@ -138,7 +159,8 @@ export function LandingPage() {
               }}
             >
               <button
-                onClick={() => navigate("/home")}
+                onClick={handleSignIn}
+                disabled={signingIn}
                 style={{
                   padding: "16px 32px",
                   borderRadius: "999px",
@@ -148,49 +170,62 @@ export function LandingPage() {
                   color: "#fff",
                   fontWeight: 700,
                   fontSize: "16px",
-                  cursor: "pointer",
+                  cursor: signingIn ? "wait" : "pointer",
                   boxShadow: "0 10px 30px rgba(139, 92, 246, 0.4)",
                   transition: "all 0.3s ease",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
+                  opacity: signingIn ? 0.7 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow =
-                    "0 15px 40px rgba(139, 92, 246, 0.6)";
+                  if (!signingIn) {
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow =
+                      "0 15px 40px rgba(139, 92, 246, 0.6)";
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow =
-                    "0 10px 30px rgba(139, 92, 246, 0.4)";
+                  if (!signingIn) {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow =
+                      "0 10px 30px rgba(139, 92, 246, 0.4)";
+                  }
                 }}
               >
-                Start free now
+                {signingIn ? "Signing in..." : "Start free now"}
               </button>
               <button
-                onClick={() => navigate("/home")}
+                onClick={handleSignIn}
+                disabled={signingIn}
                 style={{
                   padding: "16px 32px",
                   borderRadius: "999px",
                   border: "1px solid rgba(255,255,255,0.2)",
-                  background: "rgba(255,255,255,0.05)",
+                  background: signingIn
+                    ? "rgba(255,255,255,0.1)"
+                    : "rgba(255,255,255,0.05)",
                   color: "#fff",
                   fontWeight: 600,
                   fontSize: "16px",
-                  cursor: "pointer",
+                  cursor: signingIn ? "wait" : "pointer",
                   transition: "all 0.3s ease",
                   backdropFilter: "blur(10px)",
+                  opacity: signingIn ? 0.7 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.background = "rgba(255,255,255,0.1)";
-                  e.target.style.borderColor = "rgba(255,255,255,0.3)";
+                  if (!signingIn) {
+                    e.target.style.background = "rgba(255,255,255,0.1)";
+                    e.target.style.borderColor = "rgba(255,255,255,0.3)";
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.background = "rgba(255,255,255,0.05)";
-                  e.target.style.borderColor = "rgba(255,255,255,0.2)";
+                  if (!signingIn) {
+                    e.target.style.background = "rgba(255,255,255,0.05)";
+                    e.target.style.borderColor = "rgba(255,255,255,0.2)";
+                  }
                 }}
               >
-                Sign in
+                {signingIn ? "Signing in..." : "Sign in with Google"}
               </button>
             </div>
 

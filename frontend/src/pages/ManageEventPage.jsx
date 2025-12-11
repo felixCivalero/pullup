@@ -4,7 +4,7 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 
-const API_BASE = "http://localhost:3001";
+import { authenticatedFetch, publicFetch, API_BASE } from "../lib/api.js";
 
 function isNetworkError(error) {
   return (
@@ -721,7 +721,7 @@ export function ManageEventPage() {
     async function load() {
       setNetworkError(false);
       try {
-        const res = await fetch(`${API_BASE}/host/events/${id}`);
+        const res = await authenticatedFetch(`/host/events/${id}`);
         if (!res.ok) throw new Error("Failed to load event");
         const data = await res.json();
 
@@ -803,7 +803,9 @@ export function ManageEventPage() {
 
         // Fetch guests data for Overview tab
         try {
-          const guestsRes = await fetch(`${API_BASE}/host/events/${id}/guests`);
+          const guestsRes = await authenticatedFetch(
+            `/host/events/${id}/guests`
+          );
           if (guestsRes.ok) {
             const guestsData = await guestsRes.json();
             setGuests(guestsData.guests || []);
@@ -812,8 +814,8 @@ export function ManageEventPage() {
             // Load dinner slots if dinner is enabled
             if (data.dinnerEnabled && data.slug) {
               try {
-                const slotsRes = await fetch(
-                  `${API_BASE}/events/${data.slug}/dinner-slots`
+                const slotsRes = await publicFetch(
+                  `/events/${data.slug}/dinner-slots`
                 );
                 if (slotsRes.ok) {
                   const slotsData = await slotsRes.json();
@@ -1062,7 +1064,7 @@ export function ManageEventPage() {
           : body.imageUrl,
       });
 
-      const res = await fetch(`${API_BASE}/host/events/${id}`, {
+      const res = await authenticatedFetch(`/host/events/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

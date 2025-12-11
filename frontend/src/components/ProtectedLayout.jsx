@@ -1,18 +1,57 @@
 // frontend/src/components/ProtectedLayout.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 export function ProtectedLayout() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, loading, signOut } = useAuth();
+
+  // Redirect to landing page if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/");
+    }
+  }, [user, loading, navigate]);
 
   function handleNav(path) {
     setOpen(false);
     navigate(path);
   }
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate("/");
+    } catch (error) {
+      console.error("Sign out error:", error);
+    }
+  };
+
   const isHome = location.pathname === "/home";
+
+  // Show loading state while checking auth
+  if (loading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ color: "#fff" }}>Loading...</div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (redirect will happen)
+  if (!user) {
+    return null;
+  }
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -50,33 +89,100 @@ export function ProtectedLayout() {
           PullUp {isHome ? "· Home" : ""}
         </button>
 
-        <button
-          onClick={() => handleNav("/create")}
-          style={{
-            padding: "8px 16px",
-            borderRadius: "999px",
-            border: "none",
-            background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: "12px",
-            letterSpacing: "0.05em",
-            textTransform: "uppercase",
-            cursor: "pointer",
-            transition: "all 0.3s ease",
-            boxShadow: "0 4px 12px rgba(139, 92, 246, 0.3)",
-          }}
-          onMouseEnter={(e) => {
-            e.target.style.transform = "translateY(-1px)";
-            e.target.style.boxShadow = "0 6px 16px rgba(139, 92, 246, 0.4)";
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.transform = "translateY(0)";
-            e.target.style.boxShadow = "0 4px 12px rgba(139, 92, 246, 0.3)";
-          }}
-        >
-          + create event
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {/* User info */}
+          {user && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {user.user_metadata?.avatar_url ? (
+                <img
+                  src={user.user_metadata.avatar_url}
+                  alt={user.user_metadata?.full_name || user.email}
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    background:
+                      "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontWeight: 600,
+                    fontSize: "12px",
+                  }}
+                >
+                  {(user.user_metadata?.full_name ||
+                    user.email ||
+                    "U")[0].toUpperCase()}
+                </div>
+              )}
+              <span style={{ fontSize: "12px", opacity: 0.8 }}>
+                {user.user_metadata?.full_name || user.email?.split("@")[0]}
+              </span>
+            </div>
+          )}
+
+          <button
+            onClick={() => handleNav("/create")}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "999px",
+              border: "none",
+              background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: "12px",
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+              transition: "all 0.3s ease",
+              boxShadow: "0 4px 12px rgba(139, 92, 246, 0.3)",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = "translateY(-1px)";
+              e.target.style.boxShadow = "0 6px 16px rgba(139, 92, 246, 0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = "translateY(0)";
+              e.target.style.boxShadow = "0 4px 12px rgba(139, 92, 246, 0.3)";
+            }}
+          >
+            + create event
+          </button>
+
+          {/* Logout button */}
+          <button
+            onClick={handleSignOut}
+            style={{
+              padding: "8px 12px",
+              borderRadius: "999px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.05)",
+              color: "#fff",
+              fontWeight: 500,
+              fontSize: "11px",
+              cursor: "pointer",
+              transition: "all 0.3s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "rgba(255,255,255,0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "rgba(255,255,255,0.05)";
+            }}
+          >
+            Sign out
+          </button>
+        </div>
 
         {/* Hamburger */}
         {/* <button

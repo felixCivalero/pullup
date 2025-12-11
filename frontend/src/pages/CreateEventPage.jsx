@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 
-const API_BASE = "http://localhost:3001";
+import { authenticatedFetch } from "../lib/api.js";
 
 function isNetworkError(error) {
   return (
@@ -473,9 +473,8 @@ export function CreateEventPage() {
         requestBody.imageUrl = imageUrl;
       }
 
-      const res = await fetch(`${API_BASE}/events`, {
+      const res = await authenticatedFetch("/events", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
 

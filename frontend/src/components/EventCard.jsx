@@ -9,7 +9,7 @@
 //
 import { useState, useEffect } from "react";
 
-const API_BASE = "http://localhost:3001";
+import { publicFetch } from "../lib/api.js";
 
 const inputStyle = {
   width: "100%",
@@ -124,7 +124,7 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
   useEffect(() => {
     if (event.dinnerEnabled && event.slug) {
       setLoadingSlots(true);
-      fetch(`${API_BASE}/events/${event.slug}/dinner-slots`)
+      publicFetch(`/events/${event.slug}/dinner-slots`)
         .then((res) => res.json())
         .then((data) => {
           setDinnerSlots(data.slots || []);

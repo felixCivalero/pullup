@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE = "http://localhost:3001";
+import { authenticatedFetch } from "../lib/api.js";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -34,7 +34,7 @@ export function CrmTab() {
   useEffect(() => {
     async function loadPeople() {
       try {
-        const res = await fetch(`${API_BASE}/host/crm/people`);
+        const res = await authenticatedFetch("/host/crm/people");
         if (!res.ok) throw new Error("Failed to load people");
         const data = await res.json();
         setPeople(data.people || []);
@@ -57,7 +57,7 @@ export function CrmTab() {
   });
 
   if (loading) {
-  return (
+    return (
       <div
         style={{
           textAlign: "center",

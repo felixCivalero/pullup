@@ -9,7 +9,7 @@ import { SettingsTab } from "../components/HomeSettingsTab";
 import { IntegrationsTab } from "../components/HomeIntegrationsTab";
 import { CrmTab } from "../components/HomeCrmTab";
 
-const API_BASE = "http://localhost:3001";
+import { authenticatedFetch } from "../lib/api.js";
 
 function isNetworkError(error) {
   return (
@@ -159,7 +159,7 @@ export function HomePage() {
     async function loadEvents() {
       setNetworkError(false);
       try {
-        const res = await fetch(`${API_BASE}/events`);
+        const res = await authenticatedFetch("/events");
         if (!res.ok) throw new Error("Failed to load events");
         const data = await res.json();
         setEvents(data);

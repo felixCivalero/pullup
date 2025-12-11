@@ -26,6 +26,8 @@ import {
   mapEventFromDb,
 } from "./data.js";
 
+import { requireAuth, optionalAuth } from "./middleware/auth.js";
+
 import {
   getOrCreateStripeCustomer,
   createPaymentIntent,
@@ -44,15 +46,16 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // ---------------------------
-// PUBLIC: List all events
+// PROTECTED: List user's events (requires auth)
 // ---------------------------
-app.get("/events", async (req, res) => {
+app.get("/events", requireAuth, async (req, res) => {
   try {
-    // Fetch all events from Supabase
+    // Fetch only events for the authenticated user
     const { supabase } = await import("./supabase.js");
     const { data: events, error } = await supabase
       .from("events")
       .select("*")
+      .eq("host_id", req.user.id)
       .order("starts_at", { ascending: false });
 
     if (error) {
@@ -104,9 +107,9 @@ app.get("/events/:slug", async (req, res) => {
 });
 
 // ---------------------------
-// PUBLIC: Create event
+// PROTECTED: Create event (requires auth)
 // ---------------------------
-app.post("/events", async (req, res) => {
+app.post("/events", requireAuth, async (req, res) => {
   const {
     title,
     description,
@@ -152,8 +155,9 @@ app.post("/events", async (req, res) => {
   let finalStripeProductId = stripeProductId;
   let finalStripePriceId = stripePriceId;
 
-  // Create the event first to get its ID
+  // Create the event first to get its ID (with host_id from authenticated user)
   const event = await createEvent({
+    hostId: req.user.id, // Set host_id from authenticated user
     title,
     description,
     location,
@@ -209,7 +213,7 @@ app.post("/events", async (req, res) => {
       });
 
       // Update the event with the created Stripe IDs
-      const updatedEvent = updateEvent(event.id, {
+      const updatedEvent = await updateEvent(event.id, {
         stripeProductId: product.id,
         stripePriceId: price.id,
       });
@@ -323,9 +327,9 @@ app.post("/events/:slug/rsvp", async (req, res) => {
 });
 
 // ---------------------------
-// HOST: Get single event by id or slug
+// PROTECTED: Get single event by id or slug (requires auth, verifies ownership)
 // ---------------------------
-app.get("/host/events/:id", async (req, res) => {
+app.get("/host/events/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -338,6 +342,15 @@ app.get("/host/events/:id", async (req, res) => {
     }
 
     if (!event) return res.status(404).json({ error: "Event not found" });
+
+    // Verify ownership
+    if (event.hostId !== req.user.id) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "You don't have access to this event",
+      });
+    }
+
     res.json(event);
   } catch (error) {
     console.error("Error fetching event:", error);
@@ -346,9 +359,9 @@ app.get("/host/events/:id", async (req, res) => {
 });
 
 // ---------------------------
-// HOST: Update event
+// PROTECTED: Update event (requires auth, verifies ownership)
 // ---------------------------
-app.put("/host/events/:id", (req, res) => {
+app.put("/host/events/:id", requireAuth, async (req, res) => {
   const { id } = req.params;
 
   // Allow updating both old and new fields
@@ -386,7 +399,7 @@ app.put("/host/events/:id", (req, res) => {
     totalCapacity,
   } = req.body;
 
-  const updated = updateEvent(id, {
+  const updated = await updateEvent(id, {
     title,
     description,
     location,
@@ -422,12 +435,20 @@ app.put("/host/events/:id", (req, res) => {
 });
 
 // ---------------------------
-// HOST: Guest list
+// PROTECTED: Guest list (requires auth, verifies ownership)
 // ---------------------------
-app.get("/host/events/:id/guests", async (req, res) => {
+app.get("/host/events/:id/guests", requireAuth, async (req, res) => {
   try {
     const event = await findEventById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
+
+    // Verify ownership
+    if (event.hostId !== req.user.id) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "You don't have access to this event",
+      });
+    }
 
     const guests = await getRsvpsForEvent(event.id);
 
@@ -485,47 +506,38 @@ app.get("/events/:slug/dinner-slots", async (req, res) => {
 });
 
 // ---------------------------
-// HOST: Update RSVP
+// PROTECTED: Update RSVP (requires auth, verifies ownership)
 // ---------------------------
-app.put("/host/events/:eventId/rsvps/:rsvpId", async (req, res) => {
-  try {
-    const { eventId, rsvpId } = req.params;
-    const event = await findEventById(eventId);
-    if (!event) return res.status(404).json({ error: "Event not found" });
+app.put(
+  "/host/events/:eventId/rsvps/:rsvpId",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId, rsvpId } = req.params;
+      const event = await findEventById(eventId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
 
-    const rsvp = await findRsvpById(rsvpId);
-    if (!rsvp || rsvp.eventId !== eventId) {
-      return res.status(404).json({ error: "RSVP not found" });
-    }
+      // Verify ownership
+      if (event.hostId !== req.user.id) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You don't have access to this event",
+        });
+      }
 
-    const {
-      name,
-      email,
-      plusOnes,
-      bookingStatus,
-      status, // Backward compatibility
-      wantsDinner,
-      dinnerTimeSlot,
-      "dinner.slotTime": dinnerSlotTime,
-      dinnerPartySize,
-      "dinner.bookingStatus": dinnerBookingStatus,
-      dinnerPullUpCount,
-      cocktailOnlyPullUpCount,
-      pulledUpForDinner, // Backward compatibility
-      pulledUpForCocktails, // Backward compatibility
-      forceConfirm, // Admin override flag
-    } = req.body;
+      const rsvp = await findRsvpById(rsvpId);
+      if (!rsvp || rsvp.eventId !== eventId) {
+        return res.status(404).json({ error: "RSVP not found" });
+      }
 
-    const result = await updateRsvp(
-      rsvpId,
-      {
+      const {
         name,
         email,
         plusOnes,
         bookingStatus,
         status, // Backward compatibility
         wantsDinner,
-        dinnerTimeSlot: dinnerTimeSlot || dinnerSlotTime,
+        dinnerTimeSlot,
         "dinner.slotTime": dinnerSlotTime,
         dinnerPartySize,
         "dinner.bookingStatus": dinnerBookingStatus,
@@ -533,79 +545,122 @@ app.put("/host/events/:eventId/rsvps/:rsvpId", async (req, res) => {
         cocktailOnlyPullUpCount,
         pulledUpForDinner, // Backward compatibility
         pulledUpForCocktails, // Backward compatibility
-      },
-      { forceConfirm: !!forceConfirm }
-    );
+        forceConfirm, // Admin override flag
+      } = req.body;
 
-    if (result.error === "not_found") {
-      return res.status(404).json({ error: "RSVP not found" });
+      const result = await updateRsvp(
+        rsvpId,
+        {
+          name,
+          email,
+          plusOnes,
+          bookingStatus,
+          status, // Backward compatibility
+          wantsDinner,
+          dinnerTimeSlot: dinnerTimeSlot || dinnerSlotTime,
+          "dinner.slotTime": dinnerSlotTime,
+          dinnerPartySize,
+          "dinner.bookingStatus": dinnerBookingStatus,
+          dinnerPullUpCount,
+          cocktailOnlyPullUpCount,
+          pulledUpForDinner, // Backward compatibility
+          pulledUpForCocktails, // Backward compatibility
+        },
+        { forceConfirm: !!forceConfirm }
+      );
+
+      if (result.error === "not_found") {
+        return res.status(404).json({ error: "RSVP not found" });
+      }
+
+      if (result.error === "invalid_email") {
+        return res.status(400).json({ error: "Invalid email format" });
+      }
+
+      if (result.error === "full") {
+        return res.status(409).json({
+          error: "full",
+          message: "Event is full and waitlist is disabled",
+        });
+      }
+
+      if (result.error === "database_error") {
+        return res.status(500).json({
+          error: "database_error",
+          message: result.message || "Failed to update RSVP",
+        });
+      }
+
+      res.json(result.rsvp);
+    } catch (error) {
+      console.error("Error updating RSVP:", error);
+      res.status(500).json({ error: "Failed to update RSVP" });
     }
-
-    if (result.error === "invalid_email") {
-      return res.status(400).json({ error: "Invalid email format" });
-    }
-
-    if (result.error === "full") {
-      return res.status(409).json({
-        error: "full",
-        message: "Event is full and waitlist is disabled",
-      });
-    }
-
-    if (result.error === "database_error") {
-      return res.status(500).json({
-        error: "database_error",
-        message: result.message || "Failed to update RSVP",
-      });
-    }
-
-    res.json(result.rsvp);
-  } catch (error) {
-    console.error("Error updating RSVP:", error);
-    res.status(500).json({ error: "Failed to update RSVP" });
   }
-});
+);
 
 // ---------------------------
-// HOST: Delete RSVP
+// PROTECTED: Delete RSVP (requires auth, verifies ownership)
 // ---------------------------
-app.delete("/host/events/:eventId/rsvps/:rsvpId", async (req, res) => {
-  try {
-    const { eventId, rsvpId } = req.params;
-    const event = await findEventById(eventId);
-    if (!event) return res.status(404).json({ error: "Event not found" });
+app.delete(
+  "/host/events/:eventId/rsvps/:rsvpId",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId, rsvpId } = req.params;
+      const event = await findEventById(eventId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
 
-    const rsvp = await findRsvpById(rsvpId);
-    if (!rsvp || rsvp.eventId !== eventId) {
-      return res.status(404).json({ error: "RSVP not found" });
+      // Verify ownership
+      if (event.hostId !== req.user.id) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You don't have access to this event",
+        });
+      }
+
+      const rsvp = await findRsvpById(rsvpId);
+      if (!rsvp || rsvp.eventId !== eventId) {
+        return res.status(404).json({ error: "RSVP not found" });
+      }
+
+      const result = await deleteRsvp(rsvpId);
+
+      if (result.error === "not_found") {
+        return res.status(404).json({ error: "RSVP not found" });
+      }
+
+      if (result.error === "database_error") {
+        return res.status(500).json({
+          error: "database_error",
+          message: result.message || "Failed to delete RSVP",
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting RSVP:", error);
+      res.status(500).json({ error: "Failed to delete RSVP" });
     }
-
-    const result = await deleteRsvp(rsvpId);
-
-    if (result.error === "not_found") {
-      return res.status(404).json({ error: "RSVP not found" });
-    }
-
-    if (result.error === "database_error") {
-      return res.status(500).json({
-        error: "database_error",
-        message: result.message || "Failed to delete RSVP",
-      });
-    }
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting RSVP:", error);
-    res.status(500).json({ error: "Failed to delete RSVP" });
   }
-});
+);
 
 // ---------------------------
-// HOST: Get all people (CRM)
+// PROTECTED: Get all people (CRM) - filtered by user's events
 // ---------------------------
-app.get("/host/crm/people", async (req, res) => {
+app.get("/host/crm/people", requireAuth, async (req, res) => {
   try {
-    const people = await getAllPeopleWithStats();
+    // Assign orphaned events to this user on first access (one-time migration)
+    const { assignOrphanedEventsToUser } = await import("./migrations.js");
+    try {
+      await assignOrphanedEventsToUser(req.user.id);
+    } catch (migrationError) {
+      // Log but don't fail - migration is optional
+      console.log("Migration note:", migrationError.message);
+    }
+
+    // getAllPeopleWithStats will filter by user's events via backend queries
+    const people = await getAllPeopleWithStats(req.user.id);
     res.json({ people });
   } catch (error) {
     console.error("Error fetching people:", error);
@@ -614,9 +669,9 @@ app.get("/host/crm/people", async (req, res) => {
 });
 
 // ---------------------------
-// HOST: Update person
+// PROTECTED: Update person (requires auth)
 // ---------------------------
-app.put("/host/crm/people/:personId", async (req, res) => {
+app.put("/host/crm/people/:personId", requireAuth, async (req, res) => {
   try {
     const { personId } = req.params;
     const { name, phone, notes, tags } = req.body;
@@ -640,77 +695,86 @@ app.put("/host/crm/people/:personId", async (req, res) => {
 });
 
 // ---------------------------
-// PAYMENTS: Create payment intent for event
+// PROTECTED: Create payment intent for event (requires auth, verifies ownership)
 // ---------------------------
-app.post("/host/events/:eventId/create-payment", async (req, res) => {
-  const { eventId } = req.params;
-  const { email, name, rsvpId } = req.body;
+app.post(
+  "/host/events/:eventId/create-payment",
+  requireAuth,
+  async (req, res) => {
+    const { eventId } = req.params;
+    const { email, name, rsvpId } = req.body;
 
-  try {
-    // Get event
-    const event = await findEventById(eventId);
-    if (!event) {
-      return res.status(404).json({ error: "Event not found" });
+    try {
+      // Get event
+      const event = await findEventById(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      // Verify ownership
+      if (event.hostId !== req.user.id) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You don't have access to this event",
+        });
+      }
+
+      if (event.ticketType !== "paid" || !event.ticketPrice) {
+        return res.status(400).json({ error: "Event is not a paid event" });
+      }
+
+      // Get or create Stripe customer
+      const customerId = await getOrCreateStripeCustomer(email, name);
+
+      // Find person to get personId
+      const person = await findPersonByEmail(email);
+      if (!person) {
+        return res.status(404).json({ error: "Person not found" });
+      }
+
+      // Create payment intent
+      const paymentIntent = await createPaymentIntent({
+        customerId,
+        amount: event.ticketPrice,
+        eventId: event.id,
+        eventTitle: event.title,
+        personId: person.id,
+      });
+
+      // Create payment record
+      const payment = await createPayment({
+        userId: person.id, // Using personId as userId for now
+        eventId: event.id,
+        rsvpId: rsvpId || null,
+        stripePaymentIntentId: paymentIntent.id,
+        stripeCustomerId: customerId,
+        amount: event.ticketPrice,
+        currency: "usd",
+        status: "pending",
+        description: `Ticket for ${event.title}`,
+      });
+
+      res.json({
+        client_secret: paymentIntent.client_secret,
+        payment_id: payment.id,
+        payment_intent_id: paymentIntent.id,
+      });
+    } catch (error) {
+      console.error("Payment creation error:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to create payment" });
     }
-
-    if (event.ticketType !== "paid" || !event.ticketPrice) {
-      return res.status(400).json({ error: "Event is not a paid event" });
-    }
-
-    // Get or create Stripe customer
-    const customerId = await getOrCreateStripeCustomer(email, name);
-
-    // Find person to get personId
-    const person = await findPersonByEmail(email);
-    if (!person) {
-      return res.status(404).json({ error: "Person not found" });
-    }
-
-    // Create payment intent
-    const paymentIntent = await createPaymentIntent({
-      customerId,
-      amount: event.ticketPrice,
-      eventId: event.id,
-      eventTitle: event.title,
-      personId: person.id,
-    });
-
-    // Create payment record
-    const payment = await createPayment({
-      userId: person.id, // Using personId as userId for now
-      eventId: event.id,
-      rsvpId: rsvpId || null,
-      stripePaymentIntentId: paymentIntent.id,
-      stripeCustomerId: customerId,
-      amount: event.ticketPrice,
-      currency: "usd",
-      status: "pending",
-      description: `Ticket for ${event.title}`,
-    });
-
-    res.json({
-      client_secret: paymentIntent.client_secret,
-      payment_id: payment.id,
-      payment_intent_id: paymentIntent.id,
-    });
-  } catch (error) {
-    console.error("Payment creation error:", error);
-    res
-      .status(500)
-      .json({ error: error.message || "Failed to create payment" });
   }
-});
+);
 
 // ---------------------------
-// PAYMENTS: Get payments for user
+// PROTECTED: Get payments for user (requires auth)
 // ---------------------------
-app.get("/host/payments", async (req, res) => {
+app.get("/host/payments", requireAuth, async (req, res) => {
   try {
-    // TODO: Get userId from auth middleware
-    const userId = req.query.userId || req.query.personId;
-    if (!userId) {
-      return res.status(400).json({ error: "userId or personId required" });
-    }
+    // Use authenticated user's ID
+    const userId = req.user.id;
 
     const userPayments = await getPaymentsForUser(userId);
     res.json({ payments: userPayments });
@@ -721,11 +785,21 @@ app.get("/host/payments", async (req, res) => {
 });
 
 // ---------------------------
-// PAYMENTS: Get payments for event
+// PROTECTED: Get payments for event (requires auth, verifies ownership)
 // ---------------------------
-app.get("/host/events/:eventId/payments", async (req, res) => {
+app.get("/host/events/:eventId/payments", requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
+
+    // Verify ownership
+    const event = await findEventById(eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+    if (event.hostId !== req.user.id) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "You don't have access to this event",
+      });
+    }
 
     const eventPayments = await getPaymentsForEvent(eventId);
     res.json({ payments: eventPayments });

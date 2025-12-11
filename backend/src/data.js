@@ -65,6 +65,7 @@ async function ensureUniqueSlug(baseSlug) {
 export function mapEventFromDb(dbEvent) {
   return {
     id: dbEvent.id,
+    hostId: dbEvent.host_id, // Include host_id for ownership checks
     slug: dbEvent.slug,
     title: dbEvent.title,
     description: dbEvent.description,
@@ -102,6 +103,7 @@ export function mapEventFromDb(dbEvent) {
 // Helper: Map application event updates to database format
 function mapEventToDb(eventData) {
   const dbData = {};
+  if (eventData.hostId !== undefined) dbData.host_id = eventData.hostId;
   if (eventData.slug !== undefined) dbData.slug = eventData.slug;
   if (eventData.title !== undefined) dbData.title = eventData.title;
   if (eventData.description !== undefined)
@@ -156,6 +158,7 @@ function mapEventToDb(eventData) {
 // Event CRUD
 // ---------------------------
 export async function createEvent({
+  hostId, // Required: User ID from authenticated user
   title,
   description,
   location,
@@ -190,10 +193,14 @@ export async function createEvent({
   foodCapacity = null,
   totalCapacity = null,
 }) {
+  if (!hostId) {
+    throw new Error("hostId is required to create an event");
+  }
   const baseSlug = slugify(title || "event");
   const slug = await ensureUniqueSlug(baseSlug);
 
   const eventData = {
+    hostId, // Set host_id from authenticated user
     slug,
     title,
     description,
@@ -643,9 +650,25 @@ export async function updatePersonStripeCustomerId(personId, stripeCustomerId) {
   return { person: mapPersonFromDb(data) };
 }
 
-// Get all people with their event statistics
-export async function getAllPeopleWithStats() {
-  // Fetch all people
+// Get all people with their event statistics (filtered by user's events)
+export async function getAllPeopleWithStats(userId) {
+  if (!userId) {
+    return [];
+  }
+
+  // First, get all event IDs for this user
+  const { data: userEvents, error: eventsError } = await supabase
+    .from("events")
+    .select("id")
+    .eq("host_id", userId);
+
+  if (eventsError || !userEvents || userEvents.length === 0) {
+    return [];
+  }
+
+  const eventIds = userEvents.map((e) => e.id);
+
+  // Fetch all people who have RSVPs for this user's events
   const { data: allPeople, error: peopleError } = await supabase
     .from("people")
     .select("*")
@@ -656,9 +679,11 @@ export async function getAllPeopleWithStats() {
     return [];
   }
 
-  // Fetch all RSVPs with event data
-  const { data: allRsvps, error: rsvpsError } = await supabase.from("rsvps")
-    .select(`
+  // Fetch RSVPs only for this user's events
+  const { data: allRsvps, error: rsvpsError } = await supabase
+    .from("rsvps")
+    .select(
+      `
       *,
       events:event_id (
         id,
@@ -666,7 +691,9 @@ export async function getAllPeopleWithStats() {
         slug,
         starts_at
       )
-    `);
+    `
+    )
+    .in("event_id", eventIds);
 
   if (rsvpsError) {
     console.error("Error fetching RSVPs:", rsvpsError);
@@ -682,8 +709,14 @@ export async function getAllPeopleWithStats() {
     rsvpsByPerson[rsvp.person_id].push(rsvp);
   });
 
+  // Get unique person IDs from RSVPs (only people who RSVP'd to user's events)
+  const personIdsWithRsvps = new Set(allRsvps.map((r) => r.person_id));
+
+  // Filter people to only those who have RSVPs for this user's events
+  const relevantPeople = allPeople.filter((p) => personIdsWithRsvps.has(p.id));
+
   // Calculate stats for each person
-  const peopleWithStats = allPeople.map((dbPerson) => {
+  const peopleWithStats = relevantPeople.map((dbPerson) => {
     const personRsvps = rsvpsByPerson[dbPerson.id] || [];
 
     const eventsAttended = personRsvps.filter(

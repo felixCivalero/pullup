@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import { EventCard } from "../components/EventCard";
 import { useToast } from "../components/Toast";
 
-const API_BASE = "http://localhost:3001";
+import { publicFetch } from "../lib/api.js";
 
 function isNetworkError(error) {
   return (
@@ -28,7 +28,7 @@ export function EventPage() {
       setLoading(true);
       setNotFound(false);
       try {
-        const res = await fetch(`${API_BASE}/events/${slug}`);
+        const res = await publicFetch(`/events/${slug}`);
         if (res.status === 404) {
           setNotFound(true);
           setEvent(null);
@@ -109,7 +109,7 @@ export function EventPage() {
   async function handleRsvpSubmit(data) {
     setRsvpLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/events/${event.slug}/rsvp`, {
+      const res = await publicFetch(`/events/${event.slug}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -199,7 +199,7 @@ export function EventPage() {
       // Refetch event data to update capacity after RSVP
       // This updates the event state which will cause EventCard to re-render with new capacity
       try {
-        const eventRes = await fetch(`${API_BASE}/events/${event.slug}`);
+        const eventRes = await publicFetch(`/events/${event.slug}`);
         if (eventRes.ok) {
           const updatedEvent = await eventRes.json();
           setEvent(updatedEvent);

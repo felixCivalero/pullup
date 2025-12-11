@@ -119,7 +119,10 @@ export function EventPage() {
         const err = await res.json().catch(() => ({}));
 
         if (res.status === 409 && err.error === "full") {
-          showToast("Event is full and waitlist is disabled.", "error");
+          showToast(
+            "Event is full and waitlist is disabled. Please try another event.",
+            "error"
+          );
           return false;
         }
 

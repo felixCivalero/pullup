@@ -30,29 +30,35 @@
 #### Edge Cases to Test:
 
 - [ ] **Cocktail capacity full, dinner available**
+
   - User books dinner party → Should go to waitlist for cocktails
   - User books cocktails-only → Should go to waitlist
   - Verify all-or-nothing behavior
 
 - [ ] **Dinner capacity full, cocktails available**
+
   - User books dinner party → Should go to waitlist for dinner
   - User books cocktails-only → Should be confirmed
   - Verify all-or-nothing behavior
 
 - [ ] **Both capacities full**
+
   - Any booking → Should go to waitlist
   - Verify clear messaging
 
 - [ ] **Waitlist disabled, capacity exceeded**
+
   - Should show error, not allow booking
   - Verify clear error message
 
 - [ ] **Dinner slot full, other slots available**
+
   - User selects full slot → Should go to waitlist
   - User selects available slot → Should be confirmed
   - Verify slot-specific waitlist logic
 
 - [ ] **Capacity opens up (manual test)**
+
   - Admin cancels RSVP → Capacity opens
   - Next waitlisted user → Should be auto-confirmed? (or manual?)
   - Verify waitlist queue behavior
@@ -63,6 +69,7 @@
   - Verify notification when spots open
 
 **Files to Review:**
+
 - `backend/src/data.js` - `addRsvp()`, `updateRsvp()`
 - `frontend/src/components/EventCard.jsx` - Waitlist UI
 - `frontend/src/pages/EventGuestsPage.jsx` - Waitlist display
@@ -76,6 +83,7 @@
 #### Pages to Audit:
 
 - [ ] **Home Page (`/home`)**
+
   - [ ] Events list (upcoming/past toggle)
   - [ ] Event cards display correct data
   - [ ] Create event button works
@@ -85,6 +93,7 @@
   - [ ] Event history per contact
 
 - [ ] **Create Event Page (`/create`)**
+
   - [ ] All fields save correctly
   - [ ] Capacity calculations correct
   - [ ] Dinner settings work
@@ -93,6 +102,7 @@
   - [ ] Form validation
 
 - [ ] **Public Event Page (`/e/:slug`)**
+
   - [ ] Event details display correctly
   - [ ] Capacity display accurate
   - [ ] RSVP form works
@@ -101,6 +111,7 @@
   - [ ] Success/waitlist messages
 
 - [ ] **Manage Event Page (`/app/events/:id/manage`)**
+
   - [ ] **Overview Tab**
     - [ ] Stats calculations correct
     - [ ] Capacity displays correct
@@ -142,6 +153,7 @@
 - [ ] `GET /events/:slug/dinner-slots` - Returns dinner slots
 
 **Data Persistence:**
+
 - [ ] All data persists in in-memory storage
 - [ ] Data survives server restart? (No - expected until Supabase)
 - [ ] Verify data structure matches documentation
@@ -155,11 +167,13 @@
 #### Options:
 
 **Option A: Simple (Pre-Supabase)**
+
 - Generate slug from title: `title.toLowerCase().replace(/\s+/g, '-')`
 - Add random suffix if duplicate: `title-slug-abc123`
 - Check against existing events
 
 **Option B: Supabase (Post-Supabase)**
+
 - Use Supabase's unique constraint
 - Auto-generate slug with collision handling
 - Database-level uniqueness
@@ -167,12 +181,14 @@
 **Recommendation:** Implement Option A now, migrate to Option B with Supabase.
 
 **Implementation:**
+
 - [ ] Create `generateUniqueSlug(title, existingSlugs)` function
 - [ ] Use in `createEvent()` backend function
 - [ ] Add validation for slug format
 - [ ] Test duplicate handling
 
 **Files to Update:**
+
 - `backend/src/data.js` - `createEvent()` function
 - `frontend/src/pages/CreateEventPage.jsx` - Slug preview/display
 
@@ -196,6 +212,7 @@
 **Tables to Create:**
 
 1. **`people`**
+
    - `id` (UUID, primary key)
    - `email` (text, unique, indexed)
    - `name` (text, nullable)
@@ -203,11 +220,13 @@
    - `stripe_customer_id` (text, nullable)
 
 2. **`events`**
+
    - All event fields from documentation
    - `slug` (text, unique, indexed)
    - `host_id` (UUID, foreign key to users)
 
 3. **`rsvps`**
+
    - All RSVP fields from documentation
    - `event_id` (UUID, foreign key)
    - `person_id` (UUID, foreign key)
@@ -221,11 +240,13 @@
    - Links to RSVPs
 
 **Files to Update:**
+
 - `backend/src/data.js` - Replace in-memory arrays with Supabase queries
 - `backend/src/index.js` - Add Supabase client initialization
 - Create migration scripts
 
 **Documentation:**
+
 - Update `PULLUP_SYSTEM_DOCUMENTATION_V2.md` with Supabase schema
 - Document migration process
 
@@ -284,11 +305,13 @@
 #### Test Scenarios:
 
 - [ ] **User Registration/Login**
+
   - [ ] Gmail login works
   - [ ] Session persists
   - [ ] Logout works
 
 - [ ] **Event Management**
+
   - [ ] Create event (with auth)
   - [ ] Edit own event
   - [ ] Cannot edit others' events
@@ -296,18 +319,21 @@
   - [ ] View own events only
 
 - [ ] **RSVP Flow**
+
   - [ ] Public RSVP works (no auth)
   - [ ] RSVP data saves to Supabase
   - [ ] Capacity updates correctly
   - [ ] Waitlist works
 
 - [ ] **Guest Management**
+
   - [ ] View guests (with auth)
   - [ ] Edit guests
   - [ ] Check-in guests
   - [ ] Delete guests
 
 - [ ] **Data Persistence**
+
   - [ ] Data survives server restart
   - [ ] Data persists across sessions
   - [ ] No data loss
@@ -548,12 +574,14 @@ nano .env
 #### 12. Final Testing
 
 - [ ] **Public Site** (`https://yourdomain.com`)
+
   - [ ] Landing page loads
   - [ ] Public event page works (`/e/:slug`)
   - [ ] RSVP form works
   - [ ] No CORS errors
 
 - [ ] **Admin Site** (`https://admin.yourdomain.com`)
+
   - [ ] Login works (Gmail)
   - [ ] Dashboard loads
   - [ ] Create event works
@@ -561,6 +589,7 @@ nano .env
   - [ ] All features functional
 
 - [ ] **API** (`https://yourdomain.com/api`)
+
   - [ ] All endpoints respond
   - [ ] Authentication works
   - [ ] Data persists
@@ -603,12 +632,14 @@ nano .env
 ### Option A: Email Notifications
 
 **Features:**
+
 - RSVP confirmation emails
 - Waitlist notification emails
 - Event reminder emails
 - Check-in notifications
 
 **Implementation:**
+
 - Use Supabase Edge Functions or external service (SendGrid, Resend)
 - Email templates
 - Queue system for bulk emails
@@ -616,12 +647,14 @@ nano .env
 ### Option B: Stripe Ticket Payments
 
 **Features:**
+
 - Paid event tickets
 - Stripe Checkout integration
 - Payment confirmation
 - Refund handling
 
 **Implementation:**
+
 - Stripe Checkout Sessions (already partially implemented)
 - Webhook handling for payment status
 - Link payments to RSVPs
@@ -639,7 +672,8 @@ nano .env
 
 - **Backups**: Once Supabase is connected, set up regular backups.
 
-- **Security**: 
+- **Security**:
+
   - Never commit `.env` files
   - Use environment variables for all secrets
   - Enable RLS in Supabase

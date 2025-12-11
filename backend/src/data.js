@@ -664,18 +664,16 @@ export function addRsvp({
       if (event.dinnerMaxSeatsPerSlot) {
         // Limited seats per slot - all-or-nothing: entire party goes to waitlist if capacity exceeded
         const availableSeats = event.dinnerMaxSeatsPerSlot - slotData.confirmed;
-        if (
-          finalDinnerPartySize <= availableSeats &&
-          bookingStatus === "CONFIRMED"
-        ) {
-          dinnerStatus = "CONFIRMED";
-        } else {
-          // Entire dinner party goes to waitlist if capacity exceeded
+
+        // Check dinner capacity independently first (per documentation)
+        if (finalDinnerPartySize > availableSeats) {
+          // Dinner capacity exceeded - all-or-nothing
           dinnerStatus = "WAITLIST";
-          // If dinner goes to waitlist, entire event booking also goes to waitlist
-          if (bookingStatus === "CONFIRMED") {
-            bookingStatus = "WAITLIST";
-          }
+          bookingStatus = "WAITLIST";
+        } else {
+          // Dinner capacity OK - confirm dinner only if event-level booking is still confirmed
+          dinnerStatus =
+            bookingStatus === "CONFIRMED" ? "CONFIRMED" : "WAITLIST";
         }
       } else {
         // Unlimited seats per slot - follow event-level booking status
@@ -981,13 +979,16 @@ export function updateRsvp(rsvpId, updates) {
 
       // Recalculate dinner bookingStatus
       if (dinnerTimeSlot) {
+        // Get the old slot (before update) to properly exclude from old slot count
+        const oldDinnerTimeSlot = rsvp.dinner?.slotTime || rsvp.dinnerTimeSlot;
         const slotCounts = getDinnerSlotCounts(event.id);
         const slotData = slotCounts[dinnerTimeSlot] || {
           confirmed: 0,
           waitlist: 0,
         };
 
-        // Exclude current RSVP from counts
+        // Exclude current RSVP from new slot's confirmed count
+        // Also need to account for old slot if it's different
         const currentSlotConfirmed = rsvps
           .filter((r) => {
             const hasDinner = r.dinner?.enabled || r.wantsDinner;
@@ -1001,7 +1002,7 @@ export function updateRsvp(rsvpId, updates) {
               hasDinner &&
               slotMatches &&
               isConfirmed &&
-              r.id !== rsvpId
+              r.id !== rsvpId // Exclude current RSVP
             );
           })
           .reduce(
@@ -1011,24 +1012,26 @@ export function updateRsvp(rsvpId, updates) {
             0
           );
 
+        // If slot changed and old slot had this RSVP confirmed, we've already excluded it above
+        // The slotData from getDinnerSlotCounts includes the old slot count, but we exclude
+        // the current RSVP from currentSlotConfirmed, so the calculation is correct
+
         if (updates["dinner.bookingStatus"] !== undefined) {
           dinnerBookingStatus = updates["dinner.bookingStatus"];
         } else if (event.dinnerMaxSeatsPerSlot) {
           // Check if there's room in the slot (all-or-nothing)
+          // Check dinner capacity independently first (per documentation)
           const availableSeats =
             event.dinnerMaxSeatsPerSlot - currentSlotConfirmed;
-          if (
-            bookingStatus === "CONFIRMED" &&
-            dinnerPartySize <= availableSeats
-          ) {
-            dinnerBookingStatus = "CONFIRMED";
-          } else {
-            // Entire dinner party goes to waitlist if capacity exceeded
+
+          if (dinnerPartySize > availableSeats) {
+            // Dinner capacity exceeded - all-or-nothing
             dinnerBookingStatus = "WAITLIST";
-            // If dinner goes to waitlist, entire event booking also goes to waitlist
-            if (bookingStatus === "CONFIRMED") {
-              bookingStatus = "WAITLIST";
-            }
+            bookingStatus = "WAITLIST";
+          } else {
+            // Dinner capacity OK - confirm dinner only if event-level booking is still confirmed
+            dinnerBookingStatus =
+              bookingStatus === "CONFIRMED" ? "CONFIRMED" : "WAITLIST";
           }
         } else {
           dinnerBookingStatus =

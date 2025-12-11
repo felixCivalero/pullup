@@ -1725,7 +1725,33 @@ function SortableHeader({
 }
 
 function CombinedStatusBadge({ guest }) {
-  const { status, wantsDinner, dinnerStatus } = guest;
+  // Use new model fields with backward compatibility
+  const bookingStatus =
+    guest.bookingStatus ||
+    (guest.status === "attending"
+      ? "CONFIRMED"
+      : guest.status === "waitlist"
+      ? "WAITLIST"
+      : "CANCELLED");
+  const wantsDinner = guest.dinner?.enabled || guest.wantsDinner || false;
+  const dinnerBookingStatus =
+    guest.dinner?.bookingStatus ||
+    (guest.dinnerStatus === "confirmed"
+      ? "CONFIRMED"
+      : guest.dinnerStatus === "waitlist"
+      ? "WAITLIST"
+      : null);
+
+  // Backward compatibility for display
+  const status =
+    guest.status || (bookingStatus === "CONFIRMED" ? "attending" : "waitlist");
+  const dinnerStatus =
+    guest.dinnerStatus ||
+    (dinnerBookingStatus === "CONFIRMED"
+      ? "confirmed"
+      : dinnerBookingStatus === "WAITLIST"
+      ? "waitlist"
+      : null);
 
   // Get pull-up counts (new model with backward compatibility)
   const dinnerPullUpCount =
@@ -1733,24 +1759,26 @@ function CombinedStatusBadge({ guest }) {
   const cocktailOnlyPullUpCount =
     guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? 0;
 
-  // Calculate expected counts for arrival status
-  const totalGuests = guest.totalGuests ?? guest.partySize ?? 1;
+  // Calculate expected counts for arrival status using DPCS
+  const partySize = guest.partySize ?? 1;
+  const plusOnes = guest.plusOnes ?? 0;
   const dinnerPartySize = guest.dinner?.partySize ?? guest.dinnerPartySize ?? 0;
-  const cocktailOnlyMax = wantsDinner
-    ? Math.max(0, totalGuests - dinnerPartySize)
-    : totalGuests;
 
+  // Use DPCS to calculate cocktail-only max
+  const cocktailOnlyMax = wantsDinner ? plusOnes : partySize;
   const totalExpected = dinnerPartySize + cocktailOnlyMax;
   const totalArrived = dinnerPullUpCount + cocktailOnlyPullUpCount;
 
-  // Derive pull-up status
+  // Derive pull-up status (only for CONFIRMED bookings)
   let pullUpStatus = "NONE";
-  if (totalArrived === 0) {
-    pullUpStatus = "NONE";
-  } else if (totalArrived > 0 && totalArrived < totalExpected) {
-    pullUpStatus = "PARTIAL";
-  } else if (totalArrived === totalExpected) {
-    pullUpStatus = "FULL";
+  if (bookingStatus === "CONFIRMED") {
+    if (totalArrived === 0) {
+      pullUpStatus = "NONE";
+    } else if (totalArrived > 0 && totalArrived < totalExpected) {
+      pullUpStatus = "PARTIAL";
+    } else if (totalArrived === totalExpected) {
+      pullUpStatus = "FULL";
+    }
   }
 
   // Determine combined status label
@@ -1759,49 +1787,37 @@ function CombinedStatusBadge({ guest }) {
   let border = "";
   let color = "";
 
-  if (status === "attending") {
-    if (!wantsDinner || dinnerStatus === null) {
-      // Attending event, no dinner
-      label = "Attending";
+  if (bookingStatus === "CONFIRMED") {
+    if (!wantsDinner || dinnerBookingStatus === null) {
+      // Confirmed for event, no dinner
+      label = "ATTENDING";
       bg = "rgba(139, 92, 246, 0.2)";
       border = "rgba(139, 92, 246, 0.5)";
       color = "#a78bfa";
-    } else if (dinnerStatus === "confirmed") {
-      // Attending event + dinner confirmed
-      label = "Attending";
+    } else if (dinnerBookingStatus === "CONFIRMED") {
+      // Confirmed for event + dinner confirmed
+      label = "ATTENDING";
       bg = "rgba(16, 185, 129, 0.2)";
       border = "rgba(16, 185, 129, 0.5)";
       color = "#10b981";
-    } else if (dinnerStatus === "cocktails") {
-      // Attending event, invited for cocktails (dinner full)
-      label = "Attending cocktail";
-      bg = "rgba(245, 158, 11, 0.2)";
-      border = "rgba(245, 158, 11, 0.5)";
-      color = "#f59e0b";
-    } else if (
-      dinnerStatus === "waitlist" ||
-      dinnerStatus === "cocktails_waitlist"
-    ) {
-      // Attending event, waiting for dinner
-      label = "Attending cocktail, waiting dinner";
-      bg = "rgba(245, 158, 11, 0.2)";
-      border = "rgba(236, 72, 153, 0.5)";
-      color = "#f59e0b";
+    } else if (dinnerBookingStatus === "WAITLIST") {
+      // Confirmed for event, waiting for dinner (shouldn't happen with all-or-nothing, but handle it)
+      label = "ATTENDING";
+      bg = "rgba(139, 92, 246, 0.2)";
+      border = "rgba(139, 92, 246, 0.5)";
+      color = "#a78bfa";
     }
-  } else if (status === "waitlist") {
-    if (!wantsDinner || dinnerStatus === null) {
-      // Waiting for event, no dinner
-      label = "Waiting cocktail";
-      bg = "rgba(236, 72, 153, 0.2)";
-      border = "rgba(236, 72, 153, 0.5)";
-      color = "#f472b6";
-    } else if (dinnerStatus === "waitlist") {
-      // Waiting for event + waiting for dinner
-      label = "Waiting cocktail, waiting dinner";
-      bg = "rgba(236, 72, 153, 0.2)";
-      border = "rgba(236, 72, 153, 0.5)";
-      color = "#f472b6";
-    }
+  } else if (bookingStatus === "WAITLIST") {
+    // Entire booking is on waitlist (all-or-nothing)
+    label = "WAITLIST";
+    bg = "rgba(236, 72, 153, 0.2)";
+    border = "rgba(236, 72, 153, 0.5)";
+    color = "#f472b6";
+  } else if (bookingStatus === "CANCELLED") {
+    label = "CANCELLED";
+    bg = "rgba(107, 114, 128, 0.2)";
+    border = "rgba(107, 114, 128, 0.5)";
+    color = "#9ca3af";
   }
 
   // Fallback

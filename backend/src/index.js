@@ -42,8 +42,17 @@ dotenv.config();
 
 const app = express();
 
+// CORS configuration
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",")
+    : ["http://localhost:3000", "http://localhost:5173"], // Default dev origins
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+app.use(cors(corsOptions));
+
 // Allow base64 images in body
-app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
@@ -933,15 +942,12 @@ app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
     // Generate URL for immediate return (try signed first, fallback to public)
     let imageUrl = null;
     try {
-      const {
-        data: { signedUrl },
-        error: urlError,
-      } = await supabase.storage
+      const { data: signedUrlData, error: urlError } = await supabase.storage
         .from("event-images")
         .createSignedUrl(fileName, 3600); // 1 hour for response
 
-      if (!urlError && signedUrl) {
-        imageUrl = signedUrl;
+      if (!urlError && signedUrlData?.signedUrl) {
+        imageUrl = signedUrlData.signedUrl;
       }
     } catch (error) {
       console.error("Signed URL error:", error);
@@ -1012,15 +1018,12 @@ app.post("/host/profile/picture", requireAuth, async (req, res) => {
     // Generate URL for immediate return (try signed first, fallback to public)
     let imageUrl = null;
     try {
-      const {
-        data: { signedUrl },
-        error: urlError,
-      } = await supabase.storage
+      const { data: signedUrlData, error: urlError } = await supabase.storage
         .from("profile-pictures")
         .createSignedUrl(fileName, 3600); // 1 hour for response
 
-      if (!urlError && signedUrl) {
-        imageUrl = signedUrl;
+      if (!urlError && signedUrlData?.signedUrl) {
+        imageUrl = signedUrlData.signedUrl;
       }
     } catch (error) {
       console.error("Signed URL error:", error);

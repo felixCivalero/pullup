@@ -80,15 +80,12 @@ export async function mapEventFromDb(dbEvent) {
       }
 
       // Try to generate signed URL first (for private buckets)
-      const {
-        data: { signedUrl },
-        error: urlError,
-      } = await supabase.storage
+      const { data: signedUrlData, error: urlError } = await supabase.storage
         .from("event-images")
         .createSignedUrl(filePath, 3600); // 1 hour expiry
 
-      if (!urlError && signedUrl) {
-        imageUrl = signedUrl;
+      if (!urlError && signedUrlData?.signedUrl) {
+        imageUrl = signedUrlData.signedUrl;
       } else {
         // Fallback to public URL (for public buckets or if signed URL fails)
         const {
@@ -2149,15 +2146,12 @@ export async function getUserProfile(userId) {
       }
 
       // Try to generate signed URL first (for private buckets)
-      const {
-        data: { signedUrl },
-        error: urlError,
-      } = await supabase.storage
+      const { data: signedUrlData, error: urlError } = await supabase.storage
         .from("profile-pictures")
         .createSignedUrl(filePath, 3600); // 1 hour expiry
 
-      if (!urlError && signedUrl) {
-        profile.profilePicture = signedUrl;
+      if (!urlError && signedUrlData?.signedUrl) {
+        profile.profilePicture = signedUrlData.signedUrl;
       } else {
         // Fallback to public URL (for public buckets or if signed URL fails)
         const {

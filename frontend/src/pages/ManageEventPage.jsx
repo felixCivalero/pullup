@@ -843,7 +843,7 @@ export function ManageEventPage() {
     load();
   }, [id, showToast]);
 
-  function handleImageUpload(e) {
+  async function handleImageUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -865,30 +865,45 @@ export function ManageEventPage() {
       return;
     }
 
+    // Show preview immediately
     const reader = new FileReader();
     reader.onerror = () => {
       console.error("🖼️ [Image Upload] FileReader error");
       showToast("Failed to read image file", "error");
     };
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       if (reader.result) {
         const base64Image = reader.result;
-        console.log("🖼️ [Image Upload] File read successfully:", {
-          base64Length: base64Image.length,
-          base64Preview: base64Image.substring(0, 50) + "...",
-          settingImagePreview: true,
-        });
         setImagePreview(base64Image);
-        setHasUnsavedImage(true); // Mark that user has unsaved image changes
-        // Update event state with the new image URL
-        setEvent((prev) => {
-          console.log("🖼️ [Image Upload] Updating event state:", {
-            previousImageUrl: prev?.imageUrl,
-            newImageUrl: base64Image,
-          });
-          return { ...prev, imageUrl: base64Image };
-        });
-        showToast("Image uploaded successfully! ✨", "success");
+        setHasUnsavedImage(true);
+
+        // Upload to API immediately
+        try {
+          const imageRes = await authenticatedFetch(
+            `/host/events/${id}/image`,
+            {
+              method: "POST",
+              body: JSON.stringify({ imageData: base64Image }),
+            }
+          );
+
+          if (imageRes.ok) {
+            const updated = await imageRes.json();
+            setEvent((prev) => ({
+              ...prev,
+              imageUrl: updated.imageUrl, // Use the URL from server
+            }));
+            setImagePreview(updated.imageUrl); // Update preview with URL
+            setHasUnsavedImage(false); // Image is now saved
+            showToast("Image uploaded successfully! ✨", "success");
+          } else {
+            throw new Error("Upload failed");
+          }
+        } catch (error) {
+          console.error("🖼️ [Image Upload] API error:", error);
+          showToast("Failed to upload image. Please try again.", "error");
+          // Keep preview for retry
+        }
       } else {
         console.error("🖼️ [Image Upload] No result from FileReader");
       }
@@ -1005,9 +1020,9 @@ export function ManageEventPage() {
         totalCapacity = (cocktailCapacity || 0) + (foodCapacity || 0);
       }
 
-      // Determine what imageUrl to send
-      const imageUrlToSend =
-        imagePreview !== undefined ? imagePreview : event.imageUrl || null;
+      // Don't send imageUrl in the update - it's handled separately via upload endpoint
+      // Only send imageUrl: null if user explicitly deleted it
+      const imageUrlToSend = null; // Images are uploaded separately
 
       console.log("💾 [Save] Preparing to save event:", {
         imagePreview,
@@ -1051,7 +1066,7 @@ export function ManageEventPage() {
         dinnerSeatingIntervalHours,
         dinnerMaxSeatsPerSlot,
         dinnerOverflowAction: event.dinnerOverflowAction || "waitlist",
-        imageUrl: imageUrlToSend,
+        // Don't send imageUrl - it's handled via separate upload endpoint
         cocktailCapacity,
         foodCapacity,
         totalCapacity,
@@ -1547,14 +1562,36 @@ export function ManageEventPage() {
                         ? `${event.imageUrl.substring(0, 50)}...`
                         : event.imageUrl,
                     });
-                    setImagePreview(null);
-                    setHasUnsavedImage(true); // Mark that user has unsaved image changes
-                    setEvent((prev) => {
-                      console.log(
-                        "🗑️ [Delete Image] Updating event state to remove imageUrl"
-                      );
-                      return { ...prev, imageUrl: null };
-                    });
+                    // Delete image via API
+                    async function deleteImage() {
+                      try {
+                        // Update event to remove image
+                        const updateRes = await authenticatedFetch(
+                          `/host/events/${id}`,
+                          {
+                            method: "PUT",
+                            body: JSON.stringify({ imageUrl: null }),
+                          }
+                        );
+
+                        if (updateRes.ok) {
+                          const updated = await updateRes.json();
+                          setEvent((prev) => ({
+                            ...prev,
+                            imageUrl: null,
+                          }));
+                          setImagePreview(null);
+                          setHasUnsavedImage(false);
+                          showToast("Image removed", "success");
+                        } else {
+                          throw new Error("Failed to remove image");
+                        }
+                      } catch (error) {
+                        console.error("Error removing image:", error);
+                        showToast("Failed to remove image", "error");
+                      }
+                    }
+                    deleteImage();
                     if (fileInputRef.current) {
                       fileInputRef.current.value = "";
                     }

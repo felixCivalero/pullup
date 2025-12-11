@@ -272,7 +272,7 @@ export function CreateEventPage() {
   const [timezone, setTimezone] = useState(getUserTimezone());
   const [maxAttendees, setMaxAttendees] = useState("");
   const [waitlistEnabled, setWaitlistEnabled] = useState(true);
-  const [imageUrl, setImageUrl] = useState(null);
+  const [imageFile, setImageFile] = useState(null); // Store file for upload
   const [imagePreview, setImagePreview] = useState(null);
   const [theme] = useState("minimal");
   const [calendar] = useState("personal");
@@ -354,7 +354,7 @@ export function CreateEventPage() {
     }
   }
 
-  function handleImageUpload(e) {
+  async function handleImageUpload(e) {
     const file = e.target.files?.[0] || e.dataTransfer?.files?.[0];
     if (!file) return;
 
@@ -368,6 +368,10 @@ export function CreateEventPage() {
       return;
     }
 
+    // Store file for later upload (after event is created)
+    setImageFile(file);
+
+    // Show preview
     const reader = new FileReader();
     reader.onerror = () => {
       showToast("Failed to read image file", "error");
@@ -375,8 +379,10 @@ export function CreateEventPage() {
     reader.onloadend = () => {
       if (reader.result) {
         setImagePreview(reader.result);
-        setImageUrl(reader.result);
-        showToast("Image uploaded successfully! ✨", "success");
+        showToast(
+          "Image selected! It will be uploaded when you create the event. ✨",
+          "success"
+        );
       }
     };
     reader.readAsDataURL(file);
@@ -469,10 +475,7 @@ export function CreateEventPage() {
         dinnerOverflowAction: dinnerEnabled ? dinnerOverflowAction : "waitlist",
       };
 
-      if (imageUrl) {
-        requestBody.imageUrl = imageUrl;
-      }
-
+      // Create event first (without image)
       const res = await authenticatedFetch("/events", {
         method: "POST",
         body: JSON.stringify(requestBody),
@@ -484,6 +487,35 @@ export function CreateEventPage() {
       }
 
       const created = await res.json();
+
+      // If there's an image file, upload it now
+      if (imageFile) {
+        try {
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            if (reader.result) {
+              const imageRes = await authenticatedFetch(
+                `/host/events/${created.id}/image`,
+                {
+                  method: "POST",
+                  body: JSON.stringify({ imageData: reader.result }),
+                }
+              );
+
+              if (!imageRes.ok) {
+                console.error("Failed to upload image, but event was created");
+                showToast("Event created, but image upload failed", "warning");
+              }
+            }
+          };
+          reader.readAsDataURL(imageFile);
+        } catch (imageError) {
+          console.error("Error uploading image:", imageError);
+          // Event is already created, so just warn about image
+          showToast("Event created, but image upload failed", "warning");
+        }
+      }
+
       showToast("Event created successfully! 🎉", "success");
       navigate(`/e/${created.slug}`);
     } catch (err) {
@@ -752,7 +784,8 @@ export function CreateEventPage() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setImagePreview(null);
-                    setImageUrl(null);
+                    setImageFile(null);
+                    setImagePreview(null);
                     if (fileInputRef.current) {
                       fileInputRef.current.value = "";
                     }

@@ -62,7 +62,46 @@ async function ensureUniqueSlug(baseSlug) {
 }
 
 // Helper: Map database event to application format
-export function mapEventFromDb(dbEvent) {
+export async function mapEventFromDb(dbEvent) {
+  // Generate image URL if image path exists
+  let imageUrl = dbEvent.image_url || null;
+
+  if (imageUrl && !imageUrl.startsWith("http")) {
+    // It's a file path, generate URL
+    try {
+      let filePath = imageUrl;
+
+      // If it's already a full URL, extract the path
+      if (imageUrl.includes("event-images/")) {
+        const urlMatch = imageUrl.match(/event-images\/([^?]+)/);
+        if (urlMatch) {
+          filePath = urlMatch[1];
+        }
+      }
+
+      // Try to generate signed URL first (for private buckets)
+      const {
+        data: { signedUrl },
+        error: urlError,
+      } = await supabase.storage
+        .from("event-images")
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+      if (!urlError && signedUrl) {
+        imageUrl = signedUrl;
+      } else {
+        // Fallback to public URL (for public buckets or if signed URL fails)
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("event-images").getPublicUrl(filePath);
+        imageUrl = publicUrl;
+      }
+    } catch (urlError) {
+      // If URL generation fails, use stored value as-is
+      console.error("Error generating event image URL:", urlError);
+    }
+  }
+
   return {
     id: dbEvent.id,
     hostId: dbEvent.host_id, // Include host_id for ownership checks
@@ -77,7 +116,7 @@ export function mapEventFromDb(dbEvent) {
     ticketType: dbEvent.ticket_type,
     maxAttendees: dbEvent.total_capacity, // Backward compatibility
     waitlistEnabled: dbEvent.waitlist_enabled,
-    imageUrl: dbEvent.image_url,
+    imageUrl: imageUrl,
     theme: dbEvent.theme,
     calendar: dbEvent.calendar_category,
     visibility: dbEvent.visibility,
@@ -116,7 +155,18 @@ function mapEventToDb(eventData) {
     dbData.ticket_type = eventData.ticketType;
   if (eventData.waitlistEnabled !== undefined)
     dbData.waitlist_enabled = eventData.waitlistEnabled;
-  if (eventData.imageUrl !== undefined) dbData.image_url = eventData.imageUrl;
+  // Handle imageUrl: if it's null, set to null (to delete), if it's a path/URL, store it
+  // Don't store base64 - images should be uploaded via the upload endpoint
+  if (eventData.imageUrl !== undefined) {
+    // If it's a base64 string (starts with data:), don't store it
+    // Images should be uploaded via /host/events/:id/image endpoint
+    if (eventData.imageUrl && !eventData.imageUrl.startsWith("data:")) {
+      dbData.image_url = eventData.imageUrl;
+    } else if (eventData.imageUrl === null) {
+      // Explicitly set to null to delete image
+      dbData.image_url = null;
+    }
+  }
   if (eventData.theme !== undefined) dbData.theme = eventData.theme;
   if (eventData.calendar !== undefined)
     dbData.calendar_category = eventData.calendar;
@@ -255,7 +305,7 @@ export async function createEvent({
     throw new Error("Failed to create event");
   }
 
-  return mapEventFromDb(data);
+  return await mapEventFromDb(data);
 }
 
 export async function findEventBySlug(slug) {
@@ -269,7 +319,7 @@ export async function findEventBySlug(slug) {
     return null;
   }
 
-  return mapEventFromDb(data);
+  return await mapEventFromDb(data);
 }
 
 export async function findEventById(id) {
@@ -283,7 +333,7 @@ export async function findEventById(id) {
     return null;
   }
 
-  return mapEventFromDb(data);
+  return await mapEventFromDb(data);
 }
 
 export async function updateEvent(id, updates) {
@@ -300,7 +350,7 @@ export async function updateEvent(id, updates) {
     return null;
   }
 
-  return mapEventFromDb(data);
+  return await mapEventFromDb(data);
 }
 
 // ---------------------------
@@ -2078,7 +2128,50 @@ export async function getUserProfile(userId) {
   }
 
   if (error) throw error;
-  return mapProfileFromDb(data);
+
+  const profile = mapProfileFromDb(data);
+
+  // If profile has a picture path, generate the appropriate URL
+  // We store the file path (e.g., "userId/profile.ext") in the database
+  // and generate signed URLs (for private buckets) or public URLs (for public buckets) on fetch
+  if (profile.profilePicture) {
+    try {
+      let filePath = profile.profilePicture;
+
+      // If it's already a full URL, extract the path
+      if (profile.profilePicture.includes("profile-pictures/")) {
+        const urlMatch = profile.profilePicture.match(
+          /profile-pictures\/([^?]+)/
+        );
+        if (urlMatch) {
+          filePath = urlMatch[1];
+        }
+      }
+
+      // Try to generate signed URL first (for private buckets)
+      const {
+        data: { signedUrl },
+        error: urlError,
+      } = await supabase.storage
+        .from("profile-pictures")
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+      if (!urlError && signedUrl) {
+        profile.profilePicture = signedUrl;
+      } else {
+        // Fallback to public URL (for public buckets or if signed URL fails)
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("profile-pictures").getPublicUrl(filePath);
+        profile.profilePicture = publicUrl;
+      }
+    } catch (urlError) {
+      // If URL generation fails, try to use stored value as-is
+      console.error("Error generating profile picture URL:", urlError);
+    }
+  }
+
+  return profile;
 }
 
 // Create default profile

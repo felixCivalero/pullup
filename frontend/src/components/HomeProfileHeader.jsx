@@ -157,6 +157,14 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
                 height: "100%",
                 objectFit: "cover",
               }}
+              onError={(e) => {
+                console.error(
+                  "Failed to load profile image:",
+                  user.profilePicture
+                );
+                // Fallback to emoji if image fails to load
+                e.target.style.display = "none";
+              }}
             />
           ) : (
             "😊"

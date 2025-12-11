@@ -66,7 +66,9 @@ app.get("/events", requireAuth, async (req, res) => {
     }
 
     // Map to application format using the existing helper
-    const mappedEvents = events.map((dbEvent) => mapEventFromDb(dbEvent));
+    const mappedEvents = await Promise.all(
+      events.map((dbEvent) => mapEventFromDb(dbEvent))
+    );
 
     res.json(mappedEvents);
   } catch (error) {
@@ -877,6 +879,96 @@ app.put("/host/profile", requireAuth, async (req, res) => {
 });
 
 // ---------------------------
+// PROTECTED: Upload event image
+// ---------------------------
+app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { imageData } = req.body; // Base64 image data
+
+    if (!imageData) {
+      return res.status(400).json({ error: "imageData is required" });
+    }
+
+    // Verify event ownership
+    const event = await findEventById(eventId);
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    if (event.hostId !== req.user.id) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "You don't have access to this event",
+      });
+    }
+
+    // Convert base64 to buffer
+    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+
+    // Determine file extension from data URL
+    const mimeMatch = imageData.match(/data:image\/(\w+);base64/);
+    const extension = mimeMatch ? mimeMatch[1] : "png";
+    const fileName = `${eventId}/image.${extension}`;
+
+    // Upload to Supabase Storage
+    const { supabase } = await import("./supabase.js");
+    const { data, error } = await supabase.storage
+      .from("event-images")
+      .upload(fileName, buffer, {
+        contentType: `image/${extension}`,
+        upsert: true, // Overwrite if exists
+      });
+
+    if (error) {
+      console.error("Storage upload error:", error);
+      return res.status(500).json({ error: "Failed to upload image" });
+    }
+
+    // Store just the file path in the database
+    const updated = await updateEvent(eventId, {
+      imageUrl: fileName, // Store path, not full URL
+    });
+
+    // Generate URL for immediate return (try signed first, fallback to public)
+    let imageUrl = null;
+    try {
+      const {
+        data: { signedUrl },
+        error: urlError,
+      } = await supabase.storage
+        .from("event-images")
+        .createSignedUrl(fileName, 3600); // 1 hour for response
+
+      if (!urlError && signedUrl) {
+        imageUrl = signedUrl;
+      }
+    } catch (error) {
+      console.error("Signed URL error:", error);
+    }
+
+    // Fallback to public URL if signed URL fails
+    if (!imageUrl) {
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("event-images").getPublicUrl(fileName);
+      imageUrl = publicUrl;
+    }
+
+    // Return event with the generated URL
+    const eventWithUrl = {
+      ...updated,
+      imageUrl: imageUrl,
+    };
+
+    res.json(eventWithUrl);
+  } catch (error) {
+    console.error("Error uploading event image:", error);
+    res.status(500).json({ error: "Failed to upload event image" });
+  }
+});
+
+// ---------------------------
 // PROTECTED: Upload profile picture
 // ---------------------------
 app.post("/host/profile/picture", requireAuth, async (req, res) => {
@@ -910,17 +1002,45 @@ app.post("/host/profile/picture", requireAuth, async (req, res) => {
       return res.status(500).json({ error: "Failed to upload image" });
     }
 
-    // Get public URL
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("profile-pictures").getPublicUrl(fileName);
-
-    // Update profile with URL
+    // Store just the file path in the database
+    // We'll generate the appropriate URL (public or signed) when fetching
+    // This allows us to switch between public/private buckets easily
     const updated = await updateUserProfile(req.user.id, {
-      profilePicture: publicUrl,
+      profilePicture: fileName, // Store path, not full URL
     });
 
-    res.json(updated);
+    // Generate URL for immediate return (try signed first, fallback to public)
+    let imageUrl = null;
+    try {
+      const {
+        data: { signedUrl },
+        error: urlError,
+      } = await supabase.storage
+        .from("profile-pictures")
+        .createSignedUrl(fileName, 3600); // 1 hour for response
+
+      if (!urlError && signedUrl) {
+        imageUrl = signedUrl;
+      }
+    } catch (error) {
+      console.error("Signed URL error:", error);
+    }
+
+    // Fallback to public URL if signed URL fails
+    if (!imageUrl) {
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("profile-pictures").getPublicUrl(fileName);
+      imageUrl = publicUrl;
+    }
+
+    // Return profile with the generated URL
+    const profileWithUrl = {
+      ...updated,
+      profilePicture: imageUrl,
+    };
+
+    res.json(profileWithUrl);
   } catch (error) {
     console.error("Error uploading profile picture:", error);
     res.status(500).json({ error: "Failed to upload profile picture" });

@@ -191,6 +191,14 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
   const cocktailCapacity = event.cocktailCapacity ?? null;
   const totalCapacity = event.totalCapacity ?? null;
 
+  // Calculate over-capacity indicators
+  const totalOverCapacity =
+    totalCapacity != null ? Math.max(0, attending - totalCapacity) : 0;
+  const cocktailOverCapacity =
+    cocktailCapacity != null
+      ? Math.max(0, stats.cocktailsOnly - cocktailCapacity)
+      : 0;
+
   return (
     <>
       {/* Summary Stats */}
@@ -203,21 +211,61 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
         }}
       >
         {totalCapacity != null && (
-          <StatCard
-            icon="📊"
-            label="Total Capacity"
-            value={`${attending}/${totalCapacity}`}
-            color="#fff"
-          />
+          <div style={{ position: "relative" }}>
+            <StatCard
+              icon="📊"
+              label="Total Capacity"
+              value={`${attending}/${totalCapacity}`}
+              color={totalOverCapacity > 0 ? "#f59e0b" : "#fff"}
+            />
+            {totalOverCapacity > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "8px",
+                  right: "8px",
+                  fontSize: "9px",
+                  fontWeight: 600,
+                  color: "#f59e0b",
+                  padding: "3px 6px",
+                  background: "rgba(245, 158, 11, 0.2)",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                }}
+              >
+                Over by {totalOverCapacity}
+              </div>
+            )}
+          </div>
         )}
 
         {cocktailCapacity != null && (
-          <StatCard
-            icon="🥂"
-            label="Cocktail Capacity"
-            value={`${stats.cocktailsOnly}/${cocktailCapacity}`}
-            color="#f59e0b"
-          />
+          <div style={{ position: "relative" }}>
+            <StatCard
+              icon="🥂"
+              label="Cocktail Capacity"
+              value={`${stats.cocktailsOnly}/${cocktailCapacity}`}
+              color={cocktailOverCapacity > 0 ? "#f59e0b" : "#f59e0b"}
+            />
+            {cocktailOverCapacity > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "8px",
+                  right: "8px",
+                  fontSize: "9px",
+                  fontWeight: 600,
+                  color: "#f59e0b",
+                  padding: "3px 6px",
+                  background: "rgba(245, 158, 11, 0.2)",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                }}
+              >
+                Over by {cocktailOverCapacity}
+              </div>
+            )}
+          </div>
         )}
 
         <StatCard
@@ -299,8 +347,29 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
             >
               {dinnerSlots.map((slot) => {
                 const slotTime = new Date(slot.time);
-                const confirmed = slot.confirmed || 0;
                 const capacity = event.dinnerMaxSeatsPerSlot;
+
+                // Calculate confirmed count for this specific slot from guest data
+                const confirmed = guests
+                  .filter((g) => {
+                    const wantsDinner = g.dinner?.enabled || g.wantsDinner;
+                    const slotMatches =
+                      g.dinner?.slotTime === slot.time ||
+                      g.dinnerTimeSlot === slot.time;
+                    const isConfirmed =
+                      g.dinner?.bookingStatus === "CONFIRMED" ||
+                      g.dinnerStatus === "confirmed";
+                    return wantsDinner && slotMatches && isConfirmed;
+                  })
+                  .reduce(
+                    (sum, g) =>
+                      sum +
+                      (g.dinner?.partySize ||
+                        g.dinnerPartySize ||
+                        g.partySize ||
+                        1),
+                    0
+                  );
 
                 // Calculate pulled up count for this specific slot
                 const slotPulledUp = guests
@@ -323,6 +392,8 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                       sum + (g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0),
                     0
                   );
+
+                const slotOverCapacity = confirmed > capacity;
 
                 return (
                   <div
@@ -368,7 +439,7 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                       style={{
                         fontSize: "28px",
                         fontWeight: 700,
-                        color: "#10b981",
+                        color: slotOverCapacity ? "#f59e0b" : "#10b981",
                         display: "flex",
                         alignItems: "baseline",
                         gap: "6px",
@@ -388,6 +459,22 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                         /{capacity}
                       </span>
                     </div>
+                    {slotOverCapacity && (
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: 600,
+                          color: "#f59e0b",
+                          marginBottom: "8px",
+                          padding: "4px 8px",
+                          background: "rgba(245, 158, 11, 0.15)",
+                          borderRadius: "6px",
+                          display: "inline-block",
+                        }}
+                      >
+                        Over capacity by {confirmed - capacity}
+                      </div>
+                    )}
                     <div
                       style={{
                         fontSize: "20px",

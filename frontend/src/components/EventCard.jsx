@@ -570,77 +570,6 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                     disabled={loading}
                   />
                 </label>
-                {/* Cocktail Capacity Warning */}
-                {cocktailSpotsLeft !== null && cocktailSpotsLeft <= 10 && (
-                  <div
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: "10px",
-                      background:
-                        cocktailSpotsLeft <= 5
-                          ? "rgba(239, 68, 68, 0.15)"
-                          : "rgba(245, 158, 11, 0.15)",
-                      border:
-                        cocktailSpotsLeft <= 5
-                          ? "1px solid rgba(239, 68, 68, 0.3)"
-                          : "1px solid rgba(245, 158, 11, 0.3)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: cocktailSpotsLeft <= 5 ? "#ef4444" : "#f59e0b",
-                    }}
-                  >
-                    <span style={{ fontSize: "14px" }}>
-                      {cocktailSpotsLeft <= 5 ? "⚠️" : "⚡"}
-                    </span>
-                    <span>
-                      {cocktailSpotsLeft <= 5
-                        ? `Only ${cocktailSpotsLeft} spot${
-                            cocktailSpotsLeft === 1 ? "" : "s"
-                          } left`
-                        : "Few spots left"}
-                    </span>
-                  </div>
-                )}
-                {/* Plus-ones */}
-                {maxPlusOnes > 0 && (
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      opacity: 0.9,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    Add plus-ones?{" "}
-                    <span style={{ opacity: 0.5 }}>
-                      (max: +{maxPlusOnes} on your list)
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      max={maxPlusOnes}
-                      value={plusOnes}
-                      onChange={(e) => {
-                        const val = Math.max(
-                          0,
-                          Math.min(
-                            maxPlusOnes,
-                            parseInt(e.target.value, 10) || 0
-                          )
-                        );
-                        setPlusOnes(val);
-                      }}
-                      style={inputStyle}
-                      placeholder="0"
-                      disabled={loading}
-                    />
-                  </label>
-                )}
 
                 {/* Dinner */}
                 {event.dinnerEnabled && (
@@ -908,6 +837,79 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                       </div>
                     )}
                   </div>
+                )}
+
+                {/* Plus-ones */}
+                {maxPlusOnes > 0 && (
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      opacity: 0.9,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    Add plus-ones?{" "}
+                    <span style={{ opacity: 0.5 }}>
+                      (max: +{maxPlusOnes} on your list)
+                    </span>
+                    {/* Cocktail Capacity Warning */}
+                    {cocktailSpotsLeft !== null && cocktailSpotsLeft <= 10 && (
+                      <div
+                        style={{
+                          padding: "7px 11px",
+                          borderRadius: "10px",
+                          margin: "12px 0px 2px 0px",
+                          background:
+                            cocktailSpotsLeft <= 5
+                              ? "rgba(239, 68, 68, 0.15)"
+                              : "rgba(245, 158, 11, 0.15)",
+                          border:
+                            cocktailSpotsLeft <= 5
+                              ? "1px solid rgba(239, 68, 68, 0.3)"
+                              : "1px solid rgba(245, 158, 11, 0.3)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: cocktailSpotsLeft <= 5 ? "#ef4444" : "#f59e0b",
+                        }}
+                      >
+                        <span style={{ fontSize: "14px" }}>
+                          {cocktailSpotsLeft <= 5 ? "⚠️" : "⚡"}
+                        </span>
+                        <span>
+                          {cocktailSpotsLeft <= 5
+                            ? `Only ${cocktailSpotsLeft} spot${
+                                cocktailSpotsLeft === 1 ? "" : "s"
+                              } left`
+                            : "Few spots left"}
+                        </span>
+                      </div>
+                    )}
+                    <input
+                      type="number"
+                      min="0"
+                      max={maxPlusOnes}
+                      value={plusOnes}
+                      onChange={(e) => {
+                        const val = Math.max(
+                          0,
+                          Math.min(
+                            maxPlusOnes,
+                            parseInt(e.target.value, 10) || 0
+                          )
+                        );
+                        setPlusOnes(val);
+                      }}
+                      style={inputStyle}
+                      placeholder="0"
+                      disabled={loading}
+                    />
+                  </label>
                 )}
 
                 {/* Error */}

@@ -189,15 +189,10 @@ export function getCocktailsOnlyCount(eventId) {
     .reduce((sum, r) => {
       const wantsDinner = r.dinner?.enabled || r.wantsDinner || false;
       const plusOnes = r.plusOnes ?? 0;
+      const partySize = r.partySize ?? 1;
 
-      // If no dinner: all partySize is cocktails-only (booker + plusOnes)
-      // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
-      if (wantsDinner) {
-        return sum + plusOnes; // Only plusOnes are cocktails-only
-      } else {
-        const partySize = r.partySize ?? 1;
-        return sum + partySize; // Entire party is cocktails-only
-      }
+      // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only count
+      return sum + calculateCocktailsOnly(wantsDinner, partySize, plusOnes);
     }, 0);
 }
 
@@ -451,13 +446,54 @@ export function getAllPeopleWithStats() {
     });
 }
 
-// Helper function to calculate total unique guests
-// partySize = cocktail party (booker + plus-ones)
+// ============================================================================
+// DYNAMIC PARTY COMPOSITION SYSTEM (DPCS)
+// ============================================================================
+// This is a CRITICAL system that enables flexible guest allocation:
+// - When NO dinner: partySize = 1 (booker) + plusOnes (cocktails-only)
+// - When dinner IS selected: partySize = dinnerPartySize (includes booker) + plusOnes (cocktails-only)
+//
+// Key principle: The booker is automatically included in dinnerPartySize when dinner is selected.
+// This allows a dinner party of 4 to have +3 people on the cocktail list (total = 7).
+// ============================================================================
+
+/**
+ * Calculate total party size using Dynamic Party Composition System
+ * @param {boolean} wantsDinner - Whether dinner is selected
+ * @param {number} dinnerPartySize - Number of people for dinner (includes booker if wantsDinner)
+ * @param {number} plusOnes - Number of cocktails-only guests
+ * @returns {number} Total party size
+ */
+function calculatePartySize(wantsDinner, dinnerPartySize, plusOnes) {
+  if (wantsDinner) {
+    // Dinner includes booker, add cocktails-only guests
+    return dinnerPartySize + plusOnes;
+  } else {
+    // No dinner: booker + cocktails-only guests
+    return 1 + plusOnes;
+  }
+}
+
+/**
+ * Calculate cocktails-only count using Dynamic Party Composition System
+ * @param {boolean} wantsDinner - Whether dinner is selected
+ * @param {number} partySize - Total party size
+ * @param {number} plusOnes - Number of cocktails-only guests
+ * @returns {number} Number of cocktails-only guests
+ */
+function calculateCocktailsOnly(wantsDinner, partySize, plusOnes) {
+  if (wantsDinner) {
+    // Only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
+    return plusOnes;
+  } else {
+    // Entire party is cocktails-only (booker + plusOnes)
+    return partySize;
+  }
+}
+
 // Legacy helper: totalGuests should just be partySize
-// dinnerPartySize is a subset of partySize (how many from the party are going to dinner)
 function calculateTotalGuests(partySize, dinnerPartySize) {
   // With the new model, total unique guests is always partySize
-  // dinnerPartySize is just how many of those partySize guests are going to dinner
   return partySize;
 }
 
@@ -519,13 +555,13 @@ export function addRsvp({
     );
   }
 
-  // Calculate partySize based on whether dinner is selected
-  // - If no dinner: partySize = 1 (booker) + plusOnes (cocktails-only guests)
-  // - If dinner: partySize = dinnerPartySize (includes booker) + plusOnes (cocktails-only guests)
+  // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate partySize
   const finalPlusOnes = clampedPlusOnes; // Keep original plusOnes (cocktails-only)
-  const partySize = finalWantsDinner
-    ? finalDinnerPartySize + clampedPlusOnes // Dinner includes booker, add cocktails-only
-    : 1 + clampedPlusOnes; // No dinner: booker + cocktails-only guests
+  const partySize = calculatePartySize(
+    finalWantsDinner,
+    finalDinnerPartySize,
+    clampedPlusOnes
+  );
 
   const { confirmed } = getEventCounts(event.id);
 
@@ -534,10 +570,12 @@ export function addRsvp({
 
   let bookingStatus = "CONFIRMED";
 
-  // Capacity check for cocktail party using cocktailCapacity
-  // Calculate how many cocktails-only spots this NEW booking will use
-  // Since partySize = dinnerPartySize + plusOnes, cocktails-only = plusOnes
-  const cocktailsOnlyForThisBooking = finalPlusOnes;
+  // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only spots for this booking
+  const cocktailsOnlyForThisBooking = calculateCocktailsOnly(
+    finalWantsDinner,
+    partySize,
+    finalPlusOnes
+  );
 
   // Check if there's enough cocktail capacity (all-or-nothing)
   // Compare: current cocktails-only + new booking's cocktails-only vs capacity
@@ -808,12 +846,8 @@ export function updateRsvp(rsvpId, updates) {
     }
   }
 
-  // Calculate partySize based on whether dinner is selected
-  // - If no dinner: partySize = 1 (booker) + plusOnes (cocktails-only guests)
-  // - If dinner: partySize = dinnerPartySize (includes booker) + plusOnes (cocktails-only guests)
-  partySize = wantsDinner
-    ? dinnerPartySize + plusOnes // Dinner includes booker, add cocktails-only
-    : 1 + plusOnes; // No dinner: booker + cocktails-only guests
+  // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate partySize
+  partySize = calculatePartySize(wantsDinner, dinnerPartySize, plusOnes);
 
   // Calculate total guests for capacity check
   const totalGuestsForCheck = calculateTotalGuests(
@@ -837,21 +871,16 @@ export function updateRsvp(rsvpId, updates) {
       const plusOnes = r.plusOnes ?? 0;
       const partySize = r.partySize ?? 1;
 
-      // If no dinner: all partySize is cocktails-only (booker + plusOnes)
-      // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
-      if (wantsDinner) {
-        return sum + plusOnes; // Only plusOnes are cocktails-only
-      } else {
-        return sum + partySize; // Entire party is cocktails-only
-      }
+      // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only count
+      return sum + calculateCocktailsOnly(wantsDinner, partySize, plusOnes);
     }, 0);
 
-  // Calculate cocktails-only spots for this updated booking
-  // If no dinner: all partySize is cocktails-only (booker + plusOnes)
-  // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
-  const cocktailsOnlyForThisBooking = wantsDinner
-    ? plusOnes // Only plusOnes are cocktails-only
-    : partySize; // Entire party is cocktails-only
+  // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only spots for this booking
+  const cocktailsOnlyForThisBooking = calculateCocktailsOnly(
+    wantsDinner,
+    partySize,
+    plusOnes
+  );
 
   let bookingStatus =
     rsvp.bookingStatus ||

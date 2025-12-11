@@ -1,4 +1,12 @@
 // frontend/src/components/EventCard.jsx
+//
+// DYNAMIC PARTY COMPOSITION SYSTEM (DPCS) - CRITICAL SYSTEM
+// See PULLUP_SYSTEM_DOCUMENTATION_V2.md for full documentation
+//
+// This component implements DPCS for RSVP calculations:
+// - partySize = wantsDinner ? (dinnerPartySize + plusOnes) : (1 + plusOnes)
+// - cocktailsOnly = wantsDinner ? plusOnes : partySize
+//
 import { useState, useEffect } from "react";
 
 const API_BASE = "http://localhost:3001";
@@ -47,18 +55,16 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
   const confirmed = event._attendance?.confirmed ?? 0;
 
   // Calculate if booking will go to waitlist (all-or-nothing)
-  // Calculate partySize based on whether dinner is selected
-  // - If no dinner: partySize = 1 (booker) + plusOnes (cocktails-only guests)
-  // - If dinner: partySize = dinnerPartySize (includes booker) + plusOnes (cocktails-only guests)
+  // ============================================================================
+  // DYNAMIC PARTY COMPOSITION SYSTEM (DPCS) - CRITICAL SYSTEM
+  // See PULLUP_SYSTEM_DOCUMENTATION_V2.md for full documentation
+  // ============================================================================
   const dinnerPartySizeValue =
     wantsDinner && dinnerPartySize ? dinnerPartySize : 0;
   const partySize = wantsDinner
     ? dinnerPartySizeValue + plusOnes // Dinner includes booker, add cocktails-only
     : 1 + plusOnes; // No dinner: booker + cocktails-only guests
 
-  // Calculate cocktails-only spots this booking will use
-  // If no dinner: all partySize is cocktails-only (booker + plusOnes)
-  // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
   const cocktailsOnlyForThisBooking = wantsDinner
     ? plusOnes // Only plusOnes are cocktails-only
     : partySize; // Entire party is cocktails-only

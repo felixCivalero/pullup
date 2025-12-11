@@ -12,7 +12,10 @@ export function LandingPage() {
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
-
+  console.log(
+    "Supabase URL:",
+    import.meta.env.VITE_SUPABASE_URL ? "✅ Loaded" : "❌ Missing"
+  );
   return (
     <div
       style={{ minHeight: "100vh", position: "relative", overflow: "hidden" }}

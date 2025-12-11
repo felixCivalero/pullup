@@ -1,18 +1,20 @@
 // backend/src/data.js
 
+import { supabase } from './supabase.js';
+
 // ---------------------------
-// In-memory data
+// In-memory data (DEPRECATED - migrating to Supabase)
 // ---------------------------
-export const events = [];
+export const events = []; // TODO: Remove after migration
 
 // People/Contacts table - unique by email
-export const people = [];
+export const people = []; // TODO: Remove after migration
 
 // RSVPs table - links people to events
-export const rsvps = [];
+export const rsvps = []; // TODO: Remove after migration
 
 // Payments table - stores payment records
-export const payments = [];
+export const payments = []; // TODO: Remove after migration
 
 // ---------------------------
 // Slug helpers
@@ -27,20 +29,113 @@ function slugify(text) {
     .replace(/-+/g, "-");
 }
 
-function ensureUniqueSlug(baseSlug) {
+// Helper: Ensure unique slug in database
+async function ensureUniqueSlug(baseSlug) {
   let slug = baseSlug;
   let counter = 2;
-  while (events.some((e) => e.slug === slug)) {
+  
+  // Check if slug exists in database
+  while (true) {
+    const { data, error } = await supabase
+      .from('events')
+      .select('id')
+      .eq('slug', slug)
+      .single();
+    
+    // If no data found, slug is unique
+    if (error && error.code === 'PGRST116') {
+      break;
+    }
+    
+    // If error (other than not found), throw
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking slug uniqueness:', error);
+      throw new Error('Failed to check slug uniqueness');
+    }
+    
+    // Slug exists, try next
     slug = `${baseSlug}-${counter}`;
     counter += 1;
   }
+  
   return slug;
+}
+
+// Helper: Map database event to application format
+function mapEventFromDb(dbEvent) {
+  return {
+    id: dbEvent.id,
+    slug: dbEvent.slug,
+    title: dbEvent.title,
+    description: dbEvent.description,
+    location: dbEvent.location,
+    startsAt: dbEvent.starts_at,
+    endsAt: dbEvent.ends_at,
+    timezone: dbEvent.timezone,
+    isPaid: dbEvent.is_paid,
+    ticketType: dbEvent.ticket_type,
+    maxAttendees: dbEvent.total_capacity, // Backward compatibility
+    waitlistEnabled: dbEvent.waitlist_enabled,
+    imageUrl: dbEvent.image_url,
+    theme: dbEvent.theme,
+    calendar: dbEvent.calendar_category,
+    visibility: dbEvent.visibility,
+    requireApproval: dbEvent.require_approval,
+    createdAt: dbEvent.created_at,
+    updatedAt: dbEvent.updated_at,
+    maxPlusOnesPerGuest: dbEvent.max_plus_ones_per_guest || 0,
+    dinnerEnabled: dbEvent.dinner_enabled || false,
+    dinnerStartTime: dbEvent.dinner_start_time,
+    dinnerEndTime: dbEvent.dinner_end_time,
+    dinnerSeatingIntervalHours: dbEvent.dinner_seating_interval_hours || 2,
+    dinnerMaxSeatsPerSlot: dbEvent.dinner_max_seats_per_slot,
+    dinnerOverflowAction: dbEvent.dinner_overflow_action || 'waitlist',
+    ticketPrice: dbEvent.ticket_price,
+    stripeProductId: dbEvent.stripe_product_id,
+    stripePriceId: dbEvent.stripe_price_id,
+    cocktailCapacity: dbEvent.cocktail_capacity,
+    foodCapacity: dbEvent.food_capacity,
+    totalCapacity: dbEvent.total_capacity,
+  };
+}
+
+// Helper: Map application event updates to database format
+function mapEventToDb(eventData) {
+  const dbData = {};
+  if (eventData.title !== undefined) dbData.title = eventData.title;
+  if (eventData.description !== undefined) dbData.description = eventData.description;
+  if (eventData.location !== undefined) dbData.location = eventData.location;
+  if (eventData.startsAt !== undefined) dbData.starts_at = eventData.startsAt;
+  if (eventData.endsAt !== undefined) dbData.ends_at = eventData.endsAt;
+  if (eventData.timezone !== undefined) dbData.timezone = eventData.timezone;
+  if (eventData.ticketType !== undefined) dbData.ticket_type = eventData.ticketType;
+  if (eventData.waitlistEnabled !== undefined) dbData.waitlist_enabled = eventData.waitlistEnabled;
+  if (eventData.imageUrl !== undefined) dbData.image_url = eventData.imageUrl;
+  if (eventData.theme !== undefined) dbData.theme = eventData.theme;
+  if (eventData.calendar !== undefined) dbData.calendar_category = eventData.calendar;
+  if (eventData.visibility !== undefined) dbData.visibility = eventData.visibility;
+  if (eventData.requireApproval !== undefined) dbData.require_approval = eventData.requireApproval;
+  if (eventData.maxPlusOnesPerGuest !== undefined) dbData.max_plus_ones_per_guest = eventData.maxPlusOnesPerGuest;
+  if (eventData.dinnerEnabled !== undefined) dbData.dinner_enabled = eventData.dinnerEnabled;
+  if (eventData.dinnerStartTime !== undefined) dbData.dinner_start_time = eventData.dinnerStartTime;
+  if (eventData.dinnerEndTime !== undefined) dbData.dinner_end_time = eventData.dinnerEndTime;
+  if (eventData.dinnerSeatingIntervalHours !== undefined) dbData.dinner_seating_interval_hours = eventData.dinnerSeatingIntervalHours;
+  if (eventData.dinnerMaxSeatsPerSlot !== undefined) dbData.dinner_max_seats_per_slot = eventData.dinnerMaxSeatsPerSlot;
+  if (eventData.dinnerOverflowAction !== undefined) dbData.dinner_overflow_action = eventData.dinnerOverflowAction;
+  if (eventData.ticketPrice !== undefined) dbData.ticket_price = eventData.ticketPrice;
+  if (eventData.stripeProductId !== undefined) dbData.stripe_product_id = eventData.stripeProductId;
+  if (eventData.stripePriceId !== undefined) dbData.stripe_price_id = eventData.stripePriceId;
+  if (eventData.cocktailCapacity !== undefined) dbData.cocktail_capacity = eventData.cocktailCapacity;
+  if (eventData.foodCapacity !== undefined) dbData.food_capacity = eventData.foodCapacity;
+  if (eventData.totalCapacity !== undefined) dbData.total_capacity = eventData.totalCapacity;
+  if (eventData.isPaid !== undefined) dbData.is_paid = eventData.isPaid;
+  return dbData;
 }
 
 // ---------------------------
 // Event CRUD
 // ---------------------------
-export function createEvent({
+export async function createEvent({
   title,
   description,
   location,
@@ -76,10 +171,9 @@ export function createEvent({
   totalCapacity = null,
 }) {
   const baseSlug = slugify(title || "event");
-  const slug = ensureUniqueSlug(baseSlug);
+  const slug = await ensureUniqueSlug(baseSlug);
 
-  const event = {
-    id: `evt_${Date.now()}`,
+  const eventData = {
     slug,
     title,
     description,
@@ -96,13 +190,10 @@ export function createEvent({
     calendar,
     visibility,
     requireApproval,
-    createdAt: new Date().toISOString(),
-
     maxPlusOnesPerGuest:
       typeof maxPlusOnesPerGuest === "number"
         ? Math.max(0, Math.min(5, maxPlusOnesPerGuest))
         : 0,
-
     dinnerEnabled: !!dinnerEnabled,
     dinnerStartTime: dinnerStartTime || null,
     dinnerEndTime: dinnerEndTime || null,
@@ -114,42 +205,75 @@ export function createEvent({
     dinnerMaxSeatsPerSlot: dinnerMaxSeatsPerSlot
       ? Number(dinnerMaxSeatsPerSlot)
       : null,
-    dinnerOverflowAction: "waitlist", // Always use waitlist (removed cocktails/both options)
-
-    // Stripe fields
+    dinnerOverflowAction: "waitlist",
     ticketPrice:
       ticketType === "paid" && ticketPrice ? Number(ticketPrice) : null,
     stripeProductId: stripeProductId || null,
     stripePriceId: stripePriceId || null,
-
-    // Capacity fields
     cocktailCapacity: cocktailCapacity ? Number(cocktailCapacity) : null,
     foodCapacity: foodCapacity ? Number(foodCapacity) : null,
     totalCapacity: totalCapacity ? Number(totalCapacity) : null,
   };
 
-  events.push(event);
-  return event;
+  const dbData = mapEventToDb(eventData);
+  
+  const { data, error } = await supabase
+    .from('events')
+    .insert(dbData)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating event:', error);
+    throw new Error('Failed to create event');
+  }
+
+  return mapEventFromDb(data);
 }
 
-export function findEventBySlug(slug) {
-  return events.find((e) => e.slug === slug) || null;
+export async function findEventBySlug(slug) {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('slug', slug)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapEventFromDb(data);
 }
 
-export function findEventById(id) {
-  return events.find((e) => e.id === id) || null;
+export async function findEventById(id) {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapEventFromDb(data);
 }
 
-export function updateEvent(id, updates) {
-  const idx = events.findIndex((e) => e.id === id);
-  if (idx === -1) return null;
+export async function updateEvent(id, updates) {
+  const dbUpdates = mapEventToDb(updates);
 
-  events[idx] = {
-    ...events[idx],
-    ...updates,
-  };
+  const { data, error } = await supabase
+    .from('events')
+    .update(dbUpdates)
+    .eq('id', id)
+    .select()
+    .single();
 
-  return events[idx];
+  if (error || !data) {
+    return null;
+  }
+
+  return mapEventFromDb(data);
 }
 
 // ---------------------------
@@ -157,39 +281,56 @@ export function updateEvent(id, updates) {
 // ---------------------------
 
 // Count confirmed / waitlist based on partySize
-export function getEventCounts(eventId) {
-  // Use totalGuests for accurate capacity counting (accounts for dinner overlaps)
-  const confirmed = rsvps
-    .filter(
-      (r) =>
-        r.eventId === eventId &&
-        (r.bookingStatus === "CONFIRMED" || r.status === "attending")
-    )
-    .reduce((sum, r) => sum + (r.totalGuests ?? r.partySize ?? 1), 0);
+export async function getEventCounts(eventId) {
+  // Fetch all RSVPs for this event
+  const { data: eventRsvps, error } = await supabase
+    .from('rsvps')
+    .select('party_size, total_guests, booking_status, status')
+    .eq('event_id', eventId);
 
-  const waitlist = rsvps
+  if (error) {
+    console.error('Error fetching event counts:', error);
+    return { confirmed: 0, waitlist: 0 };
+  }
+
+  // Use totalGuests for accurate capacity counting (accounts for dinner overlaps)
+  const confirmed = eventRsvps
     .filter(
       (r) =>
-        r.eventId === eventId &&
-        (r.bookingStatus === "WAITLIST" || r.status === "waitlist")
+        r.booking_status === "CONFIRMED" || r.status === "attending"
     )
-    .reduce((sum, r) => sum + (r.totalGuests ?? r.partySize ?? 1), 0);
+    .reduce((sum, r) => sum + (r.total_guests ?? r.party_size ?? 1), 0);
+
+  const waitlist = eventRsvps
+    .filter(
+      (r) =>
+        r.booking_status === "WAITLIST" || r.status === "waitlist"
+    )
+    .reduce((sum, r) => sum + (r.total_guests ?? r.party_size ?? 1), 0);
 
   return { confirmed, waitlist };
 }
 
 // Calculate cocktails-only count (people attending cocktails but not confirmed for dinner)
-export function getCocktailsOnlyCount(eventId) {
-  return rsvps
-    .filter(
-      (r) =>
-        r.eventId === eventId &&
-        (r.bookingStatus === "CONFIRMED" || r.status === "attending")
-    )
-    .reduce((sum, r) => {
-      const wantsDinner = r.dinner?.enabled || r.wantsDinner || false;
-      const plusOnes = r.plusOnes ?? 0;
-      const partySize = r.partySize ?? 1;
+export async function getCocktailsOnlyCount(eventId) {
+  // Fetch all confirmed RSVPs for this event
+  const { data: eventRsvps, error } = await supabase
+    .from('rsvps')
+    .select('dinner, wants_dinner, plus_ones, party_size, booking_status, status')
+    .eq('event_id', eventId)
+    .in('booking_status', ['CONFIRMED'])
+    .or('status.eq.attending');
+
+  if (error) {
+    console.error('Error fetching cocktails-only count:', error);
+    return 0;
+  }
+
+  return eventRsvps.reduce((sum, r) => {
+      const dinner = r.dinner || {};
+      const wantsDinner = (dinner && dinner.enabled) || r.wants_dinner || false;
+      const plusOnes = r.plus_ones ?? 0;
+      const partySize = r.party_size ?? 1;
 
       // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only count
       return sum + calculateCocktailsOnly(wantsDinner, partySize, plusOnes);
@@ -217,44 +358,62 @@ export function generateDinnerTimeSlots(event) {
 }
 
 // Get seat counts per time slot
-export function getDinnerSlotCounts(eventId) {
-  const event = findEventById(eventId);
+export async function getDinnerSlotCounts(eventId) {
+  const event = await findEventById(eventId);
   if (!event || !event.dinnerEnabled) return {};
 
   const slots = generateDinnerTimeSlots(event);
   const slotCounts = {};
 
+  // Fetch all RSVPs with dinner for this event
+  const { data: eventRsvps, error } = await supabase
+    .from('rsvps')
+    .select('dinner, wants_dinner, dinner_time_slot, dinner_party_size, party_size, dinner_status')
+    .eq('event_id', eventId)
+    .or('wants_dinner.eq.true,dinner.not.is.null');
+
+  if (error) {
+    console.error('Error fetching dinner slot counts:', error);
+    return {};
+  }
+
   slots.forEach((slotTime) => {
     // Use dinnerPartySize for accurate slot capacity counting
-    const confirmed = rsvps
+    const confirmed = eventRsvps
       .filter((r) => {
-        const hasDinner = r.dinner?.enabled || r.wantsDinner;
+        const dinner = r.dinner || {};
+        const hasDinner = (dinner && dinner.enabled) || r.wants_dinner;
         const slotMatches =
-          r.dinner?.slotTime === slotTime || r.dinnerTimeSlot === slotTime;
+          (dinner && dinner.slotTime === slotTime) || r.dinner_time_slot === slotTime;
         const isConfirmed =
-          r.dinner?.bookingStatus === "CONFIRMED" ||
-          r.dinnerStatus === "confirmed";
-        return r.eventId === eventId && hasDinner && slotMatches && isConfirmed;
+          (dinner && dinner.bookingStatus === "CONFIRMED") ||
+          r.dinner_status === "confirmed";
+        return hasDinner && slotMatches && isConfirmed;
       })
       .reduce(
-        (sum, r) =>
-          sum + (r.dinner?.partySize || r.dinnerPartySize || r.partySize || 1),
+        (sum, r) => {
+          const dinner = r.dinner || {};
+          return sum + ((dinner && dinner.partySize) || r.dinner_party_size || r.party_size || 1);
+        },
         0
       );
 
-    const waitlist = rsvps
+    const waitlist = eventRsvps
       .filter((r) => {
-        const hasDinner = r.dinner?.enabled || r.wantsDinner;
+        const dinner = r.dinner || {};
+        const hasDinner = (dinner && dinner.enabled) || r.wants_dinner;
         const slotMatches =
-          r.dinner?.slotTime === slotTime || r.dinnerTimeSlot === slotTime;
+          (dinner && dinner.slotTime === slotTime) || r.dinner_time_slot === slotTime;
         const isWaitlist =
-          r.dinner?.bookingStatus === "WAITLIST" ||
-          r.dinnerStatus === "waitlist";
-        return r.eventId === eventId && hasDinner && slotMatches && isWaitlist;
+          (dinner && dinner.bookingStatus === "WAITLIST") ||
+          r.dinner_status === "waitlist";
+        return hasDinner && slotMatches && isWaitlist;
       })
       .reduce(
-        (sum, r) =>
-          sum + (r.dinner?.partySize || r.dinnerPartySize || r.partySize || 1),
+        (sum, r) => {
+          const dinner = r.dinner || {};
+          return sum + ((dinner && dinner.partySize) || r.dinner_party_size || r.party_size || 1);
+        },
         0
       );
 
@@ -265,25 +424,39 @@ export function getDinnerSlotCounts(eventId) {
 }
 
 // Dinner seat counts (legacy - total across all slots)
-export function getDinnerCounts(eventId) {
-  const dinnerConfirmedSeats = rsvps
-    .filter((r) => {
-      const hasDinner = r.dinner?.enabled || r.wantsDinner;
-      const isConfirmed =
-        r.dinner?.bookingStatus === "CONFIRMED" ||
-        r.dinnerStatus === "confirmed";
-      return r.eventId === eventId && hasDinner && isConfirmed;
-    })
-    .reduce((sum, r) => sum + (r.partySize || 1), 0);
+export async function getDinnerCounts(eventId) {
+  // Fetch all RSVPs with dinner for this event
+  const { data: eventRsvps, error } = await supabase
+    .from('rsvps')
+    .select('dinner, wants_dinner, dinner_status, party_size')
+    .eq('event_id', eventId)
+    .or('wants_dinner.eq.true,dinner.not.is.null');
 
-  const dinnerWaitlistSeats = rsvps
+  if (error) {
+    console.error('Error fetching dinner counts:', error);
+    return { dinnerConfirmedSeats: 0, dinnerWaitlistSeats: 0 };
+  }
+
+  const dinnerConfirmedSeats = eventRsvps
     .filter((r) => {
-      const hasDinner = r.dinner?.enabled || r.wantsDinner;
-      const isWaitlist =
-        r.dinner?.bookingStatus === "WAITLIST" || r.dinnerStatus === "waitlist";
-      return r.eventId === eventId && hasDinner && isWaitlist;
+      const dinner = r.dinner || {};
+      const hasDinner = (dinner && dinner.enabled) || r.wants_dinner;
+      const isConfirmed =
+        (dinner && dinner.bookingStatus === "CONFIRMED") ||
+        r.dinner_status === "confirmed";
+      return hasDinner && isConfirmed;
     })
-    .reduce((sum, r) => sum + (r.partySize || 1), 0);
+    .reduce((sum, r) => sum + (r.party_size || 1), 0);
+
+  const dinnerWaitlistSeats = eventRsvps
+    .filter((r) => {
+      const dinner = r.dinner || {};
+      const hasDinner = (dinner && dinner.enabled) || r.wants_dinner;
+      const isWaitlist =
+        (dinner && dinner.bookingStatus === "WAITLIST") || r.dinner_status === "waitlist";
+      return hasDinner && isWaitlist;
+    })
+    .reduce((sum, r) => sum + (r.party_size || 1), 0);
 
   return { dinnerConfirmedSeats, dinnerWaitlistSeats };
 }
@@ -299,151 +472,354 @@ function isValidEmail(email) {
 // ---------------------------
 
 // Find or create a person by email
-export function findOrCreatePerson(email, name = null) {
+export async function findOrCreatePerson(email, name = null) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  // Try to find existing person
-  let person = people.find((p) => p.email === normalizedEmail);
+  // Try to find existing person in Supabase
+  const { data: existingPerson, error: findError } = await supabase
+    .from('people')
+    .select('*')
+    .eq('email', normalizedEmail)
+    .single();
 
-  if (!person) {
-    // Create new person
-    person = {
-      id: `person_${Date.now()}`,
+  if (existingPerson && !findError) {
+    // Person exists - update name if provided and different
+    if (name && name.trim() && existingPerson.name !== name.trim()) {
+      const { data: updatedPerson, error: updateError } = await supabase
+        .from('people')
+        .update({ name: name.trim() })
+        .eq('id', existingPerson.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Error updating person name:', updateError);
+        // Return existing person even if update fails
+        return mapPersonFromDb(existingPerson);
+      }
+      return mapPersonFromDb(updatedPerson);
+    }
+    return mapPersonFromDb(existingPerson);
+  }
+
+  // Person doesn't exist - create new
+  const { data: newPerson, error: insertError } = await supabase
+    .from('people')
+    .insert({
       email: normalizedEmail,
-      name: name || null,
+      name: name ? name.trim() : null,
       phone: null,
       notes: null,
       tags: [],
-      stripeCustomerId: null, // Will be set when first payment is made
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    people.push(person);
-  } else {
-    // Update name if provided and different
-    if (name && name.trim() && person.name !== name.trim()) {
-      person.name = name.trim();
-      person.updatedAt = new Date().toISOString();
-    }
+      stripe_customer_id: null,
+    })
+    .select()
+    .single();
+
+  if (insertError) {
+    console.error('Error creating person:', insertError);
+    throw new Error('Failed to create person');
   }
 
-  return person;
+  return mapPersonFromDb(newPerson);
 }
 
 // Find person by ID
-export function findPersonById(personId) {
-  return people.find((p) => p.id === personId) || null;
+export async function findPersonById(personId) {
+  const { data, error } = await supabase
+    .from('people')
+    .select('*')
+    .eq('id', personId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapPersonFromDb(data);
 }
 
 // Find person by email
-export function findPersonByEmail(email) {
+export async function findPersonByEmail(email) {
   const normalizedEmail = email.trim().toLowerCase();
-  return people.find((p) => p.email === normalizedEmail) || null;
+  const { data, error } = await supabase
+    .from('people')
+    .select('*')
+    .eq('email', normalizedEmail)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapPersonFromDb(data);
+}
+
+// Helper: Map database person to application format
+function mapPersonFromDb(dbPerson) {
+  return {
+    id: dbPerson.id,
+    email: dbPerson.email,
+    name: dbPerson.name,
+    phone: dbPerson.phone,
+    notes: dbPerson.notes,
+    tags: dbPerson.tags || [],
+    stripeCustomerId: dbPerson.stripe_customer_id,
+    createdAt: dbPerson.created_at,
+    updatedAt: dbPerson.updated_at,
+  };
+}
+
+// Helper: Map application person updates to database format
+function mapPersonToDb(updates) {
+  const dbUpdates = {};
+  if (updates.name !== undefined) dbUpdates.name = updates.name;
+  if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+  if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+  if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
+  if (updates.stripeCustomerId !== undefined) dbUpdates.stripe_customer_id = updates.stripeCustomerId;
+  return dbUpdates;
 }
 
 // Update person
-export function updatePerson(personId, updates) {
-  const idx = people.findIndex((p) => p.id === personId);
-  if (idx === -1) return { error: "not_found" };
+export async function updatePerson(personId, updates) {
+  const dbUpdates = mapPersonToDb(updates);
 
-  people[idx] = {
-    ...people[idx],
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  };
+  const { data, error } = await supabase
+    .from('people')
+    .update(dbUpdates)
+    .eq('id', personId)
+    .select()
+    .single();
 
-  return { person: people[idx] };
+  if (error || !data) {
+    return { error: "not_found" };
+  }
+
+  return { person: mapPersonFromDb(data) };
 }
 
 // Update person's Stripe customer ID
-export function updatePersonStripeCustomerId(personId, stripeCustomerId) {
-  const idx = people.findIndex((p) => p.id === personId);
-  if (idx === -1) return { error: "not_found" };
+export async function updatePersonStripeCustomerId(personId, stripeCustomerId) {
+  const { data, error } = await supabase
+    .from('people')
+    .update({ stripe_customer_id: stripeCustomerId })
+    .eq('id', personId)
+    .select()
+    .single();
 
-  people[idx].stripeCustomerId = stripeCustomerId;
-  people[idx].updatedAt = new Date().toISOString();
+  if (error || !data) {
+    return { error: "not_found" };
+  }
 
-  return { person: people[idx] };
+  return { person: mapPersonFromDb(data) };
 }
 
 // Get all people with their event statistics
-export function getAllPeopleWithStats() {
-  return people
-    .map((person) => {
-      const personRsvps = rsvps.filter((r) => r.personId === person.id);
+export async function getAllPeopleWithStats() {
+  // Fetch all people
+  const { data: allPeople, error: peopleError } = await supabase
+    .from('people')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-      const eventsAttended = personRsvps.filter(
-        (r) => r.bookingStatus === "CONFIRMED" || r.status === "attending"
-      ).length;
-      const eventsWaitlisted = personRsvps.filter(
-        (r) => r.bookingStatus === "WAITLIST" || r.status === "waitlist"
-      ).length;
-      const totalEvents = personRsvps.length;
-      const totalGuestsBrought = personRsvps.reduce(
-        (sum, r) => sum + (r.plusOnes || 0),
-        0
-      );
-      const totalDinners = personRsvps.filter(
-        (r) => r.dinner?.enabled || r.wantsDinner === true
-      ).length;
-      const totalDinnerGuests = personRsvps.reduce(
-        (sum, r) =>
-          sum +
-          ((r.dinner?.enabled || r.wantsDinner) &&
-          (r.dinner?.partySize || r.dinnerPartySize)
-            ? r.dinner?.partySize || r.dinnerPartySize
-            : 0),
-        0
-      );
+  if (peopleError) {
+    console.error('Error fetching people:', peopleError);
+    return [];
+  }
 
-      // Get event details for each RSVP
-      const eventHistory = personRsvps
-        .map((rsvp) => {
-          const event = findEventById(rsvp.eventId);
-          return {
-            rsvpId: rsvp.id,
-            eventId: rsvp.eventId,
-            eventTitle: event?.title || "Unknown Event",
-            eventSlug: event?.slug || null,
-            eventDate: event?.startsAt || null,
-            status: rsvp.bookingStatus || rsvp.status,
-            plusOnes: rsvp.plusOnes || 0,
-            wantsDinner: rsvp.dinner?.enabled || rsvp.wantsDinner || false,
-            dinnerStatus:
-              rsvp.dinner?.bookingStatus || rsvp.dinnerStatus || null,
-            dinnerTimeSlot:
-              rsvp.dinner?.slotTime || rsvp.dinnerTimeSlot || null,
-            dinnerPartySize:
-              rsvp.dinner?.partySize || rsvp.dinnerPartySize || null,
-            rsvpDate: rsvp.createdAt,
-          };
-        })
-        .sort((a, b) => {
-          // Sort by event date (most recent first)
-          if (!a.eventDate) return 1;
-          if (!b.eventDate) return -1;
-          return new Date(b.eventDate) - new Date(a.eventDate);
-        });
+  // Fetch all RSVPs with event data
+  const { data: allRsvps, error: rsvpsError } = await supabase
+    .from('rsvps')
+    .select(`
+      *,
+      events:event_id (
+        id,
+        title,
+        slug,
+        starts_at
+      )
+    `);
 
-      return {
-        ...person,
-        stats: {
-          totalEvents,
-          eventsAttended,
-          eventsWaitlisted,
-          totalGuestsBrought,
-          totalDinners,
-          totalDinnerGuests,
-        },
-        eventHistory,
-      };
-    })
-    .sort((a, b) => {
-      // Sort by most recent activity (most recent RSVP first)
-      const aLatest = a.eventHistory[0]?.rsvpDate || a.createdAt;
-      const bLatest = b.eventHistory[0]?.rsvpDate || b.createdAt;
-      return new Date(bLatest) - new Date(aLatest);
-    });
+  if (rsvpsError) {
+    console.error('Error fetching RSVPs:', rsvpsError);
+    return allPeople.map(p => mapPersonFromDb(p));
+  }
+
+  // Group RSVPs by person
+  const rsvpsByPerson = {};
+  allRsvps.forEach((rsvp) => {
+    if (!rsvpsByPerson[rsvp.person_id]) {
+      rsvpsByPerson[rsvp.person_id] = [];
+    }
+    rsvpsByPerson[rsvp.person_id].push(rsvp);
+  });
+
+  // Calculate stats for each person
+  const peopleWithStats = allPeople.map((dbPerson) => {
+    const personRsvps = rsvpsByPerson[dbPerson.id] || [];
+
+    const eventsAttended = personRsvps.filter(
+      (r) => r.booking_status === "CONFIRMED" || r.status === "attending"
+    ).length;
+    const eventsWaitlisted = personRsvps.filter(
+      (r) => r.booking_status === "WAITLIST" || r.status === "waitlist"
+    ).length;
+    const totalEvents = personRsvps.length;
+    const totalGuestsBrought = personRsvps.reduce(
+      (sum, r) => sum + (r.plus_ones || 0),
+      0
+    );
+    const totalDinners = personRsvps.filter(
+      (r) => {
+        const dinner = r.dinner;
+        return (dinner && dinner.enabled) || r.wants_dinner === true;
+      }
+    ).length;
+    const totalDinnerGuests = personRsvps.reduce(
+      (sum, r) => {
+        const dinner = r.dinner;
+        const wantsDinner = (dinner && dinner.enabled) || r.wants_dinner;
+        const partySize = (dinner && dinner.partySize) || r.dinner_party_size;
+        return sum + (wantsDinner && partySize ? partySize : 0);
+      },
+      0
+    );
+
+    // Get event details for each RSVP
+    const eventHistory = personRsvps
+      .map((rsvp) => {
+        const event = rsvp.events || {};
+        const dinner = rsvp.dinner || {};
+        return {
+          rsvpId: rsvp.id,
+          eventId: rsvp.event_id,
+          eventTitle: event.title || "Unknown Event",
+          eventSlug: event.slug || null,
+          eventDate: event.starts_at || null,
+          status: rsvp.booking_status || rsvp.status,
+          plusOnes: rsvp.plus_ones || 0,
+          wantsDinner: (dinner && dinner.enabled) || rsvp.wants_dinner || false,
+          dinnerStatus: (dinner && dinner.bookingStatus) || rsvp.dinner_status || null,
+          dinnerTimeSlot: (dinner && dinner.slotTime) || rsvp.dinner_time_slot || null,
+          dinnerPartySize: (dinner && dinner.partySize) || rsvp.dinner_party_size || null,
+          rsvpDate: rsvp.created_at,
+        };
+      })
+      .sort((a, b) => {
+        // Sort by event date (most recent first)
+        if (!a.eventDate) return 1;
+        if (!b.eventDate) return -1;
+        return new Date(b.eventDate) - new Date(a.eventDate);
+      });
+
+    return {
+      ...mapPersonFromDb(dbPerson),
+      stats: {
+        totalEvents,
+        eventsAttended,
+        eventsWaitlisted,
+        totalGuestsBrought,
+        totalDinners,
+        totalDinnerGuests,
+      },
+      eventHistory,
+    };
+  });
+
+  // Sort by most recent activity
+  return peopleWithStats.sort((a, b) => {
+    const aLatest = a.eventHistory[0]?.rsvpDate || a.createdAt;
+    const bLatest = b.eventHistory[0]?.rsvpDate || b.createdAt;
+    return new Date(bLatest) - new Date(aLatest);
+  });
+}
+
+// Helper: Map database RSVP to application format
+function mapRsvpFromDb(dbRsvp, person = null) {
+  const dinner = dbRsvp.dinner || {};
+  return {
+    id: dbRsvp.id,
+    personId: dbRsvp.person_id,
+    eventId: dbRsvp.event_id,
+    slug: dbRsvp.slug,
+    bookingStatus: dbRsvp.booking_status,
+    status: dbRsvp.status,
+    plusOnes: dbRsvp.plus_ones || 0,
+    partySize: dbRsvp.party_size,
+    dinner: (dinner && dinner.enabled) || dbRsvp.wants_dinner
+      ? {
+          enabled: true,
+          partySize: (dinner && dinner.partySize) || dbRsvp.dinner_party_size,
+          slotTime: (dinner && dinner.slotTime) || dbRsvp.dinner_time_slot,
+          bookingStatus: (dinner && dinner.bookingStatus) || 
+            (dbRsvp.dinner_status === "confirmed" ? "CONFIRMED" : 
+             dbRsvp.dinner_status === "waitlist" ? "WAITLIST" : null),
+        }
+      : null,
+    wantsDinner: dbRsvp.wants_dinner || false,
+    dinnerStatus: dbRsvp.dinner_status,
+    dinnerTimeSlot: dbRsvp.dinner_time_slot,
+    dinnerPartySize: dbRsvp.dinner_party_size,
+    capacityOverridden: dbRsvp.capacity_overridden || false,
+    dinnerPullUpCount: dbRsvp.dinner_pull_up_count || 0,
+    cocktailOnlyPullUpCount: dbRsvp.cocktail_only_pull_up_count || 0,
+    pulledUp: dbRsvp.pulled_up || false,
+    pulledUpCount: dbRsvp.pulled_up_count,
+    pulledUpForDinner: dbRsvp.pulled_up_for_dinner,
+    pulledUpForCocktails: dbRsvp.pulled_up_for_cocktails,
+    paymentId: dbRsvp.payment_id,
+    paymentStatus: dbRsvp.payment_status,
+    totalGuests: dbRsvp.total_guests,
+    createdAt: dbRsvp.created_at,
+    updatedAt: dbRsvp.updated_at,
+    // Enrich with person data if provided
+    name: person?.name || null,
+    email: person?.email || null,
+  };
+}
+
+// Helper: Map application RSVP to database format
+function mapRsvpToDb(rsvpData) {
+  const dbData = {};
+  if (rsvpData.personId !== undefined) dbData.person_id = rsvpData.personId;
+  if (rsvpData.eventId !== undefined) dbData.event_id = rsvpData.eventId;
+  if (rsvpData.slug !== undefined) dbData.slug = rsvpData.slug;
+  if (rsvpData.bookingStatus !== undefined) dbData.booking_status = rsvpData.bookingStatus;
+  if (rsvpData.status !== undefined) dbData.status = rsvpData.status;
+  if (rsvpData.plusOnes !== undefined) dbData.plus_ones = rsvpData.plusOnes;
+  if (rsvpData.partySize !== undefined) dbData.party_size = rsvpData.partySize;
+  if (rsvpData.dinner !== undefined) {
+    dbData.dinner = rsvpData.dinner;
+    // Also set backward compatibility fields
+    if (rsvpData.dinner) {
+      dbData.wants_dinner = rsvpData.dinner.enabled || false;
+      dbData.dinner_party_size = rsvpData.dinner.partySize || null;
+      dbData.dinner_time_slot = rsvpData.dinner.slotTime || null;
+      dbData.dinner_status = rsvpData.dinner.bookingStatus === "CONFIRMED" ? "confirmed" :
+                            rsvpData.dinner.bookingStatus === "WAITLIST" ? "waitlist" : null;
+    } else {
+      dbData.wants_dinner = false;
+      dbData.dinner_party_size = null;
+      dbData.dinner_time_slot = null;
+      dbData.dinner_status = null;
+    }
+  }
+  if (rsvpData.wantsDinner !== undefined) dbData.wants_dinner = rsvpData.wantsDinner;
+  if (rsvpData.dinnerStatus !== undefined) dbData.dinner_status = rsvpData.dinnerStatus;
+  if (rsvpData.dinnerTimeSlot !== undefined) dbData.dinner_time_slot = rsvpData.dinnerTimeSlot;
+  if (rsvpData.dinnerPartySize !== undefined) dbData.dinner_party_size = rsvpData.dinnerPartySize;
+  if (rsvpData.capacityOverridden !== undefined) dbData.capacity_overridden = rsvpData.capacityOverridden;
+  if (rsvpData.dinnerPullUpCount !== undefined) dbData.dinner_pull_up_count = rsvpData.dinnerPullUpCount;
+  if (rsvpData.cocktailOnlyPullUpCount !== undefined) dbData.cocktail_only_pull_up_count = rsvpData.cocktailOnlyPullUpCount;
+  if (rsvpData.pulledUp !== undefined) dbData.pulled_up = rsvpData.pulledUp;
+  if (rsvpData.pulledUpCount !== undefined) dbData.pulled_up_count = rsvpData.pulledUpCount;
+  if (rsvpData.pulledUpForDinner !== undefined) dbData.pulled_up_for_dinner = rsvpData.pulledUpForDinner;
+  if (rsvpData.pulledUpForCocktails !== undefined) dbData.pulled_up_for_cocktails = rsvpData.pulledUpForCocktails;
+  if (rsvpData.paymentId !== undefined) dbData.payment_id = rsvpData.paymentId;
+  if (rsvpData.paymentStatus !== undefined) dbData.payment_status = rsvpData.paymentStatus;
+  if (rsvpData.totalGuests !== undefined) dbData.total_guests = rsvpData.totalGuests;
+  return dbData;
 }
 
 // ============================================================================
@@ -498,7 +874,7 @@ function calculateTotalGuests(partySize, dinnerPartySize) {
 }
 
 // plusOnes = 0–3, wantsDinner = boolean, dinnerTimeSlot = ISO string, dinnerPartySize = number
-export function addRsvp({
+export async function addRsvp({
   slug,
   name,
   email,
@@ -507,7 +883,7 @@ export function addRsvp({
   dinnerTimeSlot = null,
   dinnerPartySize = null,
 }) {
-  const event = findEventBySlug(slug);
+  const event = await findEventBySlug(slug);
   if (!event) return { error: "not_found" };
 
   if (!email || !isValidEmail(email.trim())) {
@@ -517,14 +893,19 @@ export function addRsvp({
   const normalizedEmail = email.trim().toLowerCase();
 
   // Find or create person
-  const person = findOrCreatePerson(normalizedEmail, name);
+  const person = await findOrCreatePerson(normalizedEmail, name);
 
   // Check for duplicate RSVP for this event (same person, same event)
-  const existingRsvp = rsvps.find(
-    (r) => r.eventId === event.id && r.personId === person.id
-  );
-  if (existingRsvp) {
-    return { error: "duplicate", rsvp: existingRsvp };
+  const { data: existingRsvpData, error: duplicateError } = await supabase
+    .from('rsvps')
+    .select('*')
+    .eq('event_id', event.id)
+    .eq('person_id', person.id)
+    .single();
+
+  if (existingRsvpData && !duplicateError) {
+    const existingPerson = await findPersonById(existingRsvpData.person_id);
+    return { error: "duplicate", rsvp: mapRsvpFromDb(existingRsvpData, existingPerson) };
   }
 
   const maxPlus =
@@ -563,10 +944,10 @@ export function addRsvp({
     clampedPlusOnes
   );
 
-  const { confirmed } = getEventCounts(event.id);
+  const { confirmed } = await getEventCounts(event.id);
 
   // Calculate current cocktails-only count (all existing confirmed RSVPs)
-  const currentCocktailsOnly = getCocktailsOnlyCount(event.id);
+  const currentCocktailsOnly = await getCocktailsOnlyCount(event.id);
 
   let bookingStatus = "CONFIRMED";
 
@@ -655,7 +1036,7 @@ export function addRsvp({
 
     if (finalDinnerTimeSlot) {
       // Check capacity for this specific time slot
-      const slotCounts = getDinnerSlotCounts(event.id);
+      const slotCounts = await getDinnerSlotCounts(event.id);
       const slotData = slotCounts[finalDinnerTimeSlot] || {
         confirmed: 0,
         waitlist: 0,
@@ -691,9 +1072,8 @@ export function addRsvp({
     finalWantsDinner ? finalDinnerPartySize : null
   );
 
-  const rsvp = {
-    id: `rsvp_${Date.now()}`,
-    personId: person.id, // Link to person
+  const rsvpData = {
+    personId: person.id,
     eventId: event.id,
     slug,
     bookingStatus, // "CONFIRMED" | "WAITLIST" | "CANCELLED"
@@ -713,7 +1093,6 @@ export function addRsvp({
           bookingStatus: dinnerStatus, // "CONFIRMED" | "WAITLIST"
         }
       : null,
-    // Backward compatibility fields
     wantsDinner: finalWantsDinner,
     dinnerStatus:
       dinnerStatus === "CONFIRMED"
@@ -728,45 +1107,79 @@ export function addRsvp({
     paymentStatus: event.ticketType === "paid" ? "unpaid" : null, // "unpaid" | "pending" | "paid" | "refunded"
     dinnerPullUpCount: 0, // Number of dinner guests who have arrived
     cocktailOnlyPullUpCount: 0, // Number of cocktails-only guests who have arrived
-    // Backward compatibility fields
     pulledUp: false,
     pulledUpCount: null,
     pulledUpForDinner: null,
     pulledUpForCocktails: null,
-    createdAt: new Date().toISOString(),
   };
 
-  rsvps.push(rsvp);
+  const dbRsvpData = mapRsvpToDb(rsvpData);
+
+  // Insert RSVP into database
+  const { data: insertedRsvp, error: insertError } = await supabase
+    .from('rsvps')
+    .insert(dbRsvpData)
+    .select()
+    .single();
+
+  if (insertError) {
+    console.error('Error creating RSVP:', insertError);
+    return { error: "database_error", message: insertError.message };
+  }
+
+  const rsvp = mapRsvpFromDb(insertedRsvp, person);
 
   return { event, rsvp };
 }
 
-export function getRsvpsForEvent(eventId) {
-  const eventRsvps = rsvps.filter((r) => r.eventId === eventId);
+export async function getRsvpsForEvent(eventId) {
+  // Fetch all RSVPs for this event with person data
+  const { data: eventRsvps, error } = await supabase
+    .from('rsvps')
+    .select(`
+      *,
+      people:person_id (
+        id,
+        name,
+        email
+      )
+    `)
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false });
 
-  // Enrich RSVPs with person data for backward compatibility
-  return eventRsvps.map((rsvp) => {
-    const person = findPersonById(rsvp.personId);
-    return {
-      ...rsvp,
-      name: person?.name || null,
-      email: person?.email || null,
-    };
+  if (error) {
+    console.error('Error fetching RSVPs for event:', error);
+    return [];
+  }
+
+  // Map to application format with person data
+  return eventRsvps.map((dbRsvp) => {
+    const person = dbRsvp.people || null;
+    return mapRsvpFromDb(dbRsvp, person);
   });
 }
 
 // Find RSVP by ID (enriched with person data)
-export function findRsvpById(rsvpId) {
-  const rsvp = rsvps.find((r) => r.id === rsvpId);
-  if (!rsvp) return null;
+export async function findRsvpById(rsvpId) {
+  const { data: dbRsvp, error } = await supabase
+    .from('rsvps')
+    .select(`
+      *,
+      people:person_id (
+        id,
+        name,
+        email
+      )
+    `)
+    .eq('id', rsvpId)
+    .single();
 
-  // Enrich with person data for backward compatibility
-  const person = findPersonById(rsvp.personId);
-  return {
-    ...rsvp,
-    name: person?.name || null,
-    email: person?.email || null,
-  };
+  if (error || !dbRsvp) {
+    return null;
+  }
+
+  const person = dbRsvp.people || null;
+  return mapRsvpFromDb(dbRsvp, person);
 }
 
 // Update RSVP

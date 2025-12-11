@@ -1,6 +1,6 @@
 // backend/src/data.js
 
-import { supabase } from './supabase.js';
+import { supabase } from "./supabase.js";
 
 // ---------------------------
 // In-memory data (DEPRECATED - migrating to Supabase)
@@ -33,36 +33,36 @@ function slugify(text) {
 async function ensureUniqueSlug(baseSlug) {
   let slug = baseSlug;
   let counter = 2;
-  
+
   // Check if slug exists in database
   while (true) {
     const { data, error } = await supabase
-      .from('events')
-      .select('id')
-      .eq('slug', slug)
+      .from("events")
+      .select("id")
+      .eq("slug", slug)
       .single();
-    
+
     // If no data found, slug is unique
-    if (error && error.code === 'PGRST116') {
+    if (error && error.code === "PGRST116") {
       break;
     }
-    
+
     // If error (other than not found), throw
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error checking slug uniqueness:', error);
-      throw new Error('Failed to check slug uniqueness');
+    if (error && error.code !== "PGRST116") {
+      console.error("Error checking slug uniqueness:", error);
+      throw new Error("Failed to check slug uniqueness");
     }
-    
+
     // Slug exists, try next
     slug = `${baseSlug}-${counter}`;
     counter += 1;
   }
-  
+
   return slug;
 }
 
 // Helper: Map database event to application format
-function mapEventFromDb(dbEvent) {
+export function mapEventFromDb(dbEvent) {
   return {
     id: dbEvent.id,
     slug: dbEvent.slug,
@@ -89,7 +89,7 @@ function mapEventFromDb(dbEvent) {
     dinnerEndTime: dbEvent.dinner_end_time,
     dinnerSeatingIntervalHours: dbEvent.dinner_seating_interval_hours || 2,
     dinnerMaxSeatsPerSlot: dbEvent.dinner_max_seats_per_slot,
-    dinnerOverflowAction: dbEvent.dinner_overflow_action || 'waitlist',
+    dinnerOverflowAction: dbEvent.dinner_overflow_action || "waitlist",
     ticketPrice: dbEvent.ticket_price,
     stripeProductId: dbEvent.stripe_product_id,
     stripePriceId: dbEvent.stripe_price_id,
@@ -102,32 +102,52 @@ function mapEventFromDb(dbEvent) {
 // Helper: Map application event updates to database format
 function mapEventToDb(eventData) {
   const dbData = {};
+  if (eventData.slug !== undefined) dbData.slug = eventData.slug;
   if (eventData.title !== undefined) dbData.title = eventData.title;
-  if (eventData.description !== undefined) dbData.description = eventData.description;
+  if (eventData.description !== undefined)
+    dbData.description = eventData.description;
   if (eventData.location !== undefined) dbData.location = eventData.location;
   if (eventData.startsAt !== undefined) dbData.starts_at = eventData.startsAt;
   if (eventData.endsAt !== undefined) dbData.ends_at = eventData.endsAt;
   if (eventData.timezone !== undefined) dbData.timezone = eventData.timezone;
-  if (eventData.ticketType !== undefined) dbData.ticket_type = eventData.ticketType;
-  if (eventData.waitlistEnabled !== undefined) dbData.waitlist_enabled = eventData.waitlistEnabled;
+  if (eventData.ticketType !== undefined)
+    dbData.ticket_type = eventData.ticketType;
+  if (eventData.waitlistEnabled !== undefined)
+    dbData.waitlist_enabled = eventData.waitlistEnabled;
   if (eventData.imageUrl !== undefined) dbData.image_url = eventData.imageUrl;
   if (eventData.theme !== undefined) dbData.theme = eventData.theme;
-  if (eventData.calendar !== undefined) dbData.calendar_category = eventData.calendar;
-  if (eventData.visibility !== undefined) dbData.visibility = eventData.visibility;
-  if (eventData.requireApproval !== undefined) dbData.require_approval = eventData.requireApproval;
-  if (eventData.maxPlusOnesPerGuest !== undefined) dbData.max_plus_ones_per_guest = eventData.maxPlusOnesPerGuest;
-  if (eventData.dinnerEnabled !== undefined) dbData.dinner_enabled = eventData.dinnerEnabled;
-  if (eventData.dinnerStartTime !== undefined) dbData.dinner_start_time = eventData.dinnerStartTime;
-  if (eventData.dinnerEndTime !== undefined) dbData.dinner_end_time = eventData.dinnerEndTime;
-  if (eventData.dinnerSeatingIntervalHours !== undefined) dbData.dinner_seating_interval_hours = eventData.dinnerSeatingIntervalHours;
-  if (eventData.dinnerMaxSeatsPerSlot !== undefined) dbData.dinner_max_seats_per_slot = eventData.dinnerMaxSeatsPerSlot;
-  if (eventData.dinnerOverflowAction !== undefined) dbData.dinner_overflow_action = eventData.dinnerOverflowAction;
-  if (eventData.ticketPrice !== undefined) dbData.ticket_price = eventData.ticketPrice;
-  if (eventData.stripeProductId !== undefined) dbData.stripe_product_id = eventData.stripeProductId;
-  if (eventData.stripePriceId !== undefined) dbData.stripe_price_id = eventData.stripePriceId;
-  if (eventData.cocktailCapacity !== undefined) dbData.cocktail_capacity = eventData.cocktailCapacity;
-  if (eventData.foodCapacity !== undefined) dbData.food_capacity = eventData.foodCapacity;
-  if (eventData.totalCapacity !== undefined) dbData.total_capacity = eventData.totalCapacity;
+  if (eventData.calendar !== undefined)
+    dbData.calendar_category = eventData.calendar;
+  if (eventData.visibility !== undefined)
+    dbData.visibility = eventData.visibility;
+  if (eventData.requireApproval !== undefined)
+    dbData.require_approval = eventData.requireApproval;
+  if (eventData.maxPlusOnesPerGuest !== undefined)
+    dbData.max_plus_ones_per_guest = eventData.maxPlusOnesPerGuest;
+  if (eventData.dinnerEnabled !== undefined)
+    dbData.dinner_enabled = eventData.dinnerEnabled;
+  if (eventData.dinnerStartTime !== undefined)
+    dbData.dinner_start_time = eventData.dinnerStartTime;
+  if (eventData.dinnerEndTime !== undefined)
+    dbData.dinner_end_time = eventData.dinnerEndTime;
+  if (eventData.dinnerSeatingIntervalHours !== undefined)
+    dbData.dinner_seating_interval_hours = eventData.dinnerSeatingIntervalHours;
+  if (eventData.dinnerMaxSeatsPerSlot !== undefined)
+    dbData.dinner_max_seats_per_slot = eventData.dinnerMaxSeatsPerSlot;
+  if (eventData.dinnerOverflowAction !== undefined)
+    dbData.dinner_overflow_action = eventData.dinnerOverflowAction;
+  if (eventData.ticketPrice !== undefined)
+    dbData.ticket_price = eventData.ticketPrice;
+  if (eventData.stripeProductId !== undefined)
+    dbData.stripe_product_id = eventData.stripeProductId;
+  if (eventData.stripePriceId !== undefined)
+    dbData.stripe_price_id = eventData.stripePriceId;
+  if (eventData.cocktailCapacity !== undefined)
+    dbData.cocktail_capacity = eventData.cocktailCapacity;
+  if (eventData.foodCapacity !== undefined)
+    dbData.food_capacity = eventData.foodCapacity;
+  if (eventData.totalCapacity !== undefined)
+    dbData.total_capacity = eventData.totalCapacity;
   if (eventData.isPaid !== undefined) dbData.is_paid = eventData.isPaid;
   return dbData;
 }
@@ -216,16 +236,16 @@ export async function createEvent({
   };
 
   const dbData = mapEventToDb(eventData);
-  
+
   const { data, error } = await supabase
-    .from('events')
+    .from("events")
     .insert(dbData)
     .select()
     .single();
 
   if (error) {
-    console.error('Error creating event:', error);
-    throw new Error('Failed to create event');
+    console.error("Error creating event:", error);
+    throw new Error("Failed to create event");
   }
 
   return mapEventFromDb(data);
@@ -233,9 +253,9 @@ export async function createEvent({
 
 export async function findEventBySlug(slug) {
   const { data, error } = await supabase
-    .from('events')
-    .select('*')
-    .eq('slug', slug)
+    .from("events")
+    .select("*")
+    .eq("slug", slug)
     .single();
 
   if (error || !data) {
@@ -247,9 +267,9 @@ export async function findEventBySlug(slug) {
 
 export async function findEventById(id) {
   const { data, error } = await supabase
-    .from('events')
-    .select('*')
-    .eq('id', id)
+    .from("events")
+    .select("*")
+    .eq("id", id)
     .single();
 
   if (error || !data) {
@@ -263,9 +283,9 @@ export async function updateEvent(id, updates) {
   const dbUpdates = mapEventToDb(updates);
 
   const { data, error } = await supabase
-    .from('events')
+    .from("events")
     .update(dbUpdates)
-    .eq('id', id)
+    .eq("id", id)
     .select()
     .single();
 
@@ -284,28 +304,22 @@ export async function updateEvent(id, updates) {
 export async function getEventCounts(eventId) {
   // Fetch all RSVPs for this event
   const { data: eventRsvps, error } = await supabase
-    .from('rsvps')
-    .select('party_size, total_guests, booking_status, status')
-    .eq('event_id', eventId);
+    .from("rsvps")
+    .select("party_size, total_guests, booking_status, status")
+    .eq("event_id", eventId);
 
   if (error) {
-    console.error('Error fetching event counts:', error);
+    console.error("Error fetching event counts:", error);
     return { confirmed: 0, waitlist: 0 };
   }
 
   // Use totalGuests for accurate capacity counting (accounts for dinner overlaps)
   const confirmed = eventRsvps
-    .filter(
-      (r) =>
-        r.booking_status === "CONFIRMED" || r.status === "attending"
-    )
+    .filter((r) => r.booking_status === "CONFIRMED" || r.status === "attending")
     .reduce((sum, r) => sum + (r.total_guests ?? r.party_size ?? 1), 0);
 
   const waitlist = eventRsvps
-    .filter(
-      (r) =>
-        r.booking_status === "WAITLIST" || r.status === "waitlist"
-    )
+    .filter((r) => r.booking_status === "WAITLIST" || r.status === "waitlist")
     .reduce((sum, r) => sum + (r.total_guests ?? r.party_size ?? 1), 0);
 
   return { confirmed, waitlist };
@@ -315,26 +329,28 @@ export async function getEventCounts(eventId) {
 export async function getCocktailsOnlyCount(eventId) {
   // Fetch all confirmed RSVPs for this event
   const { data: eventRsvps, error } = await supabase
-    .from('rsvps')
-    .select('dinner, wants_dinner, plus_ones, party_size, booking_status, status')
-    .eq('event_id', eventId)
-    .in('booking_status', ['CONFIRMED'])
-    .or('status.eq.attending');
+    .from("rsvps")
+    .select(
+      "dinner, wants_dinner, plus_ones, party_size, booking_status, status"
+    )
+    .eq("event_id", eventId)
+    .in("booking_status", ["CONFIRMED"])
+    .or("status.eq.attending");
 
   if (error) {
-    console.error('Error fetching cocktails-only count:', error);
+    console.error("Error fetching cocktails-only count:", error);
     return 0;
   }
 
   return eventRsvps.reduce((sum, r) => {
-      const dinner = r.dinner || {};
-      const wantsDinner = (dinner && dinner.enabled) || r.wants_dinner || false;
-      const plusOnes = r.plus_ones ?? 0;
-      const partySize = r.party_size ?? 1;
+    const dinner = r.dinner || {};
+    const wantsDinner = (dinner && dinner.enabled) || r.wants_dinner || false;
+    const plusOnes = r.plus_ones ?? 0;
+    const partySize = r.party_size ?? 1;
 
-      // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only count
-      return sum + calculateCocktailsOnly(wantsDinner, partySize, plusOnes);
-    }, 0);
+    // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only count
+    return sum + calculateCocktailsOnly(wantsDinner, partySize, plusOnes);
+  }, 0);
 }
 
 // Generate dinner time slots based on start, end, and interval
@@ -367,13 +383,15 @@ export async function getDinnerSlotCounts(eventId) {
 
   // Fetch all RSVPs with dinner for this event
   const { data: eventRsvps, error } = await supabase
-    .from('rsvps')
-    .select('dinner, wants_dinner, dinner_time_slot, dinner_party_size, party_size, dinner_status')
-    .eq('event_id', eventId)
-    .or('wants_dinner.eq.true,dinner.not.is.null');
+    .from("rsvps")
+    .select(
+      "dinner, wants_dinner, dinner_time_slot, dinner_party_size, party_size, dinner_status"
+    )
+    .eq("event_id", eventId)
+    .or("wants_dinner.eq.true,dinner.not.is.null");
 
   if (error) {
-    console.error('Error fetching dinner slot counts:', error);
+    console.error("Error fetching dinner slot counts:", error);
     return {};
   }
 
@@ -384,38 +402,46 @@ export async function getDinnerSlotCounts(eventId) {
         const dinner = r.dinner || {};
         const hasDinner = (dinner && dinner.enabled) || r.wants_dinner;
         const slotMatches =
-          (dinner && dinner.slotTime === slotTime) || r.dinner_time_slot === slotTime;
+          (dinner && dinner.slotTime === slotTime) ||
+          r.dinner_time_slot === slotTime;
         const isConfirmed =
           (dinner && dinner.bookingStatus === "CONFIRMED") ||
           r.dinner_status === "confirmed";
         return hasDinner && slotMatches && isConfirmed;
       })
-      .reduce(
-        (sum, r) => {
-          const dinner = r.dinner || {};
-          return sum + ((dinner && dinner.partySize) || r.dinner_party_size || r.party_size || 1);
-        },
-        0
-      );
+      .reduce((sum, r) => {
+        const dinner = r.dinner || {};
+        return (
+          sum +
+          ((dinner && dinner.partySize) ||
+            r.dinner_party_size ||
+            r.party_size ||
+            1)
+        );
+      }, 0);
 
     const waitlist = eventRsvps
       .filter((r) => {
         const dinner = r.dinner || {};
         const hasDinner = (dinner && dinner.enabled) || r.wants_dinner;
         const slotMatches =
-          (dinner && dinner.slotTime === slotTime) || r.dinner_time_slot === slotTime;
+          (dinner && dinner.slotTime === slotTime) ||
+          r.dinner_time_slot === slotTime;
         const isWaitlist =
           (dinner && dinner.bookingStatus === "WAITLIST") ||
           r.dinner_status === "waitlist";
         return hasDinner && slotMatches && isWaitlist;
       })
-      .reduce(
-        (sum, r) => {
-          const dinner = r.dinner || {};
-          return sum + ((dinner && dinner.partySize) || r.dinner_party_size || r.party_size || 1);
-        },
-        0
-      );
+      .reduce((sum, r) => {
+        const dinner = r.dinner || {};
+        return (
+          sum +
+          ((dinner && dinner.partySize) ||
+            r.dinner_party_size ||
+            r.party_size ||
+            1)
+        );
+      }, 0);
 
     slotCounts[slotTime] = { confirmed, waitlist };
   });
@@ -427,13 +453,13 @@ export async function getDinnerSlotCounts(eventId) {
 export async function getDinnerCounts(eventId) {
   // Fetch all RSVPs with dinner for this event
   const { data: eventRsvps, error } = await supabase
-    .from('rsvps')
-    .select('dinner, wants_dinner, dinner_status, party_size')
-    .eq('event_id', eventId)
-    .or('wants_dinner.eq.true,dinner.not.is.null');
+    .from("rsvps")
+    .select("dinner, wants_dinner, dinner_status, party_size")
+    .eq("event_id", eventId)
+    .or("wants_dinner.eq.true,dinner.not.is.null");
 
   if (error) {
-    console.error('Error fetching dinner counts:', error);
+    console.error("Error fetching dinner counts:", error);
     return { dinnerConfirmedSeats: 0, dinnerWaitlistSeats: 0 };
   }
 
@@ -453,7 +479,8 @@ export async function getDinnerCounts(eventId) {
       const dinner = r.dinner || {};
       const hasDinner = (dinner && dinner.enabled) || r.wants_dinner;
       const isWaitlist =
-        (dinner && dinner.bookingStatus === "WAITLIST") || r.dinner_status === "waitlist";
+        (dinner && dinner.bookingStatus === "WAITLIST") ||
+        r.dinner_status === "waitlist";
       return hasDinner && isWaitlist;
     })
     .reduce((sum, r) => sum + (r.party_size || 1), 0);
@@ -477,23 +504,23 @@ export async function findOrCreatePerson(email, name = null) {
 
   // Try to find existing person in Supabase
   const { data: existingPerson, error: findError } = await supabase
-    .from('people')
-    .select('*')
-    .eq('email', normalizedEmail)
+    .from("people")
+    .select("*")
+    .eq("email", normalizedEmail)
     .single();
 
   if (existingPerson && !findError) {
     // Person exists - update name if provided and different
     if (name && name.trim() && existingPerson.name !== name.trim()) {
       const { data: updatedPerson, error: updateError } = await supabase
-        .from('people')
+        .from("people")
         .update({ name: name.trim() })
-        .eq('id', existingPerson.id)
+        .eq("id", existingPerson.id)
         .select()
         .single();
 
       if (updateError) {
-        console.error('Error updating person name:', updateError);
+        console.error("Error updating person name:", updateError);
         // Return existing person even if update fails
         return mapPersonFromDb(existingPerson);
       }
@@ -504,7 +531,7 @@ export async function findOrCreatePerson(email, name = null) {
 
   // Person doesn't exist - create new
   const { data: newPerson, error: insertError } = await supabase
-    .from('people')
+    .from("people")
     .insert({
       email: normalizedEmail,
       name: name ? name.trim() : null,
@@ -517,8 +544,8 @@ export async function findOrCreatePerson(email, name = null) {
     .single();
 
   if (insertError) {
-    console.error('Error creating person:', insertError);
-    throw new Error('Failed to create person');
+    console.error("Error creating person:", insertError);
+    throw new Error("Failed to create person");
   }
 
   return mapPersonFromDb(newPerson);
@@ -527,9 +554,9 @@ export async function findOrCreatePerson(email, name = null) {
 // Find person by ID
 export async function findPersonById(personId) {
   const { data, error } = await supabase
-    .from('people')
-    .select('*')
-    .eq('id', personId)
+    .from("people")
+    .select("*")
+    .eq("id", personId)
     .single();
 
   if (error || !data) {
@@ -543,9 +570,9 @@ export async function findPersonById(personId) {
 export async function findPersonByEmail(email) {
   const normalizedEmail = email.trim().toLowerCase();
   const { data, error } = await supabase
-    .from('people')
-    .select('*')
-    .eq('email', normalizedEmail)
+    .from("people")
+    .select("*")
+    .eq("email", normalizedEmail)
     .single();
 
   if (error || !data) {
@@ -577,7 +604,8 @@ function mapPersonToDb(updates) {
   if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
   if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
   if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
-  if (updates.stripeCustomerId !== undefined) dbUpdates.stripe_customer_id = updates.stripeCustomerId;
+  if (updates.stripeCustomerId !== undefined)
+    dbUpdates.stripe_customer_id = updates.stripeCustomerId;
   return dbUpdates;
 }
 
@@ -586,9 +614,9 @@ export async function updatePerson(personId, updates) {
   const dbUpdates = mapPersonToDb(updates);
 
   const { data, error } = await supabase
-    .from('people')
+    .from("people")
     .update(dbUpdates)
-    .eq('id', personId)
+    .eq("id", personId)
     .select()
     .single();
 
@@ -602,9 +630,9 @@ export async function updatePerson(personId, updates) {
 // Update person's Stripe customer ID
 export async function updatePersonStripeCustomerId(personId, stripeCustomerId) {
   const { data, error } = await supabase
-    .from('people')
+    .from("people")
     .update({ stripe_customer_id: stripeCustomerId })
-    .eq('id', personId)
+    .eq("id", personId)
     .select()
     .single();
 
@@ -619,18 +647,17 @@ export async function updatePersonStripeCustomerId(personId, stripeCustomerId) {
 export async function getAllPeopleWithStats() {
   // Fetch all people
   const { data: allPeople, error: peopleError } = await supabase
-    .from('people')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .from("people")
+    .select("*")
+    .order("created_at", { ascending: false });
 
   if (peopleError) {
-    console.error('Error fetching people:', peopleError);
+    console.error("Error fetching people:", peopleError);
     return [];
   }
 
   // Fetch all RSVPs with event data
-  const { data: allRsvps, error: rsvpsError } = await supabase
-    .from('rsvps')
+  const { data: allRsvps, error: rsvpsError } = await supabase.from("rsvps")
     .select(`
       *,
       events:event_id (
@@ -642,8 +669,8 @@ export async function getAllPeopleWithStats() {
     `);
 
   if (rsvpsError) {
-    console.error('Error fetching RSVPs:', rsvpsError);
-    return allPeople.map(p => mapPersonFromDb(p));
+    console.error("Error fetching RSVPs:", rsvpsError);
+    return allPeople.map((p) => mapPersonFromDb(p));
   }
 
   // Group RSVPs by person
@@ -670,21 +697,16 @@ export async function getAllPeopleWithStats() {
       (sum, r) => sum + (r.plus_ones || 0),
       0
     );
-    const totalDinners = personRsvps.filter(
-      (r) => {
-        const dinner = r.dinner;
-        return (dinner && dinner.enabled) || r.wants_dinner === true;
-      }
-    ).length;
-    const totalDinnerGuests = personRsvps.reduce(
-      (sum, r) => {
-        const dinner = r.dinner;
-        const wantsDinner = (dinner && dinner.enabled) || r.wants_dinner;
-        const partySize = (dinner && dinner.partySize) || r.dinner_party_size;
-        return sum + (wantsDinner && partySize ? partySize : 0);
-      },
-      0
-    );
+    const totalDinners = personRsvps.filter((r) => {
+      const dinner = r.dinner;
+      return (dinner && dinner.enabled) || r.wants_dinner === true;
+    }).length;
+    const totalDinnerGuests = personRsvps.reduce((sum, r) => {
+      const dinner = r.dinner;
+      const wantsDinner = (dinner && dinner.enabled) || r.wants_dinner;
+      const partySize = (dinner && dinner.partySize) || r.dinner_party_size;
+      return sum + (wantsDinner && partySize ? partySize : 0);
+    }, 0);
 
     // Get event details for each RSVP
     const eventHistory = personRsvps
@@ -700,9 +722,12 @@ export async function getAllPeopleWithStats() {
           status: rsvp.booking_status || rsvp.status,
           plusOnes: rsvp.plus_ones || 0,
           wantsDinner: (dinner && dinner.enabled) || rsvp.wants_dinner || false,
-          dinnerStatus: (dinner && dinner.bookingStatus) || rsvp.dinner_status || null,
-          dinnerTimeSlot: (dinner && dinner.slotTime) || rsvp.dinner_time_slot || null,
-          dinnerPartySize: (dinner && dinner.partySize) || rsvp.dinner_party_size || null,
+          dinnerStatus:
+            (dinner && dinner.bookingStatus) || rsvp.dinner_status || null,
+          dinnerTimeSlot:
+            (dinner && dinner.slotTime) || rsvp.dinner_time_slot || null,
+          dinnerPartySize:
+            (dinner && dinner.partySize) || rsvp.dinner_party_size || null,
           rsvpDate: rsvp.created_at,
         };
       })
@@ -747,16 +772,21 @@ function mapRsvpFromDb(dbRsvp, person = null) {
     status: dbRsvp.status,
     plusOnes: dbRsvp.plus_ones || 0,
     partySize: dbRsvp.party_size,
-    dinner: (dinner && dinner.enabled) || dbRsvp.wants_dinner
-      ? {
-          enabled: true,
-          partySize: (dinner && dinner.partySize) || dbRsvp.dinner_party_size,
-          slotTime: (dinner && dinner.slotTime) || dbRsvp.dinner_time_slot,
-          bookingStatus: (dinner && dinner.bookingStatus) || 
-            (dbRsvp.dinner_status === "confirmed" ? "CONFIRMED" : 
-             dbRsvp.dinner_status === "waitlist" ? "WAITLIST" : null),
-        }
-      : null,
+    dinner:
+      (dinner && dinner.enabled) || dbRsvp.wants_dinner
+        ? {
+            enabled: true,
+            partySize: (dinner && dinner.partySize) || dbRsvp.dinner_party_size,
+            slotTime: (dinner && dinner.slotTime) || dbRsvp.dinner_time_slot,
+            bookingStatus:
+              (dinner && dinner.bookingStatus) ||
+              (dbRsvp.dinner_status === "confirmed"
+                ? "CONFIRMED"
+                : dbRsvp.dinner_status === "waitlist"
+                ? "WAITLIST"
+                : null),
+          }
+        : null,
     wantsDinner: dbRsvp.wants_dinner || false,
     dinnerStatus: dbRsvp.dinner_status,
     dinnerTimeSlot: dbRsvp.dinner_time_slot,
@@ -785,7 +815,8 @@ function mapRsvpToDb(rsvpData) {
   if (rsvpData.personId !== undefined) dbData.person_id = rsvpData.personId;
   if (rsvpData.eventId !== undefined) dbData.event_id = rsvpData.eventId;
   if (rsvpData.slug !== undefined) dbData.slug = rsvpData.slug;
-  if (rsvpData.bookingStatus !== undefined) dbData.booking_status = rsvpData.bookingStatus;
+  if (rsvpData.bookingStatus !== undefined)
+    dbData.booking_status = rsvpData.bookingStatus;
   if (rsvpData.status !== undefined) dbData.status = rsvpData.status;
   if (rsvpData.plusOnes !== undefined) dbData.plus_ones = rsvpData.plusOnes;
   if (rsvpData.partySize !== undefined) dbData.party_size = rsvpData.partySize;
@@ -796,8 +827,12 @@ function mapRsvpToDb(rsvpData) {
       dbData.wants_dinner = rsvpData.dinner.enabled || false;
       dbData.dinner_party_size = rsvpData.dinner.partySize || null;
       dbData.dinner_time_slot = rsvpData.dinner.slotTime || null;
-      dbData.dinner_status = rsvpData.dinner.bookingStatus === "CONFIRMED" ? "confirmed" :
-                            rsvpData.dinner.bookingStatus === "WAITLIST" ? "waitlist" : null;
+      dbData.dinner_status =
+        rsvpData.dinner.bookingStatus === "CONFIRMED"
+          ? "confirmed"
+          : rsvpData.dinner.bookingStatus === "WAITLIST"
+          ? "waitlist"
+          : null;
     } else {
       dbData.wants_dinner = false;
       dbData.dinner_party_size = null;
@@ -805,20 +840,32 @@ function mapRsvpToDb(rsvpData) {
       dbData.dinner_status = null;
     }
   }
-  if (rsvpData.wantsDinner !== undefined) dbData.wants_dinner = rsvpData.wantsDinner;
-  if (rsvpData.dinnerStatus !== undefined) dbData.dinner_status = rsvpData.dinnerStatus;
-  if (rsvpData.dinnerTimeSlot !== undefined) dbData.dinner_time_slot = rsvpData.dinnerTimeSlot;
-  if (rsvpData.dinnerPartySize !== undefined) dbData.dinner_party_size = rsvpData.dinnerPartySize;
-  if (rsvpData.capacityOverridden !== undefined) dbData.capacity_overridden = rsvpData.capacityOverridden;
-  if (rsvpData.dinnerPullUpCount !== undefined) dbData.dinner_pull_up_count = rsvpData.dinnerPullUpCount;
-  if (rsvpData.cocktailOnlyPullUpCount !== undefined) dbData.cocktail_only_pull_up_count = rsvpData.cocktailOnlyPullUpCount;
+  if (rsvpData.wantsDinner !== undefined)
+    dbData.wants_dinner = rsvpData.wantsDinner;
+  if (rsvpData.dinnerStatus !== undefined)
+    dbData.dinner_status = rsvpData.dinnerStatus;
+  if (rsvpData.dinnerTimeSlot !== undefined)
+    dbData.dinner_time_slot = rsvpData.dinnerTimeSlot;
+  if (rsvpData.dinnerPartySize !== undefined)
+    dbData.dinner_party_size = rsvpData.dinnerPartySize;
+  if (rsvpData.capacityOverridden !== undefined)
+    dbData.capacity_overridden = rsvpData.capacityOverridden;
+  if (rsvpData.dinnerPullUpCount !== undefined)
+    dbData.dinner_pull_up_count = rsvpData.dinnerPullUpCount;
+  if (rsvpData.cocktailOnlyPullUpCount !== undefined)
+    dbData.cocktail_only_pull_up_count = rsvpData.cocktailOnlyPullUpCount;
   if (rsvpData.pulledUp !== undefined) dbData.pulled_up = rsvpData.pulledUp;
-  if (rsvpData.pulledUpCount !== undefined) dbData.pulled_up_count = rsvpData.pulledUpCount;
-  if (rsvpData.pulledUpForDinner !== undefined) dbData.pulled_up_for_dinner = rsvpData.pulledUpForDinner;
-  if (rsvpData.pulledUpForCocktails !== undefined) dbData.pulled_up_for_cocktails = rsvpData.pulledUpForCocktails;
+  if (rsvpData.pulledUpCount !== undefined)
+    dbData.pulled_up_count = rsvpData.pulledUpCount;
+  if (rsvpData.pulledUpForDinner !== undefined)
+    dbData.pulled_up_for_dinner = rsvpData.pulledUpForDinner;
+  if (rsvpData.pulledUpForCocktails !== undefined)
+    dbData.pulled_up_for_cocktails = rsvpData.pulledUpForCocktails;
   if (rsvpData.paymentId !== undefined) dbData.payment_id = rsvpData.paymentId;
-  if (rsvpData.paymentStatus !== undefined) dbData.payment_status = rsvpData.paymentStatus;
-  if (rsvpData.totalGuests !== undefined) dbData.total_guests = rsvpData.totalGuests;
+  if (rsvpData.paymentStatus !== undefined)
+    dbData.payment_status = rsvpData.paymentStatus;
+  if (rsvpData.totalGuests !== undefined)
+    dbData.total_guests = rsvpData.totalGuests;
   return dbData;
 }
 
@@ -897,15 +944,18 @@ export async function addRsvp({
 
   // Check for duplicate RSVP for this event (same person, same event)
   const { data: existingRsvpData, error: duplicateError } = await supabase
-    .from('rsvps')
-    .select('*')
-    .eq('event_id', event.id)
-    .eq('person_id', person.id)
+    .from("rsvps")
+    .select("*")
+    .eq("event_id", event.id)
+    .eq("person_id", person.id)
     .single();
 
   if (existingRsvpData && !duplicateError) {
     const existingPerson = await findPersonById(existingRsvpData.person_id);
-    return { error: "duplicate", rsvp: mapRsvpFromDb(existingRsvpData, existingPerson) };
+    return {
+      error: "duplicate",
+      rsvp: mapRsvpFromDb(existingRsvpData, existingPerson),
+    };
   }
 
   const maxPlus =
@@ -1117,13 +1167,13 @@ export async function addRsvp({
 
   // Insert RSVP into database
   const { data: insertedRsvp, error: insertError } = await supabase
-    .from('rsvps')
+    .from("rsvps")
     .insert(dbRsvpData)
     .select()
     .single();
 
   if (insertError) {
-    console.error('Error creating RSVP:', insertError);
+    console.error("Error creating RSVP:", insertError);
     return { error: "database_error", message: insertError.message };
   }
 
@@ -1135,20 +1185,22 @@ export async function addRsvp({
 export async function getRsvpsForEvent(eventId) {
   // Fetch all RSVPs for this event with person data
   const { data: eventRsvps, error } = await supabase
-    .from('rsvps')
-    .select(`
+    .from("rsvps")
+    .select(
+      `
       *,
       people:person_id (
         id,
         name,
         email
       )
-    `)
-    .eq('event_id', eventId)
-    .order('created_at', { ascending: false });
+    `
+    )
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: false });
 
   if (error) {
-    console.error('Error fetching RSVPs for event:', error);
+    console.error("Error fetching RSVPs for event:", error);
     return [];
   }
 
@@ -1162,16 +1214,18 @@ export async function getRsvpsForEvent(eventId) {
 // Find RSVP by ID (enriched with person data)
 export async function findRsvpById(rsvpId) {
   const { data: dbRsvp, error } = await supabase
-    .from('rsvps')
-    .select(`
+    .from("rsvps")
+    .select(
+      `
       *,
       people:person_id (
         id,
         name,
         email
       )
-    `)
-    .eq('id', rsvpId)
+    `
+    )
+    .eq("id", rsvpId)
     .single();
 
   if (error || !dbRsvp) {
@@ -1183,19 +1237,20 @@ export async function findRsvpById(rsvpId) {
 }
 
 // Update RSVP
-export function updateRsvp(rsvpId, updates, options = {}) {
+export async function updateRsvp(rsvpId, updates, options = {}) {
   const { forceConfirm = false } = options;
 
-  const idx = rsvps.findIndex((r) => r.id === rsvpId);
-  if (idx === -1) return { error: "not_found" };
+  // Fetch RSVP from database
+  const rsvp = await findRsvpById(rsvpId);
+  if (!rsvp) return { error: "not_found" };
 
-  const rsvp = rsvps[idx];
-  const event = findEventById(rsvp.eventId);
+  const event = await findEventById(rsvp.eventId);
   if (!event) return { error: "event_not_found" };
 
   // Handle email/name updates - update person record
+  let updatedPersonId = rsvp.personId;
   if (updates.email || updates.name) {
-    const person = findPersonById(rsvp.personId);
+    const person = await findPersonById(rsvp.personId);
     if (!person) return { error: "person_not_found" };
 
     if (updates.email) {
@@ -1206,21 +1261,19 @@ export function updateRsvp(rsvpId, updates, options = {}) {
 
       // If email changed, check if person with new email exists
       if (normalizedEmail !== person.email) {
-        const existingPerson = findPersonByEmail(normalizedEmail);
+        const existingPerson = await findPersonByEmail(normalizedEmail);
         if (existingPerson) {
           // Merge: update RSVP to point to existing person
-          rsvp.personId = existingPerson.id;
+          updatedPersonId = existingPerson.id;
         } else {
           // Update person's email
-          person.email = normalizedEmail;
-          person.updatedAt = new Date().toISOString();
+          await updatePerson(person.id, { email: normalizedEmail });
         }
       }
     }
 
     if (updates.name) {
-      person.name = updates.name.trim() || null;
-      person.updatedAt = new Date().toISOString();
+      await updatePerson(rsvp.personId, { name: updates.name.trim() || null });
     }
   }
 
@@ -1269,24 +1322,34 @@ export function updateRsvp(rsvpId, updates, options = {}) {
   );
 
   // Recalculate bookingStatus based on capacity
-  const { confirmed } = getEventCounts(event.id);
+  const { confirmed } = await getEventCounts(event.id);
 
   // Calculate current cocktails-only count (excluding this RSVP)
-  const currentCocktailsOnly = rsvps
-    .filter(
-      (r) =>
-        r.eventId === event.id &&
-        (r.bookingStatus === "CONFIRMED" || r.status === "attending") &&
-        r.id !== rsvpId
+  // Fetch all confirmed RSVPs except this one
+  const { data: otherRsvps, error: rsvpsError } = await supabase
+    .from("rsvps")
+    .select(
+      "dinner, wants_dinner, plus_ones, party_size, booking_status, status"
     )
-    .reduce((sum, r) => {
-      const wantsDinner = r.dinner?.enabled || r.wantsDinner || false;
-      const plusOnes = r.plusOnes ?? 0;
-      const partySize = r.partySize ?? 1;
+    .eq("event_id", event.id)
+    .in("booking_status", ["CONFIRMED"])
+    .or("status.eq.attending")
+    .neq("id", rsvpId);
 
-      // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only count
-      return sum + calculateCocktailsOnly(wantsDinner, partySize, plusOnes);
-    }, 0);
+  if (rsvpsError) {
+    console.error("Error fetching RSVPs for capacity check:", rsvpsError);
+    // Continue with 0 if error (conservative)
+  }
+
+  const currentCocktailsOnly = (otherRsvps || []).reduce((sum, r) => {
+    const dinner = r.dinner || {};
+    const wantsDinner = (dinner && dinner.enabled) || r.wants_dinner || false;
+    const plusOnes = r.plus_ones ?? 0;
+    const partySize = r.party_size ?? 1;
+
+    // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only count
+    return sum + calculateCocktailsOnly(wantsDinner, partySize, plusOnes);
+  }, 0);
 
   // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only spots for this booking
   const cocktailsOnlyForThisBooking = calculateCocktailsOnly(
@@ -1409,29 +1472,41 @@ export function updateRsvp(rsvpId, updates, options = {}) {
         };
 
         // Exclude current RSVP from new slot's confirmed count
-        // Also need to account for old slot if it's different
-        const currentSlotConfirmed = rsvps
-          .filter((r) => {
-            const hasDinner = r.dinner?.enabled || r.wantsDinner;
-            const slotMatches =
-              (r.dinner?.slotTime || r.dinnerTimeSlot) === dinnerTimeSlot;
-            const isConfirmed =
-              r.dinner?.bookingStatus === "CONFIRMED" ||
-              r.dinnerStatus === "confirmed";
-            return (
-              r.eventId === event.id &&
-              hasDinner &&
-              slotMatches &&
-              isConfirmed &&
-              r.id !== rsvpId // Exclude current RSVP
-            );
-          })
-          .reduce(
-            (sum, r) =>
-              sum +
-              (r.dinner?.partySize || r.dinnerPartySize || r.partySize || 1),
-            0
+        // Fetch all confirmed RSVPs for this slot except current one
+        // Note: We need to check both dinner JSONB field and dinner_time_slot column
+        const { data: slotRsvps, error: slotError } = await supabase
+          .from("rsvps")
+          .select(
+            "dinner, wants_dinner, dinner_time_slot, dinner_party_size, party_size, dinner_status"
+          )
+          .eq("event_id", event.id)
+          .eq("dinner_status", "confirmed")
+          .or(`dinner_time_slot.eq.${dinnerTimeSlot}`)
+          .neq("id", rsvpId);
+
+        // Also check dinner JSONB field (manual filter since Supabase JSONB queries are complex)
+        const filteredSlotRsvps = (slotRsvps || []).filter((r) => {
+          const dinner = r.dinner || {};
+          const slotMatches =
+            (dinner && dinner.slotTime === dinnerTimeSlot) ||
+            r.dinner_time_slot === dinnerTimeSlot;
+          return slotMatches;
+        });
+
+        if (slotError) {
+          console.error("Error fetching slot RSVPs:", slotError);
+        }
+
+        const currentSlotConfirmed = filteredSlotRsvps.reduce((sum, r) => {
+          const dinner = r.dinner || {};
+          return (
+            sum +
+            ((dinner && dinner.partySize) ||
+              r.dinner_party_size ||
+              r.party_size ||
+              1)
           );
+        }, 0);
 
         // If slot changed and old slot had this RSVP confirmed, we've already excluded it above
         // The slotData from getDinnerSlotCounts includes the old slot count, but we exclude
@@ -1672,9 +1747,9 @@ export function updateRsvp(rsvpId, updates, options = {}) {
     capacityOverridden = true;
   }
 
-  // Update the RSVP
-  rsvps[idx] = {
-    ...rsvp,
+  // Prepare RSVP update data
+  const rsvpUpdateData = {
+    personId: updatedPersonId || rsvp.personId,
     bookingStatus,
     status, // Backward compatibility
     plusOnes,
@@ -1687,7 +1762,6 @@ export function updateRsvp(rsvpId, updates, options = {}) {
           bookingStatus: dinnerBookingStatus,
         }
       : null,
-    // Backward compatibility fields
     wantsDinner,
     dinnerStatus,
     dinnerTimeSlot,
@@ -1695,44 +1769,63 @@ export function updateRsvp(rsvpId, updates, options = {}) {
     totalGuests, // Recalculated and stored
     dinnerPullUpCount,
     cocktailOnlyPullUpCount,
-    // Admin override marker (optional, for UI)
     capacityOverridden: capacityOverridden || undefined,
-    // Backward compatibility fields
     pulledUp,
     pulledUpCount,
     pulledUpForDinner,
     pulledUpForCocktails,
   };
 
-  // Return enriched RSVP with person data
-  const updatedRsvp = rsvps[idx];
-  const person = findPersonById(updatedRsvp.personId);
+  // Map to database format
+  const dbUpdateData = mapRsvpToDb(rsvpUpdateData);
+
+  // Update in database
+  const { data: updatedRsvpData, error: updateError } = await supabase
+    .from("rsvps")
+    .update(dbUpdateData)
+    .eq("id", rsvpId)
+    .select(
+      `
+      *,
+      people:person_id (
+        id,
+        name,
+        email
+      )
+    `
+    )
+    .single();
+
+  if (updateError) {
+    console.error("Error updating RSVP:", updateError);
+    return { error: "database_error", message: updateError.message };
+  }
+
+  const person = updatedRsvpData.people || null;
+  const updatedRsvp = mapRsvpFromDb(updatedRsvpData, person);
+
   return {
-    rsvp: {
-      ...updatedRsvp,
-      name: person?.name || null,
-      email: person?.email || null,
-    },
+    rsvp: updatedRsvp,
   };
 }
 
 // Delete RSVP
-export function deleteRsvp(rsvpId) {
-  const idx = rsvps.findIndex((r) => r.id === rsvpId);
-  if (idx === -1) return { error: "not_found" };
+export async function deleteRsvp(rsvpId) {
+  // First fetch the RSVP with person data
+  const rsvp = await findRsvpById(rsvpId);
+  if (!rsvp) {
+    return { error: "not_found" };
+  }
 
-  const rsvp = rsvps[idx];
-  // Enrich with person data before returning
-  const person = findPersonById(rsvp.personId);
-  const enrichedRsvp = {
-    ...rsvp,
-    name: person?.name || null,
-    email: person?.email || null,
-  };
+  // Delete from database
+  const { error } = await supabase.from("rsvps").delete().eq("id", rsvpId);
 
-  rsvps.splice(idx, 1);
+  if (error) {
+    console.error("Error deleting RSVP:", error);
+    return { error: "database_error", message: error.message };
+  }
 
-  return { success: true, rsvp: enrichedRsvp };
+  return { success: true, rsvp };
 }
 
 // ---------------------------
@@ -1740,7 +1833,7 @@ export function deleteRsvp(rsvpId) {
 // ---------------------------
 
 // Create payment record
-export function createPayment({
+export async function createPayment({
   userId,
   eventId,
   rsvpId = null,
@@ -1755,60 +1848,144 @@ export function createPayment({
   description = null,
   receiptUrl = null,
 }) {
-  const payment = {
-    id: `payment_${Date.now()}`,
-    userId,
-    eventId,
-    rsvpId,
-    stripePaymentIntentId,
-    stripeCustomerId,
-    stripeChargeId,
-    stripeCheckoutSessionId,
+  const paymentData = {
+    user_id: userId,
+    event_id: eventId,
+    rsvp_id: rsvpId,
+    stripe_payment_intent_id: stripePaymentIntentId,
+    stripe_customer_id: stripeCustomerId,
+    stripe_charge_id: stripeChargeId,
+    stripe_checkout_session_id: stripeCheckoutSessionId,
     amount: Number(amount),
     currency,
     status, // "pending" | "succeeded" | "failed" | "refunded" | "canceled"
-    paymentMethod,
+    payment_method: paymentMethod,
     description,
-    receiptUrl,
-    refundedAmount: 0,
-    refundedAt: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    paidAt: null,
+    receipt_url: receiptUrl,
+    refunded_amount: 0,
+    refunded_at: null,
+    paid_at: status === "succeeded" ? new Date().toISOString() : null,
     metadata: {},
   };
 
-  payments.push(payment);
+  const { data: insertedPayment, error: insertError } = await supabase
+    .from("payments")
+    .insert(paymentData)
+    .select()
+    .single();
 
-  // Link payment to RSVP if provided
-  if (rsvpId) {
-    const rsvpIdx = rsvps.findIndex((r) => r.id === rsvpId);
-    if (rsvpIdx !== -1) {
-      rsvps[rsvpIdx].paymentId = payment.id;
-      rsvps[rsvpIdx].paymentStatus =
-        status === "succeeded" ? "paid" : "pending";
-    }
+  if (insertError) {
+    console.error("Error creating payment:", insertError);
+    throw new Error("Failed to create payment");
   }
 
-  return payment;
+  // Link payment to RSVP if provided
+  if (rsvpId && insertedPayment) {
+    await supabase
+      .from("rsvps")
+      .update({
+        payment_id: insertedPayment.id,
+        payment_status: status === "succeeded" ? "paid" : "pending",
+      })
+      .eq("id", rsvpId);
+  }
+
+  // Map to application format
+  return {
+    id: insertedPayment.id,
+    userId: insertedPayment.user_id,
+    eventId: insertedPayment.event_id,
+    rsvpId: insertedPayment.rsvp_id,
+    stripePaymentIntentId: insertedPayment.stripe_payment_intent_id,
+    stripeCustomerId: insertedPayment.stripe_customer_id,
+    stripeChargeId: insertedPayment.stripe_charge_id,
+    stripeCheckoutSessionId: insertedPayment.stripe_checkout_session_id,
+    amount: insertedPayment.amount,
+    currency: insertedPayment.currency,
+    status: insertedPayment.status,
+    paymentMethod: insertedPayment.payment_method,
+    description: insertedPayment.description,
+    receiptUrl: insertedPayment.receipt_url,
+    refundedAmount: insertedPayment.refunded_amount,
+    refundedAt: insertedPayment.refunded_at,
+    createdAt: insertedPayment.created_at,
+    updatedAt: insertedPayment.updated_at,
+    paidAt: insertedPayment.paid_at,
+    metadata: insertedPayment.metadata,
+  };
+}
+
+// Helper: Map database payment to application format
+function mapPaymentFromDb(dbPayment) {
+  return {
+    id: dbPayment.id,
+    userId: dbPayment.user_id,
+    eventId: dbPayment.event_id,
+    rsvpId: dbPayment.rsvp_id,
+    stripePaymentIntentId: dbPayment.stripe_payment_intent_id,
+    stripeCustomerId: dbPayment.stripe_customer_id,
+    stripeChargeId: dbPayment.stripe_charge_id,
+    stripeCheckoutSessionId: dbPayment.stripe_checkout_session_id,
+    amount: dbPayment.amount,
+    currency: dbPayment.currency,
+    status: dbPayment.status,
+    paymentMethod: dbPayment.payment_method,
+    description: dbPayment.description,
+    receiptUrl: dbPayment.receipt_url,
+    refundedAmount: dbPayment.refunded_amount,
+    refundedAt: dbPayment.refunded_at,
+    createdAt: dbPayment.created_at,
+    updatedAt: dbPayment.updated_at,
+    paidAt: dbPayment.paid_at,
+    metadata: dbPayment.metadata,
+  };
 }
 
 // Find payment by ID
-export function findPaymentById(paymentId) {
-  return payments.find((p) => p.id === paymentId) || null;
+export async function findPaymentById(paymentId) {
+  const { data, error } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("id", paymentId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapPaymentFromDb(data);
 }
 
 // Find payment by Stripe Payment Intent ID
-export function findPaymentByStripePaymentIntentId(stripePaymentIntentId) {
-  return (
-    payments.find((p) => p.stripePaymentIntentId === stripePaymentIntentId) ||
-    null
-  );
+export async function findPaymentByStripePaymentIntentId(
+  stripePaymentIntentId
+) {
+  const { data, error } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("stripe_payment_intent_id", stripePaymentIntentId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapPaymentFromDb(data);
 }
 
 // Find payment by Stripe Charge ID
-export function findPaymentByStripeChargeId(stripeChargeId) {
-  return payments.find((p) => p.stripeChargeId === stripeChargeId) || null;
+export async function findPaymentByStripeChargeId(stripeChargeId) {
+  const { data, error } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("stripe_charge_id", stripeChargeId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapPaymentFromDb(data);
 }
 
 // Update payment

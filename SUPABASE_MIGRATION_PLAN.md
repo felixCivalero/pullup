@@ -14,6 +14,7 @@ This document outlines the complete migration from in-memory data storage to Sup
 ## Phase 1: Database Schema ✅
 
 ### Completed
+
 - ✅ `people` table created
 - ✅ `events` table created
 - ✅ `rsvps` table created
@@ -23,6 +24,7 @@ This document outlines the complete migration from in-memory data storage to Sup
 - ✅ Updated_at triggers configured
 
 ### Pending
+
 - ⏳ Row Level Security (RLS) policies (will be added after auth setup)
 
 ---
@@ -34,8 +36,8 @@ This document outlines the complete migration from in-memory data storage to Sup
 **File:** `backend/src/supabase.js` (new file)
 
 ```javascript
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
 
 dotenv.config();
 
@@ -43,15 +45,15 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('Missing Supabase environment variables');
+  throw new Error("Missing Supabase environment variables");
 }
 
 // Service role client (bypasses RLS, for backend use only)
 export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
-    persistSession: false
-  }
+    persistSession: false,
+  },
 });
 ```
 
@@ -66,6 +68,7 @@ We'll migrate incrementally, function by function, maintaining backward compatib
 ### 3.1 People CRUD Operations
 
 **Functions to migrate:**
+
 - `findOrCreatePerson()` → Supabase `people` table
 - `findPersonById()` → Supabase query
 - `findPersonByEmail()` → Supabase query
@@ -74,6 +77,7 @@ We'll migrate incrementally, function by function, maintaining backward compatib
 - `getAllPeopleWithStats()` → Supabase query with joins
 
 **Mapping:**
+
 ```javascript
 // In-memory → Supabase
 person.id → id (UUID)
@@ -90,12 +94,14 @@ person.updatedAt → updated_at (TIMESTAMPTZ)
 ### 3.2 Events CRUD Operations
 
 **Functions to migrate:**
+
 - `createEvent()` → Supabase insert
 - `findEventBySlug()` → Supabase query
 - `findEventById()` → Supabase query
 - `updateEvent()` → Supabase update
 
 **Mapping:**
+
 ```javascript
 // In-memory → Supabase
 event.id → id (UUID)
@@ -134,6 +140,7 @@ event.updatedAt → updated_at (TIMESTAMPTZ)
 ### 3.3 RSVPs CRUD Operations
 
 **Functions to migrate:**
+
 - `addRsvp()` → Supabase insert with capacity checks
 - `getRsvpsForEvent()` → Supabase query with person join
 - `findRsvpById()` → Supabase query with person join
@@ -141,6 +148,7 @@ event.updatedAt → updated_at (TIMESTAMPTZ)
 - `deleteRsvp()` → Supabase delete
 
 **Mapping:**
+
 ```javascript
 // In-memory → Supabase
 rsvp.id → id (UUID)
@@ -173,6 +181,7 @@ rsvp.updatedAt → updated_at (TIMESTAMPTZ)
 ### 3.4 Helper Functions (Aggregations)
 
 **Functions to migrate:**
+
 - `getEventCounts()` → Supabase aggregation query
 - `getCocktailsOnlyCount()` → Supabase aggregation with DPCS logic
 - `getDinnerSlotCounts()` → Supabase aggregation grouped by slot
@@ -182,12 +191,14 @@ rsvp.updatedAt → updated_at (TIMESTAMPTZ)
 These functions need to replicate the Dynamic Party Composition System (DPCS) logic in SQL or via JavaScript after fetching data.
 
 **Strategy:**
+
 - For complex calculations (DPCS), fetch RSVPs and calculate in JavaScript (maintains logic consistency)
 - For simple aggregations, use SQL GROUP BY and SUM
 
 ### 3.5 Payments CRUD Operations
 
 **Functions to migrate:**
+
 - `createPayment()` → Supabase insert
 - `findPaymentById()` → Supabase query
 - `findPaymentByStripePaymentIntentId()` → Supabase query
@@ -197,6 +208,7 @@ These functions need to replicate the Dynamic Party Composition System (DPCS) lo
 - `getPaymentsForEvent()` → Supabase query
 
 **Mapping:**
+
 ```javascript
 // In-memory → Supabase
 payment.id → id (UUID)
@@ -226,10 +238,12 @@ payment.paidAt → paid_at (TIMESTAMPTZ)
 ## Phase 4: Implementation Order
 
 ### Step 1: Supabase Client Setup ✅
+
 - [x] Create `backend/src/supabase.js`
 - [ ] Test connection
 
 ### Step 2: People Migration
+
 - [ ] Migrate `findOrCreatePerson()`
 - [ ] Migrate `findPersonById()`
 - [ ] Migrate `findPersonByEmail()`
@@ -239,6 +253,7 @@ payment.paidAt → paid_at (TIMESTAMPTZ)
 - [ ] Test all people operations
 
 ### Step 3: Events Migration
+
 - [ ] Migrate `createEvent()` (with slug uniqueness check)
 - [ ] Migrate `findEventBySlug()`
 - [ ] Migrate `findEventById()`
@@ -246,6 +261,7 @@ payment.paidAt → paid_at (TIMESTAMPTZ)
 - [ ] Test all event operations
 
 ### Step 4: RSVPs Migration (Most Complex)
+
 - [ ] Migrate `getEventCounts()` (test aggregation)
 - [ ] Migrate `getCocktailsOnlyCount()` (test DPCS logic)
 - [ ] Migrate `getDinnerSlotCounts()` (test slot aggregation)
@@ -257,6 +273,7 @@ payment.paidAt → paid_at (TIMESTAMPTZ)
 - [ ] Test all RSVP operations
 
 ### Step 5: Payments Migration
+
 - [ ] Migrate `createPayment()`
 - [ ] Migrate `findPaymentById()`
 - [ ] Migrate `findPaymentByStripePaymentIntentId()`
@@ -267,6 +284,7 @@ payment.paidAt → paid_at (TIMESTAMPTZ)
 - [ ] Test all payment operations
 
 ### Step 6: Cleanup
+
 - [ ] Remove in-memory arrays (`people`, `events`, `rsvps`, `payments`)
 - [ ] Remove old helper functions if replaced
 - [ ] Update all imports
@@ -277,11 +295,13 @@ payment.paidAt → paid_at (TIMESTAMPTZ)
 ## Phase 5: Testing Strategy
 
 ### Unit Testing
+
 - Test each migrated function independently
 - Verify data integrity (foreign keys, constraints)
 - Test edge cases (duplicate emails, capacity limits, etc.)
 
 ### Integration Testing
+
 - Test full RSVP flow (create person → create RSVP → update → delete)
 - Test capacity calculations
 - Test waitlist logic
@@ -289,6 +309,7 @@ payment.paidAt → paid_at (TIMESTAMPTZ)
 - Test payment linking
 
 ### API Testing
+
 - Test all API endpoints
 - Verify response formats match frontend expectations
 - Test error handling
@@ -298,6 +319,7 @@ payment.paidAt → paid_at (TIMESTAMPTZ)
 ## Phase 6: Rollback Plan
 
 If issues arise:
+
 1. Keep in-memory arrays as fallback
 2. Add feature flag to switch between in-memory and Supabase
 3. Monitor error logs
@@ -308,21 +330,25 @@ If issues arise:
 ## Notes
 
 ### Slug Uniqueness
+
 - In-memory: `ensureUniqueSlug()` function
 - Supabase: Database UNIQUE constraint on `slug` column
 - Strategy: Try insert, catch duplicate error, append counter
 
 ### ID Generation
+
 - In-memory: `evt_${Date.now()}`, `person_${Date.now()}`, etc.
 - Supabase: UUID via `gen_random_uuid()`
 - Strategy: Use UUIDs throughout, update frontend if needed
 
 ### Timestamps
+
 - In-memory: `new Date().toISOString()`
 - Supabase: `TIMESTAMPTZ` with `NOW()` default
 - Strategy: Let database handle timestamps, or use JavaScript ISO strings
 
 ### JSONB Fields
+
 - `rsvp.dinner` → `dinner` (JSONB)
 - `payment.metadata` → `metadata` (JSONB)
 - Strategy: Store as JSONB, parse/stringify in JavaScript

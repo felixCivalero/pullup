@@ -80,11 +80,22 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
     wantsDinner && dinnerTimeSlot
       ? dinnerSlots.find((s) => s.time === dinnerTimeSlot)
       : null;
+
+  // If dinner is selected but no slot chosen yet, check if all slots are full
+  const allDinnerSlotsFull =
+    wantsDinner &&
+    !dinnerTimeSlot &&
+    dinnerSlots.length > 0 &&
+    dinnerSlots.every(
+      (slot) => slot.remaining !== null && slot.remaining === 0
+    );
+
   const willGoToWaitlistForDinner =
     wantsDinner &&
-    selectedDinnerSlot &&
-    selectedDinnerSlot.remaining !== null &&
-    dinnerPartySize > selectedDinnerSlot.remaining;
+    ((selectedDinnerSlot &&
+      selectedDinnerSlot.remaining !== null &&
+      dinnerPartySize > selectedDinnerSlot.remaining) ||
+      allDinnerSlotsFull);
 
   // Entire booking goes to waitlist if either capacity is exceeded
   // Only if waitlist is enabled (per documentation)
@@ -1129,8 +1140,9 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                       {willGoToWaitlistForDinner &&
                         !willGoToWaitlistForCocktails && (
                           <div>
-                            Dinner for this time slot is full. You'll be
-                            waitlisted for dinner and contacted if a seat opens.
+                            {selectedDinnerSlot
+                              ? "Dinner for this time slot is full. You'll be waitlisted for dinner and contacted if a seat opens."
+                              : "All dinner time slots are full. You'll be waitlisted for dinner and contacted if a seat opens."}
                           </div>
                         )}
                       {willGoToWaitlistForCocktails &&

@@ -901,7 +901,13 @@ export function updateRsvp(rsvpId, updates, options = {}) {
         : "CANCELLED";
   } else {
     // Auto-determine bookingStatus based on cocktail capacity (all-or-nothing)
-    if (
+    // BUT: If guest was already over capacity (capacityOverridden), preserve CONFIRMED status
+    const wasAlreadyOverCapacity = rsvp.capacityOverridden === true;
+
+    if (wasAlreadyOverCapacity) {
+      // Preserve CONFIRMED status for guests who were already over capacity
+      bookingStatus = "CONFIRMED";
+    } else if (
       event.cocktailCapacity != null &&
       currentCocktailsOnly + cocktailsOnlyForThisBooking >
         event.cocktailCapacity
@@ -1022,18 +1028,27 @@ export function updateRsvp(rsvpId, updates, options = {}) {
           dinnerBookingStatus = updates["dinner.bookingStatus"];
         } else if (event.dinnerMaxSeatsPerSlot) {
           // Check if there's room in the slot (all-or-nothing)
-          // Check dinner capacity independently first (per documentation)
-          const availableSeats =
-            event.dinnerMaxSeatsPerSlot - currentSlotConfirmed;
+          // BUT: If guest was already over capacity, preserve CONFIRMED status
+          const wasAlreadyOverCapacity = rsvp.capacityOverridden === true;
 
-          if (dinnerPartySize > availableSeats) {
-            // Dinner capacity exceeded - all-or-nothing
-            dinnerBookingStatus = "WAITLIST";
-            bookingStatus = "WAITLIST";
+          if (wasAlreadyOverCapacity) {
+            // Preserve CONFIRMED status for guests who were already over capacity
+            dinnerBookingStatus = "CONFIRMED";
+            bookingStatus = "CONFIRMED";
           } else {
-            // Dinner capacity OK - confirm dinner only if event-level booking is still confirmed
-            dinnerBookingStatus =
-              bookingStatus === "CONFIRMED" ? "CONFIRMED" : "WAITLIST";
+            // Check dinner capacity independently first (per documentation)
+            const availableSeats =
+              event.dinnerMaxSeatsPerSlot - currentSlotConfirmed;
+
+            if (dinnerPartySize > availableSeats) {
+              // Dinner capacity exceeded - all-or-nothing
+              dinnerBookingStatus = "WAITLIST";
+              bookingStatus = "WAITLIST";
+            } else {
+              // Dinner capacity OK - confirm dinner only if event-level booking is still confirmed
+              dinnerBookingStatus =
+                bookingStatus === "CONFIRMED" ? "CONFIRMED" : "WAITLIST";
+            }
           }
         } else {
           dinnerBookingStatus =
@@ -1212,9 +1227,13 @@ export function updateRsvp(rsvpId, updates, options = {}) {
     : null;
 
   // Admin Override: forceConfirm bypasses capacity checks
-  let capacityOverridden = false;
-  if (forceConfirm) {
+  // Also preserve override if guest was already over capacity (capacityOverridden flag)
+  const wasAlreadyOverCapacity = rsvp.capacityOverridden === true;
+  let capacityOverridden = wasAlreadyOverCapacity;
+
+  if (forceConfirm || wasAlreadyOverCapacity) {
     // Admin override: force booking to confirmed, even if capacity exceeded
+    // Preserve CONFIRMED status for guests who were already over capacity
     bookingStatus = "CONFIRMED";
     // Recalculate status after override
     status =
@@ -1236,7 +1255,7 @@ export function updateRsvp(rsvpId, updates, options = {}) {
       }
     }
 
-    // Mark override for UI
+    // Mark override for UI (preserve if already set, or set if new override)
     capacityOverridden = true;
   }
 

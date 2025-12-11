@@ -1,7 +1,7 @@
 // src/components/HomeSettingsTab.jsx
 import { useState } from "react";
 
-export function SettingsTab({ user, setUser, showToast }) {
+export function SettingsTab({ user, setUser, onSave, showToast }) {
   // Initialize from user state with defaults
   const brandingLinks = user.brandingLinks || {
     instagram: "",
@@ -36,9 +36,14 @@ export function SettingsTab({ user, setUser, showToast }) {
     },
   ]);
 
-  function handleSave() {
-    // All changes are already in user state via setUser calls
-    showToast("Settings saved successfully! ✨", "success");
+  async function handleSave() {
+    try {
+      await onSave(user);
+      showToast("Settings saved successfully! ✨", "success");
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      showToast("Failed to save settings", "error");
+    }
   }
 
   function handleAddEmail() {

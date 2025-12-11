@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "../components/Toast";
+import { useAuth } from "../contexts/AuthContext";
 
 import { ProfileHeader } from "../components/HomeProfileHeader";
 import { TabButton } from "../components/HomeTabs";
@@ -23,10 +24,13 @@ export function HomePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const { user: authUser } = useAuth();
 
   const [events, setEvents] = useState(null);
   const [loading, setLoading] = useState(true);
   const [networkError, setNetworkError] = useState(false);
+  const [user, setUser] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   // Check for tab query parameter
   const [activeTab, setActiveTab] = useState(() => {
@@ -36,104 +40,104 @@ export function HomePage() {
   const [eventFilter, setEventFilter] = useState("upcoming"); // "upcoming" | "past"
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
-  // Load user data from localStorage or use defaults
-  const loadUserFromStorage = () => {
-    try {
-      const stored = localStorage.getItem("pullup_user");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return {
-          name: parsed.name || "Felix civalero",
-          brand: parsed.brand || parsed.username || "", // Support migration from username
-          email: parsed.email || "felix.civalero@gmail.com",
-          bio: parsed.bio || "",
-          profilePicture: parsed.profilePicture || null,
-          joinedDate: parsed.joinedDate || "August 2024",
-          // Settings fields
-          brandingLinks: parsed.brandingLinks || {
-            instagram: "",
-            x: "",
-            youtube: "",
-            tiktok: "",
-            linkedin: "",
-            website: "",
-          },
-          emails: parsed.emails || [
-            {
-              email: parsed.email || "felix.civalero@gmail.com",
-              primary: true,
-            },
-          ],
-          mobileNumber: parsed.mobileNumber || "",
-          thirdPartyAccounts: parsed.thirdPartyAccounts || [
-            {
-              id: "google",
-              name: "Google",
-              email: parsed.email || "felix.civalero@gmail.com",
-              linked: false,
-            },
-            { id: "apple", name: "Apple", linked: false },
-            { id: "zoom", name: "Zoom", linked: false },
-            { id: "solana", name: "Solana", linked: false },
-            { id: "ethereum", name: "Ethereum", linked: false },
-          ],
-        };
-      }
-    } catch (error) {
-      console.error("Failed to load user from localStorage:", error);
-    }
-    // Default user data
-    return {
-      name: "Felix civalero",
-      brand: "",
-      email: "felix.civalero@gmail.com",
-      bio: "",
-      profilePicture: null,
-      joinedDate: "August 2024",
-      // Settings fields
-      brandingLinks: {
-        instagram: "",
-        x: "",
-        youtube: "",
-        tiktok: "",
-        linkedin: "",
-        website: "",
-      },
-      emails: [{ email: "felix.civalero@gmail.com", primary: true }],
-      mobileNumber: "",
-      thirdPartyAccounts: [
-        {
-          id: "google",
-          name: "Google",
-          email: "felix.civalero@gmail.com",
-          linked: false,
-        },
-        { id: "apple", name: "Apple", linked: false },
-        { id: "zoom", name: "Zoom", linked: false },
-        { id: "solana", name: "Solana", linked: false },
-        { id: "ethereum", name: "Ethereum", linked: false },
-      ],
-    };
-  };
-
-  // Mock user – later replace with auth context
-  const [user, setUser] = useState(loadUserFromStorage);
-
-  // Save user data to localStorage whenever it changes
+  // Load profile from API
   useEffect(() => {
-    try {
-      localStorage.setItem("pullup_user", JSON.stringify(user));
-    } catch (error) {
-      console.error("Failed to save user to localStorage:", error);
-      // Handle quota exceeded error
-      if (error.name === "QuotaExceededError") {
-        showToast(
-          "Storage limit reached. Profile picture may not persist.",
-          "error"
-        );
+    async function loadProfile() {
+      if (!authUser) {
+        setProfileLoading(false);
+        return;
+      }
+
+      try {
+        const res = await authenticatedFetch("/host/profile");
+        if (res.ok) {
+          const profile = await res.json();
+
+          // Migrate localStorage data if profile is empty and localStorage has data
+          const stored = localStorage.getItem("pullup_user");
+          if (stored && (!profile.name || !profile.brand)) {
+            try {
+              const parsed = JSON.parse(stored);
+              // Merge localStorage data with profile
+              const migratedProfile = {
+                ...profile,
+                name: profile.name || parsed.name || "",
+                brand: profile.brand || parsed.brand || "",
+                bio: profile.bio || parsed.bio || "",
+                profilePicture:
+                  profile.profilePicture || parsed.profilePicture || null,
+                brandingLinks: profile.brandingLinks ||
+                  parsed.brandingLinks || {
+                    instagram: "",
+                    x: "",
+                    youtube: "",
+                    tiktok: "",
+                    linkedin: "",
+                    website: "",
+                  },
+                emails: profile.emails || parsed.emails || [],
+                mobileNumber: profile.mobileNumber || parsed.mobileNumber || "",
+                thirdPartyAccounts:
+                  profile.thirdPartyAccounts || parsed.thirdPartyAccounts || [],
+              };
+
+              // Save migrated data to Supabase
+              const saveRes = await authenticatedFetch("/host/profile", {
+                method: "PUT",
+                body: JSON.stringify(migratedProfile),
+              });
+
+              if (saveRes.ok) {
+                const saved = await saveRes.json();
+                setUser(saved);
+                // Clear localStorage after successful migration
+                localStorage.removeItem("pullup_user");
+              } else {
+                setUser(profile);
+              }
+            } catch (migrationError) {
+              console.error("Migration error:", migrationError);
+              setUser(profile);
+            }
+          } else {
+            setUser(profile);
+          }
+        } else {
+          console.error("Failed to load profile");
+          setUser(null);
+        }
+      } catch (error) {
+        console.error("Failed to load profile:", error);
+        setUser(null);
+      } finally {
+        setProfileLoading(false);
       }
     }
-  }, [user, showToast]);
+
+    loadProfile();
+  }, [authUser]);
+
+  // Save profile to API when user updates (debounced)
+  const handleSaveProfile = async (updates) => {
+    if (!authUser) return;
+
+    try {
+      const res = await authenticatedFetch("/host/profile", {
+        method: "PUT",
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setUser(updated);
+        return true;
+      } else {
+        throw new Error("Failed to save profile");
+      }
+    } catch (error) {
+      console.error("Failed to save profile:", error);
+      throw error;
+    }
+  };
 
   // Sync activeTab with URL query parameter
   useEffect(() => {
@@ -180,7 +184,7 @@ export function HomePage() {
     attended: 0,
   };
 
-  if (loading) {
+  if (loading || profileLoading || !user) {
     return (
       <div
         className="page-with-header"
@@ -290,6 +294,7 @@ export function HomePage() {
             user={user}
             stats={stats}
             setUser={setUser}
+            onSave={handleSaveProfile}
             showToast={showToast}
           />
 
@@ -336,7 +341,12 @@ export function HomePage() {
           )}
 
           {activeTab === "settings" && (
-            <SettingsTab user={user} setUser={setUser} showToast={showToast} />
+            <SettingsTab
+              user={user}
+              setUser={setUser}
+              onSave={handleSaveProfile}
+              showToast={showToast}
+            />
           )}
 
           {activeTab === "integrations" && <IntegrationsTab />}

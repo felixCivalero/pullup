@@ -2059,3 +2059,116 @@ export function getPaymentsForUser(userId) {
 export function getPaymentsForEvent(eventId) {
   return payments.filter((p) => p.eventId === eventId);
 }
+
+// ---------------------------
+// Profile Management
+// ---------------------------
+
+// Get user profile
+export async function getUserProfile(userId) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .single();
+
+  if (error && error.code === "PGRST116") {
+    // Profile doesn't exist, create default
+    return await createDefaultProfile(userId);
+  }
+
+  if (error) throw error;
+  return mapProfileFromDb(data);
+}
+
+// Create default profile
+export async function createDefaultProfile(userId) {
+  // Get user email from auth.users via service role
+  // Note: We can't use admin API from client, so we'll get basic info from the request
+  // For now, we'll create a minimal profile and let the user update it
+  const defaultProfile = {
+    id: userId,
+    name: null,
+    brand: null,
+    bio: null,
+    profile_picture_url: null,
+    mobile_number: null,
+    branding_links: {
+      instagram: "",
+      x: "",
+      youtube: "",
+      tiktok: "",
+      linkedin: "",
+      website: "",
+    },
+    additional_emails: [],
+    third_party_accounts: [],
+  };
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .insert(defaultProfile)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return mapProfileFromDb(data);
+}
+
+// Update user profile
+export async function updateUserProfile(userId, updates) {
+  const dbUpdates = mapProfileToDb(updates);
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update(dbUpdates)
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return mapProfileFromDb(data);
+}
+
+// Helper: Map database profile to application format
+function mapProfileFromDb(dbProfile) {
+  return {
+    id: dbProfile.id,
+    name: dbProfile.name || "",
+    brand: dbProfile.brand || "",
+    bio: dbProfile.bio || "",
+    profilePicture: dbProfile.profile_picture_url || null,
+    mobileNumber: dbProfile.mobile_number || "",
+    brandingLinks: dbProfile.branding_links || {
+      instagram: "",
+      x: "",
+      youtube: "",
+      tiktok: "",
+      linkedin: "",
+      website: "",
+    },
+    emails: dbProfile.additional_emails || [],
+    thirdPartyAccounts: dbProfile.third_party_accounts || [],
+    createdAt: dbProfile.created_at,
+    updatedAt: dbProfile.updated_at,
+  };
+}
+
+// Helper: Map application profile to database format
+function mapProfileToDb(profile) {
+  const dbProfile = {};
+  if (profile.name !== undefined) dbProfile.name = profile.name;
+  if (profile.brand !== undefined) dbProfile.brand = profile.brand;
+  if (profile.bio !== undefined) dbProfile.bio = profile.bio;
+  if (profile.profilePicture !== undefined)
+    dbProfile.profile_picture_url = profile.profilePicture;
+  if (profile.mobileNumber !== undefined)
+    dbProfile.mobile_number = profile.mobileNumber;
+  if (profile.brandingLinks !== undefined)
+    dbProfile.branding_links = profile.brandingLinks;
+  if (profile.emails !== undefined)
+    dbProfile.additional_emails = profile.emails;
+  if (profile.thirdPartyAccounts !== undefined)
+    dbProfile.third_party_accounts = profile.thirdPartyAccounts;
+  return dbProfile;
+}

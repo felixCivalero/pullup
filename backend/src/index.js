@@ -24,6 +24,8 @@ import {
   getPaymentsForEvent,
   findPersonByEmail,
   mapEventFromDb,
+  getUserProfile,
+  updateUserProfile,
 } from "./data.js";
 
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
@@ -846,6 +848,84 @@ app.post(
     }
   }
 );
+
+// ---------------------------
+// PROTECTED: Get user profile
+// ---------------------------
+app.get("/host/profile", requireAuth, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.user.id);
+    res.json(profile);
+  } catch (error) {
+    console.error("Error fetching profile:", error);
+    res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Update user profile
+// ---------------------------
+app.put("/host/profile", requireAuth, async (req, res) => {
+  try {
+    const updates = req.body;
+    const updated = await updateUserProfile(req.user.id, updates);
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Upload profile picture
+// ---------------------------
+app.post("/host/profile/picture", requireAuth, async (req, res) => {
+  try {
+    const { imageData } = req.body; // Base64 image data
+
+    if (!imageData) {
+      return res.status(400).json({ error: "imageData is required" });
+    }
+
+    // Convert base64 to buffer
+    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+
+    // Determine file extension from data URL
+    const mimeMatch = imageData.match(/data:image\/(\w+);base64/);
+    const extension = mimeMatch ? mimeMatch[1] : "png";
+    const fileName = `${req.user.id}/profile.${extension}`;
+
+    // Upload to Supabase Storage
+    const { supabase } = await import("./supabase.js");
+    const { data, error } = await supabase.storage
+      .from("profile-pictures")
+      .upload(fileName, buffer, {
+        contentType: `image/${extension}`,
+        upsert: true, // Overwrite if exists
+      });
+
+    if (error) {
+      console.error("Storage upload error:", error);
+      return res.status(500).json({ error: "Failed to upload image" });
+    }
+
+    // Get public URL
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("profile-pictures").getPublicUrl(fileName);
+
+    // Update profile with URL
+    const updated = await updateUserProfile(req.user.id, {
+      profilePicture: publicUrl,
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Error uploading profile picture:", error);
+    res.status(500).json({ error: "Failed to upload profile picture" });
+  }
+});
 
 // ---------------------------
 // Server

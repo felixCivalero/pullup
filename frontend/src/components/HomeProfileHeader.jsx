@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
+import { authenticatedFetch } from "../lib/api.js";
 
-export function ProfileHeader({ user, stats, setUser, showToast }) {
+export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
   const [isHovering, setIsHovering] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -66,22 +67,45 @@ export function ProfileHeader({ user, stats, setUser, showToast }) {
     }
 
     try {
-      // Compress and resize image before storing
+      // Compress and resize image before uploading
       const compressedImageUrl = await compressImage(file);
-      setUser({ ...user, profilePicture: compressedImageUrl });
-      showToast?.("Profile picture updated! ✨", "success");
+
+      // Upload to API
+      const res = await authenticatedFetch("/host/profile/picture", {
+        method: "POST",
+        body: JSON.stringify({ imageData: compressedImageUrl }),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setUser(updated);
+        showToast?.("Profile picture updated! ✨", "success");
+      } else {
+        throw new Error("Failed to upload image");
+      }
     } catch (error) {
       console.error("Error processing image:", error);
-      showToast?.("Failed to process image. Please try again.", "error");
+      showToast?.("Failed to upload image. Please try again.", "error");
     }
   }
 
-  function handleDeletePicture() {
-    setUser({ ...user, profilePicture: null });
-    showToast?.("Profile picture removed", "success");
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+  async function handleDeletePicture() {
+    try {
+      // Update profile to remove picture
+      if (onSave) {
+        await onSave({ ...user, profilePicture: null });
+        showToast?.("Profile picture removed", "success");
+      } else {
+        setUser({ ...user, profilePicture: null });
+        showToast?.("Profile picture removed", "success");
+      }
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (error) {
+      console.error("Error removing picture:", error);
+      showToast?.("Failed to remove picture", "error");
     }
   }
 

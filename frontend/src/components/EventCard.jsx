@@ -1082,30 +1082,16 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                         }}
                       >
                         <span style={{ fontSize: "18px" }}>⚠️</span>
-                        <span>Event is full and waitlist is disabled</span>
+                        <span>Event is full</span>
                       </div>
                       <div style={{ opacity: 0.9 }}>
-                        {willGoToWaitlistForCocktails && (
-                          <div style={{ marginBottom: "4px" }}>
-                            • Cocktail capacity: {cocktailSpotsLeft} spot
-                            {cocktailSpotsLeft === 1 ? "" : "s"} available,
-                            you're requesting {cocktailsOnlyForThisBooking}
-                          </div>
-                        )}
-                        {willGoToWaitlistForDinner && selectedDinnerSlot && (
-                          <div>
-                            • Dinner capacity: {selectedDinnerSlot.remaining}{" "}
-                            spot
-                            {selectedDinnerSlot.remaining === 1 ? "" : "s"}{" "}
-                            available in this time slot, you're requesting{" "}
-                            {dinnerPartySize}
-                          </div>
-                        )}
+                        The event is fully booked and waitlist is disabled.
+                        Please try another event or contact the host directly.
                       </div>
                     </div>
                   )}
 
-                {/* Capacity Warning - Waitlist Enabled */}
+                {/* Warning - Will Go to Waitlist */}
                 {willGoToWaitlist && event.waitlistEnabled && (
                   <div
                     style={{
@@ -1130,24 +1116,64 @@ export function EventCard({ event, onSubmit, loading, label = "Pull up" }) {
                       }}
                     >
                       <span style={{ fontSize: "18px" }}>👀</span>
-                      <span>You'll be added to the waitlist</span>
+                      <span>You'll join the waitlist</span>
                     </div>
                     <div style={{ opacity: 0.9 }}>
-                      {willGoToWaitlistForCocktails && (
-                        <div style={{ marginBottom: "4px" }}>
-                          • Cocktail capacity: {cocktailSpotsLeft} spot
-                          {cocktailSpotsLeft === 1 ? "" : "s"} available, you're
-                          requesting {cocktailsOnlyForThisBooking}
-                        </div>
-                      )}
-                      {willGoToWaitlistForDinner && selectedDinnerSlot && (
-                        <div>
-                          • Dinner capacity: {selectedDinnerSlot.remaining} spot
-                          {selectedDinnerSlot.remaining === 1 ? "" : "s"}{" "}
-                          available in this time slot, you're requesting{" "}
-                          {dinnerPartySize}
-                        </div>
-                      )}
+                      {willGoToWaitlistForCocktails &&
+                        !willGoToWaitlistForDinner && (
+                          <div>
+                            Cocktail capacity is full. If a spot opens up, the
+                            host will contact you.
+                          </div>
+                        )}
+                      {willGoToWaitlistForDinner &&
+                        !willGoToWaitlistForCocktails && (
+                          <div>
+                            Dinner for this time slot is full. You'll be
+                            waitlisted for dinner and contacted if a seat opens.
+                          </div>
+                        )}
+                      {willGoToWaitlistForCocktails &&
+                        willGoToWaitlistForDinner && (
+                          <div>
+                            This booking exceeds the current capacity. You'll be
+                            added to the waitlist and contacted if a spot opens.
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Info - Normal Confirmed RSVP */}
+                {!willGoToWaitlist && (
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      padding: "16px 20px",
+                      background: "rgba(139, 92, 246, 0.15)",
+                      borderRadius: "14px",
+                      border: "1px solid rgba(139, 92, 246, 0.3)",
+                      fontSize: "13px",
+                      color: "#a78bfa",
+                      lineHeight: "1.6",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        marginBottom: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        fontSize: "14px",
+                      }}
+                    >
+                      <span style={{ fontSize: "18px" }}>ℹ️</span>
+                      <span>Confirmation</span>
+                    </div>
+                    <div style={{ opacity: 0.9 }}>
+                      You'll receive a confirmation on this screen once your
+                      RSVP is submitted.
                     </div>
                   </div>
                 )}

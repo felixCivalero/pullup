@@ -770,7 +770,9 @@ export function findRsvpById(rsvpId) {
 }
 
 // Update RSVP
-export function updateRsvp(rsvpId, updates) {
+export function updateRsvp(rsvpId, updates, options = {}) {
+  const { forceConfirm = false } = options;
+
   const idx = rsvps.findIndex((r) => r.id === rsvpId);
   if (idx === -1) return { error: "not_found" };
 
@@ -934,7 +936,7 @@ export function updateRsvp(rsvpId, updates) {
   }
 
   // Backward compatibility: derive status from bookingStatus
-  const status =
+  let status =
     bookingStatus === "CONFIRMED"
       ? "attending"
       : bookingStatus === "WAITLIST"
@@ -1045,7 +1047,7 @@ export function updateRsvp(rsvpId, updates) {
     }
   }
   // Backward compatibility: derive dinnerStatus from dinnerBookingStatus
-  const dinnerStatus =
+  let dinnerStatus =
     dinnerBookingStatus === "CONFIRMED"
       ? "confirmed"
       : dinnerBookingStatus === "WAITLIST"
@@ -1209,6 +1211,35 @@ export function updateRsvp(rsvpId, updates) {
     ? dinnerPullUpCount + cocktailOnlyPullUpCount
     : null;
 
+  // Admin Override: forceConfirm bypasses capacity checks
+  let capacityOverridden = false;
+  if (forceConfirm) {
+    // Admin override: force booking to confirmed, even if capacity exceeded
+    bookingStatus = "CONFIRMED";
+    // Recalculate status after override
+    status =
+      bookingStatus === "CONFIRMED"
+        ? "attending"
+        : bookingStatus === "WAITLIST"
+        ? "waitlist"
+        : "cancelled";
+
+    if (wantsDinner && dinnerPartySize > 0) {
+      // Ensure dinner object exists and is confirmed
+      dinnerBookingStatus = "CONFIRMED";
+      dinnerStatus = "confirmed";
+    } else {
+      // No dinner
+      if (wantsDinner === false) {
+        dinnerBookingStatus = null;
+        dinnerStatus = null;
+      }
+    }
+
+    // Mark override for UI
+    capacityOverridden = true;
+  }
+
   // Update the RSVP
   rsvps[idx] = {
     ...rsvp,
@@ -1232,6 +1263,8 @@ export function updateRsvp(rsvpId, updates) {
     totalGuests, // Recalculated and stored
     dinnerPullUpCount,
     cocktailOnlyPullUpCount,
+    // Admin override marker (optional, for UI)
+    capacityOverridden: capacityOverridden || undefined,
     // Backward compatibility fields
     pulledUp,
     pulledUpCount,

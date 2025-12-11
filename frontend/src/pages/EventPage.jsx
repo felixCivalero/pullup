@@ -171,24 +171,30 @@ export function EventPage() {
 
       // Build appropriate message based on status
       let message = "";
+      let subtext = "";
       let toastType = "success";
 
       if (bookingStatus === "WAITLIST") {
         // Entire booking is on waitlist (all-or-nothing)
-        message =
-          "You've been added to the waitlist. 👀 We'll notify you if spots become available!";
+        message = "You're on the waitlist";
         toastType = "info";
-      } else {
-        // Fully confirmed
-        if (wantsDinner && dinnerBookingStatus === "CONFIRMED") {
-          message = "You're confirmed for cocktails and dinner! 🔥";
+
+        if (wantsDinner && dinnerBookingStatus === "WAITLIST") {
+          subtext =
+            "Dinner is full right now. The host will reach out if a table opens.";
         } else {
-          message = "You're on the list! 🔥";
+          subtext =
+            "The event is full right now. The host will reach out if a spot opens.";
         }
-        toastType = "success";
+      } else if (bookingStatus === "CONFIRMED") {
+        // Fully confirmed
+        message = "You're in 🎉";
+        if (wantsDinner && dinnerBookingStatus === "CONFIRMED") {
+          subtext = "Your dinner time is confirmed. Check the details above.";
+        }
       }
 
-      showToast(message, toastType);
+      showToast(message, toastType, subtext);
 
       // Refetch event data to update capacity after RSVP
       // This updates the event state which will cause EventCard to re-render with new capacity

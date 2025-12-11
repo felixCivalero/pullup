@@ -444,24 +444,29 @@ app.put("/host/events/:eventId/rsvps/:rsvpId", (req, res) => {
     cocktailOnlyPullUpCount,
     pulledUpForDinner, // Backward compatibility
     pulledUpForCocktails, // Backward compatibility
+    forceConfirm, // Admin override flag
   } = req.body;
 
-  const result = updateRsvp(rsvpId, {
-    name,
-    email,
-    plusOnes,
-    bookingStatus,
-    status, // Backward compatibility
-    wantsDinner,
-    dinnerTimeSlot: dinnerTimeSlot || dinnerSlotTime,
-    "dinner.slotTime": dinnerSlotTime,
-    dinnerPartySize,
-    "dinner.bookingStatus": dinnerBookingStatus,
-    dinnerPullUpCount,
-    cocktailOnlyPullUpCount,
-    pulledUpForDinner, // Backward compatibility
-    pulledUpForCocktails, // Backward compatibility
-  });
+  const result = updateRsvp(
+    rsvpId,
+    {
+      name,
+      email,
+      plusOnes,
+      bookingStatus,
+      status, // Backward compatibility
+      wantsDinner,
+      dinnerTimeSlot: dinnerTimeSlot || dinnerSlotTime,
+      "dinner.slotTime": dinnerSlotTime,
+      dinnerPartySize,
+      "dinner.bookingStatus": dinnerBookingStatus,
+      dinnerPullUpCount,
+      cocktailOnlyPullUpCount,
+      pulledUpForDinner, // Backward compatibility
+      pulledUpForCocktails, // Backward compatibility
+    },
+    { forceConfirm: !!forceConfirm }
+  );
 
   if (result.error === "not_found") {
     return res.status(404).json({ error: "RSVP not found" });

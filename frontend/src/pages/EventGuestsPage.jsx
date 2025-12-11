@@ -1507,6 +1507,7 @@ export function EventGuestsPage() {
         <EditGuestModal
           guest={editingGuest}
           event={event}
+          allGuests={guests}
           onClose={() => setEditingGuest(null)}
           onSave={(updates) => handleUpdateGuest(editingGuest.id, updates)}
         />
@@ -1790,22 +1791,22 @@ function CombinedStatusBadge({ guest }) {
   if (bookingStatus === "CONFIRMED") {
     if (!wantsDinner || dinnerBookingStatus === null) {
       // Confirmed for event, no dinner
-      label = "ATTENDING";
-      bg = "rgba(139, 92, 246, 0.2)";
-      border = "rgba(139, 92, 246, 0.5)";
-      color = "#a78bfa";
+      label = "CONFIRMED";
+      bg = "rgba(16, 185, 129, 0.2)";
+      border = "rgba(16, 185, 129, 0.5)";
+      color = "#10b981";
     } else if (dinnerBookingStatus === "CONFIRMED") {
       // Confirmed for event + dinner confirmed
-      label = "ATTENDING";
+      label = "CONFIRMED";
       bg = "rgba(16, 185, 129, 0.2)";
       border = "rgba(16, 185, 129, 0.5)";
       color = "#10b981";
     } else if (dinnerBookingStatus === "WAITLIST") {
       // Confirmed for event, waiting for dinner (shouldn't happen with all-or-nothing, but handle it)
-      label = "ATTENDING";
-      bg = "rgba(139, 92, 246, 0.2)";
-      border = "rgba(139, 92, 246, 0.5)";
-      color = "#a78bfa";
+      label = "CONFIRMED";
+      bg = "rgba(16, 185, 129, 0.2)";
+      border = "rgba(16, 185, 129, 0.5)";
+      color = "#10b981";
     }
   } else if (bookingStatus === "WAITLIST") {
     // Entire booking is on waitlist (all-or-nothing)
@@ -1849,25 +1850,50 @@ function CombinedStatusBadge({ guest }) {
     }
   }
 
+  // Check if capacity was overridden
+  const capacityOverridden = guest.capacityOverridden === true;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-      <span
-        style={{
-          fontSize: "10px",
-          fontWeight: 700,
-          padding: "6px 12px",
-          borderRadius: "999px",
-          background: bg,
-          border: `1.5px solid ${border}`,
-          color: color,
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          display: "inline-block",
-          lineHeight: "1.3",
-        }}
-      >
-        {label}
-      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <span
+          style={{
+            fontSize: "10px",
+            fontWeight: 700,
+            padding: "6px 12px",
+            borderRadius: "999px",
+            background: bg,
+            border: `1.5px solid ${border}`,
+            color: color,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            display: "inline-block",
+            lineHeight: "1.3",
+          }}
+        >
+          {label}
+        </span>
+        {capacityOverridden && bookingStatus === "CONFIRMED" && (
+          <span
+            title="This guest was confirmed by overriding capacity limits."
+            style={{
+              fontSize: "9px",
+              fontWeight: 600,
+              padding: "4px 8px",
+              borderRadius: "999px",
+              background: "rgba(245, 158, 11, 0.2)",
+              border: "1px solid rgba(245, 158, 11, 0.4)",
+              color: "#f59e0b",
+              textTransform: "none",
+              letterSpacing: "0.02em",
+              cursor: "help",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Over capacity
+          </span>
+        )}
+      </div>
       {arrivalIndicator && (
         <span
           style={{
@@ -1979,7 +2005,7 @@ function DinnerStatusBadge({ status }) {
   );
 }
 
-function EditGuestModal({ guest, event, onClose, onSave }) {
+function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
   const [name, setName] = useState(guest.name || "");
   const [email, setEmail] = useState(guest.email || "");
 
@@ -2021,6 +2047,91 @@ function EditGuestModal({ guest, event, onClose, onSave }) {
 
   const maxPlusOnes = event.maxPlusOnesPerGuest || 0;
 
+  // Calculate if changes would exceed capacity (for admin override warning)
+  const calculateCapacityExceedance = () => {
+    if (status !== "attending") {
+      // Only check capacity for confirmed bookings
+      return {
+        willExceedCocktail: false,
+        willExceedDinner: false,
+        cocktailOverBy: 0,
+        dinnerOverBy: 0,
+      };
+    }
+
+    // Calculate new partySize and cocktailsOnly based on current form values
+    const newPartySize = 1 + (parseInt(plusOnes) || 0);
+    const newCocktailsOnly = wantsDinner
+      ? parseInt(plusOnes) || 0
+      : newPartySize;
+    const newDinnerPartySize = wantsDinner
+      ? Math.max(1, parseInt(dinnerPartySize) || 1)
+      : 0;
+
+    // Calculate current confirmed counts (excluding this guest)
+    const currentCocktailsOnly = (allGuests || [])
+      .filter(
+        (g) =>
+          g.id !== guest.id &&
+          (g.bookingStatus === "CONFIRMED" || g.status === "attending")
+      )
+      .reduce((sum, g) => {
+        const gWantsDinner = g.dinner?.enabled || g.wantsDinner || false;
+        const gPlusOnes = g.plusOnes ?? 0;
+        return sum + (gWantsDinner ? gPlusOnes : g.partySize || 1);
+      }, 0);
+
+    const currentDinnerSlotConfirmed =
+      wantsDinner && dinnerTimeSlot
+        ? (allGuests || [])
+            .filter((g) => {
+              if (g.id === guest.id) return false;
+              const gWantsDinner = g.dinner?.enabled || g.wantsDinner || false;
+              const gSlot = g.dinner?.slotTime || g.dinnerTimeSlot;
+              const gDinnerStatus =
+                g.dinner?.bookingStatus === "CONFIRMED" ||
+                g.dinnerStatus === "confirmed";
+              return gWantsDinner && gSlot === dinnerTimeSlot && gDinnerStatus;
+            })
+            .reduce(
+              (sum, g) => sum + (g.dinner?.partySize || g.dinnerPartySize || 1),
+              0
+            )
+        : 0;
+
+    // Calculate new totals
+    const newCocktailsOnlyTotal = currentCocktailsOnly + newCocktailsOnly;
+    const newDinnerSlotTotal = currentDinnerSlotConfirmed + newDinnerPartySize;
+
+    // Check against capacities
+    const cocktailCapacity = event.cocktailCapacity ?? null;
+    const dinnerMaxSeatsPerSlot = event.dinnerMaxSeatsPerSlot ?? null;
+
+    const willExceedCocktail =
+      cocktailCapacity != null && newCocktailsOnlyTotal > cocktailCapacity;
+    const cocktailOverBy = willExceedCocktail
+      ? newCocktailsOnlyTotal - cocktailCapacity
+      : 0;
+
+    const willExceedDinner =
+      wantsDinner &&
+      dinnerTimeSlot &&
+      dinnerMaxSeatsPerSlot != null &&
+      newDinnerSlotTotal > dinnerMaxSeatsPerSlot;
+    const dinnerOverBy = willExceedDinner
+      ? newDinnerSlotTotal - dinnerMaxSeatsPerSlot
+      : 0;
+
+    return {
+      willExceedCocktail,
+      willExceedDinner,
+      cocktailOverBy,
+      dinnerOverBy,
+    };
+  };
+
+  const capacityCheck = calculateCapacityExceedance();
+
   // Derive dinnerStatus from new model with backward compatibility
   const dinnerStatus =
     guest.dinner?.bookingStatus === "CONFIRMED"
@@ -2059,6 +2170,9 @@ function EditGuestModal({ guest, event, onClose, onSave }) {
       // Backward compatibility
       pulledUpForDinner: pulledUpForDinner || null,
       pulledUpForCocktails: pulledUpForCocktails || null,
+      // Admin override: include forceConfirm if capacity would be exceeded
+      forceConfirm:
+        capacityCheck.willExceedCocktail || capacityCheck.willExceedDinner,
     };
 
     onSave(updates);
@@ -2621,6 +2735,62 @@ function EditGuestModal({ guest, event, onClose, onSave }) {
             </div>
           </div>
 
+          {/* Capacity Warning - Admin Override */}
+          {(capacityCheck.willExceedCocktail ||
+            capacityCheck.willExceedDinner) && (
+            <div
+              style={{
+                marginTop: "20px",
+                padding: "16px 20px",
+                background: "rgba(239, 68, 68, 0.15)",
+                borderRadius: "14px",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                fontSize: "13px",
+                color: "#f87171",
+                lineHeight: "1.6",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginBottom: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "14px",
+                }}
+              >
+                <span style={{ fontSize: "18px" }}>⚠️</span>
+                <span>You're overriding capacity</span>
+              </div>
+              <div style={{ opacity: 0.9 }}>
+                {capacityCheck.willExceedCocktail &&
+                  !capacityCheck.willExceedDinner && (
+                    <div>
+                      Confirming this guest will put the event over cocktail
+                      capacity by {capacityCheck.cocktailOverBy} guest
+                      {capacityCheck.cocktailOverBy === 1 ? "" : "s"}.
+                    </div>
+                  )}
+                {capacityCheck.willExceedDinner &&
+                  !capacityCheck.willExceedCocktail && (
+                    <div>
+                      Confirming this guest will put the {dinnerTimeSlot} dinner
+                      over capacity by {capacityCheck.dinnerOverBy} guest
+                      {capacityCheck.dinnerOverBy === 1 ? "" : "s"}.
+                    </div>
+                  )}
+                {capacityCheck.willExceedCocktail &&
+                  capacityCheck.willExceedDinner && (
+                    <div>
+                      Confirming this guest will put both cocktails and dinner
+                      over their current capacities.
+                    </div>
+                  )}
+              </div>
+            </div>
+          )}
+
           <div
             style={{
               display: "flex",
@@ -2660,7 +2830,11 @@ function EditGuestModal({ guest, event, onClose, onSave }) {
                 padding: "14px 24px",
                 borderRadius: "12px",
                 border: "none",
-                background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                background:
+                  capacityCheck.willExceedCocktail ||
+                  capacityCheck.willExceedDinner
+                    ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
+                    : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
                 color: "#fff",
                 fontSize: "15px",
                 fontWeight: 600,
@@ -2669,7 +2843,12 @@ function EditGuestModal({ guest, event, onClose, onSave }) {
                 transition: "all 0.2s ease",
               }}
             >
-              {loading ? "Saving..." : "Save Changes"}
+              {loading
+                ? "Saving..."
+                : capacityCheck.willExceedCocktail ||
+                  capacityCheck.willExceedDinner
+                ? "Confirm anyway (over capacity)"
+                : "Save changes"}
             </button>
           </div>
         </form>

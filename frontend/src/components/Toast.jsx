@@ -12,11 +12,14 @@ const ToastContext = createContext(null);
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = useCallback((message, type = "info", duration = 4000) => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type, duration }]);
-    return id;
-  }, []);
+  const showToast = useCallback(
+    (message, type = "info", subtext = null, duration = 4000) => {
+      const id = Date.now() + Math.random();
+      setToasts((prev) => [...prev, { id, message, type, subtext, duration }]);
+      return id;
+    },
+    []
+  );
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -38,6 +41,7 @@ function ToastContainer({ toasts, removeToast }) {
           key={toast.id}
           message={toast.message}
           type={toast.type}
+          subtext={toast.subtext}
           duration={toast.duration}
           onClose={() => removeToast(toast.id)}
         />
@@ -46,7 +50,13 @@ function ToastContainer({ toasts, removeToast }) {
   );
 }
 
-function Toast({ message, type = "info", onClose, duration = 4000 }) {
+function Toast({
+  message,
+  type = "info",
+  subtext = null,
+  onClose,
+  duration = 4000,
+}) {
   const onCloseRef = useRef(onClose);
 
   // Keep ref updated
@@ -81,7 +91,7 @@ function Toast({ message, type = "info", onClose, duration = 4000 }) {
         transform: "translateX(-50%)",
         background: bgColor,
         color: "#fff",
-        padding: "12px 20px",
+        padding: subtext ? "14px 20px" : "12px 20px",
         borderRadius: "12px",
         boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
         zIndex: 1000,
@@ -92,7 +102,21 @@ function Toast({ message, type = "info", onClose, duration = 4000 }) {
         animation: "slideUp 0.3s ease-out",
       }}
     >
-      {message}
+      <div style={{ fontWeight: 600, marginBottom: subtext ? "4px" : "0" }}>
+        {message}
+      </div>
+      {subtext && (
+        <div
+          style={{
+            fontSize: "12px",
+            opacity: 0.9,
+            marginTop: "4px",
+            fontWeight: 400,
+          }}
+        >
+          {subtext}
+        </div>
+      )}
       <style>{`
         @keyframes slideUp {
           from {

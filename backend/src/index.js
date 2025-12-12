@@ -76,7 +76,20 @@ function generateOgHtml(event) {
   // Use event image if available, otherwise fallback to default OG image
   // Note: Signed URLs work for OG tags as long as they're valid when crawler accesses them
   // For better reliability, consider using public URLs for event images in the future
-  const imageUrl = event.imageUrl || `${baseUrl}/og-image.jpg`;
+  let imageUrl = event.imageUrl || `${baseUrl}/og-image.jpg`;
+
+  // Ensure image URL is absolute (not relative)
+  if (imageUrl && !imageUrl.startsWith("http")) {
+    // If it's a relative path, make it absolute
+    imageUrl = `${baseUrl}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+  }
+
+  // Debug logging
+  console.log(`[OG] Generated HTML for event: ${event.title || "Untitled"}`);
+  console.log(`[OG] Event slug: ${event.slug || "MISSING"}`);
+  console.log(`[OG] Event ID: ${event.id || "MISSING"}`);
+  console.log(`[OG] Event URL: ${eventUrl}`);
+  console.log(`[OG] Image URL: ${imageUrl}`);
 
   // Clean description (escape HTML, limit length)
   const description = event.description
@@ -205,11 +218,19 @@ app.get("/events", requireAuth, async (req, res) => {
 app.get("/share/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
+    console.log(`[Share] Request for slug: ${slug}`);
+
     const event = await findEventBySlug(slug);
 
     if (!event) {
+      console.log(`[Share] Event not found for slug: ${slug}`);
       return res.status(404).send("Event not found");
     }
+
+    console.log(
+      `[Share] Found event: ${event.title} (slug: ${event.slug}, id: ${event.id})`
+    );
+    console.log(`[Share] Event image URL: ${event.imageUrl || "none"}`);
 
     // Generate HTML with dynamic OG tags
     const ogHtml = generateOgHtml(event);

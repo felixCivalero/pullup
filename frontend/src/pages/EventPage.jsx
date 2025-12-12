@@ -40,6 +40,16 @@ export function EventPage() {
         }
         if (!res.ok) throw new Error("Failed to load event");
         const data = await res.json();
+        // Debug: Log event structure to verify slug exists
+        console.log("[EventPage] Loaded event:", {
+          id: data.id,
+          slug: data.slug,
+          title: data.title,
+          hasImage: !!data.imageUrl,
+        });
+        if (!data.slug) {
+          console.error("[EventPage] WARNING: Event missing slug!", data);
+        }
         setEvent(data);
       } catch (err) {
         console.error("Error loading event", err);
@@ -245,7 +255,11 @@ export function EventPage() {
   }
 
   // Use share URL for better link previews (returns HTML with OG tags)
-  const shareUrl = event ? getEventShareUrl(event.slug) : "";
+  // Validate we have a slug, not an ID
+  const shareUrl = event && event.slug ? getEventShareUrl(event.slug) : "";
+  if (event && !event.slug) {
+    console.error("[EventPage] Event missing slug!", event);
+  }
   const shareText = event
     ? buildShareText({ event, url: shareUrl, variant: "invite" })
     : shareUrl;

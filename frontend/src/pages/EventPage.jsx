@@ -5,7 +5,7 @@ import { EventCard } from "../components/EventCard";
 import { useToast } from "../components/Toast";
 import { ShareActions } from "../components/ShareActions";
 import { buildShareText } from "../lib/shareUtils";
-import { getEventUrl } from "../lib/urlUtils";
+import { getEventUrl, getEventShareUrl } from "../lib/urlUtils";
 
 import { publicFetch } from "../lib/api.js";
 
@@ -244,7 +244,8 @@ export function EventPage() {
     }
   }
 
-  const shareUrl = event ? getEventUrl(event.slug) : "";
+  // Use share URL for better link previews (returns HTML with OG tags)
+  const shareUrl = event ? getEventShareUrl(event.slug) : "";
   const shareText = event
     ? buildShareText({ event, url: shareUrl, variant: "invite" })
     : shareUrl;

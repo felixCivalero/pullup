@@ -5,7 +5,7 @@ import { useToast } from "../components/Toast";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { ShareActions } from "../components/ShareActions";
 import { buildShareText } from "../lib/shareUtils";
-import { getEventUrl } from "../lib/urlUtils";
+import { getEventUrl, getEventShareUrl } from "../lib/urlUtils";
 
 import { authenticatedFetch, publicFetch, API_BASE } from "../lib/api.js";
 
@@ -1678,11 +1678,11 @@ export function ManageEventPage() {
             {event && (
               <div style={{ display: "flex", justifyContent: "flex-start" }}>
                 <ShareActions
-                  url={getEventUrl(event.slug)}
+                  url={getEventShareUrl(event.slug)}
                   title={event.title}
                   text={buildShareText({
                     event,
-                    url: getEventUrl(event.slug),
+                    url: getEventShareUrl(event.slug),
                     variant: "default",
                   })}
                   imageUrl={event.imageUrl}

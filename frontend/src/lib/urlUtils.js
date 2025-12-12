@@ -24,6 +24,16 @@ export function getEventUrl(slug) {
 }
 
 /**
+ * Build a share URL for an event (guaranteed to return HTML with OG tags)
+ * Use this for sharing to get proper link previews
+ * @param {string} slug - Event slug
+ * @returns {string} Share URL (e.g., "http://localhost:5173/share/my-event" or "https://pullup.se/share/my-event")
+ */
+export function getEventShareUrl(slug) {
+  return `${getBaseUrl()}/share/${slug}`;
+}
+
+/**
  * Build a full URL for an RSVP success page
  * @param {string} slug - Event slug
  * @returns {string} Full URL (e.g., "http://localhost:5173/e/my-event/success" or "https://pullup.se/e/my-event/success")
@@ -40,4 +50,3 @@ export function getOgImageUrl() {
   // Use relative path - works in both localhost and production
   return `${getBaseUrl()}/og-image.jpg`;
 }
-

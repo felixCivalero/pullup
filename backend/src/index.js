@@ -42,6 +42,119 @@ dotenv.config();
 
 const app = express();
 
+// ---------------------------
+// Helper: Detect if request is from a crawler/bot
+// ---------------------------
+function isCrawler(req) {
+  const userAgent = req.get("user-agent") || "";
+  const crawlerPatterns = [
+    "facebookexternalhit",
+    "Twitterbot",
+    "LinkedInBot",
+    "WhatsApp",
+    "Applebot",
+    "Googlebot",
+    "Slackbot",
+    "Discordbot",
+    "TelegramBot",
+    "SkypeUriPreview",
+    "bingbot",
+    "Slurp",
+  ];
+  return crawlerPatterns.some((pattern) =>
+    userAgent.toLowerCase().includes(pattern.toLowerCase())
+  );
+}
+
+// ---------------------------
+// Helper: Generate HTML with dynamic OG tags for an event
+// ---------------------------
+function generateOgHtml(event) {
+  const baseUrl = process.env.FRONTEND_URL || "https://pullup.se";
+  const eventUrl = `${baseUrl}/e/${event.slug}`;
+
+  // Use event image if available, otherwise fallback to default OG image
+  // Note: Signed URLs work for OG tags as long as they're valid when crawler accesses them
+  // For better reliability, consider using public URLs for event images in the future
+  const imageUrl = event.imageUrl || `${baseUrl}/og-image.jpg`;
+
+  // Clean description (escape HTML, limit length)
+  const description = event.description
+    ? event.description
+        .substring(0, 160)
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+    : `Join us for ${event.title}`;
+
+  // Format event date/time
+  let eventDateTime = "";
+  if (event.startsAt) {
+    try {
+      const date = new Date(event.startsAt);
+      eventDateTime = date.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      // If date parsing fails, just use the title
+    }
+  }
+
+  // Escape HTML in title
+  const escapedTitle = event.title
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+  // Build title with date if available
+  const ogTitle = eventDateTime
+    ? `${escapedTitle} — ${eventDateTime}`
+    : escapedTitle;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Primary Meta -->
+  <title>${ogTitle} — Pull Up</title>
+  <meta name="description" content="${description}">
+  
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${eventUrl}">
+  <meta property="og:title" content="${ogTitle}">
+  <meta property="og:description" content="${description}">
+  <meta property="og:image" content="${imageUrl}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="Pull Up">
+  
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${ogTitle}">
+  <meta name="twitter:description" content="${description}">
+  <meta name="twitter:image" content="${imageUrl}">
+  
+  <!-- Redirect to actual event page -->
+  <meta http-equiv="refresh" content="0;url=${eventUrl}">
+  <script>window.location.href = "${eventUrl}";</script>
+</head>
+<body>
+  <p>Redirecting to <a href="${eventUrl}">${escapedTitle}</a>...</p>
+</body>
+</html>`;
+}
+
 // CORS configuration
 const corsOptions = {
   origin: process.env.CORS_ORIGIN
@@ -87,7 +200,30 @@ app.get("/events", requireAuth, async (req, res) => {
 });
 
 // ---------------------------
+// PUBLIC: Share endpoint - Always returns HTML with OG tags
+// ---------------------------
+app.get("/share/:slug", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const event = await findEventBySlug(slug);
+
+    if (!event) {
+      return res.status(404).send("Event not found");
+    }
+
+    // Generate HTML with dynamic OG tags
+    const ogHtml = generateOgHtml(event);
+    res.setHeader("Content-Type", "text/html");
+    res.send(ogHtml);
+  } catch (error) {
+    console.error("Error generating share page:", error);
+    res.status(500).send("Error generating share page");
+  }
+});
+
+// ---------------------------
 // PUBLIC: Get event by slug
+// Returns HTML for crawlers, JSON for API calls
 // ---------------------------
 app.get("/events/:slug", async (req, res) => {
   try {
@@ -96,7 +232,14 @@ app.get("/events/:slug", async (req, res) => {
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    // Include current attendance counts for capacity warnings
+    // If request is from a crawler, return HTML with OG tags
+    if (isCrawler(req)) {
+      const ogHtml = generateOgHtml(event);
+      res.setHeader("Content-Type", "text/html");
+      return res.send(ogHtml);
+    }
+
+    // Otherwise, return JSON (existing behavior for API/frontend)
     const { confirmed, waitlist } = await getEventCounts(event.id);
     // Calculate cocktails-only (people attending cocktails but not confirmed for dinner)
     const cocktailsOnly = await getCocktailsOnlyCount(event.id);

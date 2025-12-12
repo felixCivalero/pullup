@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { ShareActions } from "../components/ShareActions";
 import { buildShareText } from "../lib/shareUtils";
-import { getEventUrl } from "../lib/urlUtils";
+import { getEventUrl, getEventShareUrl } from "../lib/urlUtils";
 import { publicFetch } from "../lib/api.js";
 
 export function RsvpSuccessPage() {
@@ -360,11 +360,11 @@ export function RsvpSuccessPage() {
               }}
             >
               <ShareActions
-                url={getEventUrl(event.slug)}
+                url={getEventShareUrl(event.slug)}
                 title={`I'm going to ${event.title}!`}
                 text={buildShareText({
                   event,
-                  url: getEventUrl(event.slug),
+                  url: getEventShareUrl(event.slug),
                   variant: "confirmation",
                   booking: booking,
                 })}

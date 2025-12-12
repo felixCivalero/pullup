@@ -814,75 +814,132 @@ export function EventGuestsPage() {
           <div
             style={{
               display: "flex",
-              gap: "8px",
+              justifyContent: "space-between",
+              alignItems: "center",
               marginBottom: "32px",
-              fontSize: "14px",
-              borderBottom: "2px solid rgba(255,255,255,0.08)",
-              paddingBottom: "0",
             }}
           >
-            <button
-              onClick={() => navigate(`/app/events/${id}/manage`)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#9ca3af",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-                padding: "12px 20px",
-                borderRadius: "8px 8px 0 0",
-                fontWeight: 500,
-                borderBottom: "2px solid transparent",
-                marginBottom: "-2px",
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.color = "#fff";
-                e.target.style.background = "rgba(255,255,255,0.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.color = "#9ca3af";
-                e.target.style.background = "transparent";
-              }}
-            >
-              Overview
-            </button>
             <div
               style={{
-                padding: "12px 20px",
-                fontWeight: 700,
-                color: "#fff",
-                borderBottom: "2px solid #8b5cf6",
-                marginBottom: "-2px",
-                background: "rgba(139, 92, 246, 0.1)",
-                borderRadius: "8px 8px 0 0",
+                display: "flex",
+                gap: "8px",
+                fontSize: "14px",
+                borderBottom: "2px solid rgba(255,255,255,0.08)",
+                paddingBottom: "0",
               }}
             >
-              👥 Guests
+              <button
+                onClick={() => navigate(`/app/events/${id}/manage`)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#9ca3af",
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                  padding: "12px 20px",
+                  borderRadius: "8px 8px 0 0",
+                  fontWeight: 500,
+                  borderBottom: "2px solid transparent",
+                  marginBottom: "-2px",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.color = "#fff";
+                  e.target.style.background = "rgba(255,255,255,0.05)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.color = "#9ca3af";
+                  e.target.style.background = "transparent";
+                }}
+              >
+                Overview
+              </button>
+              <div
+                style={{
+                  padding: "12px 20px",
+                  fontWeight: 700,
+                  color: "#fff",
+                  borderBottom: "2px solid #8b5cf6",
+                  marginBottom: "-2px",
+                  background: "rgba(139, 92, 246, 0.1)",
+                  borderRadius: "8px 8px 0 0",
+                }}
+              >
+                👥 Guests
+              </div>
+              <button
+                onClick={() => navigate(`/app/events/${id}/manage?tab=edit`)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#9ca3af",
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                  padding: "12px 20px",
+                  borderRadius: "8px 8px 0 0",
+                  fontWeight: 500,
+                  borderBottom: "2px solid transparent",
+                  marginBottom: "-2px",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.color = "#fff";
+                  e.target.style.background = "rgba(255,255,255,0.05)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.color = "#9ca3af";
+                  e.target.style.background = "transparent";
+                }}
+              >
+                Edit
+              </button>
             </div>
             <button
-              onClick={() => navigate(`/app/events/${id}/manage?tab=edit`)}
+              onClick={async () => {
+                try {
+                  const res = await authenticatedFetch(
+                    `/host/events/${id}/guests/export`
+                  );
+                  if (!res.ok) throw new Error("Export failed");
+                  const blob = await res.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `event-guests-${event.slug || id}-${
+                    new Date().toISOString().split("T")[0]
+                  }.csv`;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                } catch (err) {
+                  console.error(err);
+                  showToast("Failed to export CSV", "error");
+                }
+              }}
               style={{
-                background: "transparent",
-                border: "none",
-                color: "#9ca3af",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-                padding: "12px 20px",
-                borderRadius: "8px 8px 0 0",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "1px solid rgba(139, 92, 246, 0.3)",
+                background: "rgba(139, 92, 246, 0.1)",
+                color: "#a78bfa",
+                fontSize: "14px",
                 fontWeight: 500,
-                borderBottom: "2px solid transparent",
-                marginBottom: "-2px",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                height: "fit-content",
               }}
               onMouseEnter={(e) => {
-                e.target.style.color = "#fff";
-                e.target.style.background = "rgba(255,255,255,0.05)";
+                e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
               }}
               onMouseLeave={(e) => {
-                e.target.style.color = "#9ca3af";
-                e.target.style.background = "transparent";
+                e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
               }}
             >
-              Edit
+              📥 Export CSV
             </button>
           </div>
 

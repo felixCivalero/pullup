@@ -126,6 +126,52 @@ export function CrmTab() {
               e.target.style.background = "rgba(20, 16, 30, 0.6)";
             }}
           />
+          <button
+            onClick={async () => {
+              try {
+                const res = await authenticatedFetch("/host/crm/people/export");
+                if (!res.ok) throw new Error("Export failed");
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `crm-contacts-${
+                  new Date().toISOString().split("T")[0]
+                }.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+              } catch (err) {
+                console.error(err);
+                alert("Failed to export CSV");
+              }
+            }}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "8px",
+              border: "1px solid rgba(139, 92, 246, 0.3)",
+              background: "rgba(139, 92, 246, 0.1)",
+              color: "#a78bfa",
+              fontSize: "14px",
+              fontWeight: 500,
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "rgba(139, 92, 246, 0.2)";
+              e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "rgba(139, 92, 246, 0.1)";
+              e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+            }}
+          >
+            📥 Export CSV
+          </button>
           <div
             style={{
               fontSize: "13px",

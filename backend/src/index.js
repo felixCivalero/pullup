@@ -473,6 +473,107 @@ app.get("/host/events/:id/guests", requireAuth, async (req, res) => {
 });
 
 // ---------------------------
+// PROTECTED: Export event guests as CSV
+// ---------------------------
+app.get("/host/events/:id/guests/export", requireAuth, async (req, res) => {
+  try {
+    const event = await findEventById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    // Verify ownership
+    if (event.hostId !== req.user.id) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "You don't have access to this event",
+      });
+    }
+
+    const guests = await getRsvpsForEvent(event.id);
+
+    // CSV header
+    const headers = [
+      "Name",
+      "Email",
+      "Booking Status",
+      "Party Size",
+      "Plus Ones",
+      "Wants Dinner",
+      "Dinner Party Size",
+      "Dinner Time Slot",
+      "Dinner Status",
+      "Dinner Pull Up Count",
+      "Cocktails Pull Up Count",
+      "RSVP Date",
+    ];
+
+    // CSV rows
+    const rows = guests.map((guest) => {
+      const escapeCsv = (value) => {
+        if (value === null || value === undefined) return "";
+        const str = String(value);
+        // If contains comma, quote, or newline, wrap in quotes and escape quotes
+        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const formatDate = (dateString) => {
+        if (!dateString) return "";
+        return new Date(dateString).toLocaleString("en-US", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      };
+
+      return [
+        escapeCsv(guest.name),
+        escapeCsv(guest.email),
+        escapeCsv(guest.bookingStatus || guest.status || ""),
+        escapeCsv(guest.partySize || ""),
+        escapeCsv(guest.plusOnes || 0),
+        escapeCsv(guest.wantsDinner ? "Yes" : "No"),
+        escapeCsv(guest.dinnerPartySize || guest.dinner?.partySize || ""),
+        escapeCsv(
+          guest.dinnerTimeSlot || guest.dinner?.slotTime
+            ? formatDate(guest.dinnerTimeSlot || guest.dinner?.slotTime)
+            : ""
+        ),
+        escapeCsv(
+          guest.dinner?.bookingStatus ||
+            (guest.dinnerStatus === "confirmed"
+              ? "CONFIRMED"
+              : guest.dinnerStatus === "waitlist"
+              ? "WAITLIST"
+              : "")
+        ),
+        escapeCsv(guest.dinnerPullUpCount || 0),
+        escapeCsv(guest.cocktailOnlyPullUpCount || 0),
+        escapeCsv(guest.createdAt ? formatDate(guest.createdAt) : ""),
+      ].join(",");
+    });
+
+    const csv = [headers.join(","), ...rows].join("\n");
+
+    // Set headers for CSV download
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="event-guests-${event.slug || event.id}-${
+        new Date().toISOString().split("T")[0]
+      }.csv"`
+    );
+    res.send(csv);
+  } catch (error) {
+    console.error("Error exporting guests:", error);
+    res.status(500).json({ error: "Failed to export guests data" });
+  }
+});
+
+// ---------------------------
 // PUBLIC: Get dinner time slots for event
 // ---------------------------
 app.get("/events/:slug/dinner-slots", async (req, res) => {
@@ -678,6 +779,78 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Error fetching people:", error);
     res.status(500).json({ error: "Failed to fetch people" });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Export CRM people as CSV
+// ---------------------------
+app.get("/host/crm/people/export", requireAuth, async (req, res) => {
+  try {
+    const people = await getAllPeopleWithStats(req.user.id);
+
+    // CSV header
+    const headers = [
+      "Name",
+      "Email",
+      "Phone",
+      "Notes",
+      "Tags",
+      "Total Events",
+      "Events Attended",
+      "Events Waitlisted",
+      "Total Guests Brought",
+      "Total Dinners",
+      "Total Dinner Guests",
+      "First Seen",
+    ];
+
+    // CSV rows
+    const rows = people.map((person) => {
+      const escapeCsv = (value) => {
+        if (value === null || value === undefined) return "";
+        const str = String(value);
+        // If contains comma, quote, or newline, wrap in quotes and escape quotes
+        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      return [
+        escapeCsv(person.name),
+        escapeCsv(person.email),
+        escapeCsv(person.phone),
+        escapeCsv(person.notes),
+        escapeCsv(person.tags?.join(", ") || ""),
+        escapeCsv(person.stats?.totalEvents || 0),
+        escapeCsv(person.stats?.eventsAttended || 0),
+        escapeCsv(person.stats?.eventsWaitlisted || 0),
+        escapeCsv(person.stats?.totalGuestsBrought || 0),
+        escapeCsv(person.stats?.totalDinners || 0),
+        escapeCsv(person.stats?.totalDinnerGuests || 0),
+        escapeCsv(
+          person.createdAt
+            ? new Date(person.createdAt).toLocaleDateString("en-US")
+            : ""
+        ),
+      ].join(",");
+    });
+
+    const csv = [headers.join(","), ...rows].join("\n");
+
+    // Set headers for CSV download
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="crm-contacts-${
+        new Date().toISOString().split("T")[0]
+      }.csv"`
+    );
+    res.send(csv);
+  } catch (error) {
+    console.error("Error exporting CRM people:", error);
+    res.status(500).json({ error: "Failed to export CRM data" });
   }
 });
 

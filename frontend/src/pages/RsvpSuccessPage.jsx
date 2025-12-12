@@ -361,12 +361,14 @@ export function RsvpSuccessPage() {
             >
               <ShareActions
                 url={getEventUrl(event.slug)}
-                title={event.title}
+                title={`I'm going to ${event.title}!`}
                 text={buildShareText({
                   event,
                   url: getEventUrl(event.slug),
-                  variant: "casual",
+                  variant: "confirmation",
+                  booking: booking,
                 })}
+                imageUrl={event.imageUrl}
               />
             </div>
           )}

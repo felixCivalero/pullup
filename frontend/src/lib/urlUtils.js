@@ -40,3 +40,4 @@ export function getOgImageUrl() {
   // Use relative path - works in both localhost and production
   return `${getBaseUrl()}/og-image.jpg`;
 }
+

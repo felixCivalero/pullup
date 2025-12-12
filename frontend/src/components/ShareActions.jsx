@@ -9,8 +9,9 @@ import { useToast } from "./Toast";
  * @param {string} props.url - Full URL to share/copy
  * @param {string} props.title - Title for share (optional)
  * @param {string} props.text - Share text (optional, will use title + url if not provided)
+ * @param {string} props.imageUrl - Image URL to include in share (optional, for Web Share API)
  */
-export function ShareActions({ url, title, text }) {
+export function ShareActions({ url, title, text, imageUrl }) {
   const { showToast } = useToast();
   const [copying, setCopying] = useState(false);
 
@@ -22,11 +23,32 @@ export function ShareActions({ url, title, text }) {
     }
 
     try {
-      await navigator.share({
+      const shareData = {
         title: title || "Check this out",
         text: text || url,
         url: url,
-      });
+      };
+
+      // Include image if provided and Web Share API supports files
+      // Note: File sharing requires fetching the image first
+      if (imageUrl && navigator.canShare) {
+        try {
+          // Try to fetch and share as file (for platforms that support it)
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          const file = new File([blob], "event-image.jpg", { type: blob.type });
+
+          // Check if we can share files
+          if (navigator.canShare({ files: [file] })) {
+            shareData.files = [file];
+          }
+        } catch (imgError) {
+          // If image fetch fails, share without image
+          console.log("Could not include image in share:", imgError);
+        }
+      }
+
+      await navigator.share(shareData);
     } catch (err) {
       // User cancelled or error occurred
       if (err.name !== "AbortError") {

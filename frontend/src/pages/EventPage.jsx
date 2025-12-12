@@ -269,7 +269,12 @@ export function EventPage() {
               justifyContent: "flex-end",
             }}
           >
-            <ShareActions url={shareUrl} title={event.title} text={shareText} />
+            <ShareActions
+              url={shareUrl}
+              title={event.title}
+              text={shareText}
+              imageUrl={event.imageUrl}
+            />
           </div>
         )}
         <EventCard

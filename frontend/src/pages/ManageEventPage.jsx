@@ -1685,6 +1685,7 @@ export function ManageEventPage() {
                     url: getEventUrl(event.slug),
                     variant: "default",
                   })}
+                  imageUrl={event.imageUrl}
                 />
               </div>
             )}

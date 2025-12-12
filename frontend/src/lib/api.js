@@ -4,7 +4,7 @@
 import { supabase } from "./supabase.js";
 
 // Use environment variable for production, fallback to localhost for development
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+const API_BASE = import.meta.env.DEV ? "http://localhost:3001" : "/api";
 
 /**
  * Make an authenticated API request

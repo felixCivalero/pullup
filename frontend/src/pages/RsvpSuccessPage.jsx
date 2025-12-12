@@ -9,8 +9,6 @@ export function RsvpSuccessPage() {
   const location = useLocation();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [showCalendarOptions, setShowCalendarOptions] = useState(false);
 
   // Get booking details from navigation state
   const booking = location.state?.booking || null;
@@ -32,118 +30,119 @@ export function RsvpSuccessPage() {
     if (slug) loadEvent();
   }, [slug]);
 
-  // Close calendar dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (
-        showCalendarOptions &&
-        !event.target.closest("[data-calendar-dropdown]")
-      ) {
-        setShowCalendarOptions(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showCalendarOptions]);
-
-  // Copy link to clipboard
-  async function handleShare() {
-    const eventUrl = `${window.location.origin}/e/${slug}`;
-
-    // Try Web Share API first (mobile)
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: event?.title || "Event",
-          text: `Join me at ${event?.title || "this event"}!`,
-          url: eventUrl,
-        });
-        return;
-      } catch (err) {
-        // User cancelled or error - fall through to copy
-        if (err.name !== "AbortError") {
-          console.error("Share error:", err);
-        }
-      }
-    }
-
-    // Fallback: Copy to clipboard
-    try {
-      await navigator.clipboard.writeText(eventUrl);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy link", err);
-      // Fallback for older browsers
-      const textArea = document.createElement("textarea");
-      textArea.value = eventUrl;
-      document.body.appendChild(textArea);
-      textArea.select();
-      try {
-        document.execCommand("copy");
-        setLinkCopied(true);
-        setTimeout(() => setLinkCopied(false), 2000);
-      } catch (fallbackErr) {
-        console.error("Fallback copy failed", fallbackErr);
-      }
-      document.body.removeChild(textArea);
-    }
-  }
-
   // Generate calendar service URLs
-  function getCalendarUrls() {
+  // Rule: One event in the user's head. One anchor in the calendar. Dinner is an optional precision layer.
+  // If dinner is booked, user can choose between dinner time or event time as anchor
+  function getCalendarUrls(useDinnerTime = false) {
     if (!event) return {};
-
-    const formatDateForUrl = (dateString) => {
-      const date = new Date(dateString);
-      const year = date.getUTCFullYear();
-      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-      const day = String(date.getUTCDate()).padStart(2, "0");
-      const hours = String(date.getUTCHours()).padStart(2, "0");
-      const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-      return `${year}${month}${day}T${hours}${minutes}00Z`;
-    };
 
     const formatDateForGoogle = (dateString) => {
       const date = new Date(dateString);
       return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
     };
 
-    const startDate = event.startsAt
-      ? formatDateForGoogle(event.startsAt)
-      : formatDateForGoogle(new Date());
-    const endDate = event.endsAt
-      ? formatDateForGoogle(event.endsAt)
-      : formatDateForGoogle(new Date(Date.now() + 2 * 60 * 60 * 1000));
+    const hasConfirmedDinner =
+      booking?.wantsDinner &&
+      booking?.dinnerTimeSlot &&
+      booking?.dinnerBookingStatus === "CONFIRMED";
+
+    let anchorStartDate;
+    let anchorEndDate;
+    let calendarTitle = event.title;
+    let calendarDescription = event.description || "";
+
+    if (hasConfirmedDinner && useDinnerTime) {
+      // Dinner is the anchor - use dinner time as the calendar event time
+      anchorStartDate = formatDateForGoogle(booking.dinnerTimeSlot);
+      // Calculate end time (default 2 hours for dinner, or use event end if available)
+      const dinnerStart = new Date(booking.dinnerTimeSlot);
+      anchorEndDate = event.endsAt
+        ? formatDateForGoogle(event.endsAt)
+        : formatDateForGoogle(
+            new Date(dinnerStart.getTime() + 2 * 60 * 60 * 1000)
+          );
+
+      // Add dinner precision to title
+      calendarTitle = `${event.title} - Dinner`;
+
+      // Build comprehensive description with all event details
+      const dinnerTime = new Date(booking.dinnerTimeSlot).toLocaleTimeString(
+        "en-US",
+        { hour: "numeric", minute: "2-digit" }
+      );
+      const eventStartTime = event.startsAt
+        ? new Date(event.startsAt).toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+          })
+        : null;
+
+      calendarDescription = `${event.description || ""}\n\n`;
+      calendarDescription += `🍽️ Dinner: ${dinnerTime}`;
+      if (booking.dinnerPartySize > 1) {
+        calendarDescription += ` (${booking.dinnerPartySize} people)`;
+      }
+      if (eventStartTime && eventStartTime !== dinnerTime) {
+        calendarDescription += `\n🥂 Cocktails: ${eventStartTime}`;
+      }
+      if (event.location) {
+        calendarDescription += `\n📍 Location: ${event.location}`;
+      }
+    } else {
+      // Event start is the anchor
+      anchorStartDate = event.startsAt
+        ? formatDateForGoogle(event.startsAt)
+        : formatDateForGoogle(new Date());
+      anchorEndDate = event.endsAt
+        ? formatDateForGoogle(event.endsAt)
+        : formatDateForGoogle(new Date(Date.now() + 2 * 60 * 60 * 1000));
+
+      // Add dinner info to description if they have dinner
+      if (hasConfirmedDinner) {
+        const dinnerTime = new Date(booking.dinnerTimeSlot).toLocaleTimeString(
+          "en-US",
+          { hour: "numeric", minute: "2-digit" }
+        );
+        calendarDescription += `\n\n🍽️ Dinner: ${dinnerTime}`;
+        if (booking.dinnerPartySize > 1) {
+          calendarDescription += ` (${booking.dinnerPartySize} people)`;
+        }
+      } else if (
+        booking?.wantsDinner &&
+        booking?.dinnerBookingStatus === "WAITLIST"
+      ) {
+        calendarDescription += `\n\n🍽️ Dinner: Waitlisted (host will notify if a spot opens)`;
+      }
+      if (event.location) {
+        calendarDescription += `\n📍 Location: ${event.location}`;
+      }
+    }
 
     const eventUrl = `${window.location.origin}/e/${slug}`;
+    calendarDescription += `\n\nEvent page: ${eventUrl}`;
+
     const location = encodeURIComponent(event.location || "");
-    const title = encodeURIComponent(event.title);
-    const description = encodeURIComponent(
-      `${event.description || ""}\n\nEvent page: ${eventUrl}`
-    );
+    const title = encodeURIComponent(calendarTitle);
+    const description = encodeURIComponent(calendarDescription);
 
     // Google Calendar
-    const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${description}&location=${location}`;
+    const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${anchorStartDate}/${anchorEndDate}&details=${description}&location=${location}`;
 
     // Outlook Calendar
-    const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${startDate}&enddt=${endDate}&body=${description}&location=${location}`;
+    const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${anchorStartDate}&enddt=${anchorEndDate}&body=${description}&location=${location}`;
 
     // Yahoo Calendar
-    const yahooUrl = `https://calendar.yahoo.com/?v=60&view=d&type=20&title=${title}&st=${startDate}&dur=${endDate}&desc=${description}&in_loc=${location}`;
+    const yahooUrl = `https://calendar.yahoo.com/?v=60&view=d&type=20&title=${title}&st=${anchorStartDate}&dur=${anchorEndDate}&desc=${description}&in_loc=${location}`;
 
     // Apple Calendar (iCal) - fallback to download
+    // Use the same anchor dates as web calendars
     const formatDateForIcs = (dateString) => {
       const date = new Date(dateString);
       return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
     };
 
-    const icsStartDate = event.startsAt
-      ? formatDateForIcs(event.startsAt)
-      : formatDateForIcs(new Date());
-    const icsEndDate = event.endsAt
-      ? formatDateForIcs(event.endsAt)
-      : formatDateForIcs(new Date(Date.now() + 2 * 60 * 60 * 1000));
+    const icsStartDate = anchorStartDate;
+    const icsEndDate = anchorEndDate;
 
     const icsContent = [
       "BEGIN:VCALENDAR",
@@ -154,8 +153,8 @@ export function RsvpSuccessPage() {
       `DTSTAMP:${formatDateForIcs(new Date())}`,
       `DTSTART:${icsStartDate}`,
       `DTEND:${icsEndDate}`,
-      `SUMMARY:${event.title}`,
-      `DESCRIPTION:${description.replace(/\n/g, "\\n")}`,
+      `SUMMARY:${calendarTitle}`,
+      `DESCRIPTION:${calendarDescription.replace(/\n/g, "\\n")}`,
       location ? `LOCATION:${event.location}` : "",
       `URL:${eventUrl}`,
       "STATUS:CONFIRMED",
@@ -175,8 +174,8 @@ export function RsvpSuccessPage() {
   }
 
   // Handle calendar service selection
-  function handleCalendarService(service) {
-    const urls = getCalendarUrls();
+  function handleCalendarService(service, useDinnerTime = false) {
+    const urls = getCalendarUrls(useDinnerTime);
     if (!urls) return;
 
     if (service === "apple") {
@@ -187,7 +186,10 @@ export function RsvpSuccessPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${event.title.replace(/[^a-z0-9]/gi, "_")}.ics`;
+      const fileName = useDinnerTime
+        ? `${event.title.replace(/[^a-z0-9]/gi, "_")}-dinner.ics`
+        : `${event.title.replace(/[^a-z0-9]/gi, "_")}.ics`;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -196,7 +198,6 @@ export function RsvpSuccessPage() {
       // Open calendar service in new tab
       window.open(urls[service], "_blank");
     }
-    setShowCalendarOptions(false);
   }
 
   if (loading) {
@@ -523,240 +524,489 @@ export function RsvpSuccessPage() {
             )}
           </div>
 
-          {/* Action Buttons */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
-            }}
-          >
-            {/* Share Button */}
-            <button
-              onClick={handleShare}
-              style={{
-                width: "100%",
-                padding: "16px 24px",
-                borderRadius: "12px",
-                border: "none",
-                background: linkCopied
-                  ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-                  : "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
-                color: "#fff",
-                fontSize: "16px",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "10px",
-                boxShadow: "0 4px 20px rgba(139, 92, 246, 0.3)",
-              }}
-              onMouseEnter={(e) => {
-                if (!linkCopied) {
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow =
-                    "0 6px 25px rgba(139, 92, 246, 0.4)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!linkCopied) {
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow =
-                    "0 4px 20px rgba(139, 92, 246, 0.3)";
-                }
-              }}
-            >
-              <span style={{ fontSize: "20px" }}>
-                {linkCopied ? "✓" : "🔗"}
-              </span>
-              <span>{linkCopied ? "Link Copied!" : "Share Event"}</span>
-            </button>
+          {/* Calendar Options */}
+          {(() => {
+            const hasConfirmedDinner =
+              booking?.wantsDinner &&
+              booking?.dinnerTimeSlot &&
+              booking?.dinnerBookingStatus === "CONFIRMED";
 
-            {/* Add to Calendar Button with Dropdown */}
-            <div style={{ position: "relative" }} data-calendar-dropdown>
-              <button
-                onClick={() => setShowCalendarOptions(!showCalendarOptions)}
-                style={{
-                  width: "100%",
-                  padding: "16px 24px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(139, 92, 246, 0.3)",
-                  background: "rgba(139, 92, 246, 0.1)",
-                  color: "#a78bfa",
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "10px",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.background = "rgba(139, 92, 246, 0.2)";
-                  e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
-                  e.target.style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.background = "rgba(139, 92, 246, 0.1)";
-                  e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
-                  e.target.style.transform = "translateY(0)";
-                }}
-              >
-                <span style={{ fontSize: "20px" }}>📅</span>
-                <span>Add to Calendar</span>
-                <span style={{ fontSize: "12px", marginLeft: "auto" }}>
-                  {showCalendarOptions ? "▲" : "▼"}
-                </span>
-              </button>
-
-              {/* Calendar Options Dropdown */}
-              {showCalendarOptions && (
+            if (hasConfirmedDinner) {
+              // Show two options: Dinner time or Event time
+              return (
                 <div
                   style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    marginTop: "8px",
-                    background: "rgba(20, 16, 30, 0.95)",
-                    backdropFilter: "blur(10px)",
-                    border: "1px solid rgba(139, 92, 246, 0.3)",
-                    borderRadius: "12px",
-                    padding: "8px",
-                    zIndex: 1000,
-                    boxShadow: "0 10px 40px rgba(0, 0, 0, 0.5)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "16px",
                   }}
                 >
-                  <button
-                    onClick={() => handleCalendarService("google")}
-                    style={{
-                      width: "100%",
-                      padding: "12px 16px",
-                      borderRadius: "8px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      textAlign: "left",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(139, 92, 246, 0.2)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    <span style={{ fontSize: "20px" }}>📅</span>
-                    <span>Google Calendar</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleCalendarService("outlook")}
-                    style={{
-                      width: "100%",
-                      padding: "12px 16px",
-                      borderRadius: "8px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      textAlign: "left",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(139, 92, 246, 0.2)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    <span style={{ fontSize: "20px" }}>📧</span>
-                    <span>Outlook</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleCalendarService("yahoo")}
-                    style={{
-                      width: "100%",
-                      padding: "12px 16px",
-                      borderRadius: "8px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      textAlign: "left",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(139, 92, 246, 0.2)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    <span style={{ fontSize: "20px" }}>📮</span>
-                    <span>Yahoo Calendar</span>
-                  </button>
-
                   <div
                     style={{
-                      height: "1px",
-                      background: "rgba(255, 255, 255, 0.1)",
-                      margin: "8px 0",
-                    }}
-                  />
-
-                  <button
-                    onClick={() => handleCalendarService("apple")}
-                    style={{
-                      width: "100%",
-                      padding: "12px 16px",
-                      borderRadius: "8px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      textAlign: "left",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(139, 92, 246, 0.2)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      opacity: 0.8,
+                      marginBottom: "8px",
+                      textAlign: "center",
                     }}
                   >
-                    <span style={{ fontSize: "20px" }}>🍎</span>
-                    <span>Apple Calendar (.ics)</span>
-                  </button>
+                    Add to Calendar
+                  </div>
+
+                  {/* Dinner Time Option */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        opacity: 0.7,
+                        marginBottom: "4px",
+                        paddingLeft: "4px",
+                      }}
+                    >
+                      🍽️ Dinner Time
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, 1fr)",
+                        gap: "8px",
+                      }}
+                    >
+                      <button
+                        onClick={() => handleCalendarService("google", true)}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          background: "rgba(139, 92, 246, 0.1)",
+                          color: "#a78bfa",
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.3)";
+                        }}
+                      >
+                        <span>📅</span>
+                        <span>Google</span>
+                      </button>
+                      <button
+                        onClick={() => handleCalendarService("outlook", true)}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          background: "rgba(139, 92, 246, 0.1)",
+                          color: "#a78bfa",
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.3)";
+                        }}
+                      >
+                        <span>📧</span>
+                        <span>Outlook</span>
+                      </button>
+                      <button
+                        onClick={() => handleCalendarService("yahoo", true)}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          background: "rgba(139, 92, 246, 0.1)",
+                          color: "#a78bfa",
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.3)";
+                        }}
+                      >
+                        <span>📮</span>
+                        <span>Yahoo</span>
+                      </button>
+                      <button
+                        onClick={() => handleCalendarService("apple", true)}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          background: "rgba(139, 92, 246, 0.1)",
+                          color: "#a78bfa",
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.3)";
+                        }}
+                      >
+                        <span>🍎</span>
+                        <span>Apple</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Event Time Option */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        opacity: 0.7,
+                        marginBottom: "4px",
+                        paddingLeft: "4px",
+                      }}
+                    >
+                      🥂 Event Time
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, 1fr)",
+                        gap: "8px",
+                      }}
+                    >
+                      <button
+                        onClick={() => handleCalendarService("google", false)}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          background: "rgba(139, 92, 246, 0.1)",
+                          color: "#a78bfa",
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.3)";
+                        }}
+                      >
+                        <span>📅</span>
+                        <span>Google</span>
+                      </button>
+                      <button
+                        onClick={() => handleCalendarService("outlook", false)}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          background: "rgba(139, 92, 246, 0.1)",
+                          color: "#a78bfa",
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.3)";
+                        }}
+                      >
+                        <span>📧</span>
+                        <span>Outlook</span>
+                      </button>
+                      <button
+                        onClick={() => handleCalendarService("yahoo", false)}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          background: "rgba(139, 92, 246, 0.1)",
+                          color: "#a78bfa",
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.3)";
+                        }}
+                      >
+                        <span>📮</span>
+                        <span>Yahoo</span>
+                      </button>
+                      <button
+                        onClick={() => handleCalendarService("apple", false)}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          background: "rgba(139, 92, 246, 0.1)",
+                          color: "#a78bfa",
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                          e.target.style.borderColor =
+                            "rgba(139, 92, 246, 0.3)";
+                        }}
+                      >
+                        <span>🍎</span>
+                        <span>Apple</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
+              );
+            } else {
+              // Show single set of calendar options for event time
+              return (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      opacity: 0.8,
+                      marginBottom: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    Add to Calendar
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, 1fr)",
+                      gap: "8px",
+                    }}
+                  >
+                    <button
+                      onClick={() => handleCalendarService("google", false)}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(139, 92, 246, 0.3)",
+                        background: "rgba(139, 92, 246, 0.1)",
+                        color: "#a78bfa",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                        e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                        e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+                      }}
+                    >
+                      <span>📅</span>
+                      <span>Google</span>
+                    </button>
+                    <button
+                      onClick={() => handleCalendarService("outlook", false)}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(139, 92, 246, 0.3)",
+                        background: "rgba(139, 92, 246, 0.1)",
+                        color: "#a78bfa",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                        e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                        e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+                      }}
+                    >
+                      <span>📧</span>
+                      <span>Outlook</span>
+                    </button>
+                    <button
+                      onClick={() => handleCalendarService("yahoo", false)}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(139, 92, 246, 0.3)",
+                        background: "rgba(139, 92, 246, 0.1)",
+                        color: "#a78bfa",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                        e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                        e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+                      }}
+                    >
+                      <span>📮</span>
+                      <span>Yahoo</span>
+                    </button>
+                    <button
+                      onClick={() => handleCalendarService("apple", false)}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(139, 92, 246, 0.3)",
+                        background: "rgba(139, 92, 246, 0.1)",
+                        color: "#a78bfa",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                        e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                        e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+                      }}
+                    >
+                      <span>🍎</span>
+                      <span>Apple</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+          })()}
 
           {/* Back to Event Link */}
           <div style={{ marginTop: "32px", fontSize: "14px", opacity: 0.7 }}>

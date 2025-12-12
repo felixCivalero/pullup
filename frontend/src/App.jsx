@@ -3,6 +3,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { HomePage } from "./pages/HomePage";
 import { CreateEventPage } from "./pages/CreateEventPage";
 import { EventPage } from "./pages/EventPage";
+import { RsvpSuccessPage } from "./pages/RsvpSuccessPage";
 import { ManageEventPage } from "./pages/ManageEventPage";
 import { EventGuestsPage } from "./pages/EventGuestsPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
@@ -13,6 +14,7 @@ function App() {
       {/* Public */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/e/:slug" element={<EventPage />} />
+      <Route path="/e/:slug/success" element={<RsvpSuccessPage />} />
 
       {/* "Protected" app area */}
       <Route element={<ProtectedLayout />}>

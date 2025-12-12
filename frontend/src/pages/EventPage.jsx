@@ -1,6 +1,6 @@
 // frontend/src/pages/EventPage.jsx
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { EventCard } from "../components/EventCard";
 import { useToast } from "../components/Toast";
 
@@ -16,6 +16,7 @@ function isNetworkError(error) {
 
 export function EventPage() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const { showToast } = useToast();
 
   const [event, setEvent] = useState(null);
@@ -108,6 +109,7 @@ export function EventPage() {
 
   async function handleRsvpSubmit(data) {
     setRsvpLoading(true);
+    const submittedData = data; // Store submitted data for later use
     try {
       const res = await publicFetch(`/events/${event.slug}/rsvp`, {
         method: "POST",
@@ -196,18 +198,35 @@ export function EventPage() {
 
       showToast(message, toastType, subtext);
 
-      // Refetch event data to update capacity after RSVP
-      // This updates the event state which will cause EventCard to re-render with new capacity
-      try {
-        const eventRes = await publicFetch(`/events/${event.slug}`);
-        if (eventRes.ok) {
-          const updatedEvent = await eventRes.json();
-          setEvent(updatedEvent);
-        }
-      } catch (err) {
-        console.error("Failed to refresh event data", err);
-        // Don't show error to user - capacity will update on next page load
-      }
+      // Redirect to success page with booking details
+      setTimeout(() => {
+        navigate(`/e/${event.slug}/success`, {
+          state: {
+            booking: {
+              name: body.rsvp?.name || submittedData?.name || null,
+              email: body.rsvp?.email || submittedData?.email || null,
+              bookingStatus: bookingStatus,
+              dinnerBookingStatus: dinnerBookingStatus,
+              wantsDinner: wantsDinner,
+              partySize:
+                body.rsvp?.partySize ||
+                (submittedData?.plusOnes ? 1 + submittedData.plusOnes : 1),
+              plusOnes: body.rsvp?.plusOnes || submittedData?.plusOnes || 0,
+              dinnerPartySize:
+                body.rsvp?.dinnerPartySize ||
+                body.rsvp?.dinner?.partySize ||
+                submittedData?.dinnerPartySize ||
+                null,
+              dinnerTimeSlot:
+                body.rsvp?.dinnerTimeSlot ||
+                body.rsvp?.dinner?.slotTime ||
+                submittedData?.dinnerTimeSlot ||
+                null,
+              statusDetails: statusDetails,
+            },
+          },
+        });
+      }, 1000);
 
       return true; // Success
     } catch (err) {

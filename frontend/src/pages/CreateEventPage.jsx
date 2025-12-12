@@ -517,7 +517,7 @@ export function CreateEventPage() {
       }
 
       showToast("Event created successfully! 🎉", "success");
-      navigate(`/e/${created.slug}`);
+      navigate(`/app/events/${created.id}/manage`);
     } catch (err) {
       console.error(err);
       if (isNetworkError(err)) {

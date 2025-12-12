@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { EventCard } from "../components/EventCard";
 import { useToast } from "../components/Toast";
+import { ShareActions } from "../components/ShareActions";
+import { buildShareText } from "../lib/shareUtils";
+import { getEventUrl } from "../lib/urlUtils";
 
 import { publicFetch } from "../lib/api.js";
 
@@ -241,6 +244,11 @@ export function EventPage() {
     }
   }
 
+  const shareUrl = event ? getEventUrl(event.slug) : "";
+  const shareText = event
+    ? buildShareText({ event, url: shareUrl, variant: "invite" })
+    : shareUrl;
+
   return (
     <div
       style={{
@@ -252,6 +260,18 @@ export function EventPage() {
       }}
     >
       <div className="responsive-container responsive-container-wide">
+        {/* Share Actions - Above RSVP form */}
+        {event && (
+          <div
+            style={{
+              marginBottom: "24px",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+          >
+            <ShareActions url={shareUrl} title={event.title} text={shareText} />
+          </div>
+        )}
         <EventCard
           event={event}
           onSubmit={handleRsvpSubmit}

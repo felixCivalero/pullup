@@ -1,6 +1,9 @@
 // frontend/src/pages/RsvpSuccessPage.jsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { ShareActions } from "../components/ShareActions";
+import { buildShareText } from "../lib/shareUtils";
+import { getEventUrl } from "../lib/urlUtils";
 import { publicFetch } from "../lib/api.js";
 
 export function RsvpSuccessPage() {
@@ -338,7 +341,7 @@ export function RsvpSuccessPage() {
             style={{
               fontSize: "18px",
               opacity: 0.8,
-              marginBottom: "32px",
+              marginBottom: "24px",
               lineHeight: 1.6,
             }}
           >
@@ -346,6 +349,27 @@ export function RsvpSuccessPage() {
               ? "We'll notify you if a spot opens up. In the meantime, feel free to share the event with friends!"
               : "We're excited to see you at the event!"}
           </p>
+
+          {/* Share Actions - Near confirmation header */}
+          {event && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                marginBottom: "32px",
+              }}
+            >
+              <ShareActions
+                url={getEventUrl(event.slug)}
+                title={event.title}
+                text={buildShareText({
+                  event,
+                  url: getEventUrl(event.slug),
+                  variant: "casual",
+                })}
+              />
+            </div>
+          )}
 
           {/* Calendar Buttons - Above summary for click optimization */}
           {(() => {

@@ -3,6 +3,9 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
+import { ShareActions } from "../components/ShareActions";
+import { buildShareText } from "../lib/shareUtils";
+import { getEventUrl } from "../lib/urlUtils";
 
 import { authenticatedFetch, publicFetch, API_BASE } from "../lib/api.js";
 
@@ -1642,27 +1645,49 @@ export function ManageEventPage() {
           <div
             style={{
               marginBottom: "24px",
-              fontSize: "14px",
-              opacity: 0.8,
-              padding: "12px 16px",
-              background: "rgba(20, 16, 30, 0.6)",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.05)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
             }}
           >
-            Public link:{" "}
-            <a
-              href={`/e/${event.slug}`}
-              target="_blank"
-              rel="noreferrer"
+            <div
               style={{
-                color: "#8b5cf6",
-                textDecoration: "none",
-                fontWeight: 600,
+                fontSize: "14px",
+                opacity: 0.8,
+                padding: "12px 16px",
+                background: "rgba(20, 16, 30, 0.6)",
+                borderRadius: "12px",
+                border: "1px solid rgba(255,255,255,0.05)",
               }}
             >
-              pullup.se/e/{event.slug}
-            </a>
+              Public link:{" "}
+              <a
+                href={`/e/${event.slug}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  color: "#8b5cf6",
+                  textDecoration: "none",
+                  fontWeight: 600,
+                }}
+              >
+                pullup.se/e/{event.slug}
+              </a>
+            </div>
+            {/* Share Actions - Admin panel */}
+            {event && (
+              <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                <ShareActions
+                  url={getEventUrl(event.slug)}
+                  title={event.title}
+                  text={buildShareText({
+                    event,
+                    url: getEventUrl(event.slug),
+                    variant: "default",
+                  })}
+                />
+              </div>
+            )}
           </div>
 
           {/* Tabs */}

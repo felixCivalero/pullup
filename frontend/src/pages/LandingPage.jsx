@@ -15,6 +15,38 @@ export function LandingPage() {
     }
   }, [user, navigate]);
 
+  // Prevent scrolling on landing page - enforce single frame
+  useEffect(() => {
+    // Prevent all scrolling
+    document.body.style.overflow = "hidden";
+    document.body.style.height = "100vh";
+    document.body.style.width = "100vw";
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.height = "100vh";
+    document.documentElement.style.width = "100vw";
+
+    // Prevent touch scrolling on mobile
+    const preventDefault = (e) => {
+      if (e.touches.length > 1) return; // Allow pinch zoom
+      e.preventDefault();
+    };
+    document.addEventListener("touchmove", preventDefault, { passive: false });
+    document.addEventListener("wheel", preventDefault, { passive: false });
+    document.addEventListener("scroll", preventDefault, { passive: false });
+
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.height = "";
+      document.body.style.width = "";
+      document.documentElement.style.overflow = "";
+      document.documentElement.style.height = "";
+      document.documentElement.style.width = "";
+      document.removeEventListener("touchmove", preventDefault);
+      document.removeEventListener("wheel", preventDefault);
+      document.removeEventListener("scroll", preventDefault);
+    };
+  }, []);
+
   const handleSignIn = async () => {
     try {
       setSigningIn(true);
@@ -33,18 +65,30 @@ export function LandingPage() {
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
-  console.log(
-    "Supabase URL:",
-    import.meta.env.VITE_SUPABASE_URL ? "✅ Loaded" : "❌ Missing"
-  );
+
   return (
     <div
-      style={{ minHeight: "100vh", position: "relative", overflow: "hidden" }}
+      style={{
+        height: "100vh",
+        width: "100vw",
+        maxHeight: "100vh",
+        maxWidth: "100vw",
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflow: "hidden",
+        overscrollBehavior: "none",
+        touchAction: "none",
+      }}
+      onWheel={(e) => e.preventDefault()}
+      onTouchMove={(e) => e.preventDefault()}
     >
       {/* Animated gradient background */}
       <div
         style={{
-          position: "fixed",
+          position: "absolute",
           top: 0,
           left: 0,
           right: 0,
@@ -58,7 +102,7 @@ export function LandingPage() {
       {/* Cursor-following glow effect */}
       <div
         style={{
-          position: "fixed",
+          position: "absolute",
           width: "600px",
           height: "600px",
           borderRadius: "50%",
@@ -74,19 +118,35 @@ export function LandingPage() {
 
       {/* Content */}
       <div style={{ position: "relative", zIndex: 2 }}>
-        {/* Hero Section */}
+        {/* Hero Section - Single Frame Only - No Scrolling */}
         <section
           style={{
-            minHeight: "100vh",
+            height: "100vh",
+            width: "100vw",
+            maxHeight: "100vh",
+            maxWidth: "100vw",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             padding: "40px 20px",
-            textAlign: "center",
+            boxSizing: "border-box",
+            overflow: "hidden",
+            overscrollBehavior: "none",
+            position: "relative",
           }}
         >
-          <div style={{ maxWidth: "900px", width: "100%" }}>
+          {/* Floating Module - Centered in middle of screen */}
+          <div
+            style={{
+              maxWidth: "900px",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+            }}
+          >
             {/* Logo/Brand */}
             <div
               style={{
@@ -140,22 +200,20 @@ export function LandingPage() {
                 lineHeight: "1.6",
                 marginBottom: "40px",
                 maxWidth: "600px",
-                marginLeft: "auto",
-                marginRight: "auto",
               }}
             >
               Create a sexy RSVP link in seconds. Drop it in your bio. Watch
               people pull up.
             </p>
 
-            {/* CTA Buttons */}
+            {/* CTA Buttons - Only interactive elements */}
             <div
               style={{
                 display: "flex",
                 gap: "16px",
                 justifyContent: "center",
                 flexWrap: "wrap",
-                marginBottom: "60px",
+                marginBottom: "32px",
               }}
             >
               <button
@@ -194,339 +252,107 @@ export function LandingPage() {
               >
                 {signingIn ? "Signing in..." : "Start free now"}
               </button>
+              {/* Google Sign-In Button - Following Google's UX Guidelines */}
               <button
                 onClick={handleSignIn}
                 disabled={signingIn}
                 style={{
-                  padding: "16px 32px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: signingIn
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(255,255,255,0.05)",
-                  color: "#fff",
-                  fontWeight: 600,
-                  fontSize: "16px",
+                  padding: "12px 24px",
+                  borderRadius: "4px",
+                  border: "1px solid #dadce0",
+                  background: "#fff",
+                  color: "#3c4043",
+                  fontWeight: 500,
+                  fontSize: "14px",
+                  fontFamily:
+                    '"Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                   cursor: signingIn ? "wait" : "pointer",
-                  transition: "all 0.3s ease",
-                  backdropFilter: "blur(10px)",
-                  opacity: signingIn ? 0.7 : 1,
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  boxShadow: signingIn
+                    ? "none"
+                    : "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)",
+                  opacity: signingIn ? 0.6 : 1,
                 }}
                 onMouseEnter={(e) => {
                   if (!signingIn) {
-                    e.target.style.background = "rgba(255,255,255,0.1)";
-                    e.target.style.borderColor = "rgba(255,255,255,0.3)";
+                    e.target.style.boxShadow =
+                      "0 2px 6px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.12)";
+                    e.target.style.background = "#f8f9fa";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!signingIn) {
-                    e.target.style.background = "rgba(255,255,255,0.05)";
-                    e.target.style.borderColor = "rgba(255,255,255,0.2)";
+                    e.target.style.boxShadow =
+                      "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)";
+                    e.target.style.background = "#fff";
+                  }
+                }}
+                onMouseDown={(e) => {
+                  if (!signingIn) {
+                    e.target.style.boxShadow = "0 1px 2px rgba(0,0,0,0.1)";
+                  }
+                }}
+                onMouseUp={(e) => {
+                  if (!signingIn) {
+                    e.target.style.boxShadow =
+                      "0 2px 6px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.12)";
                   }
                 }}
               >
-                {signingIn ? "Signing in..." : "Sign in with Google"}
+                {/* Google Logo SVG */}
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 18 18"
+                  style={{ flexShrink: 0 }}
+                >
+                  <path
+                    fill="#4285F4"
+                    d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.712 0-.595.102-1.172.282-1.712V4.956H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.044l3.007-2.332z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.956L3.964 7.288C4.672 5.163 6.656 3.58 9 3.58z"
+                  />
+                </svg>
+                <span style={{ color: "#3c4043" }}>
+                  {signingIn ? "Signing in..." : "Continue with Google"}
+                </span>
               </button>
             </div>
 
-            {/* Stats/Trust indicators */}
+            {/* Stats/Trust indicators - Compact to fit in single frame */}
             <div
               style={{
                 display: "flex",
-                gap: "32px",
+                gap: "24px",
                 justifyContent: "center",
                 flexWrap: "wrap",
-                fontSize: "14px",
+                fontSize: "13px",
                 opacity: 0.6,
+                marginTop: "auto",
               }}
             >
               <div>⚡ Instant links</div>
-              <div>🎯 No signup required</div>
+              <div>🚫 No signup required</div>
               <div>🔥 Free forever</div>
             </div>
           </div>
         </section>
-
-        {/* Features Section */}
-        <section
-          style={{
-            padding: "80px 20px",
-            maxWidth: "1200px",
-            margin: "0 auto",
-          }}
-        >
-          <h2
-            style={{
-              fontSize: "clamp(28px, 5vw, 42px)",
-              textAlign: "center",
-              marginBottom: "60px",
-              fontWeight: 700,
-            }}
-          >
-            Why people pull up
-          </h2>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              gap: "32px",
-            }}
-          >
-            {[
-              {
-                emoji: "⚡",
-                title: "Lightning fast",
-                desc: "Create your RSVP link in under 10 seconds. No forms, no BS.",
-              },
-              {
-                emoji: "🎨",
-                title: "Sexy design",
-                desc: "Beautiful event pages that make people want to pull up.",
-              },
-              {
-                emoji: "📱",
-                title: "Mobile-first",
-                desc: "Works perfectly on any device. Share anywhere, anytime.",
-              },
-              {
-                emoji: "🔗",
-                title: "One link",
-                desc: "Drop it in your bio, DMs, or anywhere. One link to rule them all.",
-              },
-              {
-                emoji: "📊",
-                title: "Track RSVPs",
-                desc: "See who's pulling up. Manage capacity. Build your list.",
-              },
-              {
-                emoji: "🚀",
-                title: "No limits",
-                desc: "Unlimited events. Unlimited RSVPs. No credit card needed.",
-              },
-            ].map((feature, i) => (
-              <div
-                key={i}
-                style={{
-                  background: "rgba(12, 10, 18, 0.6)",
-                  padding: "32px",
-                  borderRadius: "20px",
-                  border: "1px solid rgba(255,255,255,0.05)",
-                  backdropFilter: "blur(10px)",
-                  transition: "all 0.3s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.3)";
-                  e.currentTarget.style.boxShadow =
-                    "0 20px 40px rgba(0,0,0,0.3)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              >
-                <div style={{ fontSize: "40px", marginBottom: "16px" }}>
-                  {feature.emoji}
-                </div>
-                <h3
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: 600,
-                    marginBottom: "8px",
-                  }}
-                >
-                  {feature.title}
-                </h3>
-                <p
-                  style={{ fontSize: "14px", opacity: 0.7, lineHeight: "1.6" }}
-                >
-                  {feature.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* How it works */}
-        <section
-          style={{
-            padding: "80px 20px",
-            background: "rgba(12, 10, 18, 0.4)",
-          }}
-        >
-          <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-            <h2
-              style={{
-                fontSize: "clamp(28px, 5vw, 42px)",
-                textAlign: "center",
-                marginBottom: "60px",
-                fontWeight: 700,
-              }}
-            >
-              How it works
-            </h2>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "40px",
-              }}
-            >
-              {[
-                {
-                  step: "01",
-                  title: "Create your PullUp",
-                  desc: "Add event details. Get a sexy link. Takes 10 seconds.",
-                },
-                {
-                  step: "02",
-                  title: "Share the link",
-                  desc: "Drop it in your bio, stories, DMs, or anywhere people hang.",
-                },
-                {
-                  step: "03",
-                  title: "Watch them pull up",
-                  desc: "People RSVP. You see who's coming. Build your community.",
-                },
-              ].map((step, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    gap: "24px",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "clamp(32px, 6vw, 48px)",
-                      fontWeight: 800,
-                      background:
-                        "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {step.step}
-                  </div>
-                  <div>
-                    <h3
-                      style={{
-                        fontSize: "clamp(20px, 3vw, 28px)",
-                        fontWeight: 600,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      {step.title}
-                    </h3>
-                    <p
-                      style={{
-                        fontSize: "clamp(14px, 2vw, 18px)",
-                        opacity: 0.7,
-                        lineHeight: "1.6",
-                      }}
-                    >
-                      {step.desc}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Final CTA */}
-        <section
-          style={{
-            padding: "100px 20px",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-            <h2
-              style={{
-                fontSize: "clamp(32px, 6vw, 56px)",
-                fontWeight: 800,
-                marginBottom: "24px",
-                lineHeight: "1.2",
-              }}
-            >
-              Ready to make them
-              <br />
-              <span
-                style={{
-                  background:
-                    "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                pull up?
-              </span>
-            </h2>
-            <p
-              style={{
-                fontSize: "clamp(16px, 2.5vw, 20px)",
-                opacity: 0.8,
-                marginBottom: "40px",
-              }}
-            >
-              Join creators, hosts, and event organizers who are building their
-              communities.
-            </p>
-            <button
-              onClick={() => navigate("/create")}
-              style={{
-                padding: "18px 40px",
-                borderRadius: "999px",
-                border: "none",
-                background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: "18px",
-                cursor: "pointer",
-                boxShadow: "0 10px 30px rgba(139, 92, 246, 0.4)",
-                transition: "all 0.3s ease",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.transform = "translateY(-2px) scale(1.05)";
-                e.target.style.boxShadow =
-                  "0 15px 40px rgba(139, 92, 246, 0.6)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.transform = "translateY(0) scale(1)";
-                e.target.style.boxShadow =
-                  "0 10px 30px rgba(139, 92, 246, 0.4)";
-              }}
-            >
-              Create your PullUp →
-            </button>
-          </div>
-        </section>
-
-        {/* Footer */}
-        <footer
-          style={{
-            padding: "40px 20px",
-            textAlign: "center",
-            borderTop: "1px solid rgba(255,255,255,0.05)",
-            opacity: 0.6,
-            fontSize: "14px",
-          }}
-        >
-          <div>PullUp · Make them pull up</div>
-        </footer>
       </div>
 
-      {/* Animations */}
+      {/* Animations & Global Scroll Prevention */}
       <style>{`
         @keyframes pulse {
           0%, 100% {
@@ -535,6 +361,16 @@ export function LandingPage() {
           50% {
             opacity: 0.8;
           }
+        }
+        
+        /* Prevent all scrolling on landing page */
+        html, body {
+          overflow: hidden !important;
+          height: 100vh !important;
+          width: 100vw !important;
+          position: fixed !important;
+          overscroll-behavior: none !important;
+          touch-action: none !important;
         }
       `}</style>
     </div>

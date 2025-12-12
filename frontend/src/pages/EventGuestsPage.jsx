@@ -209,7 +209,7 @@ export function EventGuestsPage() {
       setEditingGuest(null);
 
       // Reload guests
-      const guestsRes = await fetch(`${API_BASE}/host/events/${id}/guests`);
+      const guestsRes = await authenticatedFetch(`/host/events/${id}/guests`);
       if (guestsRes.ok) {
         const data = await guestsRes.json();
         setGuests(data.guests || []);
@@ -222,8 +222,8 @@ export function EventGuestsPage() {
 
   async function handleDeleteGuest(guest) {
     try {
-      const res = await fetch(
-        `${API_BASE}/host/events/${id}/rsvps/${guest.id}`,
+      const res = await authenticatedFetch(
+        `/host/events/${id}/rsvps/${guest.id}`,
         {
           method: "DELETE",
         }
@@ -237,7 +237,7 @@ export function EventGuestsPage() {
       setShowDeleteConfirm(null);
 
       // Reload guests
-      const guestsRes = await fetch(`${API_BASE}/host/events/${id}/guests`);
+      const guestsRes = await authenticatedFetch(`/host/events/${id}/guests`);
       if (guestsRes.ok) {
         const data = await guestsRes.json();
         setGuests(data.guests || []);
@@ -289,8 +289,11 @@ export function EventGuestsPage() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            pulledUpForDinner: pulledUpForDinner || null,
-            pulledUpForCocktails: pulledUpForCocktails || null,
+            dinnerPullUpCount: dinnerPullUpCount || 0,
+            cocktailOnlyPullUpCount: cocktailOnlyPullUpCount || 0,
+            // Backward compatibility
+            pulledUpForDinner: dinnerPullUpCount || null,
+            pulledUpForCocktails: cocktailOnlyPullUpCount || null,
           }),
         }
       );
@@ -302,7 +305,7 @@ export function EventGuestsPage() {
       console.error(err);
       showToast("Could not update pulled up status", "error");
       // Reload guests on error to get correct state
-      const guestsRes = await fetch(`${API_BASE}/host/events/${id}/guests`);
+      const guestsRes = await authenticatedFetch(`/host/events/${id}/guests`);
       if (guestsRes.ok) {
         const data = await guestsRes.json();
         setGuests(data.guests || []);
@@ -1527,8 +1530,8 @@ export function EventGuestsPage() {
           onClose={() => setPulledUpModalGuest(null)}
           onSave={async (dinnerPullUpCount, cocktailOnlyPullUpCount) => {
             try {
-              const res = await fetch(
-                `${API_BASE}/host/events/${id}/rsvps/${pulledUpModalGuest.id}`,
+              const res = await authenticatedFetch(
+                `/host/events/${id}/rsvps/${pulledUpModalGuest.id}`,
                 {
                   method: "PUT",
                   headers: { "Content-Type": "application/json" },
@@ -1547,8 +1550,8 @@ export function EventGuestsPage() {
               }
 
               // Refetch guests to get latest data
-              const guestsRes = await fetch(
-                `${API_BASE}/host/events/${id}/guests`
+              const guestsRes = await authenticatedFetch(
+                `/host/events/${id}/guests`
               );
               if (guestsRes.ok) {
                 const data = await guestsRes.json();

@@ -314,62 +314,68 @@ export function EventPage() {
         * {
           box-sizing: border-box;
         }
-        /* Hide read more button on larger screens */
+        /* Desktop-specific styles */
         @media (min-width: 768px) {
-          .read-more-button {
-            display: none !important;
-          }
           .description-text {
-            display: block !important;
-            -webkit-line-clamp: none !important;
-            overflow: visible !important;
+            max-width: 80%; /* Limit description width for better readability */
           }
-          .description-scrollable {
-            overflow-y: visible !important;
-            max-height: none !important;
+          /* On desktop, always make description scrollable when needed */
+          .description-container {
+            flex: 1 !important;
+            min-height: 0 !important;
+          }
+          .description-container .description-text {
+            max-width: 80%;
+          }
+          /* On desktop, content group always behaves as expanded */
+          .content-group-desktop {
+            flex: 0 1 auto !important;
+            max-height: calc(100vh - 90px) !important;
+            overflow: hidden !important;
           }
         }
         /* Content group - contains Share/Event Details + Description, moves up together */
-        @media (max-width: 767px) {
-          .content-group {
-            flex-shrink: 0;
-            flex: 0 0 auto;
-          }
-          /* When description is expanded, content group takes available space */
+        .content-group {
+          flex-shrink: 0;
+          flex: 0 0 auto;
+        }
+        /* When description is expanded, content group sizes naturally (not forced to top) */
+        .content-group-expanded {
+          flex: 0 1 auto;
+          max-height: calc(100vh - 90px);
+          max-height: calc(100dvh - 90px);
+          overflow: hidden;
+        }
+        @supports (height: 100dvh) {
           .content-group-expanded {
-            flex: 1;
-            min-height: 0;
+            max-height: calc(100dvh - 90px);
           }
         }
         /* Static info section - sticks to top of description */
-        @media (max-width: 767px) {
-          .static-info-section {
-            flex-shrink: 0;
-          }
+        .static-info-section {
+          flex-shrink: 0;
         }
-        /* Scrollable description container on mobile when expanded */
-        @media (max-width: 767px) {
-          .description-scrollable {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            overflow-x: hidden;
-            -webkit-overflow-scrolling: touch;
-            padding-right: 4px; /* Space for scrollbar */
-          }
-          .description-scrollable::-webkit-scrollbar {
-            width: 4px;
-          }
-          .description-scrollable::-webkit-scrollbar-track {
-            background: transparent;
-          }
-          .description-scrollable::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 2px;
-          }
-          .description-scrollable::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.3);
-          }
+        /* Scrollable description container - works on all screen sizes */
+        .description-scrollable {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          overflow-x: hidden;
+          -webkit-overflow-scrolling: touch;
+          padding-right: 4px; /* Space for scrollbar */
+        }
+        .description-scrollable::-webkit-scrollbar {
+          width: 4px;
+        }
+        .description-scrollable::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .description-scrollable::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 2px;
+        }
+        .description-scrollable::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.3);
         }
         /* Content container accounts for sticky button - mobile optimized */
         .event-content-container {
@@ -482,7 +488,7 @@ export function EventPage() {
           <div
             className={`content-group ${
               showDescription ? "content-group-expanded" : ""
-            }`}
+            } content-group-desktop`}
             style={{
               marginTop: "auto",
               display: "flex",
@@ -674,7 +680,9 @@ export function EventPage() {
             {/* Description - sticks below Share/Event Details, becomes scrollable when group reaches minimum */}
             {event?.description && (
               <div
-                className={showDescription ? "description-scrollable" : ""}
+                className={`description-container ${
+                  showDescription ? "description-scrollable" : ""
+                }`}
                 style={{
                   flex: showDescription ? "1" : "0 0 auto",
                   minHeight: showDescription ? 0 : "auto",

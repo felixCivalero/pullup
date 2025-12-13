@@ -327,14 +327,25 @@ export function EventPage() {
         }
         /* Content container accounts for sticky button - mobile optimized */
         .event-content-container {
-          min-height: 100vh;
-          min-height: 100dvh; /* Use dynamic viewport height when supported (better for mobile) */
-          padding-bottom: 100px; /* Space for sticky button */
+          height: calc(100vh - 90px);
+          height: calc(100dvh - 90px); /* Use dynamic viewport height when supported (better for mobile) */
+          max-height: calc(100vh - 90px);
+          max-height: calc(100dvh - 90px);
+          box-sizing: border-box;
+        }
+        @supports (height: 100dvh) {
+          .event-content-container {
+            height: calc(100dvh - 90px);
+            max-height: calc(100dvh - 90px);
+          }
         }
         /* Outer container for proper viewport handling */
         .event-page-container {
           min-height: 100vh;
           min-height: 100dvh; /* Use dynamic viewport height when supported */
+          height: 100vh;
+          height: 100dvh;
+          overflow: hidden;
         }
       `}</style>
       <div
@@ -400,10 +411,10 @@ export function EventPage() {
             display: "flex",
             flexDirection: "column",
             padding: "20px",
-            overflow: "visible",
+            overflow: "hidden",
           }}
         >
-          {/* Title at the top */}
+          {/* Title at the top - can shrink when content expands */}
           <h1
             style={{
               fontSize: "clamp(28px, 8vw, 40px)",
@@ -415,19 +426,20 @@ export function EventPage() {
               marginTop: "20px",
               marginBottom: "auto", // Push content to bottom
               paddingBottom: "12px",
-              flexShrink: 0,
+              flexShrink: 1,
+              minHeight: 0,
+              overflow: "hidden",
             }}
           >
             {event?.title}
           </h1>
 
-          {/* Content area - positioned in lower portion where black fade is */}
+          {/* Content area - positioned in lower portion, can expand and push title up */}
           <div
             style={{
               marginTop: "auto",
               paddingTop: "16px",
               flexShrink: 0,
-              overflow: "visible",
             }}
           >
             {/* Social Icons - Share, Instagram, Spotify */}
@@ -605,7 +617,7 @@ export function EventPage() {
 
             {/* Description - Show 2 lines initially on mobile, full text on desktop */}
             {event?.description && (
-              <div style={{ marginBottom: "16px" }}>
+              <div style={{ marginBottom: "8px" }}>
                 <p
                   className="description-text"
                   style={{
@@ -613,7 +625,7 @@ export function EventPage() {
                     lineHeight: "1.5",
                     color: "rgba(255, 255, 255, 0.85)",
                     margin: 0,
-                    marginBottom: showDescription ? "8px" : "0",
+                    marginBottom: showDescription ? "4px" : "0",
                     wordWrap: "break-word",
                     overflowWrap: "break-word",
                     display: showDescription ? "block" : "-webkit-box",

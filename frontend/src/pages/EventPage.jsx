@@ -299,11 +299,17 @@ export function EventPage() {
           overflow-y: hidden;
           width: 100%;
           height: 100vh;
-          position: fixed;
+          height: 100dvh; /* Dynamic viewport height for mobile */
         }
         html {
           overflow: hidden;
           height: 100vh;
+          height: 100dvh; /* Dynamic viewport height for mobile */
+        }
+        @supports (height: 100dvh) {
+          body, html {
+            height: 100dvh;
+          }
         }
         * {
           box-sizing: border-box;
@@ -319,14 +325,26 @@ export function EventPage() {
             overflow: visible !important;
           }
         }
+        /* Content container accounts for sticky button - mobile optimized */
+        .event-content-container {
+          min-height: 100vh;
+          min-height: 100dvh; /* Use dynamic viewport height when supported (better for mobile) */
+          padding-bottom: 100px; /* Space for sticky button */
+        }
+        /* Outer container for proper viewport handling */
+        .event-page-container {
+          min-height: 100vh;
+          min-height: 100dvh; /* Use dynamic viewport height when supported */
+        }
       `}</style>
       <div
+        className="event-page-container"
         style={{
-          minHeight: "100vh",
           position: "relative",
           width: "100%",
           maxWidth: "100vw",
           overflowX: "hidden",
+          overflowY: "hidden",
           background: "#05040a",
         }}
       >
@@ -375,16 +393,14 @@ export function EventPage() {
 
         {/* Content - Overlaid on background */}
         <div
+          className="event-content-container"
           style={{
             position: "relative",
             zIndex: 2,
-            minHeight: "100vh",
-            maxHeight: "100vh",
             display: "flex",
             flexDirection: "column",
             padding: "20px",
-            paddingBottom: "100px", // Space for sticky button
-            overflow: "hidden",
+            overflow: "visible",
           }}
         >
           {/* Title at the top */}
@@ -399,6 +415,7 @@ export function EventPage() {
               marginTop: "20px",
               marginBottom: "auto", // Push content to bottom
               paddingBottom: "12px",
+              flexShrink: 0,
             }}
           >
             {event?.title}
@@ -409,6 +426,8 @@ export function EventPage() {
             style={{
               marginTop: "auto",
               paddingTop: "16px",
+              flexShrink: 0,
+              overflow: "visible",
             }}
           >
             {/* Social Icons - Share, Instagram, Spotify */}

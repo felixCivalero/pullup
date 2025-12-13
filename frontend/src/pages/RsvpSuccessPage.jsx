@@ -111,6 +111,8 @@ export function RsvpSuccessPage() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCalendarMenu, setShowCalendarMenu] = useState(false);
+  const [showCocktailsCalendarMenu, setShowCocktailsCalendarMenu] =
+    useState(false);
 
   // Get booking details from navigation state
   const booking = location.state?.booking || null;
@@ -655,12 +657,7 @@ export function RsvpSuccessPage() {
                       </div>
                     )}
                     <Button
-                      onClick={() => {
-                        const urls = getCalendarUrls(false);
-                        if (urls?.google) {
-                          window.open(urls.google, "_blank");
-                        }
-                      }}
+                      onClick={() => setShowCocktailsCalendarMenu(true)}
                       variant="secondary"
                       fullWidth
                       size="sm"
@@ -673,6 +670,64 @@ export function RsvpSuccessPage() {
                       <FaCalendar size={16} />
                       <span>Add to Calendar</span>
                     </Button>
+                    <ModalOrDrawer
+                      isOpen={showCocktailsCalendarMenu}
+                      onClose={() => setShowCocktailsCalendarMenu(false)}
+                      title="Add Cocktails to Calendar"
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "12px",
+                        }}
+                      >
+                        <Button
+                          onClick={() => {
+                            handleCalendarService("google", false);
+                            setShowCocktailsCalendarMenu(false);
+                          }}
+                          variant="secondary"
+                          fullWidth
+                        >
+                          <FaCalendar size={18} />
+                          <span>Google Calendar</span>
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            handleCalendarService("outlook", false);
+                            setShowCocktailsCalendarMenu(false);
+                          }}
+                          variant="secondary"
+                          fullWidth
+                        >
+                          <FaCalendar size={18} />
+                          <span>Outlook</span>
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            handleCalendarService("yahoo", false);
+                            setShowCocktailsCalendarMenu(false);
+                          }}
+                          variant="secondary"
+                          fullWidth
+                        >
+                          <FaCalendar size={18} />
+                          <span>Yahoo Calendar</span>
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            handleCalendarService("apple", false);
+                            setShowCocktailsCalendarMenu(false);
+                          }}
+                          variant="secondary"
+                          fullWidth
+                        >
+                          <FaCalendar size={18} />
+                          <span>Apple Calendar</span>
+                        </Button>
+                      </div>
+                    </ModalOrDrawer>
                   </div>
                 )}
 

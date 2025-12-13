@@ -1,14 +1,106 @@
 // frontend/src/pages/RsvpSuccessPage.jsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { ShareActions } from "../components/ShareActions";
+import {
+  FaPaperPlane,
+  FaCalendar,
+  FaMapMarkerAlt,
+  FaCheckCircle,
+  FaClock,
+  FaUtensils,
+  FaMagic,
+} from "react-icons/fa";
 import { buildShareText } from "../lib/shareUtils";
 import { getEventShareUrl } from "../lib/urlUtils";
 import { Button } from "../components/ui/Button";
-import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
+import { useToast } from "../components/Toast";
 import { publicFetch } from "../lib/api.js";
+
+// Single Share Button Component (Instagram-style with conditional logic)
+function ShareButton({ url, title, text, imageUrl }) {
+  const { showToast } = useToast();
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    // Detect iOS
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(isIOSDevice);
+  }, []);
+
+  const handleShare = async () => {
+    // On iOS: Use native share sheet (includes copy link option)
+    if (isIOS && navigator.share) {
+      try {
+        const shareData = {
+          title: title || "Check this out",
+          text: text || url,
+          url: url,
+        };
+
+        // Include image if provided
+        if (imageUrl && navigator.canShare) {
+          try {
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            const file = new File([blob], "event-image.jpg", {
+              type: blob.type,
+            });
+
+            if (navigator.canShare({ files: [file] })) {
+              shareData.files = [file];
+            }
+          } catch (imgError) {
+            console.log("Could not include image in share:", imgError);
+          }
+        }
+
+        await navigator.share(shareData);
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error("Error sharing:", err);
+          // Fallback to copy on error
+          handleCopy();
+        }
+      }
+    } else {
+      // On desktop/other: Copy to clipboard
+      handleCopy();
+    }
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Link copied!", "success");
+    } catch (err) {
+      console.error("Failed to copy:", err);
+      showToast("Failed to copy link", "error");
+    }
+  };
+
+  return (
+    <Button
+      onClick={handleShare}
+      variant="secondary"
+      fullWidth
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "10px",
+      }}
+    >
+      <FaPaperPlane
+        size={18}
+        style={{ display: "flex", alignItems: "center" }}
+      />
+      <span>Share</span>
+    </Button>
+  );
+}
 
 export function RsvpSuccessPage() {
   const { slug } = useParams();
@@ -252,90 +344,107 @@ export function RsvpSuccessPage() {
     : "";
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        position: "relative",
-        background:
-          "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.15) 0%, transparent 50%), #05040a",
-        padding: "40px 16px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {/* Animated background particles */}
+    <>
+      <style>{`
+        /* Prevent horizontal scroll and ensure proper button sizing */
+        body {
+          overflow-x: hidden;
+          width: 100%;
+        }
+        * {
+          box-sizing: border-box;
+        }
+        
+        /* Responsive container: edge-to-edge on mobile, constrained on desktop */
+        .success-page-content {
+          width: 100%;
+          max-width: 100%;
+        }
+        
+        @media (min-width: 640px) {
+          .success-page-content {
+            max-width: 600px;
+          }
+        }
+        
+        @media (min-width: 768px) {
+          .success-page-content {
+            max-width: 640px;
+          }
+        }
+      `}</style>
       <div
         style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          pointerEvents: "none",
-          zIndex: 1,
+          minHeight: "100vh",
+          position: "relative",
+          background: "#05040a",
+          padding: "40px 20px",
+          paddingBottom: "120px", // Space for actions
+          width: "100%",
+          maxWidth: "100vw",
+          overflowX: "hidden",
+          display: "flex",
+          justifyContent: "center",
         }}
       >
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              width: "4px",
-              height: "4px",
-              background: "rgba(139, 92, 246, 0.5)",
-              borderRadius: "50%",
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animation: `float ${3 + Math.random() * 4}s ease-in-out infinite`,
-              animationDelay: `${Math.random() * 2}s`,
-            }}
-          />
-        ))}
-      </div>
-
-      <div
-        className="responsive-container responsive-container-wide"
-        style={{ position: "relative", zIndex: 2, maxWidth: "600px" }}
-      >
+        {/* Content - Responsive container: edge-to-edge on mobile, constrained on desktop */}
         <div
-          className="responsive-card"
+          className="success-page-content"
           style={{
-            background: "rgba(12, 10, 18, 0.8)",
-            backdropFilter: "blur(20px)",
-            border: "1px solid rgba(139, 92, 246, 0.3)",
-            borderRadius: "24px",
-            padding: "48px 32px",
-            textAlign: "center",
-            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+            position: "relative",
+            width: "100%",
+            boxSizing: "border-box",
           }}
         >
           {/* Success Icon */}
           <div
             style={{
-              fontSize: "80px",
               marginBottom: "24px",
+              textAlign: "center",
               animation: "scaleIn 0.5s ease-out",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
             }}
           >
-            🎉
+            <FaMagic
+              size={64}
+              style={{
+                color: "#ec4899",
+                filter: "drop-shadow(0 0 20px rgba(236, 72, 153, 0.5))",
+              }}
+            />
           </div>
 
           {/* Status Badge */}
-          <div style={{ marginBottom: "24px" }}>
+          <div style={{ marginBottom: "24px", textAlign: "center" }}>
             {booking?.bookingStatus === "CONFIRMED" ? (
               <Badge
                 variant="success"
-                style={{ fontSize: "16px", padding: "10px 20px" }}
+                style={{
+                  fontSize: "16px",
+                  padding: "10px 20px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
               >
-                ✅ You're in
+                <FaCheckCircle size={18} />
+                <span>You're in</span>
               </Badge>
             ) : (
               <Badge
                 variant="warning"
-                style={{ fontSize: "16px", padding: "10px 20px" }}
+                style={{
+                  fontSize: "16px",
+                  padding: "10px 20px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
               >
-                ⏳ You're on the list
+                <FaClock size={18} />
+                <span>You're on the list</span>
               </Badge>
             )}
           </div>
@@ -343,13 +452,16 @@ export function RsvpSuccessPage() {
           {/* Success Message */}
           <h1
             style={{
-              fontSize: "clamp(28px, 5vw, 36px)",
-              fontWeight: 700,
+              fontSize: "clamp(28px, 8vw, 40px)",
+              fontWeight: 800,
               marginBottom: "12px",
+              textAlign: "center",
               background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
+              lineHeight: "1.2",
+              letterSpacing: "-0.02em",
             }}
           >
             {booking?.bookingStatus === "WAITLIST"
@@ -362,9 +474,11 @@ export function RsvpSuccessPage() {
           <p
             style={{
               fontSize: "16px",
-              opacity: 0.8,
+              opacity: 0.85,
               marginBottom: "32px",
               lineHeight: 1.6,
+              textAlign: "center",
+              color: "rgba(255, 255, 255, 0.9)",
             }}
           >
             {booking?.bookingStatus === "WAITLIST"
@@ -373,7 +487,13 @@ export function RsvpSuccessPage() {
           </p>
 
           {/* Primary Action: Add to Calendar */}
-          <div style={{ marginBottom: "16px" }}>
+          <div
+            style={{
+              marginBottom: "16px",
+              width: "100%",
+              boxSizing: "border-box",
+            }}
+          >
             <Button
               onClick={() => {
                 const urls = getCalendarUrls(false);
@@ -383,8 +503,16 @@ export function RsvpSuccessPage() {
               }}
               fullWidth
               size="lg"
+              style={{
+                width: "100%",
+                maxWidth: "100%",
+              }}
             >
-              📅 Add to Calendar
+              <FaCalendar
+                size={20}
+                style={{ display: "flex", alignItems: "center" }}
+              />
+              <span>Add to Calendar</span>
             </Button>
           </div>
 
@@ -403,9 +531,18 @@ export function RsvpSuccessPage() {
                   onClick={() => setShowCalendarMenu(true)}
                   variant="secondary"
                   fullWidth
-                  style={{ marginBottom: "24px" }}
+                  style={{
+                    marginBottom: "24px",
+                    width: "100%",
+                    maxWidth: "100%",
+                    boxSizing: "border-box",
+                  }}
                 >
-                  🍽️ Add Dinner Time
+                  <FaUtensils
+                    size={18}
+                    style={{ display: "flex", alignItems: "center" }}
+                  />
+                  <span>Add Dinner Time</span>
                 </Button>
                 <ModalOrDrawer
                   isOpen={showCalendarMenu}
@@ -427,7 +564,8 @@ export function RsvpSuccessPage() {
                       variant="secondary"
                       fullWidth
                     >
-                      📅 Google Calendar
+                      <FaCalendar size={18} />
+                      <span>Google Calendar</span>
                     </Button>
                     <Button
                       onClick={() => {
@@ -437,7 +575,8 @@ export function RsvpSuccessPage() {
                       variant="secondary"
                       fullWidth
                     >
-                      📧 Outlook
+                      <FaCalendar size={18} />
+                      <span>Outlook</span>
                     </Button>
                     <Button
                       onClick={() => {
@@ -447,7 +586,8 @@ export function RsvpSuccessPage() {
                       variant="secondary"
                       fullWidth
                     >
-                      📮 Yahoo Calendar
+                      <FaCalendar size={18} />
+                      <span>Yahoo Calendar</span>
                     </Button>
                     <Button
                       onClick={() => {
@@ -457,7 +597,8 @@ export function RsvpSuccessPage() {
                       variant="secondary"
                       fullWidth
                     >
-                      🍎 Apple Calendar
+                      <FaCalendar size={18} />
+                      <span>Apple Calendar</span>
                     </Button>
                   </div>
                 </ModalOrDrawer>
@@ -465,25 +606,28 @@ export function RsvpSuccessPage() {
             );
           })()}
 
-          {/* Your Details Card (Receipt) */}
-          <Card style={{ marginBottom: "24px", textAlign: "left" }}>
+          {/* Your Details - Edge-to-edge, no card */}
+          <div style={{ marginBottom: "32px", textAlign: "left" }}>
             <div
               style={{
                 fontSize: "12px",
                 textTransform: "uppercase",
                 letterSpacing: "0.1em",
                 opacity: 0.6,
-                marginBottom: "16px",
+                marginBottom: "20px",
+                color: "rgba(255, 255, 255, 0.6)",
               }}
             >
               Your details
             </div>
             <h2
               style={{
-                fontSize: "20px",
-                fontWeight: 700,
-                marginBottom: "16px",
+                fontSize: "clamp(24px, 6vw, 32px)",
+                fontWeight: 800,
+                marginBottom: "20px",
                 color: "#fff",
+                lineHeight: "1.2",
+                letterSpacing: "-0.02em",
               }}
             >
               {event.title}
@@ -493,15 +637,27 @@ export function RsvpSuccessPage() {
               <div
                 style={{
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   gap: "12px",
-                  marginBottom: "12px",
-                  fontSize: "15px",
+                  marginBottom: "16px",
+                  fontSize: "16px",
+                  lineHeight: "1.5",
                   color: "rgba(255, 255, 255, 0.9)",
                 }}
               >
-                <span>📅</span>
-                <span>{eventDate}</span>
+                <FaCalendar
+                  size={18}
+                  style={{
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    marginTop: "1px",
+                    color: "rgba(255, 255, 255, 0.7)",
+                  }}
+                />
+                <span style={{ display: "flex", alignItems: "center" }}>
+                  {eventDate}
+                </span>
               </div>
             )}
 
@@ -509,15 +665,27 @@ export function RsvpSuccessPage() {
               <div
                 style={{
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   gap: "12px",
-                  marginBottom: "12px",
-                  fontSize: "15px",
+                  marginBottom: "20px",
+                  fontSize: "16px",
+                  lineHeight: "1.5",
                   color: "rgba(255, 255, 255, 0.9)",
                 }}
               >
-                <span>📍</span>
-                <span>{event.location}</span>
+                <FaMapMarkerAlt
+                  size={18}
+                  style={{
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    marginTop: "1px",
+                    color: "rgba(255, 255, 255, 0.7)",
+                  }}
+                />
+                <span style={{ display: "flex", alignItems: "center" }}>
+                  {event.location}
+                </span>
               </div>
             )}
 
@@ -525,8 +693,8 @@ export function RsvpSuccessPage() {
               <>
                 <div
                   style={{
-                    marginTop: "16px",
-                    paddingTop: "16px",
+                    marginTop: "24px",
+                    paddingTop: "24px",
                     borderTop: "1px solid rgba(255, 255, 255, 0.1)",
                   }}
                 >
@@ -534,9 +702,9 @@ export function RsvpSuccessPage() {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
-                      marginBottom: "12px",
-                      fontSize: "14px",
+                      gap: "12px",
+                      marginBottom: "16px",
+                      flexWrap: "wrap",
                     }}
                   >
                     <Badge
@@ -545,13 +713,20 @@ export function RsvpSuccessPage() {
                           ? "success"
                           : "warning"
                       }
+                      style={{ fontSize: "14px", padding: "8px 16px" }}
                     >
                       {booking.bookingStatus === "CONFIRMED"
                         ? "Confirmed"
                         : "Waitlist"}
                     </Badge>
                     {booking.partySize > 1 && (
-                      <span style={{ opacity: 0.7, fontSize: "14px" }}>
+                      <span
+                        style={{
+                          opacity: 0.8,
+                          fontSize: "16px",
+                          color: "rgba(255, 255, 255, 0.9)",
+                        }}
+                      >
                         {booking.partySize}{" "}
                         {booking.partySize === 1 ? "person" : "people"}
                       </span>
@@ -562,10 +737,10 @@ export function RsvpSuccessPage() {
                   {booking.wantsDinner && booking.dinnerBookingStatus && (
                     <div
                       style={{
-                        marginTop: "12px",
-                        padding: "12px",
+                        marginTop: "16px",
+                        padding: "16px",
                         background: "rgba(139, 92, 246, 0.1)",
-                        borderRadius: "8px",
+                        borderRadius: "12px",
                         border: "1px solid rgba(139, 92, 246, 0.2)",
                       }}
                     >
@@ -573,14 +748,17 @@ export function RsvpSuccessPage() {
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: "8px",
+                          gap: "12px",
                           marginBottom: "8px",
-                          fontSize: "14px",
+                          fontSize: "15px",
                           fontWeight: 600,
                           color: "#a78bfa",
                         }}
                       >
-                        <span>🍽️</span>
+                        <FaUtensils
+                          size={18}
+                          style={{ display: "flex", alignItems: "center" }}
+                        />
                         <span>Dinner</span>
                         <Badge
                           variant={
@@ -588,7 +766,7 @@ export function RsvpSuccessPage() {
                               ? "success"
                               : "warning"
                           }
-                          style={{ marginLeft: "auto", fontSize: "11px" }}
+                          style={{ marginLeft: "auto", fontSize: "12px" }}
                         >
                           {booking.dinnerBookingStatus === "CONFIRMED"
                             ? "Confirmed"
@@ -598,9 +776,10 @@ export function RsvpSuccessPage() {
                       {booking.dinnerTimeSlot && (
                         <div
                           style={{
-                            fontSize: "13px",
-                            opacity: 0.8,
+                            fontSize: "14px",
+                            opacity: 0.85,
                             marginTop: "4px",
+                            color: "rgba(255, 255, 255, 0.9)",
                           }}
                         >
                           {new Date(booking.dinnerTimeSlot).toLocaleTimeString(
@@ -619,12 +798,18 @@ export function RsvpSuccessPage() {
                 </div>
               </>
             )}
-          </Card>
+          </div>
 
-          {/* Share Invite */}
-          {event && (
-            <div style={{ marginBottom: "24px" }}>
-              <ShareActions
+          {/* Share Invite - Single button with conditional logic */}
+          {/* {event && (
+            <div
+              style={{
+                marginBottom: "24px",
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            >
+              <ShareButton
                 url={getEventShareUrl(event.slug)}
                 title={`I'm going to ${event.title}!`}
                 text={buildShareText({
@@ -636,27 +821,17 @@ export function RsvpSuccessPage() {
                 imageUrl={event.imageUrl}
               />
             </div>
-          )}
-
-          {/* Open in Maps */}
-          {event?.location && (
-            <Button
-              onClick={() => {
-                const mapsUrl = `https://maps.google.com/?q=${encodeURIComponent(
-                  event.location
-                )}`;
-                window.open(mapsUrl, "_blank");
-              }}
-              variant="secondary"
-              fullWidth
-              style={{ marginBottom: "24px" }}
-            >
-              🗺️ Open in Maps
-            </Button>
-          )}
+          )} */}
 
           {/* Back to Event Link */}
-          <div style={{ marginTop: "24px", fontSize: "14px", opacity: 0.7 }}>
+          {/* <div
+            style={{
+              marginTop: "32px",
+              fontSize: "14px",
+              opacity: 0.7,
+              textAlign: "center",
+            }}
+          >
             <button
               onClick={() => navigate(`/e/${slug}`)}
               style={{
@@ -666,16 +841,16 @@ export function RsvpSuccessPage() {
                 cursor: "pointer",
                 textDecoration: "underline",
                 fontSize: "14px",
+                padding: 0,
               }}
             >
               ← Back to event
             </button>
-          </div>
+          </div> */}
         </div>
-      </div>
 
-      {/* CSS Animations */}
-      <style>{`
+        {/* CSS Animations */}
+        <style>{`
         @keyframes scaleIn {
           from {
             transform: scale(0);
@@ -686,18 +861,8 @@ export function RsvpSuccessPage() {
             opacity: 1;
           }
         }
-
-        @keyframes float {
-          0%, 100% {
-            transform: translateY(0) translateX(0);
-            opacity: 0.5;
-          }
-          50% {
-            transform: translateY(-20px) translateX(10px);
-            opacity: 1;
-          }
-        }
       `}</style>
-    </div>
+      </div>
+    </>
   );
 }

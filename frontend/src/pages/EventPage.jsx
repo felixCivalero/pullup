@@ -2,6 +2,13 @@
 // Mobile-first, Instagram-friendly event page
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import {
+  FaPaperPlane,
+  FaInstagram,
+  FaSpotify,
+  FaCalendar,
+  FaMapMarkerAlt,
+} from "react-icons/fa";
 import { useToast } from "../components/Toast";
 import { ShareActions } from "../components/ShareActions";
 import { buildShareText } from "../lib/shareUtils";
@@ -298,215 +305,316 @@ export function EventPage() {
       <div
         style={{
           minHeight: "100vh",
-          background: "#05040a",
           position: "relative",
           width: "100%",
           maxWidth: "100vw",
           overflowX: "hidden",
+          background: "#05040a",
         }}
       >
-        {/* Cover Image */}
+        {/* Event Image as Full Background */}
         {event?.imageUrl && (
-          <div
-            style={{
-              width: "100%",
-              aspectRatio: "16/9",
-              position: "relative",
-              overflow: "hidden",
-              background: "#05040a",
-            }}
-          >
-            <img
-              src={event.imageUrl}
-              alt={event.title}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-              }}
-            />
-            {/* Gradient overlay */}
+          <>
             <div
               style={{
-                position: "absolute",
-                bottom: 0,
+                position: "fixed",
+                top: 0,
                 left: 0,
                 right: 0,
-                height: "60%",
+                bottom: 0,
+                width: "100%",
+                height: "100%",
+                zIndex: 0,
+              }}
+            >
+              <img
+                src={event.imageUrl}
+                alt={event.title}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                }}
+              />
+            </div>
+            {/* Gradient overlay - fades to black at bottom */}
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
                 background:
-                  "linear-gradient(to top, #05040a 0%, transparent 100%)",
+                  "linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(5, 4, 10, 0.3) 60%, rgba(5, 4, 10, 0.7) 75%, #05040a 100%)",
                 pointerEvents: "none",
+                zIndex: 1,
               }}
             />
-          </div>
+          </>
         )}
 
-        {/* Content - One screen clarity */}
+        {/* Content - Overlaid on background */}
         <div
           style={{
             position: "relative",
+            zIndex: 2,
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
             padding: "20px",
             paddingBottom: "100px", // Space for sticky button
-            maxWidth: "100%",
-            boxSizing: "border-box",
-            width: "100%",
           }}
         >
-          {/* Title and Share buttons - aligned header */}
-          <div
+          {/* Title at the top */}
+          <h1
             style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              gap: "12px",
-              marginBottom: "20px",
-              width: "100%",
+              fontSize: "clamp(28px, 8vw, 40px)",
+              fontWeight: 800,
+              lineHeight: "1.2",
+              color: "#fff",
+              letterSpacing: "-0.02em",
+              margin: 0,
+              marginTop: "20px",
+              marginBottom: "auto", // Push content to bottom
+              paddingBottom: "20px",
             }}
           >
-            <h1
+            {event?.title}
+          </h1>
+
+          {/* Content area - positioned in lower portion where black fade is */}
+          <div
+            style={{
+              marginTop: "auto",
+              paddingTop: "40px",
+            }}
+          >
+            {/* Social Icons - Share, Instagram, Spotify */}
+            <div
               style={{
-                fontSize: "clamp(28px, 8vw, 40px)",
-                fontWeight: 800,
-                lineHeight: "1.2",
-                color: "#fff",
-                letterSpacing: "-0.02em",
-                flex: 1,
-                minWidth: 0, // Allow text to shrink
-                margin: 0,
-                paddingRight: "8px", // Prevent text from touching buttons
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+                marginBottom: "20px",
               }}
             >
-              {event?.title}
-            </h1>
-            {/* Share buttons - aligned with title */}
-            {event && (
-              <div
+              {/* Share icon - always visible */}
+              <button
+                onClick={async () => {
+                  if (navigator.share) {
+                    try {
+                      await navigator.share({
+                        title: event?.title,
+                        text: shareText,
+                        url: shareUrl,
+                      });
+                    } catch (err) {
+                      if (err.name !== "AbortError") {
+                        // Fallback to copy
+                        try {
+                          await navigator.clipboard.writeText(shareUrl);
+                          showToast("Link copied!", "success");
+                        } catch (copyErr) {
+                          console.error("Failed to copy:", copyErr);
+                        }
+                      }
+                    }
+                  } else {
+                    // Desktop: copy to clipboard
+                    try {
+                      await navigator.clipboard.writeText(shareUrl);
+                      showToast("Link copied!", "success");
+                    } catch (err) {
+                      console.error("Failed to copy:", err);
+                      showToast("Failed to copy link", "error");
+                    }
+                  }
+                }}
                 style={{
-                  flexShrink: 0,
-                  marginTop: "2px", // Align with title baseline
+                  background: "none",
+                  border: "none",
+                  color: "rgba(255, 255, 255, 0.8)",
+                  cursor: "pointer",
+                  padding: "4px",
                   display: "flex",
                   alignItems: "center",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.color = "#fff";
+                  e.target.style.transform = "scale(1.1)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.color = "rgba(255, 255, 255, 0.8)";
+                  e.target.style.transform = "scale(1)";
                 }}
               >
-                <ShareActions
-                  url={shareUrl}
-                  title={event.title}
-                  text={shareText}
-                  imageUrl={event.imageUrl}
-                />
-              </div>
-            )}
-          </div>
+                <FaPaperPlane size={20} />
+              </button>
 
-          {/* Date & Time */}
-          {(eventDate || eventTime) && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "12px",
-                marginBottom: "16px",
-                fontSize: "16px",
-                lineHeight: "1.5",
-                color: "rgba(255, 255, 255, 0.9)",
-              }}
-            >
-              <span style={{ flexShrink: 0, marginTop: "2px" }}>📅</span>
-              <span>
-                {eventDate}
-                {eventTime && ` at ${eventTime}`}
-              </span>
-            </div>
-          )}
-
-          {/* Location */}
-          {event?.location && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "12px",
-                marginBottom: "20px",
-                fontSize: "16px",
-                lineHeight: "1.5",
-                color: "rgba(255, 255, 255, 0.9)",
-              }}
-            >
-              <span style={{ flexShrink: 0, marginTop: "2px" }}>📍</span>
-              <span>{event.location}</span>
-            </div>
-          )}
-
-          {/* Description - Always show preview, then expand */}
-          {event?.description && (
-            <div style={{ marginBottom: "24px" }}>
-              <p
-                style={{
-                  fontSize: "16px",
-                  lineHeight: "1.6",
-                  color: "rgba(255, 255, 255, 0.85)",
-                  margin: 0,
-                  marginBottom: showDescription ? "12px" : "0",
-                  wordWrap: "break-word",
-                  overflowWrap: "break-word",
-                }}
-              >
-                {showDescription
-                  ? event.description
-                  : event.description.length > 150
-                  ? `${event.description.substring(0, 150).trim()}...`
-                  : event.description}
-              </p>
-              {event.description.length > 150 && (
-                <button
-                  onClick={() => setShowDescription(!showDescription)}
+              {/* Instagram icon - conditional */}
+              {event?.instagram && (
+                <a
+                  href={event.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   style={{
-                    background: "none",
-                    border: "none",
-                    color: "#a78bfa",
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    padding: "8px 0",
-                    margin: "8px 0 0 0",
+                    color: "rgba(255, 255, 255, 0.8)",
                     textDecoration: "none",
-                    display: "inline-block",
-                    WebkitTapHighlightColor: "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    transition: "all 0.2s ease",
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.textDecoration = "underline";
+                    e.target.style.color = "#fff";
+                    e.target.style.transform = "scale(1.1)";
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.textDecoration = "none";
+                    e.target.style.color = "rgba(255, 255, 255, 0.8)";
+                    e.target.style.transform = "scale(1)";
                   }}
                 >
-                  {showDescription ? "Show less" : "Read more"}
-                </button>
+                  <FaInstagram size={20} />
+                </a>
+              )}
+
+              {/* Spotify icon - conditional */}
+              {event?.spotify && (
+                <a
+                  href={event.spotify}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: "rgba(255, 255, 255, 0.8)",
+                    textDecoration: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.color = "#fff";
+                    e.target.style.transform = "scale(1.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.color = "rgba(255, 255, 255, 0.8)";
+                    e.target.style.transform = "scale(1)";
+                  }}
+                >
+                  <FaSpotify size={20} />
+                </a>
               )}
             </div>
-          )}
 
-          {/* Capacity info (if available) */}
-          {event?._attendance?.cocktailSpotsLeft !== null &&
-            event._attendance.cocktailSpotsLeft <= 10 && (
-              <div style={{ marginBottom: "24px" }}>
-                <Badge
-                  variant={
-                    event._attendance.cocktailSpotsLeft <= 5
-                      ? "danger"
-                      : "warning"
-                  }
-                  style={{ fontSize: "14px", padding: "8px 16px" }}
-                >
-                  {event._attendance.cocktailSpotsLeft <= 5
-                    ? `Only ${event._attendance.cocktailSpotsLeft} spot${
-                        event._attendance.cocktailSpotsLeft === 1 ? "" : "s"
-                      } left`
-                    : "Few spots left"}
-                </Badge>
+            {/* Date & Time */}
+            {(eventDate || eventTime) && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  marginBottom: "16px",
+                  fontSize: "16px",
+                  lineHeight: "1.5",
+                  color: "rgba(255, 255, 255, 0.9)",
+                }}
+              >
+                <FaCalendar
+                  size={18}
+                  style={{
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    marginTop: "1px",
+                    color: "rgba(255, 255, 255, 0.7)",
+                  }}
+                />
+                <span>
+                  {eventDate}
+                  {eventTime && ` at ${eventTime}`}
+                </span>
               </div>
             )}
+
+            {/* Location */}
+            {event?.location && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  marginBottom: "20px",
+                  fontSize: "16px",
+                  lineHeight: "1.5",
+                  color: "rgba(255, 255, 255, 0.9)",
+                }}
+              >
+                <FaMapMarkerAlt
+                  size={18}
+                  style={{
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    marginTop: "1px",
+                    color: "rgba(255, 255, 255, 0.7)",
+                  }}
+                />
+                <span>{event.location}</span>
+              </div>
+            )}
+
+            {/* Description - Always show preview, then expand */}
+            {event?.description && (
+              <div style={{ marginBottom: "24px" }}>
+                <p
+                  style={{
+                    fontSize: "16px",
+                    lineHeight: "1.6",
+                    color: "rgba(255, 255, 255, 0.85)",
+                    margin: 0,
+                    marginBottom: showDescription ? "12px" : "0",
+                    wordWrap: "break-word",
+                    overflowWrap: "break-word",
+                  }}
+                >
+                  {showDescription
+                    ? event.description
+                    : event.description.length > 150
+                    ? `${event.description.substring(0, 150).trim()}...`
+                    : event.description}
+                </p>
+                {event.description.length > 150 && (
+                  <button
+                    onClick={() => setShowDescription(!showDescription)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#a78bfa",
+                      fontSize: "14px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      padding: "8px 0",
+                      margin: "8px 0 0 0",
+                      textDecoration: "none",
+                      display: "inline-block",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.textDecoration = "underline";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.textDecoration = "none";
+                    }}
+                  >
+                    {showDescription ? "Show less" : "Read more"}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Capacity info (if available) */}
+          </div>
         </div>
 
         {/* Sticky CTA Button */}

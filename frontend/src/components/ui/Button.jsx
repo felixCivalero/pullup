@@ -14,7 +14,7 @@ export function Button({
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "8px",
+    gap: "10px",
     border: "none",
     borderRadius: "12px",
     fontWeight: 600,
@@ -24,6 +24,7 @@ export function Button({
     overflow: "hidden",
     WebkitTapHighlightColor: "transparent",
     touchAction: "manipulation",
+    lineHeight: "1",
     ...props.style,
   };
 
@@ -47,9 +48,10 @@ export function Button({
       background:
         disabled || loading
           ? "rgba(255, 255, 255, 0.05)"
-          : "rgba(255, 255, 255, 0.1)",
+          : "rgba(255, 255, 255, 0.08)",
       color: "#fff",
-      border: "1px solid rgba(255, 255, 255, 0.2)",
+      border: "1px solid rgba(255, 255, 255, 0.15)",
+      backdropFilter: "blur(10px)",
     },
     danger: {
       background:
@@ -70,6 +72,8 @@ export function Button({
         ...sizeStyles[size],
         ...variantStyles[variant],
         width: fullWidth ? "100%" : "auto",
+        maxWidth: fullWidth ? "100%" : "none",
+        boxSizing: "border-box",
         opacity: disabled || loading ? 0.6 : 1,
       }}
       onMouseEnter={(e) => {
@@ -77,6 +81,11 @@ export function Button({
           e.target.style.transform = "translateY(-2px)";
           if (variant === "primary") {
             e.target.style.boxShadow = "0 6px 25px rgba(139, 92, 246, 0.4)";
+          } else if (variant === "secondary") {
+            e.target.style.background =
+              "linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(236, 72, 153, 0.25) 100%)";
+            e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+            e.target.style.boxShadow = "0 4px 15px rgba(139, 92, 246, 0.3)";
           }
         }
       }}
@@ -85,6 +94,11 @@ export function Button({
           e.target.style.transform = "translateY(0)";
           if (variant === "primary") {
             e.target.style.boxShadow = "0 4px 20px rgba(139, 92, 246, 0.3)";
+          } else if (variant === "secondary") {
+            e.target.style.background =
+              "linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)";
+            e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+            e.target.style.boxShadow = "0 2px 10px rgba(139, 92, 246, 0.2)";
           }
         }
       }}
@@ -93,7 +107,8 @@ export function Button({
       {loading && (
         <span
           style={{
-            display: "inline-block",
+            display: "inline-flex",
+            alignItems: "center",
             width: "16px",
             height: "16px",
             border: "2px solid rgba(255, 255, 255, 0.3)",
@@ -103,7 +118,11 @@ export function Button({
           }}
         />
       )}
-      <span>{children}</span>
+      <span
+        style={{ display: "inline-flex", alignItems: "center", gap: "inherit" }}
+      >
+        {children}
+      </span>
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }

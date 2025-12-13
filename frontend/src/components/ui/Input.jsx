@@ -38,6 +38,8 @@ export function Input({
           outline: "none",
           boxSizing: "border-box",
           transition: "all 0.2s ease",
+          WebkitAppearance: "none",
+          appearance: "none",
           ...(error
             ? {
                 boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.1)",

@@ -284,233 +284,272 @@ export function EventPage() {
     : "";
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#05040a",
-        position: "relative",
-      }}
-    >
-      {/* Cover Image */}
-      {event?.imageUrl && (
-        <div
-          style={{
-            width: "100%",
-            aspectRatio: "16/9",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <img
-            src={event.imageUrl}
-            alt={event.title}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          />
-          {/* Gradient overlay */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: "60%",
-              background:
-                "linear-gradient(to top, #05040a 0%, transparent 100%)",
-            }}
-          />
-        </div>
-      )}
-
-      {/* Content - One screen clarity */}
+    <>
+      <style>{`
+        /* Prevent horizontal scroll and ensure proper alignment */
+        body {
+          overflow-x: hidden;
+          width: 100%;
+        }
+        * {
+          box-sizing: border-box;
+        }
+      `}</style>
       <div
         style={{
+          minHeight: "100vh",
+          background: "#05040a",
           position: "relative",
-          padding: "24px 20px",
-          paddingBottom: "100px", // Space for sticky button
+          width: "100%",
+          maxWidth: "100vw",
+          overflowX: "hidden",
         }}
       >
-        {/* Share button (top right) */}
-        {event && (
+        {/* Cover Image */}
+        {event?.imageUrl && (
           <div
             style={{
-              position: "absolute",
-              top: "20px",
-              right: "20px",
-              zIndex: 10,
+              width: "100%",
+              aspectRatio: "16/9",
+              position: "relative",
+              overflow: "hidden",
+              background: "#05040a",
             }}
           >
-            <ShareActions
-              url={shareUrl}
-              title={event.title}
-              text={shareText}
-              imageUrl={event.imageUrl}
+            <img
+              src={event.imageUrl}
+              alt={event.title}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+            {/* Gradient overlay */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: "60%",
+                background:
+                  "linear-gradient(to top, #05040a 0%, transparent 100%)",
+                pointerEvents: "none",
+              }}
             />
           </div>
         )}
 
-        {/* Title */}
-        <h1
+        {/* Content - One screen clarity */}
+        <div
           style={{
-            fontSize: "clamp(28px, 8vw, 40px)",
-            fontWeight: 800,
-            lineHeight: "1.1",
-            marginBottom: "16px",
-            color: "#fff",
-            letterSpacing: "-0.02em",
+            position: "relative",
+            padding: "20px",
+            paddingBottom: "100px", // Space for sticky button
+            maxWidth: "100%",
+            boxSizing: "border-box",
+            width: "100%",
           }}
         >
-          {event?.title}
-        </h1>
-
-        {/* Date & Time */}
-        {(eventDate || eventTime) && (
+          {/* Title and Share buttons - aligned header */}
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              marginBottom: "12px",
-              fontSize: "16px",
-              color: "rgba(255, 255, 255, 0.9)",
-            }}
-          >
-            <span>📅</span>
-            <span>
-              {eventDate}
-              {eventTime && ` at ${eventTime}`}
-            </span>
-          </div>
-        )}
-
-        {/* Location */}
-        {event?.location && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
               gap: "12px",
               marginBottom: "20px",
-              fontSize: "16px",
-              color: "rgba(255, 255, 255, 0.9)",
+              width: "100%",
             }}
           >
-            <span>📍</span>
-            <span>{event.location}</span>
-          </div>
-        )}
-
-        {/* Description (collapsed by default) */}
-        {event?.description && (
-          <div style={{ marginBottom: "24px" }}>
-            {!showDescription ? (
-              <button
-                onClick={() => setShowDescription(true)}
+            <h1
+              style={{
+                fontSize: "clamp(28px, 8vw, 40px)",
+                fontWeight: 800,
+                lineHeight: "1.2",
+                color: "#fff",
+                letterSpacing: "-0.02em",
+                flex: 1,
+                minWidth: 0, // Allow text to shrink
+                margin: 0,
+                paddingRight: "8px", // Prevent text from touching buttons
+              }}
+            >
+              {event?.title}
+            </h1>
+            {/* Share buttons - aligned with title */}
+            {event && (
+              <div
                 style={{
-                  background: "none",
-                  border: "none",
-                  color: "#a78bfa",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                  padding: 0,
+                  flexShrink: 0,
+                  marginTop: "2px", // Align with title baseline
+                  display: "flex",
+                  alignItems: "center",
                 }}
               >
-                Read more
-              </button>
-            ) : (
-              <div>
-                <p
-                  style={{
-                    fontSize: "16px",
-                    lineHeight: "1.6",
-                    color: "rgba(255, 255, 255, 0.8)",
-                    marginBottom: "12px",
-                  }}
-                >
-                  {event.description}
-                </p>
+                <ShareActions
+                  url={shareUrl}
+                  title={event.title}
+                  text={shareText}
+                  imageUrl={event.imageUrl}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Date & Time */}
+          {(eventDate || eventTime) && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "12px",
+                marginBottom: "16px",
+                fontSize: "16px",
+                lineHeight: "1.5",
+                color: "rgba(255, 255, 255, 0.9)",
+              }}
+            >
+              <span style={{ flexShrink: 0, marginTop: "2px" }}>📅</span>
+              <span>
+                {eventDate}
+                {eventTime && ` at ${eventTime}`}
+              </span>
+            </div>
+          )}
+
+          {/* Location */}
+          {event?.location && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "12px",
+                marginBottom: "20px",
+                fontSize: "16px",
+                lineHeight: "1.5",
+                color: "rgba(255, 255, 255, 0.9)",
+              }}
+            >
+              <span style={{ flexShrink: 0, marginTop: "2px" }}>📍</span>
+              <span>{event.location}</span>
+            </div>
+          )}
+
+          {/* Description - Always show preview, then expand */}
+          {event?.description && (
+            <div style={{ marginBottom: "24px" }}>
+              <p
+                style={{
+                  fontSize: "16px",
+                  lineHeight: "1.6",
+                  color: "rgba(255, 255, 255, 0.85)",
+                  margin: 0,
+                  marginBottom: showDescription ? "12px" : "0",
+                  wordWrap: "break-word",
+                  overflowWrap: "break-word",
+                }}
+              >
+                {showDescription
+                  ? event.description
+                  : event.description.length > 150
+                  ? `${event.description.substring(0, 150).trim()}...`
+                  : event.description}
+              </p>
+              {event.description.length > 150 && (
                 <button
-                  onClick={() => setShowDescription(false)}
+                  onClick={() => setShowDescription(!showDescription)}
                   style={{
                     background: "none",
                     border: "none",
                     color: "#a78bfa",
                     fontSize: "14px",
+                    fontWeight: 500,
                     cursor: "pointer",
-                    textDecoration: "underline",
-                    padding: 0,
+                    padding: "8px 0",
+                    margin: "8px 0 0 0",
+                    textDecoration: "none",
+                    display: "inline-block",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.textDecoration = "underline";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.textDecoration = "none";
                   }}
                 >
-                  Show less
+                  {showDescription ? "Show less" : "Read more"}
                 </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Capacity info (if available) */}
-        {event?._attendance?.cocktailSpotsLeft !== null &&
-          event._attendance.cocktailSpotsLeft <= 10 && (
-            <div style={{ marginBottom: "24px" }}>
-              <Badge
-                variant={
-                  event._attendance.cocktailSpotsLeft <= 5
-                    ? "danger"
-                    : "warning"
-                }
-              >
-                {event._attendance.cocktailSpotsLeft <= 5
-                  ? `Only ${event._attendance.cocktailSpotsLeft} spot${
-                      event._attendance.cocktailSpotsLeft === 1 ? "" : "s"
-                    } left`
-                  : "Few spots left"}
-              </Badge>
+              )}
             </div>
           )}
-      </div>
 
-      {/* Sticky CTA Button */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: "16px 20px",
-          paddingBottom: "max(16px, env(safe-area-inset-bottom))",
-          background:
-            "linear-gradient(to top, #05040a 0%, rgba(5, 4, 10, 0.95) 80%, transparent 100%)",
-          backdropFilter: "blur(10px)",
-          zIndex: 100,
-        }}
-      >
-        <Button
-          onClick={() => setShowRsvpForm(true)}
-          fullWidth
-          size="lg"
-          disabled={loading || !event}
+          {/* Capacity info (if available) */}
+          {event?._attendance?.cocktailSpotsLeft !== null &&
+            event._attendance.cocktailSpotsLeft <= 10 && (
+              <div style={{ marginBottom: "24px" }}>
+                <Badge
+                  variant={
+                    event._attendance.cocktailSpotsLeft <= 5
+                      ? "danger"
+                      : "warning"
+                  }
+                  style={{ fontSize: "14px", padding: "8px 16px" }}
+                >
+                  {event._attendance.cocktailSpotsLeft <= 5
+                    ? `Only ${event._attendance.cocktailSpotsLeft} spot${
+                        event._attendance.cocktailSpotsLeft === 1 ? "" : "s"
+                      } left`
+                    : "Few spots left"}
+                </Badge>
+              </div>
+            )}
+        </div>
+
+        {/* Sticky CTA Button */}
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: "16px 20px",
+            paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+            background:
+              "linear-gradient(to top, #05040a 0%, rgba(5, 4, 10, 0.98) 70%, transparent 100%)",
+            backdropFilter: "blur(20px)",
+            zIndex: 100,
+            boxSizing: "border-box",
+            width: "100%",
+          }}
         >
-          Pull up
-        </Button>
-      </div>
+          <Button
+            onClick={() => setShowRsvpForm(true)}
+            fullWidth
+            size="lg"
+            disabled={loading || !event}
+          >
+            Pull up
+          </Button>
+        </div>
 
-      {/* RSVP Form Modal/Drawer */}
-      <ModalOrDrawer
-        isOpen={showRsvpForm}
-        onClose={() => setShowRsvpForm(false)}
-        title="RSVP"
-      >
-        <RsvpForm
-          event={event}
-          onSubmit={handleRsvpSubmit}
-          loading={rsvpLoading}
+        {/* RSVP Form Modal/Drawer */}
+        <ModalOrDrawer
+          isOpen={showRsvpForm}
           onClose={() => setShowRsvpForm(false)}
-        />
-      </ModalOrDrawer>
-    </div>
+          title="RSVP"
+        >
+          <RsvpForm
+            event={event}
+            onSubmit={handleRsvpSubmit}
+            loading={rsvpLoading}
+            onClose={() => setShowRsvpForm(false)}
+          />
+        </ModalOrDrawer>
+      </div>
+    </>
   );
 }

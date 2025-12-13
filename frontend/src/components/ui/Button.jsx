@@ -22,6 +22,8 @@ export function Button({
     transition: "all 0.2s ease",
     position: "relative",
     overflow: "hidden",
+    WebkitTapHighlightColor: "transparent",
+    touchAction: "manipulation",
     ...props.style,
   };
 

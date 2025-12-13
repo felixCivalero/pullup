@@ -1,7 +1,9 @@
 // frontend/src/components/ui/ModalOrDrawer.jsx
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export function ModalOrDrawer({ isOpen, onClose, children, title }) {
+  const [isMobile, setIsMobile] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -13,10 +15,16 @@ export function ModalOrDrawer({ isOpen, onClose, children, title }) {
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
-  // Detect mobile (simple check)
-  const isMobile = window.innerWidth < 768;
+  if (!isOpen) return null;
 
   if (isMobile) {
     // Bottom sheet (drawer) for mobile

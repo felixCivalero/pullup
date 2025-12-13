@@ -119,7 +119,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} style={{ width: "100%" }}>
       <Input
         label="Email"
         type="email"
@@ -224,8 +224,8 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
                     style={{
                       display: "grid",
                       gridTemplateColumns:
-                        "repeat(auto-fill, minmax(100px, 1fr))",
-                      gap: "8px",
+                        "repeat(auto-fill, minmax(90px, 1fr))",
+                      gap: "10px",
                       marginBottom: "20px",
                     }}
                   >
@@ -236,8 +236,8 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
                         onClick={() => setDinnerTimeSlot(slot.time)}
                         disabled={!slot.available || loading}
                         style={{
-                          padding: "12px 8px",
-                          borderRadius: "8px",
+                          padding: "14px 10px",
+                          borderRadius: "10px",
                           border:
                             dinnerTimeSlot === slot.time
                               ? "2px solid #8b5cf6"
@@ -251,13 +251,16 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
                           color: slot.available
                             ? "#fff"
                             : "rgba(255,255,255,0.4)",
-                          fontSize: "13px",
+                          fontSize: "14px",
+                          fontWeight: 600,
                           cursor:
                             slot.available && !loading
                               ? "pointer"
                               : "not-allowed",
                           opacity: slot.available ? 1 : 0.5,
                           transition: "all 0.2s ease",
+                          WebkitTapHighlightColor: "transparent",
+                          touchAction: "manipulation",
                         }}
                       >
                         <div style={{ fontWeight: 600 }}>

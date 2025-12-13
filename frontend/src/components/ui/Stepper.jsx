@@ -38,22 +38,23 @@ export function Stepper({
           onClick={() => onChange(Math.max(min, value - 1))}
           disabled={value <= min}
           style={{
-            width: "40px",
-            height: "40px",
-            borderRadius: "8px",
+            width: "44px",
+            height: "44px",
+            borderRadius: "10px",
             border: "none",
             background:
               value <= min
                 ? "rgba(255, 255, 255, 0.05)"
                 : "rgba(139, 92, 246, 0.2)",
             color: value <= min ? "rgba(255, 255, 255, 0.3)" : "#fff",
-            fontSize: "20px",
+            fontSize: "22px",
             fontWeight: 600,
             cursor: value <= min ? "not-allowed" : "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             transition: "all 0.2s ease",
+            WebkitTapHighlightColor: "transparent",
           }}
           onMouseEnter={(e) => {
             if (value > min) {
@@ -84,22 +85,23 @@ export function Stepper({
           onClick={() => onChange(Math.min(max, value + 1))}
           disabled={value >= max}
           style={{
-            width: "40px",
-            height: "40px",
-            borderRadius: "8px",
+            width: "44px",
+            height: "44px",
+            borderRadius: "10px",
             border: "none",
             background:
               value >= max
                 ? "rgba(255, 255, 255, 0.05)"
                 : "rgba(139, 92, 246, 0.2)",
             color: value >= max ? "rgba(255, 255, 255, 0.3)" : "#fff",
-            fontSize: "20px",
+            fontSize: "22px",
             fontWeight: 600,
             cursor: value >= max ? "not-allowed" : "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             transition: "all 0.2s ease",
+            WebkitTapHighlightColor: "transparent",
           }}
           onMouseEnter={(e) => {
             if (value < max) {

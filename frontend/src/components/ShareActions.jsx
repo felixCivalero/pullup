@@ -1,6 +1,6 @@
 // frontend/src/components/ShareActions.jsx
 // Reusable share and copy link component
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "./Toast";
 
 /**
@@ -14,6 +14,16 @@ import { useToast } from "./Toast";
 export function ShareActions({ url, title, text, imageUrl }) {
   const { showToast } = useToast();
   const [copying, setCopying] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const handleShare = async () => {
     if (!navigator.share) {
@@ -76,27 +86,29 @@ export function ShareActions({ url, title, text, imageUrl }) {
     <div
       style={{
         display: "flex",
-        gap: "12px",
+        gap: "8px",
         alignItems: "center",
-        flexWrap: "wrap",
+        flexWrap: "nowrap",
       }}
     >
       <button
         onClick={handleShare}
         disabled={copying}
         style={{
-          padding: "10px 20px",
-          borderRadius: "8px",
+          padding: isMobile ? "10px 14px" : "10px 20px",
+          borderRadius: "10px",
           border: "1px solid rgba(139, 92, 246, 0.3)",
           background: "rgba(139, 92, 246, 0.1)",
           color: "#a78bfa",
-          fontWeight: 500,
-          fontSize: "14px",
+          fontWeight: 600,
+          fontSize: isMobile ? "13px" : "14px",
           cursor: copying ? "wait" : "pointer",
           transition: "all 0.2s ease",
           display: "flex",
           alignItems: "center",
-          gap: "8px",
+          gap: "6px",
+          whiteSpace: "nowrap",
+          minWidth: isMobile ? "auto" : "fit-content",
         }}
         onMouseEnter={(e) => {
           if (!copying) {
@@ -111,26 +123,28 @@ export function ShareActions({ url, title, text, imageUrl }) {
           }
         }}
       >
-        <span>🔗</span>
-        <span>Share</span>
+        <span style={{ fontSize: isMobile ? "16px" : "18px" }}>🔗</span>
+        {!isMobile && <span>Share</span>}
       </button>
 
       <button
         onClick={handleCopy}
         disabled={copying}
         style={{
-          padding: "10px 20px",
-          borderRadius: "8px",
+          padding: isMobile ? "10px 14px" : "10px 20px",
+          borderRadius: "10px",
           border: "1px solid rgba(255,255,255,0.2)",
           background: "rgba(255,255,255,0.05)",
           color: "#fff",
-          fontWeight: 500,
-          fontSize: "14px",
+          fontWeight: 600,
+          fontSize: isMobile ? "13px" : "14px",
           cursor: copying ? "wait" : "pointer",
           transition: "all 0.2s ease",
           display: "flex",
           alignItems: "center",
-          gap: "8px",
+          gap: "6px",
+          whiteSpace: "nowrap",
+          minWidth: isMobile ? "auto" : "fit-content",
         }}
         onMouseEnter={(e) => {
           if (!copying) {
@@ -145,8 +159,8 @@ export function ShareActions({ url, title, text, imageUrl }) {
           }
         }}
       >
-        <span>📋</span>
-        <span>{copying ? "Copying..." : "Copy link"}</span>
+        <span style={{ fontSize: isMobile ? "16px" : "18px" }}>📋</span>
+        {!isMobile && <span>{copying ? "Copying..." : "Copy link"}</span>}
       </button>
     </div>
   );

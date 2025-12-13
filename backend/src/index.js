@@ -67,122 +67,185 @@ function isCrawler(req) {
 }
 
 // ---------------------------
-// Helper: Generate HTML with dynamic OG tags for an event
+// OG helpers (clean + reliable)
 // ---------------------------
-function generateOgHtml(event) {
-  const baseUrl = process.env.FRONTEND_URL || "https://pullup.se";
-  const eventUrl = `${baseUrl}/e/${event.slug}`;
 
-  // Use event image if available, otherwise fallback to default OG image
-  // Note: Signed URLs work for OG tags as long as they're valid when crawler accesses them
-  // For better reliability, consider using public URLs for event images in the future
-  let imageUrl = event.imageUrl || `${baseUrl}/og-image.jpg`;
-
-  // Ensure image URL is absolute (not relative)
-  if (imageUrl && !imageUrl.startsWith("http")) {
-    // If it's a relative path, make it absolute
-    imageUrl = `${baseUrl}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
-  }
-
-  // Debug logging
-  console.log(`[OG] Generated HTML for event: ${event.title || "Untitled"}`);
-  console.log(`[OG] Event slug: ${event.slug || "MISSING"}`);
-  console.log(`[OG] Event ID: ${event.id || "MISSING"}`);
-  console.log(`[OG] Event URL: ${eventUrl}`);
-  console.log(`[OG] Image URL: ${imageUrl}`);
-  console.log(
-    `[OG] Image URL type: ${
-      imageUrl
-        ? imageUrl.includes("/public/")
-          ? "PUBLIC"
-          : imageUrl.includes("/sign/")
-          ? "SIGNED"
-          : "OTHER"
-        : "NONE"
-    }`
-  );
-  console.log(`[OG] Will use: ${imageUrl || "DEFAULT og-image.jpg"}`);
-
-  // Format event date/time (needed for both title and description)
-  let eventDateTime = "";
-  if (event.startsAt) {
-    try {
-      const date = new Date(event.startsAt);
-      eventDateTime = date.toLocaleDateString("en-US", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
-    } catch (e) {
-      // If date parsing fails, just use the title
-    }
-  }
-
-  // Build a nice share message-style description
-  let descriptionParts = [];
-
-  // Start with invitation
-  descriptionParts.push(`You're invited to ${event.title}!`);
-
-  // Add date and time
-  if (eventDateTime) {
-    descriptionParts.push(eventDateTime);
-  }
-
-  // Add location if available
-  if (event.location) {
-    descriptionParts.push(event.location);
-  }
-
-  // Add description preview if available (truncated)
-  if (event.description) {
-    const descPreview = event.description.substring(0, 80);
-    if (descPreview) {
-      descriptionParts.push(
-        descPreview + (event.description.length > 80 ? "..." : "")
-      );
-    }
-  }
-
-  // Add call to action
-  descriptionParts.push("Details + RSVP");
-
-  // Join parts and escape HTML
-  const description = descriptionParts
-    .join(" • ")
-    .substring(0, 200) // Limit to 200 chars for OG tags
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  // Escape HTML in title
-  const escapedTitle = event.title
+function escapeHtml(s = "") {
+  return String(s)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
 
-  // Build title with date if available
-  const ogTitle = eventDateTime
-    ? `${escapedTitle} — ${eventDateTime}`
-    : escapedTitle;
+function formatOgDateTime(startsAt) {
+  if (!startsAt) return "";
+  try {
+    const d = new Date(startsAt);
+
+    // Sunday, December 14 at 2:00 PM
+    const date = d.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+
+    const time = d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    return `${date} at ${time}`;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Extracts `filePath` from:
+ * - Signed:  .../object/sign/event-images/<filePath>?token=...
+ * - Public:  .../object/public/event-images/<filePath>
+ * - Any URL containing: event-images/<filePath>
+ */
+function extractEventImagesFilePath(imageUrl) {
+  if (!imageUrl) return null;
+  const m = String(imageUrl).match(/event-images\/([^?]+)/);
+  return m?.[1] || null;
+}
+
+/**
+ * Convert signed/public supabase URL into permanent public URL for OG tags
+ * If we can't, fall back to original.
+ */
+async function toOgPublicImageUrl(imageUrl, routeName = "Share") {
+  if (!imageUrl) return null;
+
+  // If it's not from the event-images bucket, just use it as-is
+  if (!String(imageUrl).includes("event-images/")) {
+    console.log(
+      `[${routeName}] OG image is not in event-images bucket, using as-is: ${imageUrl}`
+    );
+    return imageUrl;
+  }
+
+  const filePath = extractEventImagesFilePath(imageUrl);
+  if (!filePath) {
+    console.log(
+      `[${routeName}] Could not extract event-images file path, using as-is: ${imageUrl}`
+    );
+    return imageUrl;
+  }
+
+  try {
+    const { supabase } = await import("./supabase.js");
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("event-images").getPublicUrl(filePath);
+
+    if (publicUrl) {
+      console.log(
+        `[${routeName}] OG public image URL generated: ${publicUrl} (filePath: ${filePath})`
+      );
+      return publicUrl;
+    }
+
+    console.log(
+      `[${routeName}] getPublicUrl returned empty, using original: ${imageUrl}`
+    );
+    return imageUrl;
+  } catch (err) {
+    console.error(
+      `[${routeName}] Error generating OG public image URL, using original:`,
+      err
+    );
+    return imageUrl;
+  }
+}
+
+// ---------------------------
+// Helper: Generate OG HTML for an event (uses permanent public image URL)
+// ---------------------------
+async function generateOgHtmlForEvent(event, routeName = "Share") {
+  console.log(
+    `[${routeName}] Found event: ${event?.title} (slug: ${event?.slug}, id: ${event?.id})`
+  );
+  console.log(
+    `[${routeName}] Event image URL (raw): ${event?.imageUrl || "none"}`
+  );
+
+  const ogImageUrl = await toOgPublicImageUrl(event?.imageUrl, routeName);
+
+  console.log(
+    `[${routeName}] Final OG image URL: ${
+      ogImageUrl || "none (will use default)"
+    }`
+  );
+
+  return generateOgHtml({
+    ...event,
+    imageUrl: ogImageUrl,
+  });
+}
+
+// ---------------------------
+// Helper: Generate HTML with dynamic OG tags for an event
+// Notes:
+// - OG description is clean and does NOT include links.
+// - Canonical og:url points to /e/:slug (not /share/:slug).
+// - Humans get redirected immediately.
+// ---------------------------
+function generateOgHtml(event) {
+  const baseUrl = process.env.FRONTEND_URL || "https://pullup.se";
+
+  // Canonical URL for the event page (clean for OG)
+  const eventUrl = `${baseUrl}/e/${event.slug}`;
+
+  // Use event image if available, otherwise fallback to default OG image
+  let imageUrl = event.imageUrl || `${baseUrl}/og-image.jpg`;
+
+  // Ensure image URL is absolute
+  if (imageUrl && !String(imageUrl).startsWith("http")) {
+    imageUrl = `${baseUrl}${
+      String(imageUrl).startsWith("/") ? "" : "/"
+    }${imageUrl}`;
+  }
+
+  const titleRaw = event?.title || "Pull Up";
+  const escapedTitle = escapeHtml(titleRaw);
+
+  const when = formatOgDateTime(event?.startsAt);
+  const where = event?.location ? String(event.location).trim() : "";
+
+  // OG description: short, readable, no links, no image URLs, no spammy separators
+  // Example: "You're invited to Pull up 55! — Sunday, December 14 at 2:00 PM — Stockholm, Sweden"
+  const descParts = [
+    `You're invited to ${titleRaw}!`,
+    when || null,
+    where || null,
+    event?.description ? String(event.description).trim().slice(0, 120) : null,
+  ].filter(Boolean);
+
+  const description = escapeHtml(descParts.join(" — ")).slice(0, 200);
+
+  // OG title with date time (optional)
+  const ogTitle = escapeHtml(when ? `${titleRaw} — ${when}` : titleRaw);
+
+  // Debug logging (keep it, but less noisy)
+  console.log(`[OG] title: ${titleRaw}`);
+  console.log(`[OG] url: ${eventUrl}`);
+  console.log(`[OG] image: ${imageUrl}`);
+  console.log(`[OG] desc: ${description}`);
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <!-- Primary Meta -->
+
   <title>${ogTitle} — Pull Up</title>
   <meta name="description" content="${description}">
-  
-  <!-- Open Graph -->
+
   <meta property="og:type" content="website">
   <meta property="og:url" content="${eventUrl}">
   <meta property="og:title" content="${ogTitle}">
@@ -191,14 +254,13 @@ function generateOgHtml(event) {
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:site_name" content="Pull Up">
-  
-  <!-- Twitter -->
+
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${ogTitle}">
   <meta name="twitter:description" content="${description}">
   <meta name="twitter:image" content="${imageUrl}">
-  
-  <!-- Redirect to actual event page -->
+
+  <!-- Redirect humans immediately -->
   <meta http-equiv="refresh" content="0;url=${eventUrl}">
   <script>window.location.href = "${eventUrl}";</script>
 </head>
@@ -251,80 +313,6 @@ app.get("/events", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch events" });
   }
 });
-
-// Helper: Generate OG HTML for an event (extracts public URL from signed URL if needed)
-async function generateOgHtmlForEvent(event, routeName = "Share") {
-  console.log(
-    `[${routeName}] Found event: ${event.title} (slug: ${event.slug}, id: ${event.id})`
-  );
-  console.log(
-    `[${routeName}] Event image URL (raw): ${event.imageUrl || "none"}`
-  );
-
-  // For OG tags, we need a permanent public URL, not a signed URL that expires
-  // Extract file path and generate public URL if we have an image
-  let ogImageUrl = null;
-
-  if (!event.imageUrl) {
-    console.log(
-      `[${routeName}] Event has no image - will use default OG image`
-    );
-    ogImageUrl = null; // Will use default in generateOgHtml
-  } else if (event.imageUrl.includes("event-images/")) {
-    try {
-      // Extract file path from signed URL or full URL
-      // Signed URLs: https://...supabase.co/storage/v1/object/sign/event-images/path?token=...
-      // Public URLs: https://...supabase.co/storage/v1/object/public/event-images/path
-      const pathMatch = event.imageUrl.match(/event-images\/([^?]+)/);
-      if (pathMatch) {
-        const filePath = pathMatch[1];
-        console.log(`[${routeName}] Extracted file path: ${filePath}`);
-
-        // Get public URL (doesn't expire, works for crawlers)
-        const { supabase } = await import("./supabase.js");
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("event-images").getPublicUrl(filePath);
-        ogImageUrl = publicUrl;
-        console.log(
-          `[${routeName}] Generated public URL for OG: ${ogImageUrl}`
-        );
-      } else {
-        console.log(
-          `[${routeName}] Could not extract path from imageUrl: ${event.imageUrl}`
-        );
-        ogImageUrl = event.imageUrl; // Use as-is
-      }
-    } catch (urlError) {
-      console.error(
-        `[${routeName}] Error generating public URL, using original:`,
-        urlError
-      );
-      ogImageUrl = event.imageUrl; // Fall back to original
-    }
-  } else {
-    // Image URL is not from event-images bucket, use as-is
-    console.log(
-      `[${routeName}] Image URL is not from event-images bucket, using as-is: ${event.imageUrl}`
-    );
-    ogImageUrl = event.imageUrl;
-  }
-
-  // Create event object with public image URL for OG tags
-  const eventForOg = {
-    ...event,
-    imageUrl: ogImageUrl,
-  };
-
-  console.log(
-    `[${routeName}] Final OG image URL: ${
-      ogImageUrl || "none (will use default)"
-    }`
-  );
-
-  // Generate HTML with dynamic OG tags
-  return generateOgHtml(eventForOg);
-}
 
 // ---------------------------
 // PUBLIC: Share endpoint - Always returns HTML with OG tags

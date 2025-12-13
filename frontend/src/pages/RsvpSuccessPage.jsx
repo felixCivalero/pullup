@@ -8,7 +8,6 @@ import {
   FaCheckCircle,
   FaClock,
   FaUtensils,
-  FaMagic,
 } from "react-icons/fa";
 import { buildShareText } from "../lib/shareUtils";
 import { getEventShareUrl } from "../lib/urlUtils";
@@ -377,431 +376,474 @@ export function RsvpSuccessPage() {
         style={{
           minHeight: "100vh",
           position: "relative",
-          background: "#05040a",
-          padding: "40px 20px",
-          paddingBottom: "120px", // Space for actions
           width: "100%",
           maxWidth: "100vw",
           overflowX: "hidden",
-          display: "flex",
-          justifyContent: "center",
+          background: "#05040a",
         }}
       >
-        {/* Content - Responsive container: edge-to-edge on mobile, constrained on desktop */}
-        <div
-          className="success-page-content"
-          style={{
-            position: "relative",
-            width: "100%",
-            boxSizing: "border-box",
-          }}
-        >
-          {/* Success Icon */}
-          <div
-            style={{
-              marginBottom: "24px",
-              textAlign: "center",
-              animation: "scaleIn 0.5s ease-out",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <FaMagic
-              size={64}
-              style={{
-                color: "#ec4899",
-                filter: "drop-shadow(0 0 20px rgba(236, 72, 153, 0.5))",
-              }}
-            />
-          </div>
-
-          {/* Status Badge */}
-          <div style={{ marginBottom: "24px", textAlign: "center" }}>
-            {booking?.bookingStatus === "CONFIRMED" ? (
-              <Badge
-                variant="success"
-                style={{
-                  fontSize: "16px",
-                  padding: "10px 20px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <FaCheckCircle size={18} />
-                <span>You're in</span>
-              </Badge>
-            ) : (
-              <Badge
-                variant="warning"
-                style={{
-                  fontSize: "16px",
-                  padding: "10px 20px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <FaClock size={18} />
-                <span>You're on the list</span>
-              </Badge>
-            )}
-          </div>
-
-          {/* Success Message */}
-          <h1
-            style={{
-              fontSize: "clamp(28px, 8vw, 40px)",
-              fontWeight: 800,
-              marginBottom: "12px",
-              textAlign: "center",
-              background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              lineHeight: "1.2",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            {booking?.bookingStatus === "WAITLIST"
-              ? "You're on the list"
-              : booking?.name
-              ? `See you there, ${booking.name.split(" ")[0]}!`
-              : "See you there!"}
-          </h1>
-
-          <p
-            style={{
-              fontSize: "16px",
-              opacity: 0.85,
-              marginBottom: "32px",
-              lineHeight: 1.6,
-              textAlign: "center",
-              color: "rgba(255, 255, 255, 0.9)",
-            }}
-          >
-            {booking?.bookingStatus === "WAITLIST"
-              ? "If spots open up, you'll get the link."
-              : "We're excited to see you!"}
-          </p>
-
-          {/* Primary Action: Add to Calendar */}
-          <div
-            style={{
-              marginBottom: "16px",
-              width: "100%",
-              boxSizing: "border-box",
-            }}
-          >
-            <Button
-              onClick={() => {
-                const urls = getCalendarUrls(false);
-                if (urls?.google) {
-                  window.open(urls.google, "_blank");
-                }
-              }}
-              fullWidth
-              size="lg"
-              style={{
-                width: "100%",
-                maxWidth: "100%",
-              }}
-            >
-              <FaCalendar
-                size={20}
-                style={{ display: "flex", alignItems: "center" }}
-              />
-              <span>Add to Calendar</span>
-            </Button>
-          </div>
-
-          {/* Calendar Provider Selection (if dinner confirmed) */}
-          {(() => {
-            const hasConfirmedDinner =
-              booking?.wantsDinner &&
-              booking?.dinnerTimeSlot &&
-              booking?.dinnerBookingStatus === "CONFIRMED";
-
-            if (!hasConfirmedDinner) return null;
-
-            return (
-              <>
-                <Button
-                  onClick={() => setShowCalendarMenu(true)}
-                  variant="secondary"
-                  fullWidth
-                  style={{
-                    marginBottom: "24px",
-                    width: "100%",
-                    maxWidth: "100%",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <FaUtensils
-                    size={18}
-                    style={{ display: "flex", alignItems: "center" }}
-                  />
-                  <span>Add Dinner Time</span>
-                </Button>
-                <ModalOrDrawer
-                  isOpen={showCalendarMenu}
-                  onClose={() => setShowCalendarMenu(false)}
-                  title="Add Dinner to Calendar"
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                    }}
-                  >
-                    <Button
-                      onClick={() => {
-                        handleCalendarService("google", true);
-                        setShowCalendarMenu(false);
-                      }}
-                      variant="secondary"
-                      fullWidth
-                    >
-                      <FaCalendar size={18} />
-                      <span>Google Calendar</span>
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        handleCalendarService("outlook", true);
-                        setShowCalendarMenu(false);
-                      }}
-                      variant="secondary"
-                      fullWidth
-                    >
-                      <FaCalendar size={18} />
-                      <span>Outlook</span>
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        handleCalendarService("yahoo", true);
-                        setShowCalendarMenu(false);
-                      }}
-                      variant="secondary"
-                      fullWidth
-                    >
-                      <FaCalendar size={18} />
-                      <span>Yahoo Calendar</span>
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        handleCalendarService("apple", true);
-                        setShowCalendarMenu(false);
-                      }}
-                      variant="secondary"
-                      fullWidth
-                    >
-                      <FaCalendar size={18} />
-                      <span>Apple Calendar</span>
-                    </Button>
-                  </div>
-                </ModalOrDrawer>
-              </>
-            );
-          })()}
-
-          {/* Your Details - Edge-to-edge, no card */}
-          <div style={{ marginBottom: "32px", textAlign: "left" }}>
+        {/* Event Image as Full Background */}
+        {event?.imageUrl && (
+          <>
             <div
               style={{
-                fontSize: "12px",
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                opacity: 0.6,
-                marginBottom: "20px",
-                color: "rgba(255, 255, 255, 0.6)",
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                width: "100%",
+                height: "100%",
+                zIndex: 0,
               }}
             >
-              Your details
+              <img
+                src={event.imageUrl}
+                alt={event.title}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                }}
+              />
             </div>
-            <h2
+            {/* Gradient overlay - fades to black at bottom */}
+            <div
               style={{
-                fontSize: "clamp(24px, 6vw, 32px)",
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background:
+                  "linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(5, 4, 10, 0.3) 60%, rgba(5, 4, 10, 0.7) 75%, #05040a 100%)",
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+            />
+          </>
+        )}
+
+        {/* Content - Overlaid on background */}
+        <div
+          style={{
+            position: "relative",
+            zIndex: 2,
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            padding: "20px",
+            paddingBottom: "120px", // Space for actions
+          }}
+        >
+          {/* Content - Responsive container: edge-to-edge on mobile, constrained on desktop */}
+          <div
+            className="success-page-content"
+            style={{
+              position: "relative",
+              width: "100%",
+              boxSizing: "border-box",
+              marginTop: "auto",
+              paddingTop: "40px",
+            }}
+          >
+            {/* Status Badge */}
+            <div style={{ marginBottom: "24px", textAlign: "center" }}>
+              {booking?.bookingStatus === "CONFIRMED" ? (
+                <Badge
+                  variant="success"
+                  style={{
+                    fontSize: "16px",
+                    padding: "10px 20px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    background: "rgba(34, 197, 94, 0.2)",
+                    border: "1px solid rgba(34, 197, 94, 0.3)",
+                    color: "#fff",
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
+                  <FaCheckCircle size={18} />
+                  <span>You're in</span>
+                </Badge>
+              ) : (
+                <Badge
+                  variant="warning"
+                  style={{
+                    fontSize: "16px",
+                    padding: "10px 20px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    background: "rgba(251, 191, 36, 0.2)",
+                    border: "1px solid rgba(251, 191, 36, 0.3)",
+                    color: "#fff",
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
+                  <FaClock size={18} />
+                  <span>You're on the list</span>
+                </Badge>
+              )}
+            </div>
+
+            {/* Success Message */}
+            <h1
+              style={{
+                fontSize: "clamp(32px, 8vw, 48px)",
                 fontWeight: 800,
-                marginBottom: "20px",
-                color: "#fff",
+                marginBottom: "12px",
+                textAlign: "center",
+                background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
                 lineHeight: "1.2",
                 letterSpacing: "-0.02em",
+                textShadow: "0 2px 20px rgba(139, 92, 246, 0.3)",
               }}
             >
-              {event.title}
-            </h2>
+              {booking?.bookingStatus === "WAITLIST"
+                ? "You're on the list"
+                : booking?.name
+                ? `See you there, ${booking.name.split(" ")[0]}!`
+                : "See you there!"}
+            </h1>
 
-            {eventDate && (
-              <div
+            <p
+              style={{
+                fontSize: "18px",
+                opacity: 0.9,
+                marginBottom: "32px",
+                lineHeight: 1.6,
+                textAlign: "center",
+                color: "#fff",
+                fontWeight: 400,
+              }}
+            >
+              {booking?.bookingStatus === "WAITLIST"
+                ? "If spots open up, you'll get the link."
+                : "We're excited to see you!"}
+            </p>
+
+            {/* Primary Action: Add to Calendar */}
+            <div
+              style={{
+                marginBottom: "16px",
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            >
+              <Button
+                onClick={() => {
+                  const urls = getCalendarUrls(false);
+                  if (urls?.google) {
+                    window.open(urls.google, "_blank");
+                  }
+                }}
+                fullWidth
+                size="lg"
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "12px",
-                  marginBottom: "16px",
-                  fontSize: "16px",
-                  lineHeight: "1.5",
-                  color: "rgba(255, 255, 255, 0.9)",
+                  width: "100%",
+                  maxWidth: "100%",
                 }}
               >
                 <FaCalendar
-                  size={18}
-                  style={{
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    marginTop: "1px",
-                    color: "rgba(255, 255, 255, 0.7)",
-                  }}
+                  size={20}
+                  style={{ display: "flex", alignItems: "center" }}
                 />
-                <span style={{ display: "flex", alignItems: "center" }}>
-                  {eventDate}
-                </span>
-              </div>
-            )}
+                <span>Add to Calendar</span>
+              </Button>
+            </div>
 
-            {event.location && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "12px",
-                  marginBottom: "20px",
-                  fontSize: "16px",
-                  lineHeight: "1.5",
-                  color: "rgba(255, 255, 255, 0.9)",
-                }}
-              >
-                <FaMapMarkerAlt
-                  size={18}
-                  style={{
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    marginTop: "1px",
-                    color: "rgba(255, 255, 255, 0.7)",
-                  }}
-                />
-                <span style={{ display: "flex", alignItems: "center" }}>
-                  {event.location}
-                </span>
-              </div>
-            )}
+            {/* Calendar Provider Selection (if dinner confirmed) */}
+            {(() => {
+              const hasConfirmedDinner =
+                booking?.wantsDinner &&
+                booking?.dinnerTimeSlot &&
+                booking?.dinnerBookingStatus === "CONFIRMED";
 
-            {booking && (
-              <>
-                <div
-                  style={{
-                    marginTop: "24px",
-                    paddingTop: "24px",
-                    borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-                  }}
-                >
-                  <div
+              if (!hasConfirmedDinner) return null;
+
+              return (
+                <>
+                  <Button
+                    onClick={() => setShowCalendarMenu(true)}
+                    variant="secondary"
+                    fullWidth
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      marginBottom: "16px",
-                      flexWrap: "wrap",
+                      marginBottom: "24px",
+                      width: "100%",
+                      maxWidth: "100%",
+                      boxSizing: "border-box",
                     }}
                   >
-                    <Badge
-                      variant={
-                        booking.bookingStatus === "CONFIRMED"
-                          ? "success"
-                          : "warning"
-                      }
-                      style={{ fontSize: "14px", padding: "8px 16px" }}
-                    >
-                      {booking.bookingStatus === "CONFIRMED"
-                        ? "Confirmed"
-                        : "Waitlist"}
-                    </Badge>
-                    {booking.partySize > 1 && (
-                      <span
-                        style={{
-                          opacity: 0.8,
-                          fontSize: "16px",
-                          color: "rgba(255, 255, 255, 0.9)",
-                        }}
-                      >
-                        {booking.partySize}{" "}
-                        {booking.partySize === 1 ? "person" : "people"}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Dinner Details */}
-                  {booking.wantsDinner && booking.dinnerBookingStatus && (
+                    <FaUtensils
+                      size={18}
+                      style={{ display: "flex", alignItems: "center" }}
+                    />
+                    <span>Add Dinner Time</span>
+                  </Button>
+                  <ModalOrDrawer
+                    isOpen={showCalendarMenu}
+                    onClose={() => setShowCalendarMenu(false)}
+                    title="Add Dinner to Calendar"
+                  >
                     <div
                       style={{
-                        marginTop: "16px",
-                        padding: "16px",
-                        background: "rgba(139, 92, 246, 0.1)",
-                        borderRadius: "12px",
-                        border: "1px solid rgba(139, 92, 246, 0.2)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "12px",
                       }}
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "12px",
-                          marginBottom: "8px",
-                          fontSize: "15px",
-                          fontWeight: 600,
-                          color: "#a78bfa",
+                      <Button
+                        onClick={() => {
+                          handleCalendarService("google", true);
+                          setShowCalendarMenu(false);
                         }}
+                        variant="secondary"
+                        fullWidth
                       >
-                        <FaUtensils
-                          size={18}
-                          style={{ display: "flex", alignItems: "center" }}
-                        />
-                        <span>Dinner</span>
-                        <Badge
-                          variant={
-                            booking.dinnerBookingStatus === "CONFIRMED"
-                              ? "success"
-                              : "warning"
-                          }
-                          style={{ marginLeft: "auto", fontSize: "12px" }}
-                        >
-                          {booking.dinnerBookingStatus === "CONFIRMED"
-                            ? "Confirmed"
-                            : "Waitlist"}
-                        </Badge>
-                      </div>
-                      {booking.dinnerTimeSlot && (
-                        <div
+                        <FaCalendar size={18} />
+                        <span>Google Calendar</span>
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          handleCalendarService("outlook", true);
+                          setShowCalendarMenu(false);
+                        }}
+                        variant="secondary"
+                        fullWidth
+                      >
+                        <FaCalendar size={18} />
+                        <span>Outlook</span>
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          handleCalendarService("yahoo", true);
+                          setShowCalendarMenu(false);
+                        }}
+                        variant="secondary"
+                        fullWidth
+                      >
+                        <FaCalendar size={18} />
+                        <span>Yahoo Calendar</span>
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          handleCalendarService("apple", true);
+                          setShowCalendarMenu(false);
+                        }}
+                        variant="secondary"
+                        fullWidth
+                      >
+                        <FaCalendar size={18} />
+                        <span>Apple Calendar</span>
+                      </Button>
+                    </div>
+                  </ModalOrDrawer>
+                </>
+              );
+            })()}
+
+            {/* Your Details - Edge-to-edge, no card */}
+            <div style={{ marginBottom: "32px", textAlign: "left" }}>
+              <div
+                style={{
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                  opacity: 0.7,
+                  marginBottom: "20px",
+                  color: "rgba(255, 255, 255, 0.8)",
+                  fontWeight: 500,
+                }}
+              >
+                Your details
+              </div>
+              <h2
+                style={{
+                  fontSize: "clamp(28px, 6vw, 36px)",
+                  fontWeight: 800,
+                  marginBottom: "20px",
+                  color: "#fff",
+                  lineHeight: "1.2",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                {event.title}
+              </h2>
+
+              {eventDate && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "12px",
+                    marginBottom: "16px",
+                    fontSize: "16px",
+                    lineHeight: "1.5",
+                    color: "rgba(255, 255, 255, 0.9)",
+                  }}
+                >
+                  <FaCalendar
+                    size={18}
+                    style={{
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      marginTop: "1px",
+                      color: "rgba(255, 255, 255, 0.7)",
+                    }}
+                  />
+                  <span style={{ display: "flex", alignItems: "center" }}>
+                    {eventDate}
+                  </span>
+                </div>
+              )}
+
+              {event.location && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "12px",
+                    marginBottom: "20px",
+                    fontSize: "16px",
+                    lineHeight: "1.5",
+                    color: "rgba(255, 255, 255, 0.9)",
+                  }}
+                >
+                  <FaMapMarkerAlt
+                    size={18}
+                    style={{
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      marginTop: "1px",
+                      color: "rgba(255, 255, 255, 0.7)",
+                    }}
+                  />
+                  <span style={{ display: "flex", alignItems: "center" }}>
+                    {event.location}
+                  </span>
+                </div>
+              )}
+
+              {booking && (
+                <>
+                  <div
+                    style={{
+                      marginTop: "24px",
+                      paddingTop: "24px",
+                      borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        marginBottom: "16px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <Badge
+                        variant={
+                          booking.bookingStatus === "CONFIRMED"
+                            ? "success"
+                            : "warning"
+                        }
+                        style={{ fontSize: "14px", padding: "8px 16px" }}
+                      >
+                        {booking.bookingStatus === "CONFIRMED"
+                          ? "Confirmed"
+                          : "Waitlist"}
+                      </Badge>
+                      {booking.partySize > 1 && (
+                        <span
                           style={{
-                            fontSize: "14px",
-                            opacity: 0.85,
-                            marginTop: "4px",
+                            opacity: 0.8,
+                            fontSize: "16px",
                             color: "rgba(255, 255, 255, 0.9)",
                           }}
                         >
-                          {new Date(booking.dinnerTimeSlot).toLocaleTimeString(
-                            "en-US",
-                            {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            }
-                          )}
-                          {booking.dinnerPartySize > 1 &&
-                            ` • ${booking.dinnerPartySize} people`}
-                        </div>
+                          {booking.partySize}{" "}
+                          {booking.partySize === 1 ? "person" : "people"}
+                        </span>
                       )}
                     </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
 
-          {/* Share Invite - Single button with conditional logic */}
-          {/* {event && (
+                    {/* Dinner Details */}
+                    {booking.wantsDinner && booking.dinnerBookingStatus && (
+                      <div
+                        style={{
+                          marginTop: "16px",
+                          padding: "16px",
+                          background: "rgba(139, 92, 246, 0.1)",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(139, 92, 246, 0.2)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            marginBottom: "8px",
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#a78bfa",
+                          }}
+                        >
+                          <FaUtensils
+                            size={18}
+                            style={{ display: "flex", alignItems: "center" }}
+                          />
+                          <span>Dinner</span>
+                          <Badge
+                            variant={
+                              booking.dinnerBookingStatus === "CONFIRMED"
+                                ? "success"
+                                : "warning"
+                            }
+                            style={{ marginLeft: "auto", fontSize: "12px" }}
+                          >
+                            {booking.dinnerBookingStatus === "CONFIRMED"
+                              ? "Confirmed"
+                              : "Waitlist"}
+                          </Badge>
+                        </div>
+                        {booking.dinnerTimeSlot && (
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              opacity: 0.85,
+                              marginTop: "4px",
+                              color: "rgba(255, 255, 255, 0.9)",
+                            }}
+                          >
+                            {new Date(
+                              booking.dinnerTimeSlot
+                            ).toLocaleTimeString("en-US", {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                            {booking.dinnerPartySize > 1 &&
+                              ` • ${booking.dinnerPartySize} people`}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Share Invite - Single button with conditional logic */}
+            {/* {event && (
             <div
               style={{
                 marginBottom: "24px",
@@ -823,8 +865,8 @@ export function RsvpSuccessPage() {
             </div>
           )} */}
 
-          {/* Back to Event Link */}
-          {/* <div
+            {/* Back to Event Link */}
+            {/* <div
             style={{
               marginTop: "32px",
               fontSize: "14px",
@@ -847,6 +889,7 @@ export function RsvpSuccessPage() {
               ← Back to event
             </button>
           </div> */}
+          </div>
         </div>
 
         {/* CSS Animations */}

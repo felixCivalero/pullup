@@ -1,14 +1,57 @@
 // frontend/src/lib/shareUtils.js
-// Share message templates for different contexts
+// Share message templates (social-first, one link, no image URLs)
 
 /**
- * Build share text for an event
+ * Format: Sunday, December 14 at 2:00 PM
+ */
+function formatWhen(dateString) {
+  if (!dateString) return "";
+  try {
+    const d = new Date(dateString);
+
+    const date = d.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+
+    const time = d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    return `${date} at ${time}`;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Guarantees the returned string contains EXACTLY one URL:
+ * the provided `url` at the end.
+ */
+function enforceSingleUrl(text, url) {
+  const cleaned = String(text)
+    // Remove any accidental URLs already inside
+    .replace(/https?:\/\/\S+/g, "")
+    // Trim trailing spaces on lines
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+
+  return `${cleaned}\n\nDetails + RSVP: ${url}`;
+}
+
+/**
+ * Build share text for an event (human share copy)
+ * - No image URLs.
+ * - Exactly one link.
+ * - Multiline, social-native.
+ *
  * @param {Object} params
- * @param {Object} params.event - Event object with title, description, startsAt, location, imageUrl
- * @param {string} params.url - Full URL to share
- * @param {string} params.variant - Template variant: 'default' | 'casual' | 'invite' | 'dinner' | 'confirmation'
+ * @param {Object} params.event
+ * @param {string} params.url - Single URL to share (should be /share/:slug)
+ * @param {string} params.variant - 'default' | 'casual' | 'invite' | 'dinner' | 'confirmation'
  * @param {Object} params.booking - Booking details (for confirmation variant)
- * @returns {string} Formatted share text
  */
 export function buildShareText({
   event,
@@ -16,136 +59,73 @@ export function buildShareText({
   variant = "default",
   booking = null,
 }) {
-  if (!event) return url;
+  if (!event) return url || "";
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    });
-  };
+  const title = event.title || "Pull Up";
+  const when = formatWhen(event.startsAt);
+  const where = event.location ? String(event.location).trim() : "";
 
-  const formatTime = (dateString) => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
-
-  const formatDateTime = (dateString) => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    return date.toLocaleString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
-
-  const eventDate = formatDate(event.startsAt);
-  const eventTime = formatTime(event.startsAt);
-  const eventDateTime = formatDateTime(event.startsAt);
+  // Core template (your preferred standard)
+  const standard = () =>
+    [`Pull up to ${title}! 🍸`, "", [when, where].filter(Boolean).join("\n")]
+      .filter(Boolean)
+      .join("\n");
 
   switch (variant) {
-    case "casual":
-      // "Tonight at 19 — pull up 🍸"
-      return `${
-        eventTime ? `Tonight at ${eventTime}` : "Tonight"
-      } — pull up 🍸\n\n${url}`;
+    case "casual": {
+      // Keep it short, still only one link
+      const casual = [
+        when ? `${when} — pull up 🍸` : "Pull up 🍸",
+        where ? `📍 ${where}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
 
-    case "invite":
-      // "You're invited to [Event]! [Date] [Location] [Image if available] Details + RSVP: [url]"
-      let inviteText = `You're invited to ${event.title}!`;
-      if (eventDateTime) {
-        inviteText += `\n\n${eventDateTime}`;
-      }
-      if (event.location) {
-        inviteText += `\n📍 ${event.location}`;
-      }
-      // Include event image URL if available (for platforms that support it)
-      if (event.imageUrl) {
-        inviteText += `\n\n${event.imageUrl}`;
-      }
-      inviteText += `\n\nDetails + RSVP: ${url}`;
-      return inviteText;
+      return enforceSingleUrl(casual, url);
+    }
 
-    case "dinner":
-      // For dinner-specific shares
-      return `${event.title} — ${eventDate || "Dinner event"}\n\n${
-        event.description?.substring(0, 100) || ""
-      }${event.description?.length > 100 ? "..." : ""}\n\nRSVP: ${url}`;
+    case "invite": {
+      // Invite = same as standard, no extras, no image, one link.
+      return enforceSingleUrl(standard(), url);
+    }
 
-    case "confirmation":
-      // Booking confirmation: "I'm going to [Event]! [Date] [Booking details]"
-      if (!booking) {
-        return buildShareText({ event, url, variant: "casual" });
-      }
+    case "dinner": {
+      // Dinner variant: still standardized. Optionally add “Dinner” line if you want.
+      const dinnerLine = "🍽️ Dinner available";
+      const dinnerText = [standard(), "", dinnerLine].join("\n");
+      return enforceSingleUrl(dinnerText, url);
+    }
 
-      let confirmText = `I'm going to ${event.title}! 🎉\n\n`;
-
-      if (eventDateTime) {
-        confirmText += `📅 ${eventDateTime}\n`;
-      }
-      if (event.location) {
-        confirmText += `📍 ${event.location}\n`;
-      }
-
-      // Booking status
-      if (booking.bookingStatus === "CONFIRMED") {
-        confirmText += `\n✅ Confirmed`;
-        if (booking.partySize > 1) {
-          confirmText += ` for ${booking.partySize} ${
-            booking.partySize === 1 ? "person" : "people"
-          }`;
-        }
-      } else if (booking.bookingStatus === "WAITLIST") {
-        confirmText += `\n⏳ On waitlist`;
-      }
-
-      // Dinner details if applicable
-      if (booking.wantsDinner && booking.dinnerBookingStatus === "CONFIRMED") {
-        const dinnerTime = booking.dinnerTimeSlot
-          ? new Date(booking.dinnerTimeSlot).toLocaleTimeString("en-US", {
-              hour: "numeric",
-              minute: "2-digit",
-            })
+    case "confirmation": {
+      // Share after RSVP: slightly different headline, still one link.
+      const status =
+        booking?.bookingStatus === "CONFIRMED"
+          ? "✅ I'm in."
+          : booking?.bookingStatus === "WAITLIST"
+          ? "⏳ I'm on the waitlist."
           : null;
-        if (dinnerTime) {
-          confirmText += `\n🍽️ Dinner at ${dinnerTime}`;
-          if (booking.dinnerPartySize > 1) {
-            confirmText += ` (${booking.dinnerPartySize} people)`;
-          }
-        }
-      }
 
-      confirmText += `\n\nJoin me: ${url}`;
-      return confirmText;
+      const party =
+        booking?.partySize && booking.partySize > 1
+          ? `👥 Party: ${booking.partySize}`
+          : null;
+
+      const confirmText = [
+        `I’m going to ${title}! 🎉`,
+        "",
+        [when, where].filter(Boolean).join("\n"),
+        "",
+        [status, party].filter(Boolean).join("\n"),
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      return enforceSingleUrl(confirmText, url);
+    }
 
     case "default":
-    default:
-      // Default: Event title, date, description preview, image, URL
-      let defaultText = `${event.title}`;
-      if (eventDateTime) {
-        defaultText += ` — ${eventDateTime}`;
-      }
-      if (event.description) {
-        const descPreview = event.description.substring(0, 100);
-        defaultText += `\n\n${descPreview}${
-          event.description.length > 100 ? "..." : ""
-        }`;
-      }
-      // Include event image URL if available
-      if (event.imageUrl) {
-        defaultText += `\n\n${event.imageUrl}`;
-      }
-      defaultText += `\n\nRSVP: ${url}`;
-      return defaultText;
+    default: {
+      return enforceSingleUrl(standard(), url);
+    }
   }
 }

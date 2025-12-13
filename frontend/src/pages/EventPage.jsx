@@ -296,10 +296,28 @@ export function EventPage() {
         /* Prevent horizontal scroll and ensure proper alignment */
         body {
           overflow-x: hidden;
+          overflow-y: hidden;
           width: 100%;
+          height: 100vh;
+          position: fixed;
+        }
+        html {
+          overflow: hidden;
+          height: 100vh;
         }
         * {
           box-sizing: border-box;
+        }
+        /* Hide read more button on larger screens */
+        @media (min-width: 768px) {
+          .read-more-button {
+            display: none !important;
+          }
+          .description-text {
+            display: block !important;
+            -webkit-line-clamp: none !important;
+            overflow: visible !important;
+          }
         }
       `}</style>
       <div
@@ -361,10 +379,12 @@ export function EventPage() {
             position: "relative",
             zIndex: 2,
             minHeight: "100vh",
+            maxHeight: "100vh",
             display: "flex",
             flexDirection: "column",
             padding: "20px",
             paddingBottom: "100px", // Space for sticky button
+            overflow: "hidden",
           }}
         >
           {/* Title at the top */}
@@ -378,7 +398,7 @@ export function EventPage() {
               margin: 0,
               marginTop: "20px",
               marginBottom: "auto", // Push content to bottom
-              paddingBottom: "20px",
+              paddingBottom: "12px",
             }}
           >
             {event?.title}
@@ -388,7 +408,7 @@ export function EventPage() {
           <div
             style={{
               marginTop: "auto",
-              paddingTop: "40px",
+              paddingTop: "16px",
             }}
           >
             {/* Social Icons - Share, Instagram, Spotify */}
@@ -397,7 +417,7 @@ export function EventPage() {
                 display: "flex",
                 alignItems: "center",
                 gap: "16px",
-                marginBottom: "20px",
+                marginBottom: "12px",
               }}
             >
               {/* Share icon - always visible */}
@@ -514,9 +534,9 @@ export function EventPage() {
                   display: "flex",
                   alignItems: "flex-start",
                   gap: "12px",
-                  marginBottom: "16px",
+                  marginBottom: "12px",
                   fontSize: "16px",
-                  lineHeight: "1.5",
+                  lineHeight: "1.4",
                   color: "rgba(255, 255, 255, 0.9)",
                 }}
               >
@@ -544,9 +564,9 @@ export function EventPage() {
                   display: "flex",
                   alignItems: "flex-start",
                   gap: "12px",
-                  marginBottom: "20px",
+                  marginBottom: "12px",
                   fontSize: "16px",
-                  lineHeight: "1.5",
+                  lineHeight: "1.4",
                   color: "rgba(255, 255, 255, 0.9)",
                 }}
               >
@@ -564,52 +584,53 @@ export function EventPage() {
               </div>
             )}
 
-            {/* Description - Always show preview, then expand */}
+            {/* Description - Show 2 lines initially on mobile, full text on desktop */}
             {event?.description && (
-              <div style={{ marginBottom: "24px" }}>
+              <div style={{ marginBottom: "16px" }}>
                 <p
+                  className="description-text"
                   style={{
                     fontSize: "16px",
-                    lineHeight: "1.6",
+                    lineHeight: "1.5",
                     color: "rgba(255, 255, 255, 0.85)",
                     margin: 0,
-                    marginBottom: showDescription ? "12px" : "0",
+                    marginBottom: showDescription ? "8px" : "0",
                     wordWrap: "break-word",
                     overflowWrap: "break-word",
+                    display: showDescription ? "block" : "-webkit-box",
+                    WebkitLineClamp: showDescription ? "none" : 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: showDescription ? "visible" : "hidden",
+                    textOverflow: "ellipsis",
                   }}
                 >
-                  {showDescription
-                    ? event.description
-                    : event.description.length > 150
-                    ? `${event.description.substring(0, 150).trim()}...`
-                    : event.description}
+                  {event.description}
                 </p>
-                {event.description.length > 150 && (
-                  <button
-                    onClick={() => setShowDescription(!showDescription)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#a78bfa",
-                      fontSize: "14px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      padding: "8px 0",
-                      margin: "8px 0 0 0",
-                      textDecoration: "none",
-                      display: "inline-block",
-                      WebkitTapHighlightColor: "transparent",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.textDecoration = "underline";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.textDecoration = "none";
-                    }}
-                  >
-                    {showDescription ? "Show less" : "Read more"}
-                  </button>
-                )}
+                <button
+                  className="read-more-button"
+                  onClick={() => setShowDescription(!showDescription)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#a78bfa",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    padding: "4px 0",
+                    margin: "4px 0 0 0",
+                    textDecoration: "none",
+                    display: "inline-block",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.textDecoration = "underline";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.textDecoration = "none";
+                  }}
+                >
+                  {showDescription ? "Read less" : "Read more"}
+                </button>
               </div>
             )}
 

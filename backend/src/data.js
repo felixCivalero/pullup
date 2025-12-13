@@ -3,20 +3,6 @@
 import { supabase } from "./supabase.js";
 
 // ---------------------------
-// In-memory data (DEPRECATED - migrating to Supabase)
-// ---------------------------
-export const events = []; // TODO: Remove after migration
-
-// People/Contacts table - unique by email
-export const people = []; // TODO: Remove after migration
-
-// RSVPs table - links people to events
-export const rsvps = []; // TODO: Remove after migration
-
-// Payments table - stores payment records
-export const payments = []; // TODO: Remove after migration
-
-// ---------------------------
 // Slug helpers
 // ---------------------------
 function slugify(text) {
@@ -1158,9 +1144,9 @@ export async function addRsvp({
           message:
             "The selected dinner time slot is not available for this event",
         };
-    } else if (availableSlots.length > 0) {
+      } else if (availableSlots.length > 0) {
         // No slot provided - default to first available
-      finalDinnerTimeSlot = availableSlots[0];
+        finalDinnerTimeSlot = availableSlots[0];
       }
     }
 

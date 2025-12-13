@@ -8,6 +8,7 @@ import {
   FaCheckCircle,
   FaClock,
   FaUtensils,
+  FaWineGlass,
 } from "react-icons/fa";
 import { getEventShareUrl } from "../lib/urlUtils";
 import { Button } from "../components/ui/Button";
@@ -796,52 +797,76 @@ export function RsvpSuccessPage() {
                       borderTop: "1px solid rgba(255, 255, 255, 0.15)",
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "12px",
-                        marginBottom: "16px",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <Badge
-                        variant={
-                          booking.bookingStatus === "CONFIRMED"
-                            ? "success"
-                            : "warning"
-                        }
+                    {/* Cocktails Details */}
+                    {booking.bookingStatus && (
+                      <div
                         style={{
-                          fontSize: "14px",
-                          padding: "10px 18px",
-                          fontWeight: 600,
-                          borderRadius: "8px",
+                          marginTop: "20px",
+                          padding: "20px",
+                          background: "rgba(236, 72, 153, 0.15)",
+                          borderRadius: "16px",
+                          border: "1px solid rgba(236, 72, 153, 0.3)",
+                          backdropFilter: "blur(10px)",
+                          boxShadow: "0 4px 20px rgba(236, 72, 153, 0.15)",
                         }}
                       >
-                        {booking.bookingStatus === "CONFIRMED"
-                          ? "Confirmed"
-                          : "Waitlist"}
-                      </Badge>
-                      {booking.partySize > 1 && (
-                        <span
+                        <div
                           style={{
-                            opacity: 0.9,
-                            fontSize: "17px",
-                            color: "rgba(255, 255, 255, 0.95)",
-                            fontWeight: 400,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            marginBottom: "8px",
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#f472b6",
                           }}
                         >
-                          {booking.partySize}{" "}
-                          {booking.partySize === 1 ? "person" : "people"}
-                        </span>
-                      )}
-                    </div>
+                          <FaWineGlass
+                            size={18}
+                            style={{ display: "flex", alignItems: "center" }}
+                          />
+                          <span>Cocktails</span>
+                          <Badge
+                            variant={
+                              booking.bookingStatus === "CONFIRMED"
+                                ? "success"
+                                : "warning"
+                            }
+                            style={{ marginLeft: "auto", fontSize: "12px" }}
+                          >
+                            {booking.bookingStatus === "CONFIRMED"
+                              ? "Confirmed"
+                              : "Waitlist"}
+                          </Badge>
+                        </div>
+                        {event?.startsAt && (
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              opacity: 0.85,
+                              marginTop: "4px",
+                              color: "rgba(255, 255, 255, 0.9)",
+                            }}
+                          >
+                            {new Date(event.startsAt).toLocaleTimeString(
+                              "en-US",
+                              {
+                                hour: "numeric",
+                                minute: "2-digit",
+                              }
+                            )}
+                            {booking.partySize > 1 &&
+                              ` • ${booking.partySize} people`}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Dinner Details */}
                     {booking.wantsDinner && booking.dinnerBookingStatus && (
                       <div
                         style={{
-                          marginTop: "20px",
+                          marginTop: "16px",
                           padding: "20px",
                           background: "rgba(139, 92, 246, 0.15)",
                           borderRadius: "16px",

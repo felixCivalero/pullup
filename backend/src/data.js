@@ -1158,9 +1158,9 @@ export async function addRsvp({
           message:
             "The selected dinner time slot is not available for this event",
         };
-      } else if (availableSlots.length > 0) {
+    } else if (availableSlots.length > 0) {
         // No slot provided - default to first available
-        finalDinnerTimeSlot = availableSlots[0];
+      finalDinnerTimeSlot = availableSlots[0];
       }
     }
 

@@ -15,7 +15,8 @@ export function getBaseUrl() {
 }
 
 /**
- * Get the backend API base URL
+ * Get the backend API base URL for share endpoint
+ * In production, uses root domain because Nginx has /share/ location block
  * @returns {string} Backend API base URL
  */
 function getBackendUrl() {
@@ -23,7 +24,7 @@ function getBackendUrl() {
   if (import.meta.env.DEV) {
     return "http://localhost:3001";
   }
-  // In production, backend is on same domain (share endpoint is at root, not /api)
+  // In production, use root domain (Nginx proxies /share/ to backend)
   return "https://pullup.se";
 }
 
@@ -39,7 +40,8 @@ export function getEventUrl(slug) {
 /**
  * Build a share URL for an event (guaranteed to return HTML with OG tags)
  * Use this for sharing to get proper link previews
- * Note: This points to the backend API, not the frontend
+ * Note: In production, uses /api/share/ to work with existing Nginx proxy
+ *       For cleaner URLs, add /share/ location block in Nginx (see NGINX_SHARE_ENDPOINT_FIX.md)
  * @param {string} slug - Event slug (NOT event ID)
  * @returns {string} Share URL (e.g., "http://localhost:3001/share/my-event" or "https://pullup.se/share/my-event")
  */

@@ -237,16 +237,16 @@ export function LandingPage() {
                 }}
                 onMouseEnter={(e) => {
                   if (!signingIn) {
-                    e.target.style.transform = "translateY(-2px)";
-                    e.target.style.boxShadow =
-                      "0 15px 40px rgba(139, 92, 246, 0.6)";
+                  e.target.style.transform = "translateY(-2px)";
+                  e.target.style.boxShadow =
+                    "0 15px 40px rgba(139, 92, 246, 0.6)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!signingIn) {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow =
-                      "0 10px 30px rgba(139, 92, 246, 0.4)";
+                  e.target.style.transform = "translateY(0)";
+                  e.target.style.boxShadow =
+                    "0 10px 30px rgba(139, 92, 246, 0.4)";
                   }
                 }}
               >

@@ -610,7 +610,7 @@ export function EventGuestsPage() {
     if (pullUpFilter === "partial" && pullUpStatus === "PARTIAL") return true;
     if (pullUpFilter === "full" && pullUpStatus === "FULL") return true;
 
-    return false;
+      return false;
   });
 
   // Sorting function
@@ -823,52 +823,52 @@ export function EventGuestsPage() {
               style={{
                 display: "flex",
                 gap: "8px",
-                fontSize: "14px",
-                borderBottom: "2px solid rgba(255,255,255,0.08)",
-                paddingBottom: "0",
+              fontSize: "14px",
+              borderBottom: "2px solid rgba(255,255,255,0.08)",
+              paddingBottom: "0",
+            }}
+          >
+            <button
+              onClick={() => navigate(`/app/events/${id}/manage`)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#9ca3af",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                padding: "12px 20px",
+                borderRadius: "8px 8px 0 0",
+                fontWeight: 500,
+                borderBottom: "2px solid transparent",
+                marginBottom: "-2px",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.color = "#fff";
+                e.target.style.background = "rgba(255,255,255,0.05)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.color = "#9ca3af";
+                e.target.style.background = "transparent";
               }}
             >
-              <button
-                onClick={() => navigate(`/app/events/${id}/manage`)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#9ca3af",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  padding: "12px 20px",
-                  borderRadius: "8px 8px 0 0",
-                  fontWeight: 500,
-                  borderBottom: "2px solid transparent",
-                  marginBottom: "-2px",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.color = "#fff";
-                  e.target.style.background = "rgba(255,255,255,0.05)";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.color = "#9ca3af";
-                  e.target.style.background = "transparent";
-                }}
-              >
-                Overview
-              </button>
-              <div
-                style={{
-                  padding: "12px 20px",
-                  fontWeight: 700,
-                  color: "#fff",
-                  borderBottom: "2px solid #8b5cf6",
-                  marginBottom: "-2px",
-                  background: "rgba(139, 92, 246, 0.1)",
-                  borderRadius: "8px 8px 0 0",
-                }}
-              >
-                👥 Guests
-              </div>
+              Overview
+            </button>
+            <div
+              style={{
+                padding: "12px 20px",
+                fontWeight: 700,
+                color: "#fff",
+                borderBottom: "2px solid #8b5cf6",
+                marginBottom: "-2px",
+                background: "rgba(139, 92, 246, 0.1)",
+                borderRadius: "8px 8px 0 0",
+              }}
+            >
+              👥 Guests
+            </div>
               <button
                 onClick={() => navigate(`/app/events/${id}/manage?tab=edit`)}
-                style={{
+            style={{
                   background: "transparent",
                   border: "none",
                   color: "#9ca3af",
@@ -891,7 +891,7 @@ export function EventGuestsPage() {
               >
                 Edit
               </button>
-            </div>
+          </div>
             <button
               onClick={async () => {
                 try {
@@ -941,12 +941,12 @@ export function EventGuestsPage() {
             >
               📥 Export CSV
             </button>
-          </div>
+            </div>
 
           {/* Filter Controls */}
-          <div
-            style={{
-              display: "flex",
+            <div
+              style={{
+                display: "flex",
               gap: "12px",
               marginBottom: "20px",
               flexWrap: "wrap",
@@ -955,14 +955,14 @@ export function EventGuestsPage() {
           >
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <label
-                style={{
+                  style={{
                   fontSize: "12px",
-                  fontWeight: 600,
+                    fontWeight: 600,
                   opacity: 0.7,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                }}
-              >
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                  }}
+                >
                 Status:
               </label>
               <select
@@ -984,18 +984,18 @@ export function EventGuestsPage() {
                 <option value="attending">Attending</option>
                 <option value="waitlist">Waitlist</option>
               </select>
-            </div>
+                </div>
 
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <label
-                style={{
+                    style={{
                   fontSize: "12px",
-                  fontWeight: 600,
+                      fontWeight: 600,
                   opacity: 0.7,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                }}
-              >
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                    }}
+                  >
                 Pull-Up:
               </label>
               <select
@@ -1018,7 +1018,7 @@ export function EventGuestsPage() {
                 <option value="partial">Partially pulled up</option>
                 <option value="full">All pulled up</option>
               </select>
-            </div>
+                  </div>
 
             {(statusFilter !== "all" || pullUpFilter !== "all") && (
               <button
@@ -1166,21 +1166,21 @@ export function EventGuestsPage() {
                       onSort={handleSort}
                       align="right"
                     />
-                    <th
-                      style={{
-                        padding: "20px 24px",
-                        textAlign: "center",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.12em",
-                        opacity: 0.95,
-                        color: "#fff",
+                      <th
+                        style={{
+                          padding: "20px 24px",
+                          textAlign: "center",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.12em",
+                          opacity: 0.95,
+                          color: "#fff",
                         width: "140px",
-                      }}
-                    >
+                        }}
+                      >
                       Pulled Up
-                    </th>
+                      </th>
                     <th
                       style={{
                         padding: "20px 24px",
@@ -1262,23 +1262,23 @@ export function EventGuestsPage() {
                               const plusOnes = g.plusOnes ?? 0;
 
                               if (plusOnes > 0) {
-                                return (
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
+                              return (
+                                    <div
+                                      style={{
+                                        fontSize: "11px",
                                       opacity: 0.9,
                                       padding: "4px 10px",
-                                      background: "rgba(245, 158, 11, 0.15)",
-                                      borderRadius: "6px",
-                                      border:
-                                        "1px solid rgba(245, 158, 11, 0.3)",
-                                      color: "#f59e0b",
-                                      fontWeight: 600,
+                                        background: "rgba(245, 158, 11, 0.15)",
+                                        borderRadius: "6px",
+                                        border:
+                                          "1px solid rgba(245, 158, 11, 0.3)",
+                                        color: "#f59e0b",
+                                        fontWeight: 600,
                                       display: "inline-block",
-                                    }}
-                                  >
+                                      }}
+                                    >
                                     +{plusOnes} guest{plusOnes > 1 ? "s" : ""}
-                                  </div>
+                                </div>
                                 );
                               }
 
@@ -1877,9 +1877,9 @@ function CombinedStatusBadge({ guest }) {
   } else if (bookingStatus === "WAITLIST") {
     // Entire booking is on waitlist (all-or-nothing)
     label = "WAITLIST";
-    bg = "rgba(236, 72, 153, 0.2)";
-    border = "rgba(236, 72, 153, 0.5)";
-    color = "#f472b6";
+      bg = "rgba(236, 72, 153, 0.2)";
+      border = "rgba(236, 72, 153, 0.5)";
+      color = "#f472b6";
   } else if (bookingStatus === "CANCELLED") {
     label = "CANCELLED";
     bg = "rgba(107, 114, 128, 0.2)";
@@ -1922,23 +1922,23 @@ function CombinedStatusBadge({ guest }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-        <span
-          style={{
-            fontSize: "10px",
-            fontWeight: 700,
-            padding: "6px 12px",
-            borderRadius: "999px",
-            background: bg,
-            border: `1.5px solid ${border}`,
-            color: color,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            display: "inline-block",
-            lineHeight: "1.3",
-          }}
-        >
-          {label}
-        </span>
+    <span
+      style={{
+        fontSize: "10px",
+        fontWeight: 700,
+        padding: "6px 12px",
+        borderRadius: "999px",
+        background: bg,
+        border: `1.5px solid ${border}`,
+        color: color,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        display: "inline-block",
+        lineHeight: "1.3",
+      }}
+    >
+      {label}
+    </span>
         {capacityOverridden && bookingStatus === "CONFIRMED" && (
           <span
             title="This guest was confirmed by overriding capacity limits."

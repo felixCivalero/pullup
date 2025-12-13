@@ -90,18 +90,20 @@ function generateOgHtml(event) {
   console.log(`[OG] Event ID: ${event.id || "MISSING"}`);
   console.log(`[OG] Event URL: ${eventUrl}`);
   console.log(`[OG] Image URL: ${imageUrl}`);
+  console.log(
+    `[OG] Image URL type: ${
+      imageUrl
+        ? imageUrl.includes("/public/")
+          ? "PUBLIC"
+          : imageUrl.includes("/sign/")
+          ? "SIGNED"
+          : "OTHER"
+        : "NONE"
+    }`
+  );
+  console.log(`[OG] Will use: ${imageUrl || "DEFAULT og-image.jpg"}`);
 
-  // Clean description (escape HTML, limit length)
-  const description = event.description
-    ? event.description
-        .substring(0, 160)
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-    : `Join us for ${event.title}`;
-
-  // Format event date/time
+  // Format event date/time (needed for both title and description)
   let eventDateTime = "";
   if (event.startsAt) {
     try {
@@ -118,6 +120,44 @@ function generateOgHtml(event) {
       // If date parsing fails, just use the title
     }
   }
+
+  // Build a nice share message-style description
+  let descriptionParts = [];
+
+  // Start with invitation
+  descriptionParts.push(`You're invited to ${event.title}!`);
+
+  // Add date and time
+  if (eventDateTime) {
+    descriptionParts.push(eventDateTime);
+  }
+
+  // Add location if available
+  if (event.location) {
+    descriptionParts.push(event.location);
+  }
+
+  // Add description preview if available (truncated)
+  if (event.description) {
+    const descPreview = event.description.substring(0, 80);
+    if (descPreview) {
+      descriptionParts.push(
+        descPreview + (event.description.length > 80 ? "..." : "")
+      );
+    }
+  }
+
+  // Add call to action
+  descriptionParts.push("Details + RSVP");
+
+  // Join parts and escape HTML
+  const description = descriptionParts
+    .join(" • ")
+    .substring(0, 200) // Limit to 200 chars for OG tags
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 
   // Escape HTML in title
   const escapedTitle = event.title
@@ -212,6 +252,80 @@ app.get("/events", requireAuth, async (req, res) => {
   }
 });
 
+// Helper: Generate OG HTML for an event (extracts public URL from signed URL if needed)
+async function generateOgHtmlForEvent(event, routeName = "Share") {
+  console.log(
+    `[${routeName}] Found event: ${event.title} (slug: ${event.slug}, id: ${event.id})`
+  );
+  console.log(
+    `[${routeName}] Event image URL (raw): ${event.imageUrl || "none"}`
+  );
+
+  // For OG tags, we need a permanent public URL, not a signed URL that expires
+  // Extract file path and generate public URL if we have an image
+  let ogImageUrl = null;
+
+  if (!event.imageUrl) {
+    console.log(
+      `[${routeName}] Event has no image - will use default OG image`
+    );
+    ogImageUrl = null; // Will use default in generateOgHtml
+  } else if (event.imageUrl.includes("event-images/")) {
+    try {
+      // Extract file path from signed URL or full URL
+      // Signed URLs: https://...supabase.co/storage/v1/object/sign/event-images/path?token=...
+      // Public URLs: https://...supabase.co/storage/v1/object/public/event-images/path
+      const pathMatch = event.imageUrl.match(/event-images\/([^?]+)/);
+      if (pathMatch) {
+        const filePath = pathMatch[1];
+        console.log(`[${routeName}] Extracted file path: ${filePath}`);
+
+        // Get public URL (doesn't expire, works for crawlers)
+        const { supabase } = await import("./supabase.js");
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("event-images").getPublicUrl(filePath);
+        ogImageUrl = publicUrl;
+        console.log(
+          `[${routeName}] Generated public URL for OG: ${ogImageUrl}`
+        );
+      } else {
+        console.log(
+          `[${routeName}] Could not extract path from imageUrl: ${event.imageUrl}`
+        );
+        ogImageUrl = event.imageUrl; // Use as-is
+      }
+    } catch (urlError) {
+      console.error(
+        `[${routeName}] Error generating public URL, using original:`,
+        urlError
+      );
+      ogImageUrl = event.imageUrl; // Fall back to original
+    }
+  } else {
+    // Image URL is not from event-images bucket, use as-is
+    console.log(
+      `[${routeName}] Image URL is not from event-images bucket, using as-is: ${event.imageUrl}`
+    );
+    ogImageUrl = event.imageUrl;
+  }
+
+  // Create event object with public image URL for OG tags
+  const eventForOg = {
+    ...event,
+    imageUrl: ogImageUrl,
+  };
+
+  console.log(
+    `[${routeName}] Final OG image URL: ${
+      ogImageUrl || "none (will use default)"
+    }`
+  );
+
+  // Generate HTML with dynamic OG tags
+  return generateOgHtml(eventForOg);
+}
+
 // ---------------------------
 // PUBLIC: Share endpoint - Always returns HTML with OG tags
 // ---------------------------
@@ -227,18 +341,44 @@ app.get("/share/:slug", async (req, res) => {
       return res.status(404).send("Event not found");
     }
 
-    console.log(
-      `[Share] Found event: ${event.title} (slug: ${event.slug}, id: ${event.id})`
-    );
-    console.log(`[Share] Event image URL: ${event.imageUrl || "none"}`);
-
-    // Generate HTML with dynamic OG tags
-    const ogHtml = generateOgHtml(event);
+    const ogHtml = await generateOgHtmlForEvent(event, "Share");
     res.setHeader("Content-Type", "text/html");
     res.send(ogHtml);
   } catch (error) {
     console.error("Error generating share page:", error);
     res.status(500).send("Error generating share page");
+  }
+});
+
+// ---------------------------
+// PUBLIC: Event page endpoint - Returns HTML with OG tags
+// This ensures /e/:slug shares show the same rich preview as /share/:slug
+// ---------------------------
+app.get("/e/:slug", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    console.log(`[EventPage] Request for slug: ${slug}`);
+
+    const event = await findEventBySlug(slug);
+
+    if (!event) {
+      console.log(`[EventPage] Event not found for slug: ${slug}`);
+      // For browsers, let frontend handle 404
+      // For crawlers, return 404 HTML
+      if (isCrawler(req)) {
+        return res.status(404).send("Event not found");
+      }
+      // Redirect browsers to frontend (which will handle 404)
+      return res.redirect(`https://pullup.se/e/${slug}`);
+    }
+
+    // Always return OG HTML (crawlers get OG tags, browsers get redirected via meta refresh)
+    const ogHtml = await generateOgHtmlForEvent(event, "EventPage");
+    res.setHeader("Content-Type", "text/html");
+    res.send(ogHtml);
+  } catch (error) {
+    console.error("Error generating event page OG:", error);
+    res.status(500).send("Error generating event page");
   }
 });
 
@@ -255,7 +395,8 @@ app.get("/events/:slug", async (req, res) => {
 
     // If request is from a crawler, return HTML with OG tags
     if (isCrawler(req)) {
-      const ogHtml = generateOgHtml(event);
+      console.log(`[Events] Crawler detected for slug: ${slug}`);
+      const ogHtml = await generateOgHtmlForEvent(event, "EventsAPI");
       res.setHeader("Content-Type", "text/html");
       return res.send(ogHtml);
     }

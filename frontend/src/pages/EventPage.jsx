@@ -10,8 +10,6 @@ import {
   FaMapMarkerAlt,
 } from "react-icons/fa";
 import { useToast } from "../components/Toast";
-import { ShareActions } from "../components/ShareActions";
-import { buildShareText } from "../lib/shareUtils";
 import { getEventShareUrl } from "../lib/urlUtils";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
 import { RsvpForm } from "../components/RsvpForm";
@@ -271,9 +269,6 @@ export function EventPage() {
 
   // Use share URL for better link previews (returns HTML with OG tags)
   const shareUrl = event && event.slug ? getEventShareUrl(event.slug) : "";
-  const shareText = event
-    ? buildShareText({ event, url: shareUrl, variant: "invite" })
-    : shareUrl;
 
   // Format date/time
   const eventDate = event?.startsAt
@@ -514,53 +509,44 @@ export function EventPage() {
               >
                 {/* Share icon - always visible */}
                 <button
-                  onClick={async () => {
-                    if (navigator.share) {
-                      try {
-                        await navigator.share({
-                          title: event?.title,
-                          text: shareText,
-                          url: shareUrl,
-                        });
-                      } catch (err) {
-                        if (err.name !== "AbortError") {
-                          // Fallback to copy
-                          try {
-                            await navigator.clipboard.writeText(shareUrl);
-                            showToast("Link copied!", "success");
-                          } catch (copyErr) {
-                            console.error("Failed to copy:", copyErr);
-                          }
-                        }
-                      }
-                    } else {
-                      // Desktop: copy to clipboard
-                      try {
-                        await navigator.clipboard.writeText(shareUrl);
-                        showToast("Link copied!", "success");
-                      } catch (err) {
-                        console.error("Failed to copy:", err);
-                        showToast("Failed to copy link", "error");
-                      }
-                    }
-                  }}
                   style={{
-                    background: "none",
+                    background: "transparent",
                     border: "none",
-                    color: "rgba(255, 255, 255, 0.8)",
+                    padding: 0,
+                    margin: 0,
+                    boxShadow: "none",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    MozAppearance: "none",
+                    outline: "none",
+                    color: "inherit",
                     cursor: "pointer",
-                    padding: "4px",
                     display: "flex",
                     alignItems: "center",
-                    transition: "all 0.2s ease",
                   }}
-                  onMouseEnter={(e) => {
-                    e.target.style.color = "#fff";
-                    e.target.style.transform = "scale(1.1)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.color = "rgba(255, 255, 255, 0.8)";
-                    e.target.style.transform = "scale(1)";
+                  onClick={async () => {
+                    if (!shareUrl) return;
+
+                    // Share URL only (no title, no text, no files)
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({ url: shareUrl });
+                        return;
+                      } catch (err) {
+                        // If user cancels, do nothing. Otherwise fall back to copy.
+                        if (err?.name === "AbortError") return;
+                        console.error("Error sharing:", err);
+                      }
+                    }
+
+                    // Fallback: copy to clipboard
+                    try {
+                      await navigator.clipboard.writeText(shareUrl);
+                      showToast("Link copied!", "success");
+                    } catch (copyErr) {
+                      console.error("Failed to copy:", copyErr);
+                      showToast("Failed to copy link", "error");
+                    }
                   }}
                 >
                   <FaPaperPlane size={20} />
@@ -580,12 +566,12 @@ export function EventPage() {
                       transition: "all 0.2s ease",
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.color = "#fff";
-                      e.target.style.transform = "scale(1.1)";
+                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.transform = "scale(1.1)";
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.color = "rgba(255, 255, 255, 0.8)";
-                      e.target.style.transform = "scale(1)";
+                      e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+                      e.currentTarget.style.transform = "scale(1)";
                     }}
                   >
                     <FaInstagram size={20} />
@@ -606,12 +592,12 @@ export function EventPage() {
                       transition: "all 0.2s ease",
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.color = "#fff";
-                      e.target.style.transform = "scale(1.1)";
+                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.transform = "scale(1.1)";
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.color = "rgba(255, 255, 255, 0.8)";
-                      e.target.style.transform = "scale(1)";
+                      e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+                      e.currentTarget.style.transform = "scale(1)";
                     }}
                   >
                     <FaSpotify size={20} />
@@ -728,10 +714,12 @@ export function EventPage() {
                       flexShrink: 0,
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.textDecoration = "underline";
+                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.transform = "scale(1.1)";
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.textDecoration = "none";
+                      e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+                      e.currentTarget.style.transform = "scale(1)";
                     }}
                   >
                     {showDescription ? "Read less" : "Read more"}

@@ -1,70 +1,37 @@
 // frontend/src/components/ShareActions.jsx
-// Reusable share and copy link component
+// URL-only share + copy. No text, no title, no files.
+// This guarantees the OG card is the only thing that shows in chat apps.
+
 import { useState, useEffect } from "react";
 import { useToast } from "./Toast";
 
-/**
- * ShareActions component
- * @param {Object} props
- * @param {string} props.url - Full URL to share/copy
- * @param {string} props.title - Title for share (optional)
- * @param {string} props.text - Share text (optional, will use title + url if not provided)
- * @param {string} props.imageUrl - Image URL to include in share (optional, for Web Share API)
- */
-export function ShareActions({ url, title, text, imageUrl }) {
+export function ShareActions({ url }) {
   const { showToast } = useToast();
   const [copying, setCopying] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const handleShare = async () => {
+    // If Web Share API isn't available, copy instead.
     if (!navigator.share) {
-      // Fallback to copy if Web Share API not available
-      handleCopy();
+      await handleCopy();
       return;
     }
 
     try {
-      const shareData = {
-        title: title || "Check this out",
-        text: text || url,
-        url: url,
-      };
-
-      // Include image if provided and Web Share API supports files
-      // Note: File sharing requires fetching the image first
-      if (imageUrl && navigator.canShare) {
-        try {
-          // Try to fetch and share as file (for platforms that support it)
-          const response = await fetch(imageUrl);
-          const blob = await response.blob();
-          const file = new File([blob], "event-image.jpg", { type: blob.type });
-
-          // Check if we can share files
-          if (navigator.canShare({ files: [file] })) {
-            shareData.files = [file];
-          }
-        } catch (imgError) {
-          // If image fetch fails, share without image
-          console.log("Could not include image in share:", imgError);
-        }
-      }
-
-      await navigator.share(shareData);
+      // URL ONLY. No title. No text. No files.
+      await navigator.share({ url });
     } catch (err) {
-      // User cancelled or error occurred
-      if (err.name !== "AbortError") {
+      // If user cancels, do nothing. If it's a real error, fall back to copy.
+      if (err?.name !== "AbortError") {
         console.error("Error sharing:", err);
-        // Fallback to copy on error
-        handleCopy();
+        await handleCopy();
       }
     }
   };

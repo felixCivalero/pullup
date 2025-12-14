@@ -119,6 +119,8 @@ export async function mapEventFromDb(dbEvent) {
     cocktailCapacity: dbEvent.cocktail_capacity,
     foodCapacity: dbEvent.food_capacity,
     totalCapacity: dbEvent.total_capacity,
+    createdVia: dbEvent.created_via || "legacy",
+    status: dbEvent.status || "PUBLISHED",
   };
 }
 
@@ -184,6 +186,9 @@ function mapEventToDb(eventData) {
   if (eventData.totalCapacity !== undefined)
     dbData.total_capacity = eventData.totalCapacity;
   if (eventData.isPaid !== undefined) dbData.is_paid = eventData.isPaid;
+  if (eventData.createdVia !== undefined)
+    dbData.created_via = eventData.createdVia;
+  if (eventData.status !== undefined) dbData.status = eventData.status;
   return dbData;
 }
 
@@ -225,10 +230,25 @@ export async function createEvent({
   cocktailCapacity = null,
   foodCapacity = null,
   totalCapacity = null,
+
+  // Dual personality fields
+  createdVia = "legacy",
+  status = "PUBLISHED",
 }) {
   if (!hostId) {
     throw new Error("hostId is required to create an event");
   }
+
+  // Validate createdVia
+  if (!["post", "create", "legacy"].includes(createdVia)) {
+    createdVia = "legacy";
+  }
+
+  // Validate status
+  if (!["DRAFT", "PUBLISHED"].includes(status)) {
+    status = "PUBLISHED";
+  }
+
   const baseSlug = slugify(title || "event");
   const slug = await ensureUniqueSlug(baseSlug);
 
@@ -273,6 +293,8 @@ export async function createEvent({
     cocktailCapacity: cocktailCapacity ? Number(cocktailCapacity) : null,
     foodCapacity: foodCapacity ? Number(foodCapacity) : null,
     totalCapacity: totalCapacity ? Number(totalCapacity) : null,
+    createdVia,
+    status,
   };
 
   const dbData = mapEventToDb(eventData);
@@ -291,7 +313,7 @@ export async function createEvent({
   return await mapEventFromDb(data);
 }
 
-export async function findEventBySlug(slug) {
+export async function findEventBySlug(slug, userId = null) {
   const { data, error } = await supabase
     .from("events")
     .select("*")
@@ -299,6 +321,11 @@ export async function findEventBySlug(slug) {
     .single();
 
   if (error || !data) {
+    return null;
+  }
+
+  // If event is DRAFT, only owner can see it
+  if (data.status === "DRAFT" && data.host_id !== userId) {
     return null;
   }
 

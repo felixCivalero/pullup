@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import { LandingPage } from "./pages/LandingPage";
 import { HomePage } from "./pages/HomePage";
 import { CreateEventPage } from "./pages/CreateEventPage";
+import { PostEventPage } from "./pages/PostEventPage";
 import { EventPage } from "./pages/EventPage";
 import { RsvpSuccessPage } from "./pages/RsvpSuccessPage";
 import { ManageEventPage } from "./pages/ManageEventPage";
@@ -19,6 +20,7 @@ function App() {
       {/* "Protected" app area */}
       <Route element={<ProtectedLayout />}>
         <Route path="/home" element={<HomePage />} />
+        <Route path="/post" element={<PostEventPage />} />
         <Route path="/create" element={<CreateEventPage />} />
         <Route path="/app/events/:id/manage" element={<ManageEventPage />} />
         <Route path="/app/events/:id/guests" element={<EventGuestsPage />} />

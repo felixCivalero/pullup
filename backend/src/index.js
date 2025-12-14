@@ -380,10 +380,12 @@ app.get("/e/:slug", async (req, res) => {
 // PUBLIC: Get event by slug
 // Returns HTML for crawlers, JSON for API calls
 // ---------------------------
-app.get("/events/:slug", async (req, res) => {
+app.get("/events/:slug", optionalAuth, async (req, res) => {
   try {
     const { slug } = req.params;
-    const event = await findEventBySlug(slug);
+    // Pass userId if authenticated (for DRAFT visibility check)
+    const userId = req.user?.id || null;
+    const event = await findEventBySlug(slug, userId);
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
@@ -457,6 +459,10 @@ app.post("/events", requireAuth, async (req, res) => {
     ticketCurrency = "USD",
     stripeProductId, // Optional - will be auto-created if not provided
     stripePriceId, // Optional - will be auto-created if not provided
+
+    // Dual personality fields
+    createdVia,
+    status,
   } = req.body;
 
   if (!title || !startsAt) {
@@ -497,6 +503,8 @@ app.post("/events", requireAuth, async (req, res) => {
     cocktailCapacity,
     foodCapacity,
     totalCapacity,
+    createdVia: createdVia || "legacy",
+    status: status || "PUBLISHED",
   });
 
   // If paid tickets and Stripe IDs weren't provided, create them automatically
@@ -709,6 +717,9 @@ app.put("/host/events/:id", requireAuth, async (req, res) => {
     cocktailCapacity,
     foodCapacity,
     totalCapacity,
+
+    // Dual personality fields
+    status,
   } = req.body;
 
   const updated = await updateEvent(id, {
@@ -739,9 +750,29 @@ app.put("/host/events/:id", requireAuth, async (req, res) => {
     cocktailCapacity,
     foodCapacity,
     totalCapacity,
+    status,
   });
 
   if (!updated) return res.status(404).json({ error: "Event not found" });
+
+  res.json(updated);
+});
+
+// ---------------------------
+// PROTECTED: Publish event (requires auth, verifies ownership)
+// ---------------------------
+app.put("/host/events/:id/publish", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const event = await findEventById(id);
+
+  if (!event || event.hostId !== req.user.id) {
+    return res.status(404).json({ error: "Event not found" });
+  }
+
+  const updated = await updateEvent(id, { status: "PUBLISHED" });
+  if (!updated) {
+    return res.status(404).json({ error: "Event not found" });
+  }
 
   res.json(updated);
 });

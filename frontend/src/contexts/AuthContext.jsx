@@ -29,11 +29,15 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (returnTo = null) => {
+    const redirectTo = returnTo
+      ? `${window.location.origin}${returnTo}`
+      : `${window.location.origin}/home`;
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/home`,
+        redirectTo,
       },
     });
     if (error) {

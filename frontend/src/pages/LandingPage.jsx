@@ -2,18 +2,21 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
+// Simple analytics tracking function
+function trackEvent(eventName, properties = {}) {
+  // For now, just log to console. Can be replaced with actual analytics later
+  console.log(`[Analytics] ${eventName}`, properties);
+  // TODO: Integrate with analytics service (e.g., PostHog, Mixpanel, etc.)
+}
+
 export function LandingPage() {
   const navigate = useNavigate();
   const { signInWithGoogle, user } = useAuth();
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [signingIn, setSigningIn] = useState(false);
 
-  // If user is already logged in, redirect to home
-  useEffect(() => {
-    if (user) {
-      navigate("/home");
-    }
-  }, [user, navigate]);
+  // Note: Removed auto-redirect to /home
+  // Users should explicitly choose their path, even if logged in
 
   // Prevent scrolling on landing page - enforce single frame
   useEffect(() => {
@@ -47,14 +50,47 @@ export function LandingPage() {
     };
   }, []);
 
-  const handleSignIn = async () => {
-    try {
-      setSigningIn(true);
-      await signInWithGoogle();
-      // OAuth redirect will happen automatically
-    } catch (error) {
-      console.error("Sign in error:", error);
-      setSigningIn(false);
+  const handlePrimaryCTA = async (type) => {
+    trackEvent("landing_cta_click", {
+      type,
+      user_logged_in: !!user,
+    });
+
+    if (!user) {
+      // Store intent, then redirect to login
+      // The returnTo will be passed to signInWithGoogle
+      try {
+        setSigningIn(true);
+        await signInWithGoogle(type === "post" ? "/post" : "/create");
+        // OAuth redirect will happen automatically
+      } catch (error) {
+        console.error("Sign in error:", error);
+        setSigningIn(false);
+      }
+    } else {
+      // Already logged in, go directly to the flow
+      navigate(type === "post" ? "/post" : "/create");
+    }
+  };
+
+  const handleLoginClick = async () => {
+    trackEvent("landing_login_click", {
+      user_logged_in: !!user,
+    });
+
+    if (user) {
+      // Already logged in, go straight to dashboard
+      navigate("/home");
+    } else {
+      // Not logged in, go to login (which will redirect to /home after)
+      try {
+        setSigningIn(true);
+        await signInWithGoogle("/home");
+        // OAuth redirect will happen automatically
+      } catch (error) {
+        console.error("Sign in error:", error);
+        setSigningIn(false);
+      }
     }
   };
 
@@ -136,47 +172,48 @@ export function LandingPage() {
             position: "relative",
           }}
         >
-          {/* Floating Module - Centered in middle of screen */}
+          {/* Floating Module - Mobile First, Centered */}
           <div
             style={{
-              maxWidth: "900px",
+              maxWidth: "400px",
               width: "100%",
+              padding: "0 20px",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               textAlign: "center",
             }}
           >
-            {/* Logo/Brand */}
+            {/* Logo/Brand - Smaller for mobile */}
             <div
               style={{
-                fontSize: "11px",
+                fontSize: "10px",
                 textTransform: "uppercase",
                 letterSpacing: "0.2em",
-                opacity: 0.6,
-                marginBottom: "24px",
+                opacity: 0.5,
+                marginBottom: "32px",
                 fontWeight: 600,
               }}
             >
               PullUp
             </div>
 
-            {/* Main Headline */}
+            {/* Main Headline - Mobile Optimized */}
             <h1
               style={{
-                fontSize: "clamp(36px, 8vw, 72px)",
+                fontSize: "clamp(32px, 10vw, 56px)",
                 fontWeight: 800,
                 lineHeight: "1.1",
-                marginBottom: "24px",
+                marginBottom: "16px",
                 background:
-                  "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.8) 100%)",
+                  "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.9) 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
+                textAlign: "center",
               }}
             >
-              Make 'em
-              <br />
+              Make 'em{" "}
               <span
                 style={{
                   background:
@@ -185,168 +222,220 @@ export function LandingPage() {
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
                   display: "inline-block",
-                  animation: "pulse 2s ease-in-out infinite",
                 }}
               >
                 pull up
               </span>
             </h1>
 
-            {/* Subheadline */}
+            {/* Subheadline - Shorter for mobile */}
             <p
               style={{
-                fontSize: "clamp(16px, 2.5vw, 22px)",
-                opacity: 0.8,
-                lineHeight: "1.6",
-                marginBottom: "40px",
-                maxWidth: "600px",
+                fontSize: "clamp(14px, 3.5vw, 18px)",
+                opacity: 0.85,
+                lineHeight: "1.5",
+                marginBottom: "48px",
+                maxWidth: "320px",
+                textAlign: "center",
               }}
             >
-              Create a sexy RSVP link in seconds. Drop it in your bio. Watch
-              people pull up.
+              Create an RSVP link. Drop it in your bio.
             </p>
 
-            {/* CTA Buttons - Only interactive elements */}
+            {/* Primary CTAs - Mobile First, Stacked, Large Touch Targets */}
             <div
               style={{
                 display: "flex",
-                gap: "16px",
-                justifyContent: "center",
-                flexWrap: "wrap",
+                flexDirection: "column",
+                gap: "12px",
+                width: "100%",
+                maxWidth: "340px",
                 marginBottom: "32px",
               }}
             >
+              {/* Post event quick - Fast & Energetic */}
               <button
-                onClick={handleSignIn}
+                onClick={() => handlePrimaryCTA("post")}
                 disabled={signingIn}
                 style={{
-                  padding: "16px 32px",
-                  borderRadius: "999px",
+                  width: "100%",
+                  padding: "20px 24px",
+                  borderRadius: "16px",
                   border: "none",
                   background:
                     "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
                   color: "#fff",
                   fontWeight: 700,
-                  fontSize: "16px",
+                  fontSize: "18px",
                   cursor: signingIn ? "wait" : "pointer",
-                  boxShadow: "0 10px 30px rgba(139, 92, 246, 0.4)",
-                  transition: "all 0.3s ease",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
+                  boxShadow: "0 8px 24px rgba(139, 92, 246, 0.4)",
+                  transition: "all 0.15s ease",
+                  textAlign: "center",
                   opacity: signingIn ? 0.7 : 1,
+                  minHeight: "64px",
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
-                onMouseEnter={(e) => {
+                onTouchStart={(e) => {
                   if (!signingIn) {
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow =
-                    "0 15px 40px rgba(139, 92, 246, 0.6)";
+                    e.currentTarget.style.transform = "scale(0.97)";
+                    e.currentTarget.style.opacity = "0.9";
                   }
                 }}
-                onMouseLeave={(e) => {
+                onTouchEnd={(e) => {
                   if (!signingIn) {
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow =
-                    "0 10px 30px rgba(139, 92, 246, 0.4)";
+                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.opacity = "1";
                   }
                 }}
               >
-                {signingIn ? "Signing in..." : "Start free now"}
+                <span style={{ fontSize: "22px" }}>⚡</span>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    gap: "2px",
+                  }}
+                >
+                  <span style={{ fontSize: "18px", fontWeight: 700 }}>
+                    Post event quick
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 400,
+                      opacity: 0.95,
+                      textTransform: "none",
+                    }}
+                  >
+                    Friends pullup & social events
+                  </span>
+                </div>
               </button>
-              {/* Google Sign-In Button - Following Google's UX Guidelines */}
+
+              {/* Plan event in detail - Secure & Professional */}
               <button
-                onClick={handleSignIn}
+                onClick={() => handlePrimaryCTA("create")}
                 disabled={signingIn}
                 style={{
-                  padding: "12px 24px",
-                  borderRadius: "4px",
-                  border: "1px solid #dadce0",
-                  background: "#fff",
-                  color: "#3c4043",
-                  fontWeight: 500,
-                  fontSize: "14px",
-                  fontFamily:
-                    '"Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  width: "100%",
+                  padding: "20px 24px",
+                  borderRadius: "16px",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  background: "rgba(255, 255, 255, 0.05)",
+                  backdropFilter: "blur(10px)",
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: "18px",
                   cursor: signingIn ? "wait" : "pointer",
+                  boxShadow: "0 4px 16px rgba(0, 0, 0, 0.2)",
                   transition: "all 0.2s ease",
+                  textAlign: "center",
+                  opacity: signingIn ? 0.7 : 1,
+                  minHeight: "64px",
                   display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
                   alignItems: "center",
-                  gap: "12px",
-                  boxShadow: signingIn
-                    ? "none"
-                    : "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)",
-                  opacity: signingIn ? 0.6 : 1,
+                  gap: "4px",
                 }}
-                onMouseEnter={(e) => {
+                onTouchStart={(e) => {
                   if (!signingIn) {
-                    e.target.style.boxShadow =
-                      "0 2px 6px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.12)";
-                    e.target.style.background = "#f8f9fa";
+                    e.currentTarget.style.transform = "scale(0.98)";
+                    e.currentTarget.style.background =
+                      "rgba(255, 255, 255, 0.08)";
                   }
                 }}
-                onMouseLeave={(e) => {
+                onTouchEnd={(e) => {
                   if (!signingIn) {
-                    e.target.style.boxShadow =
-                      "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)";
-                    e.target.style.background = "#fff";
-                  }
-                }}
-                onMouseDown={(e) => {
-                  if (!signingIn) {
-                    e.target.style.boxShadow = "0 1px 2px rgba(0,0,0,0.1)";
-                  }
-                }}
-                onMouseUp={(e) => {
-                  if (!signingIn) {
-                    e.target.style.boxShadow =
-                      "0 2px 6px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.12)";
+                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.background =
+                      "rgba(255, 255, 255, 0.05)";
                   }
                 }}
               >
-                {/* Google Logo SVG */}
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 18 18"
-                  style={{ flexShrink: 0 }}
+                <span style={{ fontSize: "18px", fontWeight: 600 }}>
+                  Plan event in detail
+                </span>
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 400,
+                    opacity: 0.85,
+                    textTransform: "none",
+                  }}
                 >
-                  <path
-                    fill="#4285F4"
-                    d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.712 0-.595.102-1.172.282-1.712V4.956H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.044l3.007-2.332z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.956L3.964 7.288C4.672 5.163 6.656 3.58 9 3.58z"
-                  />
-                </svg>
-                <span style={{ color: "#3c4043" }}>
-                  {signingIn ? "Signing in..." : "Continue with Google"}
+                  Structured, Dinner & Paid events
                 </span>
               </button>
             </div>
 
-            {/* Stats/Trust indicators - Compact to fit in single frame */}
+            {/* Visual Separator - Subtle */}
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "280px",
+                height: "1px",
+                background: "rgba(255, 255, 255, 0.08)",
+                marginBottom: "20px",
+              }}
+            />
+
+            {/* Secondary Login - De-emphasized, Link Style */}
+            <div
+              style={{
+                fontSize: "14px",
+                opacity: 0.5,
+                textAlign: "center",
+                marginBottom: "32px",
+              }}
+            >
+              <span style={{ opacity: 0.6 }}>Already hosting? </span>
+              <a
+                href="/home"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleLoginClick();
+                }}
+                style={{
+                  color: "rgba(255, 255, 255, 0.7)",
+                  textDecoration: "none",
+                  cursor: "pointer",
+                  transition: "opacity 0.2s ease",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+                  paddingBottom: "2px",
+                }}
+                onTouchStart={(e) => {
+                  e.target.style.opacity = "1";
+                }}
+                onTouchEnd={(e) => {
+                  e.target.style.opacity = "0.7";
+                }}
+              >
+                Log in →
+              </a>
+            </div>
+
+            {/* Stats/Trust indicators - Mobile Optimized */}
             <div
               style={{
                 display: "flex",
-                gap: "24px",
+                gap: "20px",
                 justifyContent: "center",
                 flexWrap: "wrap",
-                fontSize: "13px",
-                opacity: 0.6,
+                fontSize: "12px",
+                opacity: 0.5,
                 marginTop: "auto",
+                paddingTop: "24px",
               }}
             >
-              <div>⚡ Instant links</div>
-              <div>🚫 No signup required</div>
-              <div>🔥 Free forever</div>
+              <div>⚡ Instant</div>
+              <div>🚫 No signup</div>
+              <div>🔥 Free</div>
             </div>
           </div>
         </section>

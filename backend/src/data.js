@@ -135,10 +135,13 @@ function mapEventToDb(eventData) {
   if (eventData.description !== undefined)
     dbData.description = eventData.description;
   if (eventData.location !== undefined) dbData.location = eventData.location;
-  if (eventData.locationLat !== undefined)
+  // Only include location coordinates if they're provided (columns may not exist in all databases)
+  if (eventData.locationLat !== undefined && eventData.locationLat !== null) {
     dbData.location_lat = eventData.locationLat;
-  if (eventData.locationLng !== undefined)
+  }
+  if (eventData.locationLng !== undefined && eventData.locationLng !== null) {
     dbData.location_lng = eventData.locationLng;
+  }
   if (eventData.startsAt !== undefined) dbData.starts_at = eventData.startsAt;
   if (eventData.endsAt !== undefined) dbData.ends_at = eventData.endsAt;
   if (eventData.timezone !== undefined) dbData.timezone = eventData.timezone;
@@ -211,6 +214,8 @@ export async function createEvent({
   title,
   description,
   location,
+  locationLat = null,
+  locationLng = null,
   startsAt,
   endsAt,
   timezone,
@@ -269,6 +274,8 @@ export async function createEvent({
     title,
     description,
     location,
+    locationLat: locationLat || null,
+    locationLng: locationLng || null,
     startsAt,
     endsAt: endsAt || null,
     timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -310,6 +317,14 @@ export async function createEvent({
 
   const dbData = mapEventToDb(eventData);
 
+  // Remove location coordinates if they're null/undefined to avoid unnecessary columns
+  if (dbData.location_lat === null || dbData.location_lat === undefined) {
+    delete dbData.location_lat;
+  }
+  if (dbData.location_lng === null || dbData.location_lng === undefined) {
+    delete dbData.location_lng;
+  }
+
   // Remove createdVia and status if they're not in the database schema yet
   // This provides backward compatibility during migration
   // The database defaults will handle these if columns exist
@@ -321,11 +336,31 @@ export async function createEvent({
 
   if (error) {
     console.error("Error creating event:", error);
-    // If error is about missing columns, try without them
-    if (error.message && error.message.includes("created_via")) {
-      console.warn("created_via column not found, retrying without it");
-      delete dbData.created_via;
-      delete dbData.status;
+    // If error is about missing columns, try without them (backward compatibility)
+    if (
+      error.message &&
+      (error.message.includes("created_via") ||
+        error.message.includes("location_lat") ||
+        error.message.includes("location_lng") ||
+        error.message.includes("schema cache"))
+    ) {
+      console.warn(
+        "Schema cache issue or missing columns detected, retrying with backward compatibility"
+      );
+      // Remove columns that might not exist
+      if (
+        error.message.includes("created_via") ||
+        error.message.includes("schema cache")
+      ) {
+        delete dbData.created_via;
+        delete dbData.status;
+      }
+      if (error.message.includes("location_lat")) {
+        delete dbData.location_lat;
+      }
+      if (error.message.includes("location_lng")) {
+        delete dbData.location_lng;
+      }
       const retryResult = await supabase
         .from("events")
         .insert(dbData)

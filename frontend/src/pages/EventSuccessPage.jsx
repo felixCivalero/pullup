@@ -23,14 +23,37 @@ export function EventSuccessPage() {
 
     // If we have event data from navigation state, use it immediately
     if (location.state?.event) {
+      console.log(
+        "[EventSuccessPage] Using event from navigation state:",
+        location.state.event.slug
+      );
       setEvent(location.state.event);
       setLoading(false);
 
-      // If event doesn't have image but we expect one, retry fetching
-      if (!location.state.event.imageUrl && retryCountRef.current < 3) {
-        setTimeout(() => {
-          fetchEvent(true);
-        }, 1000); // Wait 1 second before first retry
+      // If event doesn't have image, try to refetch once (but don't fail if it doesn't work)
+      // Only retry if we're authenticated (for DRAFT events)
+      if (!location.state.event.imageUrl && retryCountRef.current < 1) {
+        // Check if user is authenticated before retrying (needed for DRAFT events)
+        const checkAuthAndRetry = async () => {
+          const { supabase } = await import("../lib/supabase.js");
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (session?.access_token) {
+            // User is authenticated, safe to retry for DRAFT events
+            setTimeout(() => {
+              fetchEvent(true);
+            }, 1000);
+          } else {
+            // Not authenticated - can't fetch DRAFT events, but that's okay
+            // The event from state is good enough
+            console.log(
+              "[EventSuccessPage] Not authenticated, skipping image refetch for DRAFT event"
+            );
+          }
+        };
+        checkAuthAndRetry();
       }
       return;
     }
@@ -96,7 +119,20 @@ export function EventSuccessPage() {
           }, 2000); // Wait 2 seconds before next retry
         }
       } else {
-        if (!isRetry) {
+        // If we have event from state, don't navigate away - just log the error
+        if (location.state?.event) {
+          console.warn(
+            "Failed to refetch event, but using event from navigation state"
+          );
+          // Keep using the event from state
+        } else if (!isRetry) {
+          console.error(
+            `Failed to fetch event: ${response?.status} ${response?.statusText}`
+          );
+          const errorData = response
+            ? await response.json().catch(() => ({}))
+            : {};
+          console.error("Error details:", errorData);
           showToast("Event not found", "error");
           navigate("/");
         }

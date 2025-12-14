@@ -407,7 +407,15 @@ app.get("/events/:slug", optionalAuth, async (req, res) => {
     const userId = req.user?.id || null;
     const event = await findEventBySlug(slug, userId);
 
-    if (!event) return res.status(404).json({ error: "Event not found" });
+    if (!event) {
+      // Log for debugging
+      console.log(
+        `[Events] Event not found for slug: ${slug}, userId: ${
+          userId || "none"
+        }`
+      );
+      return res.status(404).json({ error: "Event not found" });
+    }
 
     // If request is from a crawler, return HTML with OG tags
     if (isCrawler(req)) {

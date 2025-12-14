@@ -387,11 +387,20 @@ export async function findEventBySlug(slug, userId = null) {
     .single();
 
   if (error || !data) {
+    console.log(
+      `[findEventBySlug] Event not found in DB for slug: ${slug}`,
+      error?.message
+    );
     return null;
   }
 
   // If event is DRAFT, only owner can see it
   if (data.status === "DRAFT" && data.host_id !== userId) {
+    console.log(
+      `[findEventBySlug] DRAFT event access denied - slug: ${slug}, host_id: ${
+        data.host_id
+      }, userId: ${userId || "none"}`
+    );
     return null;
   }
 

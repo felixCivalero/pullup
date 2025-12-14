@@ -486,7 +486,7 @@ export function CreateEventPage() {
 
         // Deliberate Planner flow: create as DRAFT
         createdVia: "create",
-        status: "DRAFT",
+        status: "PUBLISHED",
       };
 
       // Create event first (without image)

@@ -7,6 +7,11 @@ export function ModalOrDrawer({ isOpen, onClose, children, title }) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
+      // Prevent any auto-focus when modal opens (prevents mobile zoom)
+      // Blur any currently focused element
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
     } else {
       document.body.style.overflow = "";
     }

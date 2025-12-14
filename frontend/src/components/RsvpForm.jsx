@@ -22,6 +22,14 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
   const [dinnerSlots, setDinnerSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
+  // Ensure no auto-focus when form mounts (prevents mobile zoom)
+  useEffect(() => {
+    // Blur any focused elements when form first renders
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+  }, []);
+
   const maxPlusOnes =
     typeof event?.maxPlusOnesPerGuest === "number" &&
     event?.maxPlusOnesPerGuest > 0
@@ -152,7 +160,6 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
         placeholder="you@example.com"
         disabled={loading}
         error={error && error.includes("email") ? error : null}
-        autoFocus
       />
 
       <Input

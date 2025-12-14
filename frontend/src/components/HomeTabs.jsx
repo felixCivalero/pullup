@@ -3,20 +3,23 @@ export function TabButton({ label, count, active, onClick }) {
     <button
       onClick={onClick}
       style={{
-        padding: "8px 16px",
+        padding: "8px 14px",
         borderRadius: "8px",
         border: "none",
         background: active ? "rgba(139, 92, 246, 0.2)" : "transparent",
         color: active ? "#fff" : "rgba(255,255,255,0.6)",
         fontWeight: active ? 600 : 500,
-        fontSize: "14px",
+        fontSize: "clamp(13px, 3vw, 14px)",
         cursor: "pointer",
         transition: "all 0.2s ease",
         borderBottom: active ? "2px solid #8b5cf6" : "2px solid transparent",
-        marginBottom: "-16px",
+        marginBottom: "-12px",
         display: "flex",
         alignItems: "center",
-        gap: "8px",
+        gap: "6px",
+        whiteSpace: "nowrap",
+        touchAction: "manipulation",
+        flexShrink: 0,
       }}
       onMouseEnter={(e) => {
         if (!active) {
@@ -35,13 +38,15 @@ export function TabButton({ label, count, active, onClick }) {
       {count !== undefined && count > 0 && (
         <span
           style={{
-            padding: "2px 8px",
+            padding: "2px 6px",
             borderRadius: "12px",
             background: active
               ? "rgba(139, 92, 246, 0.3)"
               : "rgba(255,255,255,0.1)",
-            fontSize: "12px",
+            fontSize: "11px",
             fontWeight: 600,
+            minWidth: "20px",
+            textAlign: "center",
           }}
         >
           {count}

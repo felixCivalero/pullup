@@ -298,16 +298,28 @@ export function HomePage() {
             showToast={showToast}
           />
 
-          {/* Main tabs */}
+          {/* Main tabs - responsive for mobile */}
           <div
             style={{
               display: "flex",
               gap: 8,
-              marginBottom: 32,
+              marginBottom: 24,
               borderBottom: "1px solid rgba(255,255,255,0.05)",
-              paddingBottom: 16,
+              paddingBottom: 12,
+              overflowX: "auto",
+              scrollbarWidth: "none",
+              msOverflowStyle: "none",
+              WebkitOverflowScrolling: "touch",
             }}
+            className="tabs-container"
           >
+            <style>
+              {`
+                .tabs-container::-webkit-scrollbar {
+                  display: none;
+                }
+              `}
+            </style>
             <TabButton
               label="Events"
               count={allEvents.length}

@@ -7,7 +7,7 @@ export function ProtectedLayout() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
 
   // Redirect to landing page if not authenticated
   useEffect(() => {
@@ -20,15 +20,6 @@ export function ProtectedLayout() {
     setOpen(false);
     navigate(path);
   }
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate("/");
-    } catch (error) {
-      console.error("Sign out error:", error);
-    }
-  };
 
   const isHome = location.pathname === "/home";
 
@@ -93,18 +84,20 @@ export function ProtectedLayout() {
           <button
             onClick={() => handleNav("/create")}
             style={{
-              padding: "8px 16px",
+              padding: "10px 18px",
               borderRadius: "999px",
               border: "none",
               background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
               color: "#fff",
               fontWeight: 600,
-              fontSize: "12px",
+              fontSize: "clamp(11px, 2.5vw, 12px)",
               letterSpacing: "0.05em",
               textTransform: "uppercase",
               cursor: "pointer",
               transition: "all 0.3s ease",
               boxShadow: "0 4px 12px rgba(139, 92, 246, 0.3)",
+              whiteSpace: "nowrap",
+              touchAction: "manipulation",
             }}
             onMouseEnter={(e) => {
               e.target.style.transform = "translateY(-1px)";
@@ -116,30 +109,6 @@ export function ProtectedLayout() {
             }}
           >
             + create event
-          </button>
-
-          {/* Logout button */}
-          <button
-            onClick={handleSignOut}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "999px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(255,255,255,0.05)",
-              color: "#fff",
-              fontWeight: 500,
-              fontSize: "11px",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background = "rgba(255,255,255,0.1)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = "rgba(255,255,255,0.05)";
-            }}
-          >
-            Sign out
           </button>
         </div>
 

@@ -1,7 +1,21 @@
 // src/components/HomeSettingsTab.jsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 export function SettingsTab({ user, setUser, onSave, showToast }) {
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate("/");
+    } catch (error) {
+      console.error("Sign out error:", error);
+      showToast("Failed to sign out", "error");
+    }
+  };
   // Initialize from user state with defaults
   const brandingLinks = user.brandingLinks || {
     instagram: "",
@@ -787,6 +801,40 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
             </div>
           ))}
         </div>
+      </SettingsSection>
+
+      {/* SIGN OUT */}
+      <SettingsSection
+        title="Sign Out"
+        description="Sign out of your PullUp account. You can sign back in at any time."
+      >
+        <button
+          type="button"
+          onClick={handleSignOut}
+          style={{
+            padding: "12px 24px",
+            borderRadius: "12px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.05)",
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: "14px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "all 0.3s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = "rgba(255,255,255,0.1)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = "rgba(255,255,255,0.05)";
+          }}
+        >
+          <span>🚪</span>
+          <span>Sign Out</span>
+        </button>
       </SettingsSection>
 
       {/* DELETE ACCOUNT */}

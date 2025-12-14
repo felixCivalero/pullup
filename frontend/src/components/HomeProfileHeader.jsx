@@ -114,9 +114,9 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
       style={{
         display: "flex",
         alignItems: "flex-start",
-        gap: 24,
-        marginBottom: 32,
-        paddingBottom: 32,
+        gap: "clamp(16px, 4vw, 24px)",
+        marginBottom: "clamp(24px, 5vw, 32px)",
+        paddingBottom: "clamp(24px, 5vw, 32px)",
         borderBottom: "1px solid rgba(255,255,255,0.05)",
       }}
     >
@@ -130,8 +130,8 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
       >
         <div
           style={{
-            width: 80,
-            height: 80,
+            width: "clamp(60px, 15vw, 80px)",
+            height: "clamp(60px, 15vw, 80px)",
             borderRadius: "50%",
             background: user.profilePicture
               ? "transparent"
@@ -139,12 +139,13 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 36,
+            fontSize: "clamp(28px, 7vw, 36px)",
             border: "2px solid rgba(255,255,255,0.1)",
             cursor: "pointer",
             overflow: "hidden",
             transition: "all 0.3s ease",
             position: "relative",
+            flexShrink: 0,
           }}
           onClick={handleImageClick}
         >
@@ -223,20 +224,22 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
         />
       </div>
 
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <h1
           style={{
-            fontSize: "clamp(28px, 5vw, 36px)",
+            fontSize: "clamp(24px, 6vw, 36px)",
             fontWeight: 700,
             marginBottom: 8,
+            lineHeight: "1.2",
+            wordBreak: "break-word",
           }}
         >
-          {user.brand ? `${user.brand}` : "Your Brand"}
+          {user.brand ? `${user.brand}` : "Your profile"}
         </h1>
         {user.name && (
           <div
             style={{
-              fontSize: "15px",
+              fontSize: "clamp(13px, 3.5vw, 15px)",
               opacity: 0.7,
               marginBottom: user.bio ? 12 : 0,
               fontWeight: 500,
@@ -248,10 +251,11 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
         {user.bio && (
           <div
             style={{
-              fontSize: "14px",
+              fontSize: "clamp(13px, 3.5vw, 14px)",
               opacity: 0.8,
               lineHeight: "1.5",
               maxWidth: "600px",
+              wordBreak: "break-word",
             }}
           >
             {user.bio}

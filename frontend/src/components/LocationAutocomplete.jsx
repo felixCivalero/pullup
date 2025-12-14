@@ -1,20 +1,24 @@
 import { useState, useEffect, useRef } from "react";
+import { authenticatedFetch } from "../lib/api.js";
 
-// Using OpenStreetMap Nominatim API - completely free, no API key required
-// Rate limit: 1 request per second (we debounce to respect this)
+// Enhanced location picker with autocomplete and current location
+// Uses backend endpoint which supports Google Places API (with fallback to Nominatim)
 
 export function LocationAutocomplete({
   value,
   onChange,
+  onLocationSelect, // Callback with { address, lat, lng }
   onFocus,
   onBlur,
   style,
-  placeholder = "Where's the party?",
+  placeholder = "Add location",
   disabled = false,
 }) {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
   const timeoutRef = useRef(null);
@@ -39,74 +43,182 @@ export function LocationAutocomplete({
       return;
     }
 
+    setIsLoading(true);
     try {
-      // OpenStreetMap Nominatim API - free, no API key needed
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?` +
-          `format=json&` +
-          `q=${encodeURIComponent(query)}&` +
-          `limit=5&` +
-          `addressdetails=1&` +
-          `extratags=1`,
-        {
-          headers: {
-            "User-Agent": "PullUp App", // Required by Nominatim
-          },
-        }
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/location/autocomplete?query=${encodeURIComponent(query)}`
       );
 
       if (!response.ok) throw new Error("Failed to fetch suggestions");
 
       const data = await response.json();
-      setSuggestions(data || []);
+      setSuggestions(data.predictions || []);
       setShowSuggestions(true);
       setSelectedIndex(-1);
     } catch (error) {
       console.error("Error fetching location suggestions:", error);
       setSuggestions([]);
+    } finally {
+      setIsLoading(false);
     }
+  }
+
+  async function getPlaceDetails(placeId, source) {
+    try {
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/location/details?place_id=${encodeURIComponent(
+          placeId
+        )}&source=${source}`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+    } catch (error) {
+      console.error("Error fetching place details:", error);
+    }
+    return null;
   }
 
   function handleInputChange(e) {
     const newValue = e.target.value;
     onChange(e);
 
-    // Debounce API calls (respects 1 req/sec rate limit)
+    // Debounce API calls
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
 
     timeoutRef.current = setTimeout(() => {
       fetchSuggestions(newValue);
-    }, 500); // 500ms debounce
+    }, 300); // Faster debounce for better UX
   }
 
-  function handleSelectSuggestion(suggestion) {
-    const address = suggestion.address || {};
-    const parts = [];
+  async function handleSelectSuggestion(suggestion) {
+    let address = suggestion.description || suggestion.main_text;
+    let lat = suggestion.lat;
+    let lng = suggestion.lon;
 
-    // Build location string from address parts
-    if (suggestion.name && suggestion.type !== "city") {
-      parts.push(suggestion.name);
-    }
-    if (address.city || address.town || address.village) {
-      parts.push(address.city || address.town || address.village);
-    }
-    if (address.state || address.region) {
-      parts.push(address.state || address.region);
-    }
-    if (address.country) {
-      parts.push(address.country);
+    // If using Google Places, fetch details for coordinates
+    if (suggestion.source === "google" && suggestion.place_id) {
+      const details = await getPlaceDetails(suggestion.place_id, "google");
+      if (details) {
+        address = details.address || address;
+        lat = details.lat;
+        lng = details.lng;
+      }
     }
 
-    const fullLocation = parts.length > 0 
-      ? parts.join(", ")
-      : suggestion.display_name?.split(",")[0] || suggestion.name || value;
+    // If Nominatim already has coordinates, use them
+    if (suggestion.source === "nominatim" && suggestion.lat && suggestion.lon) {
+      lat = parseFloat(suggestion.lat);
+      lng = parseFloat(suggestion.lon);
+    }
 
-    onChange({ target: { value: fullLocation } });
+    onChange({ target: { value: address } });
+
+    // Call callback with location data including coordinates
+    if (onLocationSelect && lat && lng) {
+      onLocationSelect({
+        address,
+        lat,
+        lng,
+      });
+    }
+
     setShowSuggestions(false);
     setSuggestions([]);
     inputRef.current?.blur();
+  }
+
+  async function handleUseCurrentLocation() {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setIsGettingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        try {
+          // Reverse geocode to get address
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?` +
+              `format=json&` +
+              `lat=${latitude}&` +
+              `lon=${longitude}&` +
+              `addressdetails=1`,
+            {
+              headers: {
+                "User-Agent": "PullUp App",
+              },
+            }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            const address = data.display_name || `${latitude}, ${longitude}`;
+
+            onChange({ target: { value: address } });
+
+            if (onLocationSelect) {
+              onLocationSelect({
+                address,
+                lat: latitude,
+                lng: longitude,
+              });
+            }
+          } else {
+            // Fallback: just use coordinates
+            const address = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+            onChange({ target: { value: address } });
+
+            if (onLocationSelect) {
+              onLocationSelect({
+                address,
+                lat: latitude,
+                lng: longitude,
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error reverse geocoding:", error);
+          // Fallback: use coordinates
+          const address = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+          onChange({ target: { value: address } });
+
+          if (onLocationSelect) {
+            onLocationSelect({
+              address,
+              lat: latitude,
+              lng: longitude,
+            });
+          }
+        } finally {
+          setIsGettingLocation(false);
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        alert(
+          "Unable to get your location. Please check your browser permissions."
+        );
+        setIsGettingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
   }
 
   function handleKeyDown(e) {
@@ -128,25 +240,14 @@ export function LocationAutocomplete({
     }
   }
 
-  function formatSuggestion(suggestion) {
-    const address = suggestion.address || {};
-    const name = suggestion.name || "";
-    
-    const city = address.city || address.town || address.village || "";
-    const country = address.country || "";
-
-    return {
-      primary: name || suggestion.display_name?.split(",")[0] || "Location",
-      secondary: [city, country].filter(Boolean).join(", ") || suggestion.display_name?.split(",").slice(1, 3).join(", ").trim() || "",
-    };
-  }
-
   return (
     <div
       ref={containerRef}
       style={{ position: "relative", width: "100%", zIndex: 10000 }}
     >
-      <div style={{ position: "relative" }}>
+      <div
+        style={{ position: "relative", display: "flex", alignItems: "center" }}
+      >
         <input
           ref={inputRef}
           type="text"
@@ -170,22 +271,77 @@ export function LocationAutocomplete({
           disabled={disabled}
           autoComplete="off"
         />
-        <span
+
+        {/* Current Location Button */}
+        <button
+          type="button"
+          onClick={handleUseCurrentLocation}
+          disabled={disabled || isGettingLocation}
           style={{
-            position: "absolute",
-            right: "16px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            fontSize: "18px",
-            pointerEvents: "none",
-            opacity: 0.6,
+            marginLeft: "8px",
+            padding: "10px 14px",
+            background: isGettingLocation
+              ? "rgba(139, 92, 246, 0.3)"
+              : "rgba(139, 92, 246, 0.15)",
+            border: "1px solid rgba(139, 92, 246, 0.3)",
+            borderRadius: "10px",
+            color: "#fff",
+            fontSize: "13px",
+            fontWeight: 600,
+            cursor: disabled || isGettingLocation ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            flexShrink: 0,
+            transition: "all 0.2s ease",
+            opacity: disabled ? 0.5 : 1,
+          }}
+          onMouseEnter={(e) => {
+            if (!disabled && !isGettingLocation) {
+              e.target.style.background = "rgba(139, 92, 246, 0.25)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!disabled && !isGettingLocation) {
+              e.target.style.background = "rgba(139, 92, 246, 0.15)";
+            }
           }}
         >
-          📍
-        </span>
+          <span style={{ fontSize: "16px" }}>
+            {isGettingLocation ? "⏳" : ""}
+          </span>
+          <span style={{ display: isGettingLocation ? "none" : "inline" }}>
+            Current
+          </span>
+        </button>
       </div>
 
-      {showSuggestions && suggestions.length > 0 && (
+      {/* Loading indicator */}
+      {isLoading && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            marginTop: "4px",
+            padding: "12px 16px",
+            background: "rgba(12, 10, 18, 0.98)",
+            backdropFilter: "blur(20px)",
+            borderRadius: "12px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            color: "#fff",
+            fontSize: "14px",
+            textAlign: "center",
+            zIndex: 10000,
+          }}
+        >
+          Searching...
+        </div>
+      )}
+
+      {/* Suggestions dropdown */}
+      {showSuggestions && !isLoading && suggestions.length > 0 && (
         <div
           style={{
             position: "absolute",
@@ -205,8 +361,19 @@ export function LocationAutocomplete({
           }}
         >
           {suggestions.map((suggestion, index) => {
-            const formatted = formatSuggestion(suggestion);
             const isSelected = index === selectedIndex;
+            const mainText =
+              suggestion.main_text ||
+              suggestion.description?.split(",")[0] ||
+              "Location";
+            const secondaryText =
+              suggestion.secondary_text ||
+              suggestion.description
+                ?.split(",")
+                .slice(1, 3)
+                .join(", ")
+                .trim() ||
+              "";
 
             return (
               <button
@@ -215,7 +382,7 @@ export function LocationAutocomplete({
                 onClick={() => handleSelectSuggestion(suggestion)}
                 style={{
                   width: "100%",
-                  padding: "12px 16px",
+                  padding: "14px 16px",
                   background: isSelected
                     ? "rgba(139, 92, 246, 0.2)"
                     : "transparent",
@@ -225,9 +392,9 @@ export function LocationAutocomplete({
                   color: "#fff",
                   fontSize: "14px",
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   gap: "12px",
-                  transition: "all 0.2s ease",
+                  transition: "all 0.15s ease",
                   borderBottom:
                     index < suggestions.length - 1
                       ? "1px solid rgba(255,255,255,0.05)"
@@ -236,30 +403,41 @@ export function LocationAutocomplete({
                 onMouseEnter={() => setSelectedIndex(index)}
                 onMouseLeave={() => setSelectedIndex(-1)}
               >
-                <span style={{ fontSize: "16px", opacity: 0.7 }}>📍</span>
+                <span
+                  style={{
+                    fontSize: "18px",
+                    opacity: 0.8,
+                    flexShrink: 0,
+                    marginTop: "2px",
+                  }}
+                >
+                  📍
+                </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
                       fontWeight: 500,
-                      marginBottom: "2px",
+                      marginBottom: "4px",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
+                      color: "#fff",
                     }}
                   >
-                    {formatted.primary}
+                    {mainText}
                   </div>
-                  {formatted.secondary && (
+                  {secondaryText && (
                     <div
                       style={{
                         fontSize: "12px",
-                        opacity: 0.6,
+                        opacity: 0.65,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        color: "rgba(255,255,255,0.8)",
                       }}
                     >
-                      {formatted.secondary}
+                      {secondaryText}
                     </div>
                   )}
                 </div>

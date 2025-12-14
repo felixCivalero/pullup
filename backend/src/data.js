@@ -135,6 +135,10 @@ function mapEventToDb(eventData) {
   if (eventData.description !== undefined)
     dbData.description = eventData.description;
   if (eventData.location !== undefined) dbData.location = eventData.location;
+  if (eventData.locationLat !== undefined)
+    dbData.location_lat = eventData.locationLat;
+  if (eventData.locationLng !== undefined)
+    dbData.location_lng = eventData.locationLng;
   if (eventData.startsAt !== undefined) dbData.starts_at = eventData.startsAt;
   if (eventData.endsAt !== undefined) dbData.ends_at = eventData.endsAt;
   if (eventData.timezone !== undefined) dbData.timezone = eventData.timezone;

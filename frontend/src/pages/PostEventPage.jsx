@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { authenticatedFetch } from "../lib/api.js";
+import { getEventShareUrl } from "../lib/urlUtils";
 
 // Get user's timezone
 function getUserTimezone() {
@@ -410,26 +411,26 @@ export function PostEventPage() {
   }
 
   function handleShare() {
-    const eventUrl = `${window.location.origin}/e/${postedEvent.slug}`;
-    const shareText = `${postedEvent.title}\n\n${
-      postedEvent.description || ""
-    }\n\n${eventUrl}`;
+    // Use share URL for rich previews (has OG tags)
+    const shareUrl = getEventShareUrl(postedEvent.slug);
 
     if (navigator.share) {
+      // URL ONLY - no title, no text, no files
+      // This ensures rich preview (OG tags) is shown, not custom text
       navigator
         .share({
-          title: postedEvent.title,
-          text: shareText,
-          url: eventUrl,
+          url: shareUrl,
         })
         .catch((err) => {
-          // User cancelled or error - fallback to copy
-          navigator.clipboard.writeText(eventUrl);
+          // User cancelled - do nothing
+          if (err?.name === "AbortError") return;
+          // Error - fallback to copy
+          navigator.clipboard.writeText(shareUrl);
           showToast("Link copied to clipboard! 📋", "success");
         });
     } else {
       // Fallback: copy to clipboard
-      navigator.clipboard.writeText(eventUrl);
+      navigator.clipboard.writeText(shareUrl);
       showToast("Link copied to clipboard! 📋", "success");
     }
   }

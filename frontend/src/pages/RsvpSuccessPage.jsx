@@ -18,54 +18,25 @@ import { useToast } from "../components/Toast";
 import { publicFetch } from "../lib/api.js";
 
 // Single Share Button Component (Instagram-style with conditional logic)
-function ShareButton({ url, title, text, imageUrl }) {
+// URL-only sharing to ensure rich previews (OG tags) are shown
+function ShareButton({ url }) {
   const { showToast } = useToast();
-  const [isIOS, setIsIOS] = useState(false);
-
-  useEffect(() => {
-    // Detect iOS
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
-    setIsIOS(isIOSDevice);
-  }, []);
 
   const handleShare = async () => {
-    // On iOS: Use native share sheet (includes copy link option)
-    if (isIOS && navigator.share) {
+    // URL ONLY - no title, no text, no files
+    // This ensures rich preview (OG tags) is shown, not custom text
+    if (navigator.share) {
       try {
-        const shareData = {
-          title: title || "Check this out",
-          text: text || url,
-          url: url,
-        };
-
-        // Include image if provided
-        if (imageUrl && navigator.canShare) {
-          try {
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
-            const file = new File([blob], "event-image.jpg", {
-              type: blob.type,
-            });
-
-            if (navigator.canShare({ files: [file] })) {
-              shareData.files = [file];
-            }
-          } catch (imgError) {
-            console.log("Could not include image in share:", imgError);
-          }
-        }
-
-        await navigator.share(shareData);
+        await navigator.share({ url });
       } catch (err) {
-        if (err.name !== "AbortError") {
-          console.error("Error sharing:", err);
-          // Fallback to copy on error
-          handleCopy();
-        }
+        // User cancelled - do nothing
+        if (err?.name === "AbortError") return;
+        // Error - fallback to copy
+        console.error("Error sharing:", err);
+        handleCopy();
       }
     } else {
-      // On desktop/other: Copy to clipboard
+      // Fallback: Copy to clipboard
       handleCopy();
     }
   };
@@ -81,23 +52,7 @@ function ShareButton({ url, title, text, imageUrl }) {
   };
 
   return (
-    <Button
-      onClick={async () => {
-        const shareUrl = getEventShareUrl(event.slug);
-        if (navigator.share) {
-          try {
-            await navigator.share({ url: shareUrl });
-            return;
-          } catch (err) {
-            if (err?.name === "AbortError") return;
-          }
-        }
-        await navigator.clipboard.writeText(shareUrl);
-        showToast("Link copied!", "success");
-      }}
-      variant="secondary"
-      fullWidth
-    >
+    <Button onClick={handleShare} variant="secondary" fullWidth>
       <FaPaperPlane size={18} />
       <span>Share</span>
     </Button>

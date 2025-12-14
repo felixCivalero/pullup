@@ -1676,11 +1676,7 @@ export function ManageEventPage() {
             {/* Share Actions - Admin panel */}
             {event && (
               <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                <ShareActions
-                  url={getEventShareUrl(event.slug)}
-                  title={event.title}
-                  imageUrl={event.imageUrl}
-                />
+                <ShareActions url={getEventShareUrl(event.slug)} />
               </div>
             )}
           </div>

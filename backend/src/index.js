@@ -223,19 +223,39 @@ function generateOgHtml(event) {
   const when = formatOgDateTime(event?.startsAt);
   const where = event?.location ? String(event.location).trim() : "";
 
-  // OG description: short, readable, no links, no image URLs, no spammy separators
-  // Example: "You're invited to Pull up 55! — Sunday, December 14 at 2:00 PM — Stockholm, Sweden"
-  const descParts = [
-    `You're invited to ${titleRaw}!`,
-    when || null,
-    where || null,
-    event?.description ? String(event.description).trim().slice(0, 120) : null,
-  ].filter(Boolean);
+  // Format date for OG title: "Event Title — Wednesday, December 17 at 12:00 PM"
+  // This matches the rich preview format shown in iMessage screenshots
+  let ogTitle = titleRaw;
+  if (when && event?.startsAt) {
+    try {
+      const d = new Date(event.startsAt);
+      // Get day of week (e.g., "Wednesday")
+      const dayOfWeek = d.toLocaleDateString("en-US", { weekday: "long" });
+      // Get date and time (e.g., "December 17 at 12:00 PM")
+      const dateTime = d.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+      });
+      const time = d.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      ogTitle = `${titleRaw} — ${dayOfWeek}, ${dateTime} at ${time}`;
+    } catch (e) {
+      // Fallback to simple format if date parsing fails
+      ogTitle = when ? `${titleRaw} — ${when}` : titleRaw;
+    }
+  }
+
+  // Escape HTML for OG title
+  ogTitle = escapeHtml(ogTitle);
+
+  // OG description: short, readable, no links, no image URLs
+  // Format: "Event Title — Date/Time — Location"
+  // This matches the rich preview format
+  const descParts = [titleRaw, when || null, where || null].filter(Boolean);
 
   const description = escapeHtml(descParts.join(" — ")).slice(0, 200);
-
-  // OG title with date time (optional)
-  const ogTitle = escapeHtml(when ? `${titleRaw} — ${when}` : titleRaw);
 
   // Debug logging (keep it, but less noisy)
   console.log(`[OG] title: ${titleRaw}`);

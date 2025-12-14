@@ -24,7 +24,7 @@ const inputStyle = {
   border: "1px solid rgba(255,255,255,0.1)",
   background: "rgba(20, 16, 30, 0.6)",
   color: "#fff",
-  fontSize: "15px",
+  fontSize: "16px",
   outline: "none",
   boxSizing: "border-box",
   transition: "all 0.3s ease",
@@ -2745,7 +2745,7 @@ export function ManageEventPage() {
                             ...(focusedField === "dinnerStartTime"
                               ? focusedInputStyle
                               : inputStyle),
-                            fontSize: "14px",
+                            fontSize: "16px",
                             padding: "12px 14px",
                             width: "100%",
                             cursor: "pointer",
@@ -2781,7 +2781,7 @@ export function ManageEventPage() {
                             ...(focusedField === "dinnerEndTime"
                               ? focusedInputStyle
                               : inputStyle),
-                            fontSize: "14px",
+                            fontSize: "16px",
                             padding: "12px 14px",
                             width: "100%",
                             cursor: "pointer",
@@ -2842,7 +2842,7 @@ export function ManageEventPage() {
                             ...(focusedField === "dinnerInterval"
                               ? focusedInputStyle
                               : inputStyle),
-                            fontSize: "14px",
+                            fontSize: "16px",
                             padding: "12px 14px",
                             width: "100%",
                           }}
@@ -2966,7 +2966,7 @@ export function ManageEventPage() {
                             ...(focusedField === "dinnerSeats"
                               ? focusedInputStyle
                               : inputStyle),
-                            fontSize: "14px",
+                            fontSize: "16px",
                             padding: "12px 14px",
                             width: "100%",
                           }}

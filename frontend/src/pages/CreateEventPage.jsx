@@ -897,7 +897,7 @@ export function CreateEventPage() {
               style={{
                 width: "100%",
                 boxSizing: "border-box",
-                fontSize: "clamp(15px, 2vw, 17px)",
+                fontSize: "16px",
                 lineHeight: "1.7",
                 marginBottom: "24px",
                 background: "rgba(255,255,255,0.04)",
@@ -1263,7 +1263,7 @@ export function CreateEventPage() {
                         border: "1px solid rgba(255,255,255,0.04)",
                         background: "rgba(12, 10, 18, 0.4)",
                         color: "#fff",
-                        fontSize: "14px",
+                        fontSize: "16px",
                         textAlign: "right",
                         outline: "none",
                       }}

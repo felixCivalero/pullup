@@ -12,7 +12,7 @@ export function Input({
         <label
           style={{
             display: "block",
-            fontSize: "14px",
+            fontSize: "16px",
             fontWeight: 600,
             marginBottom: "8px",
             color: "#fff",
@@ -64,7 +64,7 @@ export function Input({
         <div
           style={{
             color: "#ef4444",
-            fontSize: "13px",
+            fontSize: "16px",
             marginTop: "6px",
           }}
         >
@@ -75,7 +75,7 @@ export function Input({
         <div
           style={{
             color: "rgba(255, 255, 255, 0.6)",
-            fontSize: "13px",
+            fontSize: "16px",
             marginTop: "6px",
           }}
         >

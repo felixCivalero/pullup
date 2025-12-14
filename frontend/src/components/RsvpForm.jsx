@@ -76,6 +76,13 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    e.stopPropagation();
+
+    // Prevent viewport zoom and scrolling on mobile
+    if (document.activeElement) {
+      document.activeElement.blur();
+    }
+
     setError("");
 
     if (!email.trim()) {
@@ -119,7 +126,20 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ width: "100%" }}>
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        width: "100%",
+        // Prevent viewport zoom on mobile
+        touchAction: "manipulation",
+      }}
+      onTouchStart={(e) => {
+        // Prevent double-tap zoom
+        if (e.touches.length > 1) {
+          e.preventDefault();
+        }
+      }}
+    >
       <Input
         label="Email"
         type="email"
@@ -186,7 +206,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
               {loadingSlots ? (
                 <div
                   style={{
-                    fontSize: "14px",
+                    fontSize: "16px",
                     opacity: 0.7,
                     textAlign: "center",
                     padding: "12px",
@@ -197,7 +217,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
               ) : dinnerSlots.length === 0 ? (
                 <div
                   style={{
-                    fontSize: "14px",
+                    fontSize: "16px",
                     opacity: 0.7,
                     textAlign: "center",
                     padding: "12px",
@@ -209,7 +229,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
                 <>
                   <div
                     style={{
-                      fontSize: "12px",
+                      fontSize: "16px",
                       fontWeight: 600,
                       marginBottom: "12px",
                       opacity: 0.8,
@@ -251,7 +271,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
                           color: slot.available
                             ? "#fff"
                             : "rgba(255,255,255,0.4)",
-                          fontSize: "14px",
+                          fontSize: "16px",
                           fontWeight: 600,
                           cursor:
                             slot.available && !loading
@@ -263,7 +283,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
                           touchAction: "manipulation",
                         }}
                       >
-                        <div style={{ fontWeight: 600 }}>
+                        <div style={{ fontWeight: 600, fontSize: "16px" }}>
                           {new Date(slot.time).toLocaleTimeString("en-US", {
                             hour: "numeric",
                             minute: "2-digit",
@@ -272,7 +292,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
                         {slot.remaining !== null && (
                           <div
                             style={{
-                              fontSize: "11px",
+                              fontSize: "14px",
                               marginTop: "4px",
                               opacity: 0.7,
                             }}
@@ -330,7 +350,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
         >
           <div
             style={{
-              fontSize: "14px",
+              fontSize: "16px",
               fontWeight: 600,
               marginBottom: "8px",
               color: "#fff",
@@ -350,7 +370,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
           </div>
           <div
             style={{
-              fontSize: "13px",
+              fontSize: "16px",
               color: "rgba(255, 255, 255, 0.7)",
               lineHeight: "1.6",
             }}
@@ -375,14 +395,14 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
             background: "rgba(245, 158, 11, 0.15)",
             borderRadius: "12px",
             border: "1px solid rgba(245, 158, 11, 0.3)",
-            fontSize: "14px",
+            fontSize: "16px",
             color: "#fbbf24",
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: "4px" }}>
             You'll join the waitlist
           </div>
-          <div style={{ opacity: 0.9 }}>
+          <div style={{ opacity: 0.9, fontSize: "16px" }}>
             If spots open up, the host will contact you.
           </div>
         </div>
@@ -397,7 +417,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
             background: "rgba(239, 68, 68, 0.15)",
             borderRadius: "12px",
             border: "1px solid rgba(239, 68, 68, 0.3)",
-            fontSize: "14px",
+            fontSize: "16px",
             color: "#ef4444",
           }}
         >
@@ -406,12 +426,28 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
       )}
 
       {/* Submit Button */}
-      <div style={{ marginTop: "24px", display: "flex", gap: "12px" }}>
+      <div
+        style={{
+          marginTop: "24px",
+          display: "flex",
+          gap: "12px",
+          // Prevent scroll/zoom issues on mobile
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
         {onClose && (
           <Button
             type="button"
             variant="secondary"
-            onClick={onClose}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (document.activeElement) {
+                document.activeElement.blur();
+              }
+              onClose();
+            }}
             disabled={loading}
             style={{ flex: 1 }}
           >
@@ -423,7 +459,16 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
           loading={loading}
           disabled={loading || (wantsDinner && !dinnerTimeSlot)}
           fullWidth={!onClose}
-          style={onClose ? { flex: 2 } : {}}
+          style={{
+            ...(onClose ? { flex: 2 } : {}),
+            // Prevent mobile zoom/scroll issues
+            touchAction: "manipulation",
+            WebkitTapHighlightColor: "transparent",
+          }}
+          onClick={(e) => {
+            // Additional prevention of unwanted behavior
+            e.stopPropagation();
+          }}
         >
           {willGoToWaitlist && event?.waitlistEnabled
             ? "Join waitlist"

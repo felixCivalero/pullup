@@ -936,6 +936,11 @@ export function PostEventPage() {
               type="datetime-local"
               value={startsAt}
               onChange={(e) => setStartsAt(e.target.value)}
+              onInvalid={(e) => {
+                // Prevent default browser validation message
+                e.preventDefault();
+                showToast("Please enter a valid date and time", "error");
+              }}
               style={{
                 width: "100%",
                 padding: "16px",

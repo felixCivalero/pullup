@@ -119,6 +119,8 @@ export async function mapEventFromDb(dbEvent) {
     cocktailCapacity: dbEvent.cocktail_capacity,
     foodCapacity: dbEvent.food_capacity,
     totalCapacity: dbEvent.total_capacity,
+    // New fields with backward compatibility
+    // Only include if column exists (handled by || fallback)
     createdVia: dbEvent.created_via || "legacy",
     status: dbEvent.status || "PUBLISHED",
   };
@@ -186,9 +188,14 @@ function mapEventToDb(eventData) {
   if (eventData.totalCapacity !== undefined)
     dbData.total_capacity = eventData.totalCapacity;
   if (eventData.isPaid !== undefined) dbData.is_paid = eventData.isPaid;
-  if (eventData.createdVia !== undefined)
+  // Only include createdVia and status if they're explicitly provided
+  // This ensures backward compatibility if columns don't exist yet
+  if (eventData.createdVia !== undefined) {
     dbData.created_via = eventData.createdVia;
-  if (eventData.status !== undefined) dbData.status = eventData.status;
+  }
+  if (eventData.status !== undefined) {
+    dbData.status = eventData.status;
+  }
   return dbData;
 }
 
@@ -299,6 +306,9 @@ export async function createEvent({
 
   const dbData = mapEventToDb(eventData);
 
+  // Remove createdVia and status if they're not in the database schema yet
+  // This provides backward compatibility during migration
+  // The database defaults will handle these if columns exist
   const { data, error } = await supabase
     .from("events")
     .insert(dbData)
@@ -307,6 +317,23 @@ export async function createEvent({
 
   if (error) {
     console.error("Error creating event:", error);
+    // If error is about missing columns, try without them
+    if (error.message && error.message.includes("created_via")) {
+      console.warn("created_via column not found, retrying without it");
+      delete dbData.created_via;
+      delete dbData.status;
+      const retryResult = await supabase
+        .from("events")
+        .insert(dbData)
+        .select()
+        .single();
+
+      if (retryResult.error) {
+        console.error("Error creating event (retry):", retryResult.error);
+        throw new Error("Failed to create event");
+      }
+      return await mapEventFromDb(retryResult.data);
+    }
     throw new Error("Failed to create event");
   }
 

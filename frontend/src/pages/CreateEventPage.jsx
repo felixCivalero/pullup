@@ -984,13 +984,28 @@ export function CreateEventPage() {
 
               {/* Start Date & Time - Simple button interface */}
               <div style={{ marginBottom: "20px" }}>
-                <div style={{ position: "relative" }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      startDateTimeInputRef.current?.showPicker?.() ||
-                        startDateTimeInputRef.current?.click();
+                <div
+                  style={{
+                    position: "relative",
+                    width: "100%",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {
+                    startDateTimeInputRef.current?.focus();
+                    startDateTimeInputRef.current?.showPicker?.();
+                  }}
+                >
+                  <input
+                    ref={startDateTimeInputRef}
+                    type="datetime-local"
+                    value={isoToLocalDateTime(startsAt)}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setStartsAt(localDateTimeToIso(e.target.value));
+                      }
                     }}
+                    onFocus={() => setFocusedField("startDateTime")}
+                    onBlur={() => setFocusedField(null)}
                     style={{
                       ...(focusedField === "startDateTime"
                         ? {
@@ -1003,83 +1018,103 @@ export function CreateEventPage() {
                             background: "rgba(255,255,255,0.03)",
                             border: "1px solid rgba(255,255,255,0.08)",
                           }),
-                      fontSize: "15px",
+                      fontSize: "16px",
                       padding: "16px 18px 16px 48px",
+                      paddingRight: startsAt ? "120px" : "18px",
                       width: "100%",
-                      cursor: "pointer",
-                      minHeight: "52px",
+                      height: "52px",
                       fontWeight: 500,
                       borderRadius: "12px",
                       textAlign: "left",
-                      color: startsAt ? "#fff" : "rgba(255,255,255,0.5)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
+                      color: "transparent",
+                      cursor: "pointer",
                       boxSizing: "border-box",
                       boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                    }}
-                    onFocus={() => setFocusedField("startDateTime")}
-                    onBlur={() => setFocusedField(null)}
-                  >
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "12px",
-                        flex: 1,
-                      }}
-                    >
-                      <span style={{ fontSize: "16px", opacity: 0.7 }}>🕒</span>
-                      <span>
-                        {startsAt
-                          ? formatReadableDateTime(new Date(startsAt))
-                          : "Event start"}
-                      </span>
-                    </span>
-                    {startsAt && (
-                      <span
-                        style={{
-                          fontSize: "11px",
-                          opacity: 0.6,
-                          fontWeight: 600,
-                          marginRight: "8px",
-                        }}
-                      >
-                        {formatRelativeTime(new Date(startsAt))}
-                      </span>
-                    )}
-                  </button>
-                  {/* Hidden input for native picker */}
-                  <input
-                    ref={startDateTimeInputRef}
-                    type="datetime-local"
-                    value={isoToLocalDateTime(startsAt)}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setStartsAt(localDateTimeToIso(e.target.value));
-                      }
-                    }}
-                    style={{
-                      position: "absolute",
-                      opacity: 0,
-                      pointerEvents: "none",
-                      width: 0,
-                      height: 0,
+                      appearance: "none",
+                      WebkitAppearance: "none",
+                      MozAppearance: "textfield",
+                      position: "relative",
+                      zIndex: 2,
                     }}
                     required
                   />
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "18px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      pointerEvents: "none",
+                      fontSize: "16px",
+                      opacity: 0.7,
+                      zIndex: 3,
+                    }}
+                  >
+                    🕒
+                  </div>
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "48px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      pointerEvents: "none",
+                      color: startsAt ? "#fff" : "rgba(255,255,255,0.5)",
+                      fontSize: "15px",
+                      zIndex: 3,
+                    }}
+                  >
+                    {startsAt
+                      ? formatReadableDateTime(new Date(startsAt))
+                      : "Event start"}
+                  </div>
+                  {startsAt && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        right: "18px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        pointerEvents: "none",
+                        fontSize: "11px",
+                        opacity: 0.6,
+                        fontWeight: 600,
+                        zIndex: 3,
+                      }}
+                    >
+                      {formatRelativeTime(new Date(startsAt))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* End Date & Time - Simple button interface */}
               <div style={{ marginBottom: "20px" }}>
-                <div style={{ position: "relative" }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      endDateTimeInputRef.current?.showPicker?.() ||
-                        endDateTimeInputRef.current?.click();
+                <div
+                  style={{
+                    position: "relative",
+                    width: "100%",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {
+                    endDateTimeInputRef.current?.focus();
+                    endDateTimeInputRef.current?.showPicker?.();
+                  }}
+                >
+                  <input
+                    ref={endDateTimeInputRef}
+                    type="datetime-local"
+                    value={isoToLocalDateTime(endsAt)}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setEndsAt(localDateTimeToIso(e.target.value));
+                      } else {
+                        setEndsAt("");
+                      }
                     }}
+                    onFocus={() => setFocusedField("endDateTime")}
+                    onBlur={() => setFocusedField(null)}
+                    min={isoToLocalDateTime(startsAt) || undefined}
                     style={{
                       ...(focusedField === "endDateTime"
                         ? {
@@ -1092,73 +1127,73 @@ export function CreateEventPage() {
                             background: "rgba(255,255,255,0.03)",
                             border: "1px solid rgba(255,255,255,0.08)",
                           }),
-                      fontSize: "15px",
+                      fontSize: "16px",
                       padding: "16px 18px 16px 48px",
+                      paddingRight: endsAt ? "120px" : "18px",
                       width: "100%",
-                      cursor: "pointer",
-                      minHeight: "52px",
+                      height: "52px",
                       fontWeight: 500,
                       borderRadius: "12px",
                       textAlign: "left",
-                      color: endsAt ? "#fff" : "rgba(255,255,255,0.5)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
+                      color: "transparent",
+                      cursor: "pointer",
                       boxSizing: "border-box",
                       boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                      appearance: "none",
+                      WebkitAppearance: "none",
+                      MozAppearance: "textfield",
+                      position: "relative",
+                      zIndex: 2,
                     }}
-                    onFocus={() => setFocusedField("endDateTime")}
-                    onBlur={() => setFocusedField(null)}
-                  >
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "12px",
-                        flex: 1,
-                      }}
-                    >
-                      <span style={{ fontSize: "16px", opacity: 0.7 }}>🕒</span>
-                      <span>
-                        {endsAt
-                          ? formatReadableDateTime(new Date(endsAt))
-                          : "Event end"}
-                      </span>
-                    </span>
-                    {endsAt && (
-                      <span
-                        style={{
-                          fontSize: "11px",
-                          opacity: 0.6,
-                          fontWeight: 600,
-                          marginRight: "8px",
-                        }}
-                      >
-                        {formatRelativeTime(new Date(endsAt))}
-                      </span>
-                    )}
-                  </button>
-                  {/* Hidden input for native picker */}
-                  <input
-                    ref={endDateTimeInputRef}
-                    type="datetime-local"
-                    value={isoToLocalDateTime(endsAt)}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setEndsAt(localDateTimeToIso(e.target.value));
-                      } else {
-                        setEndsAt("");
-                      }
-                    }}
-                    min={isoToLocalDateTime(startsAt) || undefined}
+                    required
+                  />
+                  <div
                     style={{
                       position: "absolute",
-                      opacity: 0,
+                      left: "18px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
                       pointerEvents: "none",
-                      width: 0,
-                      height: 0,
+                      fontSize: "16px",
+                      opacity: 0.7,
+                      zIndex: 3,
                     }}
-                  />
+                  >
+                    🕒
+                  </div>
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "48px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      pointerEvents: "none",
+                      color: endsAt ? "#fff" : "rgba(255,255,255,0.5)",
+                      fontSize: "15px",
+                      zIndex: 3,
+                    }}
+                  >
+                    {endsAt
+                      ? formatReadableDateTime(new Date(endsAt))
+                      : "Event end"}
+                  </div>
+                  {endsAt && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        right: "18px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        pointerEvents: "none",
+                        fontSize: "11px",
+                        opacity: 0.6,
+                        fontWeight: 600,
+                        zIndex: 3,
+                      }}
+                    >
+                      {formatRelativeTime(new Date(endsAt))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1515,61 +1550,17 @@ export function CreateEventPage() {
                         }}
                       >
                         {/* First Slot Start */}
-                        <div style={{ position: "relative" }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              dinnerStartTimeInputRef.current?.showPicker?.() ||
-                                dinnerStartTimeInputRef.current?.click();
-                            }}
-                            style={{
-                              ...inputStyle,
-                              fontSize: "14px",
-                              padding: "14px 16px 14px 48px",
-                              width: "100%",
-                              cursor: "pointer",
-                              minHeight: "48px",
-                              textAlign: "left",
-                              color: dinnerStartTime
-                                ? "#fff"
-                                : "rgba(255,255,255,0.5)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              boxSizing: "border-box",
-                              background: "rgba(255,255,255,0.03)",
-                              border: "1px solid rgba(255,255,255,0.08)",
-                              borderRadius: "12px",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                            }}
-                          >
-                            <span
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "10px",
-                                flex: 1,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "16px",
-                                  opacity: 0.7,
-                                  position: "absolute",
-                                  left: "16px",
-                                }}
-                              >
-                                🕒
-                              </span>
-                              <span>
-                                {dinnerStartTime
-                                  ? formatReadableDateTime(
-                                      new Date(dinnerStartTime)
-                                    )
-                                  : "First slot start *"}
-                              </span>
-                            </span>
-                          </button>
+                        <div
+                          style={{
+                            position: "relative",
+                            width: "100%",
+                            cursor: "pointer",
+                          }}
+                          onClick={() => {
+                            dinnerStartTimeInputRef.current?.focus();
+                            dinnerStartTimeInputRef.current?.showPicker?.();
+                          }}
+                        >
                           <input
                             ref={dinnerStartTimeInputRef}
                             type="datetime-local"
@@ -1577,70 +1568,73 @@ export function CreateEventPage() {
                             onChange={(e) => setDinnerStartTime(e.target.value)}
                             required={dinnerEnabled}
                             style={{
-                              position: "absolute",
-                              opacity: 0,
-                              pointerEvents: "none",
-                              width: 0,
-                              height: 0,
-                            }}
-                          />
-                        </div>
-                        {/* Last Slot Start */}
-                        <div style={{ position: "relative" }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              dinnerEndTimeInputRef.current?.showPicker?.() ||
-                                dinnerEndTimeInputRef.current?.click();
-                            }}
-                            style={{
                               ...inputStyle,
-                              fontSize: "14px",
+                              fontSize: "16px",
                               padding: "14px 16px 14px 48px",
                               width: "100%",
-                              cursor: "pointer",
-                              minHeight: "48px",
+                              height: "48px",
                               textAlign: "left",
-                              color: dinnerEndTime
-                                ? "#fff"
-                                : "rgba(255,255,255,0.5)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
+                              color: "transparent",
+                              cursor: "pointer",
                               boxSizing: "border-box",
                               background: "rgba(255,255,255,0.03)",
                               border: "1px solid rgba(255,255,255,0.08)",
                               borderRadius: "12px",
                               boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                              appearance: "none",
+                              WebkitAppearance: "none",
+                              MozAppearance: "textfield",
+                              position: "relative",
+                              zIndex: 2,
+                            }}
+                          />
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: "16px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              pointerEvents: "none",
+                              fontSize: "16px",
+                              opacity: 0.7,
+                              zIndex: 3,
                             }}
                           >
-                            <span
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "10px",
-                                flex: 1,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "16px",
-                                  opacity: 0.7,
-                                  position: "absolute",
-                                  left: "16px",
-                                }}
-                              >
-                                🕒
-                              </span>
-                              <span>
-                                {dinnerEndTime
-                                  ? formatReadableDateTime(
-                                      new Date(dinnerEndTime)
-                                    )
-                                  : "Last slot start *"}
-                              </span>
-                            </span>
-                          </button>
+                            🕒
+                          </div>
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: "48px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              pointerEvents: "none",
+                              color: dinnerStartTime
+                                ? "#fff"
+                                : "rgba(255,255,255,0.5)",
+                              fontSize: "14px",
+                              zIndex: 3,
+                            }}
+                          >
+                            {dinnerStartTime
+                              ? formatReadableDateTime(
+                                  new Date(dinnerStartTime)
+                                )
+                              : "First slot start *"}
+                          </div>
+                        </div>
+                        {/* Last Slot Start */}
+                        <div
+                          style={{
+                            position: "relative",
+                            width: "100%",
+                            cursor: "pointer",
+                          }}
+                          onClick={() => {
+                            dinnerEndTimeInputRef.current?.focus();
+                            dinnerEndTimeInputRef.current?.showPicker?.();
+                          }}
+                        >
                           <input
                             ref={dinnerEndTimeInputRef}
                             type="datetime-local"
@@ -1649,13 +1643,58 @@ export function CreateEventPage() {
                             required={dinnerEnabled}
                             min={dinnerStartTime || undefined}
                             style={{
-                              position: "absolute",
-                              opacity: 0,
-                              pointerEvents: "none",
-                              width: 0,
-                              height: 0,
+                              ...inputStyle,
+                              fontSize: "16px",
+                              padding: "14px 16px 14px 48px",
+                              width: "100%",
+                              height: "48px",
+                              textAlign: "left",
+                              color: "transparent",
+                              cursor: "pointer",
+                              boxSizing: "border-box",
+                              background: "rgba(255,255,255,0.03)",
+                              border: "1px solid rgba(255,255,255,0.08)",
+                              borderRadius: "12px",
+                              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                              appearance: "none",
+                              WebkitAppearance: "none",
+                              MozAppearance: "textfield",
+                              position: "relative",
+                              zIndex: 2,
                             }}
                           />
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: "16px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              pointerEvents: "none",
+                              fontSize: "16px",
+                              opacity: 0.7,
+                              zIndex: 3,
+                            }}
+                          >
+                            🕒
+                          </div>
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: "48px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              pointerEvents: "none",
+                              color: dinnerEndTime
+                                ? "#fff"
+                                : "rgba(255,255,255,0.5)",
+                              fontSize: "14px",
+                              zIndex: 3,
+                            }}
+                          >
+                            {dinnerEndTime
+                              ? formatReadableDateTime(new Date(dinnerEndTime))
+                              : "Last slot start *"}
+                          </div>
                         </div>
                       </div>
                     </div>

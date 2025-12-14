@@ -502,36 +502,73 @@ export function CreateEventPage() {
 
       const created = await res.json();
 
-      // If there's an image file, upload it now
+      // If there's an image file, upload it now and wait for completion
+      let finalEvent = created;
       if (imageFile) {
         try {
           const reader = new FileReader();
-          reader.onloadend = async () => {
-            if (reader.result) {
-              const imageRes = await authenticatedFetch(
-                `/host/events/${created.id}/image`,
-                {
-                  method: "POST",
-                  body: JSON.stringify({ imageData: reader.result }),
-                }
-              );
+          const imageUploadPromise = new Promise((resolve, reject) => {
+            reader.onloadend = async () => {
+              if (reader.result) {
+                try {
+                  const imageRes = await authenticatedFetch(
+                    `/host/events/${created.id}/image`,
+                    {
+                      method: "POST",
+                      body: JSON.stringify({ imageData: reader.result }),
+                    }
+                  );
 
-              if (!imageRes.ok) {
-                console.error("Failed to upload image, but event was created");
-                showToast("Event created, but image upload failed", "warning");
+                  if (imageRes.ok) {
+                    // Fetch updated event with image URL
+                    const updatedEventRes = await authenticatedFetch(
+                      `/host/events/${created.id}`
+                    );
+                    if (updatedEventRes.ok) {
+                      finalEvent = await updatedEventRes.json();
+                    }
+                    resolve();
+                  } else {
+                    console.error(
+                      "Failed to upload image, but event was created"
+                    );
+                    showToast(
+                      "Event created, but image upload failed",
+                      "warning"
+                    );
+                    resolve(); // Still resolve to continue navigation
+                  }
+                } catch (imageError) {
+                  console.error("Error uploading image:", imageError);
+                  showToast(
+                    "Event created, but image upload failed",
+                    "warning"
+                  );
+                  resolve(); // Still resolve to continue navigation
+                }
+              } else {
+                resolve(); // No result, continue anyway
               }
-            }
-          };
+            };
+            reader.onerror = () => {
+              console.error("FileReader error");
+              resolve(); // Still resolve to continue navigation
+            };
+          });
           reader.readAsDataURL(imageFile);
+          // Wait for image upload to complete before navigating
+          await imageUploadPromise;
         } catch (imageError) {
           console.error("Error uploading image:", imageError);
-          // Event is already created, so just warn about image
           showToast("Event created, but image upload failed", "warning");
         }
       }
 
       showToast("Event created successfully! 🎉", "success");
-      navigate(`/app/events/${created.id}/manage`);
+      // Navigate with event data (including image if uploaded)
+      navigate(`/events/${finalEvent.slug}/success`, {
+        state: { event: finalEvent },
+      });
     } catch (err) {
       console.error(err);
       if (isNetworkError(err)) {

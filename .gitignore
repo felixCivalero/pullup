@@ -16,3 +16,7 @@ frontend/.env.production
 
 *.md
 
+
+# Build artifacts
+frontend/dist
+frontend/node_modules

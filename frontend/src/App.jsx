@@ -5,6 +5,7 @@ import { CreateEventPage } from "./pages/CreateEventPage";
 import { PostEventPage } from "./pages/PostEventPage";
 import { EventPage } from "./pages/EventPage";
 import { RsvpSuccessPage } from "./pages/RsvpSuccessPage";
+import { EventSuccessPage } from "./pages/EventSuccessPage";
 import { ManageEventPage } from "./pages/ManageEventPage";
 import { EventGuestsPage } from "./pages/EventGuestsPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
@@ -22,6 +23,7 @@ function App() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/post" element={<PostEventPage />} />
         <Route path="/create" element={<CreateEventPage />} />
+        <Route path="/events/:slug/success" element={<EventSuccessPage />} />
         <Route path="/app/events/:id/manage" element={<ManageEventPage />} />
         <Route path="/app/events/:id/guests" element={<EventGuestsPage />} />
       </Route>

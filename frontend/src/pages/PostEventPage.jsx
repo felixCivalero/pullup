@@ -223,6 +223,7 @@ export function PostEventPage() {
       });
 
       // Upload image after event creation if provided
+      let finalEvent = event;
       if (imageFile) {
         try {
           const compressedImage = await compressImage(imageFile);
@@ -235,30 +236,24 @@ export function PostEventPage() {
           );
 
           if (imageRes.ok) {
-            // Image uploaded successfully - fetch updated event
+            // Image uploaded successfully - fetch updated event with image URL
             const updatedEventRes = await authenticatedFetch(
               `/host/events/${event.id}`
             );
             if (updatedEventRes.ok) {
-              const updatedEvent = await updatedEventRes.json();
-              setPostedEvent(updatedEvent);
-            } else {
-              setPostedEvent(event);
+              finalEvent = await updatedEventRes.json();
             }
-          } else {
-            // Event created but image failed - still show success
-            setPostedEvent(event);
           }
         } catch (imageError) {
           console.error("Image upload failed:", imageError);
           // Event is created, continue without image
-          setPostedEvent(event);
         }
-      } else {
-        setPostedEvent(event);
       }
 
-      showToast("Event posted! 🎉", "success");
+      // Navigate to success page with event data (including image if uploaded)
+      navigate(`/events/${finalEvent.slug}/success`, {
+        state: { event: finalEvent },
+      });
     } catch (error) {
       console.error("Error posting event:", error);
       showToast(error.message || "Failed to post event", "error");
@@ -447,368 +442,8 @@ export function PostEventPage() {
     });
   }
 
-  // Success screen
-  if (postedEvent) {
-    const eventImageUrl = postedEvent.imageUrl || null;
-
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#05040a",
-          color: "#fff",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        {/* Event image background */}
-        {eventImageUrl && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundImage: `url(${eventImageUrl})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              opacity: 0.3,
-              filter: "blur(20px)",
-              zIndex: 0,
-            }}
-          />
-        )}
-
-        {/* Overlay gradient */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background:
-              "linear-gradient(to bottom, rgba(5,4,10,0.95) 0%, rgba(5,4,10,0.85) 50%, rgba(5,4,10,0.95) 100%)",
-            zIndex: 1,
-          }}
-        />
-
-        {/* Content */}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 2,
-            minHeight: "100vh",
-            padding: "24px 20px",
-            paddingBottom: "120px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{ maxWidth: "400px", width: "100%", textAlign: "center" }}
-          >
-            {/* Success icon */}
-            <div
-              style={{
-                fontSize: "64px",
-                marginBottom: "24px",
-              }}
-            >
-              ✨
-            </div>
-
-            <h1
-              style={{
-                fontSize: "28px",
-                fontWeight: 700,
-                marginBottom: "12px",
-              }}
-            >
-              Event posted!
-            </h1>
-
-            {/* Event preview card */}
-            <div
-              style={{
-                background: "rgba(255,255,255,0.08)",
-                backdropFilter: "blur(10px)",
-                borderRadius: "16px",
-                padding: "20px",
-                marginBottom: "32px",
-                border: "1px solid rgba(255,255,255,0.1)",
-              }}
-            >
-              {/* Event image */}
-              {eventImageUrl && (
-                <div
-                  style={{
-                    width: "100%",
-                    height: "200px",
-                    borderRadius: "12px",
-                    marginBottom: "16px",
-                    overflow: "hidden",
-                    backgroundImage: `url(${eventImageUrl})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
-                />
-              )}
-
-              {/* Event title */}
-              <h2
-                style={{
-                  fontSize: "22px",
-                  fontWeight: 700,
-                  marginBottom: "8px",
-                  textAlign: "left",
-                }}
-              >
-                {postedEvent.title}
-              </h2>
-
-              {/* Event description */}
-              {postedEvent.description && (
-                <p
-                  style={{
-                    fontSize: "14px",
-                    opacity: 0.8,
-                    marginBottom: "12px",
-                    textAlign: "left",
-                    lineHeight: "1.5",
-                  }}
-                >
-                  {postedEvent.description}
-                </p>
-              )}
-
-              {/* Event details */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "8px",
-                  textAlign: "left",
-                }}
-              >
-                {postedEvent.startsAt && (
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      opacity: 0.9,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <span>📅</span>
-                    <span>{formatEventDate(postedEvent.startsAt)}</span>
-                  </div>
-                )}
-
-                {postedEvent.location && (
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      opacity: 0.9,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <span>📍</span>
-                    <span>{postedEvent.location}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Share button - Primary action */}
-            <div style={{ marginBottom: "12px", width: "100%" }}>
-              <button
-                onClick={handleShare}
-                style={{
-                  width: "100%",
-                  padding: "18px",
-                  borderRadius: "12px",
-                  border: "none",
-                  background:
-                    "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                  color: "#fff",
-                  fontSize: "18px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                🔗 Share Event
-              </button>
-            </div>
-
-            {/* Add to calendar dropdown */}
-            <div
-              ref={calendarDropdownRef}
-              style={{
-                position: "relative",
-                width: "100%",
-                marginBottom: "16px",
-              }}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowCalendarDropdown(!showCalendarDropdown);
-                }}
-                style={{
-                  width: "100%",
-                  padding: "16px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(255,255,255,0.05)",
-                  color: "#fff",
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                }}
-              >
-                <span>📅</span>
-                <span>Add to calendar</span>
-                <span>{showCalendarDropdown ? "▲" : "▼"}</span>
-              </button>
-
-              {showCalendarDropdown && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    marginTop: "8px",
-                    background: "rgba(20, 16, 30, 0.95)",
-                    backdropFilter: "blur(10px)",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    overflow: "hidden",
-                    zIndex: 10,
-                  }}
-                >
-                  <button
-                    onClick={() => handleAddToCalendar("google")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Google Calendar
-                  </button>
-                  <button
-                    onClick={() => handleAddToCalendar("outlook")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Outlook
-                  </button>
-                  <button
-                    onClick={() => handleAddToCalendar("yahoo")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Yahoo Calendar
-                  </button>
-                  <button
-                    onClick={() => handleAddToCalendar("apple")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Apple Calendar
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* View event link */}
-            <a
-              href={`/e/${postedEvent.slug}`}
-              onClick={(e) => {
-                e.preventDefault();
-                window.open(`/e/${postedEvent.slug}`, "_blank");
-              }}
-              style={{
-                color: "rgba(255,255,255,0.6)",
-                textDecoration: "none",
-                fontSize: "14px",
-              }}
-            >
-              View event page →
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Note: Success screen is now handled by EventSuccessPage component
+  // Navigation happens after event creation
 
   // Form screen
   return (

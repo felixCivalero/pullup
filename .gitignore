@@ -1,6 +1,18 @@
 # Environment variables
 .env
+.env.development
+.env.production
 backend/.env
+backend/.env.development
+backend/.env.production
 frontend/.env
+frontend/.env.development
+frontend/.env.production
+
+# Keep .env.example files (they're templates)
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
 *.md
 

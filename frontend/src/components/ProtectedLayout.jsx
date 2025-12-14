@@ -90,47 +90,6 @@ export function ProtectedLayout() {
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {/* User info */}
-          {user && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              {user.user_metadata?.avatar_url ? (
-                <img
-                  src={user.user_metadata.avatar_url}
-                  alt={user.user_metadata?.full_name || user.email}
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "50%",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "50%",
-                    background:
-                      "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
-                    fontWeight: 600,
-                    fontSize: "12px",
-                  }}
-                >
-                  {(user.user_metadata?.full_name ||
-                    user.email ||
-                    "U")[0].toUpperCase()}
-                </div>
-              )}
-              <span style={{ fontSize: "12px", opacity: 0.8 }}>
-                {user.user_metadata?.full_name || user.email?.split("@")[0]}
-              </span>
-            </div>
-          )}
-
           <button
             onClick={() => handleNav("/create")}
             style={{

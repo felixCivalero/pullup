@@ -38,7 +38,13 @@ import {
   createStripePrice,
 } from "./stripe.js";
 
-dotenv.config();
+// Load environment-specific .env file
+// In development, loads .env.development
+// In production, loads .env (or .env.production if you create one)
+const envFile =
+  process.env.NODE_ENV === "development" ? ".env.development" : ".env";
+
+dotenv.config({ path: envFile });
 
 const app = express();
 

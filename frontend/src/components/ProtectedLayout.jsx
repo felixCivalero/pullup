@@ -22,6 +22,8 @@ export function ProtectedLayout() {
   }
 
   const isHome = location.pathname === "/home";
+  const isCreatingEvent =
+    location.pathname === "/create" || location.pathname === "/post";
 
   // Show loading state while checking auth
   if (loading) {
@@ -82,7 +84,7 @@ export function ProtectedLayout() {
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <button
-            onClick={() => handleNav("/create")}
+            onClick={() => handleNav(isCreatingEvent ? "/home" : "/create")}
             style={{
               padding: "10px 18px",
               borderRadius: "999px",
@@ -108,7 +110,7 @@ export function ProtectedLayout() {
               e.target.style.boxShadow = "0 4px 12px rgba(139, 92, 246, 0.3)";
             }}
           >
-            + create event
+            {isCreatingEvent ? "Go to Profile" : "+ create event"}
           </button>
         </div>
 

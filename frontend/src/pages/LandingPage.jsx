@@ -79,13 +79,13 @@ export function LandingPage() {
     });
 
     if (user) {
-      // Already logged in, go straight to dashboard
-      navigate("/home");
+      // Already logged in, go straight to event creation
+      navigate("/create");
     } else {
-      // Not logged in, go to login (which will redirect to /home after)
+      // Not logged in, go to login (which will redirect to /create after)
       try {
         setSigningIn(true);
-        await signInWithGoogle("/home");
+        await signInWithGoogle("/create");
         // OAuth redirect will happen automatically
       } catch (error) {
         console.error("Sign in error:", error);

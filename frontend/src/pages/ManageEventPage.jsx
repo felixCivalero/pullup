@@ -2050,7 +2050,9 @@ export function ManageEventPage() {
                       ? "rgba(139, 92, 246, 0.1)"
                       : "transparent",
                   borderRadius: "8px 8px 0 0",
-                  border: "none",
+                  borderTop: "none",
+                  borderLeft: "none",
+                  borderRight: "none",
                   cursor: "pointer",
                   transition: "all 0.3s ease",
                   fontSize: "16px",
@@ -2076,7 +2078,9 @@ export function ManageEventPage() {
                 onClick={() => navigate(`/app/events/${id}/guests`)}
                 style={{
                   background: "transparent",
-                  border: "none",
+                  borderTop: "none",
+                  borderLeft: "none",
+                  borderRight: "none",
                   color: "#9ca3af",
                   cursor: "pointer",
                   transition: "all 0.3s ease",
@@ -2121,7 +2125,9 @@ export function ManageEventPage() {
                       ? "rgba(139, 92, 246, 0.1)"
                       : "transparent",
                   borderRadius: "8px 8px 0 0",
-                  border: "none",
+                  borderTop: "none",
+                  borderLeft: "none",
+                  borderRight: "none",
                   cursor: "pointer",
                   transition: "all 0.3s ease",
                   fontSize: "16px",

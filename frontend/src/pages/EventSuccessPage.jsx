@@ -6,7 +6,9 @@ import {
   getEventShareUrl,
   getGoogleMapsUrl,
   formatLocationShort,
+  generateCalendarUrls,
 } from "../lib/urlUtils";
+import { formatReadableDateTime } from "../lib/dateUtils.js";
 
 export function EventSuccessPage() {
   const { slug } = useParams();
@@ -171,64 +173,21 @@ export function EventSuccessPage() {
     };
   }, []);
 
-  function formatEventDate(dateString) {
-    if (!dateString) return "";
-
-    const date = new Date(dateString);
-    const options = {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    };
-    return date.toLocaleDateString("en-US", options);
-  }
-
-  function getCalendarUrls() {
-    if (!event || !event.startsAt) {
-      return {};
-    }
-
-    const formatDateForGoogle = (dateString) => {
-      if (!dateString) return null;
-      const date = new Date(dateString);
-      return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-    };
-
-    const startDate = formatDateForGoogle(event.startsAt);
-    if (!startDate) {
-      return {};
-    }
-
-    let endDate;
-    if (event.endsAt) {
-      endDate = formatDateForGoogle(event.endsAt);
-    } else {
-      // Default to 2 hours after start if no end date
-      const start = new Date(event.startsAt);
-      const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-      endDate = formatDateForGoogle(end.toISOString());
-    }
-
-    const eventUrl = `${window.location.origin}/e/${event.slug}`;
-    const description = `${event.description || ""}\n\nEvent page: ${eventUrl}`;
-
-    const location = encodeURIComponent(event.location || "");
-    const title = encodeURIComponent(event.title);
-    const desc = encodeURIComponent(description);
-
-    return {
-      google: `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${desc}&location=${location}`,
-      outlook: `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${startDate}&enddt=${endDate}&body=${desc}&location=${location}`,
-      yahoo: `https://calendar.yahoo.com/?v=60&view=d&type=20&title=${title}&st=${startDate}&dur=${endDate}&desc=${desc}&in_loc=${location}`,
-      apple: `data:text/calendar;charset=utf8,BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:${startDate}\nDTEND:${endDate}\nSUMMARY:${title}\nDESCRIPTION:${desc}\nLOCATION:${location}\nEND:VEVENT\nEND:VCALENDAR`,
-    };
-  }
-
   function handleAddToCalendar(provider) {
-    const urls = getCalendarUrls();
+    if (!event) {
+      showToast("Unable to generate calendar link", "error");
+      return;
+    }
+
+    const urls = generateCalendarUrls({
+      title: event.title,
+      description: event.description || "",
+      location: event.location || "",
+      slug: event.slug,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+    });
+
     const url = urls[provider];
 
     if (!url) {
@@ -238,7 +197,8 @@ export function EventSuccessPage() {
 
     if (provider === "apple") {
       // For Apple Calendar, create a downloadable .ics file
-      const blob = new Blob([url.split(",")[1]], { type: "text/calendar" });
+      const icsContent = urls.icsContent || "";
+      const blob = new Blob([icsContent], { type: "text/calendar" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = `${event.slug}.ics`;
@@ -452,7 +412,7 @@ export function EventSuccessPage() {
                   }}
                 >
                   <span>📅</span>
-                  <span>{formatEventDate(event.startsAt)}</span>
+                  <span>{formatReadableDateTime(event.startsAt)}</span>
                 </div>
               )}
 

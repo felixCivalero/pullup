@@ -2,8 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { authenticatedFetch } from "../lib/api.js";
-import { getEventShareUrl } from "../lib/urlUtils";
+import { getEventShareUrl, generateCalendarUrls } from "../lib/urlUtils";
 import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
+import { handleNetworkError } from "../lib/errorHandler.js";
+import { formatEventDate } from "../lib/dateUtils.js";
 
 // Get user's timezone
 function getUserTimezone() {
@@ -117,19 +119,6 @@ export function PostEventPage() {
         throw new Error("Failed to calculate end time");
       }
 
-      // Debug logging
-      console.log("Event times (before API call):", {
-        input: startsAt,
-        startsAtISO,
-        endsAt,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        durationHours,
-        startLocal: startDate.toLocaleString(),
-        endLocal: endDate.toLocaleString(),
-        timezone: getUserTimezone(),
-      });
-
       // Create event first (image will be uploaded after)
       const eventRes = await authenticatedFetch("/events", {
         method: "POST",
@@ -195,8 +184,11 @@ export function PostEventPage() {
         state: { event: finalEvent },
       });
     } catch (error) {
-      console.error("Error posting event:", error);
-      showToast(error.message || "Failed to post event", "error");
+      handleNetworkError(
+        error,
+        showToast,
+        error?.message || "Failed to post event"
+      );
       setLoading(false);
     }
   }
@@ -205,136 +197,34 @@ export function PostEventPage() {
   function getCalendarUrls() {
     if (!postedEvent) return {};
 
-    const formatDateForGoogle = (dateString) => {
-      if (!dateString) return null;
-
-      // Parse the date string - it should be ISO format from backend
-      const date = new Date(dateString);
-
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        console.error("Invalid date:", dateString);
-        return null;
-      }
-
-      // Format as YYYYMMDDTHHMMSSZ (UTC)
-      // Google Calendar expects UTC time in this exact format
-      const year = date.getUTCFullYear();
-      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-      const day = String(date.getUTCDate()).padStart(2, "0");
-      const hours = String(date.getUTCHours()).padStart(2, "0");
-      const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-      const seconds = String(date.getUTCSeconds()).padStart(2, "0");
-
-      const formatted = `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
-
-      // Debug: log the conversion
-      console.log("Date formatting:", {
-        input: dateString,
-        date: date.toISOString(),
-        formatted,
-        local: date.toLocaleString(),
-        utc: `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`,
-      });
-
-      return formatted;
-    };
-
-    // Get start date
-    if (!postedEvent.startsAt) {
-      console.error("No start date in event");
-      return {};
-    }
-
-    const startDate = formatDateForGoogle(postedEvent.startsAt);
-    if (!startDate) {
-      console.error("Failed to format start date");
-      return {};
-    }
-
-    // Calculate end date: 2 hours after start
-    let endDate;
-    if (postedEvent.endsAt) {
-      // Use provided end date (should always be set)
-      endDate = formatDateForGoogle(postedEvent.endsAt);
-
-      // Verify it's 2 hours after start
-      const start = new Date(postedEvent.startsAt);
-      const end = new Date(postedEvent.endsAt);
-      const durationHours =
-        (end.getTime() - start.getTime()) / (60 * 60 * 1000);
-
-      if (Math.abs(durationHours - 2) > 0.01) {
-        console.warn("Event duration is not 2 hours:", {
-          durationHours,
-          startsAt: postedEvent.startsAt,
-          endsAt: postedEvent.endsAt,
-        });
-        // Recalculate to ensure it's exactly 2 hours
-        const recalculatedEnd = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-        endDate = formatDateForGoogle(recalculatedEnd.toISOString());
-      }
-    } else {
-      // Fallback: Calculate 2 hours after start (shouldn't happen if backend works)
-      console.warn("No endsAt in event, calculating from startsAt");
-      const start = new Date(postedEvent.startsAt);
-      if (isNaN(start.getTime())) {
-        console.error("Invalid start date");
-        return {};
-      }
-      const end = new Date(start.getTime() + 2 * 60 * 60 * 1000); // Add 2 hours
-      endDate = formatDateForGoogle(end.toISOString());
-    }
-
-    // Ensure we have both dates
-    if (!startDate || !endDate) {
-      console.error("Missing dates for calendar", {
-        startDate,
-        endDate,
-        startsAt: postedEvent.startsAt,
-        endsAt: postedEvent.endsAt,
-      });
-      return {};
-    }
-
-    // Debug logging
-    console.log("Calendar dates:", {
+    return generateCalendarUrls({
+      title: postedEvent.title,
+      description: postedEvent.description || "",
+      location: postedEvent.location || "",
+      slug: postedEvent.slug,
       startsAt: postedEvent.startsAt,
       endsAt: postedEvent.endsAt,
-      startDate,
-      endDate,
-      startObj: new Date(postedEvent.startsAt),
-      endObj: postedEvent.endsAt
-        ? new Date(postedEvent.endsAt)
-        : new Date(
-            new Date(postedEvent.startsAt).getTime() + 2 * 60 * 60 * 1000
-          ),
     });
-
-    const eventUrl = `${window.location.origin}/e/${postedEvent.slug}`;
-    const description = `${
-      postedEvent.description || ""
-    }\n\nEvent page: ${eventUrl}`;
-
-    const location = encodeURIComponent(postedEvent.location || "");
-    const title = encodeURIComponent(postedEvent.title);
-    const desc = encodeURIComponent(description);
-
-    return {
-      google: `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${desc}&location=${location}`,
-      outlook: `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${startDate}&enddt=${endDate}&body=${desc}&location=${location}`,
-      yahoo: `https://calendar.yahoo.com/?v=60&view=d&type=20&title=${title}&st=${startDate}&dur=${endDate}&desc=${desc}&in_loc=${location}`,
-      apple: `data:text/calendar;charset=utf8,BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:${startDate}\nDTEND:${endDate}\nSUMMARY:${title}\nDESCRIPTION:${desc}\nLOCATION:${location}\nEND:VEVENT\nEND:VCALENDAR`,
-    };
   }
 
   function handleAddToCalendar(service) {
     const urls = getCalendarUrls();
     const url = urls[service];
 
+    if (!url) {
+      showToast("Unable to generate calendar link", "error");
+      return;
+    }
+
     if (service === "apple") {
-      // Download iCal file
-      const blob = new Blob([url.split(",")[1]], { type: "text/calendar" });
+      // Use raw ICS content if available (better file encoding)
+      const icsContent = urls.icsContent;
+      const blob = new Blob(
+        [icsContent || decodeURIComponent(url.split(",")[1])],
+        {
+          type: "text/calendar",
+        }
+      );
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = `${postedEvent.slug}.ics`;
@@ -368,18 +258,6 @@ export function PostEventPage() {
       navigator.clipboard.writeText(shareUrl);
       showToast("Link copied to clipboard! 📋", "success");
     }
-  }
-
-  function formatEventDate(dateString) {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
   }
 
   // Note: Success screen is now handled by EventSuccessPage component

@@ -11,14 +11,7 @@ import { IntegrationsTab } from "../components/HomeIntegrationsTab";
 import { CrmTab } from "../components/HomeCrmTab";
 
 import { authenticatedFetch } from "../lib/api.js";
-
-function isNetworkError(error) {
-  return (
-    error instanceof TypeError ||
-    error.message.includes("Failed to fetch") ||
-    error.message.includes("NetworkError")
-  );
-}
+import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -169,8 +162,12 @@ export function HomePage() {
         setEvents(data);
       } catch (err) {
         console.error("Failed to load events", err);
-        if (isNetworkError(err)) setNetworkError(true);
-        else showToast("Failed to load events", "error");
+        if (isNetworkError(err)) {
+          setNetworkError(true);
+          handleNetworkError(err, showToast);
+        } else {
+          showToast("Failed to load events", "error");
+        }
       } finally {
         setLoading(false);
       }

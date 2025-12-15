@@ -1028,9 +1028,11 @@ function mapRsvpToDb(rsvpData) {
   if (rsvpData.pulledUpCount !== undefined)
     dbData.pulled_up_count = rsvpData.pulledUpCount;
   if (rsvpData.pulledUpForDinner !== undefined)
-    dbData.pulled_up_for_dinner = rsvpData.pulledUpForDinner;
+    // Backward-compat boolean flag: true when any dinner guests are pulled up
+    dbData.pulled_up_for_dinner = !!rsvpData.pulledUpForDinner;
   if (rsvpData.pulledUpForCocktails !== undefined)
-    dbData.pulled_up_for_cocktails = rsvpData.pulledUpForCocktails;
+    // Backward-compat boolean flag: true when any cocktails-only guests are pulled up
+    dbData.pulled_up_for_cocktails = !!rsvpData.pulledUpForCocktails;
   if (rsvpData.paymentId !== undefined) dbData.payment_id = rsvpData.paymentId;
   if (rsvpData.paymentStatus !== undefined)
     dbData.payment_status = rsvpData.paymentStatus;

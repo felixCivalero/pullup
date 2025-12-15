@@ -10,7 +10,8 @@ import {
   FaUtensils,
   FaWineGlass,
 } from "react-icons/fa";
-import { getEventShareUrl } from "../lib/urlUtils";
+import { getEventShareUrl, generateCalendarUrls } from "../lib/urlUtils";
+import { formatEventTime, formatReadableDateTime } from "../lib/dateUtils.js";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
@@ -89,40 +90,36 @@ export function RsvpSuccessPage() {
     if (slug) loadEvent();
   }, [slug]);
 
-  // Generate calendar service URLs
-  // Rule: One event in the user's head. One anchor in the calendar. Dinner is an optional precision layer.
-  // If dinner is booked, user can choose between dinner time or event time as anchor
   function getCalendarUrls(useDinnerTime = false) {
-    if (!event) return {};
+    if (!event) return null;
 
-    const formatDateForGoogle = (dateString) => {
-      const date = new Date(dateString);
-      return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-    };
+    const eventUrl = `${window.location.origin}/e/${slug}`;
+
+    // Use dinner slot if dinner selected, otherwise use event start/end
+    const anchorStart = useDinnerTime
+      ? booking?.dinnerTimeSlot || event.startsAt
+      : event.startsAt;
+    const anchorEnd = useDinnerTime
+      ? booking?.dinnerTimeSlot
+        ? new Date(
+            new Date(booking.dinnerTimeSlot).getTime() + 2 * 60 * 60 * 1000
+          ) // 2 hours by default
+        : event.endsAt || event.startsAt
+      : event.endsAt ||
+        new Date(new Date(event.startsAt).getTime() + 2 * 60 * 60 * 1000); // default +2h
 
     const hasConfirmedDinner =
       booking?.wantsDinner &&
       booking?.dinnerTimeSlot &&
       booking?.dinnerBookingStatus === "CONFIRMED";
 
-    let anchorStartDate;
-    let anchorEndDate;
-    let calendarTitle = event.title;
+    let calendarTitle = event.title || "Pull Up Event";
     let calendarDescription = event.description || "";
 
-    if (hasConfirmedDinner && useDinnerTime) {
+    if (hasConfirmedDinner && useDinnerTime && booking?.dinnerTimeSlot) {
       // Dinner is the anchor - use dinner time as the calendar event time
-      anchorStartDate = formatDateForGoogle(booking.dinnerTimeSlot);
-      // Calculate end time: dinner start + 2 hours for smooth calendar experience
-      const dinnerStart = new Date(booking.dinnerTimeSlot);
-      anchorEndDate = formatDateForGoogle(
-        new Date(dinnerStart.getTime() + 2 * 60 * 60 * 1000)
-      );
-
-      // Add dinner precision to title
       calendarTitle = `${event.title} - Dinner`;
 
-      // Build comprehensive description with all event details
       const dinnerTime = new Date(booking.dinnerTimeSlot).toLocaleTimeString(
         "en-US",
         { hour: "numeric", minute: "2-digit" }
@@ -146,20 +143,9 @@ export function RsvpSuccessPage() {
         calendarDescription += `\n📍 Location: ${event.location}`;
       }
     } else {
-      // Event start is the anchor
-      anchorStartDate = event.startsAt
-        ? formatDateForGoogle(event.startsAt)
-        : formatDateForGoogle(new Date());
-      anchorEndDate = event.endsAt
-        ? formatDateForGoogle(event.endsAt)
-        : formatDateForGoogle(new Date(Date.now() + 2 * 60 * 60 * 1000));
-
-      // Add dinner info to description if they have dinner
-      if (hasConfirmedDinner) {
-        const dinnerTime = new Date(booking.dinnerTimeSlot).toLocaleTimeString(
-          "en-US",
-          { hour: "numeric", minute: "2-digit" }
-        );
+      // Event start is the anchor, add dinner info if applicable
+      if (hasConfirmedDinner && booking?.dinnerTimeSlot) {
+        const dinnerTime = formatEventTime(booking.dinnerTimeSlot);
         calendarDescription += `\n\n🍽️ Dinner: ${dinnerTime}`;
         if (booking.dinnerPartySize > 1) {
           calendarDescription += ` (${booking.dinnerPartySize} people)`;
@@ -175,59 +161,16 @@ export function RsvpSuccessPage() {
       }
     }
 
-    const eventUrl = `${window.location.origin}/e/${slug}`;
     calendarDescription += `\n\nEvent page: ${eventUrl}`;
 
-    const location = encodeURIComponent(event.location || "");
-    const title = encodeURIComponent(calendarTitle);
-    const description = encodeURIComponent(calendarDescription);
-
-    // Google Calendar
-    const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${anchorStartDate}/${anchorEndDate}&details=${description}&location=${location}`;
-
-    // Outlook Calendar
-    const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${anchorStartDate}&enddt=${anchorEndDate}&body=${description}&location=${location}`;
-
-    // Yahoo Calendar
-    const yahooUrl = `https://calendar.yahoo.com/?v=60&view=d&type=20&title=${title}&st=${anchorStartDate}&dur=${anchorEndDate}&desc=${description}&in_loc=${location}`;
-
-    // Apple Calendar (iCal) - fallback to download
-    // Use the same anchor dates as web calendars
-    const formatDateForIcs = (dateString) => {
-      const date = new Date(dateString);
-      return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-    };
-
-    const icsStartDate = anchorStartDate;
-    const icsEndDate = anchorEndDate;
-
-    const icsContent = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//PullUp//Event//EN",
-      "BEGIN:VEVENT",
-      `UID:${event.id}@pullup.se`,
-      `DTSTAMP:${formatDateForIcs(new Date())}`,
-      `DTSTART:${icsStartDate}`,
-      `DTEND:${icsEndDate}`,
-      `SUMMARY:${calendarTitle}`,
-      `DESCRIPTION:${calendarDescription.replace(/\n/g, "\\n")}`,
-      location ? `LOCATION:${event.location}` : "",
-      `URL:${eventUrl}`,
-      "STATUS:CONFIRMED",
-      "SEQUENCE:0",
-      "END:VEVENT",
-      "END:VCALENDAR",
-    ]
-      .filter((line) => line !== "")
-      .join("\r\n");
-
-    return {
-      google: googleUrl,
-      outlook: outlookUrl,
-      yahoo: yahooUrl,
-      icsContent,
-    };
+    return generateCalendarUrls({
+      title: calendarTitle,
+      description: calendarDescription,
+      location: event.location || "",
+      slug: event.slug,
+      startsAt: anchorStart,
+      endsAt: anchorEnd,
+    });
   }
 
   // Handle calendar service selection
@@ -292,14 +235,7 @@ export function RsvpSuccessPage() {
   }
 
   const eventDate = event?.startsAt
-    ? new Date(event.startsAt).toLocaleDateString("en-US", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })
+    ? formatReadableDateTime(event.startsAt)
     : "";
 
   return (

@@ -1,5 +1,6 @@
 // frontend/src/lib/urlUtils.js
 // Utility functions for URL handling (localhost vs production)
+import { formatDateForCalendar, addHours } from "./dateUtils.js";
 
 export function getBaseUrl() {
   // In dev, use the current origin (vite)
@@ -42,7 +43,6 @@ export function getEventShareUrl(slug) {
   }
 
   const url = `${getShareOrigin()}/share/${slug}`;
-  console.log(`[getEventShareUrl] ${url}`);
   return url;
 }
 
@@ -52,6 +52,71 @@ export function getSuccessUrl(slug) {
 
 export function getOgImageUrl() {
   return `${getBaseUrl()}/og-image.jpg`;
+}
+
+/**
+ * Generate calendar URLs for an event
+ * @param {object} params
+ * @param {string} params.title
+ * @param {string} params.description
+ * @param {string} params.location
+ * @param {string} params.slug
+ * @param {string|Date} params.startsAt
+ * @param {string|Date} params.endsAt
+ */
+export function generateCalendarUrls({
+  title,
+  description = "",
+  location = "",
+  slug,
+  startsAt,
+  endsAt,
+}) {
+  const start = formatDateForCalendar(startsAt);
+  if (!start) return {};
+
+  const end = formatDateForCalendar(endsAt || addHours(startsAt, 2));
+  const encodedTitle = encodeURIComponent(title || "Event");
+  const encodedLocation = encodeURIComponent(location || "");
+
+  const baseUrl =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : getBaseUrl();
+  const eventUrl = slug ? `${baseUrl}/e/${slug}` : baseUrl;
+  const fullDescription = description
+    ? `${description}\n\nEvent page: ${eventUrl}`
+    : `Event page: ${eventUrl}`;
+  const encodedDescription = encodeURIComponent(fullDescription);
+
+  const icsContent = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//PullUp//Event//EN",
+    "BEGIN:VEVENT",
+    `UID:${slug || title || "event"}@pullup.se`,
+    `DTSTAMP:${formatDateForCalendar(new Date())}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${title || "Event"}`,
+    `DESCRIPTION:${fullDescription.replace(/\n/g, "\\n")}`,
+    location ? `LOCATION:${location}` : "",
+    `URL:${eventUrl}`,
+    "STATUS:CONFIRMED",
+    "SEQUENCE:0",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ]
+    .filter(Boolean)
+    .join("\\n");
+
+  return {
+    google: `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&dates=${start}/${end}&details=${encodedDescription}&location=${encodedLocation}`,
+    outlook: `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodedTitle}&startdt=${start}&enddt=${end}&body=${encodedDescription}&location=${encodedLocation}`,
+    yahoo: `https://calendar.yahoo.com/?v=60&view=d&type=20&title=${encodedTitle}&st=${start}&dur=${end}&desc=${encodedDescription}&in_loc=${encodedLocation}`,
+    apple: `data:text/calendar;charset=utf8,${encodeURIComponent(icsContent)}`,
+    icsContent,
+  };
 }
 
 /**

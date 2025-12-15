@@ -5,14 +5,8 @@ import { FaPaperPlane, FaCalendar } from "react-icons/fa";
 import { getEventShareUrl } from "../lib/urlUtils";
 
 import { authenticatedFetch, API_BASE } from "../lib/api.js";
-
-function isNetworkError(error) {
-  return (
-    error instanceof TypeError ||
-    error.message.includes("Failed to fetch") ||
-    error.message.includes("NetworkError")
-  );
-}
+import { formatEventTime, formatEventDate } from "../lib/dateUtils.js";
+import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
 function generateDinnerTimeSlots(event) {
   if (!event.dinnerEnabled || !event.dinnerStartTime || !event.dinnerEndTime) {
@@ -91,6 +85,7 @@ export function EventGuestsPage() {
         console.error(err);
         if (isNetworkError(err)) {
           setNetworkError(true);
+          handleNetworkError(err, showToast, "Could not load guests");
         } else {
           showToast("Could not load guests", "error");
         }
@@ -1595,12 +1590,7 @@ export function EventGuestsPage() {
                                     color: "#fff",
                                   }}
                                 >
-                                  {new Date(
-                                    g.dinnerTimeSlot
-                                  ).toLocaleTimeString("en-US", {
-                                    hour: "numeric",
-                                    minute: "2-digit",
-                                  })}
+                                  {formatEventTime(g.dinnerTimeSlot)}
                                 </div>
                               ) : (
                                 <span
@@ -1655,11 +1645,7 @@ export function EventGuestsPage() {
                             color: "#d1d5db",
                           }}
                         >
-                          {new Date(g.createdAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
+                          {formatEventDate(g.createdAt)}
                         </td>
                         <td style={{ padding: "20px", textAlign: "center" }}>
                           <div
@@ -2847,10 +2833,7 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
                         <option value="">Select time slot</option>
                         {dinnerSlots.map((slot) => (
                           <option key={slot} value={slot}>
-                            {new Date(slot).toLocaleTimeString("en-US", {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            })}
+                            {formatEventTime(slot)}
                           </option>
                         ))}
                       </select>

@@ -1,6 +1,7 @@
 // Host-side event card (Home dashboard)
 import { FaShare } from "react-icons/fa";
 import { getEventShareUrl } from "../lib/urlUtils";
+import { formatReadableDateTime } from "../lib/dateUtils.js";
 
 export function getEventStatus(event) {
   const now = new Date();
@@ -98,7 +99,7 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
               marginBottom: "8px",
             }}
           >
-            {new Date(event.startsAt).toLocaleString()}
+            {formatReadableDateTime(event.startsAt)}
           </div>
         </div>
 

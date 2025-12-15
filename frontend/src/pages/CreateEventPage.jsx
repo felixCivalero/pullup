@@ -4,15 +4,16 @@ import { useToast } from "../components/Toast";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 
 import { authenticatedFetch } from "../lib/api.js";
+import {
+  formatRelativeTime,
+  formatReadableDateTime,
+} from "../lib/dateUtils.js";
 import { uploadEventImage } from "../lib/imageUtils.js";
-
-function isNetworkError(error) {
-  return (
-    error instanceof TypeError ||
-    error.message.includes("Failed to fetch") ||
-    error.message.includes("NetworkError")
-  );
-}
+import {
+  isNetworkError,
+  handleNetworkError,
+  handleApiError,
+} from "../lib/errorHandler.js";
 
 const inputStyle = {
   width: "100%",
@@ -49,55 +50,6 @@ function formatTimezone(timezone) {
   const tzName = parts.find((p) => p.type === "timeZoneName")?.value || "";
   const city = timezone.split("/").pop()?.replace(/_/g, " ") || timezone;
   return { tzName, city };
-}
-
-function formatRelativeTime(date) {
-  const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 60) {
-    return diffMins > 0 ? `in ${diffMins}m` : "now";
-  } else if (diffHours < 24) {
-    return diffHours > 0 ? `in ${diffHours}h` : "today";
-  } else if (diffDays === 1) {
-    return "tomorrow";
-  } else if (diffDays < 7) {
-    return `in ${diffDays}d`;
-  } else {
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  }
-}
-
-function formatReadableDateTime(date) {
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const isToday = date.toDateString() === today.toDateString();
-  const isTomorrow = date.toDateString() === tomorrow.toDateString();
-
-  let dateStr = "";
-  if (isToday) {
-    dateStr = "Today";
-  } else if (isTomorrow) {
-    dateStr = "Tomorrow";
-  } else {
-    dateStr = date.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    });
-  }
-
-  const timeStr = date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
-  return `${dateStr} at ${timeStr}`;
 }
 
 // Helper function to convert ISO string to datetime-local format (local time)
@@ -520,15 +472,13 @@ export function CreateEventPage() {
         state: { event: finalEvent },
       });
     } catch (err) {
-      console.error(err);
       if (isNetworkError(err)) {
-        showToast(
-          "Network error. Please check your connection and try again.",
-          "error"
-        );
+        handleNetworkError(err, showToast);
       } else {
+        // Generic fallback (we don't have a Response object here)
+        console.error(err);
         showToast(
-          err.message || "Failed to create event. Please try again.",
+          err?.message || "Failed to create event. Please try again.",
           "error"
         );
       }

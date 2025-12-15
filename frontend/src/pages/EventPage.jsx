@@ -15,19 +15,13 @@ import {
   getGoogleMapsUrl,
   formatLocationShort,
 } from "../lib/urlUtils";
+import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
 import { RsvpForm } from "../components/RsvpForm";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { publicFetch } from "../lib/api.js";
-
-function isNetworkError(error) {
-  return (
-    error instanceof TypeError ||
-    error.message.includes("Failed to fetch") ||
-    error.message.includes("NetworkError")
-  );
-}
+import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
 export function EventPage() {
   const { slug } = useParams();
@@ -67,7 +61,11 @@ export function EventPage() {
         setEvent(data);
       } catch (err) {
         console.error("Error loading event", err);
-        showToast("Failed to load event", "error");
+        if (isNetworkError(err)) {
+          handleNetworkError(err, showToast, "Failed to load event");
+        } else {
+          showToast("Failed to load event", "error");
+        }
       } finally {
         setLoading(false);
       }
@@ -262,7 +260,7 @@ export function EventPage() {
     } catch (err) {
       console.error(err);
       if (isNetworkError(err)) {
-        showToast("Network error. Please try again.", "error");
+        handleNetworkError(err, showToast, "Network error. Please try again.");
       } else {
         showToast(err.message || "Failed to RSVP.", "error");
       }
@@ -274,20 +272,9 @@ export function EventPage() {
   // Use share URL for better link previews (returns HTML with OG tags)
   const shareUrl = event && event.slug ? getEventShareUrl(event.slug) : "";
 
-  // Format date/time
-  const eventDate = event?.startsAt
-    ? new Date(event.startsAt).toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-      })
-    : "";
-  const eventTime = event?.startsAt
-    ? new Date(event.startsAt).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : "";
+  // Format date/time (centralized helpers)
+  const eventDate = event?.startsAt ? formatEventDate(event.startsAt) : "";
+  const eventTime = event?.startsAt ? formatEventTime(event.startsAt) : "";
 
   return (
     <>

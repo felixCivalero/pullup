@@ -10,7 +10,11 @@ import {
   FaMapMarkerAlt,
 } from "react-icons/fa";
 import { useToast } from "../components/Toast";
-import { getEventShareUrl } from "../lib/urlUtils";
+import {
+  getEventShareUrl,
+  getGoogleMapsUrl,
+  formatLocationShort,
+} from "../lib/urlUtils";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
 import { RsvpForm } from "../components/RsvpForm";
 import { Button } from "../components/ui/Button";
@@ -658,7 +662,34 @@ export function EventPage() {
                       color: "rgba(255, 255, 255, 0.7)",
                     }}
                   />
-                  <span>{event.location}</span>
+                  <a
+                    href={getGoogleMapsUrl(
+                      event.location,
+                      event.locationLat,
+                      event.locationLng
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: "rgba(255, 255, 255, 0.9)",
+                      textDecoration: "none",
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.3)",
+                      transition: "all 0.2s ease",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.color = "#fff";
+                      e.target.style.borderBottomColor =
+                        "rgba(255, 255, 255, 0.6)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.color = "rgba(255, 255, 255, 0.9)";
+                      e.target.style.borderBottomColor =
+                        "rgba(255, 255, 255, 0.3)";
+                    }}
+                  >
+                    {formatLocationShort(event.location)}
+                  </a>
                 </div>
               )}
             </div>

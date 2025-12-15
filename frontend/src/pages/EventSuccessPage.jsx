@@ -2,7 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { publicFetch, API_BASE } from "../lib/api.js";
-import { getEventShareUrl } from "../lib/urlUtils";
+import {
+  getEventShareUrl,
+  getGoogleMapsUrl,
+  formatLocationShort,
+} from "../lib/urlUtils";
 
 export function EventSuccessPage() {
   const { slug } = useParams();
@@ -463,7 +467,34 @@ export function EventSuccessPage() {
                   }}
                 >
                   <span>📍</span>
-                  <span>{event.location}</span>
+                  <a
+                    href={getGoogleMapsUrl(
+                      event.location,
+                      event.locationLat,
+                      event.locationLng
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: "rgba(255, 255, 255, 0.9)",
+                      textDecoration: "none",
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.3)",
+                      transition: "all 0.2s ease",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.color = "#fff";
+                      e.target.style.borderBottomColor =
+                        "rgba(255, 255, 255, 0.6)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.color = "rgba(255, 255, 255, 0.9)";
+                      e.target.style.borderBottomColor =
+                        "rgba(255, 255, 255, 0.3)";
+                    }}
+                  >
+                    {formatLocationShort(event.location)}
+                  </a>
                 </div>
               )}
             </div>

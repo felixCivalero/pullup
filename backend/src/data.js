@@ -92,6 +92,8 @@ export async function mapEventFromDb(dbEvent) {
     title: dbEvent.title,
     description: dbEvent.description,
     location: dbEvent.location,
+    locationLat: dbEvent.location_lat || null,
+    locationLng: dbEvent.location_lng || null,
     startsAt: dbEvent.starts_at,
     endsAt: dbEvent.ends_at,
     timezone: dbEvent.timezone,

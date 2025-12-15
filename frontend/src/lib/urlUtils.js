@@ -53,3 +53,43 @@ export function getSuccessUrl(slug) {
 export function getOgImageUrl() {
   return `${getBaseUrl()}/og-image.jpg`;
 }
+
+/**
+ * Generate a Google Maps URL for a location
+ * @param {string} location - The location text (e.g., "123 Main St, New York, NY")
+ * @param {number|null} lat - Optional latitude coordinate
+ * @param {number|null} lng - Optional longitude coordinate
+ * @returns {string} Google Maps URL
+ */
+export function getGoogleMapsUrl(location, lat = null, lng = null) {
+  if (lat !== null && lng !== null) {
+    // Use coordinates if available (most precise)
+    return `https://www.google.com/maps?q=${lat},${lng}`;
+  } else if (location) {
+    // Use location text as fallback
+    const encodedLocation = encodeURIComponent(location);
+    return `https://www.google.com/maps/search/?api=1&query=${encodedLocation}`;
+  }
+  return null;
+}
+
+/**
+ * Format location text to show "street name / city" format
+ * @param {string} location - Full location string
+ * @returns {string} Formatted location (e.g., "123 Main St / New York")
+ */
+export function formatLocationShort(location) {
+  if (!location) return "";
+
+  // Try to parse common location formats
+  // Format: "Street Address, City, State" or "Street Address, City"
+  const parts = location.split(",").map((p) => p.trim());
+
+  if (parts.length >= 2) {
+    // Return "Street / City"
+    return `${parts[0]} / ${parts[1]}`;
+  }
+
+  // If no comma, return as-is
+  return location;
+}

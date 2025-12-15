@@ -75,114 +75,96 @@ export function CrmTab() {
 
   return (
     <div>
+      <style>{`
+        @media (max-width: 767px) {
+          .export-csv-button {
+            display: none !important;
+          }
+        }
+      `}</style>
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
           alignItems: "center",
           marginBottom: "24px",
-          flexWrap: "wrap",
-          gap: "16px",
+          gap: "12px",
         }}
       >
-        <h2
+        <input
+          type="text"
+          placeholder="Search contacts..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           style={{
-            fontSize: "18px",
-            fontWeight: 600,
-            margin: 0,
+            padding: "8px 16px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(20, 16, 30, 0.6)",
+            color: "#fff",
+            fontSize: "14px",
+            outline: "none",
+            flex: "1 1 auto",
+            minWidth: 0,
+            maxWidth: "400px",
+            transition: "all 0.2s ease",
           }}
-        >
-          CRM
-        </h2>
-        <div
+          onFocus={(e) => {
+            e.target.style.borderColor = "rgba(139, 92, 246, 0.4)";
+            e.target.style.background = "rgba(20, 16, 30, 0.8)";
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = "rgba(255,255,255,0.1)";
+            e.target.style.background = "rgba(20, 16, 30, 0.6)";
+          }}
+        />
+        <button
+          onClick={async () => {
+            try {
+              const res = await authenticatedFetch("/host/crm/people/export");
+              if (!res.ok) throw new Error("Export failed");
+              const blob = await res.blob();
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `crm-contacts-${
+                new Date().toISOString().split("T")[0]
+              }.csv`;
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              document.body.removeChild(a);
+            } catch (err) {
+              console.error(err);
+              alert("Failed to export CSV");
+            }
+          }}
+          className="export-csv-button"
           style={{
+            padding: "8px 16px",
+            borderRadius: "8px",
+            border: "1px solid rgba(139, 92, 246, 0.3)",
+            background: "rgba(139, 92, 246, 0.1)",
+            color: "#a78bfa",
+            fontSize: "14px",
+            fontWeight: 500,
+            cursor: "pointer",
+            transition: "all 0.2s ease",
             display: "flex",
             alignItems: "center",
-            gap: "12px",
+            gap: "6px",
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = "rgba(139, 92, 246, 0.2)";
+            e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = "rgba(139, 92, 246, 0.1)";
+            e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
           }}
         >
-          <input
-            type="text"
-            placeholder="Search contacts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "999px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(20, 16, 30, 0.6)",
-              color: "#fff",
-              fontSize: "14px",
-              outline: "none",
-              width: "200px",
-              transition: "all 0.2s ease",
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = "rgba(139, 92, 246, 0.4)";
-              e.target.style.background = "rgba(20, 16, 30, 0.8)";
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = "rgba(255,255,255,0.1)";
-              e.target.style.background = "rgba(20, 16, 30, 0.6)";
-            }}
-          />
-          <button
-            onClick={async () => {
-              try {
-                const res = await authenticatedFetch("/host/crm/people/export");
-                if (!res.ok) throw new Error("Export failed");
-                const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `crm-contacts-${
-                  new Date().toISOString().split("T")[0]
-                }.csv`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-              } catch (err) {
-                console.error(err);
-                alert("Failed to export CSV");
-              }
-            }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              border: "1px solid rgba(139, 92, 246, 0.3)",
-              background: "rgba(139, 92, 246, 0.1)",
-              color: "#a78bfa",
-              fontSize: "14px",
-              fontWeight: 500,
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background = "rgba(139, 92, 246, 0.2)";
-              e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = "rgba(139, 92, 246, 0.1)";
-              e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
-            }}
-          >
-            📥 Export CSV
-          </button>
-          <div
-            style={{
-              fontSize: "13px",
-              opacity: 0.7,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {filteredPeople.length} contact
-            {filteredPeople.length !== 1 ? "s" : ""}
-          </div>
-        </div>
+          📥 Export CSV
+        </button>
       </div>
 
       {filteredPeople.length === 0 ? (

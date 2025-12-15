@@ -114,9 +114,9 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
       style={{
         display: "flex",
         alignItems: "flex-start",
-        gap: "clamp(16px, 4vw, 24px)",
-        marginBottom: "clamp(24px, 5vw, 32px)",
-        paddingBottom: "clamp(24px, 5vw, 32px)",
+        gap: "clamp(12px, 3vw, 24px)",
+        marginBottom: "clamp(16px, 4vw, 32px)",
+        paddingBottom: "clamp(16px, 4vw, 32px)",
         borderBottom: "1px solid rgba(255,255,255,0.05)",
       }}
     >

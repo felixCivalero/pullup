@@ -3,23 +3,25 @@ export function TabButton({ label, count, active, onClick }) {
     <button
       onClick={onClick}
       style={{
-        padding: "8px 14px",
+        padding: "clamp(6px, 1.5vw, 8px) clamp(8px, 2vw, 14px)",
         borderRadius: "8px",
         border: "none",
         background: active ? "rgba(139, 92, 246, 0.2)" : "transparent",
         color: active ? "#fff" : "rgba(255,255,255,0.6)",
         fontWeight: active ? 600 : 500,
-        fontSize: "clamp(13px, 3vw, 14px)",
+        fontSize: "clamp(11px, 2.5vw, 14px)",
         cursor: "pointer",
         transition: "all 0.2s ease",
         borderBottom: active ? "2px solid #8b5cf6" : "2px solid transparent",
         marginBottom: "-12px",
         display: "flex",
         alignItems: "center",
-        gap: "6px",
+        gap: "clamp(4px, 1vw, 6px)",
         whiteSpace: "nowrap",
         touchAction: "manipulation",
-        flexShrink: 0,
+        flex: "1 1 0",
+        justifyContent: "center",
+        minWidth: 0,
       }}
       onMouseEnter={(e) => {
         if (!active) {
@@ -34,19 +36,22 @@ export function TabButton({ label, count, active, onClick }) {
         }
       }}
     >
-      <span>{label}</span>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+        {label}
+      </span>
       {count !== undefined && count > 0 && (
         <span
           style={{
-            padding: "2px 6px",
+            padding: "2px clamp(4px, 1vw, 6px)",
             borderRadius: "12px",
             background: active
               ? "rgba(139, 92, 246, 0.3)"
               : "rgba(255,255,255,0.1)",
-            fontSize: "11px",
+            fontSize: "clamp(9px, 2vw, 11px)",
             fontWeight: 600,
-            minWidth: "20px",
+            minWidth: "clamp(16px, 4vw, 20px)",
             textAlign: "center",
+            flexShrink: 0,
           }}
         >
           {count}

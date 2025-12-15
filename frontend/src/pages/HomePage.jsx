@@ -257,7 +257,7 @@ export function HomePage() {
         position: "relative",
         background:
           "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
-        paddingBottom: "40px",
+        paddingBottom: "clamp(20px, 5vw, 40px)",
       }}
     >
       {/* Cursor glow effect */}
@@ -281,6 +281,17 @@ export function HomePage() {
         className="responsive-container responsive-container-wide"
         style={{ position: "relative", zIndex: 2 }}
       >
+        <style>{`
+          @media (max-width: 767px) {
+            .responsive-container-wide {
+              padding: 12px !important;
+            }
+            .responsive-container-wide .responsive-card {
+              padding: 16px !important;
+              border-radius: 16px !important;
+            }
+          }
+        `}</style>
         <div
           className="responsive-card"
           style={{
@@ -302,24 +313,14 @@ export function HomePage() {
           <div
             style={{
               display: "flex",
-              gap: 8,
-              marginBottom: 24,
+              gap: "clamp(2px, 0.5vw, 8px)",
+              marginBottom: "clamp(16px, 3vw, 24px)",
               borderBottom: "1px solid rgba(255,255,255,0.05)",
-              paddingBottom: 12,
-              overflowX: "auto",
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-              WebkitOverflowScrolling: "touch",
+              paddingBottom: "clamp(8px, 2vw, 12px)",
+              justifyContent: "space-between",
             }}
             className="tabs-container"
           >
-            <style>
-              {`
-                .tabs-container::-webkit-scrollbar {
-                  display: none;
-                }
-              `}
-            </style>
             <TabButton
               label="Events"
               count={allEvents.length}

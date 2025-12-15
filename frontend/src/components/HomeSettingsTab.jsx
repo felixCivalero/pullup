@@ -85,6 +85,34 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "48px" }}>
+      <style>{`
+        .settings-input {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 12px 16px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(20, 16, 30, 0.6);
+          color: #fff;
+          font-size: 15px;
+          outline: none;
+        }
+        .settings-input-container {
+          width: 100%;
+        }
+        .branding-link-input {
+          flex: 1;
+          min-width: 0;
+          box-sizing: border-box;
+          padding: 12px 16px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(20, 16, 30, 0.6);
+          color: #fff;
+          font-size: 15px;
+          outline: none;
+        }
+      `}</style>
       {/* PROFILE */}
       <SettingsSection
         title="Your Profile"
@@ -100,10 +128,15 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
         >
           {/* Left side: fields */}
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "20px" }}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "20px",
+              width: "100%",
+            }}
           >
             {/* Brand */}
-            <label style={{ display: "block" }}>
+            <label style={{ display: "block", width: "100%" }}>
               <div
                 style={{
                   fontSize: "13px",
@@ -116,28 +149,19 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
               >
                 Brand
               </div>
-              <div style={{ position: "relative" }}>
+              <div style={{ position: "relative", width: "100%" }}>
                 <input
                   type="text"
                   value={user.brand || ""}
                   onChange={(e) => setUser({ ...user, brand: e.target.value })}
                   placeholder="Brand"
-                  style={{
-                    width: "100%",
-                    padding: "12px 16px 12px 16px",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgba(20, 16, 30, 0.6)",
-                    color: "#fff",
-                    fontSize: "15px",
-                    outline: "none",
-                  }}
+                  className="settings-input"
                 />
               </div>
             </label>
 
             {/* Host Name */}
-            <label style={{ display: "block" }}>
+            <label style={{ display: "block", width: "100%" }}>
               <div
                 style={{
                   fontSize: "13px",
@@ -154,21 +178,12 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                 type="text"
                 value={user.name}
                 onChange={(e) => setUser({ ...user, name: e.target.value })}
-                style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
-                  fontSize: "15px",
-                  outline: "none",
-                }}
+                className="settings-input"
               />
             </label>
 
             {/* Bio */}
-            <label style={{ display: "block" }}>
+            <label style={{ display: "block", width: "100%" }}>
               <div
                 style={{
                   fontSize: "13px",
@@ -185,15 +200,8 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                 value={user.bio}
                 onChange={(e) => setUser({ ...user, bio: e.target.value })}
                 placeholder="Share a little about your background and interests."
+                className="settings-input"
                 style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
-                  fontSize: "15px",
-                  outline: "none",
                   minHeight: "100px",
                   resize: "vertical",
                   fontFamily: "inherit",
@@ -202,7 +210,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
             </label>
 
             {/* Branding Links */}
-            <div style={{ marginTop: "8px" }}>
+            <div style={{ marginTop: "8px", width: "100%" }}>
               <div
                 style={{
                   fontSize: "13px",
@@ -230,6 +238,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                   display: "flex",
                   flexDirection: "column",
                   gap: "12px",
+                  width: "100%",
                 }}
               >
                 {/* Instagram */}
@@ -238,10 +247,18 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
+                    width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: "18px" }}>📷</span>
-                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                  <span style={{ fontSize: "18px", flexShrink: 0 }}>📷</span>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      opacity: 0.8,
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
+                  >
                     instagram.com/
                   </span>
                   <input
@@ -257,16 +274,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                       })
                     }
                     placeholder="username"
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(20, 16, 30, 0.6)",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                    }}
+                    className="branding-link-input"
                   />
                 </div>
 
@@ -276,10 +284,20 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
+                    width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: "18px" }}>𝕏</span>
-                  <span style={{ fontSize: "14px", opacity: 0.8 }}>x.com/</span>
+                  <span style={{ fontSize: "18px", flexShrink: 0 }}>𝕏</span>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      opacity: 0.8,
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
+                  >
+                    x.com/
+                  </span>
                   <input
                     type="text"
                     value={brandingLinks.x}
@@ -290,16 +308,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                       })
                     }
                     placeholder="username"
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(20, 16, 30, 0.6)",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                    }}
+                    className="branding-link-input"
                   />
                   {brandingLinks.x && (
                     <button
@@ -313,6 +322,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                         color: "#fff",
                         cursor: "pointer",
                         fontSize: "12px",
+                        flexShrink: 0,
                       }}
                     >
                       ×
@@ -326,10 +336,18 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
+                    width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: "18px" }}>▶️</span>
-                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                  <span style={{ fontSize: "18px", flexShrink: 0 }}>▶️</span>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      opacity: 0.8,
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
+                  >
                     youtube.com/@
                   </span>
                   <input
@@ -345,16 +363,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                       })
                     }
                     placeholder="username"
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(20, 16, 30, 0.6)",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                    }}
+                    className="branding-link-input"
                   />
                 </div>
 
@@ -364,10 +373,18 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
+                    width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: "18px" }}>🎵</span>
-                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                  <span style={{ fontSize: "18px", flexShrink: 0 }}>🎵</span>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      opacity: 0.8,
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
+                  >
                     tiktok.com/@
                   </span>
                   <input
@@ -383,16 +400,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                       })
                     }
                     placeholder="username"
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(20, 16, 30, 0.6)",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                    }}
+                    className="branding-link-input"
                   />
                 </div>
 
@@ -402,10 +410,18 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
+                    width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: "18px" }}>💼</span>
-                  <span style={{ fontSize: "14px", opacity: 0.8 }}>
+                  <span style={{ fontSize: "18px", flexShrink: 0 }}>💼</span>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      opacity: 0.8,
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
+                  >
                     linkedin.com
                   </span>
                   <input
@@ -421,16 +437,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                       })
                     }
                     placeholder="/in/handle"
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(20, 16, 30, 0.6)",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                    }}
+                    className="branding-link-input"
                   />
                 </div>
 
@@ -440,9 +447,10 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
+                    width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: "18px" }}>🌐</span>
+                  <span style={{ fontSize: "18px", flexShrink: 0 }}>🌐</span>
                   <input
                     type="text"
                     value={brandingLinks.website}
@@ -456,16 +464,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                       })
                     }
                     placeholder="Your website"
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(20, 16, 30, 0.6)",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                    }}
+                    className="branding-link-input"
                   />
                 </div>
               </div>
@@ -582,21 +581,20 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
         title="Mobile Number"
         description="Manage the mobile number you use to sign in to PullUp and receive SMS updates."
       >
-        <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            alignItems: "flex-start",
+            width: "100%",
+          }}
+        >
           <input
             type="tel"
             value={mobileNumber}
             onChange={(e) => setUser({ ...user, mobileNumber: e.target.value })}
-            style={{
-              flex: 1,
-              padding: "12px 16px",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(20, 16, 30, 0.6)",
-              color: "#fff",
-              fontSize: "15px",
-              outline: "none",
-            }}
+            className="settings-input"
+            style={{ flex: 1 }}
           />
           <button
             type="button"

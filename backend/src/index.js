@@ -633,13 +633,6 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     if (!email) {
       return res.status(400).json({ error: "email is required" });
     }
-    console.log("slug", slug);
-    console.log("name", name);
-    console.log("email", email);
-    console.log("plusOnes", plusOnes);
-    console.log("wantsDinner", wantsDinner);
-    console.log("dinnerTimeSlot", dinnerTimeSlot);
-    console.log("dinnerPartySize", dinnerPartySize);
 
     const result = await addRsvp({
       slug,

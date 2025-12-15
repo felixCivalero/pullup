@@ -111,7 +111,7 @@ export function LocationAutocomplete({
         address = details.address || address;
         lat = details.lat;
         lng = details.lng;
-      }
+    }
     }
 
     // If Nominatim already has coordinates, use them
@@ -337,7 +337,7 @@ export function LocationAutocomplete({
           }}
         >
           Searching...
-        </div>
+      </div>
       )}
 
       {/* Suggestions dropdown */}

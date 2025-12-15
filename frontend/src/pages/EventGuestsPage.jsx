@@ -807,6 +807,14 @@ export function EventGuestsPage() {
         }}
       />
 
+      <style>{`
+        @media (max-width: 767px) {
+          .export-csv-button-container {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       {/* Content - Overlaid on background */}
       <div
         style={{
@@ -1179,6 +1187,7 @@ export function EventGuestsPage() {
           >
             {/* Export CSV Button */}
             <div
+              className="export-csv-button-container"
               style={{
                 display: "flex",
                 justifyContent: "flex-end",
@@ -2649,31 +2658,91 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
               >
                 Plus-Ones ({maxPlusOnes} max)
               </label>
-              <input
-                type="number"
-                min="0"
-                max={maxPlusOnes}
-                value={plusOnes}
-                onChange={(e) =>
-                  setPlusOnes(
-                    Math.max(
-                      0,
-                      Math.min(maxPlusOnes, parseInt(e.target.value) || 0)
-                    )
-                  )
-                }
+              <div
                 style={{
-                  width: "100%",
-                  padding: "12px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  background: "rgb(12 10 18 / 10%)",
                   borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
-                  fontSize: "15px",
-                  outline: "none",
-                  boxSizing: "border-box",
+                  padding: "8px",
+                  border: "1px solid rgba(255,255,255,0.05)",
+                  backdropFilter: "blur(10px)",
                 }}
-              />
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newValue = Math.max(0, plusOnes - 1);
+                    setPlusOnes(newValue);
+                  }}
+                  disabled={plusOnes <= 0}
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background:
+                      plusOnes <= 0
+                        ? "rgba(255, 255, 255, 0.05)"
+                        : "rgba(139, 92, 246, 0.2)",
+                    color: plusOnes <= 0 ? "rgba(255, 255, 255, 0.3)" : "#fff",
+                    fontSize: "22px",
+                    fontWeight: 600,
+                    cursor: plusOnes <= 0 ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.2s ease",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  −
+                </button>
+                <div
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    fontSize: "24px",
+                    fontWeight: 700,
+                    color: "#fff",
+                  }}
+                >
+                  {plusOnes}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newValue = Math.min(maxPlusOnes, plusOnes + 1);
+                    setPlusOnes(newValue);
+                  }}
+                  disabled={plusOnes >= maxPlusOnes}
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background:
+                      plusOnes >= maxPlusOnes
+                        ? "rgba(255, 255, 255, 0.05)"
+                        : "rgba(139, 92, 246, 0.2)",
+                    color:
+                      plusOnes >= maxPlusOnes
+                        ? "rgba(255, 255, 255, 0.3)"
+                        : "#fff",
+                    fontSize: "22px",
+                    fontWeight: 600,
+                    cursor: plusOnes >= maxPlusOnes ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.2s ease",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  +
+                </button>
+              </div>
             </div>
 
             <div>
@@ -2801,27 +2870,96 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
                       >
                         Dinner Party Size
                       </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={dinnerPartySize}
-                        onChange={(e) =>
-                          setDinnerPartySize(
-                            Math.max(1, parseInt(e.target.value) || 1)
-                          )
-                        }
+                      <div
                         style={{
-                          width: "100%",
-                          padding: "12px 16px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          background: "rgb(12 10 18 / 10%)",
                           borderRadius: "12px",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          background: "rgba(20, 16, 30, 0.6)",
-                          color: "#fff",
-                          fontSize: "15px",
-                          outline: "none",
-                          boxSizing: "border-box",
+                          padding: "8px",
+                          border: "1px solid rgba(255,255,255,0.05)",
+                          backdropFilter: "blur(10px)",
                         }}
-                      />
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newValue = Math.max(1, dinnerPartySize - 1);
+                            setDinnerPartySize(newValue);
+                          }}
+                          disabled={dinnerPartySize <= 1}
+                          style={{
+                            width: "44px",
+                            height: "44px",
+                            borderRadius: "10px",
+                            border: "none",
+                            background:
+                              dinnerPartySize <= 1
+                                ? "rgba(255, 255, 255, 0.05)"
+                                : "rgba(16, 185, 129, 0.2)",
+                            color:
+                              dinnerPartySize <= 1
+                                ? "rgba(255, 255, 255, 0.3)"
+                                : "#10b981",
+                            fontSize: "22px",
+                            fontWeight: 600,
+                            cursor:
+                              dinnerPartySize <= 1 ? "not-allowed" : "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "all 0.2s ease",
+                            WebkitTapHighlightColor: "transparent",
+                          }}
+                        >
+                          −
+                        </button>
+                        <div
+                          style={{
+                            flex: 1,
+                            textAlign: "center",
+                            fontSize: "24px",
+                            fontWeight: 700,
+                            color: "#10b981",
+                          }}
+                        >
+                          {dinnerPartySize}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newValue = Math.min(8, dinnerPartySize + 1);
+                            setDinnerPartySize(newValue);
+                          }}
+                          disabled={dinnerPartySize >= 8}
+                          style={{
+                            width: "44px",
+                            height: "44px",
+                            borderRadius: "10px",
+                            border: "none",
+                            background:
+                              dinnerPartySize >= 8
+                                ? "rgba(255, 255, 255, 0.05)"
+                                : "rgba(16, 185, 129, 0.2)",
+                            color:
+                              dinnerPartySize >= 8
+                                ? "rgba(255, 255, 255, 0.3)"
+                                : "#10b981",
+                            fontSize: "22px",
+                            fontWeight: 600,
+                            cursor:
+                              dinnerPartySize >= 8 ? "not-allowed" : "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "all 0.2s ease",
+                            WebkitTapHighlightColor: "transparent",
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
                       <div
                         style={{
                           fontSize: "10px",
@@ -2867,7 +3005,7 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
                 >
                   <input
                     type="checkbox"
-                    checked={(pulledUpForCocktails ?? 0) > 0}
+                    checked={pulledUpForCocktails !== null}
                     onChange={(e) => {
                       const totalGuests =
                         guest.totalGuests ?? guest.partySize ?? 1;
@@ -2881,7 +3019,7 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
                           : totalGuests;
 
                       if (e.target.checked) {
-                        setPulledUpForCocktails(cocktailsMax);
+                        setPulledUpForCocktails(0); // Start at 0, user can increase with buttons
                       } else {
                         setPulledUpForCocktails(null);
                       }
@@ -2897,19 +3035,136 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
                     style={{
                       fontSize: "13px",
                       fontWeight: 600,
-                      color:
-                        (pulledUpForCocktails ?? 0) > 0 ? "#f59e0b" : "#fff",
+                      color: pulledUpForCocktails !== null ? "#f59e0b" : "#fff",
                     }}
                   >
                     🥂 Cocktails
                   </span>
                 </label>
-                {(pulledUpForCocktails ?? 0) > 0 && (
+                {pulledUpForCocktails !== null && (
                   <div style={{ marginLeft: "30px", marginTop: "8px" }}>
-                    <input
-                      type="number"
-                      min="0"
-                      max={(() => {
+                    {(() => {
+                      const totalGuests =
+                        guest.totalGuests ?? guest.partySize ?? 1;
+                      const guestDinnerPartySize =
+                        wantsDinner && dinnerStatus === "confirmed"
+                          ? dinnerPartySize || 0
+                          : 0;
+                      const cocktailsMax =
+                        wantsDinner && dinnerStatus === "confirmed"
+                          ? Math.max(0, totalGuests - guestDinnerPartySize)
+                          : totalGuests;
+                      const currentValue = pulledUpForCocktails || 0;
+                      return (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            background: "rgba(245, 158, 11, 0.1)",
+                            borderRadius: "12px",
+                            padding: "8px",
+                            border: "1px solid rgba(245, 158, 11, 0.3)",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newValue = Math.max(0, currentValue - 1);
+                              setPulledUpForCocktails(
+                                newValue === 0 ? 0 : newValue
+                              );
+                            }}
+                            disabled={currentValue <= 0}
+                            style={{
+                              width: "44px",
+                              height: "44px",
+                              borderRadius: "10px",
+                              border: "none",
+                              background:
+                                currentValue <= 0
+                                  ? "rgba(255, 255, 255, 0.05)"
+                                  : "rgba(245, 158, 11, 0.2)",
+                              color:
+                                currentValue <= 0
+                                  ? "rgba(255, 255, 255, 0.3)"
+                                  : "#f59e0b",
+                              fontSize: "22px",
+                              fontWeight: 600,
+                              cursor:
+                                currentValue <= 0 ? "not-allowed" : "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "all 0.2s ease",
+                              WebkitTapHighlightColor: "transparent",
+                            }}
+                          >
+                            −
+                          </button>
+                          <div
+                            style={{
+                              flex: 1,
+                              textAlign: "center",
+                              fontSize: "24px",
+                              fontWeight: 700,
+                              color: "#f59e0b",
+                            }}
+                          >
+                            {currentValue}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newValue = Math.min(
+                                cocktailsMax,
+                                currentValue + 1
+                              );
+                              setPulledUpForCocktails(newValue || null);
+                            }}
+                            disabled={currentValue >= cocktailsMax}
+                            style={{
+                              width: "44px",
+                              height: "44px",
+                              borderRadius: "10px",
+                              border: "none",
+                              background:
+                                currentValue >= cocktailsMax
+                                  ? "rgba(255, 255, 255, 0.05)"
+                                  : "rgba(245, 158, 11, 0.2)",
+                              color:
+                                currentValue >= cocktailsMax
+                                  ? "rgba(255, 255, 255, 0.3)"
+                                  : "#f59e0b",
+                              fontSize: "22px",
+                              fontWeight: 600,
+                              cursor:
+                                currentValue >= cocktailsMax
+                                  ? "not-allowed"
+                                  : "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "all 0.2s ease",
+                              WebkitTapHighlightColor: "transparent",
+                            }}
+                          >
+                            +
+                          </button>
+                        </div>
+                      );
+                    })()}
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        opacity: 0.6,
+                        marginTop: "6px",
+                        textAlign: "center",
+                        color: "#f59e0b",
+                      }}
+                    >
+                      Max:{" "}
+                      {(() => {
                         const totalGuests =
                           guest.totalGuests ?? guest.partySize ?? 1;
                         const guestDinnerPartySize =
@@ -2919,42 +3174,21 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
                         return wantsDinner && dinnerStatus === "confirmed"
                           ? Math.max(0, totalGuests - guestDinnerPartySize)
                           : totalGuests;
-                      })()}
-                      value={pulledUpForCocktails || 0}
-                      onChange={(e) => {
+                      })()}{" "}
+                      {(() => {
                         const totalGuests =
                           guest.totalGuests ?? guest.partySize ?? 1;
                         const guestDinnerPartySize =
                           wantsDinner && dinnerStatus === "confirmed"
                             ? dinnerPartySize || 0
                             : 0;
-                        const cocktailsMax =
+                        const max =
                           wantsDinner && dinnerStatus === "confirmed"
                             ? Math.max(0, totalGuests - guestDinnerPartySize)
                             : totalGuests;
-                        const count = Math.max(
-                          0,
-                          Math.min(
-                            cocktailsMax,
-                            parseInt(e.target.value, 10) || 0
-                          )
-                        );
-                        setPulledUpForCocktails(count || null);
-                      }}
-                      style={{
-                        width: "80px",
-                        padding: "12px 16px",
-                        borderRadius: "12px",
-                        border: "1px solid rgba(245, 158, 11, 0.3)",
-                        background: "rgba(245, 158, 11, 0.1)",
-                        color: "#f59e0b",
-                        fontSize: "15px",
-                        fontWeight: 600,
-                        textAlign: "center",
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
-                    />
+                        return max === 1 ? "person" : "people";
+                      })()}
+                    </div>
                   </div>
                 )}
               </div>
@@ -2974,11 +3208,11 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
                   >
                     <input
                       type="checkbox"
-                      checked={(pulledUpForDinner ?? 0) > 0}
+                      checked={pulledUpForDinner !== null}
                       onChange={(e) => {
                         const dinnerMax = dinnerPartySize || 1;
                         if (e.target.checked) {
-                          setPulledUpForDinner(dinnerMax);
+                          setPulledUpForDinner(0); // Start at 0, user can increase with buttons
                         } else {
                           setPulledUpForDinner(null);
                         }
@@ -2994,45 +3228,128 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
                       style={{
                         fontSize: "13px",
                         fontWeight: 600,
-                        color:
-                          (pulledUpForDinner ?? 0) > 0 ? "#10b981" : "#fff",
+                        color: pulledUpForDinner !== null ? "#10b981" : "#fff",
                       }}
                     >
                       🍽️ Dinner
                     </span>
                   </label>
-                  {(pulledUpForDinner ?? 0) > 0 && (
+                  {pulledUpForDinner !== null && (
                     <div style={{ marginLeft: "30px", marginTop: "8px" }}>
-                      <input
-                        type="number"
-                        min="0"
-                        max={dinnerPartySize || 1}
-                        value={pulledUpForDinner || 0}
-                        onChange={(e) => {
-                          const dinnerMax = dinnerPartySize || 1;
-                          const count = Math.max(
-                            0,
-                            Math.min(
-                              dinnerMax,
-                              parseInt(e.target.value, 10) || 0
-                            )
-                          );
-                          setPulledUpForDinner(count || null);
-                        }}
+                      {(() => {
+                        const dinnerMax = dinnerPartySize || 1;
+                        const currentValue = pulledUpForDinner || 0;
+                        return (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "12px",
+                              background: "rgba(16, 185, 129, 0.1)",
+                              borderRadius: "12px",
+                              padding: "8px",
+                              border: "1px solid rgba(16, 185, 129, 0.3)",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newValue = Math.max(0, currentValue - 1);
+                                setPulledUpForDinner(
+                                  newValue === 0 ? 0 : newValue
+                                );
+                              }}
+                              disabled={currentValue <= 0}
+                              style={{
+                                width: "44px",
+                                height: "44px",
+                                borderRadius: "10px",
+                                border: "none",
+                                background:
+                                  currentValue <= 0
+                                    ? "rgba(255, 255, 255, 0.05)"
+                                    : "rgba(16, 185, 129, 0.2)",
+                                color:
+                                  currentValue <= 0
+                                    ? "rgba(255, 255, 255, 0.3)"
+                                    : "#10b981",
+                                fontSize: "22px",
+                                fontWeight: 600,
+                                cursor:
+                                  currentValue <= 0 ? "not-allowed" : "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transition: "all 0.2s ease",
+                                WebkitTapHighlightColor: "transparent",
+                              }}
+                            >
+                              −
+                            </button>
+                            <div
+                              style={{
+                                flex: 1,
+                                textAlign: "center",
+                                fontSize: "24px",
+                                fontWeight: 700,
+                                color: "#10b981",
+                              }}
+                            >
+                              {currentValue}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newValue = Math.min(
+                                  dinnerMax,
+                                  currentValue + 1
+                                );
+                                setPulledUpForDinner(newValue || null);
+                              }}
+                              disabled={currentValue >= dinnerMax}
+                              style={{
+                                width: "44px",
+                                height: "44px",
+                                borderRadius: "10px",
+                                border: "none",
+                                background:
+                                  currentValue >= dinnerMax
+                                    ? "rgba(255, 255, 255, 0.05)"
+                                    : "rgba(16, 185, 129, 0.2)",
+                                color:
+                                  currentValue >= dinnerMax
+                                    ? "rgba(255, 255, 255, 0.3)"
+                                    : "#10b981",
+                                fontSize: "22px",
+                                fontWeight: 600,
+                                cursor:
+                                  currentValue >= dinnerMax
+                                    ? "not-allowed"
+                                    : "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transition: "all 0.2s ease",
+                                WebkitTapHighlightColor: "transparent",
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        );
+                      })()}
+                      <div
                         style={{
-                          width: "80px",
-                          padding: "12px 16px",
-                          borderRadius: "12px",
-                          border: "1px solid rgba(16, 185, 129, 0.3)",
-                          background: "rgba(16, 185, 129, 0.1)",
-                          color: "#10b981",
-                          fontSize: "15px",
-                          fontWeight: 600,
+                          fontSize: "11px",
+                          opacity: 0.6,
+                          marginTop: "6px",
                           textAlign: "center",
-                          outline: "none",
-                          boxSizing: "border-box",
+                          color: "#10b981",
                         }}
-                      />
+                      >
+                        Max: {dinnerPartySize || 1}{" "}
+                        {(dinnerPartySize || 1) === 1 ? "person" : "people"}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -3317,38 +3634,112 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
             >
               🥂 Cocktails
             </label>
-            <input
-              type="number"
-              min="0"
-              max={cocktailsMax}
-              value={cocktailOnlyPullUpCount || 0}
-              onChange={(e) => {
-                const count = Math.max(
-                  0,
-                  Math.min(cocktailsMax, parseInt(e.target.value, 10) || 0)
-                );
-                setCocktailOnlyPullUpCount(count || 0);
-              }}
+            <div
               style={{
-                width: "100%",
-                padding: "14px 16px",
-                borderRadius: "12px",
-                border: "1px solid rgba(245, 158, 11, 0.3)",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
                 background: "rgba(245, 158, 11, 0.1)",
-                color: "#f59e0b",
-                fontSize: "18px",
-                fontWeight: 600,
-                textAlign: "center",
-                outline: "none",
-                boxSizing: "border-box",
+                borderRadius: "12px",
+                padding: "8px",
+                border: "1px solid rgba(245, 158, 11, 0.3)",
               }}
-            />
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  const newValue = Math.max(
+                    0,
+                    (cocktailOnlyPullUpCount || 0) - 1
+                  );
+                  setCocktailOnlyPullUpCount(newValue);
+                }}
+                disabled={(cocktailOnlyPullUpCount || 0) <= 0}
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background:
+                    (cocktailOnlyPullUpCount || 0) <= 0
+                      ? "rgba(255, 255, 255, 0.05)"
+                      : "rgba(245, 158, 11, 0.2)",
+                  color:
+                    (cocktailOnlyPullUpCount || 0) <= 0
+                      ? "rgba(255, 255, 255, 0.3)"
+                      : "#f59e0b",
+                  fontSize: "22px",
+                  fontWeight: 600,
+                  cursor:
+                    (cocktailOnlyPullUpCount || 0) <= 0
+                      ? "not-allowed"
+                      : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                −
+              </button>
+              <div
+                style={{
+                  flex: 1,
+                  textAlign: "center",
+                  fontSize: "24px",
+                  fontWeight: 700,
+                  color: "#f59e0b",
+                }}
+              >
+                {cocktailOnlyPullUpCount || 0}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const newValue = Math.min(
+                    cocktailsMax,
+                    (cocktailOnlyPullUpCount || 0) + 1
+                  );
+                  setCocktailOnlyPullUpCount(newValue);
+                }}
+                disabled={(cocktailOnlyPullUpCount || 0) >= cocktailsMax}
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background:
+                    (cocktailOnlyPullUpCount || 0) >= cocktailsMax
+                      ? "rgba(255, 255, 255, 0.05)"
+                      : "rgba(245, 158, 11, 0.2)",
+                  color:
+                    (cocktailOnlyPullUpCount || 0) >= cocktailsMax
+                      ? "rgba(255, 255, 255, 0.3)"
+                      : "#f59e0b",
+                  fontSize: "22px",
+                  fontWeight: 600,
+                  cursor:
+                    (cocktailOnlyPullUpCount || 0) >= cocktailsMax
+                      ? "not-allowed"
+                      : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                +
+              </button>
+            </div>
             <div
               style={{
                 fontSize: "11px",
                 opacity: 0.6,
                 marginTop: "6px",
                 textAlign: "center",
+                color: "#f59e0b",
               }}
             >
               Max: {cocktailsMax} {cocktailsMax === 1 ? "person" : "people"}
@@ -3372,38 +3763,107 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
               >
                 🍽️ Dinner
               </label>
-              <input
-                type="number"
-                min="0"
-                max={dinnerPartySize}
-                value={dinnerPullUpCount || 0}
-                onChange={(e) => {
-                  const count = Math.max(
-                    0,
-                    Math.min(dinnerPartySize, parseInt(e.target.value, 10) || 0)
-                  );
-                  setDinnerPullUpCount(count || 0);
-                }}
+              <div
                 style={{
-                  width: "100%",
-                  padding: "14px 16px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
                   background: "rgba(16, 185, 129, 0.1)",
-                  color: "#10b981",
-                  fontSize: "18px",
-                  fontWeight: 600,
-                  textAlign: "center",
-                  outline: "none",
-                  boxSizing: "border-box",
+                  borderRadius: "12px",
+                  padding: "8px",
+                  border: "1px solid rgba(16, 185, 129, 0.3)",
                 }}
-              />
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newValue = Math.max(0, (dinnerPullUpCount || 0) - 1);
+                    setDinnerPullUpCount(newValue);
+                  }}
+                  disabled={(dinnerPullUpCount || 0) <= 0}
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background:
+                      (dinnerPullUpCount || 0) <= 0
+                        ? "rgba(255, 255, 255, 0.05)"
+                        : "rgba(16, 185, 129, 0.2)",
+                    color:
+                      (dinnerPullUpCount || 0) <= 0
+                        ? "rgba(255, 255, 255, 0.3)"
+                        : "#10b981",
+                    fontSize: "22px",
+                    fontWeight: 600,
+                    cursor:
+                      (dinnerPullUpCount || 0) <= 0 ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.2s ease",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  −
+                </button>
+                <div
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    fontSize: "24px",
+                    fontWeight: 700,
+                    color: "#10b981",
+                  }}
+                >
+                  {dinnerPullUpCount || 0}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newValue = Math.min(
+                      dinnerPartySize,
+                      (dinnerPullUpCount || 0) + 1
+                    );
+                    setDinnerPullUpCount(newValue);
+                  }}
+                  disabled={(dinnerPullUpCount || 0) >= dinnerPartySize}
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background:
+                      (dinnerPullUpCount || 0) >= dinnerPartySize
+                        ? "rgba(255, 255, 255, 0.05)"
+                        : "rgba(16, 185, 129, 0.2)",
+                    color:
+                      (dinnerPullUpCount || 0) >= dinnerPartySize
+                        ? "rgba(255, 255, 255, 0.3)"
+                        : "#10b981",
+                    fontSize: "22px",
+                    fontWeight: 600,
+                    cursor:
+                      (dinnerPullUpCount || 0) >= dinnerPartySize
+                        ? "not-allowed"
+                        : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.2s ease",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  +
+                </button>
+              </div>
               <div
                 style={{
                   fontSize: "11px",
                   opacity: 0.6,
                   marginTop: "6px",
                   textAlign: "center",
+                  color: "#10b981",
                 }}
               >
                 Max: {dinnerPartySize}{" "}

@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useToast } from "../components/Toast";
+import { FaPaperPlane, FaCalendar } from "react-icons/fa";
+import { getEventShareUrl } from "../lib/urlUtils";
 
 import { authenticatedFetch, API_BASE } from "../lib/api.js";
 
@@ -46,8 +48,9 @@ export function EventGuestsPage() {
   const [dinnerSlots, setDinnerSlots] = useState([]);
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
-  const [statusFilter, setStatusFilter] = useState("all"); // "all", "attending", "waitlist"
-  const [pullUpFilter, setPullUpFilter] = useState("all"); // "all", "none", "partial", "full"
+  const [searchQuery, setSearchQuery] = useState(""); // Search query for guest name/email
+  const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
+  const calendarDropdownRef = useRef(null);
 
   // Debounce timers for number inputs
   const debounceTimers = useRef({});
@@ -125,6 +128,113 @@ export function EventGuestsPage() {
       debounceTimers.current = {};
     };
   }, [id, showToast]);
+
+  // Handle click outside calendar dropdown
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (
+        calendarDropdownRef.current &&
+        !calendarDropdownRef.current.contains(event.target)
+      ) {
+        setShowCalendarDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  function getCalendarUrls() {
+    if (!event || !event.startsAt) {
+      return {};
+    }
+
+    const formatDateForGoogle = (dateString) => {
+      if (!dateString) return null;
+      const date = new Date(dateString);
+      return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    };
+
+    const startDate = formatDateForGoogle(event.startsAt);
+    if (!startDate) {
+      return {};
+    }
+
+    let endDate;
+    if (event.endsAt) {
+      endDate = formatDateForGoogle(event.endsAt);
+    } else {
+      // Default to 2 hours after start if no end date
+      const start = new Date(event.startsAt);
+      const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+      endDate = formatDateForGoogle(end.toISOString());
+    }
+
+    const eventUrl = `${window.location.origin}/e/${event.slug}`;
+    const description = `${event.description || ""}\n\nEvent page: ${eventUrl}`;
+
+    const location = encodeURIComponent(event.location || "");
+    const title = encodeURIComponent(event.title);
+    const desc = encodeURIComponent(description);
+
+    return {
+      google: `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${desc}&location=${location}`,
+      outlook: `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${startDate}&enddt=${endDate}&body=${desc}&location=${location}`,
+      yahoo: `https://calendar.yahoo.com/?v=60&view=d&type=20&title=${title}&st=${startDate}&dur=${endDate}&desc=${desc}&in_loc=${location}`,
+      apple: `data:text/calendar;charset=utf8,BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:${startDate}\nDTEND:${endDate}\nSUMMARY:${title}\nDESCRIPTION:${desc}\nLOCATION:${location}\nEND:VEVENT\nEND:VCALENDAR`,
+    };
+  }
+
+  function handleAddToCalendar(provider) {
+    const urls = getCalendarUrls();
+    const url = urls[provider];
+
+    if (!url) {
+      showToast("Unable to generate calendar link", "error");
+      return;
+    }
+
+    if (provider === "apple") {
+      // For Apple Calendar, create a downloadable .ics file
+      const blob = new Blob([url.split(",")[1]], { type: "text/calendar" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${event.slug}.ics`;
+      link.click();
+    } else {
+      window.open(url, "_blank");
+    }
+    setShowCalendarDropdown(false);
+  }
+
+  function handleShare() {
+    if (!event) return;
+
+    const shareUrl = getEventShareUrl(event.slug);
+
+    if (navigator.share) {
+      // URL ONLY - no title, no text, no files
+      // This ensures rich preview (OG tags) is shown, not custom text
+      navigator
+        .share({
+          url: shareUrl,
+        })
+        .then(() => {
+          showToast("Event shared! 🎉", "success");
+        })
+        .catch((err) => {
+          if (err.name !== "AbortError") {
+            navigator.clipboard.writeText(shareUrl);
+            showToast("Link copied to clipboard! 📋", "success");
+          }
+        });
+    } else {
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(shareUrl);
+      showToast("Link copied to clipboard! 📋", "success");
+    }
+  }
 
   // Refetch guests when component mounts or when returning to tab
   // This ensures we always have the latest data from the server
@@ -558,59 +668,16 @@ export function EventGuestsPage() {
   const totalSpotsLeft =
     totalCapacity != null ? Math.max(totalCapacity - attending, 0) : null;
 
-  // Filter guests by status and pull-up status
+  // Filter guests by search query (name or email)
   const filteredGuests = guests.filter((g) => {
-    // Status filter
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "attending" &&
-        (g.bookingStatus === "CONFIRMED" || g.status === "attending")) ||
-      (statusFilter === "waitlist" &&
-        (g.bookingStatus === "WAITLIST" || g.status === "waitlist"));
+    if (!searchQuery.trim()) return true;
 
-    if (!matchesStatus) return false;
+    const query = searchQuery.toLowerCase().trim();
+    const name = (g.name || "").toLowerCase();
+    const email = (g.email || "").toLowerCase();
 
-    // Pull-up status filter (only applies to confirmed/attending guests)
-    // If filter is "all", pass through all guests that match status
-    if (pullUpFilter === "all") return true;
-
-    // For waitlisted guests, they can't have pull-up status
-    // So if filtering by pull-up status, exclude waitlisted guests
-    const isConfirmed =
-      g.bookingStatus === "CONFIRMED" || g.status === "attending";
-    if (!isConfirmed) return false;
-
-    // Calculate pull-up status for confirmed guests
-    const dinnerPullUpCount = g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0;
-    const cocktailOnlyPullUpCount =
-      g.cocktailOnlyPullUpCount ?? g.pulledUpForCocktails ?? 0;
-
-    const totalGuests = g.totalGuests ?? g.partySize ?? 1;
-    const dinnerPartySize = g.dinner?.partySize ?? g.dinnerPartySize ?? 0;
-    const wantsDinner = g.dinner?.enabled ?? g.wantsDinner ?? false;
-    // With new model: partySize = dinnerPartySize + plusOnes
-    // So cocktailOnlyMax = plusOnes
-    const plusOnes = g.plusOnes ?? 0;
-    const cocktailOnlyMax = plusOnes;
-
-    const totalExpected = dinnerPartySize + cocktailOnlyMax;
-    const totalArrived = dinnerPullUpCount + cocktailOnlyPullUpCount;
-
-    let pullUpStatus = "NONE";
-    if (totalArrived === 0) {
-      pullUpStatus = "NONE";
-    } else if (totalArrived > 0 && totalArrived < totalExpected) {
-      pullUpStatus = "PARTIAL";
-    } else if (totalArrived === totalExpected) {
-      pullUpStatus = "FULL";
-    }
-
-    // Match pull-up filter
-    if (pullUpFilter === "none" && pullUpStatus === "NONE") return true;
-    if (pullUpFilter === "partial" && pullUpStatus === "PARTIAL") return true;
-    if (pullUpFilter === "full" && pullUpStatus === "FULL") return true;
-
-      return false;
+    // Prioritize name matches, then email matches
+    return name.includes(query) || email.includes(query);
   });
 
   // Sorting function
@@ -680,6 +747,49 @@ export function EventGuestsPage() {
         paddingBottom: "40px",
       }}
     >
+      {/* Hero Image Background - Full Screen */}
+      {event?.imageUrl && (
+        <>
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: "100%",
+              height: "100%",
+              zIndex: 0,
+            }}
+          >
+            <img
+              src={event.imageUrl}
+              alt={event.title || "Event"}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+          </div>
+          {/* Gradient overlay - fades to dark at bottom where menu is */}
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background:
+                "linear-gradient(to bottom, transparent 0%, transparent 30%, rgba(5, 4, 10, 0.2) 50%, rgba(5, 4, 10, 0.5) 65%, rgba(12, 10, 18, 0.8) 80%, rgba(12, 10, 18, 0.95) 90%, #0c0a12 100%)",
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+          />
+        </>
+      )}
+
       {/* Cursor glow effect */}
       <div
         style={{
@@ -697,135 +807,288 @@ export function EventGuestsPage() {
         }}
       />
 
+      {/* Content - Overlaid on background */}
       <div
-        className="responsive-container responsive-container-wide"
-        style={{ position: "relative", zIndex: 2 }}
+        style={{
+          position: "relative",
+          zIndex: 2,
+          width: "100%",
+          maxWidth: "100%",
+          padding: "0",
+          margin: "0",
+        }}
       >
+        {/* Share and Calendar Icons - Above Title */}
+        {event && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "16px",
+              padding: "20px 20px 12px 20px",
+            }}
+          >
+            {/* Share button */}
+            <button
+              onClick={handleShare}
+              style={{
+                background: "transparent",
+                border: "none",
+                padding: 0,
+                margin: 0,
+                boxShadow: "none",
+                appearance: "none",
+                WebkitAppearance: "none",
+                MozAppearance: "none",
+                cursor: "pointer",
+                color: "rgba(255, 255, 255, 0.8)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.color = "#fff";
+                e.target.style.transform = "scale(1.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.color = "rgba(255, 255, 255, 0.8)";
+                e.target.style.transform = "scale(1)";
+              }}
+            >
+              <FaPaperPlane size={20} />
+            </button>
+
+            {/* Calendar dropdown */}
+            <div
+              ref={calendarDropdownRef}
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCalendarDropdown(!showCalendarDropdown);
+                }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  margin: 0,
+                  boxShadow: "none",
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                  MozAppearance: "none",
+                  cursor: "pointer",
+                  color: "rgba(255, 255, 255, 0.7)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.color = "rgba(255, 255, 255, 0.9)";
+                  e.target.style.transform = "scale(1.1)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.color = "rgba(255, 255, 255, 0.7)";
+                  e.target.style.transform = "scale(1)";
+                }}
+              >
+                <FaCalendar size={18} />
+              </button>
+
+              {showCalendarDropdown && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    marginTop: "8px",
+                    background: "rgba(20, 16, 30, 0.95)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    overflow: "hidden",
+                    zIndex: 10,
+                    minWidth: "180px",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+                  }}
+                >
+                  <button
+                    onClick={() => handleAddToCalendar("google")}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: "none",
+                      background: "transparent",
+                      color: "#fff",
+                      fontSize: "15px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "rgba(255,255,255,0.05)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "transparent";
+                    }}
+                  >
+                    Google Calendar
+                  </button>
+                  <button
+                    onClick={() => handleAddToCalendar("outlook")}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: "none",
+                      background: "transparent",
+                      color: "#fff",
+                      fontSize: "15px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "rgba(255,255,255,0.05)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "transparent";
+                    }}
+                  >
+                    Outlook
+                  </button>
+                  <button
+                    onClick={() => handleAddToCalendar("yahoo")}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: "none",
+                      background: "transparent",
+                      color: "#fff",
+                      fontSize: "15px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "rgba(255,255,255,0.05)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "transparent";
+                    }}
+                  >
+                    Yahoo Calendar
+                  </button>
+                  <button
+                    onClick={() => handleAddToCalendar("apple")}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: "none",
+                      background: "transparent",
+                      color: "#fff",
+                      fontSize: "15px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "rgba(255,255,255,0.05)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "transparent";
+                    }}
+                  >
+                    Apple Calendar
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Go to live link */}
+            <div
+              style={{
+                fontSize: "16px",
+                opacity: 0.8,
+                color: "rgba(255, 255, 255, 0.8)",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flex: 1,
+              }}
+            >
+              <a
+                href={`/e/${event.slug}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  color: "#8b5cf6",
+                  textDecoration: "none",
+                  fontWeight: 600,
+                  fontSize: "16px",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.color = "#a78bfa";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.color = "#8b5cf6";
+                }}
+              >
+                go to live
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Title - Above Menu */}
+        {event && (
+          <h1
+            style={{
+              marginBottom: "20px",
+              padding: "0 20px",
+              fontSize: "clamp(28px, 8vw, 40px)",
+              fontWeight: 800,
+              lineHeight: "1.2",
+              color: "#fff",
+              letterSpacing: "-0.02em",
+              maxWidth: "100%",
+            }}
+          >
+            {event.title || "Untitled event"}
+          </h1>
+        )}
         <div
-          className="responsive-card"
           style={{
             background: "rgba(12, 10, 18, 0.6)",
             backdropFilter: "blur(10px)",
             border: "1px solid rgba(255,255,255,0.05)",
+            width: "100%",
+            maxWidth: "100%",
+            borderRadius: "0",
+            padding: "0",
+            boxSizing: "border-box",
           }}
         >
-          <div style={{ marginBottom: "24px", fontSize: "14px", opacity: 0.7 }}>
-            <Link
-              to="/home"
-              style={{
-                color: "#aaa",
-                textDecoration: "none",
-                transition: "color 0.3s ease",
-              }}
-              onMouseEnter={(e) => (e.target.style.color = "#fff")}
-              onMouseLeave={(e) => (e.target.style.color = "#aaa")}
-            >
-              ← Back to home
-            </Link>
-          </div>
-
-          {/* Image section - matches Overview page structure for consistent spacing */}
-          <div
-            style={{
-              marginBottom: "32px",
-            }}
-          >
-            {/* Spacer to match the "Event Cover Image" label height on Overview page */}
-            <div
-              style={{
-                fontSize: "11px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                opacity: 0,
-                marginBottom: "12px",
-                height: "20px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                pointerEvents: "none",
-              }}
-            >
-              <span>🖼️</span>
-              <span>Event Cover Image</span>
-            </div>
-            {event.imageUrl && (
-              <div
-                style={{
-                  width: "100%",
-                  maxWidth: "500px",
-                  aspectRatio: "16/9",
-                  borderRadius: "16px",
-                  overflow: "hidden",
-                  background: "rgba(0,0,0,0.2)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                }}
-              >
-                <img
-                  src={event.imageUrl}
-                  alt={event.title}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          <h1
-            style={{
-              marginBottom: "8px",
-              fontSize: "clamp(24px, 4vw, 32px)",
-              fontWeight: 700,
-            }}
-          >
-            {event.title}
-          </h1>
-
-          <div
-            style={{
-              marginBottom: "24px",
-              fontSize: "14px",
-              opacity: 0.8,
-              padding: "12px 16px",
-              background: "rgba(20, 16, 30, 0.6)",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.05)",
-            }}
-          >
-            Public link:{" "}
-            <a
-              href={`/e/${event.slug}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                color: "#8b5cf6",
-                textDecoration: "none",
-                fontWeight: 600,
-              }}
-            >
-              pullup.se/e/{event.slug}
-            </a>
-          </div>
-
           {/* Tabs */}
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "32px",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-              fontSize: "14px",
+              gap: "8px",
+              marginBottom: "0",
+              padding: "20px 20px 0 20px",
+              fontSize: "16px",
               borderBottom: "2px solid rgba(255,255,255,0.08)",
               paddingBottom: "0",
+              overflowX: "auto",
+              WebkitOverflowScrolling: "touch",
+              width: "100%",
+              boxSizing: "border-box",
             }}
           >
             <button
@@ -836,11 +1099,15 @@ export function EventGuestsPage() {
                 color: "#9ca3af",
                 cursor: "pointer",
                 transition: "all 0.3s ease",
-                padding: "12px 20px",
+                padding: "14px 20px",
+                minHeight: "44px",
                 borderRadius: "8px 8px 0 0",
                 fontWeight: 500,
                 borderBottom: "2px solid transparent",
                 marginBottom: "-2px",
+                fontSize: "16px",
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
               }}
               onMouseEnter={(e) => {
                 e.target.style.color = "#fff";
@@ -855,317 +1122,281 @@ export function EventGuestsPage() {
             </button>
             <div
               style={{
-                padding: "12px 20px",
+                padding: "14px 20px",
+                minHeight: "44px",
                 fontWeight: 700,
                 color: "#fff",
                 borderBottom: "2px solid #8b5cf6",
                 marginBottom: "-2px",
                 background: "rgba(139, 92, 246, 0.1)",
                 borderRadius: "8px 8px 0 0",
-              }}
-            >
-              👥 Guests
-            </div>
-              <button
-                onClick={() => navigate(`/app/events/${id}/manage?tab=edit`)}
-            style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#9ca3af",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  padding: "12px 20px",
-                  borderRadius: "8px 8px 0 0",
-                  fontWeight: 500,
-                  borderBottom: "2px solid transparent",
-                  marginBottom: "-2px",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.color = "#fff";
-                  e.target.style.background = "rgba(255,255,255,0.05)";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.color = "#9ca3af";
-                  e.target.style.background = "transparent";
-                }}
-              >
-                Edit
-              </button>
-          </div>
-            <button
-              onClick={async () => {
-                try {
-                  const res = await authenticatedFetch(
-                    `/host/events/${id}/guests/export`
-                  );
-                  if (!res.ok) throw new Error("Export failed");
-                  const blob = await res.blob();
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `event-guests-${event.slug || id}-${
-                    new Date().toISOString().split("T")[0]
-                  }.csv`;
-                  document.body.appendChild(a);
-                  a.click();
-                  window.URL.revokeObjectURL(url);
-                  document.body.removeChild(a);
-                } catch (err) {
-                  console.error(err);
-                  showToast("Failed to export CSV", "error");
-                }
-              }}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: "1px solid rgba(139, 92, 246, 0.3)",
-                background: "rgba(139, 92, 246, 0.1)",
-                color: "#a78bfa",
-                fontSize: "14px",
-                fontWeight: 500,
-                cursor: "pointer",
-                transition: "all 0.2s ease",
+                fontSize: "16px",
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
-                height: "fit-content",
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = "rgba(139, 92, 246, 0.2)";
-                e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = "rgba(139, 92, 246, 0.1)";
-                e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
               }}
             >
-              📥 Export CSV
-            </button>
+              👥 Guests ({guests.length})
             </div>
+            <button
+              onClick={() => navigate(`/app/events/${id}/manage?tab=edit`)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#9ca3af",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                padding: "14px 20px",
+                minHeight: "44px",
+                borderRadius: "8px 8px 0 0",
+                fontWeight: 500,
+                borderBottom: "2px solid transparent",
+                marginBottom: "-2px",
+                fontSize: "16px",
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.color = "#fff";
+                e.target.style.background = "rgba(255,255,255,0.05)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.color = "#9ca3af";
+                e.target.style.background = "transparent";
+              }}
+            >
+              Edit
+            </button>
+          </div>
 
-          {/* Filter Controls */}
+          {/* Tab Content Container */}
+          <div
+            style={{
+              padding: "24px 20px",
+              width: "100%",
+              boxSizing: "border-box",
+            }}
+          >
+            {/* Export CSV Button */}
             <div
               style={{
                 display: "flex",
-              gap: "12px",
-              marginBottom: "20px",
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <label
-                  style={{
-                  fontSize: "12px",
-                    fontWeight: 600,
-                  opacity: 0.7,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                  }}
-                >
-                Status:
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  outline: "none",
-                }}
-              >
-                <option value="all">All</option>
-                <option value="attending">Attending</option>
-                <option value="waitlist">Waitlist</option>
-              </select>
-                </div>
-
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <label
-                    style={{
-                  fontSize: "12px",
-                      fontWeight: 600,
-                  opacity: 0.7,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                    }}
-                  >
-                Pull-Up:
-              </label>
-              <select
-                value={pullUpFilter}
-                onChange={(e) => setPullUpFilter(e.target.value)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  outline: "none",
-                }}
-              >
-                <option value="all">All</option>
-                <option value="none">Haven't pulled up</option>
-                <option value="partial">Partially pulled up</option>
-                <option value="full">All pulled up</option>
-              </select>
-                  </div>
-
-            {(statusFilter !== "all" || pullUpFilter !== "all") && (
+                justifyContent: "flex-end",
+                marginBottom: "20px",
+              }}
+            >
               <button
-                onClick={() => {
-                  setStatusFilter("all");
-                  setPullUpFilter("all");
+                onClick={async () => {
+                  try {
+                    const res = await authenticatedFetch(
+                      `/host/events/${id}/guests/export`
+                    );
+                    if (!res.ok) throw new Error("Export failed");
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `event-guests-${event.slug || id}-${
+                      new Date().toISOString().split("T")[0]
+                    }.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                  } catch (err) {
+                    console.error(err);
+                    showToast("Failed to export CSV", "error");
+                  }
                 }}
                 style={{
-                  padding: "8px 16px",
+                  padding: "12px 20px",
                   borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(236, 72, 153, 0.2)",
-                  color: "#f472b6",
-                  fontSize: "14px",
+                  border: "1px solid rgba(139, 92, 246, 0.3)",
+                  background: "rgba(139, 92, 246, 0.1)",
+                  color: "#a78bfa",
+                  fontSize: "16px",
                   fontWeight: 500,
                   cursor: "pointer",
-                  outline: "none",
                   transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  minHeight: "44px",
+                  touchAction: "manipulation",
+                  WebkitTapHighlightColor: "transparent",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.background = "rgba(236, 72, 153, 0.3)";
+                  e.target.style.background = "rgba(139, 92, 246, 0.2)";
+                  e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.background = "rgba(236, 72, 153, 0.2)";
+                  e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                  e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
                 }}
               >
-                Clear Filters
+                📥 Export CSV
               </button>
-            )}
-          </div>
-
-          {/* Guests Table */}
-          {sortedGuests.length === 0 ? (
-            <div
-              style={{
-                background: "rgba(20, 16, 30, 0.6)",
-                padding: "40px 24px",
-                borderRadius: "16px",
-                textAlign: "center",
-                border: "1px solid rgba(255,255,255,0.05)",
-              }}
-            >
-              <div
-                style={{ fontSize: "48px", marginBottom: "16px", opacity: 0.5 }}
-              >
-                👥
-              </div>
-              <div style={{ fontSize: "16px", opacity: 0.7 }}>
-                No guests match the selected filters.
-              </div>
             </div>
-          ) : (
+
+            {/* Search Bar - Smartphone Friendly */}
             <div
               style={{
-                background: "rgba(20, 16, 30, 0.5)",
-                borderRadius: "20px",
-                border: "1px solid rgba(255,255,255,0.08)",
-                overflow: "hidden",
-                overflowX: "auto",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                marginBottom: "24px",
+                padding: "0 20px",
               }}
             >
-              <table
+              <input
+                type="text"
+                placeholder="Search guests by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
                   width: "100%",
-                  borderCollapse: "collapse",
-                  minWidth: "1000px",
+                  padding: "14px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgb(12 10 18 / 10%)",
+                  color: "#fff",
+                  fontSize: "16px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                  transition: "all 0.2s ease",
+                  backdropFilter: "blur(10px)",
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+                  e.target.style.background = "rgb(12 10 18 / 15%)";
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = "rgba(255,255,255,0.05)";
+                  e.target.style.background = "rgb(12 10 18 / 10%)";
+                }}
+              />
+            </div>
+
+            {/* Guests Table */}
+            {sortedGuests.length === 0 ? (
+              <div
+                style={{
+                  background: "rgb(12 10 18 / 10%)",
+                  padding: "40px 24px",
+                  borderRadius: "16px",
+                  textAlign: "center",
+                  border: "1px solid rgba(255,255,255,0.05)",
+                  backdropFilter: "blur(10px)",
                 }}
               >
-                <thead>
-                  <tr
-                    style={{
-                      background:
-                        "linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.1) 100%)",
-                      borderBottom: "2px solid rgba(139, 92, 246, 0.3)",
-                    }}
-                  >
-                    <SortableHeader
-                      column="guest"
-                      label="Guest"
-                      sortColumn={sortColumn}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                      align="left"
-                    />
-                    <SortableHeader
-                      column="status"
-                      label="Status"
-                      sortColumn={sortColumn}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                      align="left"
-                    />
-                    {event.dinnerEnabled && (
-                      <>
-                        <SortableHeader
-                          column="cocktailList"
-                          label="Cocktail List"
-                          sortColumn={sortColumn}
-                          sortDirection={sortDirection}
-                          onSort={handleSort}
-                          align="center"
-                        />
-                        <SortableHeader
-                          column="dinnerParty"
-                          label="Dinner Party"
-                          sortColumn={sortColumn}
-                          sortDirection={sortDirection}
-                          onSort={handleSort}
-                          align="center"
-                        />
-                        <SortableHeader
-                          column="totalAttending"
-                          label="Total Attending"
-                          sortColumn={sortColumn}
-                          sortDirection={sortDirection}
-                          onSort={handleSort}
-                          align="center"
-                        />
-                        <SortableHeader
-                          column="dinnerTime"
-                          label="Dinner Time"
-                          sortColumn={sortColumn}
-                          sortDirection={sortDirection}
-                          onSort={handleSort}
-                          align="center"
-                        />
-                      </>
-                    )}
-                    {!event.dinnerEnabled && (
+                <div
+                  style={{
+                    fontSize: "48px",
+                    marginBottom: "16px",
+                    opacity: 0.5,
+                  }}
+                >
+                  👥
+                </div>
+                <div style={{ fontSize: "16px", opacity: 0.7 }}>
+                  {searchQuery.trim()
+                    ? `No guests found matching "${searchQuery}"`
+                    : "No guests yet."}
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  background: "rgba(20, 16, 30, 0.5)",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  overflow: "hidden",
+                  overflowX: "auto",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                }}
+              >
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    minWidth: "1000px",
+                  }}
+                >
+                  <thead>
+                    <tr
+                      style={{
+                        background:
+                          "linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.1) 100%)",
+                        borderBottom: "2px solid rgba(139, 92, 246, 0.3)",
+                      }}
+                    >
                       <SortableHeader
-                        column="totalAttending"
-                        label="Total Guests"
+                        column="guest"
+                        label="Guest"
                         sortColumn={sortColumn}
                         sortDirection={sortDirection}
                         onSort={handleSort}
-                        align="center"
+                        align="left"
                       />
-                    )}
-                    <SortableHeader
-                      column="rsvpDate"
-                      label="RSVP Date"
-                      sortColumn={sortColumn}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                      align="right"
-                    />
+                      <SortableHeader
+                        column="status"
+                        label="Status"
+                        sortColumn={sortColumn}
+                        sortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="left"
+                      />
+                      {event.dinnerEnabled && (
+                        <>
+                          <SortableHeader
+                            column="cocktailList"
+                            label="Cocktail List"
+                            sortColumn={sortColumn}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                            align="center"
+                          />
+                          <SortableHeader
+                            column="dinnerParty"
+                            label="Dinner Party"
+                            sortColumn={sortColumn}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                            align="center"
+                          />
+                          <SortableHeader
+                            column="totalAttending"
+                            label="Total Attending"
+                            sortColumn={sortColumn}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                            align="center"
+                          />
+                          <SortableHeader
+                            column="dinnerTime"
+                            label="Dinner Time"
+                            sortColumn={sortColumn}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                            align="center"
+                          />
+                        </>
+                      )}
+                      {!event.dinnerEnabled && (
+                        <SortableHeader
+                          column="totalAttending"
+                          label="Total Guests"
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                          align="center"
+                        />
+                      )}
+                      <SortableHeader
+                        column="rsvpDate"
+                        label="RSVP Date"
+                        sortColumn={sortColumn}
+                        sortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="right"
+                      />
                       <th
                         style={{
                           padding: "20px 24px",
@@ -1176,395 +1407,403 @@ export function EventGuestsPage() {
                           letterSpacing: "0.12em",
                           opacity: 0.95,
                           color: "#fff",
-                        width: "140px",
+                          width: "140px",
                         }}
                       >
-                      Pulled Up
+                        Pulled Up
                       </th>
-                    <th
-                      style={{
-                        padding: "20px 24px",
-                        textAlign: "center",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.12em",
-                        opacity: 0.95,
-                        color: "#fff",
-                        width: "120px",
-                      }}
-                    >
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedGuests.map((g, idx) => (
-                    <tr
-                      key={g.id}
-                      onClick={(e) => handleRowClick(g, e)}
-                      style={{
-                        borderBottom:
-                          idx < sortedGuests.length - 1
-                            ? "1px solid rgba(255,255,255,0.06)"
-                            : "none",
-                        transition: "all 0.2s ease",
-                        background:
-                          idx % 2 === 0
-                            ? "transparent"
-                            : "rgba(255,255,255,0.01)",
-                        cursor: "pointer",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background =
-                          "rgba(139, 92, 246, 0.08)";
-                        e.currentTarget.style.transform = "scale(1.002)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background =
-                          idx % 2 === 0
-                            ? "transparent"
-                            : "rgba(255,255,255,0.01)";
-                        e.currentTarget.style.transform = "scale(1)";
-                      }}
-                    >
-                      <td style={{ padding: "20px 24px" }}>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            marginBottom: "6px",
-                            fontSize: "15px",
-                            color: "#fff",
-                          }}
-                        >
-                          {g.name || "—"}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            opacity: 0.7,
-                            wordBreak: "break-word",
-                            color: "#e5e7eb",
-                          }}
-                        >
-                          {g.email}
-                        </div>
-                      </td>
-                      <td style={{ padding: "20px 24px" }}>
-                        <CombinedStatusBadge guest={g} />
-                      </td>
-                      {event.dinnerEnabled && (
-                        <>
-                          <td style={{ padding: "20px", textAlign: "center" }}>
-                            {(() => {
-                              // Cocktail List = plusOnes (cocktails-only people)
-                              // With new model: partySize = dinnerPartySize + plusOnes
-                              const plusOnes = g.plusOnes ?? 0;
+                      <th
+                        style={{
+                          padding: "20px 24px",
+                          textAlign: "center",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.12em",
+                          opacity: 0.95,
+                          color: "#fff",
+                          width: "120px",
+                        }}
+                      >
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedGuests.map((g, idx) => (
+                      <tr
+                        key={g.id}
+                        onClick={(e) => handleRowClick(g, e)}
+                        style={{
+                          borderBottom:
+                            idx < sortedGuests.length - 1
+                              ? "1px solid rgba(255,255,255,0.06)"
+                              : "none",
+                          transition: "all 0.2s ease",
+                          background:
+                            idx % 2 === 0
+                              ? "transparent"
+                              : "rgba(255,255,255,0.01)",
+                          cursor: "pointer",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            "rgba(139, 92, 246, 0.08)";
+                          e.currentTarget.style.transform = "scale(1.002)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background =
+                            idx % 2 === 0
+                              ? "transparent"
+                              : "rgba(255,255,255,0.01)";
+                          e.currentTarget.style.transform = "scale(1)";
+                        }}
+                      >
+                        <td style={{ padding: "20px 24px" }}>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              marginBottom: "6px",
+                              fontSize: "15px",
+                              color: "#fff",
+                            }}
+                          >
+                            {g.name || "—"}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              opacity: 0.7,
+                              wordBreak: "break-word",
+                              color: "#e5e7eb",
+                            }}
+                          >
+                            {g.email}
+                          </div>
+                        </td>
+                        <td style={{ padding: "20px 24px" }}>
+                          <CombinedStatusBadge guest={g} />
+                        </td>
+                        {event.dinnerEnabled && (
+                          <>
+                            <td
+                              style={{ padding: "20px", textAlign: "center" }}
+                            >
+                              {(() => {
+                                // Cocktail List = plusOnes (cocktails-only people)
+                                // With new model: partySize = dinnerPartySize + plusOnes
+                                const plusOnes = g.plusOnes ?? 0;
 
-                              if (plusOnes > 0) {
-                              return (
+                                if (plusOnes > 0) {
+                                  return (
                                     <div
                                       style={{
                                         fontSize: "11px",
-                                      opacity: 0.9,
-                                      padding: "4px 10px",
+                                        opacity: 0.9,
+                                        padding: "4px 10px",
                                         background: "rgba(245, 158, 11, 0.15)",
                                         borderRadius: "6px",
                                         border:
                                           "1px solid rgba(245, 158, 11, 0.3)",
                                         color: "#f59e0b",
                                         fontWeight: 600,
-                                      display: "inline-block",
+                                        display: "inline-block",
                                       }}
                                     >
-                                    +{plusOnes} guest{plusOnes > 1 ? "s" : ""}
-                                </div>
-                                );
-                              }
+                                      +{plusOnes} guest{plusOnes > 1 ? "s" : ""}
+                                    </div>
+                                  );
+                                }
 
-                              return (
+                                return (
+                                  <span
+                                    style={{
+                                      fontSize: "14px",
+                                      opacity: 0.5,
+                                      color: "#fff",
+                                    }}
+                                  >
+                                    —
+                                  </span>
+                                );
+                              })()}
+                            </td>
+                            <td
+                              style={{ padding: "20px", textAlign: "center" }}
+                            >
+                              {g.dinnerStatus === "confirmed" &&
+                              g.dinnerPartySize ? (
+                                <div
+                                  style={{
+                                    fontSize: "16px",
+                                    fontWeight: 700,
+                                    color: "#10b981",
+                                  }}
+                                >
+                                  {g.dinnerPartySize}
+                                </div>
+                              ) : (
                                 <span
                                   style={{
-                                    fontSize: "14px",
-                                    opacity: 0.5,
-                                    color: "#fff",
+                                    fontSize: "13px",
+                                    opacity: 0.4,
+                                    fontStyle: "italic",
                                   }}
                                 >
                                   —
                                 </span>
-                              );
-                            })()}
-                          </td>
-                          <td style={{ padding: "20px", textAlign: "center" }}>
-                            {g.dinnerStatus === "confirmed" &&
-                            g.dinnerPartySize ? (
-                              <div
-                                style={{
-                                  fontSize: "16px",
-                                  fontWeight: 700,
-                                  color: "#10b981",
-                                }}
-                              >
-                                {g.dinnerPartySize}
-                              </div>
-                            ) : (
-                              <span
-                                style={{
-                                  fontSize: "13px",
-                                  opacity: 0.4,
-                                  fontStyle: "italic",
-                                }}
-                              >
-                                —
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ padding: "20px", textAlign: "center" }}>
-                            {(() => {
-                              // TOTAL ATTENDING = partySize (total unique guests)
-                              const partySize = g.partySize || 1;
+                              )}
+                            </td>
+                            <td
+                              style={{ padding: "20px", textAlign: "center" }}
+                            >
+                              {(() => {
+                                // TOTAL ATTENDING = partySize (total unique guests)
+                                const partySize = g.partySize || 1;
 
-                              return (
+                                return (
+                                  <div
+                                    style={{
+                                      fontSize: "18px",
+                                      fontWeight: 700,
+                                      color: "#fff",
+                                    }}
+                                  >
+                                    {partySize}
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                            <td
+                              style={{ padding: "20px", textAlign: "center" }}
+                            >
+                              {g.dinnerTimeSlot ? (
                                 <div
                                   style={{
-                                    fontSize: "18px",
-                                    fontWeight: 700,
+                                    fontSize: "13px",
+                                    opacity: 0.9,
+                                    fontWeight: 600,
                                     color: "#fff",
                                   }}
                                 >
-                                  {partySize}
-                                </div>
-                              );
-                            })()}
-                          </td>
-                          <td style={{ padding: "20px", textAlign: "center" }}>
-                            {g.dinnerTimeSlot ? (
-                              <div
-                                style={{
-                                  fontSize: "13px",
-                                  opacity: 0.9,
-                                  fontWeight: 600,
-                                  color: "#fff",
-                                }}
-                              >
-                                {new Date(g.dinnerTimeSlot).toLocaleTimeString(
-                                  "en-US",
-                                  {
+                                  {new Date(
+                                    g.dinnerTimeSlot
+                                  ).toLocaleTimeString("en-US", {
                                     hour: "numeric",
                                     minute: "2-digit",
-                                  }
-                                )}
-                              </div>
-                            ) : (
-                              <span
-                                style={{
-                                  fontSize: "13px",
-                                  opacity: 0.4,
-                                  fontStyle: "italic",
-                                }}
-                              >
-                                —
-                              </span>
-                            )}
-                          </td>
-                        </>
-                      )}
-                      {!event.dinnerEnabled && (
-                        <td style={{ padding: "20px", textAlign: "center" }}>
-                          <div
-                            style={{
-                              fontSize: "18px",
-                              fontWeight: 700,
-                              color: "#fff",
-                            }}
-                          >
-                            {g.partySize || 1}
-                          </div>
-                          {g.plusOnes > 0 && (
-                            <div
-                              style={{
-                                fontSize: "11px",
-                                opacity: 0.8,
-                                padding: "3px 8px",
-                                background: "rgba(139, 92, 246, 0.15)",
-                                borderRadius: "6px",
-                                border: "1px solid rgba(139, 92, 246, 0.3)",
-                                color: "#a78bfa",
-                                fontWeight: 600,
-                                marginTop: "4px",
-                              }}
-                            >
-                              +{g.plusOnes} guest{g.plusOnes > 1 ? "s" : ""}
-                            </div>
-                          )}
-                        </td>
-                      )}
-                      <td
-                        style={{
-                          padding: "20px",
-                          textAlign: "right",
-                          fontSize: "13px",
-                          opacity: 0.7,
-                          color: "#d1d5db",
-                        }}
-                      >
-                        {new Date(g.createdAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </td>
-                      <td style={{ padding: "20px", textAlign: "center" }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            gap: "6px",
-                          }}
-                        >
-                          {(() => {
-                            const cocktailsPulledUp =
-                              g.cocktailOnlyPullUpCount ??
-                              g.pulledUpForCocktails ??
-                              0;
-                            const dinnerPulledUp =
-                              g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0;
-                            const hasAnyPulledUp =
-                              cocktailsPulledUp > 0 || dinnerPulledUp > 0;
-
-                            if (!hasAnyPulledUp) {
-                              return (
+                                  })}
+                                </div>
+                              ) : (
                                 <span
                                   style={{
-                                    fontSize: "12px",
-                                    opacity: 0.5,
-                                    color: "rgba(255,255,255,0.5)",
+                                    fontSize: "13px",
+                                    opacity: 0.4,
                                     fontStyle: "italic",
                                   }}
                                 >
-                                  Not checked in
+                                  —
                                 </span>
-                              );
-                            }
-
-                            return (
-                              <>
-                                {cocktailsPulledUp > 0 && (
-                                  <div
-                                    style={{
-                                      fontSize: "12px",
-                                      fontWeight: 600,
-                                      color: "#f59e0b",
-                                      padding: "4px 8px",
-                                      background: "rgba(245, 158, 11, 0.15)",
-                                      borderRadius: "6px",
-                                      border:
-                                        "1px solid rgba(245, 158, 11, 0.3)",
-                                    }}
-                                  >
-                                    🥂 {cocktailsPulledUp}
-                                  </div>
-                                )}
-                                {dinnerPulledUp > 0 && (
-                                  <div
-                                    style={{
-                                      fontSize: "12px",
-                                      fontWeight: 600,
-                                      color: "#10b981",
-                                      padding: "4px 8px",
-                                      background: "rgba(16, 185, 129, 0.15)",
-                                      borderRadius: "6px",
-                                      border:
-                                        "1px solid rgba(16, 185, 129, 0.3)",
-                                    }}
-                                  >
-                                    🍽️ {dinnerPulledUp}
-                                  </div>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </td>
-                      <td style={{ padding: "20px", textAlign: "center" }}>
-                        <div
+                              )}
+                            </td>
+                          </>
+                        )}
+                        {!event.dinnerEnabled && (
+                          <td style={{ padding: "20px", textAlign: "center" }}>
+                            <div
+                              style={{
+                                fontSize: "18px",
+                                fontWeight: 700,
+                                color: "#fff",
+                              }}
+                            >
+                              {g.partySize || 1}
+                            </div>
+                            {g.plusOnes > 0 && (
+                              <div
+                                style={{
+                                  fontSize: "11px",
+                                  opacity: 0.8,
+                                  padding: "3px 8px",
+                                  background: "rgba(139, 92, 246, 0.15)",
+                                  borderRadius: "6px",
+                                  border: "1px solid rgba(139, 92, 246, 0.3)",
+                                  color: "#a78bfa",
+                                  fontWeight: 600,
+                                  marginTop: "4px",
+                                }}
+                              >
+                                +{g.plusOnes} guest{g.plusOnes > 1 ? "s" : ""}
+                              </div>
+                            )}
+                          </td>
+                        )}
+                        <td
                           style={{
-                            display: "flex",
-                            gap: "8px",
-                            justifyContent: "center",
+                            padding: "20px",
+                            textAlign: "right",
+                            fontSize: "13px",
+                            opacity: 0.7,
+                            color: "#d1d5db",
                           }}
                         >
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditGuest(g);
-                            }}
+                          {new Date(g.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </td>
+                        <td style={{ padding: "20px", textAlign: "center" }}>
+                          <div
                             style={{
-                              padding: "6px 12px",
-                              borderRadius: "8px",
-                              border: "1px solid rgba(139, 92, 246, 0.4)",
-                              background: "rgba(139, 92, 246, 0.1)",
-                              color: "#a78bfa",
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              transition: "all 0.2s ease",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.target.style.background =
-                                "rgba(139, 92, 246, 0.2)";
-                              e.target.style.borderColor =
-                                "rgba(139, 92, 246, 0.6)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.target.style.background =
-                                "rgba(139, 92, 246, 0.1)";
-                              e.target.style.borderColor =
-                                "rgba(139, 92, 246, 0.4)";
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: "6px",
                             }}
                           >
-                            Edit
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowDeleteConfirm(g);
-                            }}
+                            {(() => {
+                              const cocktailsPulledUp =
+                                g.cocktailOnlyPullUpCount ??
+                                g.pulledUpForCocktails ??
+                                0;
+                              const dinnerPulledUp =
+                                g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0;
+                              const hasAnyPulledUp =
+                                cocktailsPulledUp > 0 || dinnerPulledUp > 0;
+
+                              if (!hasAnyPulledUp) {
+                                return (
+                                  <span
+                                    style={{
+                                      fontSize: "12px",
+                                      opacity: 0.5,
+                                      color: "rgba(255,255,255,0.5)",
+                                      fontStyle: "italic",
+                                    }}
+                                  >
+                                    Not checked in
+                                  </span>
+                                );
+                              }
+
+                              return (
+                                <>
+                                  {cocktailsPulledUp > 0 && (
+                                    <div
+                                      style={{
+                                        fontSize: "12px",
+                                        fontWeight: 600,
+                                        color: "#f59e0b",
+                                        padding: "4px 8px",
+                                        background: "rgba(245, 158, 11, 0.15)",
+                                        borderRadius: "6px",
+                                        border:
+                                          "1px solid rgba(245, 158, 11, 0.3)",
+                                      }}
+                                    >
+                                      🥂 {cocktailsPulledUp}
+                                    </div>
+                                  )}
+                                  {dinnerPulledUp > 0 && (
+                                    <div
+                                      style={{
+                                        fontSize: "12px",
+                                        fontWeight: 600,
+                                        color: "#10b981",
+                                        padding: "4px 8px",
+                                        background: "rgba(16, 185, 129, 0.15)",
+                                        borderRadius: "6px",
+                                        border:
+                                          "1px solid rgba(16, 185, 129, 0.3)",
+                                      }}
+                                    >
+                                      🍽️ {dinnerPulledUp}
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </td>
+                        <td style={{ padding: "20px", textAlign: "center" }}>
+                          <div
                             style={{
-                              padding: "6px 12px",
-                              borderRadius: "8px",
-                              border: "1px solid rgba(236, 72, 153, 0.4)",
-                              background: "rgba(236, 72, 153, 0.1)",
-                              color: "#f472b6",
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              transition: "all 0.2s ease",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.target.style.background =
-                                "rgba(236, 72, 153, 0.2)";
-                              e.target.style.borderColor =
-                                "rgba(236, 72, 153, 0.6)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.target.style.background =
-                                "rgba(236, 72, 153, 0.1)";
-                              e.target.style.borderColor =
-                                "rgba(236, 72, 153, 0.4)";
+                              display: "flex",
+                              gap: "8px",
+                              justifyContent: "center",
                             }}
                           >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditGuest(g);
+                              }}
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: "8px",
+                                border: "1px solid rgba(139, 92, 246, 0.4)",
+                                background: "rgba(139, 92, 246, 0.1)",
+                                color: "#a78bfa",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                transition: "all 0.2s ease",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.target.style.background =
+                                  "rgba(139, 92, 246, 0.2)";
+                                e.target.style.borderColor =
+                                  "rgba(139, 92, 246, 0.6)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.target.style.background =
+                                  "rgba(139, 92, 246, 0.1)";
+                                e.target.style.borderColor =
+                                  "rgba(139, 92, 246, 0.4)";
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowDeleteConfirm(g);
+                              }}
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: "8px",
+                                border: "1px solid rgba(236, 72, 153, 0.4)",
+                                background: "rgba(236, 72, 153, 0.1)",
+                                color: "#f472b6",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                transition: "all 0.2s ease",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.target.style.background =
+                                  "rgba(236, 72, 153, 0.2)";
+                                e.target.style.borderColor =
+                                  "rgba(236, 72, 153, 0.6)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.target.style.background =
+                                  "rgba(236, 72, 153, 0.1)";
+                                e.target.style.borderColor =
+                                  "rgba(236, 72, 153, 0.4)";
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1645,9 +1884,9 @@ function StatCard({ icon, label, value, color }) {
     <div
       style={{
         padding: "20px",
-        background: "rgba(20, 16, 30, 0.6)",
+        background: "rgb(12 10 18 / 10%)",
         borderRadius: "16px",
-        border: "1px solid rgba(255,255,255,0.08)",
+        border: "1px solid rgba(255,255,255,0.05)",
         backdropFilter: "blur(10px)",
         transition: "all 0.3s ease",
       }}
@@ -1877,9 +2116,9 @@ function CombinedStatusBadge({ guest }) {
   } else if (bookingStatus === "WAITLIST") {
     // Entire booking is on waitlist (all-or-nothing)
     label = "WAITLIST";
-      bg = "rgba(236, 72, 153, 0.2)";
-      border = "rgba(236, 72, 153, 0.5)";
-      color = "#f472b6";
+    bg = "rgba(236, 72, 153, 0.2)";
+    border = "rgba(236, 72, 153, 0.5)";
+    color = "#f472b6";
   } else if (bookingStatus === "CANCELLED") {
     label = "CANCELLED";
     bg = "rgba(107, 114, 128, 0.2)";
@@ -1922,23 +2161,23 @@ function CombinedStatusBadge({ guest }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-    <span
-      style={{
-        fontSize: "10px",
-        fontWeight: 700,
-        padding: "6px 12px",
-        borderRadius: "999px",
-        background: bg,
-        border: `1.5px solid ${border}`,
-        color: color,
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        display: "inline-block",
-        lineHeight: "1.3",
-      }}
-    >
-      {label}
-    </span>
+        <span
+          style={{
+            fontSize: "10px",
+            fontWeight: 700,
+            padding: "6px 12px",
+            borderRadius: "999px",
+            background: bg,
+            border: `1.5px solid ${border}`,
+            color: color,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            display: "inline-block",
+            lineHeight: "1.3",
+          }}
+        >
+          {label}
+        </span>
         {capacityOverridden && bookingStatus === "CONFIRMED" && (
           <span
             title="This guest was confirmed by overriding capacity limits."

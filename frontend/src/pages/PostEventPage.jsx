@@ -6,6 +6,7 @@ import { getEventShareUrl, generateCalendarUrls } from "../lib/urlUtils";
 import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
 import { handleNetworkError } from "../lib/errorHandler.js";
 import { formatEventDate } from "../lib/dateUtils.js";
+import { logger } from "../lib/logger.js";
 
 // Get user's timezone
 function getUserTimezone() {

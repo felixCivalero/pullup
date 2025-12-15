@@ -9,6 +9,7 @@ import {
   generateCalendarUrls,
 } from "../lib/urlUtils";
 import { formatReadableDateTime } from "../lib/dateUtils.js";
+import { logger } from "../lib/logger.js";
 
 export function EventSuccessPage() {
   const { slug } = useParams();
@@ -29,10 +30,9 @@ export function EventSuccessPage() {
 
     // If we have event data from navigation state, use it immediately
     if (location.state?.event) {
-      console.log(
-        "[EventSuccessPage] Using event from navigation state:",
-        location.state.event.slug
-      );
+      logger.debug("[EventSuccessPage] Using event from navigation state", {
+        slug: location.state.event.slug,
+      });
       setEvent(location.state.event);
       setLoading(false);
 
@@ -54,7 +54,7 @@ export function EventSuccessPage() {
           } else {
             // Not authenticated - can't fetch DRAFT events, but that's okay
             // The event from state is good enough
-            console.log(
+            logger.debug(
               "[EventSuccessPage] Not authenticated, skipping image refetch for DRAFT event"
             );
           }
@@ -101,12 +101,17 @@ export function EventSuccessPage() {
 
           // If 401/403, fallback to public endpoint
           if (response.status === 401 || response.status === 403) {
-            console.log("Auth failed, trying public endpoint");
+            logger.info(
+              "[EventSuccessPage] Auth failed, trying public endpoint"
+            );
             response = await publicFetch(`/events/${slug}`);
           }
         } catch (authError) {
           // Network error or other issue - try public endpoint
-          console.log("Auth request failed, trying public endpoint");
+          logger.warn(
+            "[EventSuccessPage] Auth request failed, trying public endpoint",
+            { error: authError?.message }
+          );
           response = await publicFetch(`/events/${slug}`);
         }
       } else {

@@ -42,6 +42,13 @@ import {
   createStripeProduct,
   createStripePrice,
 } from "./stripe.js";
+import { logger } from "./logger.js";
+
+import { sendEmail } from "./services/emailService.js";
+import {
+  signupConfirmationEmail,
+  reminder8hEmail,
+} from "./emails/signupConfirmation.js";
 
 // Load environment-specific .env file
 // In development, loads .env.development
@@ -134,16 +141,18 @@ async function toOgPublicImageUrl(imageUrl, routeName = "Share") {
 
   // If it's not from the event-images bucket, just use it as-is
   if (!String(imageUrl).includes("event-images/")) {
-    console.log(
-      `[${routeName}] OG image is not in event-images bucket, using as-is: ${imageUrl}`
+    logger.debug(
+      `[${routeName}] OG image is not in event-images bucket, using as-is`,
+      { imageUrl }
     );
     return imageUrl;
   }
 
   const filePath = extractEventImagesFilePath(imageUrl);
   if (!filePath) {
-    console.log(
-      `[${routeName}] Could not extract event-images file path, using as-is: ${imageUrl}`
+    logger.warn(
+      `[${routeName}] Could not extract event-images file path, using as-is`,
+      { imageUrl }
     );
     return imageUrl;
   }
@@ -155,20 +164,21 @@ async function toOgPublicImageUrl(imageUrl, routeName = "Share") {
     } = supabase.storage.from("event-images").getPublicUrl(filePath);
 
     if (publicUrl) {
-      console.log(
-        `[${routeName}] OG public image URL generated: ${publicUrl} (filePath: ${filePath})`
-      );
+      logger.info(`[${routeName}] OG public image URL generated`, {
+        publicUrl,
+        filePath,
+      });
       return publicUrl;
     }
 
-    console.log(
-      `[${routeName}] getPublicUrl returned empty, using original: ${imageUrl}`
-    );
+    logger.warn(`[${routeName}] getPublicUrl returned empty, using original`, {
+      imageUrl,
+    });
     return imageUrl;
   } catch (err) {
-    console.error(
-      `[${routeName}] Error generating OG public image URL, using original:`,
-      err
+    logger.error(
+      `[${routeName}] Error generating OG public image URL, using original`,
+      { error: err?.message }
     );
     return imageUrl;
   }
@@ -178,20 +188,20 @@ async function toOgPublicImageUrl(imageUrl, routeName = "Share") {
 // Helper: Generate OG HTML for an event (uses permanent public image URL)
 // ---------------------------
 async function generateOgHtmlForEvent(event, routeName = "Share") {
-  console.log(
-    `[${routeName}] Found event: ${event?.title} (slug: ${event?.slug}, id: ${event?.id})`
-  );
-  console.log(
-    `[${routeName}] Event image URL (raw): ${event?.imageUrl || "none"}`
-  );
+  logger.debug(`[${routeName}] Found event`, {
+    title: event?.title,
+    slug: event?.slug,
+    id: event?.id,
+  });
+  logger.debug(`[${routeName}] Event image URL (raw)`, {
+    imageUrl: event?.imageUrl || "none",
+  });
 
   const ogImageUrl = await toOgPublicImageUrl(event?.imageUrl, routeName);
 
-  console.log(
-    `[${routeName}] Final OG image URL: ${
-      ogImageUrl || "none (will use default)"
-    }`
-  );
+  logger.debug(`[${routeName}] Final OG image URL`, {
+    imageUrl: ogImageUrl || "none (will use default)",
+  });
 
   return generateOgHtml({
     ...event,
@@ -669,6 +679,25 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         error: "database_error",
         message: result.message || "Failed to create RSVP",
       });
+    }
+
+    // After all result.error checks and before res.status(201)...
+    try {
+      await sendEmail({
+        to: result.rsvp.email,
+        subject: "Your spot is confirmed",
+        html: signupConfirmationEmail({
+          name: result.rsvp.name || name,
+          eventTitle: result.event.title,
+          date: new Date(result.event.startsAt).toLocaleString(), // or your formattedDate
+        }),
+      });
+    } catch (emailErr) {
+      logger?.error?.("Failed to send signup confirmation email", {
+        error: emailErr?.message,
+        rsvpId: result.rsvp.id,
+      });
+      // Don’t block the RSVP on email failure
     }
 
     // Return detailed RSVP information including status details

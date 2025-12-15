@@ -1,11 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { logger } from "../lib/logger.js";
 
 // Simple analytics tracking function
 function trackEvent(eventName, properties = {}) {
-  // For now, just log to console. Can be replaced with actual analytics later
-  console.log(`[Analytics] ${eventName}`, properties);
+  // For now, send via logger (can be wired to real analytics later)
+  logger.info(`[Analytics] ${eventName}`, properties);
   // TODO: Integrate with analytics service (e.g., PostHog, Mixpanel, etc.)
 }
 

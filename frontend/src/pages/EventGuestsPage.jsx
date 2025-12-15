@@ -3,9 +3,125 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { FaPaperPlane, FaCalendar } from "react-icons/fa";
 import { getEventShareUrl } from "../lib/urlUtils";
+import { logger } from "../lib/logger.js";
 
 import { authenticatedFetch, API_BASE } from "../lib/api.js";
 import { formatEventTime, formatEventDate } from "../lib/dateUtils.js";
+
+// -----------------------------
+// Helpers: stats, filtering, sorting
+// -----------------------------
+
+function computeGuestStats(guests) {
+  return guests.reduce(
+    (acc, g) => {
+      const totalGuests = g.totalGuests ?? g.partySize ?? 1;
+      const partySize = g.partySize || 1;
+      const dinnerPartySize = g.dinnerPartySize || partySize;
+
+      if (g.bookingStatus === "WAITLIST" || g.status === "waitlist") {
+        acc.waitlist += totalGuests;
+      }
+
+      if (g.status === "attending") {
+        acc.attending += partySize;
+        acc.cocktailList += partySize;
+
+        const wantsDinner = g.dinner?.enabled || g.wantsDinner || false;
+        const plusOnes = g.plusOnes ?? 0;
+
+        if (wantsDinner) {
+          acc.cocktailsOnly += plusOnes;
+        } else {
+          acc.cocktailsOnly += partySize;
+        }
+      }
+
+      if (g.wantsDinner) {
+        if (g.dinnerStatus === "confirmed") {
+          acc.dinnerConfirmed += dinnerPartySize;
+        } else if (g.dinnerStatus === "cocktails") {
+          acc.dinnerCocktails += dinnerPartySize;
+        } else if (g.dinnerStatus === "cocktails_waitlist") {
+          acc.dinnerCocktails += dinnerPartySize;
+          acc.dinnerWaitlist += dinnerPartySize;
+        } else if (g.dinnerStatus === "waitlist") {
+          acc.dinnerWaitlist += dinnerPartySize;
+        }
+      }
+
+      return acc;
+    },
+    {
+      waitlist: 0,
+      attending: 0,
+      cocktailList: 0,
+      cocktailsOnly: 0,
+      dinnerConfirmed: 0,
+      dinnerWaitlist: 0,
+      dinnerCocktails: 0,
+    }
+  );
+}
+
+function filterGuests(guests, searchQuery) {
+  const query = searchQuery.toLowerCase().trim();
+  if (!query) return guests;
+
+  return guests.filter((g) => {
+    const name = (g.name || "").toLowerCase();
+    const email = (g.email || "").toLowerCase();
+    return name.includes(query) || email.includes(query);
+  });
+}
+
+function sortGuests(guests, sortColumn, sortDirection) {
+  if (!sortColumn) return guests;
+
+  const sorted = [...guests].sort((a, b) => {
+    let aValue;
+    let bValue;
+
+    switch (sortColumn) {
+      case "guest":
+        aValue = (a.name || "").toLowerCase();
+        bValue = (b.name || "").toLowerCase();
+        break;
+      case "status":
+        aValue = a.status || "";
+        bValue = b.status || "";
+        break;
+      case "cocktailList":
+        aValue = a.partySize || 1;
+        bValue = b.partySize || 1;
+        break;
+      case "dinnerParty":
+        aValue = a.dinnerPartySize || 0;
+        bValue = b.dinnerPartySize || 0;
+        break;
+      case "totalAttending":
+        aValue = a.totalGuests ?? a.partySize ?? 1;
+        bValue = b.totalGuests ?? b.partySize ?? 1;
+        break;
+      case "dinnerTime":
+        aValue = a.dinnerTimeSlot ? new Date(a.dinnerTimeSlot).getTime() : 0;
+        bValue = b.dinnerTimeSlot ? new Date(b.dinnerTimeSlot).getTime() : 0;
+        break;
+      case "rsvpDate":
+        aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        break;
+      default:
+        return 0;
+    }
+
+    if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+    if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  return sorted;
+}
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
 function generateDinnerTimeSlots(event) {
@@ -571,71 +687,14 @@ export function EventGuestsPage() {
     );
   }
 
-  // Stats - count people, not just RSVPs
-  // Use stored totalGuests value (calculated once in backend) for consistency
-  const stats = guests.reduce(
-    (acc, g) => {
-      // Use stored totalGuests, fallback to partySize for backward compatibility
-      const totalGuests = g.totalGuests ?? g.partySize ?? 1;
-      const partySize = g.partySize || 1;
-      const dinnerPartySize = g.dinnerPartySize || partySize;
-
-      // Count waitlist using totalGuests
-      if (g.bookingStatus === "WAITLIST" || g.status === "waitlist") {
-        acc.waitlist += totalGuests;
-      }
-
-      // Count all attending guests using totalGuests
-      if (g.status === "attending") {
-        acc.attending += partySize; // Use partySize, not totalGuests
-        // Also track cocktail list (partySize) for display purposes
-        acc.cocktailList += partySize;
-
-        // Calculate cocktails-only for this guest
-        const wantsDinner = g.dinner?.enabled || g.wantsDinner || false;
-        const plusOnes = g.plusOnes ?? 0;
-
-        // If no dinner: all partySize is cocktails-only (booker + plusOnes)
-        // If dinner: only plusOnes are cocktails-only (dinnerPartySize goes to dinner)
-        if (wantsDinner) {
-          acc.cocktailsOnly += plusOnes; // Only plusOnes are cocktails-only
-        } else {
-          acc.cocktailsOnly += partySize; // Entire party is cocktails-only
-        }
-      }
-
-      // Count dinner-related stats
-      if (g.wantsDinner) {
-        if (g.dinnerStatus === "confirmed") {
-          acc.dinnerConfirmed += dinnerPartySize;
-        } else if (g.dinnerStatus === "cocktails") {
-          acc.dinnerCocktails += dinnerPartySize;
-        } else if (g.dinnerStatus === "cocktails_waitlist") {
-          acc.dinnerCocktails += dinnerPartySize;
-          acc.dinnerWaitlist += dinnerPartySize;
-        } else if (g.dinnerStatus === "waitlist") {
-          acc.dinnerWaitlist += dinnerPartySize;
-        }
-      }
-
-      return acc;
-    },
-    {
-      waitlist: 0,
-      attending: 0,
-      cocktailList: 0,
-      cocktailsOnly: 0,
-      dinnerConfirmed: 0,
-      dinnerWaitlist: 0,
-      dinnerCocktails: 0,
-    }
-  );
+  // Stats - count people, not just RSVPs (computed via helper)
+  const stats = computeGuestStats(guests);
 
   // Use the calculated attending value
   const attending = stats.attending;
 
-  // Debug: Log stats calculation
-  console.log("🔍 [Stats Debug]:", {
+  // Structured debug logging for stats (dev-only via logger)
+  logger.debug("🔍 [Stats Debug]", {
     cocktailList: stats.cocktailList,
     dinnerConfirmed: stats.dinnerConfirmed,
     cocktailsOnly: stats.cocktailsOnly,
@@ -663,18 +722,6 @@ export function EventGuestsPage() {
   const totalSpotsLeft =
     totalCapacity != null ? Math.max(totalCapacity - attending, 0) : null;
 
-  // Filter guests by search query (name or email)
-  const filteredGuests = guests.filter((g) => {
-    if (!searchQuery.trim()) return true;
-
-    const query = searchQuery.toLowerCase().trim();
-    const name = (g.name || "").toLowerCase();
-    const email = (g.email || "").toLowerCase();
-
-    // Prioritize name matches, then email matches
-    return name.includes(query) || email.includes(query);
-  });
-
   // Sorting function
   const handleSort = (column) => {
     if (sortColumn === column) {
@@ -687,49 +734,9 @@ export function EventGuestsPage() {
     }
   };
 
-  // Apply sorting
-  const sortedGuests = [...filteredGuests].sort((a, b) => {
-    if (!sortColumn) return 0;
-
-    let aValue, bValue;
-
-    switch (sortColumn) {
-      case "guest":
-        aValue = (a.name || "").toLowerCase();
-        bValue = (b.name || "").toLowerCase();
-        break;
-      case "status":
-        aValue = a.status || "";
-        bValue = b.status || "";
-        break;
-      case "cocktailList":
-        aValue = a.partySize || 1;
-        bValue = b.partySize || 1;
-        break;
-      case "dinnerParty":
-        aValue = a.dinnerPartySize || 0;
-        bValue = b.dinnerPartySize || 0;
-        break;
-      case "totalAttending":
-        aValue = a.totalGuests ?? a.partySize ?? 1;
-        bValue = b.totalGuests ?? b.partySize ?? 1;
-        break;
-      case "dinnerTime":
-        aValue = a.dinnerTimeSlot ? new Date(a.dinnerTimeSlot).getTime() : 0;
-        bValue = b.dinnerTimeSlot ? new Date(b.dinnerTimeSlot).getTime() : 0;
-        break;
-      case "rsvpDate":
-        aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        break;
-      default:
-        return 0;
-    }
-
-    if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
-    if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
-    return 0;
-  });
+  // Filter + sort guests via helpers
+  const filteredGuests = filterGuests(guests, searchQuery);
+  const sortedGuests = sortGuests(filteredGuests, sortColumn, sortDirection);
 
   return (
     <div

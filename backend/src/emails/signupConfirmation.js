@@ -1,0 +1,35 @@
+export function signupConfirmationEmail({ name, eventTitle, date }) {
+  return `
+    <div style="font-family: Inter, Arial, sans-serif; max-width:600px; margin:auto">
+      <h2>You’re in 🎉</h2>
+      <p>Hi ${name},</p>
+      <p>Your spot for <strong>${eventTitle}</strong> is confirmed.</p>
+      <p><strong>Date:</strong> ${date}</p>
+
+      <hr style="margin:24px 0"/>
+
+      <p style="color:#666">
+        See you soon,<br/>
+        Pullup
+      </p>
+    </div>
+    `;
+}
+
+export function reminder8hEmail({ name, eventTitle, time }) {
+  return `
+    <div style="font-family: Inter, Arial, sans-serif; max-width:600px; margin:auto">
+      <h2>Happening soon ⏰</h2>
+      <p>Hi ${name},</p>
+      <p>
+        <strong>${eventTitle}</strong> starts in about 8 hours.
+      </p>
+      <p><strong>Start time:</strong> ${time}</p>
+
+      <p style="margin-top:24px">
+        See you there,<br/>
+        Pullup
+      </p>
+    </div>
+    `;
+}

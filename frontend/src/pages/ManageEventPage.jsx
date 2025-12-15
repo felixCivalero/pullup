@@ -5,6 +5,8 @@ import { useToast } from "../components/Toast";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { getEventUrl, getEventShareUrl } from "../lib/urlUtils";
 import { FaPaperPlane, FaCalendar } from "react-icons/fa";
+import { logger } from "../lib/logger.js";
+import { EventOverviewStats } from "../components/EventOverviewStats.jsx";
 
 import { authenticatedFetch, publicFetch, API_BASE } from "../lib/api.js";
 import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
@@ -859,7 +861,7 @@ export function ManageEventPage() {
               ? data.waitlistEnabled
               : true,
         });
-        console.log("📥 [Load] Event loaded:", {
+        logger.debug("📥 [Load] Event loaded", {
           eventImageUrl: data.imageUrl
             ? `${data.imageUrl.substring(0, 50)}...`
             : null,
@@ -873,18 +875,18 @@ export function ManageEventPage() {
         // Only update imagePreview if user hasn't made unsaved changes
         if (!hasUnsavedImage) {
           if (data.imageUrl) {
-            console.log(
+            logger.debug(
               "📥 [Load] Setting imagePreview from loaded event (no unsaved changes)"
             );
             setImagePreview(data.imageUrl);
           } else {
-            console.log(
+            logger.debug(
               "📥 [Load] No imageUrl in loaded event, setting imagePreview to null"
             );
             setImagePreview(null);
           }
         } else {
-          console.log(
+          logger.debug(
             "📥 [Load] Skipping imagePreview update - user has unsaved image changes"
           );
         }

@@ -22,6 +22,7 @@ import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { publicFetch } from "../lib/api.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
+import { logger } from "../lib/logger.js";
 
 export function EventPage() {
   const { slug } = useParams();
@@ -48,8 +49,8 @@ export function EventPage() {
         }
         if (!res.ok) throw new Error("Failed to load event");
         const data = await res.json();
-        // Debug: Log event structure to verify slug exists
-        console.log("[EventPage] Loaded event:", {
+        // Debug: Log event structure to verify slug exists (dev-only)
+        logger.debug("[EventPage] Loaded event", {
           id: data.id,
           slug: data.slug,
           title: data.title,

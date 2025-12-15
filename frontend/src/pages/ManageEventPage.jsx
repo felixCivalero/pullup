@@ -29,6 +29,7 @@ const inputStyle = {
   boxSizing: "border-box",
   transition: "all 0.3s ease",
   backdropFilter: "blur(10px)",
+  minHeight: "44px", // Touch-friendly minimum height
 };
 
 const focusedInputStyle = {
@@ -106,7 +107,7 @@ function calculateCuisineTimeslots(startTime, endTime, intervalHours) {
 }
 
 // Overview Tab Component - shows event statistics
-function OverviewTabContent({ event, guests, dinnerSlots }) {
+function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
   // Calculate stats from guests
   const stats = guests.reduce(
     (acc, g) => {
@@ -208,7 +209,9 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
         style={{
           marginBottom: "32px",
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gridTemplateColumns: isMobile
+            ? "1fr"
+            : "repeat(auto-fit, minmax(180px, 1fr))",
           gap: "20px",
         }}
       >
@@ -226,10 +229,10 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                   position: "absolute",
                   top: "8px",
                   right: "8px",
-                  fontSize: "9px",
+                  fontSize: "14px",
                   fontWeight: 600,
                   color: "#f59e0b",
-                  padding: "3px 6px",
+                  padding: "4px 8px",
                   background: "rgba(245, 158, 11, 0.2)",
                   borderRadius: "6px",
                   border: "1px solid rgba(245, 158, 11, 0.4)",
@@ -255,10 +258,10 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                   position: "absolute",
                   top: "8px",
                   right: "8px",
-                  fontSize: "9px",
+                  fontSize: "14px",
                   fontWeight: 600,
                   color: "#f59e0b",
-                  padding: "3px 6px",
+                  padding: "4px 8px",
                   background: "rgba(245, 158, 11, 0.2)",
                   borderRadius: "6px",
                   border: "1px solid rgba(245, 158, 11, 0.4)",
@@ -290,7 +293,9 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
         style={{
           marginBottom: "32px",
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gridTemplateColumns: isMobile
+            ? "1fr"
+            : "repeat(auto-fit, minmax(180px, 1fr))",
           gap: "20px",
         }}
       >
@@ -329,7 +334,7 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
               <span style={{ fontSize: "22px" }}>🍽️</span>
               <div
                 style={{
-                  fontSize: "13px",
+                  fontSize: "16px",
                   fontWeight: 700,
                   textTransform: "uppercase",
                   letterSpacing: "0.1em",
@@ -343,7 +348,9 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(auto-fit, minmax(180px, 1fr))",
                 gap: "16px",
               }}
             >
@@ -423,7 +430,7 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                   >
                     <div
                       style={{
-                        fontSize: "11px",
+                        fontSize: "14px",
                         fontWeight: 600,
                         opacity: 0.75,
                         marginBottom: "10px",
@@ -464,7 +471,7 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                     {slotOverCapacity && (
                       <div
                         style={{
-                          fontSize: "10px",
+                          fontSize: "14px",
                           fontWeight: 600,
                           color: "#f59e0b",
                           marginBottom: "8px",
@@ -504,7 +511,7 @@ function OverviewTabContent({ event, guests, dinnerSlots }) {
                     {slot.waitlist > 0 && (
                       <div
                         style={{
-                          fontSize: "11px",
+                          fontSize: "14px",
                           color: "#ec4899",
                           marginTop: "8px",
                           opacity: 0.9,
@@ -559,7 +566,7 @@ function StatCard({ icon, label, value, color }) {
       </div>
       <div
         style={{
-          fontSize: "10px",
+          fontSize: "14px",
           opacity: 0.7,
           marginBottom: "8px",
           textTransform: "uppercase",
@@ -638,6 +645,36 @@ function formatReadableDateTime(date) {
   return `${dateStr} at ${timeStr}`;
 }
 
+// Helper function to convert ISO string to datetime-local format (local time)
+function isoToLocalDateTime(isoString) {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// Helper function to convert datetime-local string to ISO string
+function localDateTimeToIso(localDateTimeString) {
+  if (!localDateTimeString) return "";
+
+  const [datePart, timePart] = localDateTimeString.split("T");
+  if (!datePart || !timePart) return "";
+
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hours, minutes] = timePart.split(":").map(Number);
+
+  const localDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  if (isNaN(localDate.getTime())) return "";
+
+  return localDate.toISOString();
+}
+
 function getQuickDateOptions() {
   const now = new Date();
   const options = [];
@@ -683,6 +720,18 @@ function getQuickDateOptions() {
   return options;
 }
 
+function formatTimezone(timezone) {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en", {
+    timeZone: timezone,
+    timeZoneName: "short",
+  });
+  const parts = formatter.formatToParts(now);
+  const tzName = parts.find((p) => p.type === "timeZoneName")?.value || "";
+  const city = timezone.split("/").pop()?.replace(/_/g, " ") || timezone;
+  return { tzName, city };
+}
+
 export function ManageEventPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -700,7 +749,12 @@ export function ManageEventPage() {
   const [activeTab, setActiveTab] = useState("overview"); // "overview" or "edit"
   const [guests, setGuests] = useState([]);
   const [dinnerSlots, setDinnerSlots] = useState([]);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const fileInputRef = useRef(null);
+  const startDateTimeInputRef = useRef(null);
+  const endDateTimeInputRef = useRef(null);
+  const dinnerStartTimeInputRef = useRef(null);
+  const dinnerEndTimeInputRef = useRef(null);
 
   useEffect(() => {
     function handleMouseMove(e) {
@@ -708,6 +762,14 @@ export function ManageEventPage() {
     }
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth < 768);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // Update activeTab when URL changes
@@ -729,6 +791,8 @@ export function ManageEventPage() {
 
         setEvent({
           ...data,
+          startsAt: data.startsAt || null, // Keep ISO string
+          endsAt: data.endsAt || null, // Keep ISO string
           startsAtLocal: data.startsAt
             ? new Date(data.startsAt).toISOString().slice(0, 16)
             : "",
@@ -745,12 +809,16 @@ export function ManageEventPage() {
             typeof data.requireApproval === "boolean"
               ? data.requireApproval
               : false,
+          dinnerStartTime: data.dinnerStartTime || null, // Keep ISO string
+          dinnerEndTime: data.dinnerEndTime || null, // Keep ISO string
           dinnerStartTimeLocal: data.dinnerStartTime
             ? new Date(data.dinnerStartTime).toISOString().slice(0, 16)
             : "",
           dinnerEndTimeLocal: data.dinnerEndTime
             ? new Date(data.dinnerEndTime).toISOString().slice(0, 16)
             : "",
+          locationLat: data.locationLat || null,
+          locationLng: data.locationLng || null,
           maxAttendeesInput:
             typeof data.maxAttendees === "number"
               ? String(data.maxAttendees)
@@ -938,81 +1006,30 @@ export function ManageEventPage() {
 
       // Calculate food capacity: max seats per slot * number of timeslots
       let foodCapacity = null;
+      const dinnerStartTimeForCalc =
+        event.dinnerStartTimeLocal ||
+        (event.dinnerStartTime
+          ? isoToLocalDateTime(event.dinnerStartTime)
+          : "");
+      const dinnerEndTimeForCalc =
+        event.dinnerEndTimeLocal ||
+        (event.dinnerEndTime ? isoToLocalDateTime(event.dinnerEndTime) : "");
+
       if (
         event.dinnerEnabled &&
-        event.dinnerStartTimeLocal &&
-        event.dinnerEndTimeLocal &&
+        dinnerStartTimeForCalc &&
+        dinnerEndTimeForCalc &&
         dinnerSeatingIntervalHours &&
         dinnerMaxSeatsPerSlot
       ) {
-        // Helper function to calculate number of timeslots
-        const calculateTimeslotCount = (startTime, endTime, intervalHours) => {
-          if (!startTime || !endTime || !intervalHours) return 0;
-          try {
-            const [startDatePart, startTimePart] = startTime.split("T");
-            const [endDatePart, endTimePart] = endTime.split("T");
-            if (
-              !startDatePart ||
-              !startTimePart ||
-              !endDatePart ||
-              !endTimePart
-            )
-              return 0;
-            const [startYear, startMonth, startDay] = startDatePart
-              .split("-")
-              .map(Number);
-            const [startHour, startMinute] = startTimePart
-              .split(":")
-              .map(Number);
-            const [endYear, endMonth, endDay] = endDatePart
-              .split("-")
-              .map(Number);
-            const [endHour, endMinute] = endTimePart.split(":").map(Number);
-            const startDate = new Date(
-              startYear,
-              startMonth - 1,
-              startDay,
-              startHour,
-              startMinute
-            );
-            const endDate = new Date(
-              endYear,
-              endMonth - 1,
-              endDay,
-              endHour,
-              endMinute
-            );
-            const interval = parseFloat(intervalHours);
-            if (
-              isNaN(startDate.getTime()) ||
-              isNaN(endDate.getTime()) ||
-              isNaN(interval) ||
-              interval <= 0
-            )
-              return 0;
-            if (endDate <= startDate) return 0;
-            let count = 0;
-            let currentTime = new Date(startDate);
-            while (currentTime <= endDate) {
-              count++;
-              currentTime = new Date(
-                currentTime.getTime() + interval * 60 * 60 * 1000
-              );
-            }
-            return count;
-          } catch (error) {
-            return 0;
-          }
-        };
-
-        const slotCount = calculateTimeslotCount(
-          event.dinnerStartTimeLocal,
-          event.dinnerEndTimeLocal,
-          dinnerSeatingIntervalHours
+        const slots = calculateCuisineTimeslots(
+          dinnerStartTimeForCalc,
+          dinnerEndTimeForCalc,
+          event.dinnerSeatingIntervalHoursInput || "2"
         );
         const maxSeatsPerSlot = Number(dinnerMaxSeatsPerSlot);
-        if (slotCount > 0 && maxSeatsPerSlot > 0) {
-          foodCapacity = slotCount * maxSeatsPerSlot;
+        if (slots.length > 0 && maxSeatsPerSlot > 0) {
+          foodCapacity = slots.length * maxSeatsPerSlot;
         }
       }
 
@@ -1038,16 +1055,32 @@ export function ManageEventPage() {
         imageUrlToSendType: typeof imageUrlToSend,
       });
 
+      // Use ISO strings if available, otherwise convert from local datetime strings
+      const startsAtISO =
+        event.startsAt ||
+        (event.startsAtLocal ? localDateTimeToIso(event.startsAtLocal) : null);
+      const endsAtISO =
+        event.endsAt ||
+        (event.endsAtLocal ? localDateTimeToIso(event.endsAtLocal) : null);
+      const dinnerStartTimeISO =
+        event.dinnerStartTime ||
+        (event.dinnerStartTimeLocal
+          ? localDateTimeToIso(event.dinnerStartTimeLocal)
+          : null);
+      const dinnerEndTimeISO =
+        event.dinnerEndTime ||
+        (event.dinnerEndTimeLocal
+          ? localDateTimeToIso(event.dinnerEndTimeLocal)
+          : null);
+
       const body = {
         title: event.title,
         description: event.description,
         location: event.location,
-        startsAt: event.startsAtLocal
-          ? new Date(event.startsAtLocal).toISOString()
-          : null,
-        endsAt: event.endsAtLocal
-          ? new Date(event.endsAtLocal).toISOString()
-          : null,
+        locationLat: event.locationLat || null,
+        locationLng: event.locationLng || null,
+        startsAt: startsAtISO,
+        endsAt: endsAtISO,
         timezone:
           event.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
         theme: event.theme || "minimal",
@@ -1059,12 +1092,8 @@ export function ManageEventPage() {
         waitlistEnabled: !!event.waitlistEnabled,
         maxPlusOnesPerGuest,
         dinnerEnabled: !!event.dinnerEnabled,
-        dinnerStartTime: event.dinnerStartTimeLocal
-          ? new Date(event.dinnerStartTimeLocal).toISOString()
-          : null,
-        dinnerEndTime: event.dinnerEndTimeLocal
-          ? new Date(event.dinnerEndTimeLocal).toISOString()
-          : null,
+        dinnerStartTime: dinnerStartTimeISO,
+        dinnerEndTime: dinnerEndTimeISO,
         dinnerSeatingIntervalHours,
         dinnerMaxSeatsPerSlot,
         dinnerOverflowAction: event.dinnerOverflowAction || "waitlist",
@@ -1268,21 +1297,24 @@ export function ManageEventPage() {
             <h2 style={{ marginBottom: "8px", fontSize: "24px" }}>
               Connection Error
             </h2>
-            <p style={{ opacity: 0.7, marginBottom: "16px" }}>
+            <p style={{ opacity: 0.7, marginBottom: "16px", fontSize: "16px" }}>
               Unable to connect to the server. Please check your internet
               connection and try again.
             </p>
             <button
               onClick={() => window.location.reload()}
               style={{
-                padding: "12px 24px",
+                padding: "14px 24px",
+                minHeight: "44px",
                 borderRadius: "999px",
                 border: "none",
                 background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
                 color: "#fff",
                 fontWeight: 600,
-                fontSize: "14px",
+                fontSize: "16px",
                 cursor: "pointer",
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
               }}
             >
               Retry
@@ -1362,13 +1394,16 @@ export function ManageEventPage() {
             border: "1px solid rgba(255,255,255,0.05)",
           }}
         >
-          <div style={{ marginBottom: "24px", fontSize: "14px", opacity: 0.7 }}>
+          <div style={{ marginBottom: "24px", fontSize: "16px", opacity: 0.7 }}>
             <Link
               to="/home"
               style={{
                 color: "#aaa",
                 textDecoration: "none",
                 transition: "color 0.3s ease",
+                fontSize: "16px",
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
               }}
               onMouseEnter={(e) => (e.target.style.color = "#fff")}
               onMouseLeave={(e) => (e.target.style.color = "#aaa")}
@@ -1651,7 +1686,7 @@ export function ManageEventPage() {
           >
             <div
               style={{
-                fontSize: "14px",
+                fontSize: "16px",
                 opacity: 0.8,
                 padding: "12px 16px",
                 background: "rgba(20, 16, 30, 0.6)",
@@ -1668,6 +1703,7 @@ export function ManageEventPage() {
                   color: "#8b5cf6",
                   textDecoration: "none",
                   fontWeight: 600,
+                  fontSize: "16px",
                 }}
               >
                 pullup.se/e/{event.slug}
@@ -1687,9 +1723,11 @@ export function ManageEventPage() {
               display: "flex",
               gap: "8px",
               marginBottom: "32px",
-              fontSize: "14px",
+              fontSize: "16px",
               borderBottom: "2px solid rgba(255,255,255,0.08)",
               paddingBottom: "0",
+              overflowX: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <button
@@ -1698,7 +1736,8 @@ export function ManageEventPage() {
                 navigate(`/app/events/${id}/manage`);
               }}
               style={{
-                padding: "12px 20px",
+                padding: "14px 20px",
+                minHeight: "44px",
                 fontWeight: activeTab === "overview" ? 700 : 500,
                 color: activeTab === "overview" ? "#fff" : "#9ca3af",
                 borderBottom:
@@ -1714,6 +1753,9 @@ export function ManageEventPage() {
                 border: "none",
                 cursor: "pointer",
                 transition: "all 0.3s ease",
+                fontSize: "16px",
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
               }}
               onMouseEnter={(e) => {
                 if (activeTab !== "overview") {
@@ -1738,11 +1780,15 @@ export function ManageEventPage() {
                 color: "#9ca3af",
                 cursor: "pointer",
                 transition: "all 0.3s ease",
-                padding: "12px 20px",
+                padding: "14px 20px",
+                minHeight: "44px",
                 borderRadius: "8px 8px 0 0",
                 fontWeight: 500,
                 borderBottom: "2px solid transparent",
                 marginBottom: "-2px",
+                fontSize: "16px",
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
               }}
               onMouseEnter={(e) => {
                 e.target.style.color = "#fff";
@@ -1761,7 +1807,8 @@ export function ManageEventPage() {
                 navigate(`/app/events/${id}/manage?tab=edit`);
               }}
               style={{
-                padding: "12px 20px",
+                padding: "14px 20px",
+                minHeight: "44px",
                 fontWeight: activeTab === "edit" ? 700 : 500,
                 color: activeTab === "edit" ? "#fff" : "#9ca3af",
                 borderBottom:
@@ -1777,6 +1824,9 @@ export function ManageEventPage() {
                 border: "none",
                 cursor: "pointer",
                 transition: "all 0.3s ease",
+                fontSize: "16px",
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
               }}
               onMouseEnter={(e) => {
                 if (activeTab !== "edit") {
@@ -1801,1277 +1851,2114 @@ export function ManageEventPage() {
               event={event}
               guests={guests}
               dinnerSlots={dinnerSlots}
+              isMobile={isMobile}
             />
           )}
 
           {/* Edit Tab Content */}
-          {activeTab === "edit" && (
+          {activeTab === "edit" && event && (
             <form
               onSubmit={handleSave}
               style={{
-                background: "rgba(20, 16, 30, 0.4)",
-                padding: "32px",
-                borderRadius: "20px",
-                border: "1px solid rgba(255,255,255,0.05)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "24px",
+                maxWidth: "800px",
+                margin: "0 auto",
               }}
             >
-              {/* Basic info */}
-              <label
+              <div
+                className="responsive-card"
                 style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
+                  background: "rgba(12, 10, 18, 0.6)",
+                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(255,255,255,0.05)",
+                  padding: "0 16px",
+                  boxSizing: "border-box",
                 }}
               >
-                Title
+                {/* Image at top - matching CreateEventPage */}
+                <div
+                  style={{
+                    width: "100%",
+                    aspectRatio: "16/9",
+                    borderRadius: "16px",
+                    overflow: "hidden",
+                    marginBottom: "24px",
+                    background: isDragging
+                      ? "rgba(139, 92, 246, 0.2)"
+                      : imagePreview !== undefined
+                      ? imagePreview
+                        ? "transparent"
+                        : "rgba(20, 16, 30, 0.3)"
+                      : event.imageUrl
+                      ? "transparent"
+                      : "rgba(20, 16, 30, 0.3)",
+                    border: isDragging
+                      ? "2px dashed rgba(139, 92, 246, 0.5)"
+                      : imagePreview !== undefined
+                      ? imagePreview
+                        ? "1px solid rgba(255,255,255,0.1)"
+                        : "1px solid rgba(255,255,255,0.06)"
+                      : event.imageUrl
+                      ? "1px solid rgba(255,255,255,0.1)"
+                      : "1px solid rgba(255,255,255,0.06)",
+                    position: "relative",
+                    cursor: "pointer",
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                    transform: isDragging ? "scale(1.02)" : "scale(1)",
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file) {
+                      handleImageUpload({ target: { files: [file] } });
+                    }
+                  }}
+                >
+                  {(
+                    imagePreview !== undefined ? imagePreview : event.imageUrl
+                  ) ? (
+                    <>
+                      <img
+                        src={
+                          imagePreview !== undefined
+                            ? imagePreview
+                            : event.imageUrl
+                        }
+                        alt="Event cover"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background:
+                            "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          opacity: 0,
+                          transition: "opacity 0.3s ease",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.opacity = "1")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.opacity = "0")
+                        }
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: "8px",
+                            color: "#fff",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "32px",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            📷
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                            }}
+                          >
+                            Change Image
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "16px",
+                        background:
+                          "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(236, 72, 153, 0.12) 100%)",
+                        color: "#fff",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "56px",
+                          opacity: 0.9,
+                          transition: "transform 0.3s ease",
+                        }}
+                      >
+                        🖼️
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          opacity: 0.9,
+                          textAlign: "center",
+                          padding: "0 16px",
+                        }}
+                      >
+                        {isDragging
+                          ? "Drop image here"
+                          : "Click or drag to upload"}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          opacity: 0.6,
+                          textAlign: "center",
+                          padding: "0 16px",
+                        }}
+                      >
+                        JPG, PNG, or GIF (max 5MB)
+                      </div>
+                    </div>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    style={{ display: "none" }}
+                  />
+                  {(imagePreview !== undefined
+                    ? imagePreview
+                    : event.imageUrl) && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setImagePreview(null);
+                        setHasUnsavedImage(false);
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = "";
+                        }
+                        // Delete image via API
+                        async function deleteImage() {
+                          try {
+                            const updateRes = await authenticatedFetch(
+                              `/host/events/${id}/image`,
+                              {
+                                method: "DELETE",
+                              }
+                            );
+                            if (updateRes.ok) {
+                              setEvent((prev) => ({ ...prev, imageUrl: null }));
+                              showToast("Image removed", "success");
+                            }
+                          } catch (error) {
+                            console.error("Failed to delete image:", error);
+                          }
+                        }
+                        deleteImage();
+                      }}
+                      style={{
+                        position: "absolute",
+                        top: "12px",
+                        right: "12px",
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "50%",
+                        background: "rgba(0,0,0,0.7)",
+                        backdropFilter: "blur(10px)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        fontSize: "16px",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = "rgba(239, 68, 68, 0.8)";
+                        e.target.style.transform = "scale(1.1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = "rgba(0,0,0,0.7)";
+                        e.target.style.transform = "scale(1)";
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* PULLUP · EDIT EVENT label - matching CreateEventPage */}
+                <div
+                  style={{
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    opacity: 0.7,
+                    letterSpacing: "0.15em",
+                    fontWeight: 600,
+                    marginBottom: "16px",
+                  }}
+                >
+                  PULLUP · EDIT EVENT
+                </div>
+
+                {/* Title input - Enhanced visibility with subtle background */}
                 <input
                   value={event.title || ""}
                   onChange={(e) =>
                     setEvent({ ...event, title: e.target.value })
                   }
-                  onFocus={() => setFocusedField("title")}
-                  onBlur={() => setFocusedField(null)}
-                  style={
-                    focusedField === "title" ? focusedInputStyle : inputStyle
-                  }
+                  placeholder="Event Name"
+                  required
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    fontSize: "clamp(24px, 5vw, 32px)",
+                    fontWeight: 700,
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "12px",
+                    color: event.title ? "#fff" : "rgba(255,255,255,0.6)",
+                    outline: "none",
+                    marginBottom: "16px",
+                    padding: "16px 18px",
+                    lineHeight: "1.3",
+                    textShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                    transition: "all 0.2s ease",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.background = "rgba(255,255,255,0.05)";
+                    e.target.style.border = "1px solid rgba(139, 92, 246, 0.3)";
+                    e.target.style.boxShadow =
+                      "0 4px 12px rgba(139, 92, 246, 0.15)";
+                    e.target.style.color = "#fff";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.background = "rgba(255,255,255,0.03)";
+                    e.target.style.border = "1px solid rgba(255,255,255,0.08)";
+                    e.target.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+                    e.target.style.color = event.title
+                      ? "#fff"
+                      : "rgba(255,255,255,0.6)";
+                  }}
                 />
-              </label>
 
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                }}
-              >
-                Description
+                {/* Description textarea - More visual but subtle */}
                 <textarea
                   value={event.description || ""}
                   onChange={(e) =>
                     setEvent({ ...event, description: e.target.value })
                   }
-                  onFocus={() => setFocusedField("description")}
-                  onBlur={() => setFocusedField(null)}
+                  placeholder="Tell people what to expect..."
                   style={{
-                    ...(focusedField === "description"
-                      ? focusedInputStyle
-                      : inputStyle),
-                    minHeight: "100px",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    fontSize: "16px",
+                    lineHeight: "1.7",
+                    marginBottom: "24px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "12px",
+                    color: "#fff",
+                    outline: "none",
                     resize: "vertical",
+                    minHeight: "80px",
+                    padding: "16px 18px",
                     fontFamily: "inherit",
+                    fontWeight: 400,
+                    transition: "all 0.2s ease",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.background = "rgba(255,255,255,0.06)";
+                    e.target.style.border = "1px solid rgba(139, 92, 246, 0.3)";
+                    e.target.style.boxShadow =
+                      "0 4px 12px rgba(139, 92, 246, 0.15)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.background = "rgba(255,255,255,0.04)";
+                    e.target.style.border = "1px solid rgba(255,255,255,0.1)";
+                    e.target.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
                   }}
                 />
-              </label>
 
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                }}
-              >
-                Location
-                <LocationAutocomplete
-                  value={event.location || ""}
-                  onChange={(e) =>
-                    setEvent({ ...event, location: e.target.value })
-                  }
-                  onFocus={() => setFocusedField("location")}
-                  onBlur={() => setFocusedField(null)}
-                  style={
-                    focusedField === "location" ? focusedInputStyle : inputStyle
-                  }
-                  disabled={saving}
-                />
-              </label>
-
-              <div
-                style={{
-                  background: "rgba(20, 16, 30, 0.3)",
-                  borderRadius: "20px",
-                  padding: "28px",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  backdropFilter: "blur(10px)",
-                  marginBottom: "24px",
-                }}
-              >
+                {/* Location and Date/Time - Integrated together */}
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    marginBottom: "24px",
+                    marginTop: "28px",
+                    marginBottom: "32px",
                   }}
                 >
-                  <span style={{ fontSize: "20px" }}>🕒</span>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.15em",
-                      opacity: 0.9,
-                    }}
-                  >
-                    Event Schedule
-                  </div>
-                </div>
-
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    marginBottom: "12px",
-                    opacity: 0.9,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      marginBottom: "12px",
-                    }}
-                  >
+                  {/* Location - Enhanced with autocomplete and current location */}
+                  <div style={{ marginBottom: "20px", width: "100%" }}>
                     <div
                       style={{
-                        width: "12px",
-                        height: "12px",
-                        borderRadius: "50%",
+                        position: "relative",
+                        padding: "16px 18px",
                         background:
-                          "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                        border: "2px solid rgba(255,255,255,0.1)",
-                        boxShadow: "0 0 0 2px rgba(139, 92, 246, 0.2)",
+                          focusedField === "location"
+                            ? "rgba(255,255,255,0.05)"
+                            : "rgba(255,255,255,0.03)",
+                        borderRadius: "12px",
+                        border:
+                          focusedField === "location"
+                            ? "1px solid rgba(139, 92, 246, 0.4)"
+                            : "1px solid rgba(255,255,255,0.08)",
+                        transition: "all 0.2s ease",
+                        width: "100%",
+                        boxSizing: "border-box",
+                        display: "flex",
+                        alignItems: "center",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
                       }}
-                    />
-                    <span>Start Date & Time</span>
-                    <span style={{ opacity: 0.5, fontWeight: 400 }}>*</span>
+                    >
+                      <LocationAutocomplete
+                        value={event.location || ""}
+                        onChange={(e) =>
+                          setEvent({ ...event, location: e.target.value })
+                        }
+                        onLocationSelect={(locationData) => {
+                          setEvent({
+                            ...event,
+                            location: locationData.address,
+                            locationLat: locationData.lat,
+                            locationLng: locationData.lng,
+                          });
+                        }}
+                        onFocus={() => setFocusedField("location")}
+                        onBlur={() => setFocusedField(null)}
+                        style={{
+                          flex: 1,
+                          background: "transparent",
+                          border: "none",
+                          color: "#fff",
+                          fontSize: "15px",
+                          outline: "none",
+                          padding: "0",
+                          width: "100%",
+                        }}
+                        placeholder="📍 Where's the event?"
+                        disabled={saving}
+                      />
+                    </div>
                   </div>
 
-                  {/* Quick shortcuts */}
-                  {getQuickDateOptions().map((option) => (
-                    <button
-                      key={option.label}
-                      type="button"
-                      onClick={() => {
-                        const date = option.getDate();
-                        setEvent({
-                          ...event,
-                          startsAtLocal: date.toISOString().slice(0, 16),
-                        });
-                      }}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "rgba(255,255,255,0.05)",
-                        color: "#fff",
-                        fontSize: "12px",
-                        fontWeight: 500,
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                        opacity: 0.8,
-                        marginRight: "8px",
-                        marginBottom: "8px",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.opacity = "1";
-                        e.target.style.background = "rgba(139, 92, 246, 0.15)";
-                        e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.opacity = "0.8";
-                        e.target.style.background = "rgba(255,255,255,0.05)";
-                        e.target.style.borderColor = "rgba(255,255,255,0.1)";
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-
-                  <div style={{ position: "relative", marginTop: "12px" }}>
-                    <input
-                      type="datetime-local"
-                      value={event.startsAtLocal || ""}
-                      onChange={(e) =>
-                        setEvent({ ...event, startsAtLocal: e.target.value })
-                      }
-                      onFocus={() => setFocusedField("startsAt")}
-                      onBlur={() => setFocusedField(null)}
-                      style={{
-                        ...(focusedField === "startsAt"
-                          ? focusedInputStyle
-                          : inputStyle),
-                        fontSize: "15px",
-                        padding: "14px 16px 14px 48px",
-                        cursor: "pointer",
-                        width: "100%",
-                      }}
-                    />
+                  {/* Start Date & Time - Simple button interface */}
+                  <div style={{ marginBottom: "20px" }}>
                     <div
                       style={{
-                        position: "absolute",
-                        left: "16px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        fontSize: "18px",
-                        opacity: 0.7,
-                        pointerEvents: "none",
+                        position: "relative",
+                        width: "100%",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => {
+                        startDateTimeInputRef.current?.focus();
+                        startDateTimeInputRef.current?.showPicker?.();
                       }}
                     >
-                      📅
-                    </div>
-                    {event.startsAtLocal && (
+                      <input
+                        ref={startDateTimeInputRef}
+                        type="datetime-local"
+                        value={
+                          event.startsAt
+                            ? isoToLocalDateTime(event.startsAt)
+                            : event.startsAtLocal || ""
+                        }
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const isoValue = localDateTimeToIso(e.target.value);
+                            setEvent({
+                              ...event,
+                              startsAtLocal: e.target.value,
+                              startsAt: isoValue,
+                            });
+                          }
+                        }}
+                        onFocus={() => setFocusedField("startDateTime")}
+                        onBlur={() => setFocusedField(null)}
+                        style={{
+                          ...(focusedField === "startDateTime"
+                            ? {
+                                ...focusedInputStyle,
+                                border: "1px solid rgba(139, 92, 246, 0.4)",
+                                background: "rgba(255,255,255,0.05)",
+                              }
+                            : {
+                                ...inputStyle,
+                                background: "rgba(255,255,255,0.03)",
+                                border: "1px solid rgba(255,255,255,0.08)",
+                              }),
+                          fontSize: "16px",
+                          padding: "16px 18px 16px 48px",
+                          paddingRight:
+                            event.startsAt || event.startsAtLocal
+                              ? "120px"
+                              : "18px",
+                          width: "100%",
+                          height: "52px",
+                          fontWeight: 500,
+                          borderRadius: "12px",
+                          textAlign: "left",
+                          color: "transparent",
+                          cursor: "pointer",
+                          boxSizing: "border-box",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                          appearance: "none",
+                          WebkitAppearance: "none",
+                          MozAppearance: "textfield",
+                          position: "relative",
+                          zIndex: 2,
+                        }}
+                        required
+                      />
                       <div
                         style={{
                           position: "absolute",
-                          right: "16px",
+                          left: "18px",
                           top: "50%",
                           transform: "translateY(-50%)",
-                          fontSize: "11px",
-                          opacity: 0.6,
                           pointerEvents: "none",
-                          fontWeight: 600,
+                          fontSize: "16px",
+                          opacity: 0.7,
+                          zIndex: 3,
                         }}
                       >
-                        {formatRelativeTime(new Date(event.startsAtLocal))}
+                        🕒
                       </div>
-                    )}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "48px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                          color:
+                            event.startsAt || event.startsAtLocal
+                              ? "#fff"
+                              : "rgba(255,255,255,0.5)",
+                          fontSize: "15px",
+                          zIndex: 3,
+                        }}
+                      >
+                        {event.startsAt || event.startsAtLocal
+                          ? formatReadableDateTime(
+                              new Date(event.startsAt || event.startsAtLocal)
+                            )
+                          : "Event start"}
+                      </div>
+                      {(event.startsAt || event.startsAtLocal) && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            right: "18px",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            pointerEvents: "none",
+                            fontSize: "11px",
+                            opacity: 0.6,
+                            fontWeight: 600,
+                            zIndex: 3,
+                          }}
+                        >
+                          {formatRelativeTime(
+                            new Date(event.startsAt || event.startsAtLocal)
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {event.startsAtLocal && (
+
+                  {/* End Date & Time - Simple button interface */}
+                  <div style={{ marginBottom: "20px" }}>
                     <div
                       style={{
-                        fontSize: "12px",
-                        opacity: 0.7,
-                        marginTop: "8px",
-                        paddingLeft: "4px",
-                        fontStyle: "italic",
+                        position: "relative",
+                        width: "100%",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => {
+                        endDateTimeInputRef.current?.focus();
+                        endDateTimeInputRef.current?.showPicker?.();
                       }}
                     >
-                      {formatReadableDateTime(new Date(event.startsAtLocal))}
+                      <input
+                        ref={endDateTimeInputRef}
+                        type="datetime-local"
+                        value={
+                          event.endsAt
+                            ? isoToLocalDateTime(event.endsAt)
+                            : event.endsAtLocal || ""
+                        }
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const isoValue = localDateTimeToIso(e.target.value);
+                            setEvent({
+                              ...event,
+                              endsAtLocal: e.target.value,
+                              endsAt: isoValue,
+                            });
+                          } else {
+                            setEvent({
+                              ...event,
+                              endsAtLocal: "",
+                              endsAt: null,
+                            });
+                          }
+                        }}
+                        onFocus={() => setFocusedField("endDateTime")}
+                        onBlur={() => setFocusedField(null)}
+                        min={
+                          event.startsAt
+                            ? isoToLocalDateTime(event.startsAt)
+                            : event.startsAtLocal || undefined
+                        }
+                        style={{
+                          ...(focusedField === "endDateTime"
+                            ? {
+                                ...focusedInputStyle,
+                                border: "1px solid rgba(139, 92, 246, 0.4)",
+                                background: "rgba(255,255,255,0.05)",
+                              }
+                            : {
+                                ...inputStyle,
+                                background: "rgba(255,255,255,0.03)",
+                                border: "1px solid rgba(255,255,255,0.08)",
+                              }),
+                          fontSize: "16px",
+                          padding: "16px 18px 16px 48px",
+                          paddingRight:
+                            event.endsAt || event.endsAtLocal
+                              ? "120px"
+                              : "18px",
+                          width: "100%",
+                          height: "52px",
+                          fontWeight: 500,
+                          borderRadius: "12px",
+                          textAlign: "left",
+                          color: "transparent",
+                          cursor: "pointer",
+                          boxSizing: "border-box",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                          appearance: "none",
+                          WebkitAppearance: "none",
+                          MozAppearance: "textfield",
+                          position: "relative",
+                          zIndex: 2,
+                        }}
+                        required
+                      />
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "18px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                          fontSize: "16px",
+                          opacity: 0.7,
+                          zIndex: 3,
+                        }}
+                      >
+                        🕒
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "48px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                          color:
+                            event.endsAt || event.endsAtLocal
+                              ? "#fff"
+                              : "rgba(255,255,255,0.5)",
+                          fontSize: "15px",
+                          zIndex: 3,
+                        }}
+                      >
+                        {event.endsAt || event.endsAtLocal
+                          ? formatReadableDateTime(
+                              new Date(event.endsAt || event.endsAtLocal)
+                            )
+                          : "Event end"}
+                      </div>
+                      {(event.endsAt || event.endsAtLocal) && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            right: "18px",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            pointerEvents: "none",
+                            fontSize: "11px",
+                            opacity: 0.6,
+                            fontWeight: 600,
+                            zIndex: 3,
+                          }}
+                        >
+                          {formatRelativeTime(
+                            new Date(event.endsAt || event.endsAtLocal)
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </label>
+                  </div>
 
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    marginTop: "20px",
-                    opacity: 0.9,
-                  }}
-                >
+                  {/* Timezone - Subtle, integrated at bottom */}
                   <div
                     style={{
                       display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      marginBottom: "12px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "12px",
-                        height: "12px",
-                        borderRadius: "50%",
-                        background:
-                          "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                        border: "2px solid rgba(255,255,255,0.1)",
-                        boxShadow: "0 0 0 2px rgba(139, 92, 246, 0.2)",
-                      }}
-                    />
-                    <span>End Date & Time</span>
-                    <span style={{ opacity: 0.5, fontWeight: 400 }}>
-                      (Optional)
-                    </span>
-                  </div>
-                  <div style={{ position: "relative", marginTop: "12px" }}>
-                    <input
-                      type="datetime-local"
-                      value={event.endsAtLocal || ""}
-                      onChange={(e) =>
-                        setEvent({ ...event, endsAtLocal: e.target.value })
-                      }
-                      onFocus={() => setFocusedField("endsAt")}
-                      onBlur={() => setFocusedField(null)}
-                      style={{
-                        ...(focusedField === "endsAt"
-                          ? focusedInputStyle
-                          : inputStyle),
-                        fontSize: "15px",
-                        padding: "14px 16px 14px 48px",
-                        cursor: "pointer",
-                        width: "100%",
-                      }}
-                    />
-                    <div
-                      style={{
-                        position: "absolute",
-                        left: "16px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        fontSize: "18px",
-                        opacity: 0.7,
-                        pointerEvents: "none",
-                      }}
-                    >
-                      🕐
-                    </div>
-                  </div>
-                  {event.endsAtLocal && (
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        opacity: 0.7,
-                        marginTop: "8px",
-                        paddingLeft: "4px",
-                        fontStyle: "italic",
-                      }}
-                    >
-                      {formatReadableDateTime(new Date(event.endsAtLocal))}
-                    </div>
-                  )}
-                </label>
-
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    marginTop: "20px",
-                    opacity: 0.9,
-                  }}
-                >
-                  Timezone
-                  <select
-                    value={
-                      event.timezone ||
-                      Intl.DateTimeFormat().resolvedOptions().timeZone
-                    }
-                    onChange={(e) =>
-                      setEvent({ ...event, timezone: e.target.value })
-                    }
-                    onFocus={() => setFocusedField("timezone")}
-                    onBlur={() => setFocusedField(null)}
-                    style={{
-                      ...(focusedField === "timezone"
-                        ? focusedInputStyle
-                        : inputStyle),
-                      fontSize: "15px",
-                      cursor: "pointer",
+                      justifyContent: "flex-end",
                       marginTop: "8px",
                     }}
                   >
-                    {Intl.supportedValuesOf("timeZone").map((tz) => (
-                      <option key={tz} value={tz}>
-                        {tz.replace(/_/g, " ")}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const tzInfo = formatTimezone(
+                          event.timezone ||
+                            Intl.DateTimeFormat().resolvedOptions().timeZone
+                        );
+                        showToast(
+                          `Timezone: ${tzInfo.tzName} ${tzInfo.city}`,
+                          "info"
+                        );
+                      }}
+                      style={{
+                        padding: "8px 12px",
+                        background: "rgba(139, 92, 246, 0.1)",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(139, 92, 246, 0.2)",
+                        fontSize: "10px",
+                        textAlign: "center",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                      onTouchStart={(e) => {
+                        e.target.style.background = "rgba(139, 92, 246, 0.15)";
+                      }}
+                      onTouchEnd={(e) => {
+                        e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                      }}
+                    >
+                      <span style={{ fontSize: "14px" }}>🌐</span>
+                      <span style={{ fontWeight: 600, color: "#a78bfa" }}>
+                        {
+                          formatTimezone(
+                            event.timezone ||
+                              Intl.DateTimeFormat().resolvedOptions().timeZone
+                          ).tzName
+                        }
+                      </span>
+                      <span style={{ opacity: 0.7, fontSize: "9px" }}>
+                        {
+                          formatTimezone(
+                            event.timezone ||
+                              Intl.DateTimeFormat().resolvedOptions().timeZone
+                          ).city
+                        }
+                      </span>
+                    </button>
+                  </div>
+                </div>
 
-              {/* Event Options */}
-              <div
-                style={{
-                  background: "rgba(20, 16, 30, 0.3)",
-                  borderRadius: "20px",
-                  padding: "28px",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  backdropFilter: "blur(10px)",
-                  marginBottom: "24px",
-                }}
-              >
+                {/* Advanced Options Section */}
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    marginBottom: "24px",
+                    marginTop: "32px",
+                    paddingTop: "32px",
+                    borderTop: "1px solid rgba(255,255,255,0.1)",
                   }}
                 >
-                  <span style={{ fontSize: "20px" }}>⚙️</span>
                   <div
                     style={{
-                      fontSize: "12px",
-                      fontWeight: 700,
+                      fontSize: "11px",
                       textTransform: "uppercase",
                       letterSpacing: "0.15em",
-                      opacity: 0.9,
-                    }}
-                  >
-                    Event Options
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "20px",
-                  }}
-                >
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
+                      opacity: 0.7,
                       fontWeight: 600,
-                      opacity: 0.9,
+                      marginBottom: "20px",
                     }}
                   >
-                    Ticket Type
-                    <select
-                      value={event.ticketType || "free"}
-                      onChange={(e) =>
-                        setEvent({ ...event, ticketType: e.target.value })
-                      }
-                      onFocus={() => setFocusedField("ticketType")}
-                      onBlur={() => setFocusedField(null)}
-                      style={{
-                        ...(focusedField === "ticketType"
-                          ? focusedInputStyle
-                          : inputStyle),
-                        fontSize: "15px",
-                        cursor: "pointer",
-                        marginTop: "8px",
-                      }}
-                    >
-                      <option value="free">Free</option>
-                      <option value="paid">Paid</option>
-                    </select>
-                  </label>
-
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      opacity: 0.9,
-                    }}
-                  >
-                    Visibility
-                    <select
-                      value={event.visibility || "public"}
-                      onChange={(e) =>
-                        setEvent({ ...event, visibility: e.target.value })
-                      }
-                      onFocus={() => setFocusedField("visibility")}
-                      onBlur={() => setFocusedField(null)}
-                      style={{
-                        ...(focusedField === "visibility"
-                          ? focusedInputStyle
-                          : inputStyle),
-                        fontSize: "15px",
-                        cursor: "pointer",
-                        marginTop: "8px",
-                      }}
-                    >
-                      <option value="public">Public</option>
-                      <option value="private">Private</option>
-                    </select>
-                  </label>
-
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      opacity: 0.9,
-                    }}
-                  >
-                    Theme
-                    <select
-                      value={event.theme || "minimal"}
-                      onChange={(e) =>
-                        setEvent({ ...event, theme: e.target.value })
-                      }
-                      onFocus={() => setFocusedField("theme")}
-                      onBlur={() => setFocusedField(null)}
-                      style={{
-                        ...(focusedField === "theme"
-                          ? focusedInputStyle
-                          : inputStyle),
-                        fontSize: "15px",
-                        cursor: "pointer",
-                        marginTop: "8px",
-                      }}
-                    >
-                      <option value="minimal">Minimal</option>
-                    </select>
-                  </label>
-
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      opacity: 0.9,
-                    }}
-                  >
-                    Calendar
-                    <select
-                      value={event.calendar || "personal"}
-                      onChange={(e) =>
-                        setEvent({ ...event, calendar: e.target.value })
-                      }
-                      onFocus={() => setFocusedField("calendar")}
-                      onBlur={() => setFocusedField(null)}
-                      style={{
-                        ...(focusedField === "calendar"
-                          ? focusedInputStyle
-                          : inputStyle),
-                        fontSize: "15px",
-                        cursor: "pointer",
-                        marginTop: "8px",
-                      }}
-                    >
-                      <option value="personal">Personal</option>
-                      <option value="business">Business</option>
-                    </select>
-                  </label>
-                </div>
-
-                <label
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    marginTop: "20px",
-                    gap: "8px",
-                  }}
-                >
-                  <div style={{ opacity: 0.9 }}>Require Approval</div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "8px 12px",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(20, 16, 30, 0.6)",
-                    }}
-                  >
-                    <span style={{ fontSize: "14px", opacity: 0.8 }}>
-                      Manually approve RSVPs before confirming
-                    </span>
-                    <label
-                      style={{
-                        position: "relative",
-                        display: "inline-block",
-                        width: "40px",
-                        height: "20px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!!event.requireApproval}
-                        onChange={(e) =>
-                          setEvent({
-                            ...event,
-                            requireApproval: e.target.checked,
-                          })
-                        }
-                        style={{ display: "none" }}
-                      />
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          background: event.requireApproval
-                            ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
-                            : "rgba(255,255,255,0.15)",
-                          borderRadius: "10px",
-                          transition: "all 0.3s ease",
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: "2px",
-                            left: event.requireApproval ? "22px" : "2px",
-                            width: "16px",
-                            height: "16px",
-                            background: "#fff",
-                            borderRadius: "50%",
-                            transition: "all 0.3s ease",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                          }}
-                        />
-                      </span>
-                    </label>
+                    EVENT SETTINGS
                   </div>
-                </label>
-              </div>
 
-              {/* Capacity + waitlist */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.2fr 1fr",
-                  gap: "16px",
-                  alignItems: "flex-end",
-                }}
-              >
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    opacity: 0.9,
-                  }}
-                >
-                  Max attendees
-                  <input
-                    type="number"
-                    min="1"
-                    value={event.maxAttendeesInput}
-                    placeholder="Unlimited"
-                    onChange={(e) =>
-                      setEvent({ ...event, maxAttendeesInput: e.target.value })
-                    }
-                    onFocus={() => setFocusedField("maxAttendees")}
-                    onBlur={() => setFocusedField(null)}
-                    style={
-                      focusedField === "maxAttendees"
-                        ? focusedInputStyle
-                        : inputStyle
-                    }
-                  />
-                </label>
-
-                <label
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    opacity: 0.9,
-                    gap: "8px",
-                  }}
-                >
-                  Waitlist
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "8px 12px",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(20, 16, 30, 0.6)",
-                    }}
-                  >
-                    <span style={{ fontSize: "14px", opacity: 0.8 }}>
-                      Enable waitlist when full
-                    </span>
-                    <label
+                  {/* event options - Better mobile hierarchy */}
+                  <div style={{ marginBottom: "36px" }}>
+                    <h3
                       style={{
-                        position: "relative",
-                        display: "inline-block",
-                        width: "40px",
-                        height: "20px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!!event.waitlistEnabled}
-                        onChange={(e) =>
-                          setEvent({
-                            ...event,
-                            waitlistEnabled: e.target.checked,
-                          })
-                        }
-                        style={{ display: "none" }}
-                      />
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          background: event.waitlistEnabled
-                            ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
-                            : "rgba(255,255,255,0.15)",
-                          borderRadius: "10px",
-                          transition: "all 0.3s ease",
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: "2px",
-                            left: event.waitlistEnabled ? "22px" : "2px",
-                            width: "16px",
-                            height: "16px",
-                            background: "#fff",
-                            borderRadius: "50%",
-                            transition: "all 0.3s ease",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                          }}
-                        />
-                      </span>
-                    </label>
-                  </div>
-                </label>
-              </div>
-
-              {/* Plus-ones + dinner */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "16px",
-                }}
-              >
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    opacity: 0.9,
-                  }}
-                >
-                  Max plus-ones per guest
-                  <input
-                    type="number"
-                    min="0"
-                    max="5"
-                    value={event.maxPlusOnesPerGuestInput}
-                    onChange={(e) =>
-                      setEvent({
-                        ...event,
-                        maxPlusOnesPerGuestInput: e.target.value,
-                      })
-                    }
-                    onFocus={() => setFocusedField("maxPlusOnes")}
-                    onBlur={() => setFocusedField(null)}
-                    style={
-                      focusedField === "maxPlusOnes"
-                        ? focusedInputStyle
-                        : inputStyle
-                    }
-                  />
-                </label>
-
-                <label
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    opacity: 0.9,
-                    gap: "8px",
-                  }}
-                >
-                  Dinner option
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "8px 12px",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(20, 16, 30, 0.6)",
-                    }}
-                  >
-                    <span style={{ fontSize: "14px", opacity: 0.8 }}>
-                      Allow guests to opt into dinner
-                    </span>
-                    <label
-                      style={{
-                        position: "relative",
-                        display: "inline-block",
-                        width: "40px",
-                        height: "20px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!!event.dinnerEnabled}
-                        onChange={(e) =>
-                          setEvent({
-                            ...event,
-                            dinnerEnabled: e.target.checked,
-                          })
-                        }
-                        style={{ display: "none" }}
-                      />
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          background: event.dinnerEnabled
-                            ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
-                            : "rgba(255,255,255,0.15)",
-                          borderRadius: "10px",
-                          transition: "all 0.3s ease",
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: "2px",
-                            left: event.dinnerEnabled ? "22px" : "2px",
-                            width: "16px",
-                            height: "16px",
-                            background: "#fff",
-                            borderRadius: "50%",
-                            transition: "all 0.3s ease",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                          }}
-                        />
-                      </span>
-                    </label>
-                  </div>
-                </label>
-              </div>
-
-              {event.dinnerEnabled && (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "20px",
-                    padding: "24px",
-                    background:
-                      "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%)",
-                    borderRadius: "16px",
-                    border: "1px solid rgba(139, 92, 246, 0.2)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    <span style={{ fontSize: "20px" }}>🍽️</span>
-                    <div
-                      style={{
-                        fontSize: "12px",
+                        fontSize: "13px",
                         fontWeight: 700,
+                        marginBottom: "18px",
+                        opacity: 0.9,
                         textTransform: "uppercase",
                         letterSpacing: "0.1em",
-                        opacity: 0.9,
                       }}
                     >
-                      Cuisine Configuration
-                    </div>
-                  </div>
+                      Event Options
+                    </h3>
 
-                  {/* Time Range */}
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                        opacity: 0.7,
-                        marginBottom: "12px",
-                      }}
-                    >
-                      Cuisine Time Window
-                    </div>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "12px",
-                      }}
-                    >
-                      <div>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "12px",
-                            opacity: 0.8,
-                            marginBottom: "8px",
-                          }}
-                        >
-                          First Slot Start{" "}
-                          <span style={{ color: "#ef4444" }}>*</span>
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={event.dinnerStartTimeLocal || ""}
-                          onChange={(e) =>
-                            setEvent({
-                              ...event,
-                              dinnerStartTimeLocal: e.target.value,
-                            })
-                          }
-                          required={event.dinnerEnabled}
-                          onFocus={() => setFocusedField("dinnerStartTime")}
-                          onBlur={() => setFocusedField(null)}
-                          style={{
-                            ...(focusedField === "dinnerStartTime"
-                              ? focusedInputStyle
-                              : inputStyle),
-                            fontSize: "16px",
-                            padding: "12px 14px",
-                            width: "100%",
-                            cursor: "pointer",
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "12px",
-                            opacity: 0.8,
-                            marginBottom: "8px",
-                          }}
-                        >
-                          Last Slot Start{" "}
-                          <span style={{ color: "#ef4444" }}>*</span>
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={event.dinnerEndTimeLocal || ""}
-                          onChange={(e) =>
-                            setEvent({
-                              ...event,
-                              dinnerEndTimeLocal: e.target.value,
-                            })
-                          }
-                          required={event.dinnerEnabled}
-                          min={event.dinnerStartTimeLocal || undefined}
-                          onFocus={() => setFocusedField("dinnerEndTime")}
-                          onBlur={() => setFocusedField(null)}
-                          style={{
-                            ...(focusedField === "dinnerEndTime"
-                              ? focusedInputStyle
-                              : inputStyle),
-                            fontSize: "16px",
-                            padding: "12px 14px",
-                            width: "100%",
-                            cursor: "pointer",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Seating Configuration */}
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                        opacity: 0.7,
-                        marginBottom: "12px",
-                      }}
-                    >
-                      Seating Settings
-                    </div>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "12px",
-                      }}
-                    >
-                      <div>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "12px",
-                            opacity: 0.8,
-                            marginBottom: "8px",
-                          }}
-                        >
-                          Hours per slot
-                        </label>
-                        <input
-                          type="number"
-                          min="0.5"
-                          max="12"
-                          step="0.5"
-                          value={event.dinnerSeatingIntervalHoursInput || "2"}
-                          onChange={(e) =>
-                            setEvent({
-                              ...event,
-                              dinnerSeatingIntervalHoursInput: e.target.value,
-                            })
-                          }
-                          placeholder="2"
-                          onFocus={() => setFocusedField("dinnerInterval")}
-                          onBlur={() => setFocusedField(null)}
-                          style={{
-                            ...(focusedField === "dinnerInterval"
-                              ? focusedInputStyle
-                              : inputStyle),
-                            fontSize: "16px",
-                            padding: "12px 14px",
-                            width: "100%",
-                          }}
-                        />
-                        {event.dinnerStartTimeLocal &&
-                          event.dinnerEndTimeLocal &&
-                          event.dinnerSeatingIntervalHoursInput && (
-                            <div
-                              style={{
-                                marginTop: "10px",
-                                padding: "12px 14px",
-                                background: "rgba(139, 92, 246, 0.08)",
-                                borderRadius: "8px",
-                                border: "1px solid rgba(139, 92, 246, 0.15)",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  fontWeight: 600,
-                                  marginBottom: "8px",
-                                  fontSize: "10px",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.08em",
-                                  opacity: 0.75,
-                                  color: "rgba(139, 92, 246, 0.9)",
-                                }}
-                              >
-                                Calculated Timeslots
-                              </div>
-                              {(() => {
-                                const slots = calculateCuisineTimeslots(
-                                  event.dinnerStartTimeLocal,
-                                  event.dinnerEndTimeLocal,
-                                  event.dinnerSeatingIntervalHoursInput
-                                );
-                                if (slots.length === 0) {
-                                  return (
-                                    <div
-                                      style={{
-                                        fontSize: "11px",
-                                        opacity: 0.6,
-                                        fontStyle: "italic",
-                                      }}
-                                    >
-                                      Invalid time window or interval
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      flexWrap: "wrap",
-                                      gap: "6px",
-                                    }}
-                                  >
-                                    {slots.map((slot, index) => (
-                                      <span
-                                        key={index}
-                                        style={{
-                                          padding: "4px 10px",
-                                          background:
-                                            "rgba(139, 92, 246, 0.15)",
-                                          borderRadius: "6px",
-                                          border:
-                                            "1px solid rgba(139, 92, 246, 0.25)",
-                                          fontSize: "12px",
-                                          fontWeight: 500,
-                                          color: "rgba(255, 255, 255, 0.95)",
-                                          fontFamily: "monospace",
-                                          letterSpacing: "0.5px",
-                                        }}
-                                      >
-                                        {slot}
-                                      </span>
-                                    ))}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          )}
-                        {(!event.dinnerStartTimeLocal ||
-                          !event.dinnerEndTimeLocal ||
-                          !event.dinnerSeatingIntervalHoursInput) && (
-                          <div
-                            style={{
-                              fontSize: "10px",
-                              opacity: 0.6,
-                              marginTop: "4px",
-                            }}
-                          >
-                            Set time window above to see calculated timeslots
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "12px",
-                            opacity: 0.8,
-                            marginBottom: "8px",
-                          }}
-                        >
-                          Max Seats Per Slot
-                        </label>
+                    {/* capacity */}
+                    <OptionRow
+                      icon="👥"
+                      label="Cocktail capacity"
+                      right={
                         <input
                           type="number"
                           min="1"
-                          value={event.dinnerMaxSeatsPerSlotInput || ""}
+                          value={event.maxAttendeesInput || ""}
                           onChange={(e) =>
                             setEvent({
                               ...event,
-                              dinnerMaxSeatsPerSlotInput: e.target.value,
+                              maxAttendeesInput: e.target.value,
                             })
                           }
                           placeholder="Unlimited"
-                          onFocus={() => setFocusedField("dinnerSeats")}
-                          onBlur={() => setFocusedField(null)}
                           style={{
-                            ...(focusedField === "dinnerSeats"
-                              ? focusedInputStyle
-                              : inputStyle),
+                            width: "95px",
+                            padding: "5px 10px",
+                            borderRadius: "8px",
+                            border: "1px solid rgba(255,255,255,0.04)",
+                            background: "rgba(12, 10, 18, 0.4)",
+                            color: "#fff",
                             fontSize: "16px",
-                            padding: "12px 14px",
-                            width: "100%",
+                            textAlign: "right",
+                            outline: "none",
                           }}
                         />
+                      }
+                    />
+                    {/* waitlist */}
+                    <OptionRow
+                      icon="🔄"
+                      label="Enable waitlist when full"
+                      right={
+                        <Toggle
+                          checked={event.waitlistEnabled !== false}
+                          onChange={(checked) =>
+                            setEvent({ ...event, waitlistEnabled: checked })
+                          }
+                        />
+                      }
+                    />
+                    {/* approval */}
+                    <OptionRow
+                      icon="🏆"
+                      label="Require Approval"
+                      right={
+                        <Toggle
+                          checked={!!event.requireApproval}
+                          onChange={(checked) =>
+                            setEvent({ ...event, requireApproval: checked })
+                          }
+                        />
+                      }
+                    />
+
+                    {/* PLUS-ONES */}
+                    <OptionRow
+                      icon="➕"
+                      label="Plus-Ones"
+                      description="Let guests bring friends on a single RSVP."
+                      right={
                         <div
                           style={{
-                            fontSize: "10px",
-                            opacity: 0.6,
-                            marginTop: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
                           }}
                         >
-                          Leave empty for unlimited
+                          {parseInt(event.maxPlusOnesPerGuestInput || "0", 10) >
+                            0 && (
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                background: "rgba(255,255,255,0.05)",
+                                borderRadius: "10px",
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                padding: "4px",
+                              }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const current =
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) || 1;
+                                  if (current > 1) {
+                                    setEvent({
+                                      ...event,
+                                      maxPlusOnesPerGuestInput: String(
+                                        current - 1
+                                      ),
+                                    });
+                                  } else {
+                                    setEvent({
+                                      ...event,
+                                      maxPlusOnesPerGuestInput: "0",
+                                    });
+                                  }
+                                }}
+                                disabled={
+                                  parseInt(
+                                    event.maxPlusOnesPerGuestInput || "0",
+                                    10
+                                  ) <= 1
+                                }
+                                style={{
+                                  width: "40px",
+                                  height: "40px",
+                                  borderRadius: "8px",
+                                  border: "none",
+                                  background:
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) <= 1
+                                      ? "rgba(255,255,255,0.05)"
+                                      : "rgba(139, 92, 246, 0.2)",
+                                  color: "#fff",
+                                  fontSize: "20px",
+                                  fontWeight: 600,
+                                  cursor:
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) <= 1
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  transition: "all 0.2s ease",
+                                  opacity:
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) <= 1
+                                      ? 0.4
+                                      : 1,
+                                }}
+                                onTouchStart={(e) => {
+                                  if (
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) > 1
+                                  ) {
+                                    e.target.style.background =
+                                      "rgba(139, 92, 246, 0.3)";
+                                    e.target.style.transform = "scale(0.95)";
+                                  }
+                                }}
+                                onTouchEnd={(e) => {
+                                  if (
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) > 1
+                                  ) {
+                                    e.target.style.background =
+                                      "rgba(139, 92, 246, 0.2)";
+                                    e.target.style.transform = "scale(1)";
+                                  }
+                                }}
+                              >
+                                −
+                              </button>
+                              <div
+                                style={{
+                                  minWidth: "32px",
+                                  textAlign: "center",
+                                  fontSize: "18px",
+                                  fontWeight: 600,
+                                  color: "#fff",
+                                  padding: "0 8px",
+                                }}
+                              >
+                                {event.maxPlusOnesPerGuestInput || "0"}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const current =
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) || 1;
+                                  if (current < 5) {
+                                    setEvent({
+                                      ...event,
+                                      maxPlusOnesPerGuestInput: String(
+                                        current + 1
+                                      ),
+                                    });
+                                  }
+                                }}
+                                disabled={
+                                  parseInt(
+                                    event.maxPlusOnesPerGuestInput || "0",
+                                    10
+                                  ) >= 5
+                                }
+                                style={{
+                                  width: "40px",
+                                  height: "40px",
+                                  borderRadius: "8px",
+                                  border: "none",
+                                  background:
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) >= 5
+                                      ? "rgba(255,255,255,0.05)"
+                                      : "rgba(139, 92, 246, 0.2)",
+                                  color: "#fff",
+                                  fontSize: "20px",
+                                  fontWeight: 600,
+                                  cursor:
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) >= 5
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  transition: "all 0.2s ease",
+                                  opacity:
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) >= 5
+                                      ? 0.4
+                                      : 1,
+                                }}
+                                onTouchStart={(e) => {
+                                  if (
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) < 5
+                                  ) {
+                                    e.target.style.background =
+                                      "rgba(139, 92, 246, 0.3)";
+                                    e.target.style.transform = "scale(0.95)";
+                                  }
+                                }}
+                                onTouchEnd={(e) => {
+                                  if (
+                                    parseInt(
+                                      event.maxPlusOnesPerGuestInput || "0",
+                                      10
+                                    ) < 5
+                                  ) {
+                                    e.target.style.background =
+                                      "rgba(139, 92, 246, 0.2)";
+                                    e.target.style.transform = "scale(1)";
+                                  }
+                                }}
+                              >
+                                +
+                              </button>
+                            </div>
+                          )}
+                          <Toggle
+                            checked={
+                              parseInt(
+                                event.maxPlusOnesPerGuestInput || "0",
+                                10
+                              ) > 0
+                            }
+                            onChange={(checked) =>
+                              setEvent({
+                                ...event,
+                                maxPlusOnesPerGuestInput: checked ? "3" : "0",
+                              })
+                            }
+                          />
                         </div>
-                      </div>
-                    </div>
-                  </div>
+                      }
+                    />
 
-                  {/* Overflow Handling */}
-                  {event.dinnerMaxSeatsPerSlotInput && (
-                    <div>
+                    {/* DINNER */}
+                    <OptionRow
+                      icon="🍽️"
+                      label="Food Serving Options"
+                      description="Offer an optional food serving slot with limited seats."
+                      right={
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                          }}
+                        >
+                          <Toggle
+                            checked={!!event.dinnerEnabled}
+                            onChange={(checked) =>
+                              setEvent({ ...event, dinnerEnabled: checked })
+                            }
+                          />
+                        </div>
+                      }
+                    />
+
+                    {event.dinnerEnabled && (
                       <div
                         style={{
-                          padding: "14px",
-                          borderRadius: "12px",
-                          border: "1px solid rgba(139, 92, 246, 0.3)",
-                          background: "rgba(139, 92, 246, 0.1)",
+                          marginTop: "16px",
+                          padding: "24px",
+                          borderRadius: "16px",
+                          border: "1px solid rgba(139, 92, 246, 0.2)",
+                          background:
+                            "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%)",
                           display: "flex",
-                          alignItems: "flex-start",
-                          gap: "12px",
+                          flexDirection: "column",
+                          gap: "20px",
                         }}
                       >
-                        <span style={{ fontSize: "16px" }}>📋</span>
-                        <div style={{ flex: 1 }}>
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              fontSize: "14px",
-                              color: "#fff",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            Add to Waitlist
-                          </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          <span style={{ fontSize: "20px" }}>🍽️</span>
                           <div
                             style={{
                               fontSize: "12px",
-                              opacity: 0.7,
-                              color: "rgba(255,255,255,0.8)",
+                              fontWeight: 700,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.1em",
+                              opacity: 0.9,
                             }}
                           >
-                            When dinner seats are full, guests will be added to
-                            the waitlist
+                            Cuisine Configuration
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
 
-              <button
-                type="submit"
-                disabled={saving}
-                style={{
-                  marginTop: "8px",
-                  padding: "14px 28px",
-                  borderRadius: "999px",
-                  border: "none",
-                  background: saving
-                    ? "#666"
-                    : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: "15px",
-                  cursor: saving ? "not-allowed" : "pointer",
-                  opacity: saving ? 0.7 : 1,
-                  boxShadow: saving
-                    ? "none"
-                    : "0 10px 30px rgba(139, 92, 246, 0.4)",
-                  transition: "all 0.3s ease",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  alignSelf: "flex-start",
-                }}
-                onMouseEnter={(e) => {
-                  if (!saving) {
-                    e.target.style.transform = "translateY(-2px)";
-                    e.target.style.boxShadow =
-                      "0 15px 40px rgba(139, 92, 246, 0.6)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!saving) {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow =
-                      "0 10px 30px rgba(139, 92, 246, 0.4)";
-                  }
-                }}
-              >
-                {saving ? "Saving…" : "Save changes"}
-              </button>
+                        {/* Time Range */}
+                        <div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                              opacity: 0.7,
+                              marginBottom: "12px",
+                            }}
+                          >
+                            Cuisine Time Window
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "16px",
+                            }}
+                          >
+                            {/* First Slot Start */}
+                            <div
+                              style={{
+                                position: "relative",
+                                width: "100%",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => {
+                                dinnerStartTimeInputRef.current?.focus();
+                                dinnerStartTimeInputRef.current?.showPicker?.();
+                              }}
+                            >
+                              <input
+                                ref={dinnerStartTimeInputRef}
+                                type="datetime-local"
+                                value={
+                                  event.dinnerStartTime
+                                    ? isoToLocalDateTime(event.dinnerStartTime)
+                                    : event.dinnerStartTimeLocal || ""
+                                }
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    const isoValue = localDateTimeToIso(
+                                      e.target.value
+                                    );
+                                    setEvent({
+                                      ...event,
+                                      dinnerStartTimeLocal: e.target.value,
+                                      dinnerStartTime: isoValue,
+                                    });
+                                  }
+                                }}
+                                required={event.dinnerEnabled}
+                                style={{
+                                  ...inputStyle,
+                                  fontSize: "16px",
+                                  padding: "14px 16px 14px 48px",
+                                  width: "100%",
+                                  height: "48px",
+                                  textAlign: "left",
+                                  color: "transparent",
+                                  cursor: "pointer",
+                                  boxSizing: "border-box",
+                                  background: "rgba(255,255,255,0.03)",
+                                  border: "1px solid rgba(255,255,255,0.08)",
+                                  borderRadius: "12px",
+                                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                                  appearance: "none",
+                                  WebkitAppearance: "none",
+                                  MozAppearance: "textfield",
+                                  position: "relative",
+                                  zIndex: 2,
+                                }}
+                              />
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: "16px",
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  pointerEvents: "none",
+                                  fontSize: "16px",
+                                  opacity: 0.7,
+                                  zIndex: 3,
+                                }}
+                              >
+                                🕒
+                              </div>
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: "48px",
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  pointerEvents: "none",
+                                  color:
+                                    event.dinnerStartTime ||
+                                    event.dinnerStartTimeLocal
+                                      ? "#fff"
+                                      : "rgba(255,255,255,0.5)",
+                                  fontSize: "14px",
+                                  zIndex: 3,
+                                }}
+                              >
+                                {event.dinnerStartTime ||
+                                event.dinnerStartTimeLocal
+                                  ? formatReadableDateTime(
+                                      new Date(
+                                        event.dinnerStartTime ||
+                                          event.dinnerStartTimeLocal
+                                      )
+                                    )
+                                  : "First slot start *"}
+                              </div>
+                            </div>
+                            {/* Last Slot Start */}
+                            <div
+                              style={{
+                                position: "relative",
+                                width: "100%",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => {
+                                dinnerEndTimeInputRef.current?.focus();
+                                dinnerEndTimeInputRef.current?.showPicker?.();
+                              }}
+                            >
+                              <input
+                                ref={dinnerEndTimeInputRef}
+                                type="datetime-local"
+                                value={
+                                  event.dinnerEndTime
+                                    ? isoToLocalDateTime(event.dinnerEndTime)
+                                    : event.dinnerEndTimeLocal || ""
+                                }
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    const isoValue = localDateTimeToIso(
+                                      e.target.value
+                                    );
+                                    setEvent({
+                                      ...event,
+                                      dinnerEndTimeLocal: e.target.value,
+                                      dinnerEndTime: isoValue,
+                                    });
+                                  }
+                                }}
+                                required={event.dinnerEnabled}
+                                min={
+                                  event.dinnerStartTime
+                                    ? isoToLocalDateTime(event.dinnerStartTime)
+                                    : event.dinnerStartTimeLocal || undefined
+                                }
+                                style={{
+                                  ...inputStyle,
+                                  fontSize: "16px",
+                                  padding: "14px 16px 14px 48px",
+                                  width: "100%",
+                                  height: "48px",
+                                  textAlign: "left",
+                                  color: "transparent",
+                                  cursor: "pointer",
+                                  boxSizing: "border-box",
+                                  background: "rgba(255,255,255,0.03)",
+                                  border: "1px solid rgba(255,255,255,0.08)",
+                                  borderRadius: "12px",
+                                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                                  appearance: "none",
+                                  WebkitAppearance: "none",
+                                  MozAppearance: "textfield",
+                                  position: "relative",
+                                  zIndex: 2,
+                                }}
+                              />
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: "16px",
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  pointerEvents: "none",
+                                  fontSize: "16px",
+                                  opacity: 0.7,
+                                  zIndex: 3,
+                                }}
+                              >
+                                🕒
+                              </div>
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: "48px",
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  pointerEvents: "none",
+                                  color:
+                                    event.dinnerEndTime ||
+                                    event.dinnerEndTimeLocal
+                                      ? "#fff"
+                                      : "rgba(255,255,255,0.5)",
+                                  fontSize: "14px",
+                                  zIndex: 3,
+                                }}
+                              >
+                                {event.dinnerEndTime || event.dinnerEndTimeLocal
+                                  ? formatReadableDateTime(
+                                      new Date(
+                                        event.dinnerEndTime ||
+                                          event.dinnerEndTimeLocal
+                                      )
+                                    )
+                                  : "Last slot start *"}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Seating Configuration */}
+                        <div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                              opacity: 0.7,
+                              marginBottom: "12px",
+                            }}
+                          >
+                            Seating Settings
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "20px",
+                            }}
+                          >
+                            {/* Hours per slot - Counter */}
+                            <div>
+                              <label
+                                style={{
+                                  display: "block",
+                                  fontSize: "12px",
+                                  opacity: 0.8,
+                                  marginBottom: "12px",
+                                  fontWeight: 500,
+                                }}
+                              >
+                                Hours per slot
+                              </label>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "12px",
+                                  background: "rgba(255,255,255,0.05)",
+                                  borderRadius: "12px",
+                                  border: "1px solid rgba(255,255,255,0.1)",
+                                  padding: "6px",
+                                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const current =
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) || 2;
+                                    if (current > 0.5) {
+                                      setEvent({
+                                        ...event,
+                                        dinnerSeatingIntervalHoursInput: String(
+                                          Math.max(0.5, current - 0.5)
+                                        ),
+                                      });
+                                    }
+                                  }}
+                                  disabled={
+                                    parseFloat(
+                                      event.dinnerSeatingIntervalHoursInput ||
+                                        "2"
+                                    ) <= 0.5
+                                  }
+                                  style={{
+                                    width: "44px",
+                                    height: "44px",
+                                    borderRadius: "10px",
+                                    border: "none",
+                                    background:
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) <= 0.5
+                                        ? "rgba(255,255,255,0.05)"
+                                        : "rgba(139, 92, 246, 0.2)",
+                                    color: "#fff",
+                                    fontSize: "22px",
+                                    fontWeight: 600,
+                                    cursor:
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) <= 0.5
+                                        ? "not-allowed"
+                                        : "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    transition: "all 0.2s ease",
+                                    opacity:
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) <= 0.5
+                                        ? 0.4
+                                        : 1,
+                                  }}
+                                  onTouchStart={(e) => {
+                                    if (
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) > 0.5
+                                    ) {
+                                      e.target.style.background =
+                                        "rgba(139, 92, 246, 0.3)";
+                                      e.target.style.transform = "scale(0.95)";
+                                    }
+                                  }}
+                                  onTouchEnd={(e) => {
+                                    if (
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) > 0.5
+                                    ) {
+                                      e.target.style.background =
+                                        "rgba(139, 92, 246, 0.2)";
+                                      e.target.style.transform = "scale(1)";
+                                    }
+                                  }}
+                                >
+                                  −
+                                </button>
+                                <div
+                                  style={{
+                                    flex: 1,
+                                    textAlign: "center",
+                                    fontSize: "18px",
+                                    fontWeight: 600,
+                                    color: "#fff",
+                                    padding: "0 12px",
+                                  }}
+                                >
+                                  {event.dinnerSeatingIntervalHoursInput || "2"}
+                                  h
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const current =
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) || 2;
+                                    if (current < 12) {
+                                      setEvent({
+                                        ...event,
+                                        dinnerSeatingIntervalHoursInput: String(
+                                          Math.min(12, current + 0.5)
+                                        ),
+                                      });
+                                    }
+                                  }}
+                                  disabled={
+                                    parseFloat(
+                                      event.dinnerSeatingIntervalHoursInput ||
+                                        "2"
+                                    ) >= 12
+                                  }
+                                  style={{
+                                    width: "44px",
+                                    height: "44px",
+                                    borderRadius: "10px",
+                                    border: "none",
+                                    background:
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) >= 12
+                                        ? "rgba(255,255,255,0.05)"
+                                        : "rgba(139, 92, 246, 0.2)",
+                                    color: "#fff",
+                                    fontSize: "22px",
+                                    fontWeight: 600,
+                                    cursor:
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) >= 12
+                                        ? "not-allowed"
+                                        : "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    transition: "all 0.2s ease",
+                                    opacity:
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) >= 12
+                                        ? 0.4
+                                        : 1,
+                                  }}
+                                  onTouchStart={(e) => {
+                                    if (
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) < 12
+                                    ) {
+                                      e.target.style.background =
+                                        "rgba(139, 92, 246, 0.3)";
+                                      e.target.style.transform = "scale(0.95)";
+                                    }
+                                  }}
+                                  onTouchEnd={(e) => {
+                                    if (
+                                      parseFloat(
+                                        event.dinnerSeatingIntervalHoursInput ||
+                                          "2"
+                                      ) < 12
+                                    ) {
+                                      e.target.style.background =
+                                        "rgba(139, 92, 246, 0.2)";
+                                      e.target.style.transform = "scale(1)";
+                                    }
+                                  }}
+                                >
+                                  +
+                                </button>
+                              </div>
+                              {(event.dinnerStartTime ||
+                                event.dinnerStartTimeLocal) &&
+                                (event.dinnerEndTime ||
+                                  event.dinnerEndTimeLocal) &&
+                                event.dinnerSeatingIntervalHoursInput && (
+                                  <div
+                                    style={{
+                                      marginTop: "10px",
+                                      padding: "12px 14px",
+                                      background: "rgba(139, 92, 246, 0.08)",
+                                      borderRadius: "8px",
+                                      border:
+                                        "1px solid rgba(139, 92, 246, 0.15)",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        fontWeight: 600,
+                                        marginBottom: "8px",
+                                        fontSize: "10px",
+                                        textTransform: "uppercase",
+                                        letterSpacing: "0.08em",
+                                        opacity: 0.75,
+                                        color: "rgba(139, 92, 246, 0.9)",
+                                      }}
+                                    >
+                                      Calculated Timeslots
+                                    </div>
+                                    {(() => {
+                                      const slots = calculateCuisineTimeslots(
+                                        event.dinnerStartTimeLocal ||
+                                          (event.dinnerStartTime
+                                            ? isoToLocalDateTime(
+                                                event.dinnerStartTime
+                                              )
+                                            : ""),
+                                        event.dinnerEndTimeLocal ||
+                                          (event.dinnerEndTime
+                                            ? isoToLocalDateTime(
+                                                event.dinnerEndTime
+                                              )
+                                            : ""),
+                                        event.dinnerSeatingIntervalHoursInput
+                                      );
+                                      if (slots.length === 0) {
+                                        return (
+                                          <div
+                                            style={{
+                                              fontSize: "11px",
+                                              opacity: 0.6,
+                                              fontStyle: "italic",
+                                            }}
+                                          >
+                                            Invalid time window or interval
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            flexWrap: "wrap",
+                                            gap: "6px",
+                                          }}
+                                        >
+                                          {slots.map((slot, index) => (
+                                            <span
+                                              key={index}
+                                              style={{
+                                                padding: "4px 10px",
+                                                background:
+                                                  "rgba(139, 92, 246, 0.15)",
+                                                borderRadius: "6px",
+                                                border:
+                                                  "1px solid rgba(139, 92, 246, 0.25)",
+                                                fontSize: "12px",
+                                                fontWeight: 500,
+                                                color:
+                                                  "rgba(255, 255, 255, 0.95)",
+                                                fontFamily: "monospace",
+                                                letterSpacing: "0.5px",
+                                              }}
+                                            >
+                                              {slot}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
+                              {(!(
+                                event.dinnerStartTime ||
+                                event.dinnerStartTimeLocal
+                              ) ||
+                                !(
+                                  event.dinnerEndTime ||
+                                  event.dinnerEndTimeLocal
+                                ) ||
+                                !event.dinnerSeatingIntervalHoursInput) && (
+                                <div
+                                  style={{
+                                    fontSize: "10px",
+                                    opacity: 0.6,
+                                    marginTop: "4px",
+                                  }}
+                                >
+                                  Set time window above to see calculated
+                                  timeslots
+                                </div>
+                              )}
+                            </div>
+                            {/* Max Seats Per Slot - Counter with Unlimited */}
+                            <div>
+                              <label
+                                style={{
+                                  display: "block",
+                                  fontSize: "12px",
+                                  opacity: 0.8,
+                                  marginBottom: "12px",
+                                  fontWeight: 500,
+                                }}
+                              >
+                                Max Seats Per Slot
+                              </label>
+                              {!event.dinnerMaxSeatsPerSlotInput ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEvent({
+                                      ...event,
+                                      dinnerMaxSeatsPerSlotInput: "10",
+                                    })
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    padding: "14px 16px",
+                                    background: "rgba(255,255,255,0.05)",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    borderRadius: "12px",
+                                    color: "rgba(255,255,255,0.6)",
+                                    fontSize: "14px",
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                    textAlign: "left",
+                                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                                    transition: "all 0.2s ease",
+                                  }}
+                                  onTouchStart={(e) => {
+                                    e.target.style.background =
+                                      "rgba(255,255,255,0.08)";
+                                  }}
+                                  onTouchEnd={(e) => {
+                                    e.target.style.background =
+                                      "rgba(255,255,255,0.05)";
+                                  }}
+                                >
+                                  Unlimited
+                                </button>
+                              ) : (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "12px",
+                                    background: "rgba(255,255,255,0.05)",
+                                    borderRadius: "12px",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    padding: "6px",
+                                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const current =
+                                        parseInt(
+                                          event.dinnerMaxSeatsPerSlotInput,
+                                          10
+                                        ) || 1;
+                                      if (current > 1) {
+                                        setEvent({
+                                          ...event,
+                                          dinnerMaxSeatsPerSlotInput: String(
+                                            current - 1
+                                          ),
+                                        });
+                                      } else {
+                                        setEvent({
+                                          ...event,
+                                          dinnerMaxSeatsPerSlotInput: "",
+                                        });
+                                      }
+                                    }}
+                                    style={{
+                                      width: "44px",
+                                      height: "44px",
+                                      borderRadius: "10px",
+                                      border: "none",
+                                      background: "rgba(139, 92, 246, 0.2)",
+                                      color: "#fff",
+                                      fontSize: "22px",
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      transition: "all 0.2s ease",
+                                    }}
+                                    onTouchStart={(e) => {
+                                      e.target.style.background =
+                                        "rgba(139, 92, 246, 0.3)";
+                                      e.target.style.transform = "scale(0.95)";
+                                    }}
+                                    onTouchEnd={(e) => {
+                                      e.target.style.background =
+                                        "rgba(139, 92, 246, 0.2)";
+                                      e.target.style.transform = "scale(1)";
+                                    }}
+                                  >
+                                    {parseInt(
+                                      event.dinnerMaxSeatsPerSlotInput,
+                                      10
+                                    ) === 1
+                                      ? "∞"
+                                      : "−"}
+                                  </button>
+                                  <div
+                                    style={{
+                                      flex: 1,
+                                      textAlign: "center",
+                                      fontSize: "18px",
+                                      fontWeight: 600,
+                                      color: "#fff",
+                                      padding: "0 12px",
+                                    }}
+                                  >
+                                    {event.dinnerMaxSeatsPerSlotInput}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const current =
+                                        parseInt(
+                                          event.dinnerMaxSeatsPerSlotInput,
+                                          10
+                                        ) || 1;
+                                      setEvent({
+                                        ...event,
+                                        dinnerMaxSeatsPerSlotInput: String(
+                                          current + 1
+                                        ),
+                                      });
+                                    }}
+                                    style={{
+                                      width: "44px",
+                                      height: "44px",
+                                      borderRadius: "10px",
+                                      border: "none",
+                                      background: "rgba(139, 92, 246, 0.2)",
+                                      color: "#fff",
+                                      fontSize: "22px",
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      transition: "all 0.2s ease",
+                                    }}
+                                    onTouchStart={(e) => {
+                                      e.target.style.background =
+                                        "rgba(139, 92, 246, 0.3)";
+                                      e.target.style.transform = "scale(0.95)";
+                                    }}
+                                    onTouchEnd={(e) => {
+                                      e.target.style.background =
+                                        "rgba(139, 92, 246, 0.2)";
+                                      e.target.style.transform = "scale(1)";
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Overflow Handling */}
+                        {event.dinnerMaxSeatsPerSlotInput && (
+                          <div>
+                            <div
+                              style={{
+                                padding: "14px",
+                                borderRadius: "12px",
+                                border: "1px solid rgba(139, 92, 246, 0.3)",
+                                background: "rgba(139, 92, 246, 0.1)",
+                                display: "flex",
+                                alignItems: "flex-start",
+                                gap: "12px",
+                              }}
+                            >
+                              <span style={{ fontSize: "16px" }}>📋</span>
+                              <div style={{ flex: 1 }}>
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    fontSize: "14px",
+                                    color: "#fff",
+                                    marginBottom: "4px",
+                                  }}
+                                >
+                                  Add to Waitlist
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    opacity: 0.7,
+                                    color: "rgba(255,255,255,0.8)",
+                                  }}
+                                >
+                                  When dinner seats are full, guests will be
+                                  added to the waitlist
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {(event.dinnerStartTime ||
+                          event.dinnerStartTimeLocal) &&
+                          (event.dinnerEndTime || event.dinnerEndTimeLocal) &&
+                          event.dinnerSeatingIntervalHoursInput && (
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                opacity: 0.7,
+                                padding: "12px",
+                                background: "rgba(139, 92, 246, 0.1)",
+                                borderRadius: "10px",
+                                border: "1px solid rgba(139, 92, 246, 0.2)",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              <span>💡</span>
+                              <span>
+                                Time slots will be generated automatically based
+                                on your settings.
+                              </span>
+                            </div>
+                          )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Submit Button - Mobile-first, prominent */}
+                <button
+                  type="submit"
+                  disabled={saving}
+                  style={{
+                    marginTop: "40px",
+                    width: "100%",
+                    padding: "18px 24px",
+                    borderRadius: "14px",
+                    border: "none",
+                    background: saving
+                      ? "#666"
+                      : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontSize: "17px",
+                    cursor: saving ? "not-allowed" : "pointer",
+                    boxShadow: saving
+                      ? "none"
+                      : "0 8px 24px rgba(139, 92, 246, 0.5)",
+                    transition: "all 0.3s ease",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    opacity: saving ? 0.7 : 1,
+                    minHeight: "56px",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!saving) {
+                      e.target.style.transform = "translateY(-2px)";
+                      e.target.style.boxShadow =
+                        "0 12px 32px rgba(139, 92, 246, 0.6)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!saving) {
+                      e.target.style.transform = "translateY(0)";
+                      e.target.style.boxShadow =
+                        "0 8px 24px rgba(139, 92, 246, 0.5)";
+                    }
+                  }}
+                  onTouchStart={(e) => {
+                    if (!saving) {
+                      e.target.style.transform = "scale(0.98)";
+                    }
+                  }}
+                  onTouchEnd={(e) => {
+                    if (!saving) {
+                      e.target.style.transform = "scale(1)";
+                    }
+                  }}
+                >
+                  {saving ? "Saving…" : "SAVE CHANGES"}
+                </button>
+              </div>
             </form>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+// Helper components - matching CreateEventPage
+function OptionRow({ icon, label, description, right }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "14px 16px",
+        background: "rgba(20, 16, 30, 0.25)",
+        borderRadius: "12px",
+        marginBottom: "8px",
+        border: "1px solid rgba(255,255,255,0.06)",
+        transition: "all 0.2s ease",
+        minHeight: "56px",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "rgba(20, 16, 30, 0.35)";
+        e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "rgba(20, 16, 30, 0.25)";
+        e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "12px",
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        <span
+          style={{
+            fontSize: "18px",
+            flexShrink: 0,
+            marginTop: "2px",
+          }}
+        >
+          {icon}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: "15px",
+              fontWeight: 600,
+              marginBottom: description ? "4px" : "0",
+              lineHeight: "1.3",
+            }}
+          >
+            {label}
+          </div>
+          {description && (
+            <div
+              style={{
+                fontSize: "12px",
+                opacity: 0.7,
+                lineHeight: "1.4",
+                marginTop: "2px",
+              }}
+            >
+              {description}
+            </div>
+          )}
+        </div>
+      </div>
+      <div
+        style={{
+          flexShrink: 0,
+          marginLeft: "12px",
+        }}
+      >
+        {right}
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange }) {
+  return (
+    <label
+      style={{
+        position: "relative",
+        display: "inline-block",
+        width: "40px",
+        height: "20px",
+        cursor: "pointer",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ display: "none" }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: checked
+            ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
+            : "rgba(255,255,255,0.1)",
+          borderRadius: "10px",
+          transition: "all 0.3s ease",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: "2px",
+            left: checked ? "22px" : "2px",
+            width: "16px",
+            height: "16px",
+            background: "#fff",
+            borderRadius: "50%",
+            transition: "all 0.3s ease",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+          }}
+        />
+      </span>
+    </label>
   );
 }

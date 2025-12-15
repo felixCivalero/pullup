@@ -4,6 +4,7 @@ import { useToast } from "../components/Toast";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 
 import { authenticatedFetch } from "../lib/api.js";
+import { uploadEventImage } from "../lib/imageUtils.js";
 
 function isNetworkError(error) {
   return (
@@ -506,58 +507,7 @@ export function CreateEventPage() {
       let finalEvent = created;
       if (imageFile) {
         try {
-          const reader = new FileReader();
-          const imageUploadPromise = new Promise((resolve, reject) => {
-            reader.onloadend = async () => {
-              if (reader.result) {
-                try {
-                  const imageRes = await authenticatedFetch(
-                    `/host/events/${created.id}/image`,
-                    {
-                      method: "POST",
-                      body: JSON.stringify({ imageData: reader.result }),
-                    }
-                  );
-
-                  if (imageRes.ok) {
-                    // Fetch updated event with image URL
-                    const updatedEventRes = await authenticatedFetch(
-                      `/host/events/${created.id}`
-                    );
-                    if (updatedEventRes.ok) {
-                      finalEvent = await updatedEventRes.json();
-                    }
-                    resolve();
-                  } else {
-                    console.error(
-                      "Failed to upload image, but event was created"
-                    );
-                    showToast(
-                      "Event created, but image upload failed",
-                      "warning"
-                    );
-                    resolve(); // Still resolve to continue navigation
-                  }
-                } catch (imageError) {
-                  console.error("Error uploading image:", imageError);
-                  showToast(
-                    "Event created, but image upload failed",
-                    "warning"
-                  );
-                  resolve(); // Still resolve to continue navigation
-                }
-              } else {
-                resolve(); // No result, continue anyway
-              }
-            };
-            reader.onerror = () => {
-              console.error("FileReader error");
-              resolve(); // Still resolve to continue navigation
-            };
-          });
-          reader.readAsDataURL(imageFile);
-          // Wait for image upload to complete before navigating
-          await imageUploadPromise;
+          finalEvent = await uploadEventImage(created.id, imageFile);
         } catch (imageError) {
           console.error("Error uploading image:", imageError);
           showToast("Event created, but image upload failed", "warning");

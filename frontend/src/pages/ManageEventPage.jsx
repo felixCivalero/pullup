@@ -7,6 +7,7 @@ import { getEventUrl, getEventShareUrl } from "../lib/urlUtils";
 import { FaPaperPlane, FaCalendar } from "react-icons/fa";
 
 import { authenticatedFetch, publicFetch, API_BASE } from "../lib/api.js";
+import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
 
 function isNetworkError(error) {
   return (
@@ -1047,21 +1048,10 @@ export function ManageEventPage() {
     const file = e.target.files?.[0] || e.dataTransfer?.files?.[0];
     if (!file) return;
 
-    console.log("🖼️ [Image Upload] Starting upload:", {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      currentImagePreview: imagePreview,
-      currentEventImageUrl: event?.imageUrl,
-    });
-
-    if (!file.type.startsWith("image/")) {
-      showToast("Please upload an image file", "error");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("Image must be less than 5MB", "error");
+    // Validate file using utility
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      showToast(validation.error, "error");
       return;
     }
 
@@ -1077,28 +1067,16 @@ export function ManageEventPage() {
         setImagePreview(base64Image);
         setHasUnsavedImage(true);
 
-        // Upload to API immediately
+        // Upload to API immediately using utility
         try {
-          const imageRes = await authenticatedFetch(
-            `/host/events/${id}/image`,
-            {
-              method: "POST",
-              body: JSON.stringify({ imageData: base64Image }),
-            }
-          );
-
-          if (imageRes.ok) {
-            const updated = await imageRes.json();
-            setEvent((prev) => ({
-              ...prev,
-              imageUrl: updated.imageUrl, // Use the URL from server
-            }));
-            setImagePreview(updated.imageUrl); // Update preview with URL
-            setHasUnsavedImage(false); // Image is now saved
-            showToast("Image uploaded successfully! ✨", "success");
-          } else {
-            throw new Error("Upload failed");
-          }
+          const updated = await uploadEventImage(id, file);
+          setEvent((prev) => ({
+            ...prev,
+            imageUrl: updated.imageUrl, // Use the URL from server
+          }));
+          setImagePreview(updated.imageUrl); // Update preview with URL
+          setHasUnsavedImage(false); // Image is now saved
+          showToast("Image uploaded successfully! ✨", "success");
         } catch (error) {
           console.error("🖼️ [Image Upload] API error:", error);
           showToast("Failed to upload image. Please try again.", "error");

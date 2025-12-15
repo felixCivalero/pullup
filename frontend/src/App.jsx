@@ -9,25 +9,56 @@ import { EventSuccessPage } from "./pages/EventSuccessPage";
 import { ManageEventPage } from "./pages/ManageEventPage";
 import { EventGuestsPage } from "./pages/EventGuestsPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 function App() {
   return (
-    <Routes>
-      {/* Public */}
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/e/:slug" element={<EventPage />} />
-      <Route path="/e/:slug/success" element={<RsvpSuccessPage />} />
+    <ErrorBoundary>
+      <Routes>
+        {/* Public */}
+        <Route path="/" element={<LandingPage />} />
+        <Route
+          path="/e/:slug"
+          element={
+            <ErrorBoundary>
+              <EventPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/e/:slug/success"
+          element={
+            <ErrorBoundary>
+              <RsvpSuccessPage />
+            </ErrorBoundary>
+          }
+        />
 
-      {/* "Protected" app area */}
-      <Route element={<ProtectedLayout />}>
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/post" element={<PostEventPage />} />
-        <Route path="/create" element={<CreateEventPage />} />
-        <Route path="/events/:slug/success" element={<EventSuccessPage />} />
-        <Route path="/app/events/:id/manage" element={<ManageEventPage />} />
-        <Route path="/app/events/:id/guests" element={<EventGuestsPage />} />
-      </Route>
-    </Routes>
+        {/* "Protected" app area */}
+        <Route element={<ProtectedLayout />}>
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/post" element={<PostEventPage />} />
+          <Route path="/create" element={<CreateEventPage />} />
+          <Route path="/events/:slug/success" element={<EventSuccessPage />} />
+          <Route
+            path="/app/events/:id/manage"
+            element={
+              <ErrorBoundary>
+                <ManageEventPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/app/events/:id/guests"
+            element={
+              <ErrorBoundary>
+                <EventGuestsPage />
+              </ErrorBoundary>
+            }
+          />
+        </Route>
+      </Routes>
+    </ErrorBoundary>
   );
 }
 

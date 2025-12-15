@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { getEventShareUrl } from "../lib/urlUtils";
+import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
 
 // Get user's timezone
 function getUserTimezone() {
@@ -53,13 +54,10 @@ export function PostEventPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      showToast("Please select an image file", "error");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("Image size must be less than 5MB", "error");
+    // Validate file using utility
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      showToast(validation.error, "error");
       return;
     }
 
@@ -71,50 +69,6 @@ export function PostEventPage() {
       setImagePreview(e.target.result);
     };
     reader.readAsDataURL(file);
-  }
-
-  // Compress image before upload
-  function compressImage(
-    file,
-    maxWidth = 1200,
-    maxHeight = 1200,
-    quality = 0.85
-  ) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > maxWidth) {
-              height = (height * maxWidth) / width;
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width = (width * maxHeight) / height;
-              height = maxHeight;
-            }
-          }
-
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, width, height);
-
-          const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
-          resolve(compressedDataUrl);
-        };
-        img.onerror = reject;
-        img.src = e.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
   }
 
   // Post event
@@ -226,27 +180,13 @@ export function PostEventPage() {
       let finalEvent = event;
       if (imageFile) {
         try {
-          const compressedImage = await compressImage(imageFile);
-          const imageRes = await authenticatedFetch(
-            `/host/events/${event.id}/image`,
-            {
-              method: "POST",
-              body: JSON.stringify({ imageData: compressedImage }),
-            }
-          );
-
-          if (imageRes.ok) {
-            // Image uploaded successfully - fetch updated event with image URL
-            const updatedEventRes = await authenticatedFetch(
-              `/host/events/${event.id}`
-            );
-            if (updatedEventRes.ok) {
-              finalEvent = await updatedEventRes.json();
-            }
-          }
+          finalEvent = await uploadEventImage(event.id, imageFile);
         } catch (imageError) {
           console.error("Image upload failed:", imageError);
-          // Event is created, continue without image
+          showToast(
+            "Event created, but image upload failed. You can add an image later.",
+            "warning"
+          );
         }
       }
 

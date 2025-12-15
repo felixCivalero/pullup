@@ -29,6 +29,11 @@ import {
 } from "./data.js";
 
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
+import {
+  validateEventData,
+  validateRsvpData,
+  validateRsvpUpdateData,
+} from "./middleware/validation.js";
 
 import {
   getOrCreateStripeCustomer,
@@ -603,7 +608,7 @@ app.post("/events", requireAuth, async (req, res) => {
 // ---------------------------
 // PUBLIC: RSVP
 // ---------------------------
-app.post("/events/:slug/rsvp", async (req, res) => {
+app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
   try {
     const { slug } = req.params;
     const {
@@ -728,82 +733,87 @@ app.get("/host/events/:id", requireAuth, async (req, res) => {
 // ---------------------------
 // PROTECTED: Update event (requires auth, verifies ownership)
 // ---------------------------
-app.put("/host/events/:id", requireAuth, async (req, res) => {
-  const { id } = req.params;
+app.put(
+  "/host/events/:id",
+  requireAuth,
+  validateEventData,
+  async (req, res) => {
+    const { id } = req.params;
 
-  // Allow updating both old and new fields
-  const {
-    title,
-    description,
-    location,
-    startsAt,
-    endsAt,
-    timezone,
-    maxAttendees,
-    waitlistEnabled,
-    imageUrl,
-    theme,
-    calendar,
-    visibility,
-    ticketType,
-    requireApproval,
-    maxPlusOnesPerGuest,
-    dinnerEnabled,
-    dinnerStartTime,
-    dinnerEndTime,
-    dinnerSeatingIntervalHours,
-    dinnerMaxSeatsPerSlot,
-    dinnerOverflowAction,
+    // Allow updating both old and new fields
+    const {
+      title,
+      description,
+      location,
+      startsAt,
+      endsAt,
+      timezone,
+      maxAttendees,
+      waitlistEnabled,
+      imageUrl,
+      theme,
+      calendar,
+      visibility,
+      ticketType,
+      requireApproval,
+      maxPlusOnesPerGuest,
+      dinnerEnabled,
+      dinnerStartTime,
+      dinnerEndTime,
+      dinnerSeatingIntervalHours,
+      dinnerMaxSeatsPerSlot,
+      dinnerOverflowAction,
 
-    // Stripe fields
-    ticketPrice,
-    stripeProductId,
-    stripePriceId,
+      // Stripe fields
+      ticketPrice,
+      stripeProductId,
+      stripePriceId,
 
-    // Capacity fields
-    cocktailCapacity,
-    foodCapacity,
-    totalCapacity,
+      // Capacity fields
+      cocktailCapacity,
+      foodCapacity,
+      totalCapacity,
 
-    // Dual personality fields
-    status,
-  } = req.body;
+      // Dual personality fields
+      status,
+    } = req.body;
 
-  const updated = await updateEvent(id, {
-    title,
-    description,
-    location,
-    startsAt,
-    endsAt,
-    timezone,
-    maxAttendees,
-    waitlistEnabled,
-    imageUrl,
-    theme,
-    calendar,
-    visibility,
-    ticketType,
-    requireApproval,
-    maxPlusOnesPerGuest,
-    dinnerEnabled,
-    dinnerStartTime,
-    dinnerEndTime,
-    dinnerSeatingIntervalHours,
-    dinnerMaxSeatsPerSlot,
-    dinnerOverflowAction,
-    ticketPrice,
-    stripeProductId,
-    stripePriceId,
-    cocktailCapacity,
-    foodCapacity,
-    totalCapacity,
-    status,
-  });
+    const updated = await updateEvent(id, {
+      title,
+      description,
+      location,
+      startsAt,
+      endsAt,
+      timezone,
+      maxAttendees,
+      waitlistEnabled,
+      imageUrl,
+      theme,
+      calendar,
+      visibility,
+      ticketType,
+      requireApproval,
+      maxPlusOnesPerGuest,
+      dinnerEnabled,
+      dinnerStartTime,
+      dinnerEndTime,
+      dinnerSeatingIntervalHours,
+      dinnerMaxSeatsPerSlot,
+      dinnerOverflowAction,
+      ticketPrice,
+      stripeProductId,
+      stripePriceId,
+      cocktailCapacity,
+      foodCapacity,
+      totalCapacity,
+      status,
+    });
 
-  if (!updated) return res.status(404).json({ error: "Event not found" });
+    if (!updated) return res.status(404).json({ error: "Event not found" });
 
-  res.json(updated);
-});
+    res.json(updated);
+  }
+);
 
 // ---------------------------
 // PROTECTED: Publish event (requires auth, verifies ownership)
@@ -1136,6 +1146,7 @@ app.get("/events/:slug/dinner-slots", async (req, res) => {
 app.put(
   "/host/events/:eventId/rsvps/:rsvpId",
   requireAuth,
+  validateRsvpUpdateData,
   async (req, res) => {
     try {
       const { eventId, rsvpId } = req.params;

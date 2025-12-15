@@ -1,4 +1,6 @@
 // Host-side event card (Home dashboard)
+import { FaShare } from "react-icons/fa";
+import { getEventShareUrl } from "../lib/urlUtils";
 
 export function getEventStatus(event) {
   const now = new Date();
@@ -14,6 +16,21 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
   const status = getEventStatus(event);
   const isLive = status === "ongoing";
 
+  const handleShare = async () => {
+    const shareUrl = getEventShareUrl(event.slug);
+    if (navigator.share) {
+      try {
+        await navigator.share({ url: shareUrl });
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          navigator.clipboard.writeText(shareUrl);
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(shareUrl);
+    }
+  };
+
   return (
     <div
       style={{
@@ -23,6 +40,7 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
         border: "1px solid rgba(255,255,255,0.05)",
         transition: "all 0.3s ease",
         cursor: "pointer",
+        position: "relative",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-2px)";
@@ -103,7 +121,34 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+      {/* Signup/Capacity indicator - bottom right corner of card */}
+      {event._stats && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "20px",
+            right: "20px",
+            fontSize: "11px",
+            opacity: 0.5,
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+          }}
+        >
+          {event._stats.confirmed}
+          {event._stats.totalCapacity != null &&
+            ` / ${event._stats.totalCapacity}`}
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -134,7 +179,7 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
             e.target.style.borderColor = "rgba(255,255,255,0.2)";
           }}
         >
-          Preview
+          Live
         </button>
 
         <button
@@ -163,6 +208,37 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
           }}
         >
           Manage
+        </button>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleShare();
+          }}
+          style={{
+            padding: "8px 12px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.2)",
+            background: "rgba(255,255,255,0.05)",
+            color: "#fff",
+            cursor: "pointer",
+            transition: "all 0.3s ease",
+            backdropFilter: "blur(10px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = "rgba(255,255,255,0.1)";
+            e.target.style.borderColor = "rgba(255,255,255,0.3)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = "rgba(255,255,255,0.05)";
+            e.target.style.borderColor = "rgba(255,255,255,0.2)";
+          }}
+          title="Share event"
+        >
+          <FaShare size={14} />
         </button>
       </div>
     </div>

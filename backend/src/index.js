@@ -333,7 +333,22 @@ app.get("/events", requireAuth, async (req, res) => {
       events.map((dbEvent) => mapEventFromDb(dbEvent))
     );
 
-    res.json(mappedEvents);
+    // Add stats to each event
+    const { getEventCounts } = await import("./data.js");
+    const eventsWithStats = await Promise.all(
+      mappedEvents.map(async (event) => {
+        const { confirmed } = await getEventCounts(event.id);
+        return {
+          ...event,
+          _stats: {
+            confirmed,
+            totalCapacity: event.totalCapacity ?? null,
+          },
+        };
+      })
+    );
+
+    res.json(eventsWithStats);
   } catch (error) {
     console.error("Error fetching events:", error);
     res.status(500).json({ error: "Failed to fetch events" });

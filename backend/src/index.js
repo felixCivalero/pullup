@@ -41,6 +41,7 @@ import {
   handleStripeWebhook,
   createStripeProduct,
   createStripePrice,
+  getStripeSecretKey,
 } from "./stripe.js";
 import { logger } from "./logger.js";
 
@@ -1563,7 +1564,7 @@ app.post(
 
     try {
       const stripe = (await import("stripe")).default;
-      const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY || "");
+      const stripeInstance = new stripe(getStripeSecretKey());
       event = stripeInstance.webhooks.constructEvent(
         req.body,
         sig,

@@ -8,15 +8,47 @@ import {
   updatePayment,
 } from "./data.js";
 
-// Lazy initialization of Stripe client
-function getStripeClient() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-  if (!secretKey) {
-    throw new Error(
-      "STRIPE_SECRET_KEY environment variable is not set. Stripe functionality is disabled."
+// Determine environment mode
+const isDevelopment = process.env.NODE_ENV === "development";
+
+// In development: Use TEST_ prefixed variables if available, otherwise fall back to regular names
+// In production: Always use regular variable names (STRIPE_SECRET_KEY)
+let stripeSecretKey;
+
+if (isDevelopment) {
+  // Development mode: prefer TEST_ variables, fallback to regular
+  stripeSecretKey =
+    process.env.TEST_STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+
+  if (process.env.TEST_STRIPE_SECRET_KEY) {
+    console.log("🔧 [DEV] Using TEST Stripe environment");
+  } else if (process.env.STRIPE_SECRET_KEY) {
+    console.warn(
+      "⚠️  [DEV] TEST_STRIPE_SECRET_KEY not found, using production Stripe key"
     );
   }
-  return new Stripe(secretKey);
+} else {
+  // Production mode: always use regular variable names
+  stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  // Don't log in production to avoid noise
+}
+
+// Get Stripe secret key (for webhook verification, etc.)
+export function getStripeSecretKey() {
+  if (!stripeSecretKey) {
+    const missingVar = isDevelopment
+      ? "TEST_STRIPE_SECRET_KEY or STRIPE_SECRET_KEY"
+      : "STRIPE_SECRET_KEY";
+    throw new Error(
+      `${missingVar} environment variable is not set. Stripe functionality is disabled.`
+    );
+  }
+  return stripeSecretKey;
+}
+
+// Lazy initialization of Stripe client
+function getStripeClient() {
+  return new Stripe(getStripeSecretKey());
 }
 
 /**

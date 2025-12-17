@@ -760,6 +760,10 @@ export function ManageEventPage() {
   const dinnerStartTimeInputRef = useRef(null);
   const dinnerEndTimeInputRef = useRef(null);
 
+  // Stripe connection status - load from backend
+  const [stripeConnected, setStripeConnected] = useState(false);
+  const [stripeAccountEmail, setStripeAccountEmail] = useState("");
+
   useEffect(() => {
     function handleMouseMove(e) {
       setMousePosition({ x: e.clientX, y: e.clientY });
@@ -801,6 +805,31 @@ export function ManageEventPage() {
     };
   }, []);
 
+  // Load Stripe connection status
+  useEffect(() => {
+    async function loadStripeStatus() {
+      try {
+        const response = await authenticatedFetch(
+          "/host/stripe/connect/status"
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setStripeConnected(data.connected);
+          if (data.accountDetails?.email) {
+            setStripeAccountEmail(data.accountDetails.email);
+          } else {
+            setStripeAccountEmail("");
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load Stripe status:", error);
+        setStripeConnected(false);
+        setStripeAccountEmail("");
+      }
+    }
+    loadStripeStatus();
+  }, []);
+
   useEffect(() => {
     async function load() {
       setNetworkError(false);
@@ -824,7 +853,17 @@ export function ManageEventPage() {
           theme: data.theme || "minimal",
           calendar: data.calendar || "personal",
           visibility: data.visibility || "public",
-          ticketType: data.ticketType || "free",
+          // Determine ticket type: check ticketType first, then isPaid, then ticketPrice
+          ticketType:
+            data.ticketType ||
+            (data.isPaid === true ? "paid" : null) ||
+            (data.ticketPrice && data.ticketPrice > 0 ? "paid" : "free"),
+          // Initialize ticket price and currency for editing
+          ticketPriceInput: data.ticketPrice
+            ? (data.ticketPrice / 100).toFixed(2)
+            : "", // Convert from cents to dollars
+          ticketCurrencyInput:
+            (data.ticketCurrency || "usd").toUpperCase() || "USD",
           requireApproval:
             typeof data.requireApproval === "boolean"
               ? data.requireApproval
@@ -1095,6 +1134,23 @@ export function ManageEventPage() {
     e.preventDefault();
     if (!event) return;
 
+    // Validate ticket price if paid
+    if (event.ticketType === "paid") {
+      if (!event.ticketPriceInput || parseFloat(event.ticketPriceInput) <= 0) {
+        showToast("Please enter a valid ticket price", "error");
+        setSaving(false);
+        return;
+      }
+      if (!stripeConnected) {
+        showToast(
+          "Please connect your Stripe account to enable paid events",
+          "error"
+        );
+        setSaving(false);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const maxAttendees =
@@ -1197,6 +1253,21 @@ export function ManageEventPage() {
         calendar: event.calendar || "personal",
         visibility: event.visibility || "public",
         ticketType: event.ticketType || "free",
+        // Include ticket price and currency if event is paid
+        ticketPrice:
+          event.ticketType === "paid" && event.ticketPriceInput
+            ? Math.round(parseFloat(event.ticketPriceInput) * 100)
+            : event.ticketType === "free"
+            ? null
+            : event.ticketPrice || null, // Convert to cents, or keep existing
+        ticketCurrency:
+          event.ticketType === "paid"
+            ? (
+                event.ticketCurrencyInput ||
+                event.ticketCurrency ||
+                "USD"
+              ).toLowerCase()
+            : null,
         requireApproval: !!event.requireApproval,
         maxAttendees,
         waitlistEnabled: !!event.waitlistEnabled,
@@ -1302,7 +1373,17 @@ export function ManageEventPage() {
         theme: updated.theme || "minimal",
         calendar: updated.calendar || "personal",
         visibility: updated.visibility || "public",
-        ticketType: updated.ticketType || "free",
+        // Determine ticket type: check ticketType first, then isPaid, then ticketPrice
+        ticketType:
+          updated.ticketType ||
+          (updated.isPaid === true ? "paid" : null) ||
+          (updated.ticketPrice && updated.ticketPrice > 0 ? "paid" : "free"),
+        // Update ticket price and currency inputs from server response
+        ticketPriceInput: updated.ticketPrice
+          ? (updated.ticketPrice / 100).toFixed(2)
+          : "", // Convert from cents to dollars
+        ticketCurrencyInput:
+          (updated.ticketCurrency || "usd").toUpperCase() || "USD",
         requireApproval:
           typeof updated.requireApproval === "boolean"
             ? updated.requireApproval
@@ -3133,6 +3214,287 @@ export function ManageEventPage() {
                           </div>
                         }
                       />
+
+                      {/* TICKETS */}
+                      <OptionRow
+                        icon="🎫"
+                        label="Sell tickets to this event"
+                        description={
+                          event.ticketType === "paid"
+                            ? "Event is currently paid"
+                            : "Enable ticket sales for this event"
+                        }
+                        right={
+                          <Toggle
+                            checked={event.ticketType === "paid"}
+                            onChange={(checked) => {
+                              const newTicketType = checked ? "paid" : "free";
+                              setEvent({
+                                ...event,
+                                ticketType: newTicketType,
+                                // Reset ticket price if switching to free
+                                ticketPriceInput:
+                                  newTicketType === "free"
+                                    ? ""
+                                    : event.ticketPriceInput,
+                                ticketCurrencyInput:
+                                  newTicketType === "free"
+                                    ? "USD"
+                                    : event.ticketCurrencyInput || "USD",
+                              });
+                            }}
+                          />
+                        }
+                      />
+
+                      {/* Ticket Price & Currency (shown when paid) */}
+                      {event.ticketType === "paid" && (
+                        <div
+                          style={{
+                            marginTop: "16px",
+                            padding: "24px",
+                            borderRadius: "16px",
+                            border: "1px solid rgba(139, 92, 246, 0.2)",
+                            background:
+                              "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%)",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "20px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "10px",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            <span style={{ fontSize: "20px" }}>🎫</span>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.1em",
+                                opacity: 0.9,
+                              }}
+                            >
+                              Ticket Configuration
+                            </div>
+                          </div>
+
+                          {/* Stripe Connection Check */}
+                          {!stripeConnected && (
+                            <div
+                              style={{
+                                padding: "16px",
+                                borderRadius: "12px",
+                                border: "1px solid rgba(251, 191, 36, 0.3)",
+                                background: "rgba(251, 191, 36, 0.1)",
+                                display: "flex",
+                                alignItems: "flex-start",
+                                gap: "12px",
+                              }}
+                            >
+                              <div style={{ fontSize: "20px", flexShrink: 0 }}>
+                                ⚠️
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div
+                                  style={{
+                                    fontSize: "14px",
+                                    fontWeight: 600,
+                                    marginBottom: "8px",
+                                  }}
+                                >
+                                  Stripe Account Required
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    opacity: 0.8,
+                                    marginBottom: "12px",
+                                    lineHeight: "1.5",
+                                  }}
+                                >
+                                  You need to connect your Stripe account to
+                                  accept payments for this event.
+                                </div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: "8px",
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigate("/home?tab=integrations");
+                                    }}
+                                    style={{
+                                      padding: "8px 16px",
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      background:
+                                        "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                                      color: "#fff",
+                                      fontSize: "13px",
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                      transition: "all 0.2s ease",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.target.style.transform = "scale(1.02)";
+                                      e.target.style.boxShadow =
+                                        "0 4px 12px rgba(139, 92, 246, 0.4)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.target.style.transform = "scale(1)";
+                                      e.target.style.boxShadow = "none";
+                                    }}
+                                  >
+                                    Connect Stripe
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {stripeConnected && stripeAccountEmail && (
+                            <div
+                              style={{
+                                padding: "12px 16px",
+                                borderRadius: "8px",
+                                background: "rgba(34, 197, 94, 0.1)",
+                                border: "1px solid rgba(34, 197, 94, 0.2)",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                fontSize: "12px",
+                              }}
+                            >
+                              <span>✓</span>
+                              <span style={{ opacity: 0.9 }}>
+                                Connected as {stripeAccountEmail}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Price and Currency */}
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.05em",
+                                opacity: 0.7,
+                                marginBottom: "12px",
+                              }}
+                            >
+                              Price & Currency
+                            </div>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr 120px",
+                                gap: "12px",
+                              }}
+                            >
+                              <div>
+                                <label
+                                  style={{
+                                    display: "block",
+                                    fontSize: "12px",
+                                    opacity: 0.8,
+                                    marginBottom: "8px",
+                                  }}
+                                >
+                                  Ticket Price{" "}
+                                  <span style={{ color: "#ef4444" }}>*</span>
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={event.ticketPriceInput || ""}
+                                  onChange={(e) =>
+                                    setEvent({
+                                      ...event,
+                                      ticketPriceInput: e.target.value,
+                                    })
+                                  }
+                                  placeholder="0.00"
+                                  required={event.ticketType === "paid"}
+                                  disabled={!stripeConnected}
+                                  style={{
+                                    ...inputStyle,
+                                    fontSize: "14px",
+                                    padding: "12px 14px",
+                                    width: "100%",
+                                    opacity: !stripeConnected ? 0.5 : 1,
+                                    cursor: !stripeConnected
+                                      ? "not-allowed"
+                                      : "text",
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label
+                                  style={{
+                                    display: "block",
+                                    fontSize: "12px",
+                                    opacity: 0.8,
+                                    marginBottom: "8px",
+                                  }}
+                                >
+                                  Currency{" "}
+                                  <span style={{ color: "#ef4444" }}>*</span>
+                                </label>
+                                <select
+                                  value={
+                                    event.ticketCurrencyInput?.toUpperCase() ||
+                                    "USD"
+                                  }
+                                  onChange={(e) =>
+                                    setEvent({
+                                      ...event,
+                                      ticketCurrencyInput: e.target.value,
+                                    })
+                                  }
+                                  required={event.ticketType === "paid"}
+                                  disabled={!stripeConnected}
+                                  style={{
+                                    ...inputStyle,
+                                    fontSize: "14px",
+                                    padding: "12px 14px",
+                                    width: "100%",
+                                    cursor: !stripeConnected
+                                      ? "not-allowed"
+                                      : "pointer",
+                                    appearance: "none",
+                                    backgroundImage:
+                                      "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
+                                    backgroundRepeat: "no-repeat",
+                                    backgroundPosition: "right 8px center",
+                                    paddingRight: "28px",
+                                    opacity: !stripeConnected ? 0.5 : 1,
+                                  }}
+                                >
+                                  <option value="USD">USD ($)</option>
+                                  <option value="EUR">EUR (€)</option>
+                                  <option value="GBP">GBP (£)</option>
+                                  <option value="SEK">SEK (kr)</option>
+                                  <option value="DKK">DKK (kr)</option>
+                                  <option value="NOK">NOK (kr)</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* DINNER */}
                       <OptionRow

@@ -1,62 +1,121 @@
 // src/components/HomeIntegrationsTab.jsx
 import { useState, useEffect } from "react";
 import { useToast } from "./Toast";
+import { authenticatedFetch } from "../lib/api.js";
 
 export function IntegrationsTab() {
   const { showToast } = useToast();
   const [stripeConnected, setStripeConnected] = useState(false);
   const [stripeAccountEmail, setStripeAccountEmail] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
 
-  // Load Stripe connection status from localStorage
+  // Load Stripe connection status from backend
   useEffect(() => {
+    loadStripeStatus();
+    checkOAuthCallback();
+  }, []);
+
+  async function loadStripeStatus() {
     try {
-      const stored = localStorage.getItem("pullup_user");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.stripeConnected) {
-          setStripeConnected(true);
-          setStripeAccountEmail(parsed.stripeAccountEmail || "");
-        }
+      setLoading(true);
+      const response = await authenticatedFetch("/host/stripe/connect/status");
+      if (!response.ok) {
+        throw new Error("Failed to load Stripe status");
+      }
+
+      const data = await response.json();
+      setStripeConnected(data.connected);
+      if (data.accountDetails?.email) {
+        setStripeAccountEmail(data.accountDetails.email);
+      } else {
+        setStripeAccountEmail("");
       }
     } catch (error) {
       console.error("Failed to load Stripe status:", error);
-    }
-  }, []);
-
-  function handleConnectStripe() {
-    if (stripeConnected) {
       setStripeConnected(false);
       setStripeAccountEmail("");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      // Update localStorage
-      try {
-        const stored = localStorage.getItem("pullup_user");
-        const user = stored ? JSON.parse(stored) : {};
-        user.stripeConnected = false;
-        user.stripeAccountEmail = "";
-        localStorage.setItem("pullup_user", JSON.stringify(user));
-      } catch (error) {
-        console.error("Failed to save Stripe status:", error);
-      }
+  // Check for OAuth callback in URL params
+  function checkOAuthCallback() {
+    const params = new URLSearchParams(window.location.search);
+    const stripeConnect = params.get("stripe_connect");
+    const accountId = params.get("account_id");
+    const errorMessage = params.get("message");
 
-      showToast("Stripe disconnected", "success");
-    } else {
-      // TODO: Implement actual Stripe OAuth flow
-      setStripeConnected(true);
-      setStripeAccountEmail("felix.civalero@gmail.com");
-
-      // Update localStorage
-      try {
-        const stored = localStorage.getItem("pullup_user");
-        const user = stored ? JSON.parse(stored) : {};
-        user.stripeConnected = true;
-        user.stripeAccountEmail = "felix.civalero@gmail.com";
-        localStorage.setItem("pullup_user", JSON.stringify(user));
-      } catch (error) {
-        console.error("Failed to save Stripe status:", error);
-      }
-
+    if (stripeConnect === "success" && accountId) {
       showToast("Stripe connected successfully! 💳", "success");
+      // Reload status
+      loadStripeStatus();
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (stripeConnect === "error" && errorMessage) {
+      showToast(
+        `Stripe connection failed: ${decodeURIComponent(errorMessage)}`,
+        "error"
+      );
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }
+
+  async function handleConnectStripe() {
+    if (stripeConnected) {
+      // Disconnect
+      try {
+        setConnecting(true);
+        const response = await authenticatedFetch(
+          "/host/stripe/connect/disconnect",
+          {
+            method: "POST",
+          }
+        );
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to disconnect");
+        }
+
+        setStripeConnected(false);
+        setStripeAccountEmail("");
+        showToast("Stripe disconnected", "success");
+      } catch (error) {
+        console.error("Failed to disconnect Stripe:", error);
+        showToast(
+          error.message || "Failed to disconnect Stripe account",
+          "error"
+        );
+      } finally {
+        setConnecting(false);
+      }
+    } else {
+      // Initiate OAuth flow
+      try {
+        setConnecting(true);
+        const response = await authenticatedFetch(
+          "/host/stripe/connect/initiate",
+          {
+            method: "POST",
+          }
+        );
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to initiate connection");
+        }
+
+        const data = await response.json();
+        // Redirect to Stripe OAuth page
+        window.location.href = data.authorizationUrl;
+      } catch (error) {
+        console.error("Failed to initiate Stripe Connect:", error);
+        showToast(error.message || "Failed to connect Stripe account", "error");
+        setConnecting(false);
+      }
     }
   }
 
@@ -132,36 +191,47 @@ export function IntegrationsTab() {
           <button
             type="button"
             onClick={handleConnectStripe}
+            disabled={loading || connecting}
             style={{
               padding: "10px 20px",
               borderRadius: "8px",
               border: stripeConnected
                 ? "1px solid rgba(255,255,255,0.1)"
                 : "none",
-              background: stripeConnected
-                ? "transparent"
-                : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+              background:
+                loading || connecting
+                  ? "rgba(255,255,255,0.1)"
+                  : stripeConnected
+                  ? "transparent"
+                  : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
               color: "#fff",
               fontSize: "13px",
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: loading || connecting ? "not-allowed" : "pointer",
               whiteSpace: "nowrap",
               transition: "all 0.3s ease",
+              opacity: loading || connecting ? 0.6 : 1,
             }}
             onMouseEnter={(e) => {
-              if (stripeConnected) {
+              if (stripeConnected && !loading && !connecting) {
                 e.target.style.background = "rgba(239, 68, 68, 0.2)";
                 e.target.style.borderColor = "rgba(239, 68, 68, 0.5)";
               }
             }}
             onMouseLeave={(e) => {
-              if (stripeConnected) {
+              if (stripeConnected && !loading && !connecting) {
                 e.target.style.background = "transparent";
                 e.target.style.borderColor = "rgba(255,255,255,0.1)";
               }
             }}
           >
-            {stripeConnected ? "Disconnect" : "Connect Stripe"}
+            {loading
+              ? "Loading..."
+              : connecting
+              ? "Connecting..."
+              : stripeConnected
+              ? "Disconnect"
+              : "Connect Stripe"}
           </button>
         </div>
       </IntegrationsSection>

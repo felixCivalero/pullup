@@ -260,24 +260,34 @@ export function CreateEventPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMounted, setIsMounted] = useState(false);
 
-  // Stripe connection status - load from localStorage
+  // Stripe connection status - load from backend
   const [stripeConnected, setStripeConnected] = useState(false);
   const [stripeAccountEmail, setStripeAccountEmail] = useState("");
 
-  // Load Stripe connection status from localStorage
+  // Load Stripe connection status from backend
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("pullup_user");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.stripeConnected) {
-          setStripeConnected(true);
-          setStripeAccountEmail(parsed.stripeAccountEmail || "");
+    async function loadStripeStatus() {
+      try {
+        const { authenticatedFetch } = await import("../lib/api.js");
+        const response = await authenticatedFetch(
+          "/host/stripe/connect/status"
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setStripeConnected(data.connected);
+          if (data.accountDetails?.email) {
+            setStripeAccountEmail(data.accountDetails.email);
+          } else {
+            setStripeAccountEmail("");
+          }
         }
+      } catch (error) {
+        console.error("Failed to load Stripe status:", error);
+        setStripeConnected(false);
+        setStripeAccountEmail("");
       }
-    } catch (error) {
-      console.error("Failed to load Stripe status:", error);
     }
+    loadStripeStatus();
   }, []);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -2243,60 +2253,6 @@ export function CreateEventPage() {
                             }}
                           >
                             Connect Stripe
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // Inline connection (mock for now)
-                              // TODO: Implement actual Stripe OAuth flow
-                              setStripeConnected(true);
-                              setStripeAccountEmail("felix.civalero@gmail.com");
-
-                              // Update localStorage
-                              try {
-                                const stored =
-                                  localStorage.getItem("pullup_user");
-                                const user = stored ? JSON.parse(stored) : {};
-                                user.stripeConnected = true;
-                                user.stripeAccountEmail =
-                                  "felix.civalero@gmail.com";
-                                localStorage.setItem(
-                                  "pullup_user",
-                                  JSON.stringify(user)
-                                );
-                              } catch (error) {
-                                console.error(
-                                  "Failed to save Stripe status:",
-                                  error
-                                );
-                              }
-
-                              showToast(
-                                "Stripe connected successfully! 💳",
-                                "success"
-                              );
-                            }}
-                            style={{
-                              padding: "8px 16px",
-                              borderRadius: "8px",
-                              border: "1px solid rgba(255,255,255,0.2)",
-                              background: "rgba(255,255,255,0.05)",
-                              color: "#fff",
-                              fontSize: "13px",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              transition: "all 0.2s ease",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.target.style.background =
-                                "rgba(255,255,255,0.1)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.target.style.background =
-                                "rgba(255,255,255,0.05)";
-                            }}
-                          >
-                            Connect Here
                           </button>
                         </div>
                       </div>

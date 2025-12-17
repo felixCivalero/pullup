@@ -59,7 +59,7 @@ function getStripeClient() {
  */
 export async function getOrCreateStripeCustomer(email, name = null) {
   // Find person by email
-  const person = findPersonByEmail(email);
+  const person = await findPersonByEmail(email);
   if (!person) {
     throw new Error("Person not found");
   }
@@ -80,7 +80,7 @@ export async function getOrCreateStripeCustomer(email, name = null) {
   });
 
   // Store Stripe customer ID in person record
-  updatePersonStripeCustomerId(person.id, customer.id);
+  await updatePersonStripeCustomerId(person.id, customer.id);
 
   return customer.id;
 }
@@ -92,6 +92,9 @@ export async function getOrCreateStripeCustomer(email, name = null) {
  * @param {string} eventId - Event ID
  * @param {string} eventTitle - Event title
  * @param {string} personId - Person ID
+ * @param {string} connectedAccountId - Optional: Stripe Connect account ID
+ * @param {number} applicationFeeAmount - Optional: Platform fee in cents
+ * @param {string} currency - Currency code (default: "usd")
  * @returns {Promise<Object>} Payment intent object
  */
 export async function createPaymentIntent({
@@ -100,19 +103,78 @@ export async function createPaymentIntent({
   eventId,
   eventTitle,
   personId,
+  connectedAccountId = null,
+  applicationFeeAmount = null,
   currency = "usd",
 }) {
   const stripe = getStripeClient();
-  const paymentIntent = await stripe.paymentIntents.create({
+
+  // Build payment intent parameters
+  const paymentIntentParams = {
     amount,
     currency,
     customer: customerId,
+    confirmation_method: "automatic", // Use automatic for client-side confirmation with publishable key
+    // Important: When using Stripe Connect, we must use on_behalf_of for proper confirmation
     metadata: {
       event_id: eventId,
       event_title: eventTitle,
       person_id: personId,
     },
     description: `Ticket for ${eventTitle}`,
+  };
+
+  // Log the parameters being sent (for debugging)
+  console.log("[Stripe] Creating PaymentIntent with params:", {
+    amount,
+    currency,
+    confirmation_method: paymentIntentParams.confirmation_method,
+    has_connected_account: !!connectedAccountId,
+    application_fee_amount: applicationFeeAmount || null,
+  });
+
+  // If connected account is provided, use Stripe Connect
+  if (connectedAccountId) {
+    // Use transfer_data to send funds to connected account
+    paymentIntentParams.transfer_data = {
+      destination: connectedAccountId,
+    };
+
+    // CRITICAL for Stripe Connect: on_behalf_of must match transfer_data.destination
+    // This ensures proper attribution and allows client-side confirmation
+    paymentIntentParams.on_behalf_of = connectedAccountId;
+
+    // Add application fee if specified (platform fee)
+    if (applicationFeeAmount && applicationFeeAmount > 0) {
+      paymentIntentParams.application_fee_amount = applicationFeeAmount;
+    }
+
+    // Store connected account ID in metadata for reference
+    paymentIntentParams.metadata.connected_account_id = connectedAccountId;
+  }
+
+  // CRITICAL: Ensure confirmation_method is explicitly set to "automatic"
+  // (must be set after all other params to prevent override)
+  // For Stripe Connect, "automatic" allows client-side confirmation with publishable key
+  // "manual" would require server-side confirmation, which we don't want
+  paymentIntentParams.confirmation_method = "automatic";
+
+  // Only specify "card" as a required payment method type
+  // PaymentElement will automatically show other available methods (Klarna, Swish, etc.)
+  // if they are activated for the connected account, without needing to specify them here
+  // This prevents errors when payment methods aren't activated yet
+  paymentIntentParams.payment_method_types = ["card"];
+
+  const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
+
+  // Log the created PaymentIntent to verify confirmation_method and application fee
+  console.log("[Stripe] PaymentIntent created:", {
+    id: paymentIntent.id,
+    confirmation_method: paymentIntent.confirmation_method,
+    status: paymentIntent.status,
+    application_fee_amount: paymentIntent.application_fee_amount || null,
+    amount: paymentIntent.amount,
+    amount_received: paymentIntent.amount_received || null,
   });
 
   return paymentIntent;
@@ -215,12 +277,12 @@ export async function handleStripeWebhook(event) {
  * Handle successful payment intent
  */
 async function handlePaymentIntentSucceeded(paymentIntent) {
-  const payment = findPaymentByStripePaymentIntentId(paymentIntent.id);
+  const payment = await findPaymentByStripePaymentIntentId(paymentIntent.id);
   if (!payment) {
     return { processed: false, error: "Payment not found" };
   }
 
-  updatePayment(payment.id, {
+  await updatePayment(payment.id, {
     status: "succeeded",
     stripeChargeId: paymentIntent.latest_charge || null,
     paidAt: new Date().toISOString(),
@@ -234,12 +296,12 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
  * Handle failed payment intent
  */
 async function handlePaymentIntentFailed(paymentIntent) {
-  const payment = findPaymentByStripePaymentIntentId(paymentIntent.id);
+  const payment = await findPaymentByStripePaymentIntentId(paymentIntent.id);
   if (!payment) {
     return { processed: false, error: "Payment not found" };
   }
 
-  updatePayment(payment.id, {
+  await updatePayment(payment.id, {
     status: "failed",
   });
 
@@ -251,12 +313,12 @@ async function handlePaymentIntentFailed(paymentIntent) {
  */
 async function handleChargeRefunded(charge) {
   // Find payment by charge ID
-  const payment = findPaymentByStripeChargeId(charge.id);
+  const payment = await findPaymentByStripeChargeId(charge.id);
   if (!payment) {
     return { processed: false, error: "Payment not found" };
   }
 
-  updatePayment(payment.id, {
+  await updatePayment(payment.id, {
     status: "refunded",
     refundedAmount: charge.amount_refunded,
     refundedAt: new Date().toISOString(),

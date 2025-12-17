@@ -26,6 +26,7 @@ import {
   mapEventFromDb,
   getUserProfile,
   updateUserProfile,
+  findPaymentById,
 } from "./data.js";
 
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
@@ -43,6 +44,12 @@ import {
   createStripePrice,
   getStripeSecretKey,
 } from "./stripe.js";
+import {
+  initiateConnectOAuth,
+  handleConnectCallback,
+  getConnectedAccountStatus,
+  disconnectStripeAccount,
+} from "./stripeConnect.js";
 import { logger } from "./logger.js";
 
 import { sendEmail } from "./services/emailService.js";
@@ -514,12 +521,9 @@ app.post("/events", requireAuth, async (req, res) => {
     cocktailCapacity,
     foodCapacity,
     totalCapacity,
-
-    // Stripe fields
+    // Stripe fields (simplified)
     ticketPrice,
     ticketCurrency = "USD",
-    stripeProductId, // Optional - will be auto-created if not provided
-    stripePriceId, // Optional - will be auto-created if not provided
 
     // Dual personality fields
     createdVia,
@@ -529,10 +533,6 @@ app.post("/events", requireAuth, async (req, res) => {
   if (!title || !startsAt) {
     return res.status(400).json({ error: "title and startsAt are required" });
   }
-
-  // If paid tickets, automatically create Stripe product and price
-  let finalStripeProductId = stripeProductId;
-  let finalStripePriceId = stripePriceId;
 
   // Create the event first to get its ID (with host_id from authenticated user)
   const event = await createEvent({
@@ -561,8 +561,7 @@ app.post("/events", requireAuth, async (req, res) => {
     dinnerMaxSeatsPerSlot,
     dinnerOverflowAction,
     ticketPrice,
-    stripeProductId: finalStripeProductId,
-    stripePriceId: finalStripePriceId,
+    ticketCurrency: ticketCurrency || "USD",
     cocktailCapacity,
     foodCapacity,
     totalCapacity,
@@ -570,13 +569,8 @@ app.post("/events", requireAuth, async (req, res) => {
     status: status || "PUBLISHED",
   });
 
-  // If paid tickets and Stripe IDs weren't provided, create them automatically
-  if (
-    ticketType === "paid" &&
-    ticketPrice &&
-    !stripeProductId &&
-    !stripePriceId
-  ) {
+  // If paid tickets, automatically create Stripe product and price (internal only)
+  if (ticketType === "paid" && ticketPrice) {
     try {
       // Create Stripe product
       const product = await createStripeProduct({
@@ -682,6 +676,131 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       });
     }
 
+    // If this is a paid event and the host has a connected Stripe account,
+    // automatically create a PaymentIntent + payment record for this RSVP.
+    let stripePayment = null;
+    let stripeClientSecret = null;
+
+    try {
+      if (
+        result.event?.ticketType === "paid" &&
+        result.event?.ticketPrice &&
+        result.event?.hostId
+      ) {
+        // Load host profile to get connected account ID
+        const hostProfile = await getUserProfile(result.event.hostId);
+        const connectedAccountId =
+          hostProfile?.stripeConnectedAccountId || null;
+
+        if (connectedAccountId) {
+          // Get or create Stripe customer based on RSVP email
+          const customerId = await getOrCreateStripeCustomer(
+            result.rsvp.email,
+            result.rsvp.name
+          );
+
+          // Calculate ticket amount (what host receives): ticket price per person * party size
+          const partySize = result.rsvp.partySize || 1;
+          const ticketAmount = result.event.ticketPrice * partySize;
+
+          // Calculate platform service fee (paid by customer, not deducted from host)
+          // Platform fee percentage from environment variable (default: 3%)
+          // In development, prefer TEST_ prefixed, fallback to regular
+          const platformFeePercentage =
+            parseFloat(
+              process.env.TEST_PLATFORM_FEE_PERCENTAGE ||
+                process.env.PLATFORM_FEE_PERCENTAGE ||
+                "3"
+            ) / 100;
+          const platformFeeAmount = Math.round(
+            ticketAmount * platformFeePercentage
+          );
+
+          // Customer pays: ticket amount + platform service fee
+          const customerTotalAmount = ticketAmount + platformFeeAmount;
+
+          console.log("[Payment] Platform fee calculation:", {
+            ticketAmount,
+            platformFeePercentage: `${(platformFeePercentage * 100).toFixed(
+              1
+            )}%`,
+            platformFeeAmount,
+            customerTotalAmount,
+            amountToHost: ticketAmount, // Host receives full ticket amount
+          });
+
+          // Create PaymentIntent routed to host's connected account
+          const currency = (result.event.ticketCurrency || "usd").toLowerCase();
+          const paymentIntent = await createPaymentIntent({
+            customerId,
+            amount: customerTotalAmount, // Customer pays ticket + service fee
+            eventId: result.event.id,
+            eventTitle: result.event.title,
+            personId: result.rsvp.personId,
+            connectedAccountId,
+            applicationFeeAmount: platformFeeAmount, // Platform fee (customer pays this)
+            currency,
+          });
+
+          // Persist payment record in Supabase and link to RSVP
+          // Store customer total amount (what they pay)
+          const payment = await createPayment({
+            // Payments are owned by the host (auth user),
+            // attendees are linked via rsvpId.
+            userId: result.event.hostId,
+            eventId: result.event.id,
+            rsvpId: result.rsvp.id,
+            stripePaymentIntentId: paymentIntent.id,
+            stripeCustomerId: customerId,
+            amount: customerTotalAmount, // Customer pays: ticket + service fee
+            currency: (result.event.ticketCurrency || "usd").toLowerCase(),
+            status: "pending",
+            description: `Ticket${
+              partySize > 1 ? `s (${partySize}x)` : ""
+            } for ${result.event.title}`,
+          });
+
+          stripePayment = payment;
+          stripeClientSecret = paymentIntent.client_secret;
+
+          // Include fee breakdown in response for frontend display
+          result.paymentBreakdown = {
+            ticketAmount,
+            platformFeeAmount,
+            customerTotalAmount,
+            platformFeePercentage: platformFeePercentage * 100,
+          };
+        }
+      }
+    } catch (paymentError) {
+      console.error("Error creating Stripe payment for RSVP:", paymentError);
+
+      // For paid events, payment creation failure should block the RSVP
+      if (result.event.ticketType === "paid" && result.event.ticketPrice > 0) {
+        // Rollback: delete the RSVP that was created
+        try {
+          await deleteRsvp(result.rsvp.id);
+        } catch (deleteError) {
+          console.error(
+            "Error deleting RSVP after payment failure:",
+            deleteError
+          );
+        }
+
+        // Return error to frontend
+        return res.status(500).json({
+          error: "payment_failed",
+          message:
+            paymentError.message ||
+            "Failed to create payment. Please try again.",
+          details: paymentError.raw?.message || paymentError.message,
+        });
+      }
+
+      // For free events, don't block the RSVP on payment issues
+      // (This shouldn't happen for free events, but just in case)
+    }
+
     // After all result.error checks and before res.status(201)...
     try {
       await sendEmail({
@@ -705,6 +824,15 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     res.status(201).json({
       event: result.event,
       rsvp: result.rsvp,
+      payment: stripePayment,
+      paymentBreakdown: result.paymentBreakdown || null, // Fee breakdown for frontend display
+      stripe:
+        stripeClientSecret && stripePayment
+          ? {
+              clientSecret: stripeClientSecret,
+              paymentId: stripePayment.id,
+            }
+          : null,
       statusDetails: {
         bookingStatus:
           result.rsvp.bookingStatus ||
@@ -796,6 +924,7 @@ app.put(
 
       // Stripe fields
       ticketPrice,
+      ticketCurrency,
       stripeProductId,
       stripePriceId,
 
@@ -807,6 +936,78 @@ app.put(
       // Dual personality fields
       status,
     } = req.body;
+
+    // Get current event to check if price/currency changed
+    const currentEvent = await findEventById(id);
+    if (!currentEvent) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    // Check if ticket price or currency changed (for Stripe Price update)
+    const priceChanged =
+      ticketType === "paid" &&
+      ticketPrice &&
+      (currentEvent.ticketPrice !== ticketPrice ||
+        (currentEvent.ticketCurrency || "usd").toLowerCase() !==
+          (ticketCurrency || "usd").toLowerCase());
+
+    // If price changed and event has Stripe product, create new Stripe Price
+    // (Stripe Prices are immutable - we must create a new one)
+    let newStripePriceId = stripePriceId;
+    if (
+      priceChanged &&
+      currentEvent.stripeProductId &&
+      ticketType === "paid" &&
+      ticketPrice
+    ) {
+      try {
+        const { createStripePrice } = await import("./stripe.js");
+        const newPrice = await createStripePrice({
+          productId: currentEvent.stripeProductId,
+          amount: ticketPrice, // Already in cents
+          currency: ticketCurrency || currentEvent.ticketCurrency || "usd",
+          eventId: id,
+        });
+        newStripePriceId = newPrice.id;
+        console.log(
+          `[Stripe] Created new price ${newPrice.id} for event ${id} (old: ${currentEvent.stripePriceId})`
+        );
+      } catch (error) {
+        console.error("Error creating new Stripe price:", error);
+        // Continue with update even if Stripe price creation fails
+        // The old price will still work, but new payments will use the new price from DB
+      }
+    }
+
+    // If switching to paid and no Stripe product exists, create one
+    if (ticketType === "paid" && ticketPrice && !currentEvent.stripeProductId) {
+      try {
+        const { createStripeProduct, createStripePrice } = await import(
+          "./stripe.js"
+        );
+        const product = await createStripeProduct({
+          eventTitle: currentEvent.title || title,
+          eventDescription: currentEvent.description || description || "",
+          eventId: id,
+          startsAt: currentEvent.startsAt || startsAt,
+          endsAt: currentEvent.endsAt || endsAt,
+        });
+        const price = await createStripePrice({
+          productId: product.id,
+          amount: ticketPrice,
+          currency: ticketCurrency || "usd",
+          eventId: id,
+        });
+        stripeProductId = product.id;
+        newStripePriceId = price.id;
+        console.log(
+          `[Stripe] Created product ${product.id} and price ${price.id} for event ${id}`
+        );
+      } catch (error) {
+        console.error("Error creating Stripe product/price:", error);
+        // Continue with update - Stripe IDs can be added later
+      }
+    }
 
     const updated = await updateEvent(id, {
       title,
@@ -831,8 +1032,11 @@ app.put(
       dinnerMaxSeatsPerSlot,
       dinnerOverflowAction,
       ticketPrice,
-      stripeProductId,
-      stripePriceId,
+      ticketCurrency: ticketCurrency
+        ? String(ticketCurrency).toLowerCase()
+        : undefined,
+      stripeProductId: stripeProductId || currentEvent.stripeProductId,
+      stripePriceId: newStripePriceId || currentEvent.stripePriceId,
       cocktailCapacity,
       foodCapacity,
       totalCapacity,
@@ -1470,32 +1674,77 @@ app.post(
         return res.status(404).json({ error: "Person not found" });
       }
 
-      // Create payment intent
+      // Get host's Stripe connected account ID (if connected)
+      const hostProfile = await getUserProfile(event.hostId);
+      const connectedAccountId = hostProfile.stripeConnectedAccountId || null;
+
+      // Calculate ticket amount (what host receives)
+      const ticketAmount = event.ticketPrice;
+
+      // Calculate platform service fee (paid by customer, not deducted from host)
+      // Platform fee percentage from environment variable (default: 3%)
+      const platformFeePercentage =
+        parseFloat(
+          process.env.TEST_PLATFORM_FEE_PERCENTAGE ||
+            process.env.PLATFORM_FEE_PERCENTAGE ||
+            "3"
+        ) / 100;
+      const platformFeeAmount = Math.round(
+        ticketAmount * platformFeePercentage
+      );
+
+      // Customer pays: ticket amount + platform service fee
+      const customerTotalAmount = ticketAmount + platformFeeAmount;
+
+      console.log("[Payment] Platform fee calculation:", {
+        ticketAmount,
+        platformFeePercentage: `${(platformFeePercentage * 100).toFixed(1)}%`,
+        platformFeeAmount,
+        customerTotalAmount,
+        amountToHost: ticketAmount, // Host receives full ticket amount
+      });
+
+      // Create payment intent with connected account if available
+      const currency = (event.ticketCurrency || "usd").toLowerCase();
       const paymentIntent = await createPaymentIntent({
         customerId,
-        amount: event.ticketPrice,
+        amount: customerTotalAmount, // Customer pays ticket + service fee
         eventId: event.id,
         eventTitle: event.title,
         personId: person.id,
+        connectedAccountId: connectedAccountId,
+        applicationFeeAmount: platformFeeAmount, // Platform fee (customer pays this)
+        currency,
       });
 
       // Create payment record
       const payment = await createPayment({
-        userId: person.id, // Using personId as userId for now
+        // Payments are owned by the host (auth user),
+        // attendees are linked via rsvpId.
+        userId: event.hostId,
         eventId: event.id,
         rsvpId: rsvpId || null,
         stripePaymentIntentId: paymentIntent.id,
         stripeCustomerId: customerId,
-        amount: event.ticketPrice,
-        currency: "usd",
+        amount: customerTotalAmount, // Customer pays: ticket + service fee
+        currency,
         status: "pending",
         description: `Ticket for ${event.title}`,
       });
+
+      // Include fee breakdown in response for frontend display
+      const paymentBreakdown = {
+        ticketAmount,
+        platformFeeAmount,
+        customerTotalAmount,
+        platformFeePercentage: platformFeePercentage * 100,
+      };
 
       res.json({
         client_secret: paymentIntent.client_secret,
         payment_id: payment.id,
         payment_intent_id: paymentIntent.id,
+        payment_breakdown: paymentBreakdown, // Fee breakdown for frontend display
       });
     } catch (error) {
       console.error("Payment creation error:", error);
@@ -1544,6 +1793,37 @@ app.get("/host/events/:eventId/payments", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Error fetching payments:", error);
     res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
+
+// ---------------------------
+// PUBLIC: Lightweight payment status lookup by payment ID
+// Used by attendee-side frontend to wait for webhook-confirmed status
+// ---------------------------
+app.get("/payments/:paymentId/status", async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    if (!paymentId) {
+      return res.status(400).json({ error: "paymentId is required" });
+    }
+
+    const payment = await findPaymentById(paymentId);
+    if (!payment) {
+      return res.status(404).json({ error: "not_found" });
+    }
+
+    // Only expose non-sensitive fields needed by the public frontend
+    res.json({
+      id: payment.id,
+      status: payment.status, // "pending" | "succeeded" | "failed" | "refunded" | "canceled"
+      amount: payment.amount,
+      currency: payment.currency,
+      eventId: payment.eventId,
+      rsvpId: payment.rsvpId,
+    });
+  } catch (error) {
+    console.error("Error fetching payment status:", error);
+    res.status(500).json({ error: "Failed to fetch payment status" });
   }
 });
 
@@ -1609,6 +1889,80 @@ app.put("/host/profile", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Error updating profile:", error);
     res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
+// ---------------------------
+// STRIPE CONNECT: Initiate OAuth flow
+// ---------------------------
+app.post("/host/stripe/connect/initiate", requireAuth, async (req, res) => {
+  try {
+    const { authorizationUrl } = await initiateConnectOAuth(req.user.id);
+    res.json({ authorizationUrl });
+  } catch (error) {
+    console.error("Error initiating Stripe Connect:", error);
+    res.status(500).json({ error: "Failed to initiate Stripe Connect" });
+  }
+});
+
+// ---------------------------
+// STRIPE CONNECT: OAuth callback handler
+// Note: No auth middleware here; we trust the signed state token instead.
+// ---------------------------
+app.get("/host/stripe/connect/callback", async (req, res) => {
+  try {
+    const { code, state } = req.query;
+
+    if (!code || !state) {
+      return res.status(400).json({
+        error: "Missing required parameters",
+        message: "Authorization code and state are required",
+      });
+    }
+
+    const result = await handleConnectCallback(code, state);
+
+    // Redirect to frontend with success status
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const redirectUrl = `${frontendUrl}/home?stripe_connect=success&account_id=${result.connectedAccountId}`;
+
+    res.redirect(redirectUrl);
+  } catch (error) {
+    console.error("Error handling Stripe Connect callback:", error);
+
+    // Redirect to frontend with error status
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const redirectUrl = `${frontendUrl}/home?stripe_connect=error&message=${encodeURIComponent(
+      error.message
+    )}`;
+
+    res.redirect(redirectUrl);
+  }
+});
+
+// ---------------------------
+// STRIPE CONNECT: Get connection status
+// ---------------------------
+app.get("/host/stripe/connect/status", requireAuth, async (req, res) => {
+  try {
+    const status = await getConnectedAccountStatus(req.user.id);
+    res.json(status);
+  } catch (error) {
+    console.error("Error getting Stripe Connect status:", error);
+    res.status(500).json({ error: "Failed to get Stripe Connect status" });
+  }
+});
+
+// ---------------------------
+// STRIPE CONNECT: Disconnect account
+// ---------------------------
+app.post("/host/stripe/connect/disconnect", requireAuth, async (req, res) => {
+  try {
+    const result = await disconnectStripeAccount(req.user.id);
+    res.json(result);
+  } catch (error) {
+    console.error("Error disconnecting Stripe account:", error);
+    res.status(500).json({ error: "Failed to disconnect Stripe account" });
   }
 });
 

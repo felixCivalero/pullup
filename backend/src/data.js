@@ -117,6 +117,7 @@ export async function mapEventFromDb(dbEvent) {
     dinnerMaxSeatsPerSlot: dbEvent.dinner_max_seats_per_slot,
     dinnerOverflowAction: dbEvent.dinner_overflow_action || "waitlist",
     ticketPrice: dbEvent.ticket_price,
+    ticketCurrency: dbEvent.ticket_currency || "usd",
     stripeProductId: dbEvent.stripe_product_id,
     stripePriceId: dbEvent.stripe_price_id,
     cocktailCapacity: dbEvent.cocktail_capacity,
@@ -187,6 +188,8 @@ function mapEventToDb(eventData) {
     dbData.dinner_overflow_action = eventData.dinnerOverflowAction;
   if (eventData.ticketPrice !== undefined)
     dbData.ticket_price = eventData.ticketPrice;
+  if (eventData.ticketCurrency !== undefined)
+    dbData.ticket_currency = String(eventData.ticketCurrency).toLowerCase();
   if (eventData.stripeProductId !== undefined)
     dbData.stripe_product_id = eventData.stripeProductId;
   if (eventData.stripePriceId !== undefined)
@@ -242,6 +245,7 @@ export async function createEvent({
 
   // Stripe fields
   ticketPrice = null, // Price in cents (e.g., 2000 = $20.00)
+  ticketCurrency = "USD",
   stripeProductId = null,
   stripePriceId = null,
 
@@ -309,6 +313,9 @@ export async function createEvent({
     dinnerOverflowAction: "waitlist",
     ticketPrice:
       ticketType === "paid" && ticketPrice ? Number(ticketPrice) : null,
+    ticketCurrency: ticketCurrency
+      ? String(ticketCurrency).toLowerCase()
+      : "usd",
     stripeProductId: stripeProductId || null,
     stripePriceId: stripePriceId || null,
     cocktailCapacity: cocktailCapacity ? Number(cocktailCapacity) : null,
@@ -2162,42 +2169,81 @@ export async function findPaymentByStripeChargeId(stripeChargeId) {
 }
 
 // Update payment
-export function updatePayment(paymentId, updates) {
-  const idx = payments.findIndex((p) => p.id === paymentId);
-  if (idx === -1) return { error: "not_found" };
+export async function updatePayment(paymentId, updates) {
+  // Map application-style updates to DB columns
+  const dbUpdates = {};
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
+  if (updates.stripeChargeId !== undefined)
+    dbUpdates.stripe_charge_id = updates.stripeChargeId;
+  if (updates.paidAt !== undefined) dbUpdates.paid_at = updates.paidAt;
+  if (updates.receiptUrl !== undefined)
+    dbUpdates.receipt_url = updates.receiptUrl;
+  if (updates.refundedAmount !== undefined)
+    dbUpdates.refunded_amount = updates.refundedAmount;
+  if (updates.refundedAt !== undefined)
+    dbUpdates.refunded_at = updates.refundedAt;
 
-  payments[idx] = {
-    ...payments[idx],
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  };
+  const { data, error } = await supabase
+    .from("payments")
+    .update(dbUpdates)
+    .eq("id", paymentId)
+    .select()
+    .single();
 
-  // Update linked RSVP payment status
-  if (payments[idx].rsvpId) {
-    const rsvpIdx = rsvps.findIndex((r) => r.id === payments[idx].rsvpId);
-    if (rsvpIdx !== -1) {
-      const paymentStatus = payments[idx].status;
-      if (paymentStatus === "succeeded") {
-        rsvps[rsvpIdx].paymentStatus = "paid";
-      } else if (paymentStatus === "refunded") {
-        rsvps[rsvpIdx].paymentStatus = "refunded";
-      } else if (paymentStatus === "failed" || paymentStatus === "canceled") {
-        rsvps[rsvpIdx].paymentStatus = "unpaid";
-      }
+  if (error || !data) {
+    return { error: "not_found" };
+  }
+
+  // Also keep RSVP.payment_status in sync for convenience
+  if (data.rsvp_id) {
+    let paymentStatus = null;
+    if (data.status === "succeeded") {
+      paymentStatus = "paid";
+    } else if (data.status === "refunded") {
+      paymentStatus = "refunded";
+    } else if (data.status === "failed" || data.status === "canceled") {
+      paymentStatus = "unpaid";
+    }
+
+    if (paymentStatus !== null) {
+      await supabase
+        .from("rsvps")
+        .update({ payment_status: paymentStatus })
+        .eq("id", data.rsvp_id);
     }
   }
 
-  return { payment: payments[idx] };
+  return { payment: mapPaymentFromDb(data) };
 }
 
 // Get payments for user
-export function getPaymentsForUser(userId) {
-  return payments.filter((p) => p.userId === userId);
+export async function getPaymentsForUser(userId) {
+  const { data, error } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((p) => mapPaymentFromDb(p));
 }
 
 // Get payments for event
-export function getPaymentsForEvent(eventId) {
-  return payments.filter((p) => p.eventId === eventId);
+export async function getPaymentsForEvent(eventId) {
+  const { data, error } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((p) => mapPaymentFromDb(p));
 }
 
 // ---------------------------
@@ -2310,6 +2356,25 @@ export async function updateUserProfile(userId, updates) {
   return mapProfileFromDb(data);
 }
 
+// Update Stripe connected account ID for a user
+export async function updateUserStripeConnectedAccountId(userId, accountId) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ stripe_connected_account_id: accountId })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return mapProfileFromDb(data);
+}
+
+// Get Stripe connected account ID for a user
+export async function getUserStripeConnectedAccountId(userId) {
+  const profile = await getUserProfile(userId);
+  return profile.stripeConnectedAccountId || null;
+}
+
 // Helper: Map database profile to application format
 function mapProfileFromDb(dbProfile) {
   return {
@@ -2329,6 +2394,7 @@ function mapProfileFromDb(dbProfile) {
     },
     emails: dbProfile.additional_emails || [],
     thirdPartyAccounts: dbProfile.third_party_accounts || [],
+    stripeConnectedAccountId: dbProfile.stripe_connected_account_id || null,
     createdAt: dbProfile.created_at,
     updatedAt: dbProfile.updated_at,
   };
@@ -2350,5 +2416,7 @@ function mapProfileToDb(profile) {
     dbProfile.additional_emails = profile.emails;
   if (profile.thirdPartyAccounts !== undefined)
     dbProfile.third_party_accounts = profile.thirdPartyAccounts;
+  if (profile.stripeConnectedAccountId !== undefined)
+    dbProfile.stripe_connected_account_id = profile.stripeConnectedAccountId;
   return dbProfile;
 }

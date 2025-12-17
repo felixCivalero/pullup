@@ -18,6 +18,7 @@ import {
 import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
 import { RsvpForm } from "../components/RsvpForm";
+import { PaymentForm } from "../components/PaymentForm";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { publicFetch } from "../lib/api.js";
@@ -35,6 +36,8 @@ export function EventPage() {
   const [rsvpLoading, setRsvpLoading] = useState(false);
   const [showRsvpForm, setShowRsvpForm] = useState(false);
   const [showDescription, setShowDescription] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState(null); // { clientSecret, amount, currency, booking }
+  const [currentPartySize, setCurrentPartySize] = useState(1); // Track party size for price calculation
 
   useEffect(() => {
     async function loadEvent() {
@@ -159,10 +162,45 @@ export function EventPage() {
           return false;
         }
 
-        throw new Error(err.error || "Failed to RSVP");
+        // Handle payment errors specifically
+        if (res.status === 500 && err.error === "payment_failed") {
+          showToast(
+            err.message || "Payment setup failed. Please try again.",
+            "error"
+          );
+          console.error("Payment creation error:", err.details || err.message);
+          return false;
+        }
+
+        throw new Error(err.error || err.message || "Failed to RSVP");
       }
 
       const body = await res.json();
+
+      // If this is a paid event and payment is required, store payment info
+      // and let the inline PaymentForm handle confirmation with Stripe.
+      if (body.stripe?.clientSecret && body.payment) {
+        setPendingPayment({
+          clientSecret: body.stripe.clientSecret,
+          amount: body.payment.amount, // Customer total (ticket + service fee)
+          currency: body.payment.currency || "usd",
+          paymentId: body.stripe.paymentId,
+          paymentBreakdown: body.paymentBreakdown || null, // Fee breakdown for display
+          booking: {
+            name: body.rsvp?.name || submittedData?.name || null,
+            email: body.rsvp?.email || submittedData?.email || null,
+            rsvp: body.rsvp,
+            event: body.event,
+            statusDetails: body.statusDetails || null, // Include statusDetails for dinner info
+          },
+        });
+        showToast(
+          "Almost done – add your card details and pay to confirm.",
+          "info"
+        );
+        // Keep RSVP modal open with payment section active
+        return true;
+      }
 
       // Handle different status scenarios with appropriate messages
       const statusDetails = body.statusDetails || {
@@ -772,22 +810,188 @@ export function EventPage() {
             size="lg"
             disabled={loading || !event}
           >
-            Pull up
+            {event?.ticketType === "paid" && event?.ticketPrice
+              ? (() => {
+                  // Show base price (1 ticket) on button - total will be shown in modal
+                  const baseTotal = event.ticketPrice; // 1 ticket
+                  const currency = (
+                    event.ticketCurrency || "usd"
+                  ).toLowerCase();
+                  const symbol = currency === "sek" ? "kr" : "$";
+                  const amount = (baseTotal / 100).toFixed(2);
+                  return `Pull up — from ${symbol}${amount}`;
+                })()
+              : "Pull up"}
           </Button>
         </div>
 
-        {/* RSVP Form Modal/Drawer */}
+        {/* RSVP Form Modal/Drawer (with inline payment section for paid events) */}
         <ModalOrDrawer
           isOpen={showRsvpForm}
-          onClose={() => setShowRsvpForm(false)}
+          onClose={() => {
+            setShowRsvpForm(false);
+            setPendingPayment(null);
+          }}
           title="RSVP"
         >
-          <RsvpForm
-            event={event}
-            onSubmit={handleRsvpSubmit}
-            loading={rsvpLoading}
-            onClose={() => setShowRsvpForm(false)}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <RsvpForm
+              event={event}
+              onSubmit={handleRsvpSubmit}
+              loading={rsvpLoading}
+              onClose={() => {
+                setShowRsvpForm(false);
+                setPendingPayment(null);
+              }}
+              onPartySizeChange={setCurrentPartySize}
+              // Payment props for paid events
+              isPaidEvent={event?.ticketType === "paid"}
+              ticketPrice={event?.ticketPrice}
+              ticketCurrency={(event?.ticketCurrency || "usd").toLowerCase()}
+              currentPartySize={currentPartySize}
+              pendingPayment={pendingPayment}
+              PaymentFormComponent={
+                event?.ticketType === "paid"
+                  ? ({
+                      clientSecret,
+                      amount,
+                      currency,
+                      onSuccess,
+                      onError,
+                      showButton,
+                    }) => (
+                      <PaymentForm
+                        clientSecret={clientSecret}
+                        amount={amount}
+                        currency={currency}
+                        eventSlug={event.slug}
+                        onSuccess={
+                          pendingPayment
+                            ? (paymentIntent) => {
+                                // Stripe confirmed the PaymentIntent on the client.
+                                const currentPayment = pendingPayment;
+
+                                // Basic safety fallback if state was lost
+                                if (!currentPayment) {
+                                  showToast(
+                                    "Payment successful! 🎉",
+                                    "success"
+                                  );
+                                  setShowRsvpForm(false);
+                                  navigate(`/e/${event.slug}/success`, {
+                                    state: {
+                                      booking: {
+                                        name:
+                                          paymentIntent?.charges?.data?.[0]
+                                            ?.billing_details?.name || null,
+                                        email: null,
+                                      },
+                                      payment: {
+                                        id: paymentIntent.id,
+                                        status:
+                                          paymentIntent.status || "succeeded",
+                                      },
+                                    },
+                                  });
+                                  return;
+                                }
+
+                                // Standard PaymentIntent flow (Option B):
+                                // - Client confirms PaymentIntent with Stripe.js
+                                // - If Stripe returns succeeded, redirect immediately
+                                // - Backend/webhook later fulfills based on payment_intent.succeeded
+                                if (paymentIntent?.status === "succeeded") {
+                                  showToast(
+                                    "Payment successful! 🎉",
+                                    "success"
+                                  );
+                                  setPendingPayment(null);
+                                  setShowRsvpForm(false);
+                                  // Extract booking data from nested structure for paid events
+                                  const rsvpData =
+                                    currentPayment.booking?.rsvp || {};
+                                  const statusDetails =
+                                    currentPayment.booking?.statusDetails || {};
+                                  const eventData =
+                                    currentPayment.booking?.event || event;
+
+                                  // Extract dinner info from multiple possible locations
+                                  // Backend returns it in statusDetails, but also in rsvp.dinner
+                                  const dinnerBookingStatus =
+                                    statusDetails?.dinnerBookingStatus ||
+                                    rsvpData?.dinner?.bookingStatus ||
+                                    rsvpData?.dinnerBookingStatus ||
+                                    null;
+                                  const wantsDinner =
+                                    statusDetails?.wantsDinner !== undefined
+                                      ? statusDetails.wantsDinner
+                                      : rsvpData?.dinner?.enabled ||
+                                        rsvpData?.wantsDinner ||
+                                        false;
+
+                                  navigate(`/e/${event.slug}/success`, {
+                                    state: {
+                                      booking: {
+                                        name:
+                                          currentPayment.booking?.name ||
+                                          rsvpData?.name ||
+                                          null,
+                                        email:
+                                          currentPayment.booking?.email ||
+                                          rsvpData?.email ||
+                                          null,
+                                        bookingStatus:
+                                          statusDetails?.bookingStatus ||
+                                          rsvpData?.bookingStatus ||
+                                          "CONFIRMED",
+                                        dinnerBookingStatus:
+                                          dinnerBookingStatus,
+                                        wantsDinner: wantsDinner,
+                                        partySize:
+                                          rsvpData?.partySize ||
+                                          currentPayment.booking?.partySize ||
+                                          1,
+                                        plusOnes: rsvpData?.plusOnes || 0,
+                                        dinnerPartySize:
+                                          rsvpData?.dinnerPartySize ||
+                                          rsvpData?.dinner?.partySize ||
+                                          null,
+                                        dinnerTimeSlot:
+                                          rsvpData?.dinnerTimeSlot ||
+                                          rsvpData?.dinner?.slotTime ||
+                                          null,
+                                      },
+                                      payment: {
+                                        id: currentPayment.paymentId,
+                                        status: "succeeded",
+                                        amount: currentPayment.amount,
+                                        currency: currentPayment.currency,
+                                        paymentBreakdown:
+                                          currentPayment.paymentBreakdown,
+                                      },
+                                    },
+                                  });
+                                } else {
+                                  console.warn(
+                                    "[EventPage] PaymentIntent not succeeded after confirm:",
+                                    paymentIntent?.status
+                                  );
+                                  showToast(
+                                    "Payment was not completed. Please try again.",
+                                    "error"
+                                  );
+                                }
+                              }
+                            : onSuccess
+                        }
+                        onError={onError}
+                        showButton={showButton}
+                      />
+                    )
+                  : null
+              }
+            />
+          </div>
         </ModalOrDrawer>
       </div>
     </>

@@ -11,7 +11,20 @@ function validateEmail(email) {
   return re.test(email);
 }
 
-export function RsvpForm({ event, onSubmit, loading, onClose }) {
+export function RsvpForm({
+  event,
+  onSubmit,
+  loading,
+  onClose,
+  onPartySizeChange,
+  // Payment-related props (for paid events)
+  isPaidEvent = false,
+  ticketPrice = null,
+  ticketCurrency = "usd",
+  currentPartySize = 1,
+  pendingPayment = null, // { clientSecret, amount, currency, paymentBreakdown, ... }
+  PaymentFormComponent = null, // Pass PaymentForm component from parent
+}) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -67,6 +80,13 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
   const dinnerCount = wantsDinner ? dinnerSeats : 0;
   const cocktailsOnlyCount = cocktailGuests;
 
+  // Notify parent of party size changes for price calculation
+  useEffect(() => {
+    if (onPartySizeChange) {
+      onPartySizeChange(totalPartySize);
+    }
+  }, [totalPartySize, onPartySizeChange]);
+
   // Check capacity
   const cocktailSpotsLeft = event?._attendance?.cocktailSpotsLeft ?? null;
   const selectedSlot =
@@ -89,6 +109,11 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
     // Prevent viewport zoom and scrolling on mobile
     if (document.activeElement) {
       document.activeElement.blur();
+    }
+
+    // Prevent double submission
+    if (loading) {
+      return;
     }
 
     setError("");
@@ -129,6 +154,7 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
         }
       } catch (err) {
         console.error("RSVP submission error:", err);
+        // Error handling is done in parent component
       }
     }
   }
@@ -344,52 +370,242 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
         />
       )}
 
-      {/* Live Summary */}
-      {(wantsDinner || cocktailGuests > 0) && (
+      {/* Combined Party Summary + Payment Details (for paid events) or just Party Summary (for free events) */}
+      {(wantsDinner || cocktailGuests > 0 || isPaidEvent) && (
         <div
           style={{
             marginTop: "24px",
-            padding: "16px",
-            background: "rgba(139, 92, 246, 0.1)",
+            padding: "20px",
+            background: isPaidEvent
+              ? "rgba(20, 16, 30, 0.8)"
+              : "rgba(139, 92, 246, 0.1)",
             borderRadius: "12px",
-            border: "1px solid rgba(139, 92, 246, 0.2)",
+            border: isPaidEvent
+              ? "1px solid rgba(255,255,255,0.1)"
+              : "1px solid rgba(139, 92, 246, 0.2)",
           }}
         >
-          <div
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "8px",
-              color: "#fff",
-            }}
-          >
-            Your party
-          </div>
-          <div
-            style={{
-              fontSize: "18px",
-              fontWeight: 700,
-              marginBottom: "8px",
-              color: "#a78bfa",
-            }}
-          >
-            Total: {totalPartySize} {totalPartySize === 1 ? "person" : "people"}
-          </div>
-          <div
-            style={{
-              fontSize: "16px",
-              color: "rgba(255, 255, 255, 0.7)",
-              lineHeight: "1.6",
-            }}
-          >
-            {wantsDinner ? (
-              <>
-                Dinner: {dinnerCount} • Cocktails-only: {cocktailsOnlyCount}
-              </>
-            ) : (
-              <>All {totalPartySize} for cocktails</>
-            )}
-          </div>
+          {/* Party Summary Section */}
+          {(wantsDinner || cocktailGuests > 0 || isPaidEvent) && (
+            <div style={{ marginBottom: isPaidEvent ? "20px" : "0" }}>
+              <div
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  color: "#fff",
+                }}
+              >
+                Your party
+              </div>
+              <div
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  marginBottom: "8px",
+                  color: isPaidEvent ? "#fff" : "#a78bfa",
+                }}
+              >
+                Total: {totalPartySize}{" "}
+                {totalPartySize === 1 ? "person" : "people"}
+              </div>
+              {(wantsDinner || cocktailGuests > 0) && (
+                <div
+                  style={{
+                    fontSize: "16px",
+                    color: "rgba(255, 255, 255, 0.7)",
+                    lineHeight: "1.6",
+                  }}
+                >
+                  {wantsDinner ? (
+                    <>
+                      Dinner: {dinnerCount} • Cocktails-only:{" "}
+                      {cocktailsOnlyCount}
+                    </>
+                  ) : (
+                    <>All {totalPartySize} for cocktails</>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Payment Details Section (only for paid events) */}
+          {isPaidEvent && ticketPrice && (
+            <div
+              style={{
+                borderTop: "1px solid rgba(255,255,255,0.1)",
+                paddingTop: "20px",
+                marginTop: "20px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  marginBottom: "16px",
+                  color: "#fff",
+                }}
+              >
+                Payment Details
+              </div>
+              {/* Show payment breakdown: ticket amount + service fee = total */}
+              {(() => {
+                const currencyCode = pendingPayment?.currency ?? ticketCurrency;
+                const symbol = currencyCode === "sek" ? "kr" : "$";
+
+                // Calculate breakdown (use backend data if available, otherwise calculate client-side)
+                let breakdown;
+                if (pendingPayment?.paymentBreakdown) {
+                  // Use backend-provided breakdown (after PaymentIntent is created)
+                  breakdown = pendingPayment.paymentBreakdown;
+                } else if (ticketPrice && currentPartySize) {
+                  // Calculate client-side breakdown (before PaymentIntent is created)
+                  // Platform fee percentage: 3% (should match backend)
+                  const platformFeePercentage = 0.03; // 3%
+                  const ticketAmount = ticketPrice * currentPartySize;
+                  const platformFeeAmount = Math.round(
+                    ticketAmount * platformFeePercentage
+                  );
+                  const customerTotalAmount = ticketAmount + platformFeeAmount;
+
+                  breakdown = {
+                    ticketAmount,
+                    platformFeeAmount,
+                    customerTotalAmount,
+                    platformFeePercentage: platformFeePercentage * 100,
+                  };
+                }
+
+                if (breakdown) {
+                  // Show breakdown: ticket + service fee = total
+                  const ticketAmount = (breakdown.ticketAmount / 100).toFixed(
+                    2
+                  );
+                  const serviceFee = (
+                    breakdown.platformFeeAmount / 100
+                  ).toFixed(2);
+                  const total = (breakdown.customerTotalAmount / 100).toFixed(
+                    2
+                  );
+
+                  return (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: "rgba(255, 255, 255, 0.7)",
+                          marginBottom: "4px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span>
+                          Ticket
+                          {currentPartySize > 1
+                            ? `s (${currentPartySize}x)`
+                            : ""}
+                        </span>
+                        <span>
+                          {symbol}
+                          {ticketAmount}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: "rgba(255, 255, 255, 0.7)",
+                          marginBottom: "8px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span>Service fee</span>
+                        <span>
+                          {symbol}
+                          {serviceFee}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "18px",
+                          fontWeight: 700,
+                          color: "#a78bfa",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          paddingTop: "8px",
+                          borderTop: "1px solid rgba(255,255,255,0.1)",
+                        }}
+                      >
+                        <span>Total</span>
+                        <span>
+                          {symbol}
+                          {total}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                } else {
+                  // Fallback: show simple total if breakdown not available
+                  const total =
+                    pendingPayment?.amount ?? ticketPrice * currentPartySize;
+                  const amount = (total / 100).toFixed(2);
+                  return (
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        marginBottom: "16px",
+                        color: "#a78bfa",
+                      }}
+                    >
+                      Total: {symbol}
+                      {amount}
+                    </div>
+                  );
+                }
+              })()}
+
+              {/* Show "Proceed to payment" button BEFORE PaymentIntent is created */}
+              {!pendingPayment && PaymentFormComponent && (
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Trigger form submission to create PaymentIntent
+                    const form = e.target.closest("form");
+                    if (form) {
+                      form.requestSubmit();
+                    }
+                  }}
+                  disabled={loading}
+                  fullWidth
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                    marginBottom: "16px",
+                  }}
+                >
+                  Proceed to payment
+                </Button>
+              )}
+
+              {/* Show PaymentForm ONLY after PaymentIntent is created */}
+              {pendingPayment && PaymentFormComponent && (
+                <div key={`payment-form-${pendingPayment.clientSecret}`}>
+                  <PaymentFormComponent
+                    clientSecret={pendingPayment.clientSecret}
+                    amount={pendingPayment.amount}
+                    currency={pendingPayment.currency}
+                    onSuccess={() => {}} // Handled by EventPage
+                    onError={() => {}} // Handled by EventPage
+                    showButton={true} // Always show Stripe Pay button when payment is pending
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -433,55 +649,93 @@ export function RsvpForm({ event, onSubmit, loading, onClose }) {
       )}
 
       {/* Submit Button */}
-      <div
-        style={{
-          marginTop: "24px",
-          display: "flex",
-          gap: "12px",
-          // Prevent scroll/zoom issues on mobile
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        {onClose && (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (document.activeElement) {
-                document.activeElement.blur();
-              }
-              onClose();
-            }}
-            disabled={loading}
-            style={{ flex: 1 }}
-          >
-            Cancel
-          </Button>
-        )}
-        <Button
-          type="submit"
-          loading={loading}
-          disabled={loading || (wantsDinner && !dinnerTimeSlot)}
-          fullWidth={!onClose}
+      {/* For paid events: Hide "Pull up" button entirely.
+          User clicks "Proceed to payment" in the payment section instead. */}
+      {!isPaidEvent && (
+        <div
           style={{
-            ...(onClose ? { flex: 2 } : {}),
-            // Prevent mobile zoom/scroll issues
-            touchAction: "manipulation",
-            WebkitTapHighlightColor: "transparent",
-          }}
-          onClick={(e) => {
-            // Additional prevention of unwanted behavior
-            e.stopPropagation();
+            marginTop: "24px",
+            display: "flex",
+            gap: "12px",
+            // Prevent scroll/zoom issues on mobile
+            position: "relative",
+            zIndex: 1,
           }}
         >
-          {willGoToWaitlist && event?.waitlistEnabled
-            ? "Join waitlist"
-            : "Pull up"}
-        </Button>
-      </div>
+          {onClose && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (document.activeElement) {
+                  document.activeElement.blur();
+                }
+                onClose();
+              }}
+              disabled={loading}
+              style={{ flex: 1 }}
+            >
+              Cancel
+            </Button>
+          )}
+          <Button
+            type="submit"
+            loading={loading}
+            disabled={loading || (wantsDinner && !dinnerTimeSlot)}
+            fullWidth={!onClose}
+            style={{
+              ...(onClose ? { flex: 2 } : {}),
+              // Prevent mobile zoom/scroll issues
+              touchAction: "manipulation",
+              WebkitTapHighlightColor: "transparent",
+            }}
+            onClick={(e) => {
+              // Additional prevention of unwanted behavior
+              e.stopPropagation();
+            }}
+          >
+            {willGoToWaitlist && event?.waitlistEnabled
+              ? "Join waitlist"
+              : "Pull up"}
+          </Button>
+        </div>
+      )}
+
+      {/* For paid events: Show Cancel button at bottom.
+          "Proceed to payment" button is in the payment section above.
+          Once payment is pending, Stripe's "Pay" button handles completion. */}
+      {isPaidEvent && (
+        <div
+          style={{
+            marginTop: "24px",
+            display: "flex",
+            gap: "12px",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          {onClose && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (document.activeElement) {
+                  document.activeElement.blur();
+                }
+                onClose();
+              }}
+              disabled={loading}
+              fullWidth
+            >
+              Cancel
+            </Button>
+          )}
+        </div>
+      )}
     </form>
   );
 }

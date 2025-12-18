@@ -31,6 +31,8 @@ function formatCurrency(amount, currency = "SEK") {
   return `${formatted} ${currency.toUpperCase()}`;
 }
 
+const PAGE_SIZE = 20;
+
 export function CrmTab() {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -44,7 +46,7 @@ export function CrmTab() {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({});
   const [total, setTotal] = useState(0);
-  const [displayLimit, setDisplayLimit] = useState(20); // Start with 20, then add 100 each time
+  const [page, setPage] = useState(0); // zero-based page index
   const [savedViews, setSavedViews] = useState([]);
   const [activeView, setActiveView] = useState(null);
   const [events, setEvents] = useState([]);
@@ -100,17 +102,16 @@ export function CrmTab() {
           );
         params.append("sortBy", "created_at");
         params.append("sortOrder", "desc");
-        params.append("limit", displayLimit.toString());
-        params.append("offset", "0");
+        params.append("limit", PAGE_SIZE.toString());
+        params.append("offset", (page * PAGE_SIZE).toString());
 
         const res = await authenticatedFetch(`/host/crm/people?${params}`);
         if (!res.ok) throw new Error("Failed to load people");
         const data = await res.json();
-        // Backend returns up to displayLimit contacts
         console.log(
-          `[CRM] Received ${data.people?.length || 0} people (total: ${
-            data.total || 0
-          })`
+          `[CRM] Received ${data.people?.length || 0} people for page ${
+            page + 1
+          } (total: ${data.total || 0})`
         );
         setPeople(data.people || []);
         setTotal(data.total || 0);
@@ -122,7 +123,7 @@ export function CrmTab() {
       }
     }
     loadPeople();
-  }, [searchQuery, filters, displayLimit, showToast]);
+  }, [searchQuery, filters, page, showToast, events]);
 
   // Load saved views
   useEffect(() => {
@@ -148,6 +149,10 @@ export function CrmTab() {
         if (res.ok) {
           const data = await res.json();
           setEvents(data || []);
+          console.log(
+            "[CRM] Loaded events for filter:",
+            (data || []).map((e) => ({ id: e.id, title: e.title }))
+          );
         }
       } catch (err) {
         console.error("Failed to load events:", err);
@@ -160,7 +165,7 @@ export function CrmTab() {
   useEffect(() => {
     if (activeView) {
       setFilters(activeView.filters || {});
-      setDisplayLimit(20); // Reset to initial limit when view changes
+      setPage(0); // Reset to first page when view changes
     }
   }, [activeView]);
 
@@ -186,7 +191,7 @@ export function CrmTab() {
           eventId = url;
         } else {
           // Try to extract slug from URL (e.g., /e/slug or /events/slug)
-          const slugMatch = url.match(/\/(?:e|events)\/([^\/\?]+)/);
+          const slugMatch = url.match(/\/(?:e|events)\/([^\/?]+)/);
           if (slugMatch) {
             const slug = slugMatch[1];
             // Fetch event by slug to get ID
@@ -238,7 +243,7 @@ export function CrmTab() {
       );
 
       // Reload people
-      setDisplayLimit(20); // Reset to initial limit after import
+      setPage(0); // Reset to first page after import
       setImportFile(null);
       setImportEventUrl("");
       setShowImportModal(false);
@@ -294,6 +299,9 @@ export function CrmTab() {
     );
   }
 
+  const hasNextPage = (page + 1) * PAGE_SIZE < total;
+  const hasPrevPage = page > 0;
+
   return (
     <div>
       <style>{`
@@ -328,7 +336,7 @@ export function CrmTab() {
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
-              setDisplayLimit(20); // Reset to initial limit on search
+              setPage(0); // Reset to first page on search
             }}
             style={{
               padding: "8px 16px",
@@ -647,7 +655,7 @@ export function CrmTab() {
                   setFilters({
                     ...filters,
                     eventsAttendedMin: e.target.value
-                      ? parseInt(e.target.value)
+                      ? parseInt(e.target.value, 10)
                       : undefined,
                   })
                 }
@@ -682,7 +690,7 @@ export function CrmTab() {
                   setFilters({
                     ...filters,
                     eventsAttendedMax: e.target.value
-                      ? parseInt(e.target.value)
+                      ? parseInt(e.target.value, 10)
                       : undefined,
                   })
                 }
@@ -710,7 +718,7 @@ export function CrmTab() {
                 onClick={() => {
                   setFilters({});
                   setActiveView(null);
-                  setDisplayLimit(20); // Reset to initial limit when clearing filters
+                  setPage(0); // Reset to first page when clearing filters
                 }}
                 style={{
                   padding: "8px 16px",
@@ -939,8 +947,15 @@ export function CrmTab() {
               opacity: 0.6,
             }}
           >
-            Showing {Math.min(displayLimit, total).toLocaleString()} of{" "}
-            {total.toLocaleString()}
+            {total === 0 ? (
+              "Showing 0 of 0"
+            ) : (
+              <>
+                Showing {(page * PAGE_SIZE + 1).toLocaleString()} –{" "}
+                {Math.min((page + 1) * PAGE_SIZE, total).toLocaleString()} of{" "}
+                {total.toLocaleString()}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -999,6 +1014,7 @@ export function CrmTab() {
                   e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)";
                   e.currentTarget.style.boxShadow = "none";
                 }}
+                onClick={() => navigate(`/app/crm/${person.id}`)}
               >
                 <div
                   style={{
@@ -1143,73 +1159,83 @@ export function CrmTab() {
                           gap: "8px",
                         }}
                       >
-                        {person.eventHistory?.slice(0, 3).map((history) => (
-                          <div
-                            key={history.rsvpId}
-                            style={{
-                              padding: "12px",
-                              background: "rgba(12, 10, 18, 0.4)",
-                              borderRadius: "8px",
-                              fontSize: "13px",
-                            }}
-                          >
+                        {person.eventHistory?.slice(0, 3).map((history) => {
+                          const isAttended =
+                            history.attendanceStatus === "attended";
+                          const isConfirmed =
+                            history.attendanceStatus === "confirmed";
+
+                          return (
                             <div
+                              key={history.rsvpId}
                               style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "12px",
+                                padding: "12px",
+                                background: "rgba(12, 10, 18, 0.4)",
+                                borderRadius: "8px",
+                                fontSize: "13px",
                               }}
                             >
-                              <span
+                              <div
                                 style={{
-                                  fontSize: "16px",
-                                  opacity: 0.8,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "12px",
                                 }}
                               >
-                                {history.status === "attending" ||
-                                history.status === "CONFIRMED"
-                                  ? "✅"
-                                  : "⏳"}
-                              </span>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div
+                                <span
                                   style={{
-                                    fontWeight: 600,
-                                    marginBottom: "2px",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
+                                    fontSize: "16px",
+                                    opacity: 0.8,
                                   }}
                                 >
-                                  {history.eventTitle}
+                                  {isAttended
+                                    ? "✅"
+                                    : isConfirmed
+                                    ? "📝"
+                                    : "⏳"}
+                                </span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div
+                                    style={{
+                                      fontWeight: 600,
+                                      marginBottom: "4px",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {history.eventTitle}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      opacity: 0.6,
+                                      marginBottom: "4px",
+                                    }}
+                                  >
+                                    {formatEventDate(history.eventDate)}
+                                  </div>
                                 </div>
-                                <div
-                                  style={{
-                                    fontSize: "11px",
-                                    opacity: 0.6,
-                                  }}
-                                >
-                                  {formatEventDate(history.eventDate)}
-                                </div>
+                                {history.plusOnes > 0 && (
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      opacity: 0.7,
+                                      whiteSpace: "nowrap",
+                                      padding: "2px 6px",
+                                      background: "rgba(139, 92, 246, 0.15)",
+                                      borderRadius: "6px",
+                                      border:
+                                        "1px solid rgba(139, 92, 246, 0.3)",
+                                    }}
+                                  >
+                                    +{history.plusOnes}
+                                  </div>
+                                )}
                               </div>
-                              {history.plusOnes > 0 && (
-                                <div
-                                  style={{
-                                    fontSize: "11px",
-                                    opacity: 0.7,
-                                    whiteSpace: "nowrap",
-                                    padding: "2px 6px",
-                                    background: "rgba(139, 92, 246, 0.15)",
-                                    borderRadius: "6px",
-                                    border: "1px solid rgba(139, 92, 246, 0.3)",
-                                  }}
-                                >
-                                  +{history.plusOnes}
-                                </div>
-                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {person.eventHistory &&
                           person.eventHistory.length > 3 && (
                             <div
@@ -1245,53 +1271,64 @@ export function CrmTab() {
             ))}
           </div>
 
-          {/* Load More */}
-          {displayLimit < total && (
+          {/* Pagination */}
+          {total > 0 && (
             <div
               style={{
                 display: "flex",
                 justifyContent: "center",
+                alignItems: "center",
+                gap: "12px",
                 marginTop: "24px",
               }}
             >
               <button
-                onClick={() => {
-                  setDisplayLimit((prev) => prev + 100);
-                }}
-                disabled={loading}
+                onClick={() =>
+                  hasPrevPage && setPage((p) => Math.max(0, p - 1))
+                }
+                disabled={!hasPrevPage || loading}
                 style={{
-                  padding: "12px 24px",
+                  padding: "8px 16px",
                   borderRadius: "8px",
                   border: "1px solid rgba(139, 92, 246, 0.3)",
-                  background: loading
-                    ? "rgba(139, 92, 246, 0.05)"
-                    : "rgba(139, 92, 246, 0.1)",
-                  color: loading ? "rgba(167, 139, 250, 0.5)" : "#a78bfa",
+                  background: hasPrevPage
+                    ? "rgba(139, 92, 246, 0.1)"
+                    : "rgba(139, 92, 246, 0.05)",
+                  color: hasPrevPage ? "#a78bfa" : "rgba(167, 139, 250, 0.5)",
                   fontSize: "14px",
-                  fontWeight: 600,
-                  cursor: loading ? "not-allowed" : "pointer",
-                  transition: "all 0.2s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  opacity: loading ? 0.6 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading) {
-                    e.target.style.background = "rgba(139, 92, 246, 0.2)";
-                    e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!loading) {
-                    e.target.style.background = "rgba(139, 92, 246, 0.1)";
-                    e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
-                  }
+                  fontWeight: 500,
+                  cursor: !hasPrevPage || loading ? "not-allowed" : "pointer",
+                  opacity: !hasPrevPage || loading ? 0.6 : 1,
                 }}
               >
-                {loading
-                  ? "Loading..."
-                  : `Load More (${Math.min(100, total - displayLimit)} more)`}
+                Previous
+              </button>
+              <span
+                style={{
+                  fontSize: "13px",
+                  opacity: 0.7,
+                }}
+              >
+                Page {page + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+              </span>
+              <button
+                onClick={() => hasNextPage && setPage((p) => p + 1)}
+                disabled={!hasNextPage || loading}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(139, 92, 246, 0.3)",
+                  background: hasNextPage
+                    ? "rgba(139, 92, 246, 0.1)"
+                    : "rgba(139, 92, 246, 0.05)",
+                  color: hasNextPage ? "#a78bfa" : "rgba(167, 139, 250, 0.5)",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: !hasNextPage || loading ? "not-allowed" : "pointer",
+                  opacity: !hasNextPage || loading ? 0.6 : 1,
+                }}
+              >
+                Next
               </button>
             </div>
           )}

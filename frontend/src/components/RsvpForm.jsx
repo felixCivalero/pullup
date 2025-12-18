@@ -388,44 +388,44 @@ export function RsvpForm({
           {/* Party Summary Section */}
           {(wantsDinner || cocktailGuests > 0 || isPaidEvent) && (
             <div style={{ marginBottom: isPaidEvent ? "20px" : "0" }}>
-              <div
-                style={{
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  marginBottom: "8px",
-                  color: "#fff",
-                }}
-              >
-                Your party
-              </div>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 700,
-                  marginBottom: "8px",
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: 600,
+              marginBottom: "8px",
+              color: "#fff",
+            }}
+          >
+            Your party
+          </div>
+          <div
+            style={{
+              fontSize: "18px",
+              fontWeight: 700,
+              marginBottom: "8px",
                   color: isPaidEvent ? "#fff" : "#a78bfa",
-                }}
-              >
+            }}
+          >
                 Total: {totalPartySize}{" "}
                 {totalPartySize === 1 ? "person" : "people"}
-              </div>
+          </div>
               {(wantsDinner || cocktailGuests > 0) && (
-                <div
-                  style={{
-                    fontSize: "16px",
-                    color: "rgba(255, 255, 255, 0.7)",
-                    lineHeight: "1.6",
-                  }}
-                >
-                  {wantsDinner ? (
-                    <>
+          <div
+            style={{
+              fontSize: "16px",
+              color: "rgba(255, 255, 255, 0.7)",
+              lineHeight: "1.6",
+            }}
+          >
+            {wantsDinner ? (
+              <>
                       Dinner: {dinnerCount} • Cocktails-only:{" "}
                       {cocktailsOnlyCount}
-                    </>
-                  ) : (
-                    <>All {totalPartySize} for cocktails</>
-                  )}
-                </div>
+              </>
+            ) : (
+              <>All {totalPartySize} for cocktails</>
+            )}
+          </div>
               )}
             </div>
           )}
@@ -652,55 +652,55 @@ export function RsvpForm({
       {/* For paid events: Hide "Pull up" button entirely.
           User clicks "Proceed to payment" in the payment section instead. */}
       {!isPaidEvent && (
-        <div
+      <div
+        style={{
+          marginTop: "24px",
+          display: "flex",
+          gap: "12px",
+          // Prevent scroll/zoom issues on mobile
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        {onClose && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (document.activeElement) {
+                document.activeElement.blur();
+              }
+              onClose();
+            }}
+            disabled={loading}
+            style={{ flex: 1 }}
+          >
+            Cancel
+          </Button>
+        )}
+        <Button
+          type="submit"
+          loading={loading}
+          disabled={loading || (wantsDinner && !dinnerTimeSlot)}
+          fullWidth={!onClose}
           style={{
-            marginTop: "24px",
-            display: "flex",
-            gap: "12px",
-            // Prevent scroll/zoom issues on mobile
-            position: "relative",
-            zIndex: 1,
+            ...(onClose ? { flex: 2 } : {}),
+            // Prevent mobile zoom/scroll issues
+            touchAction: "manipulation",
+            WebkitTapHighlightColor: "transparent",
+          }}
+          onClick={(e) => {
+            // Additional prevention of unwanted behavior
+            e.stopPropagation();
           }}
         >
-          {onClose && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (document.activeElement) {
-                  document.activeElement.blur();
-                }
-                onClose();
-              }}
-              disabled={loading}
-              style={{ flex: 1 }}
-            >
-              Cancel
-            </Button>
-          )}
-          <Button
-            type="submit"
-            loading={loading}
-            disabled={loading || (wantsDinner && !dinnerTimeSlot)}
-            fullWidth={!onClose}
-            style={{
-              ...(onClose ? { flex: 2 } : {}),
-              // Prevent mobile zoom/scroll issues
-              touchAction: "manipulation",
-              WebkitTapHighlightColor: "transparent",
-            }}
-            onClick={(e) => {
-              // Additional prevention of unwanted behavior
-              e.stopPropagation();
-            }}
-          >
-            {willGoToWaitlist && event?.waitlistEnabled
-              ? "Join waitlist"
-              : "Pull up"}
-          </Button>
-        </div>
+          {willGoToWaitlist && event?.waitlistEnabled
+            ? "Join waitlist"
+            : "Pull up"}
+        </Button>
+      </div>
       )}
 
       {/* For paid events: Show Cancel button at bottom.

@@ -533,6 +533,208 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
   );
 }
 
+// Simple hosts list component
+function EventHostsSection({ eventId }) {
+  const { showToast } = useToast();
+  const [hosts, setHosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newHostEmail, setNewHostEmail] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadHosts() {
+      setLoading(true);
+      try {
+        const res = await authenticatedFetch(`/host/events/${eventId}/hosts`);
+        if (!res.ok) throw new Error("Failed to load hosts");
+        const data = await res.json();
+        if (isMounted) {
+          setHosts(data.hosts || []);
+        }
+      } catch (err) {
+        console.error("Failed to load hosts:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    if (eventId) {
+      loadHosts();
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [eventId]);
+
+  const handleAddHost = async () => {
+    if (!newHostEmail.trim()) return;
+    setAdding(true);
+    try {
+      const res = await authenticatedFetch(`/host/events/${eventId}/hosts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newHostEmail.trim(), role: "co_host" }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to add host");
+      }
+      const data = await res.json();
+      setHosts(data.hosts || []);
+      setNewHostEmail("");
+      showToast("Host added successfully", "success");
+    } catch (err) {
+      console.error("Failed to add host:", err);
+      showToast(err.message || "Failed to add host", "error");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  if (!eventId) return null;
+
+  return (
+    <div
+      style={{
+        padding: "16px 20px",
+        borderRadius: "12px",
+        border: "1px solid rgba(255,255,255,0.08)",
+        background: "rgba(12, 10, 18, 0.8)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "12px",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              color: "#e5e7eb",
+            }}
+          >
+            ARRANGERS
+          </div>
+          <div style={{ fontSize: "12px", opacity: 0.6 }}>
+            People who can manage this event (owner or co-hosts).
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: "13px", opacity: 0.7 }}>Loading hosts...</div>
+      ) : hosts.length === 0 ? (
+        <div style={{ fontSize: "13px", opacity: 0.7 }}>No hosts found.</div>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+            marginBottom: "12px",
+          }}
+        >
+          {hosts.map((host) => (
+            <div
+              key={`${host.userId}-${host.role}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "8px 10px",
+                borderRadius: "8px",
+                background: "rgba(20, 16, 30, 0.6)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                fontSize: "13px",
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span style={{ fontWeight: 600, color: "#fff" }}>
+                  {host.profile?.name || "Unknown user"}
+                </span>
+                <span style={{ opacity: 0.6, color: "#9ca3af" }}>
+                  {host.email ? `Email: ${host.email}` : `ID: ${host.userId}`}
+                </span>
+              </div>
+              <span
+                style={{
+                  fontSize: "11px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  padding: "4px 8px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(139,92,246,0.6)",
+                  color: "#fff",
+                  background: "rgba(139,92,246,0.3)",
+                }}
+              >
+                {host.role}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          alignItems: "center",
+          flexWrap: "wrap",
+          marginTop: "8px",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="Add host by email..."
+          value={newHostEmail}
+          onChange={(e) => setNewHostEmail(e.target.value)}
+          style={{
+            ...inputStyle,
+            minHeight: "36px",
+            fontSize: "13px",
+            flex: "1 1 220px",
+          }}
+        />
+        <button
+          type="button"
+          onClick={handleAddHost}
+          disabled={adding || !newHostEmail.trim()}
+          style={{
+            padding: "8px 14px",
+            borderRadius: "8px",
+            border: "none",
+            background:
+              !newHostEmail.trim() || adding
+                ? "rgba(139,92,246,0.3)"
+                : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+            color: "#fff",
+            fontSize: "13px",
+            fontWeight: 600,
+            cursor: !newHostEmail.trim() || adding ? "not-allowed" : "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {adding ? "Adding..." : "Add Host"}
+        </button>
+      </div>
+      <div style={{ fontSize: "11px", opacity: 0.6, marginTop: "6px" }}>
+        Hosts are added by the email associated with their Pullup account. Make
+        sure they have signed up first.
+      </div>
+    </div>
+  );
+}
+
 // StatCard component for Overview tab
 function StatCard({ icon, label, value, color }) {
   const isGradient = color.includes("gradient");
@@ -748,7 +950,7 @@ export function ManageEventPage() {
   const [hasUnsavedImage, setHasUnsavedImage] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [guestsCount, setGuestsCount] = useState(0);
-  const [activeTab, setActiveTab] = useState("overview"); // "overview" or "edit"
+  const [activeTab, setActiveTab] = useState("overview"); // "overview", "hosts", or "edit"
   const [guests, setGuests] = useState([]);
   const [dinnerSlots, setDinnerSlots] = useState([]);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -784,7 +986,11 @@ export function ManageEventPage() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const tabFromUrl = urlParams.get("tab") || "overview";
-    if (tabFromUrl === "overview" || tabFromUrl === "edit") {
+    if (
+      tabFromUrl === "overview" ||
+      tabFromUrl === "hosts" ||
+      tabFromUrl === "edit"
+    ) {
       setActiveTab(tabFromUrl);
     }
   }, [window.location.search]);
@@ -2168,6 +2374,50 @@ export function ManageEventPage() {
               </button>
               <button
                 onClick={() => {
+                  setActiveTab("hosts");
+                  navigate(`/app/events/${id}/manage?tab=hosts`);
+                }}
+                style={{
+                  padding: "14px 20px",
+                  minHeight: "44px",
+                  fontWeight: activeTab === "hosts" ? 700 : 500,
+                  color: activeTab === "hosts" ? "#fff" : "#9ca3af",
+                  borderBottom:
+                    activeTab === "hosts"
+                      ? "2px solid #8b5cf6"
+                      : "2px solid transparent",
+                  marginBottom: "-2px",
+                  background:
+                    activeTab === "hosts"
+                      ? "rgba(139, 92, 246, 0.1)"
+                      : "transparent",
+                  borderRadius: "8px 8px 0 0",
+                  borderTop: "none",
+                  borderLeft: "none",
+                  borderRight: "none",
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                  fontSize: "16px",
+                  touchAction: "manipulation",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== "hosts") {
+                    e.target.style.color = "#fff";
+                    e.target.style.background = "rgba(255,255,255,0.05)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== "hosts") {
+                    e.target.style.color = "#9ca3af";
+                    e.target.style.background = "transparent";
+                  }
+                }}
+              >
+                Hosts
+              </button>
+              <button
+                onClick={() => {
                   setActiveTab("edit");
                   navigate(`/app/events/${id}/manage?tab=edit`);
                 }}
@@ -2228,6 +2478,11 @@ export function ManageEventPage() {
                   dinnerSlots={dinnerSlots}
                   isMobile={isMobile}
                 />
+              )}
+
+              {/* Hosts Tab Content */}
+              {activeTab === "hosts" && event && (
+                <EventHostsSection eventId={event.id} />
               )}
 
               {/* Edit Tab Content */}

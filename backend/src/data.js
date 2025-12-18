@@ -130,6 +130,98 @@ export async function mapEventFromDb(dbEvent) {
   };
 }
 
+// ---------------------------
+// Event host helpers (multi-arranger support)
+// ---------------------------
+
+/**
+ * Get all event IDs where user is a host (owner or co-host).
+ * Supports both the legacy events.host_id model and the new event_hosts join table.
+ */
+export async function getUserEventIds(userId) {
+  if (!userId) return [];
+
+  // New model: event_hosts join table
+  const { data: eventHosts, error: hostsError } = await supabase
+    .from("event_hosts")
+    .select("event_id")
+    .eq("user_id", userId);
+
+  if (hostsError) {
+    console.error("[getUserEventIds] Error fetching event_hosts:", hostsError);
+  }
+
+  const eventIdsFromJoin = eventHosts?.map((eh) => eh.event_id) || [];
+
+  // Legacy model: events.host_id
+  const { data: legacyEvents, error: legacyError } = await supabase
+    .from("events")
+    .select("id")
+    .eq("host_id", userId);
+
+  if (legacyError) {
+    console.error(
+      "[getUserEventIds] Error fetching legacy events:",
+      legacyError
+    );
+  }
+
+  const eventIdsFromLegacy = legacyEvents?.map((e) => e.id) || [];
+
+  // Combine and deduplicate
+  const allEventIds = Array.from(
+    new Set([...eventIdsFromJoin, ...eventIdsFromLegacy])
+  );
+
+  return allEventIds;
+}
+
+/**
+ * Check if user is a host for an event (owner or co-host).
+ * Returns { isHost: boolean, role: string | null }.
+ */
+export async function isUserEventHost(userId, eventId) {
+  if (!userId || !eventId) {
+    return { isHost: false, role: null };
+  }
+
+  // New model: event_hosts join table
+  const { data: eventHost, error: hostError } = await supabase
+    .from("event_hosts")
+    .select("role")
+    .eq("event_id", eventId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (hostError) {
+    console.error("[isUserEventHost] Error fetching event_host:", hostError);
+  }
+
+  if (eventHost) {
+    return { isHost: true, role: eventHost.role || "co_host" };
+  }
+
+  // Legacy model: events.host_id
+  const { data: legacyEvent, error: legacyError } = await supabase
+    .from("events")
+    .select("host_id")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (legacyError) {
+    console.error(
+      "[isUserEventHost] Error fetching legacy event:",
+      legacyError
+    );
+  }
+
+  if (legacyEvent && legacyEvent.host_id === userId) {
+    return { isHost: true, role: "owner" };
+  }
+
+  return { isHost: false, role: null };
+}
+
 // Helper: Map application event updates to database format
 function mapEventToDb(eventData) {
   const dbData = {};
@@ -404,14 +496,17 @@ export async function findEventBySlug(slug, userId = null) {
     return null;
   }
 
-  // If event is DRAFT, only owner can see it
-  if (data.status === "DRAFT" && data.host_id !== userId) {
-    logger.info("[findEventBySlug] DRAFT event access denied", {
-      slug,
-      hostId: data.host_id,
-      userId: userId || "none",
-    });
-    return null;
+  // If event is DRAFT, only hosts can see it (owner or co-host)
+  if (data.status === "DRAFT" && userId) {
+    const { isHost } = await isUserEventHost(userId, data.id);
+    if (!isHost) {
+      logger.info("[findEventBySlug] DRAFT event access denied", {
+        slug,
+        hostId: data.host_id,
+        userId: userId || "none",
+      });
+      return null;
+    }
   }
 
   return await mapEventFromDb(data);
@@ -827,17 +922,12 @@ export async function getAllPeopleWithStats(userId) {
     return [];
   }
 
-  // First, get all event IDs for this user
-  const { data: userEvents, error: eventsError } = await supabase
-    .from("events")
-    .select("id")
-    .eq("host_id", userId);
+  // First, get all event IDs for this user (owner or co-host)
+  const eventIds = await getUserEventIds(userId);
 
-  if (eventsError || !userEvents || userEvents.length === 0) {
+  if (!eventIds || eventIds.length === 0) {
     return [];
   }
-
-  const eventIds = userEvents.map((e) => e.id);
 
   // Fetch all people who have RSVPs for this user's events
   const { data: allPeople, error: peopleError } = await supabase
@@ -977,24 +1067,54 @@ export async function getPeopleWithFilters(
     return { people: [], total: 0 };
   }
 
-  // Get all event IDs for this user
+  // Get all event IDs for this user (owner or co-host) with titles for debugging
   const { data: userEvents, error: eventsError } = await supabase
     .from("events")
-    .select("id")
-    .eq("host_id", userId);
+    .select("id, title, slug");
 
-  if (eventsError || !userEvents || userEvents.length === 0) {
+  if (eventsError) {
+    console.error("[CRM Filter] Error fetching events:", eventsError);
     return { people: [], total: 0 };
   }
 
-  const eventIds = userEvents.map((e) => e.id);
+  // Filter events to only those where user is host (using join + legacy host_id)
+  const eventIds = await getUserEventIds(userId);
+
+  if (!eventIds || eventIds.length === 0) {
+    console.log(`[CRM Filter] User ${userId} has no events (as host)`);
+    return { people: [], total: 0 };
+  }
+
+  // Limit userEvents list to only events where user is host
+  const userEventsMap = new Map(userEvents.map((e) => [e.id, e]));
+  const filteredUserEvents = eventIds
+    .map((id) => userEventsMap.get(id))
+    .filter(Boolean);
+
+  // Debug: Log event titles to help identify specific events
+  if (filters.attendedEventId) {
+    const matchingEvent = filteredUserEvents.find(
+      (e) => String(e.id) === String(filters.attendedEventId)
+    );
+    console.log(
+      `[CRM Filter] Looking for event ID: ${filters.attendedEventId}`,
+      matchingEvent
+        ? `Found: "${matchingEvent.title}" (slug: ${matchingEvent.slug})`
+        : "NOT FOUND in user's events"
+    );
+    console.log(
+      `[CRM Filter] User has ${filteredUserEvents.length} events as host. Sample titles:`,
+      filteredUserEvents.slice(0, 5).map((e) => `${e.title} (${e.id})`)
+    );
+  }
 
   // STEP 1: First filter RSVPs based on event-based filters
   // This determines which people we're interested in
   let rsvpQuery = supabase
     .from("rsvps")
-    .select("person_id, event_id, booking_status, status, wants_dinner, dinner")
-    .in("event_id", eventIds);
+    .select(
+      "person_id, event_id, booking_status, status, wants_dinner, dinner"
+    );
 
   // Apply event-based filters
   if (filters.attendedEventId) {
@@ -1005,7 +1125,7 @@ export async function getPeopleWithFilters(
 
     if (!eventIdsStr.includes(eventIdStr)) {
       console.warn(
-        `[CRM Filter] Event ${eventIdStr} does not belong to user ${userId}. User has ${eventIds.length} events.`
+        `[CRM Filter] Event ${eventIdStr} does not belong to user ${userId}. User has ${eventIds.length} events as host.`
       );
       console.warn(
         `[CRM Filter] User's event IDs:`,
@@ -1017,11 +1137,16 @@ export async function getPeopleWithFilters(
     console.log(
       `[CRM Filter] Filtering RSVPs by event_id: ${eventIdStr} (verified ownership)`
     );
+    // When filtering by specific event, query only that event (not all user events)
     rsvpQuery = rsvpQuery.eq("event_id", eventIdStr);
+  } else {
+    // When not filtering by specific event, query all user's events
+    rsvpQuery = rsvpQuery.in("event_id", eventIds);
   }
 
   if (filters.attendanceStatus) {
     if (filters.attendanceStatus === "attended") {
+      // Use .or() with proper syntax for Supabase
       rsvpQuery = rsvpQuery.or(
         "booking_status.eq.CONFIRMED,status.eq.attending"
       );
@@ -1176,70 +1301,110 @@ export async function getPeopleWithFilters(
   );
 
   // Build query for people - start with person_id filter
-  // Note: Supabase .in() can handle up to 1000 items, so we're safe for most use cases
-  let query = supabase
-    .from("people")
-    .select("*", { count: "exact" })
-    .in("id", personIdsArray);
+  // Note: Supabase .in() has limits (typically ~100-200 items), so we batch large queries
+  const BATCH_SIZE = 100; // Safe batch size for Supabase .in() queries
+
+  let allPeople = [];
+  let totalCount = 0;
+
+  if (personIdsArray.length === 0) {
+    return { people: [], total: 0 };
+  }
 
   // Log the query we're about to execute
-  if (personIdsArray.length > 0) {
-    console.log(
-      `[CRM Filter] People query: SELECT * FROM people WHERE id IN (${personIdsArray.length} IDs)`
-    );
-  }
+  console.log(
+    `[CRM Filter] People query: SELECT * FROM people WHERE id IN (${personIdsArray.length} IDs) - batching into chunks of ${BATCH_SIZE}`
+  );
 
-  // Apply other filters (email, name, search, etc.)
-  if (filters.search) {
-    const searchTerm = filters.search.toLowerCase();
-    query = query.or(
-      `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`
-    );
-  }
+  // Batch the person IDs into smaller chunks
+  for (let i = 0; i < personIdsArray.length; i += BATCH_SIZE) {
+    const batch = personIdsArray.slice(i, i + BATCH_SIZE);
 
-  if (filters.email) {
-    query = query.ilike("email", `%${filters.email}%`);
-  }
+    let query = supabase
+      .from("people")
+      .select("*", { count: "exact" })
+      .in("id", batch);
 
-  if (filters.name) {
-    query = query.ilike("name", `%${filters.name}%`);
-  }
+    // Apply other filters (email, name, search, etc.)
+    if (filters.search) {
+      const searchTerm = filters.search.toLowerCase();
+      query = query.or(
+        `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`
+      );
+    }
 
-  if (filters.totalSpendMin !== undefined) {
-    query = query.gte("total_spend", filters.totalSpendMin);
-  }
+    if (filters.email) {
+      query = query.ilike("email", `%${filters.email}%`);
+    }
 
-  if (filters.totalSpendMax !== undefined) {
-    query = query.lte("total_spend", filters.totalSpendMax);
-  }
+    if (filters.name) {
+      query = query.ilike("name", `%${filters.name}%`);
+    }
 
-  if (filters.paymentCountMin !== undefined) {
-    query = query.gte("payment_count", filters.paymentCountMin);
-  }
+    if (filters.totalSpendMin !== undefined) {
+      query = query.gte("total_spend", filters.totalSpendMin);
+    }
 
-  if (filters.paymentCountMax !== undefined) {
-    query = query.lte("payment_count", filters.paymentCountMax);
-  }
+    if (filters.totalSpendMax !== undefined) {
+      query = query.lte("total_spend", filters.totalSpendMax);
+    }
 
-  if (filters.subscriptionType) {
-    query = query.eq("subscription_type", filters.subscriptionType);
-  }
+    if (filters.paymentCountMin !== undefined) {
+      query = query.gte("payment_count", filters.paymentCountMin);
+    }
 
-  if (filters.interestedIn) {
-    query = query.ilike("interested_in", `%${filters.interestedIn}%`);
-  }
+    if (filters.paymentCountMax !== undefined) {
+      query = query.lte("payment_count", filters.paymentCountMax);
+    }
 
-  if (filters.tags && filters.tags.length > 0) {
-    query = query.contains("tags", filters.tags);
-  }
+    if (filters.subscriptionType) {
+      query = query.eq("subscription_type", filters.subscriptionType);
+    }
 
-  if (filters.hasStripeCustomerId !== undefined) {
-    if (filters.hasStripeCustomerId) {
-      query = query.not("stripe_customer_id", "is", null);
-    } else {
-      query = query.is("stripe_customer_id", null);
+    if (filters.interestedIn) {
+      query = query.ilike("interested_in", `%${filters.interestedIn}%`);
+    }
+
+    if (filters.tags && filters.tags.length > 0) {
+      query = query.contains("tags", filters.tags);
+    }
+
+    if (filters.hasStripeCustomerId !== undefined) {
+      if (filters.hasStripeCustomerId) {
+        query = query.not("stripe_customer_id", "is", null);
+      } else {
+        query = query.is("stripe_customer_id", null);
+      }
+    }
+
+    // Fetch all results from this batch (no pagination yet - we'll paginate after combining)
+    const {
+      data: batchPeople,
+      error: batchError,
+      count: batchCount,
+    } = await query;
+
+    if (batchError) {
+      console.error(
+        `[CRM Filter] Error fetching people batch ${i / BATCH_SIZE + 1}:`,
+        batchError
+      );
+      // Continue with other batches even if one fails
+      continue;
+    }
+
+    if (batchPeople) {
+      allPeople = allPeople.concat(batchPeople);
+    }
+    if (batchCount !== null) {
+      totalCount += batchCount;
     }
   }
+
+  // Remove duplicates (in case any person appears in multiple batches due to filters)
+  const uniquePeople = Array.from(
+    new Map(allPeople.map((p) => [p.id, p])).values()
+  );
 
   // Sort
   const validSortFields = [
@@ -1252,12 +1417,25 @@ export async function getPeopleWithFilters(
   ];
   const sortField = validSortFields.includes(sortBy) ? sortBy : "created_at";
   const sortDir = sortOrder === "asc" ? "asc" : "desc";
-  query = query.order(sortField, { ascending: sortDir === "asc" });
 
-  // Pagination
-  query = query.range(offset, offset + limit - 1);
+  uniquePeople.sort((a, b) => {
+    const aVal = a[sortField];
+    const bVal = b[sortField];
+    if (aVal === null || aVal === undefined) return 1;
+    if (bVal === null || bVal === undefined) return -1;
+    if (sortDir === "asc") {
+      return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+    } else {
+      return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+    }
+  });
 
-  const { data: people, error, count } = await query;
+  // Apply pagination after sorting
+  const paginatedPeople = uniquePeople.slice(offset, offset + limit);
+  const count = uniquePeople.length; // Use actual filtered count, not totalCount from batches
+
+  const people = paginatedPeople;
+  const error = null; // No error if we got here
 
   if (error) {
     console.error("[CRM Filter] Error fetching people with filters:", error);
@@ -1270,8 +1448,264 @@ export async function getPeopleWithFilters(
     })`
   );
 
+  // STEP 3: Enrich people with event history and stats (like getAllPeopleWithStats does)
+  // Fetch all RSVPs for these people to build event history
+  const peopleIds = (people || []).map((p) => p.id);
+
+  if (peopleIds.length === 0) {
+    return { people: [], total: count || 0 };
+  }
+
+  // Fetch RSVPs with event details for these people
+  // Note: We fetch ALL RSVPs for these people across ALL user events to build complete event history
+  console.log(
+    `[CRM Filter] Fetching event history for ${peopleIds.length} people across ${eventIds.length} events`
+  );
+  console.log(
+    `[CRM Filter] Event IDs for history query:`,
+    eventIds.slice(0, 5),
+    eventIds.length > 5 ? `... (${eventIds.length} total)` : ""
+  );
+
+  const { data: allRsvpsForPeople, error: rsvpsError2 } = await supabase
+    .from("rsvps")
+    .select(
+      `
+      *,
+      events:event_id (
+        id,
+        title,
+        slug,
+        starts_at
+      )
+    `
+    )
+    .in("person_id", peopleIds)
+    .in("event_id", eventIds);
+
+  // Note: The * selector includes all RSVP fields including:
+  // - pulled_up, pulled_up_count, pulled_up_for_dinner, pulled_up_for_cocktails
+  // - dinner_pull_up_count, cocktail_only_pull_up_count
+  // - wants_dinner, dinner (JSONB), booking_status, status
+
+  if (rsvpsError2) {
+    console.error(
+      "[CRM Filter] Error fetching RSVPs for event history:",
+      rsvpsError2
+    );
+    // Return people without event history if RSVP fetch fails
+    return {
+      people: (people || []).map((p) => mapPersonFromDb(p)),
+      total: count || 0,
+    };
+  }
+
+  // Fallback: If any RSVPs are missing event data from the join, fetch events separately
+  // This can happen if the Supabase foreign key relationship isn't properly configured
+  const rsvpsMissingEventData = (allRsvpsForPeople || []).filter(
+    (r) => !r.events && r.event_id
+  );
+  if (rsvpsMissingEventData.length > 0) {
+    console.log(
+      `[CRM Filter] Found ${rsvpsMissingEventData.length} RSVPs with missing event data, fetching events separately`
+    );
+    const missingEventIds = [
+      ...new Set(rsvpsMissingEventData.map((r) => r.event_id)),
+    ];
+    const { data: missingEvents, error: eventsError } = await supabase
+      .from("events")
+      .select("id, title, slug, starts_at")
+      .in("id", missingEventIds);
+
+    if (!eventsError && missingEvents) {
+      // Create a map of event_id -> event data
+      const eventMap = {};
+      missingEvents.forEach((e) => {
+        eventMap[e.id] = e;
+      });
+      // Attach event data to RSVPs that were missing it
+      allRsvpsForPeople.forEach((rsvp) => {
+        if (!rsvp.events && rsvp.event_id && eventMap[rsvp.event_id]) {
+          rsvp.events = eventMap[rsvp.event_id];
+        }
+      });
+    }
+  }
+
+  // Debug: Log RSVPs fetched for event history
+  console.log(
+    `[CRM Filter] Fetched ${
+      allRsvpsForPeople?.length || 0
+    } RSVPs for event history`
+  );
+  if (allRsvpsForPeople && allRsvpsForPeople.length > 0) {
+    const sampleRsvp = allRsvpsForPeople[0];
+    console.log(`[CRM Filter] Sample RSVP for event history:`, {
+      person_id: sampleRsvp.person_id,
+      event_id: sampleRsvp.event_id,
+      has_events_join: !!sampleRsvp.events,
+      events_data: sampleRsvp.events,
+    });
+    // Check for Kaijas Musiksalong specifically
+    const kaijasRsvps = allRsvpsForPeople.filter(
+      (r) => r.event_id === "e4ab5149-9e55-437b-9e05-9289207201b4"
+    );
+    if (kaijasRsvps.length > 0) {
+      console.log(
+        `[CRM Filter] Found ${kaijasRsvps.length} Kaijas Musiksalong RSVPs in event history query`
+      );
+      console.log(
+        `[CRM Filter] Sample Kaijas RSVP events join:`,
+        kaijasRsvps[0].events
+      );
+    }
+  }
+
+  // Group RSVPs by person
+  const rsvpsByPersonForHistory = {};
+  (allRsvpsForPeople || []).forEach((rsvp) => {
+    if (!rsvpsByPersonForHistory[rsvp.person_id]) {
+      rsvpsByPersonForHistory[rsvp.person_id] = [];
+    }
+    rsvpsByPersonForHistory[rsvp.person_id].push(rsvp);
+  });
+
+  // Enrich each person with stats and event history
+  const enrichedPeople = (people || []).map((dbPerson) => {
+    const personRsvps = rsvpsByPersonForHistory[dbPerson.id] || [];
+
+    const eventsAttended = personRsvps.filter(
+      (r) => r.booking_status === "CONFIRMED" || r.status === "attending"
+    ).length;
+    const eventsWaitlisted = personRsvps.filter(
+      (r) => r.booking_status === "WAITLIST" || r.status === "waitlist"
+    ).length;
+    const totalEvents = personRsvps.length;
+    const totalGuestsBrought = personRsvps.reduce(
+      (sum, r) => sum + (r.plus_ones || 0),
+      0
+    );
+    const totalDinners = personRsvps.filter((r) => {
+      const dinner = r.dinner || {};
+      return (dinner && dinner.enabled) || r.wants_dinner === true;
+    }).length;
+    const totalDinnerGuests = personRsvps.reduce((sum, r) => {
+      const dinner = r.dinner || {};
+      const wantsDinner = (dinner && dinner.enabled) || r.wants_dinner;
+      const partySize = (dinner && dinner.partySize) || r.dinner_party_size;
+      return sum + (wantsDinner && partySize ? partySize : 0);
+    }, 0);
+
+    // Get event details for each RSVP
+    const eventHistory = personRsvps
+      .map((rsvp) => {
+        // Handle Supabase join - events can be an object or null
+        // The join syntax `events:event_id` should return an object, but may be null if join fails
+        const event = rsvp.events || null;
+        const dinner = rsvp.dinner || {};
+
+        // Debug: Log if event join is missing for Kaijas Musiksalong
+        if (
+          rsvp.event_id === "e4ab5149-9e55-437b-9e05-9289207201b4" &&
+          !event
+        ) {
+          console.warn(
+            `[CRM Filter] Missing event join for Kaijas Musiksalong RSVP:`,
+            {
+              rsvp_id: rsvp.id,
+              person_id: rsvp.person_id,
+              event_id: rsvp.event_id,
+              has_events: !!rsvp.events,
+              events_value: rsvp.events,
+            }
+          );
+        }
+
+        // Determine event type: cocktails only vs dinner
+        const wantsDinner =
+          (dinner && dinner.enabled) || rsvp.wants_dinner || false;
+        const eventType = wantsDinner ? "dinner" : "cocktails";
+
+        // Calculate booked counts
+        const partySize = rsvp.party_size || 1;
+        const dinnerPartySize =
+          (dinner && dinner.partySize) || rsvp.dinner_party_size || 0;
+        const plusOnes = rsvp.plus_ones || 0;
+
+        // Cocktails booked: if dinner, it's plusOnes (cocktails-only guests), otherwise partySize
+        const cocktailsBooked = wantsDinner ? plusOnes : partySize;
+        // Dinner booked: dinnerPartySize if wantsDinner, otherwise 0
+        const dinnerBooked = wantsDinner ? dinnerPartySize : 0;
+
+        // Get attendance counts by type
+        const cocktailsAttended = rsvp.pulled_up_for_cocktails
+          ? rsvp.cocktail_only_pull_up_count || 0
+          : 0;
+        const dinnerAttended = rsvp.pulled_up_for_dinner
+          ? rsvp.dinner_pull_up_count || 0
+          : 0;
+
+        // Determine attendance status: confirmed vs actually attended
+        const isConfirmed = rsvp.booking_status === "CONFIRMED";
+        // Attended if any guests actually pulled up (cocktails or dinner)
+        const actuallyAttended =
+          rsvp.pulled_up === true ||
+          cocktailsAttended > 0 ||
+          dinnerAttended > 0;
+        const attendanceStatus = actuallyAttended
+          ? "attended"
+          : isConfirmed
+          ? "confirmed"
+          : "waitlisted";
+
+        return {
+          rsvpId: rsvp.id,
+          eventId: rsvp.event_id,
+          eventTitle: event?.title || "Unknown Event",
+          eventSlug: event?.slug || null,
+          eventDate: event?.starts_at || null,
+          status: rsvp.booking_status || rsvp.status,
+          plusOnes: rsvp.plus_ones || 0,
+          wantsDinner,
+          eventType, // "cocktails" | "dinner"
+          attendanceStatus, // "confirmed" | "attended" | "waitlisted"
+          actuallyAttended, // boolean - did they actually show up?
+          cocktailsBooked, // number of cocktails guests booked
+          cocktailsAttended, // number of cocktails guests who attended
+          dinnerBooked, // number of dinner guests booked
+          dinnerAttended, // number of dinner guests who attended
+          dinnerStatus:
+            (dinner && dinner.bookingStatus) || rsvp.dinner_status || null,
+          dinnerTimeSlot:
+            (dinner && dinner.slotTime) || rsvp.dinner_time_slot || null,
+          dinnerPartySize:
+            (dinner && dinner.partySize) || rsvp.dinner_party_size || null,
+          rsvpDate: rsvp.created_at,
+        };
+      })
+      .sort((a, b) => {
+        // Sort by event date (most recent first)
+        if (!a.eventDate) return 1;
+        if (!b.eventDate) return -1;
+        return new Date(b.eventDate) - new Date(a.eventDate);
+      });
+
+    return {
+      ...mapPersonFromDb(dbPerson),
+      stats: {
+        totalEvents,
+        eventsAttended,
+        eventsWaitlisted,
+        totalGuestsBrought,
+        totalDinners,
+        totalDinnerGuests,
+      },
+      eventHistory,
+    };
+  });
+
   return {
-    people: (people || []).map((p) => mapPersonFromDb(p)),
+    people: enrichedPeople,
     total: count || 0,
   };
 }

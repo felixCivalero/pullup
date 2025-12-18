@@ -27,6 +27,8 @@ import {
   getUserProfile,
   updateUserProfile,
   findPaymentById,
+  getUserEventIds,
+  isUserEventHost,
 } from "./data.js";
 
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
@@ -339,12 +341,18 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 // ---------------------------
 app.get("/events", requireAuth, async (req, res) => {
   try {
-    // Fetch only events for the authenticated user
+    // Fetch events where the authenticated user is a host (owner or co-host)
+    const eventIds = await getUserEventIds(req.user.id);
+
+    if (!eventIds || eventIds.length === 0) {
+      return res.json([]);
+    }
+
     const { supabase } = await import("./supabase.js");
     const { data: events, error } = await supabase
       .from("events")
       .select("*")
-      .eq("host_id", req.user.id)
+      .in("id", eventIds)
       .order("starts_at", { ascending: false });
 
     if (error) {
@@ -354,7 +362,7 @@ app.get("/events", requireAuth, async (req, res) => {
 
     // Map to application format using the existing helper
     const mappedEvents = await Promise.all(
-      events.map((dbEvent) => mapEventFromDb(dbEvent))
+      (events || []).map((dbEvent) => mapEventFromDb(dbEvent))
     );
 
     // Add stats to each event
@@ -874,8 +882,9 @@ app.get("/host/events/:id", requireAuth, async (req, res) => {
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    // Verify ownership
-    if (event.hostId !== req.user.id) {
+    // Verify ownership (owner or co-host)
+    const { isHost } = await isUserEventHost(req.user.id, event.id);
+    if (!isHost) {
       return res.status(403).json({
         error: "Forbidden",
         message: "You don't have access to this event",
@@ -888,6 +897,314 @@ app.get("/host/events/:id", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch event" });
   }
 });
+
+// ---------------------------
+// PROTECTED: Manage event hosts (arrangers)
+// ---------------------------
+
+// List hosts for an event
+app.get("/host/events/:id/hosts", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const event = await findEventById(id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const { isHost } = await isUserEventHost(req.user.id, event.id);
+    if (!isHost) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "You don't have access to this event",
+      });
+    }
+
+    const { supabase } = await import("./supabase.js");
+    const { data: hostRows, error } = await supabase
+      .from("event_hosts")
+      .select("id, event_id, user_id, role, created_at")
+      .eq("event_id", event.id)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching event hosts:", error);
+      // If event_hosts table doesn't exist in this environment yet,
+      // fail gracefully and pretend there are no extra hosts.
+      if (error.code === "PGRST205") {
+        return res.json({ hosts: [] });
+      }
+      return res.status(500).json({ error: "Failed to fetch event hosts" });
+    }
+
+    // Enrich with profile data + auth email
+    const hosts = await Promise.all(
+      (hostRows || []).map(async (row) => {
+        try {
+          const profile = await getUserProfile(row.user_id);
+          let email = null;
+          try {
+            const {
+              data: { user },
+              error: userError,
+            } = await supabase.auth.admin.getUserById(row.user_id);
+            if (!userError && user) {
+              email = user.email || null;
+            } else if (userError) {
+              console.error(
+                "Error fetching auth user for host:",
+                row.user_id,
+                userError
+              );
+            }
+          } catch (authErr) {
+            console.error(
+              "Unexpected error fetching auth user for host:",
+              row.user_id,
+              authErr
+            );
+          }
+          return {
+            userId: row.user_id,
+            email,
+            role: row.role,
+            createdAt: row.created_at,
+            profile,
+          };
+        } catch (err) {
+          console.error("Error fetching profile for host:", row.user_id, err);
+          return {
+            userId: row.user_id,
+            email: null,
+            role: row.role,
+            createdAt: row.created_at,
+            profile: null,
+          };
+        }
+      })
+    );
+
+    res.json({ hosts });
+  } catch (error) {
+    console.error("Error listing event hosts:", error);
+    res.status(500).json({ error: "Failed to list event hosts" });
+  }
+});
+
+// Add a host to an event (owner only)
+// Accepts either a userId (auth.users.id) OR an email address for lookup.
+app.post("/host/events/:id/hosts", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId: rawUserId, email, role = "co_host" } = req.body || {};
+
+    let userId = rawUserId;
+
+    if (!userId && email) {
+      const normalizedEmail = String(email).trim().toLowerCase();
+
+      try {
+        const { supabase } = await import("./supabase.js");
+
+        // 1) Try to find auth user by email using Admin API
+        // Note: We need to list users and filter, as there's no direct "get by email" method
+        const {
+          data: { users },
+          error: authError,
+        } = await supabase.auth.admin.listUsers();
+
+        if (authError) {
+          console.error("Error listing auth users:", authError);
+        } else if (users && users.length > 0) {
+          // Find user with matching email (case-insensitive)
+          const matchingUser = users.find(
+            (u) => u.email?.toLowerCase() === normalizedEmail
+          );
+          if (matchingUser?.id) {
+            userId = matchingUser.id;
+          }
+        }
+
+        // 2) If not found in auth.users, try to find profile where additional_emails contains this email
+        if (!userId) {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, additional_emails")
+            .contains("additional_emails", [normalizedEmail])
+            .maybeSingle();
+
+          if (profileError) {
+            console.error(
+              "Error looking up profile by additional_emails:",
+              profileError
+            );
+          }
+
+          if (profile?.id) {
+            userId = profile.id;
+          }
+        }
+      } catch (lookupError) {
+        console.error(
+          "Unexpected error looking up user by email:",
+          lookupError
+        );
+        return res.status(500).json({
+          error: "user_lookup_failed",
+          message: "Failed to look up user by email",
+        });
+      }
+    }
+
+    if (!userId) {
+      return res.status(400).json({
+        error: "user_not_found",
+        message:
+          "Could not find a PullUp user with that email. Ask them to sign up first.",
+      });
+    }
+
+    const event = await findEventById(id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const { isHost, role: currentRole } = await isUserEventHost(
+      req.user.id,
+      event.id
+    );
+    if (!isHost || currentRole !== "owner") {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Only event owners can add hosts",
+      });
+    }
+
+    const { supabase } = await import("./supabase.js");
+    const { error } = await supabase.from("event_hosts").insert({
+      event_id: event.id,
+      user_id: userId,
+      role,
+    });
+
+    if (error) {
+      console.error("Error adding event host:", error);
+      if (error.code === "PGRST205") {
+        return res.status(400).json({
+          error: "hosts_not_enabled",
+          message:
+            "Hosts feature is not enabled in this environment yet (missing event_hosts table).",
+        });
+      }
+      return res.status(500).json({ error: "Failed to add event host" });
+    }
+
+    // Return updated host list (same enriched shape as GET /host/events/:id/hosts)
+    const { data: hostRows, error: fetchError } = await supabase
+      .from("event_hosts")
+      .select("id, event_id, user_id, role, created_at")
+      .eq("event_id", event.id)
+      .order("created_at", { ascending: true });
+
+    if (fetchError) {
+      console.error("Error fetching event hosts after insert:", fetchError);
+      if (fetchError.code === "PGRST205") {
+        // Table missing but insert just worked? Unlikely, but fail gracefully.
+        return res.status(201).json({ hosts: [] });
+      }
+      return res.status(500).json({ error: "Host added, but fetch failed" });
+    }
+
+    const hosts = await Promise.all(
+      (hostRows || []).map(async (row) => {
+        try {
+          const profile = await getUserProfile(row.user_id);
+          let email = null;
+          try {
+            const {
+              data: { user },
+              error: userError,
+            } = await supabase.auth.admin.getUserById(row.user_id);
+            if (!userError && user) {
+              email = user.email || null;
+            } else if (userError) {
+              console.error(
+                "Error fetching auth user for host:",
+                row.user_id,
+                userError
+              );
+            }
+          } catch (authErr) {
+            console.error(
+              "Unexpected error fetching auth user for host:",
+              row.user_id,
+              authErr
+            );
+          }
+          return {
+            userId: row.user_id,
+            email,
+            role: row.role,
+            createdAt: row.created_at,
+            profile,
+          };
+        } catch (err) {
+          console.error("Error fetching profile for host:", row.user_id, err);
+          return {
+            userId: row.user_id,
+            email: null,
+            role: row.role,
+            createdAt: row.created_at,
+            profile: null,
+          };
+        }
+      })
+    );
+
+    res.status(201).json({ hosts });
+  } catch (error) {
+    console.error("Error adding event host:", error);
+    res.status(500).json({ error: "Failed to add event host" });
+  }
+});
+
+// Remove a host from an event (owner only)
+app.delete(
+  "/host/events/:eventId/hosts/:userId",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId, userId } = req.params;
+
+      const event = await findEventById(eventId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+
+      const { isHost, role: currentRole } = await isUserEventHost(
+        req.user.id,
+        event.id
+      );
+      if (!isHost || currentRole !== "owner") {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Only event owners can remove hosts",
+        });
+      }
+
+      const { supabase } = await import("./supabase.js");
+      const { error } = await supabase
+        .from("event_hosts")
+        .delete()
+        .eq("event_id", event.id)
+        .eq("user_id", userId);
+
+      if (error) {
+        console.error("Error deleting event host:", error);
+        return res.status(500).json({ error: "Failed to delete event host" });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting event host:", error);
+      res.status(500).json({ error: "Failed to delete event host" });
+    }
+  }
+);
 
 // ---------------------------
 // PROTECTED: Update event (requires auth, verifies ownership)
@@ -1057,8 +1374,13 @@ app.put("/host/events/:id/publish", requireAuth, async (req, res) => {
   const { id } = req.params;
   const event = await findEventById(id);
 
-  if (!event || event.hostId !== req.user.id) {
+  if (!event) {
     return res.status(404).json({ error: "Event not found" });
+  }
+
+  const { isHost } = await isUserEventHost(req.user.id, event.id);
+  if (!isHost) {
+    return res.status(403).json({ error: "Forbidden" });
   }
 
   const updated = await updateEvent(id, { status: "PUBLISHED" });
@@ -1211,8 +1533,9 @@ app.get("/host/events/:id/guests", requireAuth, async (req, res) => {
     const event = await findEventById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    // Verify ownership
-    if (event.hostId !== req.user.id) {
+    // Verify ownership (owner or co-host)
+    const { isHost } = await isUserEventHost(req.user.id, event.id);
+    if (!isHost) {
       return res.status(403).json({
         error: "Forbidden",
         message: "You don't have access to this event",
@@ -1388,8 +1711,9 @@ app.put(
       const event = await findEventById(eventId);
       if (!event) return res.status(404).json({ error: "Event not found" });
 
-      // Verify ownership
-      if (event.hostId !== req.user.id) {
+      // Verify ownership (owner or co-host)
+      const { isHost } = await isUserEventHost(req.user.id, event.id);
+      if (!isHost) {
         return res.status(403).json({
           error: "Forbidden",
           message: "You don't have access to this event",
@@ -1796,7 +2120,8 @@ app.post("/host/crm/import-csv", requireAuth, async (req, res) => {
         });
       }
 
-      if (event.hostId !== req.user.id) {
+      const { isHost } = await isUserEventHost(req.user.id, event.id);
+      if (!isHost) {
         return res.status(403).json({
           error: "forbidden",
           message: "You don't have access to this event",
@@ -2167,7 +2492,8 @@ app.get("/host/events/:eventId/payments", requireAuth, async (req, res) => {
     // Verify ownership
     const event = await findEventById(eventId);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (event.hostId !== req.user.id) {
+    const { isHost } = await isUserEventHost(req.user.id, event.id);
+    if (!isHost) {
       return res.status(403).json({
         error: "Forbidden",
         message: "You don't have access to this event",
@@ -2369,7 +2695,8 @@ app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
     if (!event) {
       return res.status(404).json({ error: "Event not found" });
     }
-    if (event.hostId !== req.user.id) {
+    const { isHost } = await isUserEventHost(req.user.id, event.id);
+    if (!isHost) {
       return res.status(403).json({
         error: "Forbidden",
         message: "You don't have access to this event",

@@ -2895,15 +2895,24 @@ export async function createPayment({
   description = null,
   receiptUrl = null,
 }) {
+  // Ensure amount is a valid number
+  const amountNum = typeof amount === "number" ? amount : Number(amount);
+  if (isNaN(amountNum) || amountNum < 0) {
+    throw new Error(`Invalid amount: ${amount}. Must be a positive number.`);
+  }
+
+  // Ensure rsvpId is either null or a valid UUID string (not false)
+  const rsvpIdValue = rsvpId && rsvpId !== false ? rsvpId : null;
+
   const paymentData = {
     user_id: userId,
     event_id: eventId,
-    rsvp_id: rsvpId,
+    rsvp_id: rsvpIdValue,
     stripe_payment_intent_id: stripePaymentIntentId,
     stripe_customer_id: stripeCustomerId,
     stripe_charge_id: stripeChargeId,
     stripe_checkout_session_id: stripeCheckoutSessionId,
-    amount: Number(amount),
+    amount: amountNum,
     currency,
     status, // "pending" | "succeeded" | "failed" | "refunded" | "canceled"
     payment_method: paymentMethod,
@@ -3045,8 +3054,15 @@ export async function updatePayment(paymentId, updates) {
   if (updates.paidAt !== undefined) dbUpdates.paid_at = updates.paidAt;
   if (updates.receiptUrl !== undefined)
     dbUpdates.receipt_url = updates.receiptUrl;
-  if (updates.refundedAmount !== undefined)
-    dbUpdates.refunded_amount = updates.refundedAmount;
+  if (updates.refundedAmount !== undefined) {
+    const refundedAmountNum =
+      typeof updates.refundedAmount === "number"
+        ? updates.refundedAmount
+        : Number(updates.refundedAmount);
+    if (!isNaN(refundedAmountNum) && refundedAmountNum >= 0) {
+      dbUpdates.refunded_amount = refundedAmountNum;
+    }
+  }
   if (updates.refundedAt !== undefined)
     dbUpdates.refunded_at = updates.refundedAt;
 

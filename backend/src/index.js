@@ -331,6 +331,44 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// ---------------------------
+// WEBHOOKS: Stripe webhook handler (MUST be before express.json() middleware)
+// ---------------------------
+app.post(
+  "/webhooks/stripe",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      return res.status(500).json({ error: "Webhook secret not configured" });
+    }
+
+    let event;
+
+    try {
+      const stripe = (await import("stripe")).default;
+      const stripeInstance = new stripe(getStripeSecretKey());
+      event = stripeInstance.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      console.error("Webhook signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    try {
+      const result = await handleStripeWebhook(event);
+      res.json({ received: true, processed: result.processed });
+    } catch (error) {
+      console.error("Webhook processing error:", error);
+      res.status(500).json({ error: "Failed to process webhook" });
+    }
+  }
+);
+
 // Allow base64 images in body
 app.use(express.json({ limit: "50mb" }));
 app.use(express.text({ limit: "50mb", type: "text/csv" })); // For CSV import
@@ -709,8 +747,12 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           );
 
           // Calculate ticket amount (what host receives): ticket price per person * party size
-          const partySize = result.rsvp.partySize || 1;
-          const ticketAmount = result.event.ticketPrice * partySize;
+          const partySize = Number(result.rsvp.partySize) || 1;
+          const ticketPrice = Number(result.event.ticketPrice);
+          if (!ticketPrice || ticketPrice <= 0) {
+            throw new Error("Invalid ticket price");
+          }
+          const ticketAmount = ticketPrice * partySize;
 
           // Calculate platform service fee (paid by customer, not deducted from host)
           // Platform fee percentage from environment variable (default: 3%)
@@ -2390,7 +2432,10 @@ app.post(
       const connectedAccountId = hostProfile.stripeConnectedAccountId || null;
 
       // Calculate ticket amount (what host receives)
-      const ticketAmount = event.ticketPrice;
+      const ticketAmount = Number(event.ticketPrice);
+      if (!ticketAmount || ticketAmount <= 0) {
+        return res.status(400).json({ error: "Invalid ticket price" });
+      }
 
       // Calculate platform service fee (paid by customer, not deducted from host)
       // Platform fee percentage from environment variable (default: 3%)
@@ -2538,44 +2583,6 @@ app.get("/payments/:paymentId/status", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch payment status" });
   }
 });
-
-// ---------------------------
-// WEBHOOKS: Stripe webhook handler
-// ---------------------------
-app.post(
-  "/webhooks/stripe",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    const sig = req.headers["stripe-signature"];
-
-    if (!process.env.STRIPE_WEBHOOK_SECRET) {
-      return res.status(500).json({ error: "Webhook secret not configured" });
-    }
-
-    let event;
-
-    try {
-      const stripe = (await import("stripe")).default;
-      const stripeInstance = new stripe(getStripeSecretKey());
-      event = stripeInstance.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-    } catch (err) {
-      console.error("Webhook signature verification failed:", err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    try {
-      const result = await handleStripeWebhook(event);
-      res.json({ received: true, processed: result.processed });
-    } catch (error) {
-      console.error("Webhook processing error:", error);
-      res.status(500).json({ error: "Failed to process webhook" });
-    }
-  }
-);
 
 // ---------------------------
 // PROTECTED: Get user profile

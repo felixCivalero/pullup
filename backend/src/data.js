@@ -744,6 +744,15 @@ function mapPersonFromDb(dbPerson) {
     notes: dbPerson.notes,
     tags: dbPerson.tags || [],
     stripeCustomerId: dbPerson.stripe_customer_id,
+    // CRM fields
+    totalSpend: dbPerson.total_spend || 0,
+    paymentCount: dbPerson.payment_count || 0,
+    refundedVolume: dbPerson.refunded_volume || 0,
+    disputeLosses: dbPerson.dispute_losses || 0,
+    subscriptionType: dbPerson.subscription_type || null,
+    interestedIn: dbPerson.interested_in || null,
+    importSource: dbPerson.import_source || null,
+    importMetadata: dbPerson.import_metadata || null,
     createdAt: dbPerson.created_at,
     updatedAt: dbPerson.updated_at,
   };
@@ -758,6 +767,23 @@ function mapPersonToDb(updates) {
   if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
   if (updates.stripeCustomerId !== undefined)
     dbUpdates.stripe_customer_id = updates.stripeCustomerId;
+  // CRM fields
+  if (updates.totalSpend !== undefined)
+    dbUpdates.total_spend = Number(updates.totalSpend) || 0;
+  if (updates.paymentCount !== undefined)
+    dbUpdates.payment_count = Number(updates.paymentCount) || 0;
+  if (updates.refundedVolume !== undefined)
+    dbUpdates.refunded_volume = Number(updates.refundedVolume) || 0;
+  if (updates.disputeLosses !== undefined)
+    dbUpdates.dispute_losses = Number(updates.disputeLosses) || 0;
+  if (updates.subscriptionType !== undefined)
+    dbUpdates.subscription_type = updates.subscriptionType;
+  if (updates.interestedIn !== undefined)
+    dbUpdates.interested_in = updates.interestedIn;
+  if (updates.importSource !== undefined)
+    dbUpdates.import_source = updates.importSource;
+  if (updates.importMetadata !== undefined)
+    dbUpdates.import_metadata = updates.importMetadata;
   return dbUpdates;
 }
 
@@ -936,6 +962,413 @@ export async function getAllPeopleWithStats(userId) {
     const bLatest = b.eventHistory[0]?.rsvpDate || b.createdAt;
     return new Date(bLatest) - new Date(aLatest);
   });
+}
+
+// Get people with advanced filtering and pagination
+export async function getPeopleWithFilters(
+  userId,
+  filters = {},
+  sortBy = "created_at",
+  sortOrder = "desc",
+  limit = 50,
+  offset = 0
+) {
+  if (!userId) {
+    return { people: [], total: 0 };
+  }
+
+  // Get all event IDs for this user
+  const { data: userEvents, error: eventsError } = await supabase
+    .from("events")
+    .select("id")
+    .eq("host_id", userId);
+
+  if (eventsError || !userEvents || userEvents.length === 0) {
+    return { people: [], total: 0 };
+  }
+
+  const eventIds = userEvents.map((e) => e.id);
+
+  // STEP 1: First filter RSVPs based on event-based filters
+  // This determines which people we're interested in
+  let rsvpQuery = supabase
+    .from("rsvps")
+    .select("person_id, event_id, booking_status, status, wants_dinner, dinner")
+    .in("event_id", eventIds);
+
+  // Apply event-based filters
+  if (filters.attendedEventId) {
+    // Verify the event belongs to this user
+    // Convert both to strings for comparison (UUIDs can be compared as strings)
+    const eventIdStr = String(filters.attendedEventId);
+    const eventIdsStr = eventIds.map((id) => String(id));
+
+    if (!eventIdsStr.includes(eventIdStr)) {
+      console.warn(
+        `[CRM Filter] Event ${eventIdStr} does not belong to user ${userId}. User has ${eventIds.length} events.`
+      );
+      console.warn(
+        `[CRM Filter] User's event IDs:`,
+        eventIdsStr.slice(0, 5),
+        eventIds.length > 5 ? `... (${eventIds.length} total)` : ""
+      );
+      return { people: [], total: 0 };
+    }
+    console.log(
+      `[CRM Filter] Filtering RSVPs by event_id: ${eventIdStr} (verified ownership)`
+    );
+    rsvpQuery = rsvpQuery.eq("event_id", eventIdStr);
+  }
+
+  if (filters.attendanceStatus) {
+    if (filters.attendanceStatus === "attended") {
+      rsvpQuery = rsvpQuery.or(
+        "booking_status.eq.CONFIRMED,status.eq.attending"
+      );
+    } else if (filters.attendanceStatus === "waitlisted") {
+      rsvpQuery = rsvpQuery.or("booking_status.eq.WAITLIST,status.eq.waitlist");
+    } else if (filters.attendanceStatus === "confirmed") {
+      rsvpQuery = rsvpQuery.eq("booking_status", "CONFIRMED");
+    }
+  }
+
+  // Note: hasDinner filter will be applied in JavaScript after fetching
+  // since it requires checking both wants_dinner and dinner.enabled (JSONB field)
+
+  const { data: allRsvps, error: rsvpsError } = await rsvpQuery;
+
+  if (rsvpsError) {
+    console.error(
+      "[CRM Filter] Error fetching RSVPs for filtering:",
+      rsvpsError
+    );
+    console.error("[CRM Filter] Query details:", {
+      eventIds: eventIds.length,
+      attendedEventId: filters.attendedEventId,
+      attendanceStatus: filters.attendanceStatus,
+    });
+    return { people: [], total: 0 };
+  }
+
+  // Debug logging
+  console.log(
+    `[CRM Filter] Found ${allRsvps?.length || 0} RSVPs matching criteria`,
+    filters.attendedEventId
+      ? `for event ${filters.attendedEventId}`
+      : "for all user events"
+  );
+
+  // If no RSVPs match, return empty
+  if (!allRsvps || allRsvps.length === 0) {
+    console.log(
+      `[CRM Filter] No RSVPs found. Filters:`,
+      JSON.stringify(
+        {
+          attendedEventId: filters.attendedEventId,
+          attendanceStatus: filters.attendanceStatus,
+          hasDinner: filters.hasDinner,
+          eventsAttendedMin: filters.eventsAttendedMin,
+          eventsAttendedMax: filters.eventsAttendedMax,
+        },
+        null,
+        2
+      )
+    );
+    return { people: [], total: 0 };
+  }
+
+  // Group RSVPs by person to calculate event counts
+  // Also filter by hasDinner if specified
+  const rsvpsByPerson = {};
+  let rsvpsAfterDinnerFilter = 0;
+  (allRsvps || []).forEach((rsvp) => {
+    // Filter by hasDinner if specified
+    if (filters.hasDinner !== undefined) {
+      const wantsDinner = rsvp.wants_dinner === true;
+      const dinnerEnabled =
+        rsvp.dinner &&
+        typeof rsvp.dinner === "object" &&
+        rsvp.dinner.enabled === true;
+      const hadDinner = wantsDinner || dinnerEnabled;
+
+      if (filters.hasDinner && !hadDinner) {
+        return; // Skip this RSVP if we want people with dinner but this one doesn't have it
+      }
+      if (!filters.hasDinner && hadDinner) {
+        return; // Skip this RSVP if we want people without dinner but this one has it
+      }
+    }
+
+    rsvpsAfterDinnerFilter++;
+    if (!rsvpsByPerson[rsvp.person_id]) {
+      rsvpsByPerson[rsvp.person_id] = [];
+    }
+    rsvpsByPerson[rsvp.person_id].push(rsvp);
+  });
+
+  console.log(
+    `[CRM Filter] After dinner filter: ${rsvpsAfterDinnerFilter} RSVPs, ${
+      Object.keys(rsvpsByPerson).length
+    } unique people`
+  );
+
+  // Filter by events attended count if specified
+  // Note: person_id from RSVPs is already a UUID string, so we can use it directly
+  // Object.keys() returns strings, and person_id from database is UUID (string)
+  let personIdsWithRsvps = new Set(Object.keys(rsvpsByPerson));
+
+  console.log(
+    `[CRM Filter] After grouping: ${
+      personIdsWithRsvps.size
+    } unique people from ${Object.values(rsvpsByPerson).reduce(
+      (sum, arr) => sum + arr.length,
+      0
+    )} RSVPs`
+  );
+
+  // Log sample person IDs to verify format
+  if (personIdsWithRsvps.size > 0) {
+    const sampleIds = Array.from(personIdsWithRsvps).slice(0, 2);
+    console.log(`[CRM Filter] Sample person IDs:`, sampleIds);
+  }
+
+  if (
+    filters.eventsAttendedMin !== undefined ||
+    filters.eventsAttendedMax !== undefined
+  ) {
+    const minEvents = filters.eventsAttendedMin || 0;
+    const maxEvents = filters.eventsAttendedMax || Infinity;
+
+    personIdsWithRsvps = new Set(
+      Object.keys(rsvpsByPerson).filter((personId) => {
+        const personRsvps = rsvpsByPerson[personId];
+        const attendedCount = personRsvps.filter(
+          (r) => r.booking_status === "CONFIRMED" || r.status === "attending"
+        ).length;
+        return attendedCount >= minEvents && attendedCount <= maxEvents;
+      })
+    );
+  }
+
+  // STEP 2: Now query people, but ONLY those who match our RSVP filters
+  if (personIdsWithRsvps.size === 0) {
+    console.log(
+      `[CRM Filter] No person IDs after RSVP filtering. Filters:`,
+      JSON.stringify(
+        {
+          attendedEventId: filters.attendedEventId,
+          attendanceStatus: filters.attendanceStatus,
+          hasDinner: filters.hasDinner,
+          eventsAttendedMin: filters.eventsAttendedMin,
+          eventsAttendedMax: filters.eventsAttendedMax,
+        },
+        null,
+        2
+      )
+    );
+    return { people: [], total: 0 };
+  }
+
+  const personIdsArray = Array.from(personIdsWithRsvps);
+  console.log(
+    `[CRM Filter] Querying ${personIdsArray.length} people from RSVP criteria. First 3 person IDs:`,
+    personIdsArray.slice(0, 3)
+  );
+
+  // Build query for people - start with person_id filter
+  // Note: Supabase .in() can handle up to 1000 items, so we're safe for most use cases
+  let query = supabase
+    .from("people")
+    .select("*", { count: "exact" })
+    .in("id", personIdsArray);
+
+  // Log the query we're about to execute
+  if (personIdsArray.length > 0) {
+    console.log(
+      `[CRM Filter] People query: SELECT * FROM people WHERE id IN (${personIdsArray.length} IDs)`
+    );
+  }
+
+  // Apply other filters (email, name, search, etc.)
+  if (filters.search) {
+    const searchTerm = filters.search.toLowerCase();
+    query = query.or(
+      `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`
+    );
+  }
+
+  if (filters.email) {
+    query = query.ilike("email", `%${filters.email}%`);
+  }
+
+  if (filters.name) {
+    query = query.ilike("name", `%${filters.name}%`);
+  }
+
+  if (filters.totalSpendMin !== undefined) {
+    query = query.gte("total_spend", filters.totalSpendMin);
+  }
+
+  if (filters.totalSpendMax !== undefined) {
+    query = query.lte("total_spend", filters.totalSpendMax);
+  }
+
+  if (filters.paymentCountMin !== undefined) {
+    query = query.gte("payment_count", filters.paymentCountMin);
+  }
+
+  if (filters.paymentCountMax !== undefined) {
+    query = query.lte("payment_count", filters.paymentCountMax);
+  }
+
+  if (filters.subscriptionType) {
+    query = query.eq("subscription_type", filters.subscriptionType);
+  }
+
+  if (filters.interestedIn) {
+    query = query.ilike("interested_in", `%${filters.interestedIn}%`);
+  }
+
+  if (filters.tags && filters.tags.length > 0) {
+    query = query.contains("tags", filters.tags);
+  }
+
+  if (filters.hasStripeCustomerId !== undefined) {
+    if (filters.hasStripeCustomerId) {
+      query = query.not("stripe_customer_id", "is", null);
+    } else {
+      query = query.is("stripe_customer_id", null);
+    }
+  }
+
+  // Sort
+  const validSortFields = [
+    "created_at",
+    "updated_at",
+    "name",
+    "email",
+    "total_spend",
+    "payment_count",
+  ];
+  const sortField = validSortFields.includes(sortBy) ? sortBy : "created_at";
+  const sortDir = sortOrder === "asc" ? "asc" : "desc";
+  query = query.order(sortField, { ascending: sortDir === "asc" });
+
+  // Pagination
+  query = query.range(offset, offset + limit - 1);
+
+  const { data: people, error, count } = await query;
+
+  if (error) {
+    console.error("[CRM Filter] Error fetching people with filters:", error);
+    return { people: [], total: 0 };
+  }
+
+  console.log(
+    `[CRM Filter] Found ${people?.length || 0} people (total count: ${
+      count || 0
+    })`
+  );
+
+  return {
+    people: (people || []).map((p) => mapPersonFromDb(p)),
+    total: count || 0,
+  };
+}
+
+// Get person touchpoints (RSVPs, payments, emails)
+export async function getPersonTouchpoints(personId, userId) {
+  if (!personId || !userId) {
+    return { rsvps: [], payments: [], emails: [] };
+  }
+
+  // Verify user has access (person must have RSVP'd to user's events)
+  const { data: userEvents } = await supabase
+    .from("events")
+    .select("id")
+    .eq("host_id", userId);
+
+  if (!userEvents || userEvents.length === 0) {
+    return { rsvps: [], payments: [], emails: [] };
+  }
+
+  const eventIds = userEvents.map((e) => e.id);
+
+  // Get RSVPs
+  const { data: rsvps, error: rsvpsError } = await supabase
+    .from("rsvps")
+    .select(
+      `
+      *,
+      events:event_id (
+        id,
+        title,
+        slug,
+        starts_at
+      )
+    `
+    )
+    .eq("person_id", personId)
+    .in("event_id", eventIds)
+    .order("created_at", { ascending: false });
+
+  // Get payments (via RSVPs or directly linked)
+  const { data: payments, error: paymentsError } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("user_id", userId)
+    .in("event_id", eventIds)
+    .or(`rsvp_id.in.(${rsvps?.map((r) => r.id).join(",") || ""})`)
+    .order("created_at", { ascending: false });
+
+  // Get emails (campaign sends)
+  const { data: emails, error: emailsError } = await supabase
+    .from("email_sends")
+    .select(
+      `
+      *,
+      campaigns:campaign_id (
+        id,
+        name,
+        subject
+      )
+    `
+    )
+    .eq("person_id", personId)
+    .order("created_at", { ascending: false });
+
+  return {
+    rsvps: (rsvps || []).map((rsvp) => ({
+      id: rsvp.id,
+      eventId: rsvp.event_id,
+      eventTitle: rsvp.events?.title || "Unknown Event",
+      eventSlug: rsvp.events?.slug || null,
+      eventDate: rsvp.events?.starts_at || null,
+      status: rsvp.booking_status || rsvp.status,
+      createdAt: rsvp.created_at,
+    })),
+    payments: (payments || []).map((payment) => ({
+      id: payment.id,
+      eventId: payment.event_id,
+      amount: payment.amount,
+      currency: payment.currency,
+      status: payment.status,
+      createdAt: payment.created_at,
+      paidAt: payment.paid_at,
+    })),
+    emails: (emails || []).map((email) => ({
+      id: email.id,
+      campaignId: email.campaign_id,
+      campaignName: email.campaigns?.name || "Unknown Campaign",
+      subject: email.subject,
+      status: email.status,
+      sentAt: email.sent_at,
+      deliveredAt: email.delivered_at,
+      openedAt: email.opened_at,
+      clickedAt: email.clicked_at,
+      createdAt: email.created_at,
+    })),
+  };
 }
 
 // Helper: Map database RSVP to application format

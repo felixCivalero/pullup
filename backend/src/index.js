@@ -331,6 +331,7 @@ app.use(cors(corsOptions));
 
 // Allow base64 images in body
 app.use(express.json({ limit: "50mb" }));
+app.use(express.text({ limit: "50mb", type: "text/csv" })); // For CSV import
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // ---------------------------
@@ -1529,12 +1530,128 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
       console.log("Migration note:", migrationError.message);
     }
 
-    // getAllPeopleWithStats will filter by user's events via backend queries
+    // Check for query parameters for filtering
+    const {
+      search,
+      email,
+      name,
+      totalSpendMin,
+      totalSpendMax,
+      paymentCountMin,
+      paymentCountMax,
+      subscriptionType,
+      interestedIn,
+      tags,
+      hasStripeCustomerId,
+      attendedEventId,
+      hasDinner,
+      attendanceStatus,
+      eventsAttendedMin,
+      eventsAttendedMax,
+      sortBy = "created_at",
+      sortOrder = "desc",
+      limit = 50,
+      offset = 0,
+    } = req.query;
+
+    // If filters provided, use getPeopleWithFilters
+    if (
+      search ||
+      email ||
+      name ||
+      totalSpendMin ||
+      totalSpendMax ||
+      paymentCountMin ||
+      paymentCountMax ||
+      subscriptionType ||
+      interestedIn ||
+      tags ||
+      hasStripeCustomerId !== undefined ||
+      attendedEventId ||
+      hasDinner !== undefined ||
+      attendanceStatus ||
+      eventsAttendedMin ||
+      eventsAttendedMax
+    ) {
+      const { getPeopleWithFilters } = await import("./data.js");
+      const filters = {
+        search,
+        email,
+        name,
+        totalSpendMin: totalSpendMin ? parseInt(totalSpendMin, 10) : undefined,
+        totalSpendMax: totalSpendMax ? parseInt(totalSpendMax, 10) : undefined,
+        paymentCountMin: paymentCountMin
+          ? parseInt(paymentCountMin, 10)
+          : undefined,
+        paymentCountMax: paymentCountMax
+          ? parseInt(paymentCountMax, 10)
+          : undefined,
+        subscriptionType,
+        interestedIn,
+        tags: tags ? tags.split(",") : undefined,
+        hasStripeCustomerId:
+          hasStripeCustomerId !== undefined
+            ? hasStripeCustomerId === "true"
+            : undefined,
+        attendedEventId,
+        hasDinner: hasDinner !== undefined ? hasDinner === "true" : undefined,
+        attendanceStatus,
+        eventsAttendedMin: eventsAttendedMin
+          ? parseInt(eventsAttendedMin, 10)
+          : undefined,
+        eventsAttendedMax: eventsAttendedMax
+          ? parseInt(eventsAttendedMax, 10)
+          : undefined,
+      };
+
+      const result = await getPeopleWithFilters(
+        req.user.id,
+        filters,
+        sortBy,
+        sortOrder,
+        parseInt(limit, 10),
+        parseInt(offset, 10)
+      );
+
+      return res.json({
+        people: result.people,
+        total: result.total,
+        limit: parseInt(limit, 10),
+        offset: parseInt(offset, 10),
+      });
+    }
+
+    // Otherwise use getAllPeopleWithStats (backward compatibility)
     const people = await getAllPeopleWithStats(req.user.id);
-    res.json({ people });
+    res.json({ people, total: people.length });
   } catch (error) {
     console.error("Error fetching people:", error);
     res.status(500).json({ error: "Failed to fetch people" });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Get person details with touchpoints
+// ---------------------------
+app.get("/host/crm/people/:personId", requireAuth, async (req, res) => {
+  try {
+    const { personId } = req.params;
+    const { getPersonTouchpoints, findPersonById } = await import("./data.js");
+
+    const person = await findPersonById(personId);
+    if (!person) {
+      return res.status(404).json({ error: "Person not found" });
+    }
+
+    const touchpoints = await getPersonTouchpoints(personId, req.user.id);
+
+    res.json({
+      person,
+      touchpoints,
+    });
+  } catch (error) {
+    console.error("Error fetching person details:", error);
+    res.status(500).json({ error: "Failed to fetch person details" });
   }
 });
 
@@ -1633,6 +1750,275 @@ app.put("/host/crm/people/:personId", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Error updating person:", error);
     res.status(500).json({ error: "Failed to update person" });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Import CSV (requires auth)
+// ---------------------------
+app.post("/host/crm/import-csv", requireAuth, async (req, res) => {
+  try {
+    // Accept JSON body with csv and optional eventId
+    let csvText;
+    let eventId = null;
+
+    // Support both old format (CSV as text) and new format (JSON with csv and eventId)
+    if (typeof req.body === "string") {
+      csvText = req.body;
+    } else if (req.body && typeof req.body.csv === "string") {
+      csvText = req.body.csv;
+      eventId = req.body.eventId || null;
+    } else {
+      return res.status(400).json({
+        error: "invalid_request",
+        message:
+          "CSV text is required in request body (as 'csv' field in JSON or as plain text)",
+      });
+    }
+
+    if (!csvText || csvText.length === 0) {
+      return res.status(400).json({
+        error: "invalid_request",
+        message: "CSV text cannot be empty",
+      });
+    }
+
+    // Verify event ownership if eventId is provided
+    let event = null;
+    if (eventId) {
+      const { findEventById } = await import("./data.js");
+      event = await findEventById(eventId);
+
+      if (!event) {
+        return res.status(404).json({
+          error: "event_not_found",
+          message: "Event not found",
+        });
+      }
+
+      if (event.hostId !== req.user.id) {
+        return res.status(403).json({
+          error: "forbidden",
+          message: "You don't have access to this event",
+        });
+      }
+    }
+
+    // Import CSV service
+    const { importPeopleFromCsv } = await import(
+      "./services/csvImportService.js"
+    );
+
+    // Import people from CSV
+    const results = await importPeopleFromCsv(csvText, req.user.id);
+
+    // Create RSVPs for imported people if eventId is provided
+    let rsvpsCreated = 0;
+    if (eventId && event) {
+      const { supabase } = await import("./supabase.js");
+      const { findPersonByEmail } = await import("./data.js");
+
+      // Get all successfully imported people (created or updated)
+      // We need to find them by email from the CSV
+      const { parseCsv } = await import("./services/csvImportService.js");
+      const rows = parseCsv(csvText);
+
+      for (const row of rows) {
+        const email = row["Email"] || row["email"] || row.Email;
+        if (!email) continue;
+
+        try {
+          const normalizedEmail = email.trim().toLowerCase();
+          const person = await findPersonByEmail(normalizedEmail);
+
+          if (person) {
+            // Check if RSVP already exists
+            const { data: existingRsvp } = await supabase
+              .from("rsvps")
+              .select("id")
+              .eq("event_id", eventId)
+              .eq("person_id", person.id)
+              .single();
+
+            if (!existingRsvp) {
+              // Create RSVP with CONFIRMED status (historical import)
+              const { error: rsvpError } = await supabase.from("rsvps").insert({
+                person_id: person.id,
+                event_id: eventId,
+                slug: event.slug,
+                booking_status: "CONFIRMED",
+                status: "attending",
+                plus_ones: 0,
+                party_size: 1,
+                wants_dinner: false,
+              });
+
+              if (!rsvpError) {
+                rsvpsCreated++;
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`Error creating RSVP for ${email}:`, err);
+          // Continue with next person
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      summary: {
+        total: results.created + results.updated + results.errors.length,
+        created: results.created,
+        updated: results.updated,
+        errors: results.errors.length,
+        rsvpsCreated: rsvpsCreated,
+      },
+      errors: results.errors.slice(0, 100), // Limit to first 100 errors
+    });
+  } catch (error) {
+    console.error("Error importing CSV:", error);
+    res.status(500).json({
+      error: "import_failed",
+      message: error.message || "Failed to import CSV",
+    });
+  }
+});
+
+// ---------------------------
+// PROTECTED: CRM Views (requires auth)
+// ---------------------------
+app.get("/host/crm/views", requireAuth, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { data, error } = await supabase
+      .from("crm_views")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    res.json({ views: data || [] });
+  } catch (error) {
+    console.error("Error fetching CRM views:", error);
+    res.status(500).json({ error: "Failed to fetch views" });
+  }
+});
+
+app.post("/host/crm/views", requireAuth, async (req, res) => {
+  try {
+    const { name, filters, sortBy, sortOrder, isDefault } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: "name is required" });
+    }
+
+    const { supabase } = await import("./supabase.js");
+
+    // If this is set as default, unset other defaults
+    if (isDefault) {
+      await supabase
+        .from("crm_views")
+        .update({ is_default: false })
+        .eq("user_id", req.user.id);
+    }
+
+    const { data, error } = await supabase
+      .from("crm_views")
+      .insert({
+        user_id: req.user.id,
+        name,
+        filters: filters || {},
+        sort_by: sortBy || "created_at",
+        sort_order: sortOrder || "desc",
+        is_default: isDefault || false,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    console.error("Error creating CRM view:", error);
+    res.status(500).json({ error: "Failed to create view" });
+  }
+});
+
+app.put("/host/crm/views/:viewId", requireAuth, async (req, res) => {
+  try {
+    const { viewId } = req.params;
+    const { name, filters, sortBy, sortOrder, isDefault } = req.body;
+
+    const { supabase } = await import("./supabase.js");
+
+    // Verify ownership
+    const { data: existing } = await supabase
+      .from("crm_views")
+      .select("user_id")
+      .eq("id", viewId)
+      .single();
+
+    if (!existing || existing.user_id !== req.user.id) {
+      return res.status(404).json({ error: "View not found" });
+    }
+
+    // If this is set as default, unset other defaults
+    if (isDefault) {
+      await supabase
+        .from("crm_views")
+        .update({ is_default: false })
+        .eq("user_id", req.user.id)
+        .neq("id", viewId);
+    }
+
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (filters !== undefined) updates.filters = filters;
+    if (sortBy !== undefined) updates.sort_by = sortBy;
+    if (sortOrder !== undefined) updates.sort_order = sortOrder;
+    if (isDefault !== undefined) updates.is_default = isDefault;
+
+    const { data, error } = await supabase
+      .from("crm_views")
+      .update(updates)
+      .eq("id", viewId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    console.error("Error updating CRM view:", error);
+    res.status(500).json({ error: "Failed to update view" });
+  }
+});
+
+app.delete("/host/crm/views/:viewId", requireAuth, async (req, res) => {
+  try {
+    const { viewId } = req.params;
+    const { supabase } = await import("./supabase.js");
+
+    // Verify ownership
+    const { data: existing } = await supabase
+      .from("crm_views")
+      .select("user_id")
+      .eq("id", viewId)
+      .single();
+
+    if (!existing || existing.user_id !== req.user.id) {
+      return res.status(404).json({ error: "View not found" });
+    }
+
+    const { error } = await supabase
+      .from("crm_views")
+      .delete()
+      .eq("id", viewId);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting CRM view:", error);
+    res.status(500).json({ error: "Failed to delete view" });
   }
 });
 

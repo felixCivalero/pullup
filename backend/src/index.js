@@ -20,6 +20,7 @@ import {
   getAllPeopleWithStats,
   updatePerson,
   createPayment,
+  updatePayment,
   getPaymentsForUser,
   getPaymentsForEvent,
   findPersonByEmail,
@@ -695,10 +696,161 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     }
 
     if (result.error === "duplicate") {
+      // For paid events, if RSVP exists but payment is unpaid/pending, allow proceeding to payment
+      if (
+        result.event?.ticketType === "paid" &&
+        result.event?.ticketPrice &&
+        result.rsvp?.paymentStatus &&
+        (result.rsvp.paymentStatus === "unpaid" ||
+          result.rsvp.paymentStatus === "pending")
+      ) {
+        // Check if payment already exists for this RSVP
+        let existingPayment = null;
+        if (result.rsvp.paymentId) {
+          try {
+            existingPayment = await findPaymentById(result.rsvp.paymentId);
+          } catch (err) {
+            console.error("Error finding existing payment:", err);
+          }
+        }
+
+        // If no payment exists or payment is unpaid/pending, create/update payment
+        if (
+          !existingPayment ||
+          existingPayment.status === "pending" ||
+          existingPayment.status === "failed"
+        ) {
+          try {
+            // Load host profile to get connected account ID
+            const hostProfile = await getUserProfile(result.event.hostId);
+            const connectedAccountId =
+              hostProfile?.stripeConnectedAccountId || null;
+
+            if (connectedAccountId) {
+              // Get or create Stripe customer
+              const customerId = await getOrCreateStripeCustomer(
+                result.rsvp.email,
+                result.rsvp.name
+              );
+
+              // Calculate amounts
+              const partySize = Number(result.rsvp.partySize) || 1;
+              const ticketPrice = Number(result.event.ticketPrice);
+              if (!ticketPrice || ticketPrice <= 0) {
+                throw new Error("Invalid ticket price");
+              }
+              const ticketAmount = ticketPrice * partySize;
+
+              const platformFeePercentage =
+                parseFloat(
+                  process.env.TEST_PLATFORM_FEE_PERCENTAGE ||
+                    process.env.PLATFORM_FEE_PERCENTAGE ||
+                    "3"
+                ) / 100;
+              const platformFeeAmount = Math.round(
+                ticketAmount * platformFeePercentage
+              );
+              const customerTotalAmount = ticketAmount + platformFeeAmount;
+
+              // Create PaymentIntent
+              const currency = (
+                result.event.ticketCurrency || "usd"
+              ).toLowerCase();
+              const paymentIntent = await createPaymentIntent({
+                customerId,
+                amount: customerTotalAmount,
+                eventId: result.event.id,
+                eventTitle: result.event.title,
+                personId: result.rsvp.personId,
+                connectedAccountId,
+                applicationFeeAmount: platformFeeAmount,
+                currency,
+              });
+
+              // Create or update payment record
+              let payment;
+              if (existingPayment) {
+                // Update existing payment
+                const updateResult = await updatePayment(existingPayment.id, {
+                  stripePaymentIntentId: paymentIntent.id,
+                  status: "pending",
+                });
+                payment = updateResult.payment;
+              } else {
+                // Create new payment
+                payment = await createPayment({
+                  userId: result.event.hostId,
+                  eventId: result.event.id,
+                  rsvpId: result.rsvp.id,
+                  stripePaymentIntentId: paymentIntent.id,
+                  stripeCustomerId: customerId,
+                  amount: customerTotalAmount,
+                  currency,
+                  status: "pending",
+                  description: `Ticket${
+                    partySize > 1 ? `s (${partySize}x)` : ""
+                  } for ${result.event.title}`,
+                });
+              }
+
+              // Update RSVP with payment ID
+              await updateRsvp(result.rsvp.id, {
+                paymentId: payment.id,
+                paymentStatus: "pending",
+              });
+
+              return res.json({
+                event: result.event,
+                rsvp: {
+                  ...result.rsvp,
+                  paymentId: payment.id,
+                  paymentStatus: "pending",
+                },
+                payment,
+                stripe: {
+                  clientSecret: paymentIntent.client_secret,
+                  paymentId: payment.id,
+                },
+                paymentBreakdown: {
+                  ticketAmount,
+                  platformFeeAmount,
+                  customerTotalAmount,
+                  platformFeePercentage: platformFeePercentage * 100,
+                },
+                statusDetails: {
+                  bookingStatus:
+                    result.rsvp.bookingStatus ||
+                    result.rsvp.status === "attending"
+                      ? "CONFIRMED"
+                      : "WAITLIST",
+                  dinnerBookingStatus:
+                    result.rsvp.dinner?.bookingStatus ||
+                    (result.rsvp.dinnerStatus === "confirmed"
+                      ? "CONFIRMED"
+                      : result.rsvp.dinnerStatus === "waitlist"
+                      ? "WAITLIST"
+                      : null),
+                  wantsDinner:
+                    result.rsvp.dinner?.enabled || result.rsvp.wantsDinner,
+                },
+              });
+            }
+          } catch (paymentError) {
+            console.error(
+              "Error creating payment for existing RSVP:",
+              paymentError
+            );
+            // Fall through to return duplicate error if payment creation fails
+          }
+        }
+      }
+
+      // Return duplicate error for free events or if payment creation failed
       return res.status(409).json({
         error: "duplicate",
         message: "You've already RSVP'd to this event",
         status: result.rsvp.status,
+        rsvp: result.rsvp,
       });
     }
 

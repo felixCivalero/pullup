@@ -2001,6 +2001,7 @@ export async function addRsvp({
     const existingPerson = await findPersonById(existingRsvpData.person_id);
     return {
       error: "duplicate",
+      event, // Include event data so we can check if it's paid
       rsvp: mapRsvpFromDb(existingRsvpData, existingPerson),
     };
   }
@@ -3065,6 +3066,8 @@ export async function updatePayment(paymentId, updates) {
   }
   if (updates.refundedAt !== undefined)
     dbUpdates.refunded_at = updates.refundedAt;
+  if (updates.stripePaymentIntentId !== undefined)
+    dbUpdates.stripe_payment_intent_id = updates.stripePaymentIntentId;
 
   const { data, error } = await supabase
     .from("payments")

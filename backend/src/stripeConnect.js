@@ -60,7 +60,7 @@ function getStripeConnectRedirectUri() {
     // Production mode: use regular variable or default
     redirectUri =
       process.env.STRIPE_CONNECT_REDIRECT_URI ||
-      "https://pullup.se/host/stripe/connect/callback";
+      "https://pullup.se/api/host/stripe/connect/callback";
   }
 
   return redirectUri;

@@ -30,6 +30,7 @@ import {
   findPaymentById,
   getUserEventIds,
   isUserEventHost,
+  findPersonById,
 } from "./data.js";
 
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
@@ -60,6 +61,10 @@ import {
   signupConfirmationEmail,
   reminder8hEmail,
 } from "./emails/signupConfirmation.js";
+import {
+  generateWaitlistToken,
+  verifyWaitlistToken,
+} from "./utils/waitlistTokens.js";
 
 // Load environment-specific .env file
 // In development, loads .env.development
@@ -68,6 +73,24 @@ const envFile =
   process.env.NODE_ENV === "development" ? ".env.development" : ".env";
 
 dotenv.config({ path: envFile });
+
+// Determine environment mode
+const isDevelopment = process.env.NODE_ENV === "development";
+
+// Helper: Get frontend URL based on environment
+function getFrontendUrl() {
+  if (isDevelopment) {
+    // Development mode: prefer TEST_ variables, fallback to regular, then dev default
+    return (
+      process.env.TEST_FRONTEND_URL ||
+      process.env.FRONTEND_URL ||
+      "http://localhost:5173"
+    );
+  } else {
+    // Production mode: use regular variable or production default
+    return process.env.FRONTEND_URL || "https://pullup.se";
+  }
+}
 
 const app = express();
 
@@ -228,7 +251,7 @@ async function generateOgHtmlForEvent(event, routeName = "Share") {
 // - Humans get redirected immediately.
 // ---------------------------
 function generateOgHtml(event) {
-  const baseUrl = process.env.FRONTEND_URL || "https://pullup.se";
+  const baseUrl = getFrontendUrl();
 
   // Canonical URL for the event page (clean for OG)
   const eventUrl = `${baseUrl}/e/${event.slug}`;
@@ -535,6 +558,179 @@ app.get("/events/:slug", optionalAuth, async (req, res) => {
 });
 
 // ---------------------------
+// PUBLIC: Validate waitlist payment link token
+// ---------------------------
+app.get("/events/:slug/waitlist-offer", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { wl: token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({ error: "Token is required" });
+    }
+
+    // Verify token
+    let decoded;
+    try {
+      decoded = verifyWaitlistToken(token);
+    } catch (error) {
+      return res.status(400).json({
+        error: "Invalid or expired token",
+        message: error.message,
+      });
+    }
+
+    // Validate token structure
+    if (
+      decoded.type !== "waitlist_offer" ||
+      !decoded.eventId ||
+      !decoded.rsvpId ||
+      !decoded.email
+    ) {
+      return res.status(400).json({ error: "Invalid token structure" });
+    }
+
+    // Verify event exists - try by ID from token first (most reliable)
+    // The backend uses service role, so RLS shouldn't block this
+    let event = await findEventById(decoded.eventId);
+
+    if (!event) {
+      // Try by slug as fallback (in case ID lookup fails)
+      console.log("[waitlist-offer] Event not found by ID, trying slug", {
+        eventId: decoded.eventId,
+        slug,
+      });
+      event = await findEventBySlug(slug);
+    }
+
+    // Verify event exists and matches token's eventId
+    if (!event) {
+      console.error("[waitlist-offer] Event not found", {
+        eventId: decoded.eventId,
+        slug,
+        tokenDecoded: {
+          type: decoded.type,
+          eventId: decoded.eventId,
+          rsvpId: decoded.rsvpId,
+          email: decoded.email,
+        },
+      });
+      return res.status(404).json({
+        error: "Event not found",
+        message:
+          "The event associated with this waitlist link could not be found",
+      });
+    }
+
+    if (event.id !== decoded.eventId) {
+      console.error("[waitlist-offer] Event ID mismatch", {
+        tokenEventId: decoded.eventId,
+        foundEventId: event.id,
+        slug,
+        foundSlug: event.slug,
+      });
+      return res.status(400).json({
+        error: "Event ID mismatch",
+        message: "The event in the link does not match the URL",
+      });
+    }
+
+    console.log("[waitlist-offer] Event found successfully", {
+      eventId: event.id,
+      slug: event.slug,
+      title: event.title,
+    });
+
+    // If slug doesn't match, that's okay - use the event's actual slug
+    // The frontend will handle redirecting to the correct slug if needed
+
+    // Verify RSVP exists and matches token
+    const rsvp = await findRsvpById(decoded.rsvpId);
+    if (!rsvp) {
+      return res.status(404).json({ error: "RSVP not found" });
+    }
+
+    if (
+      rsvp.eventId !== decoded.eventId ||
+      rsvp.bookingStatus !== "WAITLIST" ||
+      rsvp.email?.toLowerCase() !== decoded.email.toLowerCase()
+    ) {
+      return res.status(400).json({
+        error: "RSVP mismatch",
+        message: "This link is not valid for this RSVP",
+      });
+    }
+
+    // Check if link has expired
+    if (decoded.expiresAt && new Date(decoded.expiresAt) < new Date()) {
+      return res.status(400).json({ error: "Token expired" });
+    }
+
+    // Get person details
+    const person = await findPersonById(rsvp.personId);
+
+    // Recalculate party size using DPCS to ensure correctness
+    // partySize = dinnerPartySize (includes booker) + plusOnes (cocktails-only) if dinner selected
+    // partySize = 1 (booker) + plusOnes (cocktails-only) if no dinner
+    const wantsDinner = rsvp.wantsDinner || false;
+    // Handle null/undefined dinnerPartySize - convert to 0 if not a valid number
+    const dinnerPartySize =
+      rsvp.dinnerPartySize !== null && rsvp.dinnerPartySize !== undefined
+        ? Number(rsvp.dinnerPartySize) || 0
+        : 0;
+    const plusOnes = Number(rsvp.plusOnes) || 0;
+    let calculatedPartySize;
+    if (wantsDinner && dinnerPartySize > 0) {
+      // Dinner selected: partySize = dinnerPartySize (includes booker) + plusOnes
+      calculatedPartySize = dinnerPartySize + plusOnes;
+    } else {
+      // No dinner: partySize = 1 (booker) + plusOnes
+      calculatedPartySize = 1 + plusOnes;
+    }
+
+    console.log("[Waitlist Offer] Party size calculation:", {
+      wantsDinner,
+      dinnerPartySize,
+      plusOnes,
+      calculatedPartySize,
+      storedPartySize: rsvp.partySize,
+      rawDinnerPartySize: rsvp.dinnerPartySize,
+      rawPlusOnes: rsvp.plusOnes,
+    });
+
+    // Return offer data with RSVP details
+    // Include full event data so frontend can use it directly
+    res.json({
+      valid: true,
+      event: {
+        id: event.id,
+        slug: event.slug, // Use actual slug from database
+        title: event.title,
+        ticketType: event.ticketType,
+        ticketPrice: event.ticketPrice,
+        ticketCurrency: event.ticketCurrency,
+        // Include full event for frontend to use
+        ...event,
+      },
+      rsvpDetails: {
+        id: rsvp.id,
+        name: rsvp.name || person?.name || null,
+        email: rsvp.email || person?.email || null,
+        plusOnes: plusOnes,
+        partySize: calculatedPartySize, // Use recalculated party size
+        wantsDinner: wantsDinner,
+        dinnerTimeSlot: rsvp.dinnerTimeSlot || null,
+        dinnerPartySize: wantsDinner ? dinnerPartySize : null,
+      },
+      expiresAt: decoded.expiresAt,
+    });
+  } catch (error) {
+    console.error("Error validating waitlist offer:", error);
+    res.status(500).json({ error: "Failed to validate waitlist offer" });
+  }
+});
+
+// ---------------------------
 // PROTECTED: Create event (requires auth)
 // ---------------------------
 app.post("/events", requireAuth, async (req, res) => {
@@ -671,21 +867,96 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       wantsDinner = false, // NEW: opt-in to dinner
       dinnerTimeSlot = null, // NEW: selected dinner time slot (ISO string)
       dinnerPartySize = null, // NEW: party size for dinner (can differ from event party size)
+      waitlistRsvpId = null, // NEW: RSVP ID for waitlist upgrade
+      waitlistToken = null, // NEW: JWT token for waitlist upgrade
     } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: "email is required" });
     }
 
-    const result = await addRsvp({
-      slug,
-      name,
-      email,
-      plusOnes,
-      wantsDinner,
-      dinnerTimeSlot,
-      dinnerPartySize,
-    });
+    // Handle waitlist upgrade flow
+    let existingWaitlistRsvp = null;
+    if (waitlistRsvpId && waitlistToken) {
+      try {
+        // Verify token
+        const decoded = verifyWaitlistToken(waitlistToken);
+        if (
+          decoded.type !== "waitlist_offer" ||
+          decoded.rsvpId !== waitlistRsvpId ||
+          decoded.email?.toLowerCase() !== email.toLowerCase()
+        ) {
+          return res.status(400).json({
+            error: "Invalid waitlist token",
+            message: "Token does not match RSVP or email",
+          });
+        }
+
+        // Fetch existing waitlist RSVP
+        existingWaitlistRsvp = await findRsvpById(waitlistRsvpId);
+        if (
+          !existingWaitlistRsvp ||
+          existingWaitlistRsvp.bookingStatus !== "WAITLIST" ||
+          existingWaitlistRsvp.eventId !== decoded.eventId
+        ) {
+          return res.status(400).json({
+            error: "Invalid waitlist RSVP",
+            message: "RSVP is not on waitlist or does not match event",
+          });
+        }
+
+        // Verify event matches slug
+        const event = await findEventBySlug(slug);
+        if (!event || event.id !== decoded.eventId) {
+          return res.status(400).json({
+            error: "Event mismatch",
+            message: "Token is for a different event",
+          });
+        }
+
+        // Validate that submitted name matches original (if provided)
+        if (name && existingWaitlistRsvp.name) {
+          const normalizedSubmitted = name.trim().toLowerCase();
+          const normalizedOriginal = existingWaitlistRsvp.name
+            .trim()
+            .toLowerCase();
+          if (normalizedSubmitted !== normalizedOriginal) {
+            return res.status(400).json({
+              error: "Name mismatch",
+              message: "Name must match original waitlist request",
+            });
+          }
+        }
+      } catch (tokenError) {
+        return res.status(400).json({
+          error: "Invalid or expired token",
+          message: tokenError.message,
+        });
+      }
+    }
+
+    // For waitlist upgrades, use existing RSVP details (all fields locked)
+    const rsvpData = existingWaitlistRsvp
+      ? {
+          slug,
+          name: existingWaitlistRsvp.name,
+          email: existingWaitlistRsvp.email,
+          plusOnes: existingWaitlistRsvp.plusOnes || 0,
+          wantsDinner: existingWaitlistRsvp.wantsDinner || false,
+          dinnerTimeSlot: existingWaitlistRsvp.dinnerTimeSlot || null,
+          dinnerPartySize: existingWaitlistRsvp.dinnerPartySize || null,
+        }
+      : {
+          slug,
+          name,
+          email,
+          plusOnes,
+          wantsDinner,
+          dinnerTimeSlot,
+          dinnerPartySize,
+        };
+
+    const result = await addRsvp(rsvpData);
 
     if (result.error === "not_found") {
       return res.status(404).json({ error: "Event not found" });
@@ -696,6 +967,17 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     }
 
     if (result.error === "duplicate") {
+      // For waitlist upgrades, if RSVP already exists, use it directly (bypass capacity checks)
+      if (
+        existingWaitlistRsvp &&
+        result.rsvp &&
+        result.rsvp.id === existingWaitlistRsvp.id
+      ) {
+        // Use the existing RSVP - proceed to payment creation
+        result.rsvp = existingWaitlistRsvp;
+        result.event = await findEventBySlug(slug);
+      }
+
       // For paid events, if RSVP exists but payment is unpaid/pending, allow proceeding to payment
       if (
         result.event?.ticketType === "paid" &&
@@ -734,12 +1016,62 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
               );
 
               // Calculate amounts
-              const partySize = Number(result.rsvp.partySize) || 1;
+              // For waitlist upgrades, ensure partySize is calculated correctly using DPCS
+              // partySize = dinnerPartySize (includes booker) + plusOnes (cocktails-only) if dinner selected
+              // partySize = 1 (booker) + plusOnes (cocktails-only) if no dinner
+              let partySize = Number(result.rsvp.partySize) || 1;
+
+              // Recalculate partySize using DPCS to ensure correctness
+              const wantsDinner = result.rsvp.wantsDinner || false;
+              // Handle null/undefined dinnerPartySize - convert to 0 if not a valid number
+              const dinnerPartySize =
+                result.rsvp.dinnerPartySize !== null &&
+                result.rsvp.dinnerPartySize !== undefined
+                  ? Number(result.rsvp.dinnerPartySize) || 0
+                  : 0;
+              const plusOnes = Number(result.rsvp.plusOnes) || 0;
+
+              console.log("[Waitlist Payment] RSVP values:", {
+                storedPartySize: result.rsvp.partySize,
+                wantsDinner,
+                dinnerPartySize,
+                plusOnes,
+                rawDinnerPartySize: result.rsvp.dinnerPartySize,
+                rawPlusOnes: result.rsvp.plusOnes,
+                rsvpId: result.rsvp.id,
+                rsvpData: {
+                  wantsDinner: result.rsvp.wantsDinner,
+                  dinnerPartySize: result.rsvp.dinnerPartySize,
+                  plusOnes: result.rsvp.plusOnes,
+                  partySize: result.rsvp.partySize,
+                },
+              });
+
+              if (wantsDinner && dinnerPartySize > 0) {
+                // Dinner selected: partySize = dinnerPartySize (includes booker) + plusOnes
+                partySize = dinnerPartySize + plusOnes;
+              } else {
+                // No dinner: partySize = 1 (booker) + plusOnes
+                partySize = 1 + plusOnes;
+              }
+
               const ticketPrice = Number(result.event.ticketPrice);
               if (!ticketPrice || ticketPrice <= 0) {
                 throw new Error("Invalid ticket price");
               }
               const ticketAmount = ticketPrice * partySize;
+
+              console.log("[Waitlist Payment] Price calculation:", {
+                calculatedPartySize: partySize,
+                ticketPrice,
+                ticketAmount,
+                platformFeePercentage:
+                  parseFloat(
+                    process.env.TEST_PLATFORM_FEE_PERCENTAGE ||
+                      process.env.PLATFORM_FEE_PERCENTAGE ||
+                      "3"
+                  ) / 100,
+              });
 
               const platformFeePercentage =
                 parseFloat(
@@ -777,11 +1109,21 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
                 });
                 payment = updateResult.payment;
               } else {
-                // Create new payment
+                // Create new payment for waitlist upgrade
+                // Mark in description that this is a waitlist upgrade
+                console.log(
+                  "[Waitlist Payment] Creating payment for waitlist RSVP:",
+                  {
+                    rsvpId: result.rsvp.id,
+                    rsvpBookingStatus: result.rsvp.bookingStatus,
+                    isWaitlistUpgrade: !!existingWaitlistRsvp,
+                  }
+                );
+
                 payment = await createPayment({
                   userId: result.event.hostId,
                   eventId: result.event.id,
-                  rsvpId: result.rsvp.id,
+                  rsvpId: result.rsvp.id, // CRITICAL: Link payment to waitlist RSVP
                   stripePaymentIntentId: paymentIntent.id,
                   stripeCustomerId: customerId,
                   amount: customerTotalAmount,
@@ -789,7 +1131,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
                   status: "pending",
                   description: `Ticket${
                     partySize > 1 ? `s (${partySize}x)` : ""
-                  } for ${result.event.title}`,
+                  } for ${result.event.title} (Waitlist Upgrade)`,
                 });
               }
 
@@ -899,12 +1241,54 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           );
 
           // Calculate ticket amount (what host receives): ticket price per person * party size
-          const partySize = Number(result.rsvp.partySize) || 1;
+          // Use DPCS to ensure correct party size calculation
+          let partySize = Number(result.rsvp.partySize) || 1;
+
+          // Recalculate partySize using DPCS to ensure correctness
+          const wantsDinner = result.rsvp.wantsDinner || false;
+          // Handle null/undefined dinnerPartySize - convert to 0 if not a valid number
+          const dinnerPartySize =
+            result.rsvp.dinnerPartySize !== null &&
+            result.rsvp.dinnerPartySize !== undefined
+              ? Number(result.rsvp.dinnerPartySize) || 0
+              : 0;
+          const plusOnes = Number(result.rsvp.plusOnes) || 0;
+
+          console.log("[Payment] RSVP values:", {
+            storedPartySize: result.rsvp.partySize,
+            wantsDinner,
+            dinnerPartySize,
+            plusOnes,
+            rawDinnerPartySize: result.rsvp.dinnerPartySize,
+            rawPlusOnes: result.rsvp.plusOnes,
+            rsvpId: result.rsvp.id,
+            rsvpData: {
+              wantsDinner: result.rsvp.wantsDinner,
+              dinnerPartySize: result.rsvp.dinnerPartySize,
+              plusOnes: result.rsvp.plusOnes,
+              partySize: result.rsvp.partySize,
+            },
+          });
+
+          if (wantsDinner && dinnerPartySize > 0) {
+            // Dinner selected: partySize = dinnerPartySize (includes booker) + plusOnes
+            partySize = dinnerPartySize + plusOnes;
+          } else {
+            // No dinner: partySize = 1 (booker) + plusOnes
+            partySize = 1 + plusOnes;
+          }
+
           const ticketPrice = Number(result.event.ticketPrice);
           if (!ticketPrice || ticketPrice <= 0) {
             throw new Error("Invalid ticket price");
           }
           const ticketAmount = ticketPrice * partySize;
+
+          console.log("[Payment] Price calculation:", {
+            calculatedPartySize: partySize,
+            ticketPrice,
+            ticketAmount,
+          });
 
           // Calculate platform service fee (paid by customer, not deducted from host)
           // Platform fee percentage from environment variable (default: 3%)
@@ -1396,6 +1780,109 @@ app.delete(
     } catch (error) {
       console.error("Error deleting event host:", error);
       res.status(500).json({ error: "Failed to delete event host" });
+    }
+  }
+);
+
+// ---------------------------
+// PROTECTED: Generate waitlist payment link
+// ---------------------------
+app.post(
+  "/host/events/:eventId/waitlist-link/:rsvpId",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId, rsvpId } = req.params;
+
+      // Verify host owns event
+      const event = await findEventById(eventId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+
+      const { isHost } = await isUserEventHost(req.user.id, event.id);
+      if (!isHost) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      // Verify RSVP exists and is WAITLIST
+      const rsvp = await findRsvpById(rsvpId);
+      if (!rsvp) {
+        return res.status(404).json({ error: "RSVP not found" });
+      }
+
+      if (rsvp.bookingStatus !== "WAITLIST") {
+        return res.status(400).json({
+          error: "RSVP is not on waitlist",
+          message: "Only waitlisted RSVPs can have payment links generated",
+        });
+      }
+
+      // Check if event is paid
+      if (event.ticketType !== "paid" || !event.ticketPrice) {
+        return res.status(400).json({
+          error: "Event is not a paid event",
+          message: "Payment links can only be generated for paid events",
+        });
+      }
+
+      // Verify RSVP belongs to this event
+      if (rsvp.eventId !== eventId) {
+        return res.status(400).json({
+          error: "RSVP mismatch",
+          message: "RSVP does not belong to this event",
+        });
+      }
+
+      // Get person email
+      const person = await findPersonById(rsvp.personId);
+      if (!person || !person.email) {
+        return res.status(400).json({
+          error: "Person email not found",
+          message: "Cannot generate link without email address",
+        });
+      }
+
+      // Generate signed token (JWT)
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+      const token = generateWaitlistToken({
+        type: "waitlist_offer",
+        eventId: event.id,
+        rsvpId: rsvp.id,
+        email: person.email.toLowerCase(),
+        expiresAt: expiresAt.toISOString(),
+        rsvpDetails: {
+          name: rsvp.name || person.name || null,
+          email: person.email.toLowerCase(),
+          plusOnes: rsvp.plusOnes || 0,
+          partySize: rsvp.partySize || 1,
+          wantsDinner: rsvp.wantsDinner || false,
+          dinnerTimeSlot: rsvp.dinnerTimeSlot || null,
+          dinnerPartySize: rsvp.dinnerPartySize || null,
+        },
+      });
+
+      // Update RSVP with link generation timestamp
+      await updateRsvp(rsvpId, {
+        waitlistLinkGeneratedAt: new Date().toISOString(),
+        waitlistLinkExpiresAt: expiresAt.toISOString(),
+        waitlistLinkToken: token, // Store token for tracking (optional)
+      });
+
+      // Generate link using environment-aware frontend URL
+      const frontendUrl = getFrontendUrl();
+      const link = `${frontendUrl}/e/${event.slug}?wl=${token}`;
+
+      return res.json({
+        link,
+        token,
+        expiresAt: expiresAt.toISOString(),
+        email: person.email,
+      });
+    } catch (error) {
+      console.error("Error generating waitlist link:", error);
+      res.status(500).json({
+        error: "Failed to generate waitlist link",
+        message: error.message,
+      });
     }
   }
 );

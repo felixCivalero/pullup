@@ -1846,6 +1846,10 @@ function mapRsvpFromDb(dbRsvp, person = null) {
     paymentId: dbRsvp.payment_id,
     paymentStatus: dbRsvp.payment_status,
     totalGuests: dbRsvp.total_guests,
+    waitlistLinkGeneratedAt: dbRsvp.waitlist_link_generated_at,
+    waitlistLinkExpiresAt: dbRsvp.waitlist_link_expires_at,
+    waitlistLinkUsedAt: dbRsvp.waitlist_link_used_at,
+    waitlistLinkToken: dbRsvp.waitlist_link_token,
     createdAt: dbRsvp.created_at,
     updatedAt: dbRsvp.updated_at,
     // Enrich with person data if provided
@@ -1913,6 +1917,14 @@ function mapRsvpToDb(rsvpData) {
     dbData.payment_status = rsvpData.paymentStatus;
   if (rsvpData.totalGuests !== undefined)
     dbData.total_guests = rsvpData.totalGuests;
+  if (rsvpData.waitlistLinkGeneratedAt !== undefined)
+    dbData.waitlist_link_generated_at = rsvpData.waitlistLinkGeneratedAt;
+  if (rsvpData.waitlistLinkExpiresAt !== undefined)
+    dbData.waitlist_link_expires_at = rsvpData.waitlistLinkExpiresAt;
+  if (rsvpData.waitlistLinkUsedAt !== undefined)
+    dbData.waitlist_link_used_at = rsvpData.waitlistLinkUsedAt;
+  if (rsvpData.waitlistLinkToken !== undefined)
+    dbData.waitlist_link_token = rsvpData.waitlistLinkToken;
   return dbData;
 }
 
@@ -2311,8 +2323,23 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
       if (normalizedEmail !== person.email) {
         const existingPerson = await findPersonByEmail(normalizedEmail);
         if (existingPerson) {
-          // Merge: update RSVP to point to existing person
-          updatedPersonId = existingPerson.id;
+          // Check if this person already has an RSVP for this event
+          const { data: existingRsvp } = await supabase
+            .from("rsvps")
+            .select("id")
+            .eq("person_id", existingPerson.id)
+            .eq("event_id", event.id)
+            .maybeSingle();
+
+          if (existingRsvp && existingRsvp.id !== rsvpId) {
+            // Person already has an RSVP for this event - don't change person_id
+            // Just update the person's email instead
+            await updatePerson(person.id, { email: normalizedEmail });
+            updatedPersonId = rsvp.personId; // Keep original person_id
+          } else {
+            // Safe to merge: update RSVP to point to existing person
+            updatedPersonId = existingPerson.id;
+          }
         } else {
           // Update person's email
           await updatePerson(person.id, { email: normalizedEmail });
@@ -2406,6 +2433,59 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
     plusOnes
   );
 
+  // Initialize pull-up counts early (needed for bookingStatus check below)
+  let dinnerPullUpCount = rsvp.dinnerPullUpCount ?? rsvp.pulledUpForDinner ?? 0;
+  let cocktailOnlyPullUpCount =
+    rsvp.cocktailOnlyPullUpCount ?? rsvp.pulledUpForCocktails ?? 0;
+  let pulledUpForDinner = rsvp.pulledUpForDinner ?? null;
+  let pulledUpForCocktails = rsvp.pulledUpForCocktails ?? null;
+
+  // Check if we're only updating waitlist link fields (preserve booking status)
+  const isOnlyWaitlistLinkUpdate =
+    updates.waitlistLinkGeneratedAt !== undefined ||
+    updates.waitlistLinkExpiresAt !== undefined ||
+    updates.waitlistLinkUsedAt !== undefined ||
+    updates.waitlistLinkToken !== undefined;
+
+  // Check if we're only updating payment fields (preserve booking status)
+  const isOnlyPaymentUpdate =
+    (updates.paymentId !== undefined || updates.paymentStatus !== undefined) &&
+    updates.bookingStatus === undefined &&
+    updates.status === undefined &&
+    updates.email === undefined &&
+    updates.name === undefined &&
+    updates.plusOnes === undefined &&
+    updates.wantsDinner === undefined &&
+    updates.dinnerTimeSlot === undefined &&
+    updates.dinnerPartySize === undefined &&
+    updates.dinnerPullUpCount === undefined &&
+    updates.cocktailOnlyPullUpCount === undefined &&
+    updates.pulledUp === undefined &&
+    updates.pulledUpCount === undefined &&
+    updates.pulledUpForDinner === undefined &&
+    updates.pulledUpForCocktails === undefined &&
+    !isOnlyWaitlistLinkUpdate;
+
+  // If only updating waitlist link fields, don't touch other fields
+  const isOnlyLinkFields =
+    isOnlyWaitlistLinkUpdate &&
+    updates.bookingStatus === undefined &&
+    updates.status === undefined &&
+    updates.email === undefined &&
+    updates.name === undefined &&
+    updates.plusOnes === undefined &&
+    updates.wantsDinner === undefined &&
+    updates.dinnerTimeSlot === undefined &&
+    updates.dinnerPartySize === undefined &&
+    updates.dinnerPullUpCount === undefined &&
+    updates.cocktailOnlyPullUpCount === undefined &&
+    updates.pulledUp === undefined &&
+    updates.pulledUpCount === undefined &&
+    updates.pulledUpForDinner === undefined &&
+    updates.pulledUpForCocktails === undefined &&
+    updates.paymentId === undefined &&
+    updates.paymentStatus === undefined;
+
   let bookingStatus =
     rsvp.bookingStatus ||
     (rsvp.status === "attending"
@@ -2423,6 +2503,10 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
         : updates.status === "waitlist"
         ? "WAITLIST"
         : "CANCELLED";
+  } else if (isOnlyLinkFields || isOnlyPaymentUpdate) {
+    // Preserve existing booking status when only updating waitlist link fields or payment fields
+    // Waitlist RSVPs should stay WAITLIST until payment succeeds (handled in webhook)
+    bookingStatus = rsvp.bookingStatus || bookingStatus;
   } else {
     // Auto-determine bookingStatus based on cocktail capacity (all-or-nothing)
     // BUT: If guest was already over capacity (capacityOverridden), preserve CONFIRMED status
@@ -2608,15 +2692,7 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
   // Calculate total unique guests (always partySize with new model)
   const totalGuests = partySize;
 
-  // Handle pulled up status updates
-  let dinnerPullUpCount = rsvp.dinnerPullUpCount ?? rsvp.pulledUpForDinner ?? 0;
-  let cocktailOnlyPullUpCount =
-    rsvp.cocktailOnlyPullUpCount ?? rsvp.pulledUpForCocktails ?? 0;
-
-  // Backward compatibility: also check old field names
-  let pulledUpForDinner = rsvp.pulledUpForDinner ?? null;
-  let pulledUpForCocktails = rsvp.pulledUpForCocktails ?? null;
-
+  // Handle pulled up status updates (variables already initialized above)
   // Update dinner check-in (new field name)
   if (updates.dinnerPullUpCount !== undefined) {
     // Rule: If bookingStatus !== "CONFIRMED", prevent non-zero pull-up counts

@@ -1,7 +1,7 @@
 // frontend/src/pages/EventPage.jsx
 // Mobile-first, Instagram-friendly event page
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaPaperPlane,
   FaInstagram,
@@ -28,6 +28,7 @@ import { logger } from "../lib/logger.js";
 export function EventPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
 
   const [event, setEvent] = useState(null);
@@ -38,11 +39,57 @@ export function EventPage() {
   const [showDescription, setShowDescription] = useState(false);
   const [pendingPayment, setPendingPayment] = useState(null); // { clientSecret, amount, currency, booking }
   const [currentPartySize, setCurrentPartySize] = useState(1); // Track party size for price calculation
+  const [waitlistOffer, setWaitlistOffer] = useState(null); // Waitlist payment link offer
+  const [waitlistToken, setWaitlistToken] = useState(null); // Waitlist token from URL
 
   useEffect(() => {
     async function loadEvent() {
       setLoading(true);
       setNotFound(false);
+
+      // Check for waitlist token first
+      const token = searchParams.get("wl");
+
+      if (token) {
+        // If waitlist token exists, validate it first to get event info
+        try {
+          const offerRes = await publicFetch(
+            `/events/${slug}/waitlist-offer?wl=${token}`
+          );
+          if (offerRes.ok) {
+            const offerData = await offerRes.json();
+            // Token is valid - use event from token response directly
+            if (offerData.event && offerData.event.id) {
+              // Use the full event data from the response
+              // The backend returns the complete event object
+              setEvent(offerData.event);
+              setWaitlistOffer(offerData);
+              setWaitlistToken(token);
+              // Remove token from URL (clean URL)
+              setSearchParams({}, { replace: true });
+              setLoading(false);
+              return;
+            }
+          } else {
+            // Token invalid - show error but still try to load event normally
+            const error = await offerRes.json().catch(() => ({}));
+            console.error("Invalid waitlist token:", error);
+            showToast(
+              error.message || "Invalid or expired waitlist link",
+              "error"
+            );
+            // Remove invalid token from URL
+            setSearchParams({}, { replace: true });
+          }
+        } catch (err) {
+          console.error("Error validating waitlist token:", err);
+          showToast("Failed to validate waitlist link", "error");
+          setSearchParams({}, { replace: true });
+          // Continue to load event normally if token validation fails
+        }
+      }
+
+      // Normal event loading (no token or token validation failed)
       try {
         const res = await publicFetch(`/events/${slug}`);
         if (res.status === 404) {
@@ -63,6 +110,33 @@ export function EventPage() {
           console.error("[EventPage] WARNING: Event missing slug!", data);
         }
         setEvent(data);
+
+        // If we have a token and event loaded, validate it now
+        if (token) {
+          try {
+            const offerRes = await publicFetch(
+              `/events/${slug}/waitlist-offer?wl=${token}`
+            );
+            if (offerRes.ok) {
+              const offerData = await offerRes.json();
+              setWaitlistOffer(offerData);
+              setWaitlistToken(token);
+              // Remove token from URL (clean URL)
+              setSearchParams({}, { replace: true });
+            } else {
+              const error = await offerRes.json();
+              showToast(
+                error.message || "Invalid or expired waitlist link",
+                "error"
+              );
+              setSearchParams({}, { replace: true });
+            }
+          } catch (err) {
+            console.error("Error validating waitlist token:", err);
+            showToast("Failed to validate waitlist link", "error");
+            setSearchParams({}, { replace: true });
+          }
+        }
       } catch (err) {
         console.error("Error loading event", err);
         if (isNetworkError(err)) {
@@ -76,7 +150,7 @@ export function EventPage() {
     }
 
     if (slug) loadEvent();
-  }, [slug, showToast]);
+  }, [slug, searchParams, setSearchParams, showToast]);
 
   if (loading) {
     return (
@@ -140,10 +214,19 @@ export function EventPage() {
     setRsvpLoading(true);
     const submittedData = data; // Store submitted data for later use
     try {
+      // Include waitlist upgrade data if present
+      const requestBody = waitlistOffer
+        ? {
+            ...data,
+            waitlistRsvpId: waitlistOffer.rsvpDetails.id,
+            waitlistToken: waitlistToken,
+          }
+        : data;
+
       const res = await publicFetch(`/events/${event.slug}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(requestBody),
       });
 
       if (!res.ok) {
@@ -835,6 +918,33 @@ export function EventPage() {
           title="RSVP"
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* Waitlist offer banner */}
+            {waitlistOffer && (
+              <div
+                style={{
+                  padding: "16px",
+                  background: "rgba(59, 130, 246, 0.1)",
+                  border: "1px solid rgba(59, 130, 246, 0.3)",
+                  borderRadius: "8px",
+                  marginBottom: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    color: "#3b82f6",
+                    marginBottom: "8px",
+                  }}
+                >
+                  🎉 You've got a spot!
+                </div>
+                <div style={{ fontSize: "14px", opacity: 0.9 }}>
+                  Your booking details are locked based on your original
+                  waitlist request. Complete payment below to confirm your spot.
+                </div>
+              </div>
+            )}
             <RsvpForm
               event={event}
               onSubmit={handleRsvpSubmit}
@@ -842,8 +952,14 @@ export function EventPage() {
               onClose={() => {
                 setShowRsvpForm(false);
                 setPendingPayment(null);
+                // Clear waitlist offer when closing
+                setWaitlistOffer(null);
+                setWaitlistToken(null);
               }}
               onPartySizeChange={setCurrentPartySize}
+              // Waitlist upgrade props
+              waitlistOffer={waitlistOffer}
+              waitlistToken={waitlistToken}
               // Payment props for paid events
               isPaidEvent={event?.ticketType === "paid"}
               ticketPrice={event?.ticketPrice}

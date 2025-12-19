@@ -17,6 +17,9 @@ export function RsvpForm({
   loading,
   onClose,
   onPartySizeChange,
+  // Waitlist upgrade props
+  waitlistOffer = null, // { valid, event, rsvpDetails, expiresAt }
+  waitlistToken = null, // JWT token
   // Payment-related props (for paid events)
   isPaidEvent = false,
   ticketPrice = null,
@@ -118,6 +121,31 @@ export function RsvpForm({
 
     setError("");
 
+    // For waitlist upgrades, use locked values directly (no validation needed)
+    if (waitlistOffer && waitlistOffer.rsvpDetails) {
+      if (onSubmit) {
+        try {
+          const result = await onSubmit({
+            email: waitlistOffer.rsvpDetails.email,
+            name: waitlistOffer.rsvpDetails.name || null,
+            plusOnes: waitlistOffer.rsvpDetails.plusOnes || 0,
+            wantsDinner: waitlistOffer.rsvpDetails.wantsDinner || false,
+            dinnerTimeSlot: waitlistOffer.rsvpDetails.dinnerTimeSlot || null,
+            dinnerPartySize: waitlistOffer.rsvpDetails.dinnerPartySize || null,
+          });
+
+          if (result !== false) {
+            // Success - form will be closed by parent
+          }
+        } catch (err) {
+          console.error("RSVP submission error:", err);
+          // Error handling is done in parent component
+        }
+      }
+      return;
+    }
+
+    // Normal flow - validate inputs
     if (!email.trim()) {
       setError("Email is required");
       return;
@@ -157,6 +185,155 @@ export function RsvpForm({
         // Error handling is done in parent component
       }
     }
+  }
+
+  // If waitlist upgrade, show read-only booking summary instead of form
+  const isWaitlistUpgrade = waitlistOffer && waitlistOffer.rsvpDetails;
+
+  // If waitlist upgrade, show read-only booking summary
+  if (isWaitlistUpgrade) {
+    const details = waitlistOffer.rsvpDetails;
+    return (
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          width: "100%",
+          touchAction: "manipulation",
+        }}
+      >
+        <div
+          style={{
+            padding: "20px",
+            background: "rgba(255, 255, 255, 0.05)",
+            borderRadius: "12px",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            marginBottom: "24px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              opacity: 0.7,
+              marginBottom: "16px",
+            }}
+          >
+            Your Booking Details
+          </div>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
+            <div>
+              <div
+                style={{ fontSize: "12px", opacity: 0.7, marginBottom: "4px" }}
+              >
+                Name
+              </div>
+              <div style={{ fontSize: "16px", fontWeight: 500 }}>
+                {details.name || "Not provided"}
+              </div>
+            </div>
+            <div>
+              <div
+                style={{ fontSize: "12px", opacity: 0.7, marginBottom: "4px" }}
+              >
+                Email
+              </div>
+              <div style={{ fontSize: "16px", fontWeight: 500 }}>
+                {details.email}
+              </div>
+            </div>
+            <div>
+              <div
+                style={{ fontSize: "12px", opacity: 0.7, marginBottom: "4px" }}
+              >
+                Cocktail Guests
+              </div>
+              <div style={{ fontSize: "16px", fontWeight: 500 }}>
+                {details.partySize || 1}{" "}
+                {details.partySize === 1 ? "guest" : "guests"}
+                {details.plusOnes > 0 && ` (${details.plusOnes} +1)`}
+              </div>
+            </div>
+            {details.wantsDinner && (
+              <>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      opacity: 0.7,
+                      marginBottom: "4px",
+                    }}
+                  >
+                    Dinner
+                  </div>
+                  <div style={{ fontSize: "16px", fontWeight: 500 }}>
+                    {details.dinnerPartySize || 1}{" "}
+                    {details.dinnerPartySize === 1 ? "seat" : "seats"}
+                  </div>
+                </div>
+                {details.dinnerTimeSlot && (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        opacity: 0.7,
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Dinner Time
+                    </div>
+                    <div style={{ fontSize: "16px", fontWeight: 500 }}>
+                      {new Date(details.dinnerTimeSlot).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <div
+            style={{
+              marginTop: "16px",
+              padding: "12px",
+              background: "rgba(59, 130, 246, 0.1)",
+              borderRadius: "8px",
+              fontSize: "13px",
+              opacity: 0.9,
+            }}
+          >
+            All details are locked - Based on your original waitlist request.
+            Complete payment below to confirm your spot.
+          </div>
+        </div>
+        {PaymentFormComponent && pendingPayment && (
+          <PaymentFormComponent
+            clientSecret={pendingPayment.clientSecret}
+            amount={pendingPayment.amount}
+            currency={pendingPayment.currency}
+            onSuccess={() => {
+              handleSubmit({
+                preventDefault: () => {},
+                stopPropagation: () => {},
+              });
+            }}
+            onError={(err) => {
+              setError(err.message || "Payment failed");
+            }}
+            showButton={true}
+          />
+        )}
+        {!pendingPayment && (
+          <Button type="submit" fullWidth size="lg" disabled={loading}>
+            {loading ? "Processing..." : "Proceed to Payment"}
+          </Button>
+        )}
+      </form>
+    );
   }
 
   return (
@@ -388,44 +565,44 @@ export function RsvpForm({
           {/* Party Summary Section */}
           {(wantsDinner || cocktailGuests > 0 || isPaidEvent) && (
             <div style={{ marginBottom: isPaidEvent ? "20px" : "0" }}>
-          <div
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "8px",
-              color: "#fff",
-            }}
-          >
-            Your party
-          </div>
-          <div
-            style={{
-              fontSize: "18px",
-              fontWeight: 700,
-              marginBottom: "8px",
+              <div
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  color: "#fff",
+                }}
+              >
+                Your party
+              </div>
+              <div
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  marginBottom: "8px",
                   color: isPaidEvent ? "#fff" : "#a78bfa",
-            }}
-          >
+                }}
+              >
                 Total: {totalPartySize}{" "}
                 {totalPartySize === 1 ? "person" : "people"}
-          </div>
+              </div>
               {(wantsDinner || cocktailGuests > 0) && (
-          <div
-            style={{
-              fontSize: "16px",
-              color: "rgba(255, 255, 255, 0.7)",
-              lineHeight: "1.6",
-            }}
-          >
-            {wantsDinner ? (
-              <>
+                <div
+                  style={{
+                    fontSize: "16px",
+                    color: "rgba(255, 255, 255, 0.7)",
+                    lineHeight: "1.6",
+                  }}
+                >
+                  {wantsDinner ? (
+                    <>
                       Dinner: {dinnerCount} • Cocktails-only:{" "}
                       {cocktailsOnlyCount}
-              </>
-            ) : (
-              <>All {totalPartySize} for cocktails</>
-            )}
-          </div>
+                    </>
+                  ) : (
+                    <>All {totalPartySize} for cocktails</>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -652,55 +829,55 @@ export function RsvpForm({
       {/* For paid events: Hide "Pull up" button entirely.
           User clicks "Proceed to payment" in the payment section instead. */}
       {!isPaidEvent && (
-      <div
-        style={{
-          marginTop: "24px",
-          display: "flex",
-          gap: "12px",
-          // Prevent scroll/zoom issues on mobile
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        {onClose && (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (document.activeElement) {
-                document.activeElement.blur();
-              }
-              onClose();
-            }}
-            disabled={loading}
-            style={{ flex: 1 }}
-          >
-            Cancel
-          </Button>
-        )}
-        <Button
-          type="submit"
-          loading={loading}
-          disabled={loading || (wantsDinner && !dinnerTimeSlot)}
-          fullWidth={!onClose}
+        <div
           style={{
-            ...(onClose ? { flex: 2 } : {}),
-            // Prevent mobile zoom/scroll issues
-            touchAction: "manipulation",
-            WebkitTapHighlightColor: "transparent",
-          }}
-          onClick={(e) => {
-            // Additional prevention of unwanted behavior
-            e.stopPropagation();
+            marginTop: "24px",
+            display: "flex",
+            gap: "12px",
+            // Prevent scroll/zoom issues on mobile
+            position: "relative",
+            zIndex: 1,
           }}
         >
-          {willGoToWaitlist && event?.waitlistEnabled
-            ? "Join waitlist"
-            : "Pull up"}
-        </Button>
-      </div>
+          {onClose && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (document.activeElement) {
+                  document.activeElement.blur();
+                }
+                onClose();
+              }}
+              disabled={loading}
+              style={{ flex: 1 }}
+            >
+              Cancel
+            </Button>
+          )}
+          <Button
+            type="submit"
+            loading={loading}
+            disabled={loading || (wantsDinner && !dinnerTimeSlot)}
+            fullWidth={!onClose}
+            style={{
+              ...(onClose ? { flex: 2 } : {}),
+              // Prevent mobile zoom/scroll issues
+              touchAction: "manipulation",
+              WebkitTapHighlightColor: "transparent",
+            }}
+            onClick={(e) => {
+              // Additional prevention of unwanted behavior
+              e.stopPropagation();
+            }}
+          >
+            {willGoToWaitlist && event?.waitlistEnabled
+              ? "Join waitlist"
+              : "Pull up"}
+          </Button>
+        </div>
       )}
 
       {/* For paid events: Show Cancel button at bottom.

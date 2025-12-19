@@ -289,6 +289,223 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     receiptUrl: paymentIntent.charges?.data[0]?.receipt_url || null,
   });
 
+  // Update RSVP: If waitlist RSVP, confirm it; otherwise just update payment status
+  // Note: payment.rsvpId (camelCase) from mapPaymentFromDb, not payment.rsvp_id
+
+  // Check if this is a waitlist upgrade payment (from description or RSVP status)
+  const isWaitlistUpgrade =
+    payment.description?.includes("Waitlist Upgrade") || false;
+
+  console.log("[Webhook] Payment succeeded:", {
+    paymentId: payment.id,
+    rsvpId: payment.rsvpId,
+    isWaitlistUpgrade,
+    description: payment.description,
+  });
+
+  if (payment.rsvpId) {
+    const { findRsvpById, updateRsvp } = await import("./data.js");
+    let rsvp;
+
+    try {
+      rsvp = await findRsvpById(payment.rsvpId);
+    } catch (error) {
+      console.error("[Webhook] Error finding RSVP:", {
+        rsvpId: payment.rsvpId,
+        error: error.message,
+      });
+      return {
+        processed: false,
+        error: "RSVP lookup failed",
+        paymentId: payment.id,
+      };
+    }
+
+    if (!rsvp) {
+      console.error("[Webhook] RSVP not found:", {
+        rsvpId: payment.rsvpId,
+        paymentId: payment.id,
+      });
+      return {
+        processed: false,
+        error: "RSVP not found",
+        paymentId: payment.id,
+      };
+    }
+
+    console.log("[Webhook] RSVP found, checking status:", {
+      paymentId: payment.id,
+      rsvpId: payment.rsvpId,
+      rsvpBookingStatus: rsvp.bookingStatus,
+      rsvpPaymentStatus: rsvp.paymentStatus,
+      isWaitlistUpgrade,
+    });
+
+    // Determine if this is a waitlist upgrade:
+    // 1. RSVP status is WAITLIST, OR
+    // 2. Payment description indicates waitlist upgrade
+    const isWaitlistPayment =
+      rsvp.bookingStatus === "WAITLIST" || isWaitlistUpgrade;
+
+    if (isWaitlistPayment) {
+      // Waitlist RSVP: Update to CONFIRMED when payment succeeds
+      // This is an UPDATE to existing RSVP, not a new RSVP creation
+      const updateData = {
+        bookingStatus: "CONFIRMED",
+        status: "attending", // Backward compatibility
+        paymentId: payment.id,
+        paymentStatus: "paid",
+      };
+
+      // If this was upgraded via waitlist link, mark link as used
+      if (rsvp.waitlistLinkGeneratedAt) {
+        updateData.waitlistLinkUsedAt = new Date().toISOString();
+      }
+
+      console.log("[Webhook] Updating waitlist RSVP to CONFIRMED:", {
+        rsvpId: payment.rsvpId,
+        updateData,
+        originalStatus: rsvp.bookingStatus,
+      });
+
+      try {
+        // Use forceConfirm option to bypass capacity checks when confirming waitlist RSVP
+        // This ensures the RSVP is confirmed regardless of current capacity
+        const updateResult = await updateRsvp(
+          payment.rsvpId,
+          updateData,
+          { forceConfirm: true } // CRITICAL: Force confirm to bypass capacity checks
+        );
+
+        console.log("[Webhook] Successfully updated waitlist RSVP:", {
+          rsvpId: payment.rsvpId,
+          updateResult: updateResult.rsvp?.bookingStatus,
+          updateResultStatus: updateResult.rsvp?.status,
+          updateResultPaymentStatus: updateResult.rsvp?.paymentStatus,
+        });
+
+        // Verify the update actually worked
+        if (updateResult.rsvp?.bookingStatus !== "CONFIRMED") {
+          console.error(
+            "[Webhook] WARNING: RSVP status not updated to CONFIRMED:",
+            {
+              rsvpId: payment.rsvpId,
+              expectedStatus: "CONFIRMED",
+              actualStatus: updateResult.rsvp?.bookingStatus,
+            }
+          );
+
+          // Fallback: Direct database update if updateRsvp didn't work
+          console.log(
+            "[Webhook] Attempting direct database update as fallback..."
+          );
+          const { supabase } = await import("./supabase.js");
+          const { error: directUpdateError } = await supabase
+            .from("rsvps")
+            .update({
+              booking_status: "CONFIRMED",
+              status: "attending",
+              payment_id: payment.id,
+              payment_status: "paid",
+            })
+            .eq("id", payment.rsvpId);
+
+          if (directUpdateError) {
+            console.error(
+              "[Webhook] Direct database update also failed:",
+              directUpdateError
+            );
+          } else {
+            console.log("[Webhook] Direct database update succeeded");
+          }
+        } else {
+          console.log(
+            "[Webhook] ✅ RSVP successfully confirmed via updateRsvp"
+          );
+        }
+      } catch (error) {
+        console.error("[Webhook] Error updating waitlist RSVP:", {
+          rsvpId: payment.rsvpId,
+          error: error.message,
+          stack: error.stack,
+        });
+
+        // Fallback: Try direct database update on error
+        try {
+          console.log(
+            "[Webhook] Attempting direct database update as fallback after error..."
+          );
+          const { supabase } = await import("./supabase.js");
+          const { error: directUpdateError } = await supabase
+            .from("rsvps")
+            .update({
+              booking_status: "CONFIRMED",
+              status: "attending",
+              payment_id: payment.id,
+              payment_status: "paid",
+            })
+            .eq("id", payment.rsvpId);
+
+          if (directUpdateError) {
+            console.error(
+              "[Webhook] Direct database update failed:",
+              directUpdateError
+            );
+            return {
+              processed: false,
+              error: "RSVP update failed",
+              paymentId: payment.id,
+            };
+          } else {
+            console.log(
+              "[Webhook] ✅ RSVP confirmed via direct database update (fallback)"
+            );
+          }
+        } catch (fallbackError) {
+          console.error(
+            "[Webhook] Fallback update also failed:",
+            fallbackError
+          );
+          return {
+            processed: false,
+            error: "RSVP update failed",
+            paymentId: payment.id,
+          };
+        }
+      }
+    } else {
+      // Normal flow - just update payment status (RSVP already confirmed)
+      // This is a NEW RSVP that was created and confirmed during RSVP submission
+      console.log("[Webhook] Updating payment status for confirmed RSVP:", {
+        rsvpId: payment.rsvpId,
+        rsvpBookingStatus: rsvp.bookingStatus,
+      });
+
+      try {
+        await updateRsvp(payment.rsvpId, {
+          paymentId: payment.id,
+          paymentStatus: "paid",
+        });
+      } catch (error) {
+        console.error("[Webhook] Error updating payment status:", {
+          rsvpId: payment.rsvpId,
+          error: error.message,
+        });
+        return {
+          processed: false,
+          error: "Payment status update failed",
+          paymentId: payment.id,
+        };
+      }
+    }
+  } else {
+    console.log("[Webhook] Payment has no RSVP ID, skipping RSVP update:", {
+      paymentId: payment.id,
+      eventId: payment.eventId,
+      description: payment.description,
+    });
+  }
+
   return { processed: true, paymentId: payment.id };
 }
 

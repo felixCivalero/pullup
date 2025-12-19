@@ -7,6 +7,7 @@ import { logger } from "../lib/logger.js";
 
 import { authenticatedFetch, API_BASE } from "../lib/api.js";
 import { formatEventTime, formatEventDate } from "../lib/dateUtils.js";
+import { WaitlistLinkActions } from "../components/WaitlistLinkActions.jsx";
 
 // -----------------------------
 // Helpers: stats, filtering, sorting
@@ -1423,6 +1424,23 @@ export function EventGuestsPage() {
                       >
                         Pulled Up
                       </th>
+                      {event.ticketType === "paid" && (
+                        <th
+                          style={{
+                            padding: "20px 24px",
+                            textAlign: "center",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.12em",
+                            opacity: 0.95,
+                            color: "#fff",
+                            width: "180px",
+                          }}
+                        >
+                          Waitlist Link
+                        </th>
+                      )}
                       <th
                         style={{
                           padding: "20px 24px",
@@ -1727,6 +1745,43 @@ export function EventGuestsPage() {
                             })()}
                           </div>
                         </td>
+                        {event.ticketType === "paid" && (
+                          <td
+                            style={{
+                              padding: "20px",
+                              textAlign: "center",
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {g.bookingStatus === "WAITLIST" ? (
+                              <WaitlistLinkActions
+                                guest={g}
+                                event={event}
+                                onLinkGenerated={async () => {
+                                  // Refresh guests list after link generation
+                                  try {
+                                    const res = await authenticatedFetch(
+                                      `/host/events/${id}/guests`
+                                    );
+                                    if (res.ok) {
+                                      const data = await res.json();
+                                      setGuests(data.guests || []);
+                                    }
+                                  } catch (err) {
+                                    console.error(
+                                      "Error reloading guests:",
+                                      err
+                                    );
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <span style={{ fontSize: "12px", opacity: 0.5 }}>
+                                —
+                              </span>
+                            )}
+                          </td>
+                        )}
                         <td style={{ padding: "20px", textAlign: "center" }}>
                           <div
                             style={{

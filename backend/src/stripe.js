@@ -64,12 +64,25 @@ export async function getOrCreateStripeCustomer(email, name = null) {
     throw new Error("Person not found");
   }
 
-  // If person already has Stripe customer ID, return it
+  // If person already has Stripe customer ID, verify it exists in Stripe
   if (person.stripeCustomerId) {
-    return person.stripeCustomerId;
+    const stripe = getStripeClient();
+    try {
+      // Verify customer exists in Stripe
+      await stripe.customers.retrieve(person.stripeCustomerId);
+      // Customer exists - return it
+      return person.stripeCustomerId;
+    } catch (error) {
+      // Customer doesn't exist (might be from different Stripe account/environment)
+      console.warn(
+        `[Stripe] Customer ${person.stripeCustomerId} not found in Stripe, creating new one:`,
+        error.message
+      );
+      // Fall through to create new customer
+    }
   }
 
-  // Create new Stripe customer
+  // Create new Stripe customer (or recreate if old one doesn't exist)
   const stripe = getStripeClient();
   const customer = await stripe.customers.create({
     email: person.email,

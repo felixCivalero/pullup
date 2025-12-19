@@ -222,6 +222,55 @@ export async function isUserEventHost(userId, eventId) {
   return { isHost: false, role: null };
 }
 
+/**
+ * Check if user is the owner of an event (not just a co-host).
+ * Returns boolean.
+ * CRITICAL: Only owners can edit events (Stripe Connect, pricing, etc.)
+ */
+export async function isUserEventOwner(userId, eventId) {
+  if (!userId || !eventId) {
+    return false;
+  }
+
+  // Check new model: event_hosts join table
+  const { data: eventHost, error: hostError } = await supabase
+    .from("event_hosts")
+    .select("role")
+    .eq("event_id", eventId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (hostError) {
+    console.error("[isUserEventOwner] Error fetching event_host:", hostError);
+  }
+
+  // If found in event_hosts, check if role is "owner"
+  if (eventHost) {
+    return eventHost.role === "owner";
+  }
+
+  // Legacy model: events.host_id
+  const { data: legacyEvent, error: legacyError } = await supabase
+    .from("events")
+    .select("host_id")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (legacyError) {
+    console.error(
+      "[isUserEventOwner] Error fetching legacy event:",
+      legacyError
+    );
+  }
+
+  // In legacy model, host_id is always the owner
+  if (legacyEvent && legacyEvent.host_id === userId) {
+    return true;
+  }
+
+  return false;
+}
+
 // Helper: Map application event updates to database format
 function mapEventToDb(eventData) {
   const dbData = {};

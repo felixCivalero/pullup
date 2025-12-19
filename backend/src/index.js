@@ -30,6 +30,7 @@ import {
   findPaymentById,
   getUserEventIds,
   isUserEventHost,
+  isUserEventOwner,
   findPersonById,
 } from "./data.js";
 
@@ -364,8 +365,22 @@ app.post(
   async (req, res) => {
     const sig = req.headers["stripe-signature"];
 
-    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    // Get webhook secret - prefer TEST_ prefixed in development
+    const webhookSecret = isDevelopment
+      ? process.env.TEST_STRIPE_WEBHOOK_SECRET ||
+        process.env.STRIPE_WEBHOOK_SECRET
+      : process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      const missingVar = isDevelopment
+        ? "TEST_STRIPE_WEBHOOK_SECRET or STRIPE_WEBHOOK_SECRET"
+        : "STRIPE_WEBHOOK_SECRET";
+      console.error(`[Webhook] ${missingVar} not configured`);
       return res.status(500).json({ error: "Webhook secret not configured" });
+    }
+
+    if (isDevelopment && process.env.TEST_STRIPE_WEBHOOK_SECRET) {
+      console.log("🔧 [DEV] Using TEST Stripe webhook secret");
     }
 
     let event;
@@ -376,7 +391,7 @@ app.post(
       event = stripeInstance.webhooks.constructEvent(
         req.body,
         sig,
-        process.env.STRIPE_WEBHOOK_SECRET
+        webhookSecret
       );
     } catch (err) {
       console.error("Webhook signature verification failed:", err.message);
@@ -967,24 +982,69 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     }
 
     if (result.error === "duplicate") {
-      // For waitlist upgrades, if RSVP already exists, use it directly (bypass capacity checks)
-      if (
-        existingWaitlistRsvp &&
-        result.rsvp &&
-        result.rsvp.id === existingWaitlistRsvp.id
-      ) {
-        // Use the existing RSVP - proceed to payment creation
-        result.rsvp = existingWaitlistRsvp;
-        result.event = await findEventBySlug(slug);
+      // Special handling for waitlist upgrade flow
+      if (existingWaitlistRsvp && waitlistRsvpId && waitlistToken) {
+        // This is a waitlist link - verify the RSVP is still WAITLIST
+        if (result.rsvp && result.rsvp.id === existingWaitlistRsvp.id) {
+          // Check if RSVP is still WAITLIST (required for waitlist upgrade)
+          if (result.rsvp.bookingStatus !== "WAITLIST") {
+            return res.status(400).json({
+              error: "rsvp_already_confirmed",
+              message:
+                "This RSVP has already been confirmed. You cannot use this waitlist link.",
+              rsvp: result.rsvp,
+            });
+          }
+
+          // RSVP is WAITLIST - use it and proceed to payment
+          result.rsvp = existingWaitlistRsvp;
+
+          // Ensure event is loaded (might not be set from addRsvp duplicate response)
+          if (!result.event) {
+            result.event = await findEventBySlug(slug);
+          }
+
+          if (!result.event) {
+            return res.status(404).json({
+              error: "event_not_found",
+              message: "Event not found",
+            });
+          }
+
+          console.log("[Waitlist Payment] Waitlist upgrade validated:", {
+            rsvpId: result.rsvp.id,
+            rsvpStatus: result.rsvp.bookingStatus,
+            eventId: result.event.id,
+            eventTicketType: result.event.ticketType,
+            eventTicketPrice: result.event.ticketPrice,
+          });
+
+          // For waitlist upgrades, we MUST proceed to payment (don't return duplicate error)
+          // The payment creation logic below will handle it
+        } else {
+          // RSVP ID mismatch - shouldn't happen if token is valid
+          return res.status(400).json({
+            error: "rsvp_mismatch",
+            message: "RSVP does not match waitlist link",
+          });
+        }
       }
 
       // For paid events, if RSVP exists but payment is unpaid/pending, allow proceeding to payment
+      // OR if this is a waitlist upgrade (existingWaitlistRsvp exists and RSVP is WAITLIST)
+      const isWaitlistUpgrade =
+        existingWaitlistRsvp &&
+        waitlistRsvpId &&
+        waitlistToken &&
+        result.rsvp?.bookingStatus === "WAITLIST";
+
       if (
         result.event?.ticketType === "paid" &&
         result.event?.ticketPrice &&
-        result.rsvp?.paymentStatus &&
-        (result.rsvp.paymentStatus === "unpaid" ||
-          result.rsvp.paymentStatus === "pending")
+        (isWaitlistUpgrade || // Waitlist upgrade - always allow if RSVP is WAITLIST
+          (result.rsvp?.paymentStatus &&
+            (result.rsvp.paymentStatus === "unpaid" ||
+              result.rsvp.paymentStatus === "pending")))
       ) {
         // Check if payment already exists for this RSVP
         let existingPayment = null;
@@ -1007,6 +1067,16 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             const hostProfile = await getUserProfile(result.event.hostId);
             const connectedAccountId =
               hostProfile?.stripeConnectedAccountId || null;
+
+            console.log("[Waitlist Payment] Payment creation check:", {
+              isWaitlistUpgrade,
+              hasConnectedAccount: !!connectedAccountId,
+              eventId: result.event?.id,
+              eventTicketType: result.event?.ticketType,
+              eventTicketPrice: result.event?.ticketPrice,
+              rsvpId: result.rsvp?.id,
+              rsvpBookingStatus: result.rsvp?.bookingStatus,
+            });
 
             if (connectedAccountId) {
               // Get or create Stripe customer
@@ -1176,18 +1246,87 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
                     result.rsvp.dinner?.enabled || result.rsvp.wantsDinner,
                 },
               });
+            } else {
+              // No connected account - this shouldn't happen for paid events
+              console.error("[Waitlist Payment] No Stripe connected account:", {
+                eventId: result.event?.id,
+                hostId: result.event?.hostId,
+                isWaitlistUpgrade,
+                eventTicketType: result.event?.ticketType,
+                eventTicketPrice: result.event?.ticketPrice,
+              });
+
+              // For waitlist upgrades, return a specific error
+              if (isWaitlistUpgrade) {
+                return res.status(400).json({
+                  error: "waitlist_upgrade_failed",
+                  message:
+                    "Event host has not connected their Stripe account. Please contact the event organizer.",
+                  rsvp: result.rsvp,
+                });
+              }
+              // For normal duplicates, fall through to duplicate error
             }
           } catch (paymentError) {
             console.error(
               "Error creating payment for existing RSVP:",
               paymentError
             );
+
+            // For waitlist upgrades, return specific error instead of generic duplicate
+            if (isWaitlistUpgrade) {
+              return res.status(400).json({
+                error: "waitlist_upgrade_failed",
+                message: `Unable to create payment: ${paymentError.message}`,
+                rsvp: result.rsvp,
+              });
+            }
             // Fall through to return duplicate error if payment creation fails
           }
+        } else {
+          // Payment already exists and is succeeded - for waitlist upgrades, this is an error
+          if (isWaitlistUpgrade) {
+            return res.status(400).json({
+              error: "payment_already_succeeded",
+              message:
+                "Payment for this waitlist upgrade has already been completed.",
+              rsvp: result.rsvp,
+              payment: existingPayment,
+            });
+          }
+        }
+      } else {
+        // Not a paid event or conditions not met
+        console.log("[Waitlist Payment] Payment conditions not met:", {
+          isWaitlistUpgrade,
+          eventTicketType: result.event?.ticketType,
+          eventTicketPrice: result.event?.ticketPrice,
+          rsvpPaymentStatus: result.rsvp?.paymentStatus,
+        });
+
+        // For waitlist upgrades, this shouldn't happen - event should be paid
+        if (isWaitlistUpgrade) {
+          return res.status(400).json({
+            error: "waitlist_upgrade_failed",
+            message:
+              "This event is not configured for payments. Please contact support.",
+            rsvp: result.rsvp,
+          });
         }
       }
 
       // Return duplicate error for free events or if payment creation failed
+      // BUT: If this is a waitlist upgrade, don't return duplicate error - we should have handled it above
+      if (existingWaitlistRsvp && waitlistRsvpId && waitlistToken) {
+        // This shouldn't happen if logic above is correct, but handle it gracefully
+        return res.status(400).json({
+          error: "waitlist_upgrade_failed",
+          message:
+            "Unable to process waitlist upgrade. Please contact support.",
+          rsvp: result.rsvp,
+        });
+      }
+
       return res.status(409).json({
         error: "duplicate",
         message: "You've already RSVP'd to this event",
@@ -1942,6 +2081,16 @@ app.put(
       return res.status(404).json({ error: "Event not found" });
     }
 
+    // CRITICAL: Only owners can edit events (Stripe Connect, pricing, etc.)
+    const isOwner = await isUserEventOwner(req.user.id, id);
+    if (!isOwner) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message:
+          "Only the event owner can edit event details. Co-hosts can manage guests but cannot modify the event.",
+      });
+    }
+
     // Check if ticket price or currency changed (for Stripe Price update)
     const priceChanged =
       ticketType === "paid" &&
@@ -2059,9 +2208,13 @@ app.put("/host/events/:id/publish", requireAuth, async (req, res) => {
     return res.status(404).json({ error: "Event not found" });
   }
 
-  const { isHost } = await isUserEventHost(req.user.id, event.id);
-  if (!isHost) {
-    return res.status(403).json({ error: "Forbidden" });
+  // CRITICAL: Only owners can publish/unpublish events
+  const isOwner = await isUserEventOwner(req.user.id, id);
+  if (!isOwner) {
+    return res.status(403).json({
+      error: "Forbidden",
+      message: "Only the event owner can publish events.",
+    });
   }
 
   const updated = await updateEvent(id, { status: "PUBLISHED" });
@@ -3336,16 +3489,16 @@ app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "imageData is required" });
     }
 
-    // Verify event ownership
+    // Verify event ownership - only owners can upload event images
     const event = await findEventById(eventId);
     if (!event) {
       return res.status(404).json({ error: "Event not found" });
     }
-    const { isHost } = await isUserEventHost(req.user.id, event.id);
-    if (!isHost) {
+    const isOwner = await isUserEventOwner(req.user.id, eventId);
+    if (!isOwner) {
       return res.status(403).json({
         error: "Forbidden",
-        message: "You don't have access to this event",
+        message: "Only the event owner can upload event images.",
       });
     }
 

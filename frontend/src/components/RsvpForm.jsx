@@ -841,19 +841,27 @@ export function RsvpForm({
         <div
           style={{
             marginTop: "16px",
-            padding: "14px",
+            padding: "16px",
             background: "rgba(245, 158, 11, 0.15)",
             borderRadius: "12px",
             border: "1px solid rgba(245, 158, 11, 0.3)",
-            fontSize: "16px",
+            fontSize: "15px",
             color: "#fbbf24",
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+          <div
+            style={{ fontWeight: 600, marginBottom: "8px", fontSize: "16px" }}
+          >
             You'll join the waitlist
           </div>
-          <div style={{ opacity: 0.9, fontSize: "16px" }}>
-            If spots open up, the host will contact you.
+          <div style={{ opacity: 0.9, fontSize: "15px", lineHeight: "1.5" }}>
+            <div style={{ marginBottom: "8px" }}>
+              If spots open up, the host will contact you via email or SMS to
+              confirm your attendance.
+            </div>
+            <div style={{ fontSize: "14px", opacity: 0.8 }}>
+              You'll be automatically confirmed once a spot becomes available.
+            </div>
           </div>
         </div>
       )}

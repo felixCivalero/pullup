@@ -1,6 +1,6 @@
 // frontend/src/pages/EventPage.jsx
 // Mobile-first, Instagram-friendly event page
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaPaperPlane,
@@ -42,6 +42,152 @@ export function EventPage() {
   const [waitlistOffer, setWaitlistOffer] = useState(null); // Waitlist payment link offer
   const [waitlistToken, setWaitlistToken] = useState(null); // Waitlist token from URL
 
+  // Memoize the payment success handler to prevent PaymentForm remounts
+  // MUST be called before any early returns to follow Rules of Hooks
+  const handlePaymentSuccess = useCallback(
+    async (paymentIntent) => {
+      // Stripe confirmed the PaymentIntent on the client.
+      const currentPayment = pendingPayment;
+      const currentEvent = event; // Capture event at callback time
+
+      // Basic safety fallback if state was lost
+      if (!currentPayment || !currentEvent) {
+        if (currentEvent?.slug) {
+          navigate(`/e/${currentEvent.slug}/success`, {
+            state: {
+              booking: {
+                name:
+                  paymentIntent?.charges?.data?.[0]?.billing_details?.name ||
+                  null,
+                email: null,
+              },
+              payment: {
+                id: paymentIntent.id,
+                status: paymentIntent.status || "succeeded",
+              },
+            },
+          });
+        }
+        return;
+      }
+
+      // Standard PaymentIntent flow (Option B):
+      // - Client confirms PaymentIntent with Stripe.js
+      // - If Stripe returns succeeded, redirect immediately
+      // - Backend/webhook later fulfills based on payment_intent.succeeded
+      // - FALLBACK: If webhook doesn't arrive, manually verify payment
+      if (paymentIntent?.status === "succeeded") {
+        // Fallback: Manually verify payment with backend
+        // This ensures payment status updates even if webhook doesn't arrive
+        try {
+          console.log(
+            "[EventPage] Payment succeeded, verifying with backend..."
+          );
+          const verifyRes = await publicFetch(
+            `/payments/verify/${paymentIntent.id}`,
+            {
+              method: "POST",
+            }
+          );
+          if (verifyRes.ok) {
+            const verifyData = await verifyRes.json();
+            console.log("[EventPage] Payment verified:", verifyData);
+          } else {
+            console.warn(
+              "[EventPage] Payment verification failed, but payment succeeded client-side"
+            );
+          }
+        } catch (verifyError) {
+          console.error("[EventPage] Error verifying payment:", verifyError);
+          // Don't block user flow - payment succeeded client-side
+        }
+
+        setPendingPayment(null);
+        setShowRsvpForm(false);
+        // Extract booking data from nested structure for paid events
+        const rsvpData = currentPayment.booking?.rsvp || {};
+        const statusDetails = currentPayment.booking?.statusDetails || {};
+        const eventData = currentPayment.booking?.event || currentEvent;
+
+        // Extract dinner info from multiple possible locations
+        // Backend returns it in statusDetails, but also in rsvp.dinner
+        const dinnerBookingStatus =
+          statusDetails?.dinnerBookingStatus ||
+          rsvpData?.dinner?.bookingStatus ||
+          rsvpData?.dinnerBookingStatus ||
+          null;
+        const wantsDinner =
+          statusDetails?.wantsDinner !== undefined
+            ? statusDetails.wantsDinner
+            : rsvpData?.dinner?.enabled || rsvpData?.wantsDinner || false;
+
+        navigate(`/e/${currentEvent.slug}/success`, {
+          state: {
+            booking: {
+              name: currentPayment.booking?.name || rsvpData?.name || null,
+              email: currentPayment.booking?.email || rsvpData?.email || null,
+              bookingStatus:
+                statusDetails?.bookingStatus ||
+                rsvpData?.bookingStatus ||
+                "CONFIRMED",
+              dinnerBookingStatus: dinnerBookingStatus,
+              wantsDinner: wantsDinner,
+              partySize:
+                rsvpData?.partySize || currentPayment.booking?.partySize || 1,
+              plusOnes: rsvpData?.plusOnes || 0,
+              dinnerPartySize:
+                rsvpData?.dinnerPartySize ||
+                rsvpData?.dinner?.partySize ||
+                null,
+              dinnerTimeSlot:
+                rsvpData?.dinnerTimeSlot || rsvpData?.dinner?.slotTime || null,
+            },
+            payment: {
+              id: currentPayment.paymentId,
+              status: "succeeded",
+              amount: currentPayment.amount,
+              currency: currentPayment.currency,
+              paymentBreakdown: currentPayment.paymentBreakdown,
+            },
+          },
+        });
+      } else {
+        console.warn(
+          "[EventPage] PaymentIntent not succeeded after confirm:",
+          paymentIntent?.status
+        );
+      }
+    },
+    [event, navigate, pendingPayment]
+  );
+
+  // Memoize PaymentFormComponent to prevent unnecessary remounts
+  // MUST be called before any early returns to follow Rules of Hooks
+  const PaymentFormComponent = useMemo(() => {
+    if (!event || event?.ticketType !== "paid" || !event?.slug) {
+      return null;
+    }
+    const eventSlug = event.slug; // Capture slug to avoid closure issues
+    return ({
+      clientSecret,
+      amount,
+      currency,
+      onSuccess,
+      onError,
+      showButton,
+    }) => (
+      <PaymentForm
+        clientSecret={clientSecret}
+        amount={amount}
+        currency={currency}
+        eventSlug={eventSlug}
+        onSuccess={pendingPayment ? handlePaymentSuccess : onSuccess}
+        onError={onError}
+        showButton={showButton}
+      />
+    );
+  }, [event, pendingPayment, handlePaymentSuccess]);
+
   useEffect(() => {
     async function loadEvent() {
       setLoading(true);
@@ -74,16 +220,11 @@ export function EventPage() {
             // Token invalid - show error but still try to load event normally
             const error = await offerRes.json().catch(() => ({}));
             console.error("Invalid waitlist token:", error);
-            showToast(
-              error.message || "Invalid or expired waitlist link",
-              "error"
-            );
             // Remove invalid token from URL
             setSearchParams({}, { replace: true });
           }
         } catch (err) {
           console.error("Error validating waitlist token:", err);
-          showToast("Failed to validate waitlist link", "error");
           setSearchParams({}, { replace: true });
           // Continue to load event normally if token validation fails
         }
@@ -125,15 +266,11 @@ export function EventPage() {
               setSearchParams({}, { replace: true });
             } else {
               const error = await offerRes.json();
-              showToast(
-                error.message || "Invalid or expired waitlist link",
-                "error"
-              );
+              console.error("Invalid waitlist token:", error);
               setSearchParams({}, { replace: true });
             }
           } catch (err) {
             console.error("Error validating waitlist token:", err);
-            showToast("Failed to validate waitlist link", "error");
             setSearchParams({}, { replace: true });
           }
         }
@@ -141,8 +278,6 @@ export function EventPage() {
         console.error("Error loading event", err);
         if (isNetworkError(err)) {
           handleNetworkError(err, showToast, "Failed to load event");
-        } else {
-          showToast("Failed to load event", "error");
         }
       } finally {
         setLoading(false);
@@ -233,24 +368,15 @@ export function EventPage() {
         const err = await res.json().catch(() => ({}));
 
         if (res.status === 409 && err.error === "full") {
-          showToast(
-            "Event is full and waitlist is disabled. Please try another event.",
-            "error"
-          );
           return false;
         }
 
         if (res.status === 409 && err.error === "duplicate") {
-          showToast("You've already RSVP'd for this event.", "error");
           return false;
         }
 
         // Handle payment errors specifically
         if (res.status === 500 && err.error === "payment_failed") {
-          showToast(
-            err.message || "Payment setup failed. Please try again.",
-            "error"
-          );
           console.error("Payment creation error:", err.details || err.message);
           return false;
         }
@@ -277,10 +403,6 @@ export function EventPage() {
             statusDetails: body.statusDetails || null, // Include statusDetails for dinner info
           },
         });
-        showToast(
-          "Almost done – add your card details and pay to confirm.",
-          "info"
-        );
         // Keep RSVP modal open with payment section active
         return true;
       }
@@ -343,8 +465,6 @@ export function EventPage() {
         }
       }
 
-      showToast(message, toastType, subtext);
-
       // Close RSVP form
       setShowRsvpForm(false);
 
@@ -384,8 +504,9 @@ export function EventPage() {
       if (isNetworkError(err)) {
         handleNetworkError(err, showToast, "Network error. Please try again.");
       } else {
-        showToast(err.message || "Failed to RSVP.", "error");
+        console.error("RSVP error:", err.message || err);
       }
+      return false;
     } finally {
       setRsvpLoading(false);
     }
@@ -966,146 +1087,7 @@ export function EventPage() {
               ticketCurrency={(event?.ticketCurrency || "usd").toLowerCase()}
               currentPartySize={currentPartySize}
               pendingPayment={pendingPayment}
-              PaymentFormComponent={
-                event?.ticketType === "paid"
-                  ? ({
-                      clientSecret,
-                      amount,
-                      currency,
-                      onSuccess,
-                      onError,
-                      showButton,
-                    }) => (
-                      <PaymentForm
-                        clientSecret={clientSecret}
-                        amount={amount}
-                        currency={currency}
-                        eventSlug={event.slug}
-                        onSuccess={
-                          pendingPayment
-                            ? (paymentIntent) => {
-                                // Stripe confirmed the PaymentIntent on the client.
-                                const currentPayment = pendingPayment;
-
-                                // Basic safety fallback if state was lost
-                                if (!currentPayment) {
-                                  showToast(
-                                    "Payment successful! 🎉",
-                                    "success"
-                                  );
-                                  setShowRsvpForm(false);
-                                  navigate(`/e/${event.slug}/success`, {
-                                    state: {
-                                      booking: {
-                                        name:
-                                          paymentIntent?.charges?.data?.[0]
-                                            ?.billing_details?.name || null,
-                                        email: null,
-                                      },
-                                      payment: {
-                                        id: paymentIntent.id,
-                                        status:
-                                          paymentIntent.status || "succeeded",
-                                      },
-                                    },
-                                  });
-                                  return;
-                                }
-
-                                // Standard PaymentIntent flow (Option B):
-                                // - Client confirms PaymentIntent with Stripe.js
-                                // - If Stripe returns succeeded, redirect immediately
-                                // - Backend/webhook later fulfills based on payment_intent.succeeded
-                                if (paymentIntent?.status === "succeeded") {
-                                  showToast(
-                                    "Payment successful! 🎉",
-                                    "success"
-                                  );
-                                  setPendingPayment(null);
-                                  setShowRsvpForm(false);
-                                  // Extract booking data from nested structure for paid events
-                                  const rsvpData =
-                                    currentPayment.booking?.rsvp || {};
-                                  const statusDetails =
-                                    currentPayment.booking?.statusDetails || {};
-                                  const eventData =
-                                    currentPayment.booking?.event || event;
-
-                                  // Extract dinner info from multiple possible locations
-                                  // Backend returns it in statusDetails, but also in rsvp.dinner
-                                  const dinnerBookingStatus =
-                                    statusDetails?.dinnerBookingStatus ||
-                                    rsvpData?.dinner?.bookingStatus ||
-                                    rsvpData?.dinnerBookingStatus ||
-                                    null;
-                                  const wantsDinner =
-                                    statusDetails?.wantsDinner !== undefined
-                                      ? statusDetails.wantsDinner
-                                      : rsvpData?.dinner?.enabled ||
-                                        rsvpData?.wantsDinner ||
-                                        false;
-
-                                  navigate(`/e/${event.slug}/success`, {
-                                    state: {
-                                      booking: {
-                                        name:
-                                          currentPayment.booking?.name ||
-                                          rsvpData?.name ||
-                                          null,
-                                        email:
-                                          currentPayment.booking?.email ||
-                                          rsvpData?.email ||
-                                          null,
-                                        bookingStatus:
-                                          statusDetails?.bookingStatus ||
-                                          rsvpData?.bookingStatus ||
-                                          "CONFIRMED",
-                                        dinnerBookingStatus:
-                                          dinnerBookingStatus,
-                                        wantsDinner: wantsDinner,
-                                        partySize:
-                                          rsvpData?.partySize ||
-                                          currentPayment.booking?.partySize ||
-                                          1,
-                                        plusOnes: rsvpData?.plusOnes || 0,
-                                        dinnerPartySize:
-                                          rsvpData?.dinnerPartySize ||
-                                          rsvpData?.dinner?.partySize ||
-                                          null,
-                                        dinnerTimeSlot:
-                                          rsvpData?.dinnerTimeSlot ||
-                                          rsvpData?.dinner?.slotTime ||
-                                          null,
-                                      },
-                                      payment: {
-                                        id: currentPayment.paymentId,
-                                        status: "succeeded",
-                                        amount: currentPayment.amount,
-                                        currency: currentPayment.currency,
-                                        paymentBreakdown:
-                                          currentPayment.paymentBreakdown,
-                                      },
-                                    },
-                                  });
-                                } else {
-                                  console.warn(
-                                    "[EventPage] PaymentIntent not succeeded after confirm:",
-                                    paymentIntent?.status
-                                  );
-                                  showToast(
-                                    "Payment was not completed. Please try again.",
-                                    "error"
-                                  );
-                                }
-                              }
-                            : onSuccess
-                        }
-                        onError={onError}
-                        showButton={showButton}
-                      />
-                    )
-                  : null
-              }
+              PaymentFormComponent={PaymentFormComponent}
             />
           </div>
         </ModalOrDrawer>

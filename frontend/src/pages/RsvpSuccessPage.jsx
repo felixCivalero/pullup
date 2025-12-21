@@ -72,7 +72,11 @@ export function RsvpSuccessPage() {
 
   // Get booking and payment details from navigation state
   const booking = location.state?.booking || null;
-  const payment = location.state?.payment || null; // Payment info for paid events
+  const paymentFromState = location.state?.payment || null; // Payment info for paid events
+
+  // State for payment data (fetched from database if needed)
+  const [payment, setPayment] = useState(paymentFromState);
+  const [loadingPayment, setLoadingPayment] = useState(false);
 
   useEffect(() => {
     async function loadEvent() {
@@ -81,6 +85,22 @@ export function RsvpSuccessPage() {
         if (!res.ok) throw new Error("Failed to load event");
         const data = await res.json();
         setEvent(data);
+
+        // If event is paid, fetch full payment details from database
+        // This ensures we have receipt URL, paid_at timestamp, etc. from Stripe
+        if (data.ticketType === "paid") {
+          // Try to get payment ID from state first
+          const paymentId = paymentFromState?.id;
+
+          if (paymentId) {
+            // We have payment ID from navigation state, fetch full details
+            await loadPaymentDetails(paymentId);
+          } else if (booking?.email) {
+            // Fallback: Try to find payment by RSVP email and event
+            // This handles cases where user refreshes the page
+            await findPaymentByRsvp(booking.email, data.id);
+          }
+        }
       } catch (err) {
         console.error("Error loading event", err);
       } finally {
@@ -90,6 +110,48 @@ export function RsvpSuccessPage() {
 
     if (slug) loadEvent();
   }, [slug]);
+
+  // Load full payment details from database (includes receipt URL, paid_at, etc.)
+  async function loadPaymentDetails(paymentId) {
+    if (!paymentId) return;
+
+    setLoadingPayment(true);
+    try {
+      const res = await publicFetch(`/payments/${paymentId}/details`);
+      if (res.ok) {
+        const paymentData = await res.json();
+        // Merge with existing payment data to preserve paymentBreakdown if available
+        setPayment({
+          ...paymentFromState,
+          ...paymentData,
+          paymentBreakdown: paymentFromState?.paymentBreakdown || null,
+        });
+      } else {
+        console.warn("Failed to load payment details:", await res.text());
+        // Keep payment from state if fetch fails
+      }
+    } catch (err) {
+      console.error("Error loading payment details:", err);
+      // Keep payment from state if fetch fails
+    } finally {
+      setLoadingPayment(false);
+    }
+  }
+
+  // Find payment by RSVP email and event (fallback for page refresh)
+  async function findPaymentByRsvp(email, eventId) {
+    if (!email || !eventId) return;
+
+    try {
+      // This would require a new endpoint - for now, we'll rely on payment ID from state
+      // In the future, we could add: GET /events/:slug/rsvps/:email/payment
+      console.log(
+        "[RsvpSuccessPage] Payment ID not in state, would need to fetch by RSVP"
+      );
+    } catch (err) {
+      console.error("Error finding payment by RSVP:", err);
+    }
+  }
 
   function getCalendarUrls(useDinnerTime = false) {
     if (!event) return null;
@@ -377,26 +439,68 @@ export function RsvpSuccessPage() {
                   <span>You're in</span>
                 </Badge>
               ) : (
-                <Badge
-                  variant="warning"
-                  style={{
-                    fontSize: "15px",
-                    padding: "12px 24px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    background: "rgba(251, 191, 36, 0.25)",
-                    border: "1px solid rgba(251, 191, 36, 0.4)",
-                    color: "#fff",
-                    backdropFilter: "blur(20px)",
-                    borderRadius: "12px",
-                    fontWeight: 600,
-                    boxShadow: "0 4px 20px rgba(251, 191, 36, 0.2)",
-                  }}
-                >
-                  <FaClock size={18} />
-                  <span>You're on the list</span>
-                </Badge>
+                <>
+                  <Badge
+                    variant="warning"
+                    style={{
+                      fontSize: "15px",
+                      padding: "12px 24px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      background: "rgba(245, 158, 11, 0.25)",
+                      border: "1px solid rgba(245, 158, 11, 0.4)",
+                      color: "#fbbf24",
+                      backdropFilter: "blur(20px)",
+                      borderRadius: "12px",
+                      fontWeight: 600,
+                      boxShadow: "0 4px 20px rgba(245, 158, 11, 0.2)",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <FaClock size={18} />
+                    <span>You're on the waitlist</span>
+                  </Badge>
+                  {/* Waitlist explanation message */}
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      padding: "16px",
+                      background: "rgba(245, 158, 11, 0.1)",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(245, 158, 11, 0.2)",
+                      fontSize: "15px",
+                      color: "rgba(255, 255, 255, 0.9)",
+                      lineHeight: "1.6",
+                      maxWidth: "500px",
+                      margin: "16px auto 0",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        marginBottom: "8px",
+                        color: "#fbbf24",
+                      }}
+                    >
+                      What happens next?
+                    </div>
+                    <div style={{ fontSize: "14px", opacity: 0.9 }}>
+                      {event?.ticketType === "paid" ? (
+                        <>
+                          If spots open up, you'll receive a link via SMS or
+                          email to confirm and complete payment. Once payment is
+                          done, you'll be confirmed for the event.
+                        </>
+                      ) : (
+                        <>
+                          If spots open up, the host will contact you via email
+                          or SMS to confirm your attendance.
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
@@ -536,7 +640,10 @@ export function RsvpSuccessPage() {
                         style={{
                           fontSize: "14px",
                           opacity: 0.85,
-                          marginBottom: "16px",
+                          marginBottom:
+                            booking.bookingStatus === "WAITLIST"
+                              ? "12px"
+                              : "16px",
                           color: "rgba(255, 255, 255, 0.9)",
                         }}
                       >
@@ -546,6 +653,24 @@ export function RsvpSuccessPage() {
                         })}
                         {booking.partySize > 1 &&
                           ` • ${booking.partySize} people`}
+                      </div>
+                    )}
+                    {booking.bookingStatus === "WAITLIST" && (
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          opacity: 0.8,
+                          marginBottom: "16px",
+                          padding: "10px",
+                          background: "rgba(245, 158, 11, 0.1)",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(245, 158, 11, 0.2)",
+                          color: "rgba(255, 255, 255, 0.85)",
+                          lineHeight: "1.5",
+                        }}
+                      >
+                        You're on the waitlist for cocktails. The host will
+                        contact you if spots become available.
                       </div>
                     )}
                     <Button
@@ -672,7 +797,10 @@ export function RsvpSuccessPage() {
                           style={{
                             fontSize: "14px",
                             opacity: 0.85,
-                            marginBottom: "16px",
+                            marginBottom:
+                              booking.dinnerBookingStatus === "WAITLIST"
+                                ? "12px"
+                                : "16px",
                             color: "rgba(255, 255, 255, 0.9)",
                           }}
                         >
@@ -685,6 +813,24 @@ export function RsvpSuccessPage() {
                           )}
                           {booking.dinnerPartySize > 1 &&
                             ` • ${booking.dinnerPartySize} people`}
+                        </div>
+                      )}
+                      {booking.dinnerBookingStatus === "WAITLIST" && (
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            opacity: 0.8,
+                            marginBottom: "16px",
+                            padding: "10px",
+                            background: "rgba(245, 158, 11, 0.1)",
+                            borderRadius: "8px",
+                            border: "1px solid rgba(245, 158, 11, 0.2)",
+                            color: "rgba(255, 255, 255, 0.85)",
+                            lineHeight: "1.5",
+                          }}
+                        >
+                          You're on the waitlist for dinner. The host will
+                          contact you if a table becomes available.
                         </div>
                       )}
                       <Button
@@ -764,178 +910,214 @@ export function RsvpSuccessPage() {
               </>
             )}
 
-            {/* Payment Receipt Section (for paid events) - Moved below calendar modules */}
-            {payment && payment.status === "succeeded" && (
-              <div
-                style={{
-                  marginBottom: "24px",
-                  padding: "24px",
-                  background: "rgba(20, 16, 30, 0.95)",
-                  borderRadius: "16px",
-                  border: "2px solid rgba(139, 92, 246, 0.3)",
-                  backdropFilter: "blur(10px)",
-                  boxShadow: "0 8px 32px rgba(139, 92, 246, 0.2)",
-                }}
-              >
-                {/* Receipt Header */}
+            {/* Payment Receipt Section (for paid events only) - Moved below calendar modules */}
+            {event?.ticketType === "paid" &&
+              payment &&
+              payment.status === "succeeded" && (
                 <div
                   style={{
-                    marginBottom: "20px",
-                    paddingBottom: "16px",
-                    borderBottom: "2px solid rgba(139, 92, 246, 0.3)",
+                    marginBottom: "24px",
+                    padding: "24px",
+                    background: "rgba(20, 16, 30, 0.95)",
+                    borderRadius: "16px",
+                    border: "2px solid rgba(139, 92, 246, 0.3)",
+                    backdropFilter: "blur(10px)",
+                    boxShadow: "0 8px 32px rgba(139, 92, 246, 0.2)",
                   }}
                 >
+                  {/* Receipt Header */}
                   <div
                     style={{
-                      fontSize: "20px",
-                      fontWeight: 700,
-                      marginBottom: "8px",
-                      color: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
+                      marginBottom: "20px",
+                      paddingBottom: "16px",
+                      borderBottom: "2px solid rgba(139, 92, 246, 0.3)",
                     }}
                   >
-                    <span style={{ color: "#22c55e", fontSize: "24px" }}>
-                      ✓
-                    </span>
-                    <span>Payment Receipt</span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "rgba(255, 255, 255, 0.5)",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Paid on{" "}
-                    {new Date().toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                </div>
-
-                {/* Payment Breakdown */}
-                {payment.paymentBreakdown && (
-                  <div style={{ marginBottom: "20px" }}>
-                    <div
-                      style={{
-                        fontSize: "15px",
-                        color: "rgba(255, 255, 255, 0.8)",
-                        marginBottom: "12px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span>
-                        Ticket
-                        {booking?.partySize > 1
-                          ? `s (${booking.partySize}x)`
-                          : ""}
-                      </span>
-                      <span style={{ fontWeight: 600 }}>
-                        {(() => {
-                          const symbol =
-                            payment.currency === "sek" ? "kr" : "$";
-                          const amount = (
-                            payment.paymentBreakdown.ticketAmount / 100
-                          ).toFixed(2);
-                          return `${symbol}${amount}`;
-                        })()}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "15px",
-                        color: "rgba(255, 255, 255, 0.8)",
-                        marginBottom: "16px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span>Service fee</span>
-                      <span style={{ fontWeight: 600 }}>
-                        {(() => {
-                          const symbol =
-                            payment.currency === "sek" ? "kr" : "$";
-                          const amount = (
-                            payment.paymentBreakdown.platformFeeAmount / 100
-                          ).toFixed(2);
-                          return `${symbol}${amount}`;
-                        })()}
-                      </span>
-                    </div>
                     <div
                       style={{
                         fontSize: "20px",
                         fontWeight: 700,
-                        color: "#a78bfa",
+                        marginBottom: "8px",
+                        color: "#fff",
                         display: "flex",
-                        justifyContent: "space-between",
                         alignItems: "center",
-                        paddingTop: "16px",
-                        borderTop: "2px solid rgba(139, 92, 246, 0.3)",
+                        gap: "10px",
                       }}
                     >
-                      <span>Total Paid</span>
-                      <span>
-                        {(() => {
-                          const symbol =
-                            payment.currency === "sek" ? "kr" : "$";
-                          const amount = (
-                            payment.paymentBreakdown.customerTotalAmount / 100
-                          ).toFixed(2);
-                          return `${symbol}${amount}`;
-                        })()}
+                      <span style={{ color: "#22c55e", fontSize: "24px" }}>
+                        ✓
                       </span>
+                      <span>Payment Receipt</span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "rgba(255, 255, 255, 0.5)",
+                        marginTop: "4px",
+                      }}
+                    >
+                      Paid on{" "}
+                      {payment.paidAt
+                        ? new Date(payment.paidAt).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : new Date().toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                     </div>
                   </div>
-                )}
 
-                {/* Payment Details */}
-                <div
-                  style={{
-                    fontSize: "11px",
-                    color: "rgba(255, 255, 255, 0.4)",
-                    marginTop: "20px",
-                    paddingTop: "16px",
-                    borderTop: "1px solid rgba(255,255,255,0.05)",
-                    fontFamily: "monospace",
-                  }}
-                >
-                  <div style={{ marginBottom: "4px", wordBreak: "break-all" }}>
-                    Transaction ID: {payment.id}
-                  </div>
+                  {/* Payment Breakdown */}
+                  {/* Calculate breakdown from payment amount if not provided */}
+                  {(() => {
+                    const currencySymbol =
+                      payment.currency === "sek" ? "kr" : "$";
+                    const totalAmount = payment.amount || 0;
+
+                    // If we have paymentBreakdown from state, use it
+                    // Otherwise, calculate from total amount (estimate service fee ~3%)
+                    const hasBreakdown = payment.paymentBreakdown;
+                    const ticketAmount = hasBreakdown
+                      ? payment.paymentBreakdown.ticketAmount
+                      : Math.round(totalAmount / 1.03); // Approximate ticket amount (3% fee)
+                    const platformFeeAmount = hasBreakdown
+                      ? payment.paymentBreakdown.platformFeeAmount
+                      : totalAmount - ticketAmount;
+                    const customerTotalAmount = totalAmount;
+
+                    return (
+                      <div style={{ marginBottom: "20px" }}>
+                        <div
+                          style={{
+                            fontSize: "15px",
+                            color: "rgba(255, 255, 255, 0.8)",
+                            marginBottom: "12px",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <span>
+                            Ticket
+                            {booking?.partySize > 1
+                              ? `s (${booking.partySize}x)`
+                              : ""}
+                          </span>
+                          <span style={{ fontWeight: 600 }}>
+                            {currencySymbol}
+                            {(ticketAmount / 100).toFixed(2)}
+                          </span>
+                        </div>
+                        {platformFeeAmount > 0 && (
+                          <div
+                            style={{
+                              fontSize: "15px",
+                              color: "rgba(255, 255, 255, 0.8)",
+                              marginBottom: "16px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <span>Service fee</span>
+                            <span style={{ fontWeight: 600 }}>
+                              {currencySymbol}
+                              {(platformFeeAmount / 100).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            fontSize: "20px",
+                            fontWeight: 700,
+                            color: "#a78bfa",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            paddingTop: "16px",
+                            borderTop: "2px solid rgba(139, 92, 246, 0.3)",
+                          }}
+                        >
+                          <span>Total Paid</span>
+                          <span>
+                            {currencySymbol}
+                            {(customerTotalAmount / 100).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Payment Details */}
                   <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
+                      fontSize: "11px",
+                      color: "rgba(255, 255, 255, 0.4)",
+                      marginTop: "20px",
+                      paddingTop: "16px",
+                      borderTop: "1px solid rgba(255,255,255,0.05)",
+                      fontFamily: "monospace",
                     }}
                   >
-                    <span>Status:</span>
-                    <span
+                    <div
+                      style={{ marginBottom: "4px", wordBreak: "break-all" }}
+                    >
+                      Transaction ID: {payment.id}
+                    </div>
+                    <div
                       style={{
-                        color: "#22c55e",
-                        fontWeight: 600,
-                        display: "inline-flex",
+                        display: "flex",
                         alignItems: "center",
-                        gap: "4px",
+                        gap: "6px",
+                        marginBottom: "8px",
                       }}
                     >
-                      <span style={{ fontSize: "10px" }}>●</span>
-                      Paid
-                    </span>
+                      <span>Status:</span>
+                      <span
+                        style={{
+                          color: "#22c55e",
+                          fontWeight: 600,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <span style={{ fontSize: "10px" }}>●</span>
+                        Paid
+                      </span>
+                    </div>
+                    {/* Receipt URL from Stripe */}
+                    {payment.receiptUrl && (
+                      <div style={{ marginTop: "12px" }}>
+                        <a
+                          href={payment.receiptUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: "#a78bfa",
+                            textDecoration: "underline",
+                            fontSize: "12px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <span>📄</span>
+                          <span>View Receipt</span>
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* Share Invite - Single button with conditional logic */}
             {/* {event && (

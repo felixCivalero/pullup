@@ -361,8 +361,26 @@ app.use(cors(corsOptions));
 // ---------------------------
 app.post(
   "/webhooks/stripe",
-  express.raw({ type: "application/json" }),
+  // CRITICAL: Use express.raw() to preserve raw body for signature verification
+  // Must match Stripe's exact body format (no JSON parsing)
+  express.raw({
+    type: "application/json",
+    verify: (req, res, buf) => {
+      // Store raw body for signature verification
+      req.rawBody = buf;
+    },
+  }),
   async (req, res) => {
+    // Log that webhook endpoint was hit
+    console.log("[Webhook] ⚡ Webhook endpoint hit!");
+    console.log("[Webhook] Request method:", req.method);
+    console.log("[Webhook] Request headers:", {
+      "content-type": req.headers["content-type"],
+      "stripe-signature": req.headers["stripe-signature"]
+        ? "present"
+        : "missing",
+    });
+
     const sig = req.headers["stripe-signature"];
 
     // Get webhook secret - prefer TEST_ prefixed in development
@@ -375,34 +393,66 @@ app.post(
       const missingVar = isDevelopment
         ? "TEST_STRIPE_WEBHOOK_SECRET or STRIPE_WEBHOOK_SECRET"
         : "STRIPE_WEBHOOK_SECRET";
-      console.error(`[Webhook] ${missingVar} not configured`);
+      console.error(`[Webhook] ❌ ${missingVar} not configured`);
       return res.status(500).json({ error: "Webhook secret not configured" });
     }
 
     if (isDevelopment && process.env.TEST_STRIPE_WEBHOOK_SECRET) {
       console.log("🔧 [DEV] Using TEST Stripe webhook secret");
+      console.log(
+        "[Webhook] Secret starts with:",
+        webhookSecret?.substring(0, 10) + "..."
+      );
     }
+
+    // Verify body is raw buffer
+    console.log("[Webhook] Body type:", typeof req.body);
+    console.log("[Webhook] Body is Buffer:", Buffer.isBuffer(req.body));
+    console.log("[Webhook] Body length:", req.body?.length);
 
     let event;
 
     try {
       const stripe = (await import("stripe")).default;
       const stripeInstance = new stripe(getStripeSecretKey());
+
+      // Use raw body (Buffer) for signature verification
+      // req.body should already be a Buffer from express.raw()
+      const rawBody = req.rawBody || req.body;
+
+      if (!Buffer.isBuffer(rawBody)) {
+        console.error(
+          "[Webhook] ❌ Body is not a Buffer! Type:",
+          typeof rawBody
+        );
+        return res
+          .status(400)
+          .send("Webhook Error: Invalid request body format");
+      }
+
       event = stripeInstance.webhooks.constructEvent(
-        req.body,
+        rawBody,
         sig,
         webhookSecret
       );
+      console.log("[Webhook] ✅ Signature verified successfully");
+      console.log("[Webhook] Event type:", event.type);
+      console.log("[Webhook] Event ID:", event.id);
     } catch (err) {
-      console.error("Webhook signature verification failed:", err.message);
+      console.error("[Webhook] ❌ Signature verification failed:", err.message);
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
     try {
+      console.log("[Webhook] Processing event:", event.type);
       const result = await handleStripeWebhook(event);
+      console.log("[Webhook] ✅ Event processed:", {
+        processed: result.processed,
+        error: result.error,
+      });
       res.json({ received: true, processed: result.processed });
     } catch (error) {
-      console.error("Webhook processing error:", error);
+      console.error("[Webhook] ❌ Processing error:", error);
       res.status(500).json({ error: "Failed to process webhook" });
     }
   }
@@ -1358,14 +1408,21 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
 
     // If this is a paid event and the host has a connected Stripe account,
     // automatically create a PaymentIntent + payment record for this RSVP.
+    // BUT: Skip payment creation if RSVP is on waitlist (they'll pay later via waitlist link)
     let stripePayment = null;
     let stripeClientSecret = null;
+
+    // Check if RSVP is on waitlist
+    const isWaitlistRsvp =
+      result.rsvp.bookingStatus === "WAITLIST" ||
+      result.rsvp.status === "waitlist";
 
     try {
       if (
         result.event?.ticketType === "paid" &&
         result.event?.ticketPrice &&
-        result.event?.hostId
+        result.event?.hostId &&
+        !isWaitlistRsvp // Only create payment if NOT on waitlist
       ) {
         // Load host profile to get connected account ID
         const hostProfile = await getUserProfile(result.event.hostId);
@@ -1502,7 +1559,12 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       console.error("Error creating Stripe payment for RSVP:", paymentError);
 
       // For paid events, payment creation failure should block the RSVP
-      if (result.event.ticketType === "paid" && result.event.ticketPrice > 0) {
+      // BUT: If RSVP is on waitlist, don't block (they'll pay later via waitlist link)
+      if (
+        result.event.ticketType === "paid" &&
+        result.event.ticketPrice > 0 &&
+        !isWaitlistRsvp
+      ) {
         // Rollback: delete the RSVP that was created
         try {
           await deleteRsvp(result.rsvp.id);
@@ -1529,13 +1591,20 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
 
     // After all result.error checks and before res.status(201)...
     try {
+      const isWaitlistEmail =
+        result.rsvp.bookingStatus === "WAITLIST" ||
+        result.rsvp.status === "waitlist";
+
       await sendEmail({
         to: result.rsvp.email,
-        subject: "Your spot is confirmed",
+        subject: isWaitlistEmail
+          ? "You're on the waitlist"
+          : "Your spot is confirmed",
         html: signupConfirmationEmail({
           name: result.rsvp.name || name,
           eventTitle: result.event.title,
-          date: new Date(result.event.startsAt).toLocaleString(), // or your formattedDate
+          date: new Date(result.event.startsAt).toLocaleString(),
+          isWaitlist: isWaitlistEmail,
         }),
       });
     } catch (emailErr) {
@@ -3373,6 +3442,159 @@ app.get("/payments/:paymentId/status", async (req, res) => {
   } catch (error) {
     console.error("Error fetching payment status:", error);
     res.status(500).json({ error: "Failed to fetch payment status" });
+  }
+});
+
+// ---------------------------
+// PUBLIC: Get full payment details (including receipt URL)
+// Used by success page to display complete payment information
+// ---------------------------
+app.get("/payments/:paymentId/details", async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    if (!paymentId) {
+      return res.status(400).json({ error: "paymentId is required" });
+    }
+
+    const payment = await findPaymentById(paymentId);
+    if (!payment) {
+      return res.status(404).json({ error: "not_found" });
+    }
+
+    // Return full payment details (non-sensitive fields only)
+    res.json({
+      id: payment.id,
+      status: payment.status,
+      amount: payment.amount,
+      currency: payment.currency,
+      description: payment.description,
+      receiptUrl: payment.receiptUrl, // Stripe receipt URL
+      paidAt: payment.paidAt, // ISO timestamp from database
+      eventId: payment.eventId,
+      rsvpId: payment.rsvpId,
+    });
+  } catch (error) {
+    console.error("Error fetching payment details:", error);
+    res.status(500).json({ error: "Failed to fetch payment details" });
+  }
+});
+
+// ---------------------------
+// PUBLIC: Verify PaymentIntent status from Stripe and update payment
+// Fallback when webhook doesn't arrive (e.g., in local development)
+// ---------------------------
+app.post("/payments/verify/:paymentIntentId", async (req, res) => {
+  try {
+    const { paymentIntentId } = req.params;
+    if (!paymentIntentId) {
+      return res.status(400).json({ error: "paymentIntentId is required" });
+    }
+
+    console.log(
+      "[Payment Verify] Checking PaymentIntent status:",
+      paymentIntentId
+    );
+
+    // Retrieve PaymentIntent from Stripe
+    const { getStripeSecretKey } = await import("./stripe.js");
+    const Stripe = (await import("stripe")).default;
+    const stripe = new Stripe(getStripeSecretKey());
+
+    let paymentIntent;
+    try {
+      // Expand charges to get receipt URL
+      paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: ["charges"], // Expand charges to access receipt_url
+      });
+      console.log(
+        "[Payment Verify] PaymentIntent status:",
+        paymentIntent.status
+      );
+    } catch (error) {
+      console.error("[Payment Verify] Error retrieving PaymentIntent:", error);
+      return res.status(400).json({ error: "Invalid PaymentIntent ID" });
+    }
+
+    // If payment succeeded, manually trigger webhook handler logic
+    if (paymentIntent.status === "succeeded") {
+      console.log("[Payment Verify] Payment succeeded, triggering update...");
+      const { handleStripeWebhook } = await import("./stripe.js");
+
+      // Create a mock webhook event (with all required fields)
+      const mockEvent = {
+        type: "payment_intent.succeeded",
+        id: `evt_verify_${Date.now()}`,
+        created: Math.floor(Date.now() / 1000), // Unix timestamp
+        livemode: false, // Test mode
+        data: {
+          object: paymentIntent,
+        },
+      };
+
+      const result = await handleStripeWebhook(mockEvent);
+
+      // Extract receipt URL from charge if available and update payment
+      // Stripe generates receipt URLs asynchronously, so we check here too
+      const receiptUrl = paymentIntent.charges?.data?.[0]?.receipt_url || null;
+      if (receiptUrl) {
+        console.log(
+          "[Payment Verify] Found receipt URL, ensuring it's stored:",
+          receiptUrl
+        );
+        const { findPaymentByStripePaymentIntentId, updatePayment } =
+          await import("./data.js");
+        const payment = await findPaymentByStripePaymentIntentId(
+          paymentIntentId
+        );
+        if (payment) {
+          // Update receipt URL if not already set
+          if (!payment.receiptUrl) {
+            await updatePayment(payment.id, { receiptUrl });
+            console.log("[Payment Verify] ✅ Receipt URL stored in database");
+          } else {
+            console.log("[Payment Verify] Receipt URL already stored");
+          }
+        }
+      } else {
+        console.log(
+          "[Payment Verify] Receipt URL not yet available (Stripe generates it asynchronously)"
+        );
+      }
+
+      if (result.processed) {
+        console.log("[Payment Verify] ✅ Payment updated successfully");
+        return res.json({
+          success: true,
+          message: "Payment verified and updated",
+          paymentIntentId: paymentIntent.id,
+          status: paymentIntent.status,
+          receiptUrl: receiptUrl || null,
+        });
+      } else {
+        console.error(
+          "[Payment Verify] ❌ Failed to update payment:",
+          result.error
+        );
+        return res.status(500).json({
+          error: "Failed to update payment",
+          details: result.error,
+        });
+      }
+    } else {
+      // Payment not succeeded yet
+      console.log(
+        "[Payment Verify] Payment not succeeded, status:",
+        paymentIntent.status
+      );
+      return res.json({
+        success: false,
+        message: "Payment not succeeded yet",
+        status: paymentIntent.status,
+      });
+    }
+  } catch (error) {
+    console.error("[Payment Verify] Error:", error);
+    res.status(500).json({ error: "Failed to verify payment" });
   }
 });
 

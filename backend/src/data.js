@@ -2108,8 +2108,6 @@ export async function addRsvp({
   // Calculate current cocktails-only count (all existing confirmed RSVPs)
   const currentCocktailsOnly = await getCocktailsOnlyCount(event.id);
 
-  let bookingStatus = "CONFIRMED";
-
   // DYNAMIC PARTY COMPOSITION SYSTEM: Calculate cocktails-only spots for this booking
   const cocktailsOnlyForThisBooking = calculateCocktailsOnly(
     finalWantsDinner,
@@ -2117,19 +2115,23 @@ export async function addRsvp({
     finalPlusOnes
   );
 
-  // Check if there's enough cocktail capacity (all-or-nothing)
-  // Compare: current cocktails-only + new booking's cocktails-only vs capacity
+  // ALL-OR-NOTHING WAITLIST LOGIC: Check BOTH cocktail AND dinner capacity
+  // If EITHER is insufficient, entire party goes to waitlist
+  let cocktailCapacityOk = true;
+  let dinnerCapacityOk = true;
+
+  // Check cocktail capacity
   if (
     event.cocktailCapacity != null &&
     currentCocktailsOnly + cocktailsOnlyForThisBooking > event.cocktailCapacity
   ) {
-    if (event.waitlistEnabled) {
-      bookingStatus = "WAITLIST";
-    } else {
+    cocktailCapacityOk = false;
+    if (!event.waitlistEnabled) {
       return { error: "full", event };
     }
   }
 
+  // Check dinner capacity (will be checked below if wantsDinner is true)
   if (finalWantsDinner) {
     // Validate time slot - normalize ISO strings for comparison
     const availableSlots = generateDinnerTimeSlots(event);
@@ -2205,23 +2207,38 @@ export async function addRsvp({
         // Limited seats per slot - all-or-nothing: entire party goes to waitlist if capacity exceeded
         const availableSeats = event.dinnerMaxSeatsPerSlot - slotData.confirmed;
 
-        // Check dinner capacity independently first (per documentation)
+        // Check dinner capacity - if insufficient, entire party goes to waitlist
         if (finalDinnerPartySize > availableSeats) {
-          // Dinner capacity exceeded - all-or-nothing
-          dinnerStatus = "WAITLIST";
-          bookingStatus = "WAITLIST";
-        } else {
-          // Dinner capacity OK - confirm dinner only if event-level booking is still confirmed
-          dinnerStatus =
-            bookingStatus === "CONFIRMED" ? "CONFIRMED" : "WAITLIST";
+          dinnerCapacityOk = false;
+          if (!event.waitlistEnabled) {
+            return { error: "full", event };
+          }
         }
-      } else {
-        // Unlimited seats per slot - follow event-level booking status
-        dinnerStatus = bookingStatus === "CONFIRMED" ? "CONFIRMED" : "WAITLIST";
       }
+      // If unlimited seats per slot, dinner capacity is always OK
     } else {
       // No valid time slot available
       finalWantsDinner = false;
+    }
+  }
+
+  // ALL-OR-NOTHING: Set bookingStatus based on BOTH capacity checks
+  // If EITHER cocktail OR dinner capacity is insufficient, entire party goes to waitlist
+  let bookingStatus = "CONFIRMED";
+  if (!cocktailCapacityOk || !dinnerCapacityOk) {
+    if (event.waitlistEnabled) {
+      bookingStatus = "WAITLIST";
+    } else {
+      return { error: "full", event };
+    }
+  }
+
+  // Set dinner status based on capacity check and booking status
+  if (finalWantsDinner) {
+    if (!dinnerCapacityOk || bookingStatus === "WAITLIST") {
+      dinnerStatus = "WAITLIST";
+    } else {
+      dinnerStatus = "CONFIRMED";
     }
   }
 
@@ -2557,25 +2574,40 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
     // Waitlist RSVPs should stay WAITLIST until payment succeeds (handled in webhook)
     bookingStatus = rsvp.bookingStatus || bookingStatus;
   } else {
-    // Auto-determine bookingStatus based on cocktail capacity (all-or-nothing)
+    // ALL-OR-NOTHING WAITLIST LOGIC: Check BOTH cocktail AND dinner capacity
+    // If EITHER is insufficient, entire party goes to waitlist
     // BUT: If guest was already over capacity (capacityOverridden), preserve CONFIRMED status
     const wasAlreadyOverCapacity = rsvp.capacityOverridden === true;
 
     if (wasAlreadyOverCapacity) {
       // Preserve CONFIRMED status for guests who were already over capacity
       bookingStatus = "CONFIRMED";
-    } else if (
-      event.cocktailCapacity != null &&
-      currentCocktailsOnly + cocktailsOnlyForThisBooking >
-        event.cocktailCapacity
-    ) {
-      if (event.waitlistEnabled) {
-        bookingStatus = "WAITLIST";
-      } else {
-        return { error: "full" };
-      }
     } else {
-      bookingStatus = "CONFIRMED";
+      // Check cocktail capacity first
+      let cocktailCapacityOk = true;
+      if (
+        event.cocktailCapacity != null &&
+        currentCocktailsOnly + cocktailsOnlyForThisBooking >
+          event.cocktailCapacity
+      ) {
+        cocktailCapacityOk = false;
+        if (!event.waitlistEnabled) {
+          return { error: "full" };
+        }
+      }
+
+      // Dinner capacity will be checked later when dinner slot is determined
+      // For now, set bookingStatus based on cocktail capacity
+      // It will be updated again if dinner capacity is insufficient
+      if (!cocktailCapacityOk) {
+        if (event.waitlistEnabled) {
+          bookingStatus = "WAITLIST";
+        } else {
+          return { error: "full" };
+        }
+      } else {
+        bookingStatus = "CONFIRMED";
+      }
     }
   }
 
@@ -2695,8 +2727,8 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
 
         if (updates["dinner.bookingStatus"] !== undefined) {
           dinnerBookingStatus = updates["dinner.bookingStatus"];
-        } else if (event.dinnerMaxSeatsPerSlot) {
-          // Check if there's room in the slot (all-or-nothing)
+        } else {
+          // ALL-OR-NOTHING: Check dinner capacity and update both dinner and booking status
           // BUT: If guest was already over capacity, preserve CONFIRMED status
           const wasAlreadyOverCapacity = rsvp.capacityOverridden === true;
 
@@ -2705,23 +2737,48 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
             dinnerBookingStatus = "CONFIRMED";
             bookingStatus = "CONFIRMED";
           } else {
-            // Check dinner capacity independently first (per documentation)
-            const availableSeats =
-              event.dinnerMaxSeatsPerSlot - currentSlotConfirmed;
+            let dinnerCapacityOk = true;
+            if (event.dinnerMaxSeatsPerSlot) {
+              // Check dinner capacity - if insufficient, entire party goes to waitlist
+              const availableSeats =
+                event.dinnerMaxSeatsPerSlot - currentSlotConfirmed;
 
-            if (dinnerPartySize > availableSeats) {
-              // Dinner capacity exceeded - all-or-nothing
-              dinnerBookingStatus = "WAITLIST";
-              bookingStatus = "WAITLIST";
+              if (dinnerPartySize > availableSeats) {
+                dinnerCapacityOk = false;
+                if (!event.waitlistEnabled) {
+                  return { error: "full" };
+                }
+              }
+            }
+
+            // ALL-OR-NOTHING: Update bookingStatus if dinner capacity is insufficient
+            // Also re-check cocktail capacity to ensure both are OK
+            let cocktailCapacityOk = true;
+            if (
+              event.cocktailCapacity != null &&
+              currentCocktailsOnly + cocktailsOnlyForThisBooking >
+                event.cocktailCapacity
+            ) {
+              cocktailCapacityOk = false;
+              if (!event.waitlistEnabled) {
+                return { error: "full" };
+              }
+            }
+
+            // If EITHER cocktail OR dinner capacity is insufficient, entire party goes to waitlist
+            if (!cocktailCapacityOk || !dinnerCapacityOk) {
+              if (event.waitlistEnabled) {
+                bookingStatus = "WAITLIST";
+                dinnerBookingStatus = "WAITLIST";
+              } else {
+                return { error: "full" };
+              }
             } else {
-              // Dinner capacity OK - confirm dinner only if event-level booking is still confirmed
-              dinnerBookingStatus =
-                bookingStatus === "CONFIRMED" ? "CONFIRMED" : "WAITLIST";
+              // Both capacities OK - confirm both
+              bookingStatus = "CONFIRMED";
+              dinnerBookingStatus = "CONFIRMED";
             }
           }
-        } else {
-          dinnerBookingStatus =
-            bookingStatus === "CONFIRMED" ? "CONFIRMED" : "WAITLIST";
         }
       }
     } else {

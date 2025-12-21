@@ -57,6 +57,7 @@ function PaymentFormInner({
   const [isReady, setIsReady] = useState(false);
   const hasInitializedRef = useRef(false); // Prevent double initialization
   const clientSecretRef = useRef(clientSecret); // Track clientSecret changes
+  const mountCountRef = useRef(0); // Track component mounts
 
   // Reset initialization flag when clientSecret changes
   useEffect(() => {
@@ -64,8 +65,23 @@ function PaymentFormInner({
       clientSecretRef.current = clientSecret;
       hasInitializedRef.current = false;
       setIsReady(false);
+      mountCountRef.current = 0; // Reset mount count on clientSecret change
     }
   }, [clientSecret]);
+
+  // Track component mounts (React StrictMode causes double mount in dev)
+  useEffect(() => {
+    mountCountRef.current += 1;
+    console.log(
+      `[PaymentForm] Component mounted (count: ${mountCountRef.current})`
+    );
+
+    // Reset initialization flag on unmount
+    return () => {
+      console.log(`[PaymentForm] Component unmounting`);
+      // Don't reset hasInitializedRef here - we want to prevent double init even across remounts
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -307,12 +323,19 @@ function PaymentFormInner({
             // Prevent double initialization (React StrictMode causes double renders in dev)
             if (hasInitializedRef.current) {
               console.log(
-                "[PaymentForm] PaymentElement ready (duplicate call ignored)"
+                "[PaymentForm] PaymentElement ready (duplicate call ignored)",
+                {
+                  mountCount: mountCountRef.current,
+                  clientSecret: clientSecret?.substring(0, 20) + "...",
+                }
               );
               return;
             }
             hasInitializedRef.current = true;
-            console.log("[PaymentForm] PaymentElement ready");
+            console.log("[PaymentForm] PaymentElement ready", {
+              mountCount: mountCountRef.current,
+              clientSecret: clientSecret?.substring(0, 20) + "...",
+            });
             setIsReady(true);
           }}
           onChange={(e) => {

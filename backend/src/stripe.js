@@ -268,8 +268,21 @@ export async function createStripePrice({
  * @returns {Promise<Object>} Result of processing
  */
 export async function handleStripeWebhook(event) {
+  // Safely handle created timestamp (may be missing in mock events)
+  const createdDate = event.created
+    ? new Date(event.created * 1000).toISOString()
+    : new Date().toISOString();
+
+  console.log("[Webhook] 📥 Received webhook event:", {
+    type: event.type,
+    id: event.id,
+    livemode: event.livemode,
+    created: createdDate,
+  });
+
   switch (event.type) {
     case "payment_intent.succeeded":
+      console.log("[Webhook] Processing payment_intent.succeeded");
       return await handlePaymentIntentSucceeded(event.data.object);
 
     case "payment_intent.payment_failed":
@@ -295,12 +308,44 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     return { processed: false, error: "Payment not found" };
   }
 
+  // Extract receipt URL from charge
+  // Try multiple ways to get receipt URL since Stripe generates it asynchronously
+  let receiptUrl = paymentIntent.charges?.data?.[0]?.receipt_url || null;
+
+  // If receipt URL not in PaymentIntent, try to retrieve it from the charge directly
+  if (!receiptUrl && paymentIntent.latest_charge) {
+    try {
+      const { getStripeSecretKey } = await import("./stripe.js");
+      const Stripe = (await import("stripe")).default;
+      const stripe = new Stripe(getStripeSecretKey());
+      const charge = await stripe.charges.retrieve(paymentIntent.latest_charge);
+      receiptUrl = charge.receipt_url || null;
+      if (receiptUrl) {
+        console.log("[Webhook] Retrieved receipt URL from charge:", receiptUrl);
+      }
+    } catch (error) {
+      console.warn(
+        "[Webhook] Could not retrieve charge for receipt URL:",
+        error.message
+      );
+      // Continue without receipt URL - it may be generated later
+    }
+  }
+
   await updatePayment(payment.id, {
     status: "succeeded",
     stripeChargeId: paymentIntent.latest_charge || null,
     paidAt: new Date().toISOString(),
-    receiptUrl: paymentIntent.charges?.data[0]?.receipt_url || null,
+    receiptUrl: receiptUrl,
   });
+
+  if (receiptUrl) {
+    console.log("[Webhook] ✅ Receipt URL stored:", receiptUrl);
+  } else {
+    console.log(
+      "[Webhook] ⚠️ Receipt URL not yet available (Stripe generates it asynchronously)"
+    );
+  }
 
   // Update RSVP: If waitlist RSVP, confirm it; otherwise just update payment status
   // Note: payment.rsvpId (camelCase) from mapPaymentFromDb, not payment.rsvp_id

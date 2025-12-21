@@ -61,9 +61,13 @@ export function RsvpForm({
         .then((data) => {
           setDinnerSlots(data.slots || []);
           if (data.slots && data.slots.length > 0) {
+            // Prefer first available slot, but if all are full, select first slot anyway (for waitlist)
             const firstAvailable = data.slots.find((s) => s.available);
             if (firstAvailable) {
               setDinnerTimeSlot(firstAvailable.time);
+            } else {
+              // All slots are full - select first one anyway so user can join waitlist
+              setDinnerTimeSlot(data.slots[0].time);
             }
           }
         })
@@ -97,9 +101,19 @@ export function RsvpForm({
       ? dinnerSlots.find((s) => s.time === dinnerTimeSlot)
       : null;
 
+  // Calculate cocktails-only spots needed for this booking
+  // For cocktails-only: partySize = 1 (booker) + cocktailGuests
+  // For dinner: cocktailsOnly = cocktailGuests (plus-ones only)
+  const cocktailsOnlyForThisBooking = wantsDinner
+    ? cocktailGuests // If dinner, only plus-ones are cocktails-only
+    : 1 + cocktailGuests; // If no dinner, booker + plus-ones are cocktails-only
+
+  // ALL-OR-NOTHING WAITLIST LOGIC: Check BOTH cocktail AND dinner capacity
+  // If EITHER is insufficient, entire party goes to waitlist
   const willGoToWaitlist =
     event?.waitlistEnabled &&
-    ((cocktailSpotsLeft !== null && cocktailsOnlyCount > cocktailSpotsLeft) ||
+    ((cocktailSpotsLeft !== null &&
+      cocktailsOnlyForThisBooking > cocktailSpotsLeft) ||
       (wantsDinner &&
         selectedSlot &&
         selectedSlot.remaining !== null &&
@@ -459,59 +473,65 @@ export function RsvpForm({
                       marginBottom: "20px",
                     }}
                   >
-                    {dinnerSlots.map((slot) => (
-                      <button
-                        key={slot.time}
-                        type="button"
-                        onClick={() => setDinnerTimeSlot(slot.time)}
-                        disabled={!slot.available || loading}
-                        style={{
-                          padding: "14px 10px",
-                          borderRadius: "10px",
-                          border:
-                            dinnerTimeSlot === slot.time
+                    {dinnerSlots.map((slot) => {
+                      const isFull =
+                        slot.remaining !== null && slot.remaining === 0;
+                      const isSelected = dinnerTimeSlot === slot.time;
+                      return (
+                        <button
+                          key={slot.time}
+                          type="button"
+                          onClick={() => setDinnerTimeSlot(slot.time)}
+                          disabled={loading}
+                          style={{
+                            padding: "14px 10px",
+                            borderRadius: "10px",
+                            border: isSelected
                               ? "2px solid #8b5cf6"
+                              : isFull
+                              ? "1px solid rgba(255, 165, 0, 0.5)"
                               : "1px solid rgba(255,255,255,0.2)",
-                          background:
-                            dinnerTimeSlot === slot.time
+                            background: isSelected
                               ? "rgba(139, 92, 246, 0.2)"
-                              : slot.available
-                              ? "rgba(20, 16, 30, 0.6)"
-                              : "rgba(20, 16, 30, 0.3)",
-                          color: slot.available
-                            ? "#fff"
-                            : "rgba(255,255,255,0.4)",
-                          fontSize: "16px",
-                          fontWeight: 600,
-                          cursor:
-                            slot.available && !loading
-                              ? "pointer"
-                              : "not-allowed",
-                          opacity: slot.available ? 1 : 0.5,
-                          transition: "all 0.2s ease",
-                          WebkitTapHighlightColor: "transparent",
-                          touchAction: "manipulation",
-                        }}
-                      >
-                        <div style={{ fontWeight: 600, fontSize: "16px" }}>
-                          {new Date(slot.time).toLocaleTimeString("en-US", {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                        {slot.remaining !== null && (
-                          <div
-                            style={{
-                              fontSize: "14px",
-                              marginTop: "4px",
-                              opacity: 0.7,
-                            }}
-                          >
-                            {slot.remaining} left
+                              : isFull
+                              ? "rgba(255, 165, 0, 0.1)"
+                              : "rgba(20, 16, 30, 0.6)",
+                            color:
+                              isFull && !isSelected
+                                ? "rgba(255, 165, 0, 0.9)"
+                                : "#fff",
+                            fontSize: "16px",
+                            fontWeight: 600,
+                            cursor: loading ? "not-allowed" : "pointer",
+                            opacity: loading ? 0.5 : 1,
+                            transition: "all 0.2s ease",
+                            WebkitTapHighlightColor: "transparent",
+                            touchAction: "manipulation",
+                          }}
+                        >
+                          <div style={{ fontWeight: 600, fontSize: "16px" }}>
+                            {new Date(slot.time).toLocaleTimeString("en-US", {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
                           </div>
-                        )}
-                      </button>
-                    ))}
+                          {slot.remaining !== null ? (
+                            <div
+                              style={{
+                                fontSize: "14px",
+                                marginTop: "4px",
+                                opacity: 0.8,
+                                color: isFull
+                                  ? "rgba(255, 165, 0, 0.9)"
+                                  : undefined,
+                              }}
+                            >
+                              {isFull ? "Waitlist" : `${slot.remaining} left`}
+                            </div>
+                          ) : null}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <Stepper
@@ -607,8 +627,8 @@ export function RsvpForm({
             </div>
           )}
 
-          {/* Payment Details Section (only for paid events) */}
-          {isPaidEvent && ticketPrice && (
+          {/* Payment Details Section (only for paid events, NOT for waitlist) */}
+          {isPaidEvent && ticketPrice && !willGoToWaitlist && (
             <div
               style={{
                 borderTop: "1px solid rgba(255,255,255,0.1)",
@@ -786,8 +806,38 @@ export function RsvpForm({
         </div>
       )}
 
-      {/* Waitlist Warning */}
-      {willGoToWaitlist && event?.waitlistEnabled && (
+      {/* Waitlist Information (for paid events on waitlist) */}
+      {willGoToWaitlist && event?.waitlistEnabled && isPaidEvent && (
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "16px",
+            background: "rgba(245, 158, 11, 0.15)",
+            borderRadius: "12px",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            fontSize: "15px",
+            color: "#fbbf24",
+          }}
+        >
+          <div
+            style={{ fontWeight: 600, marginBottom: "8px", fontSize: "16px" }}
+          >
+            You'll join the waitlist
+          </div>
+          <div style={{ opacity: 0.9, fontSize: "15px", lineHeight: "1.5" }}>
+            <div style={{ marginBottom: "8px" }}>
+              No payment required now. If spots open up, you'll receive a link
+              via SMS or email to confirm and complete payment.
+            </div>
+            <div style={{ fontSize: "14px", opacity: 0.8 }}>
+              Once payment is completed, you'll be confirmed for the event.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Waitlist Information (for free events on waitlist) */}
+      {willGoToWaitlist && event?.waitlistEnabled && !isPaidEvent && (
         <div
           style={{
             marginTop: "16px",
@@ -827,7 +877,8 @@ export function RsvpForm({
 
       {/* Submit Button */}
       {/* For paid events: Hide "Pull up" button entirely.
-          User clicks "Proceed to payment" in the payment section instead. */}
+          User clicks "Proceed to payment" in the payment section instead.
+          BUT: For waitlist, show "Join waitlist" button instead. */}
       {!isPaidEvent && (
         <div
           style={{
@@ -882,7 +933,8 @@ export function RsvpForm({
 
       {/* For paid events: Show Cancel button at bottom.
           "Proceed to payment" button is in the payment section above.
-          Once payment is pending, Stripe's "Pay" button handles completion. */}
+          Once payment is pending, Stripe's "Pay" button handles completion.
+          BUT: For waitlist, show "Join waitlist" button instead. */}
       {isPaidEvent && (
         <div
           style={{
@@ -906,9 +958,28 @@ export function RsvpForm({
                 onClose();
               }}
               disabled={loading}
-              fullWidth
+              style={{ flex: 1 }}
             >
               Cancel
+            </Button>
+          )}
+          {/* Show "Join waitlist" button for paid events on waitlist */}
+          {willGoToWaitlist && event?.waitlistEnabled && (
+            <Button
+              type="submit"
+              loading={loading}
+              disabled={loading || (wantsDinner && !dinnerTimeSlot)}
+              style={{
+                flex: onClose ? 2 : 1,
+                background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              {loading ? "Processing..." : "Join waitlist"}
             </Button>
           )}
         </div>

@@ -48,6 +48,7 @@ import {
   createStripeProduct,
   createStripePrice,
   getStripeSecretKey,
+  createRefund,
 } from "./stripe.js";
 import {
   initiateConnectOAuth,
@@ -2646,6 +2647,26 @@ app.put(
         forceConfirm, // Admin override flag
       } = req.body;
 
+      // BUSINESS RULE: Cannot move paid/confirmed guests to waitlist
+      // If guest has paid and is confirmed, they cannot be moved to waitlist
+      // This would require a refund, which is a separate process
+      const isPaidEvent = event.ticketType === "paid";
+      const isPaidAndConfirmed =
+        isPaidEvent &&
+        rsvp.paymentStatus === "paid" &&
+        rsvp.bookingStatus === "CONFIRMED";
+      const tryingToMoveToWaitlist =
+        (bookingStatus === "WAITLIST" || (status && status === "waitlist")) &&
+        rsvp.bookingStatus === "CONFIRMED";
+
+      if (isPaidAndConfirmed && tryingToMoveToWaitlist) {
+        return res.status(400).json({
+          error: "cannot_move_paid_guest_to_waitlist",
+          message:
+            "Cannot move a paid and confirmed guest to waitlist. This would require a refund. Please process a refund first if you need to remove this guest.",
+        });
+      }
+
       const result = await updateRsvp(
         rsvpId,
         {
@@ -3444,6 +3465,209 @@ app.get("/payments/:paymentId/status", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch payment status" });
   }
 });
+
+// ---------------------------
+// PROTECTED: Create refund for a payment
+// Requires auth, verifies event ownership
+// ---------------------------
+app.post(
+  "/host/events/:eventId/payments/:paymentId/refund",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId, paymentId } = req.params;
+      const { amount = null, reason = null, moveToWaitlist = true } = req.body;
+
+      // Verify event exists
+      const event = await findEventById(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      // Verify ownership (owner or co-host)
+      const { isHost } = await isUserEventHost(req.user.id, event.id);
+      if (!isHost) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You don't have access to this event",
+        });
+      }
+
+      // Find payment
+      const payment = await findPaymentById(paymentId);
+      if (!payment || payment.eventId !== eventId) {
+        return res.status(404).json({ error: "Payment not found" });
+      }
+
+      // Verify payment can be refunded
+      if (payment.status !== "succeeded") {
+        return res.status(400).json({
+          error: "invalid_payment_status",
+          message: `Payment status is "${payment.status}". Only succeeded payments can be refunded.`,
+        });
+      }
+
+      if (
+        payment.status === "refunded" &&
+        payment.refundedAmount >= payment.amount
+      ) {
+        return res.status(400).json({
+          error: "already_refunded",
+          message: "Payment is already fully refunded",
+        });
+      }
+
+      // Calculate refund amount (null/undefined = full refund)
+      // If amount is provided, it should be in dollars/cents format - convert to cents
+      // If null/undefined, pass null to createRefund to calculate remaining amount
+      let refundAmountInCents = null;
+      if (amount !== null && amount !== undefined && amount !== "") {
+        const amountNum = Number(amount);
+        if (isNaN(amountNum) || amountNum <= 0) {
+          return res.status(400).json({
+            error: "invalid_amount",
+            message: "Refund amount must be a positive number",
+          });
+        }
+        // Assume amount is in dollars, convert to cents
+        refundAmountInCents = Math.round(amountNum * 100);
+      }
+
+      // Map refund reason to Stripe's accepted values
+      // Stripe only accepts: 'duplicate', 'fraudulent', or 'requested_by_customer'
+      const stripeReason =
+        reason === "requested_by_host"
+          ? "requested_by_customer" // Map host-initiated refunds to customer-requested
+          : reason === "duplicate" || reason === "fraudulent"
+          ? reason
+          : "requested_by_customer"; // Default fallback
+
+      // Create refund via Stripe
+      console.log("[Refund] Initiating refund:", {
+        paymentId: payment.id,
+        paymentIntentId: payment.stripePaymentIntentId,
+        refundAmount: refundAmountInCents
+          ? `${refundAmountInCents / 100} (${refundAmountInCents} cents)`
+          : "full (null - will calculate remaining)",
+        originalReason: reason,
+        stripeReason: stripeReason,
+      });
+
+      let refund;
+      try {
+        refund = await createRefund(
+          payment.stripePaymentIntentId,
+          refundAmountInCents, // Pass null for full refund, or amount in cents
+          stripeReason
+        );
+
+        console.log("[Refund] Refund created successfully:", {
+          refundId: refund.id,
+          amount: refund.amount,
+          status: refund.status,
+        });
+      } catch (error) {
+        // Handle "already refunded" errors (both from our checks and Stripe)
+        if (
+          error.message?.includes("already been refunded") ||
+          error.message?.includes("already fully refunded") ||
+          error.message === "Charge has already been refunded"
+        ) {
+          return res.status(400).json({
+            error: "already_refunded",
+            message: "This payment has already been fully refunded.",
+          });
+        }
+
+        // Handle specific Stripe errors
+        if (error.type === "StripeInvalidRequestError") {
+          if (error.code === "charge_already_refunded") {
+            return res.status(400).json({
+              error: "already_refunded",
+              message: "This payment has already been fully refunded.",
+            });
+          }
+          if (error.code === "parameter_invalid_integer") {
+            return res.status(400).json({
+              error: "invalid_amount",
+              message: `Invalid refund amount: ${error.param || "amount"}`,
+            });
+          }
+          // Generic Stripe validation error
+          return res.status(400).json({
+            error: "stripe_error",
+            message: error.message || "Stripe validation error",
+            code: error.code,
+          });
+        }
+        // Re-throw other errors to be handled by global error handler
+        throw error;
+      }
+
+      // Update payment status immediately (webhook will also update it)
+      // This provides immediate feedback, webhook ensures consistency
+      const isFullRefund =
+        !refundAmountInCents || refund.amount >= payment.amount;
+      await updatePayment(payment.id, {
+        status: isFullRefund ? "refunded" : "succeeded", // Partial refunds stay "succeeded"
+        refundedAmount: refund.amount,
+        refundedAt: new Date().toISOString(),
+      });
+
+      // Update RSVP status if payment is linked to an RSVP
+      if (payment.rsvpId) {
+        const rsvp = await findRsvpById(payment.rsvpId);
+        if (rsvp) {
+          // Update payment status in RSVP
+          await updateRsvp(
+            payment.rsvpId,
+            {
+              paymentStatus: isFullRefund ? "refunded" : "paid",
+            },
+            { isOnlyPaymentUpdate: true }
+          );
+
+          // If full refund and moveToWaitlist is true, move guest to waitlist
+          if (isFullRefund && moveToWaitlist) {
+            console.log("[Refund] Moving RSVP to waitlist after full refund:", {
+              rsvpId: payment.rsvpId,
+            });
+            await updateRsvp(
+              payment.rsvpId,
+              {
+                bookingStatus: "WAITLIST",
+                status: "waitlist",
+              },
+              { forceConfirm: false }
+            );
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        refund: {
+          id: refund.id,
+          amount: refund.amount,
+          status: refund.status,
+          currency: refund.currency,
+        },
+        payment: {
+          id: payment.id,
+          status: isFullRefund ? "refunded" : "succeeded",
+          refundedAmount: refund.amount,
+        },
+        isFullRefund,
+      });
+    } catch (error) {
+      console.error("Error creating refund:", error);
+      return res.status(500).json({
+        error: "refund_failed",
+        message: error.message || "Failed to create refund",
+      });
+    }
+  }
+);
 
 // ---------------------------
 // PUBLIC: Get full payment details (including receipt URL)

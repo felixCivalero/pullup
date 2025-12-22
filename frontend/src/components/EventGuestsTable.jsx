@@ -262,7 +262,7 @@ export function EventGuestsTable({
                 </div>
               </td>
               <td style={{ padding: "20px 24px" }}>
-                <CombinedStatusBadge guest={g} />
+                <CombinedStatusBadge guest={g} event={event} />
               </td>
               {event.dinnerEnabled && (
                 <>

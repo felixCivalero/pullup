@@ -593,11 +593,151 @@ async function handleChargeRefunded(charge) {
     return { processed: false, error: "Payment not found" };
   }
 
+  // Determine if this is a full or partial refund
+  const isFullRefund = charge.amount_refunded >= charge.amount;
+
   await updatePayment(payment.id, {
-    status: "refunded",
+    status: isFullRefund ? "refunded" : "succeeded", // Partial refunds stay "succeeded"
     refundedAmount: charge.amount_refunded,
     refundedAt: new Date().toISOString(),
   });
 
-  return { processed: true, paymentId: payment.id };
+  // Update RSVP payment status if payment is linked to an RSVP
+  if (payment.rsvpId) {
+    const { updateRsvp, findRsvpById } = await import("./data.js");
+    const rsvp = await findRsvpById(payment.rsvpId);
+
+    if (rsvp) {
+      // Update payment status in RSVP
+      await updateRsvp(
+        payment.rsvpId,
+        {
+          paymentStatus: isFullRefund ? "refunded" : "paid",
+        },
+        { isOnlyPaymentUpdate: true }
+      );
+
+      // If full refund, move guest to waitlist (even if refund was initiated outside our system)
+      // This ensures consistency regardless of where the refund was initiated
+      if (isFullRefund && rsvp.booking_status === "confirmed") {
+        console.log("[Webhook] Moving RSVP to waitlist after full refund:", {
+          rsvpId: payment.rsvpId,
+          paymentId: payment.id,
+        });
+        await updateRsvp(
+          payment.rsvpId,
+          {
+            booking_status: "waitlist",
+            status: "waitlist",
+          },
+          { forceConfirm: false }
+        );
+      }
+    }
+  }
+
+  return { processed: true, paymentId: payment.id, isFullRefund };
+}
+
+/**
+ * Create a refund for a payment
+ * @param {string} paymentIntentId - Stripe PaymentIntent ID
+ * @param {number} amount - Optional: Amount to refund in cents (null = full refund)
+ * @param {string} reason - Optional: Reason for refund
+ * @returns {Promise<Object>} Refund object
+ */
+export async function createRefund(
+  paymentIntentId,
+  amount = null,
+  reason = null
+) {
+  const stripe = getStripeClient();
+
+  // Retrieve the PaymentIntent to get the charge ID
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+    expand: ["charges"],
+  });
+
+  if (!paymentIntent.latest_charge) {
+    throw new Error("PaymentIntent has no charge to refund");
+  }
+
+  // Check if already fully refunded
+  const alreadyRefunded = paymentIntent.amount_refunded || 0;
+  if (alreadyRefunded >= paymentIntent.amount) {
+    throw new Error("Payment is already fully refunded");
+  }
+
+  // Check if the charge itself is already refunded (Stripe-level check)
+  // This can happen if refund was processed outside our system
+  if (paymentIntent.latest_charge) {
+    try {
+      const charge = await stripe.charges.retrieve(paymentIntent.latest_charge);
+      if (charge.refunded) {
+        throw new Error("Charge has already been refunded");
+      }
+    } catch (error) {
+      // If it's our custom error, re-throw it
+      if (error.message === "Charge has already been refunded") {
+        throw error;
+      }
+      // Otherwise, log and continue (charge might not exist or other issue)
+      console.warn("[Refund] Could not check charge status:", error.message);
+    }
+  }
+
+  // Determine refund amount
+  // If amount is null/undefined, calculate remaining refundable amount
+  const remainingRefundable = paymentIntent.amount - alreadyRefunded;
+
+  const refundAmount =
+    amount !== null && amount !== undefined
+      ? Number(amount)
+      : remainingRefundable;
+
+  // Validate refund amount
+  if (isNaN(refundAmount) || refundAmount <= 0) {
+    throw new Error(
+      `Invalid refund amount: ${refundAmount}. Must be a positive number.`
+    );
+  }
+
+  if (refundAmount > remainingRefundable) {
+    throw new Error(
+      `Refund amount (${refundAmount}) exceeds remaining refundable amount (${remainingRefundable})`
+    );
+  }
+
+  // Build refund parameters
+  // NOTE: Platform fees are typically non-refundable in the ticketing industry
+  // This protects the platform's revenue stream and is standard practice
+  // Set refund_application_fee to false to keep platform fees
+  const refundParams = {
+    charge: paymentIntent.latest_charge,
+    amount: refundAmount,
+    reason: reason || "requested_by_customer",
+    // For Stripe Connect: refund application fee and reverse transfer
+    refund_application_fee: false, // Keep platform fee (industry standard for ticketing)
+    reverse_transfer: true, // Reverse the transfer to connected account
+  };
+
+  console.log("[Refund] Creating refund:", {
+    paymentIntentId,
+    chargeId: paymentIntent.latest_charge,
+    refundAmount,
+    reason: refundParams.reason,
+    refund_application_fee: refundParams.refund_application_fee,
+    reverse_transfer: refundParams.reverse_transfer,
+  });
+
+  // Create the refund
+  const refund = await stripe.refunds.create(refundParams);
+
+  console.log("[Refund] Refund created:", {
+    refundId: refund.id,
+    amount: refund.amount,
+    status: refund.status,
+  });
+
+  return refund;
 }

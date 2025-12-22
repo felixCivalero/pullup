@@ -207,6 +207,16 @@ export function RsvpForm({
   // If waitlist upgrade, show read-only booking summary
   if (isWaitlistUpgrade) {
     const details = waitlistOffer.rsvpDetails;
+    // Use event data from waitlist offer if available, otherwise use props
+    const waitlistEvent = waitlistOffer.event || event;
+    const waitlistTicketPrice = waitlistEvent?.ticketPrice || ticketPrice;
+    const waitlistTicketCurrency = (
+      waitlistEvent?.ticketCurrency ||
+      ticketCurrency ||
+      "usd"
+    ).toLowerCase();
+    const waitlistIsPaidEvent =
+      waitlistEvent?.ticketType === "paid" || isPaidEvent;
     return (
       <form
         onSubmit={handleSubmit}
@@ -263,12 +273,46 @@ export function RsvpForm({
               <div
                 style={{ fontSize: "12px", opacity: 0.7, marginBottom: "4px" }}
               >
-                Cocktail Guests
+                Total Guests
               </div>
               <div style={{ fontSize: "16px", fontWeight: 500 }}>
-                {details.partySize || 1}{" "}
-                {details.partySize === 1 ? "guest" : "guests"}
-                {details.plusOnes > 0 && ` (${details.plusOnes} +1)`}
+                {(() => {
+                  // Calculate display using DPCS logic
+                  const partySize = details.partySize || 1;
+                  const wantsDinner = details.wantsDinner || false;
+                  const dinnerPartySize = details.dinnerPartySize || 0;
+                  const plusOnes = details.plusOnes || 0;
+
+                  if (wantsDinner && dinnerPartySize > 0) {
+                    // With dinner: partySize = dinnerPartySize + plusOnes
+                    // Show: "5 guests (3 dinner + 2 cocktails-only)"
+                    return (
+                      <>
+                        {partySize} {partySize === 1 ? "guest" : "guests"}
+                        {` (${dinnerPartySize} dinner${
+                          plusOnes > 0 ? ` + ${plusOnes} cocktails-only` : ""
+                        })`}
+                      </>
+                    );
+                  } else {
+                    // No dinner: partySize = 1 + plusOnes
+                    // Show: "3 guests (1 + 2)" or just "1 guest" if no plusOnes
+                    if (plusOnes > 0) {
+                      return (
+                        <>
+                          {partySize} {partySize === 1 ? "guest" : "guests"}
+                          {` (1 + ${plusOnes})`}
+                        </>
+                      );
+                    } else {
+                      return (
+                        <>
+                          {partySize} {partySize === 1 ? "guest" : "guests"}
+                        </>
+                      );
+                    }
+                  }
+                })()}
               </div>
             </div>
             {details.wantsDinner && (
@@ -324,6 +368,144 @@ export function RsvpForm({
             Complete payment below to confirm your spot.
           </div>
         </div>
+
+        {/* Payment Details Section for waitlist upgrade */}
+        {waitlistIsPaidEvent && waitlistTicketPrice && details.partySize && (
+          <div
+            style={{
+              marginTop: "24px",
+              padding: "20px",
+              background: "rgba(20, 16, 30, 0.8)",
+              borderRadius: "12px",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "16px",
+                fontWeight: 600,
+                marginBottom: "16px",
+                color: "#fff",
+              }}
+            >
+              Payment Details
+            </div>
+            {(() => {
+              const currencyCode =
+                pendingPayment?.currency ?? waitlistTicketCurrency;
+              const symbol = currencyCode === "sek" ? "kr" : "$";
+
+              // Calculate breakdown (use backend data if available, otherwise calculate client-side)
+              let breakdown;
+              if (pendingPayment?.paymentBreakdown) {
+                // Use backend-provided breakdown (after PaymentIntent is created)
+                breakdown = pendingPayment.paymentBreakdown;
+              } else if (waitlistTicketPrice && details.partySize) {
+                // Calculate client-side breakdown (before PaymentIntent is created)
+                // Platform fee percentage: 3% (should match backend)
+                const platformFeePercentage = 0.03; // 3%
+                const ticketAmount = waitlistTicketPrice * details.partySize;
+                const platformFeeAmount = Math.round(
+                  ticketAmount * platformFeePercentage
+                );
+                const customerTotalAmount = ticketAmount + platformFeeAmount;
+
+                breakdown = {
+                  ticketAmount,
+                  platformFeeAmount,
+                  customerTotalAmount,
+                  platformFeePercentage: platformFeePercentage * 100,
+                };
+              }
+
+              if (breakdown) {
+                // Show breakdown: ticket + service fee = total
+                const ticketAmount = (breakdown.ticketAmount / 100).toFixed(2);
+                const serviceFee = (breakdown.platformFeeAmount / 100).toFixed(
+                  2
+                );
+                const total = (breakdown.customerTotalAmount / 100).toFixed(2);
+
+                return (
+                  <div style={{ marginBottom: "16px" }}>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "rgba(255, 255, 255, 0.7)",
+                        marginBottom: "4px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span>
+                        Ticket
+                        {details.partySize > 1
+                          ? `s (${details.partySize}x)`
+                          : ""}
+                      </span>
+                      <span>
+                        {symbol}
+                        {ticketAmount}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "rgba(255, 255, 255, 0.7)",
+                        marginBottom: "8px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span>Service fee</span>
+                      <span>
+                        {symbol}
+                        {serviceFee}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        color: "#a78bfa",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        paddingTop: "8px",
+                        borderTop: "1px solid rgba(255,255,255,0.1)",
+                      }}
+                    >
+                      <span>Total</span>
+                      <span>
+                        {symbol}
+                        {total}
+                      </span>
+                    </div>
+                  </div>
+                );
+              } else {
+                // Fallback: show simple total if breakdown not available
+                const total =
+                  pendingPayment?.amount ??
+                  waitlistTicketPrice * details.partySize;
+                const amount = (total / 100).toFixed(2);
+                return (
+                  <div
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 700,
+                      marginBottom: "16px",
+                      color: "#a78bfa",
+                    }}
+                  >
+                    Total: {symbol}
+                    {amount}
+                  </div>
+                );
+              }
+            })()}
+          </div>
+        )}
+
         {PaymentFormComponent && pendingPayment && (
           <PaymentFormComponent
             clientSecret={pendingPayment.clientSecret}

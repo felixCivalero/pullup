@@ -7,7 +7,6 @@ import { logger } from "../lib/logger.js";
 
 import { authenticatedFetch, API_BASE } from "../lib/api.js";
 import { formatEventTime, formatEventDate } from "../lib/dateUtils.js";
-import { WaitlistLinkActions } from "../components/WaitlistLinkActions.jsx";
 
 // -----------------------------
 // Helpers: stats, filtering, sorting
@@ -155,6 +154,8 @@ export function EventGuestsPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [editingGuest, setEditingGuest] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showRefundConfirm, setShowRefundConfirm] = useState(null);
+  const [refunding, setRefunding] = useState(false);
   const [pulledUpModalGuest, setPulledUpModalGuest] = useState(null);
   const [dinnerSlots, setDinnerSlots] = useState([]);
   const [sortColumn, setSortColumn] = useState(null);
@@ -467,6 +468,58 @@ export function EventGuestsPage() {
     } catch (err) {
       console.error(err);
       showToast("Could not delete guest", "error");
+    }
+  }
+
+  async function handleRefundGuest(guest, moveToWaitlist = true) {
+    if (!guest.paymentId) {
+      showToast("No payment found for this guest", "error");
+      return;
+    }
+
+    setRefunding(true);
+    try {
+      const res = await authenticatedFetch(
+        `/host/events/${id}/payments/${guest.paymentId}/refund`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            moveToWaitlist: moveToWaitlist,
+            reason: "requested_by_host",
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to process refund");
+      }
+
+      const result = await res.json();
+      showToast(
+        `Refund processed successfully${
+          result.isFullRefund && moveToWaitlist
+            ? " - Guest moved to waitlist"
+            : ""
+        }`,
+        "success"
+      );
+
+      // Close modal
+      setShowRefundConfirm(null);
+
+      // Reload guests
+      const guestsRes = await authenticatedFetch(`/host/events/${id}/guests`);
+      if (guestsRes.ok) {
+        const data = await guestsRes.json();
+        setGuests(data.guests || []);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not process refund", "error");
+    } finally {
+      setRefunding(false);
     }
   }
 
@@ -1424,23 +1477,6 @@ export function EventGuestsPage() {
                       >
                         Pulled Up
                       </th>
-                      {event.ticketType === "paid" && (
-                        <th
-                          style={{
-                            padding: "20px 24px",
-                            textAlign: "center",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.12em",
-                            opacity: 0.95,
-                            color: "#fff",
-                            width: "180px",
-                          }}
-                        >
-                          Waitlist Link
-                        </th>
-                      )}
                       <th
                         style={{
                           padding: "20px 24px",
@@ -1511,7 +1547,25 @@ export function EventGuestsPage() {
                           </div>
                         </td>
                         <td style={{ padding: "20px 24px" }}>
-                          <CombinedStatusBadge guest={g} />
+                          <CombinedStatusBadge
+                            guest={g}
+                            event={event}
+                            eventId={id}
+                            onLinkGenerated={async () => {
+                              // Refresh guests list after link generation
+                              try {
+                                const res = await authenticatedFetch(
+                                  `/host/events/${id}/guests`
+                                );
+                                if (res.ok) {
+                                  const data = await res.json();
+                                  setGuests(data.guests || []);
+                                }
+                              } catch (err) {
+                                console.error("Error reloading guests:", err);
+                              }
+                            }}
+                          />
                         </td>
                         {event.dinnerEnabled && (
                           <>
@@ -1560,28 +1614,52 @@ export function EventGuestsPage() {
                             <td
                               style={{ padding: "20px", textAlign: "center" }}
                             >
-                              {g.dinnerStatus === "confirmed" &&
-                              g.dinnerPartySize ? (
-                                <div
-                                  style={{
-                                    fontSize: "16px",
-                                    fontWeight: 700,
-                                    color: "#10b981",
-                                  }}
-                                >
-                                  {g.dinnerPartySize}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{
-                                    fontSize: "13px",
-                                    opacity: 0.4,
-                                    fontStyle: "italic",
-                                  }}
-                                >
-                                  —
-                                </span>
-                              )}
+                              {(() => {
+                                // Show dinner party size if guest wants dinner and has dinnerPartySize
+                                // This applies to both confirmed and waitlist guests
+                                const wantsDinner =
+                                  g.wantsDinner || g.dinner?.enabled || false;
+                                const dinnerPartySize =
+                                  g.dinnerPartySize || g.dinner?.partySize || 0;
+
+                                if (wantsDinner && dinnerPartySize > 0) {
+                                  // Determine color based on dinner status
+                                  const isConfirmed =
+                                    g.dinnerStatus === "confirmed" ||
+                                    g.dinner?.bookingStatus === "CONFIRMED";
+                                  const isWaitlist =
+                                    g.dinnerStatus === "waitlist" ||
+                                    g.dinner?.bookingStatus === "WAITLIST";
+
+                                  return (
+                                    <div
+                                      style={{
+                                        fontSize: "16px",
+                                        fontWeight: 700,
+                                        color: isConfirmed
+                                          ? "#10b981"
+                                          : isWaitlist
+                                          ? "#f472b6"
+                                          : "#f59e0b",
+                                      }}
+                                    >
+                                      {dinnerPartySize}
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <span
+                                    style={{
+                                      fontSize: "13px",
+                                      opacity: 0.4,
+                                      fontStyle: "italic",
+                                    }}
+                                  >
+                                    —
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td
                               style={{ padding: "20px", textAlign: "center" }}
@@ -1745,49 +1823,13 @@ export function EventGuestsPage() {
                             })()}
                           </div>
                         </td>
-                        {event.ticketType === "paid" && (
-                          <td
-                            style={{
-                              padding: "20px",
-                              textAlign: "center",
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {g.bookingStatus === "WAITLIST" ? (
-                              <WaitlistLinkActions
-                                guest={g}
-                                event={event}
-                                onLinkGenerated={async () => {
-                                  // Refresh guests list after link generation
-                                  try {
-                                    const res = await authenticatedFetch(
-                                      `/host/events/${id}/guests`
-                                    );
-                                    if (res.ok) {
-                                      const data = await res.json();
-                                      setGuests(data.guests || []);
-                                    }
-                                  } catch (err) {
-                                    console.error(
-                                      "Error reloading guests:",
-                                      err
-                                    );
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <span style={{ fontSize: "12px", opacity: 0.5 }}>
-                                —
-                              </span>
-                            )}
-                          </td>
-                        )}
                         <td style={{ padding: "20px", textAlign: "center" }}>
                           <div
                             style={{
                               display: "flex",
                               gap: "8px",
                               justifyContent: "center",
+                              flexWrap: "wrap",
                             }}
                           >
                             <button
@@ -1872,6 +1914,7 @@ export function EventGuestsPage() {
           allGuests={guests}
           onClose={() => setEditingGuest(null)}
           onSave={(updates) => handleUpdateGuest(editingGuest.id, updates)}
+          onRefund={(guest) => setShowRefundConfirm(guest)}
         />
       )}
 
@@ -1929,6 +1972,19 @@ export function EventGuestsPage() {
           guest={showDeleteConfirm}
           onClose={() => setShowDeleteConfirm(null)}
           onConfirm={() => handleDeleteGuest(showDeleteConfirm)}
+        />
+      )}
+
+      {/* Refund Confirmation Modal */}
+      {showRefundConfirm && (
+        <RefundConfirmModal
+          guest={showRefundConfirm}
+          event={event}
+          refunding={refunding}
+          onClose={() => setShowRefundConfirm(null)}
+          onConfirm={(moveToWaitlist) =>
+            handleRefundGuest(showRefundConfirm, moveToWaitlist)
+          }
         />
       )}
     </div>
@@ -2087,7 +2143,10 @@ function SortableHeader({
   );
 }
 
-function CombinedStatusBadge({ guest }) {
+function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const { showToast } = useToast();
+
   // Use new model fields with backward compatibility
   const bookingStatus =
     guest.bookingStatus ||
@@ -2115,6 +2174,10 @@ function CombinedStatusBadge({ guest }) {
       : dinnerBookingStatus === "WAITLIST"
       ? "waitlist"
       : null);
+
+  // Get payment status (for paid events)
+  const paymentStatus = guest.paymentStatus || null;
+  const isPaidEvent = event?.ticketType === "paid";
 
   // Get pull-up counts (new model with backward compatibility)
   const dinnerPullUpCount =
@@ -2144,27 +2207,36 @@ function CombinedStatusBadge({ guest }) {
     }
   }
 
-  // Determine combined status label
+  // Determine combined status label (with payment status for paid events)
   let label = "";
   let bg = "";
   let border = "";
   let color = "";
 
   if (bookingStatus === "CONFIRMED") {
-    if (!wantsDinner || dinnerBookingStatus === null) {
-      // Confirmed for event, no dinner
-      label = "CONFIRMED";
-      bg = "rgba(16, 185, 129, 0.2)";
-      border = "rgba(16, 185, 129, 0.5)";
-      color = "#10b981";
-    } else if (dinnerBookingStatus === "CONFIRMED") {
-      // Confirmed for event + dinner confirmed
-      label = "CONFIRMED";
-      bg = "rgba(16, 185, 129, 0.2)";
-      border = "rgba(16, 185, 129, 0.5)";
-      color = "#10b981";
-    } else if (dinnerBookingStatus === "WAITLIST") {
-      // Confirmed for event, waiting for dinner (shouldn't happen with all-or-nothing, but handle it)
+    // For paid events, check payment status
+    if (isPaidEvent) {
+      if (paymentStatus === "paid") {
+        // Confirmed and paid
+        label = "CONFIRMED";
+        bg = "rgba(16, 185, 129, 0.2)";
+        border = "rgba(16, 185, 129, 0.5)";
+        color = "#10b981";
+      } else if (paymentStatus === "pending") {
+        // Confirmed but payment pending
+        label = "CONFIRMED - PENDING";
+        bg = "rgba(245, 158, 11, 0.2)";
+        border = "rgba(245, 158, 11, 0.5)";
+        color = "#f59e0b";
+      } else {
+        // Confirmed but unpaid (unpaid or null)
+        label = "CONFIRMED - UNPAID";
+        bg = "rgba(239, 68, 68, 0.2)";
+        border = "rgba(239, 68, 68, 0.5)";
+        color = "#ef4444";
+      }
+    } else {
+      // Free event - just show confirmed
       label = "CONFIRMED";
       bg = "rgba(16, 185, 129, 0.2)";
       border = "rgba(16, 185, 129, 0.5)";
@@ -2172,6 +2244,7 @@ function CombinedStatusBadge({ guest }) {
     }
   } else if (bookingStatus === "WAITLIST") {
     // Entire booking is on waitlist (all-or-nothing)
+    // For paid events on waitlist, payment status doesn't matter (they pay when they get a link)
     label = "WAITLIST";
     bg = "rgba(236, 72, 153, 0.2)";
     border = "rgba(236, 72, 153, 0.5)";
@@ -2214,6 +2287,51 @@ function CombinedStatusBadge({ guest }) {
 
   // Check if capacity was overridden
   const capacityOverridden = guest.capacityOverridden === true;
+
+  // Generate waitlist link handler (for paid events only)
+  async function handleGenerateLink(e) {
+    e?.stopPropagation();
+    if (!eventId || !isPaidEvent || bookingStatus !== "WAITLIST") return;
+
+    setGeneratingLink(true);
+    try {
+      const res = await authenticatedFetch(
+        `/host/events/${eventId}/waitlist-link/${guest.id}`,
+        { method: "POST" }
+      );
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to generate link");
+      }
+
+      const data = await res.json();
+      // Copy to clipboard automatically
+      await navigator.clipboard.writeText(data.link);
+      showToast("Link generated and copied to clipboard!", "success");
+      if (onLinkGenerated) {
+        onLinkGenerated(data.link);
+      }
+    } catch (err) {
+      showToast(err.message || "Failed to generate link", "error");
+    } finally {
+      setGeneratingLink(false);
+    }
+  }
+
+  // Check if link was already generated
+  const linkStatus = (() => {
+    if (bookingStatus !== "WAITLIST") return null;
+    if (guest.waitlistLinkUsedAt) return "CONFIRMED";
+    if (
+      guest.waitlistLinkExpiresAt &&
+      new Date(guest.waitlistLinkExpiresAt) < new Date()
+    ) {
+      return "EXPIRED";
+    }
+    if (guest.waitlistLinkGeneratedAt) return "SENT";
+    return "WAITLIST";
+  })();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -2275,6 +2393,56 @@ function CombinedStatusBadge({ guest }) {
           {arrivalIndicator}
         </span>
       )}
+      {/* Generate Link button for waitlist guests in paid events */}
+      {isPaidEvent &&
+        bookingStatus === "WAITLIST" &&
+        linkStatus !== "CONFIRMED" && (
+          <button
+            onClick={handleGenerateLink}
+            disabled={generatingLink}
+            style={{
+              padding: "4px 8px",
+              fontSize: "10px",
+              fontWeight: 600,
+              background:
+                linkStatus === "SENT" || linkStatus === "EXPIRED"
+                  ? "rgba(245, 158, 11, 0.15)"
+                  : "rgba(59, 130, 246, 0.15)",
+              border:
+                linkStatus === "SENT" || linkStatus === "EXPIRED"
+                  ? "1px solid rgba(245, 158, 11, 0.4)"
+                  : "1px solid rgba(59, 130, 246, 0.4)",
+              borderRadius: "6px",
+              color:
+                linkStatus === "SENT" || linkStatus === "EXPIRED"
+                  ? "#f59e0b"
+                  : "#3b82f6",
+              cursor: generatingLink ? "not-allowed" : "pointer",
+              opacity: generatingLink ? 0.6 : 1,
+              transition: "all 0.2s ease",
+              marginTop: "4px",
+              alignSelf: "flex-start",
+            }}
+            onMouseEnter={(e) => {
+              if (!generatingLink) {
+                e.target.style.opacity = "0.8";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!generatingLink) {
+                e.target.style.opacity = "1";
+              }
+            }}
+          >
+            {generatingLink
+              ? "Generating..."
+              : linkStatus === "SENT"
+              ? "🔄 Regenerate"
+              : linkStatus === "EXPIRED"
+              ? "🔄 New Link"
+              : "🔗 Generate Link"}
+          </button>
+        )}
     </div>
   );
 }
@@ -2367,7 +2535,14 @@ function DinnerStatusBadge({ status }) {
   );
 }
 
-function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
+function EditGuestModal({
+  guest,
+  event,
+  onClose,
+  onSave,
+  allGuests,
+  onRefund,
+}) {
   const [name, setName] = useState(guest.name || "");
   const [email, setEmail] = useState(guest.email || "");
 
@@ -2501,6 +2676,16 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
       : guest.dinner?.bookingStatus === "WAITLIST"
       ? "waitlist"
       : guest.dinnerStatus || null;
+
+  // BUSINESS RULE: Cannot change status for paid and confirmed guests
+  // If guest has paid and is confirmed, they cannot be moved to waitlist
+  // This would require a refund, which is a separate process
+  const isPaidEvent = event.ticketType === "paid";
+  const isPaidAndConfirmed =
+    isPaidEvent &&
+    guest.paymentStatus === "paid" &&
+    guest.bookingStatus === "CONFIRMED";
+  const canChangeStatus = !isPaidAndConfirmed;
 
   // Generate dinner time slots
   const dinnerSlots =
@@ -2810,22 +2995,43 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
+                disabled={!canChangeStatus}
                 style={{
                   width: "100%",
                   padding: "12px 16px",
                   borderRadius: "12px",
                   border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
+                  background: canChangeStatus
+                    ? "rgba(20, 16, 30, 0.6)"
+                    : "rgba(20, 16, 30, 0.3)",
+                  color: canChangeStatus ? "#fff" : "rgba(255, 255, 255, 0.5)",
                   fontSize: "15px",
                   outline: "none",
                   boxSizing: "border-box",
-                  cursor: "pointer",
+                  cursor: canChangeStatus ? "pointer" : "not-allowed",
+                  opacity: canChangeStatus ? 1 : 0.6,
                 }}
               >
                 <option value="attending">Attending</option>
                 <option value="waitlist">Waitlist</option>
               </select>
+              {!canChangeStatus && (
+                <div
+                  style={{
+                    marginTop: "8px",
+                    padding: "8px 12px",
+                    background: "rgba(245, 158, 11, 0.15)",
+                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                    color: "#fbbf24",
+                    lineHeight: "1.4",
+                  }}
+                >
+                  This guest has paid and is confirmed. Status cannot be changed
+                  to waitlist. To remove this guest, process a refund first.
+                </div>
+              )}
             </div>
 
             {event.dinnerEnabled && (
@@ -3518,6 +3724,52 @@ function EditGuestModal({ guest, event, onClose, onSave, allGuests }) {
                 : "Save changes"}
             </button>
           </div>
+
+          {/* Refund button for paid guests - shown at bottom of modal */}
+          {event.ticketType === "paid" &&
+            guest.paymentId &&
+            guest.paymentStatus === "paid" &&
+            guest.bookingStatus === "CONFIRMED" && (
+              <div
+                style={{
+                  marginTop: "24px",
+                  paddingTop: "24px",
+                  borderTop: "1px solid rgba(255,255,255,0.1)",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onRefund) {
+                      onRefund(guest);
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "14px 24px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(245, 158, 11, 0.4)",
+                    background: "rgba(245, 158, 11, 0.1)",
+                    color: "#f59e0b",
+                    fontSize: "15px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = "rgba(245, 158, 11, 0.2)";
+                    e.target.style.borderColor = "rgba(245, 158, 11, 0.6)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = "rgba(245, 158, 11, 0.1)";
+                    e.target.style.borderColor = "rgba(245, 158, 11, 0.4)";
+                  }}
+                >
+                  Process Refund
+                </button>
+              </div>
+            )}
         </form>
       </div>
     </div>
@@ -4100,6 +4352,183 @@ function DeleteConfirmModal({ guest, onClose, onConfirm }) {
             }}
           >
             Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RefundConfirmModal({ guest, event, refunding, onClose, onConfirm }) {
+  // Calculate payment amount (if available from guest data or we'd need to fetch it)
+  // For now, we'll show a generic message
+  const currencySymbol = event?.ticketCurrency === "sek" ? "kr" : "$";
+
+  // Try to get payment amount from guest data if available
+  // This would require the guest object to include payment details
+  // For now, we'll show a clear explanation
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(0, 0, 0, 0.8)",
+        backdropFilter: "blur(4px)",
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "rgba(12, 10, 18, 0.95)",
+          backdropFilter: "blur(20px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "24px",
+          padding: "32px",
+          maxWidth: "500px",
+          width: "100%",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          style={{
+            fontSize: "24px",
+            fontWeight: 700,
+            marginBottom: "16px",
+            color: "#f59e0b",
+          }}
+        >
+          Process Refund?
+        </h2>
+        <p
+          style={{
+            fontSize: "15px",
+            opacity: 0.9,
+            marginBottom: "20px",
+            lineHeight: "1.6",
+          }}
+        >
+          You are about to refund the payment for{" "}
+          <strong>{guest.name || guest.email}</strong>.
+        </p>
+
+        <div
+          style={{
+            padding: "16px",
+            background: "rgba(245, 158, 11, 0.1)",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            borderRadius: "12px",
+            marginBottom: "24px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: 600,
+              marginBottom: "8px",
+              color: "#fbbf24",
+            }}
+          >
+            What happens next:
+          </div>
+          <ul
+            style={{
+              fontSize: "13px",
+              opacity: 0.9,
+              lineHeight: "1.8",
+              margin: 0,
+              paddingLeft: "20px",
+            }}
+          >
+            <li>
+              The ticket amount will be refunded to the customer (platform fee
+              is non-refundable)
+            </li>
+            <li>
+              The platform fee will be <strong>kept by the platform</strong>{" "}
+              (standard practice)
+            </li>
+            <li>The transfer to your Stripe account will be reversed</li>
+            <li>
+              The guest will be moved to <strong>waitlist</strong> status
+            </li>
+            <li>They can re-pay later if a spot becomes available</li>
+          </ul>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+          }}
+        >
+          <button
+            onClick={onClose}
+            disabled={refunding}
+            style={{
+              flex: 1,
+              padding: "14px 24px",
+              borderRadius: "12px",
+              border: "1px solid rgba(255,255,255,0.2)",
+              background: "rgba(255,255,255,0.05)",
+              color: "#fff",
+              fontSize: "15px",
+              fontWeight: 600,
+              cursor: refunding ? "not-allowed" : "pointer",
+              opacity: refunding ? 0.5 : 1,
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              if (!refunding) {
+                e.target.style.background = "rgba(255,255,255,0.1)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!refunding) {
+                e.target.style.background = "rgba(255,255,255,0.05)";
+              }
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(true)}
+            disabled={refunding}
+            style={{
+              flex: 1,
+              padding: "14px 24px",
+              borderRadius: "12px",
+              border: "none",
+              background: refunding
+                ? "rgba(245, 158, 11, 0.3)"
+                : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+              color: "#fff",
+              fontSize: "15px",
+              fontWeight: 600,
+              cursor: refunding ? "not-allowed" : "pointer",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              if (!refunding) {
+                e.target.style.transform = "scale(1.02)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!refunding) {
+                e.target.style.transform = "scale(1)";
+              }
+            }}
+          >
+            {refunding ? "Processing..." : "Process Refund"}
           </button>
         </div>
       </div>

@@ -7,6 +7,7 @@ import { getEventUrl, getEventShareUrl } from "../lib/urlUtils";
 import { FaPaperPlane, FaCalendar } from "react-icons/fa";
 import { logger } from "../lib/logger.js";
 import { EventOverviewStats } from "../components/EventOverviewStats.jsx";
+import { useAuth } from "../contexts/AuthContext.jsx";
 
 import { authenticatedFetch, publicFetch, API_BASE } from "../lib/api.js";
 import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
@@ -536,6 +537,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
 // Simple hosts list component
 function EventHostsSection({ eventId }) {
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [hosts, setHosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newHostEmail, setNewHostEmail] = useState("");
@@ -566,8 +568,17 @@ function EventHostsSection({ eventId }) {
     };
   }, [eventId]);
 
+  const currentUserId = user?.id;
+  const isOwner = hosts.some(
+    (host) => host.userId === currentUserId && host.role === "owner"
+  );
+
   const handleAddHost = async () => {
     if (!newHostEmail.trim()) return;
+    if (!isOwner) {
+      showToast("Only event owners can add hosts", "error");
+      return;
+    }
     setAdding(true);
     try {
       const res = await authenticatedFetch(`/host/events/${eventId}/hosts`, {
@@ -588,6 +599,43 @@ function EventHostsSection({ eventId }) {
       showToast(err.message || "Failed to add host", "error");
     } finally {
       setAdding(false);
+    }
+  };
+
+  const handleRemoveHost = async (hostToRemove) => {
+    // Only owners can remove hosts, and we never allow removing the owner via UI
+    if (!isOwner) {
+      showToast("Only event owners can remove hosts", "error");
+      return;
+    }
+    if (hostToRemove.role === "owner") {
+      return;
+    }
+    try {
+      const res = await authenticatedFetch(
+        `/host/events/${eventId}/hosts/${hostToRemove.userId}`,
+        {
+          method: "DELETE",
+        }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to remove host");
+      }
+
+      // Optimistically update list without full refetch
+      setHosts((prev) =>
+        prev.filter(
+          (h) =>
+            !(
+              h.userId === hostToRemove.userId && h.role === hostToRemove.role
+            )
+        )
+      );
+      showToast("Host removed", "success");
+    } catch (err) {
+      console.error("Failed to remove host:", err);
+      showToast(err.message || "Failed to remove host", "error");
     }
   };
 
@@ -655,6 +703,7 @@ function EventHostsSection({ eventId }) {
                 background: "rgba(20, 16, 30, 0.6)",
                 border: "1px solid rgba(255,255,255,0.06)",
                 fontSize: "13px",
+                gap: "8px",
               }}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -665,72 +714,104 @@ function EventHostsSection({ eventId }) {
                   {host.email ? `Email: ${host.email}` : `ID: ${host.userId}`}
                 </span>
               </div>
-              <span
+              <div
                 style={{
-                  fontSize: "11px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  padding: "4px 8px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(139,92,246,0.6)",
-                  color: "#fff",
-                  background: "rgba(139,92,246,0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  flexShrink: 0,
                 }}
               >
-                {host.role}
-              </span>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    padding: "4px 8px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(139,92,246,0.6)",
+                    color: "#fff",
+                    background: "rgba(139,92,246,0.3)",
+                  }}
+                >
+                  {host.role}
+                </span>
+                {isOwner && host.role !== "owner" && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveHost(host)}
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(239,68,68,0.5)",
+                      background: "rgba(239,68,68,0.1)",
+                      color: "#fecaca",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      <div
-        style={{
-          display: "flex",
-          gap: "8px",
-          alignItems: "center",
-          flexWrap: "wrap",
-          marginTop: "8px",
-        }}
-      >
-        <input
-          type="text"
-          placeholder="Add host by email..."
-          value={newHostEmail}
-          onChange={(e) => setNewHostEmail(e.target.value)}
-          style={{
-            ...inputStyle,
-            minHeight: "36px",
-            fontSize: "13px",
-            flex: "1 1 220px",
-          }}
-        />
-        <button
-          type="button"
-          onClick={handleAddHost}
-          disabled={adding || !newHostEmail.trim()}
-          style={{
-            padding: "8px 14px",
-            borderRadius: "8px",
-            border: "none",
-            background:
-              !newHostEmail.trim() || adding
-                ? "rgba(139,92,246,0.3)"
-                : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-            color: "#fff",
-            fontSize: "13px",
-            fontWeight: 600,
-            cursor: !newHostEmail.trim() || adding ? "not-allowed" : "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {adding ? "Adding..." : "Add Host"}
-        </button>
-      </div>
-      <div style={{ fontSize: "11px", opacity: 0.6, marginTop: "6px" }}>
-        Hosts are added by the email associated with their Pullup account. Make
-        sure they have signed up first.
-      </div>
+      {isOwner && (
+        <>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              alignItems: "center",
+              flexWrap: "wrap",
+              marginTop: "8px",
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Add host by email..."
+              value={newHostEmail}
+              onChange={(e) => setNewHostEmail(e.target.value)}
+              style={{
+                ...inputStyle,
+                minHeight: "36px",
+                fontSize: "13px",
+                flex: "1 1 220px",
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleAddHost}
+              disabled={adding || !newHostEmail.trim()}
+              style={{
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "none",
+                background:
+                  !newHostEmail.trim() || adding
+                    ? "rgba(139,92,246,0.3)"
+                    : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                color: "#fff",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor:
+                  !newHostEmail.trim() || adding ? "not-allowed" : "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {adding ? "Adding..." : "Add Host"}
+            </button>
+          </div>
+          <div style={{ fontSize: "11px", opacity: 0.6, marginTop: "6px" }}>
+            Hosts are added by the email associated with their Pullup account.
+            Make sure they have signed up first.
+          </div>
+        </>
+      )}
     </div>
   );
 }

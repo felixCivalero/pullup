@@ -2870,8 +2870,19 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
     }
 
     // Otherwise use getAllPeopleWithStats (backward compatibility)
+    // and apply simple in-memory pagination so the frontend only
+    // renders a page of results at a time.
     const people = await getAllPeopleWithStats(req.user.id);
-    res.json({ people, total: people.length });
+    const limitNum = parseInt(limit, 10) || 50;
+    const offsetNum = parseInt(offset, 10) || 0;
+    const pagedPeople = people.slice(offsetNum, offsetNum + limitNum);
+
+    res.json({
+      people: pagedPeople,
+      total: people.length,
+      limit: limitNum,
+      offset: offsetNum,
+    });
   } catch (error) {
     console.error("Error fetching people:", error);
     res.status(500).json({ error: "Failed to fetch people" });
@@ -2906,9 +2917,97 @@ app.get("/host/crm/people/:personId", requireAuth, async (req, res) => {
 // ---------------------------
 // PROTECTED: Export CRM people as CSV
 // ---------------------------
+// NOTE: This export respects the same filters as GET /host/crm/people.
+// If query parameters are provided, we export ONLY the filtered segment.
+// Otherwise we export all people with stats for this host.
 app.get("/host/crm/people/export", requireAuth, async (req, res) => {
   try {
-    const people = await getAllPeopleWithStats(req.user.id);
+    const {
+      search,
+      email,
+      name,
+      totalSpendMin,
+      totalSpendMax,
+      paymentCountMin,
+      paymentCountMax,
+      subscriptionType,
+      interestedIn,
+      tags,
+      hasStripeCustomerId,
+      attendedEventId,
+      hasDinner,
+      attendanceStatus,
+      eventsAttendedMin,
+      eventsAttendedMax,
+    } = req.query;
+
+    let people;
+
+    // If any filter is present, export the filtered segment
+    if (
+      search ||
+      email ||
+      name ||
+      totalSpendMin ||
+      totalSpendMax ||
+      paymentCountMin ||
+      paymentCountMax ||
+      subscriptionType ||
+      interestedIn ||
+      tags ||
+      hasStripeCustomerId !== undefined ||
+      attendedEventId ||
+      hasDinner !== undefined ||
+      attendanceStatus ||
+      eventsAttendedMin ||
+      eventsAttendedMax
+    ) {
+      const { getPeopleWithFilters } = await import("./data.js");
+      const filters = {
+        search,
+        email,
+        name,
+        totalSpendMin: totalSpendMin ? parseInt(totalSpendMin, 10) : undefined,
+        totalSpendMax: totalSpendMax ? parseInt(totalSpendMax, 10) : undefined,
+        paymentCountMin: paymentCountMin
+          ? parseInt(paymentCountMin, 10)
+          : undefined,
+        paymentCountMax: paymentCountMax
+          ? parseInt(paymentCountMax, 10)
+          : undefined,
+        subscriptionType,
+        interestedIn,
+        tags: tags ? tags.split(",") : undefined,
+        hasStripeCustomerId:
+          hasStripeCustomerId !== undefined
+            ? hasStripeCustomerId === "true"
+            : undefined,
+        attendedEventId,
+        hasDinner: hasDinner !== undefined ? hasDinner === "true" : undefined,
+        attendanceStatus,
+        eventsAttendedMin: eventsAttendedMin
+          ? parseInt(eventsAttendedMin, 10)
+          : undefined,
+        eventsAttendedMax: eventsAttendedMax
+          ? parseInt(eventsAttendedMax, 10)
+          : undefined,
+      };
+
+      // For export we want the full segment, not paginated,
+      // so request a large limit with offset 0.
+      const result = await getPeopleWithFilters(
+        req.user.id,
+        filters,
+        "created_at",
+        "desc",
+        10000,
+        0
+      );
+      people = result.people || [];
+    } else {
+      // No filters: export all people with stats
+      people = await getAllPeopleWithStats(req.user.id);
+    }
 
     // CSV header
     const headers = [

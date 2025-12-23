@@ -549,12 +549,12 @@ export async function findEventBySlug(slug, userId = null) {
   if (data.status === "DRAFT" && userId) {
     const { isHost } = await isUserEventHost(userId, data.id);
     if (!isHost) {
-    logger.info("[findEventBySlug] DRAFT event access denied", {
-      slug,
-      hostId: data.host_id,
-      userId: userId || "none",
-    });
-    return null;
+      logger.info("[findEventBySlug] DRAFT event access denied", {
+        slug,
+        hostId: data.host_id,
+        userId: userId || "none",
+      });
+      return null;
     }
   }
 
@@ -2212,7 +2212,7 @@ export async function addRsvp({
           dinnerCapacityOk = false;
           if (!event.waitlistEnabled) {
             return { error: "full", event };
-        }
+          }
         }
       }
       // If unlimited seats per slot, dinner capacity is always OK
@@ -2404,7 +2404,7 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
             updatedPersonId = rsvp.personId; // Keep original person_id
           } else {
             // Safe to merge: update RSVP to point to existing person
-          updatedPersonId = existingPerson.id;
+            updatedPersonId = existingPerson.id;
           }
         } else {
           // Update person's email
@@ -2586,10 +2586,10 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
       // Check cocktail capacity first
       let cocktailCapacityOk = true;
       if (
-      event.cocktailCapacity != null &&
-      currentCocktailsOnly + cocktailsOnlyForThisBooking >
-        event.cocktailCapacity
-    ) {
+        event.cocktailCapacity != null &&
+        currentCocktailsOnly + cocktailsOnlyForThisBooking >
+          event.cocktailCapacity
+      ) {
         cocktailCapacityOk = false;
         if (!event.waitlistEnabled) {
           return { error: "full" };
@@ -2600,13 +2600,13 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
       // For now, set bookingStatus based on cocktail capacity
       // It will be updated again if dinner capacity is insufficient
       if (!cocktailCapacityOk) {
-      if (event.waitlistEnabled) {
-        bookingStatus = "WAITLIST";
+        if (event.waitlistEnabled) {
+          bookingStatus = "WAITLIST";
+        } else {
+          return { error: "full" };
+        }
       } else {
-        return { error: "full" };
-      }
-    } else {
-      bookingStatus = "CONFIRMED";
+        bookingStatus = "CONFIRMED";
       }
     }
   }
@@ -2740,10 +2740,10 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
             let dinnerCapacityOk = true;
             if (event.dinnerMaxSeatsPerSlot) {
               // Check dinner capacity - if insufficient, entire party goes to waitlist
-            const availableSeats =
-              event.dinnerMaxSeatsPerSlot - currentSlotConfirmed;
+              const availableSeats =
+                event.dinnerMaxSeatsPerSlot - currentSlotConfirmed;
 
-            if (dinnerPartySize > availableSeats) {
+              if (dinnerPartySize > availableSeats) {
                 dinnerCapacityOk = false;
                 if (!event.waitlistEnabled) {
                   return { error: "full" };
@@ -2768,12 +2768,12 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
             // If EITHER cocktail OR dinner capacity is insufficient, entire party goes to waitlist
             if (!cocktailCapacityOk || !dinnerCapacityOk) {
               if (event.waitlistEnabled) {
-              bookingStatus = "WAITLIST";
+                bookingStatus = "WAITLIST";
                 dinnerBookingStatus = "WAITLIST";
-            } else {
+              } else {
                 return { error: "full" };
-          }
-        } else {
+              }
+            } else {
               // Both capacities OK - confirm both
               bookingStatus = "CONFIRMED";
               dinnerBookingStatus = "CONFIRMED";

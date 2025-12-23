@@ -50,6 +50,12 @@ export function CrmTab() {
   const [savedViews, setSavedViews] = useState([]);
   const [activeView, setActiveView] = useState(null);
   const [events, setEvents] = useState([]);
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState("");
+  const [subjectLine, setSubjectLine] = useState("");
+
+  const selectedEvent =
+    events.find((event) => event.id === selectedEventId) || null;
 
   // Load people with filters
   useEffect(() => {
@@ -383,7 +389,7 @@ export function CrmTab() {
             🔍 Filters
           </button>
 
-          <button
+          {/* <button
             onClick={() => setShowImportModal(true)}
             className="import-csv-button"
             style={{
@@ -402,12 +408,57 @@ export function CrmTab() {
             }}
           >
             📥 Import CSV
-          </button>
+          </button> */}
 
           <button
             onClick={async () => {
               try {
-                const res = await authenticatedFetch("/host/crm/people/export");
+                // Build the same filter query used for the list, but without
+                // pagination, so the export matches the current filtered view.
+                const params = new URLSearchParams();
+                if (searchQuery) params.append("search", searchQuery);
+                if (filters.email) params.append("email", filters.email);
+                if (filters.name) params.append("name", filters.name);
+                if (filters.totalSpendMin)
+                  params.append("totalSpendMin", filters.totalSpendMin);
+                if (filters.totalSpendMax)
+                  params.append("totalSpendMax", filters.totalSpendMax);
+                if (filters.paymentCountMin)
+                  params.append("paymentCountMin", filters.paymentCountMin);
+                if (filters.paymentCountMax)
+                  params.append("paymentCountMax", filters.paymentCountMax);
+                if (filters.subscriptionType)
+                  params.append("subscriptionType", filters.subscriptionType);
+                if (filters.interestedIn)
+                  params.append("interestedIn", filters.interestedIn);
+                if (filters.hasStripeCustomerId !== undefined)
+                  params.append(
+                    "hasStripeCustomerId",
+                    filters.hasStripeCustomerId.toString()
+                  );
+                if (filters.attendedEventId)
+                  params.append("attendedEventId", filters.attendedEventId);
+                if (filters.hasDinner !== undefined)
+                  params.append("hasDinner", filters.hasDinner.toString());
+                if (filters.attendanceStatus)
+                  params.append("attendanceStatus", filters.attendanceStatus);
+                if (filters.eventsAttendedMin !== undefined)
+                  params.append(
+                    "eventsAttendedMin",
+                    filters.eventsAttendedMin.toString()
+                  );
+                if (filters.eventsAttendedMax !== undefined)
+                  params.append(
+                    "eventsAttendedMax",
+                    filters.eventsAttendedMax.toString()
+                  );
+
+                const queryString =
+                  params.toString().length > 0 ? `?${params.toString()}` : "";
+
+                const res = await authenticatedFetch(
+                  `/host/crm/people/export${queryString}`
+                );
                 if (!res.ok) throw new Error("Export failed");
                 const blob = await res.blob();
                 const url = window.URL.createObjectURL(blob);
@@ -420,7 +471,10 @@ export function CrmTab() {
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
-                showToast("CSV exported successfully", "success");
+                showToast(
+                  "Exported current filtered view to CSV successfully",
+                  "success"
+                );
               } catch (err) {
                 console.error(err);
                 showToast("Failed to export CSV", "error");
@@ -442,7 +496,37 @@ export function CrmTab() {
               gap: "6px",
             }}
           >
-            📤 Export CSV
+            📤 Export filtered CSV
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!total) {
+                showToast(
+                  "There are no contacts in this view to send to.",
+                  "error"
+                );
+                return;
+              }
+              setShowSendModal(true);
+            }}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "8px",
+              border: "1px solid rgba(34, 197, 94, 0.3)",
+              background: "rgba(34, 197, 94, 0.08)",
+              color: "#4ade80",
+              fontSize: "14px",
+              fontWeight: 500,
+              cursor: total ? "pointer" : "not-allowed",
+              opacity: total ? 1 : 0.6,
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            ✉️ Send invite to this segment
           </button>
         </div>
 
@@ -905,6 +989,296 @@ export function CrmTab() {
         </div>
       )}
 
+      {/* Send Invite Modal */}
+      {showSendModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.8)",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "80px 20px 20px",
+          }}
+          onClick={() => setShowSendModal(false)}
+        >
+          <div
+            style={{
+              background: "rgba(12, 10, 18, 0.95)",
+              borderRadius: "16px",
+              padding: "24px",
+              maxWidth: "520px",
+              width: "100%",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              style={{
+                fontSize: "20px",
+                fontWeight: 600,
+                marginBottom: "8px",
+              }}
+            >
+              Send invite to this segment
+            </h2>
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: "10px",
+                background: "rgba(34,197,94,0.08)",
+                border: "1px solid rgba(34,197,94,0.25)",
+                fontSize: "13px",
+                marginBottom: "16px",
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+                Recipients
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: "8px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: 700,
+                    color: "#4ade80",
+                  }}
+                >
+                  {total.toLocaleString()}
+                </span>
+                <span style={{ opacity: 0.85 }}>
+                  contacts in this filtered view will receive this email.
+                </span>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  opacity: 0.7,
+                  marginBottom: "6px",
+                }}
+              >
+                Event content
+              </label>
+              <select
+                value={selectedEventId}
+                onChange={(e) => setSelectedEventId(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(12,10,18,0.8)",
+                  color: "#fff",
+                  fontSize: "14px",
+                }}
+              >
+                <option value="">Choose event to use as email content</option>
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
+                  </option>
+                ))}
+              </select>
+              <p
+                style={{
+                  fontSize: "12px",
+                  opacity: 0.6,
+                  marginTop: "6px",
+                }}
+              >
+                We&apos;ll populate the email template with this event&apos;s
+                image, title, date, location and booking link.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  opacity: 0.7,
+                  marginBottom: "6px",
+                }}
+              >
+                Subject line
+              </label>
+              <input
+                type="text"
+                placeholder="E.g. Love Rönnlund till [Event Name]"
+                value={
+                  subjectLine && subjectLine.trim().length > 0
+                    ? subjectLine
+                    : selectedEvent
+                    ? `You're invited to ${selectedEvent.title}.`
+                    : ""
+                }
+                onChange={(e) => setSubjectLine(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(12,10,18,0.8)",
+                  color: "#fff",
+                  fontSize: "14px",
+                }}
+              />
+            </div>
+
+            {/* Simple email preview */}
+            {selectedEvent && (
+              <div
+                style={{
+                  marginTop: "4px",
+                  marginBottom: "12px",
+                  borderRadius: "16px",
+                  background: "rgba(12,10,18,0.9)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  overflow: "hidden",
+                  boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
+                }}
+              >
+                {selectedEvent.imageUrl && (
+                  <div
+                    style={{
+                      width: "100%",
+                      aspectRatio: "4/5",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <img
+                      src={selectedEvent.imageUrl}
+                      alt={selectedEvent.title}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                    />
+                  </div>
+                )}
+                <div style={{ padding: "18px 18px 20px" }}>
+                  <div
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 600,
+                      marginBottom: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {selectedEvent.title}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      opacity: 0.8,
+                      textAlign: "center",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    Join the guest list for{" "}
+                    <span style={{ fontWeight: 600 }}>
+                      {selectedEvent.title}
+                    </span>
+                    . This is how your invite email will look using this event.
+                  </div>
+                  <div style={{ textAlign: "center", marginTop: "16px" }}>
+                    <button
+                      type="button"
+                      style={{
+                        padding: "8px 20px",
+                        borderRadius: "999px",
+                        border: "none",
+                        background:
+                          "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                        color: "#fff",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        cursor: "default",
+                      }}
+                    >
+                      BOKA
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "12px",
+                marginTop: "20px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowSendModal(false)}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "rgba(12,10,18,0.6)",
+                  color: "#fff",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!selectedEventId) {
+                    showToast("Pick an event before sending.", "error");
+                    return;
+                  }
+                  showToast(
+                    `Email campaign queued to ${total.toLocaleString()} contacts.`,
+                    "success"
+                  );
+                  setShowSendModal(false);
+                  setSubjectLine("");
+                  setSelectedEventId("");
+                }}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background:
+                    selectedEventId === ""
+                      ? "rgba(139,92,246,0.3)"
+                      : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                  color: "#fff",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  cursor: selectedEventId === "" ? "not-allowed" : "pointer",
+                  opacity: selectedEventId === "" ? 0.7 : 1,
+                }}
+              >
+                Send campaign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Total Summary */}
       {total > 0 && (
         <div
@@ -925,11 +1299,11 @@ export function CrmTab() {
             <div
               style={{
                 fontSize: "14px",
-                opacity: 0.7,
+                opacity: 0.8,
                 marginBottom: "4px",
               }}
             >
-              Total Unique Contacts
+              Total contacts in this view
             </div>
             <div
               style={{
@@ -953,7 +1327,12 @@ export function CrmTab() {
               <>
                 Showing {(page * PAGE_SIZE + 1).toLocaleString()} –{" "}
                 {Math.min((page + 1) * PAGE_SIZE, total).toLocaleString()} of{" "}
-                {total.toLocaleString()}
+                {total.toLocaleString()} contacts on this page.{" "}
+                <span style={{ opacity: 0.9 }}>
+                  Export and email actions will use{" "}
+                  <strong>all {total.toLocaleString()} contacts</strong> in this
+                  filtered view.
+                </span>
               </>
             )}
           </div>

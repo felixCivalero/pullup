@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
+import { getEventUrl } from "../lib/urlUtils.js";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -51,11 +52,56 @@ export function CrmTab() {
   const [activeView, setActiveView] = useState(null);
   const [events, setEvents] = useState([]);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState("event"); // "event" is the default template
   const [selectedEventId, setSelectedEventId] = useState("");
   const [subjectLine, setSubjectLine] = useState("");
 
+  // Email template editable fields (matching Resend template variables)
+  const [headlineText, setHeadlineText] = useState("");
+  const [introQuote, setIntroQuote] = useState("");
+  const [introBody, setIntroBody] = useState("");
+  const [introGreeting, setIntroGreeting] = useState("");
+  const [introNote, setIntroNote] = useState("");
+  const [signoffText, setSignoffText] = useState("");
+
+  // Track which field is currently being edited inline
+  const [editingField, setEditingField] = useState(null);
+
   const selectedEvent =
     events.find((event) => event.id === selectedEventId) || null;
+
+  // Auto-populate email fields when event is selected (only for event template)
+  useEffect(() => {
+    if (selectedTemplate === "event" && selectedEvent) {
+      // Populate fields from event data
+      setHeadlineText(selectedEvent.title || "");
+      setSubjectLine(`You're invited to ${selectedEvent.title}.`);
+
+      // Use event description if available, otherwise use default
+      const bodyText = selectedEvent.description
+        ? selectedEvent.description.trim()
+        : "Skriv om du vill komma så får du länk till gästlistan!";
+      setIntroBody(bodyText);
+
+      // Set default greeting and signoff (user can edit)
+      setIntroGreeting("God Jul❤️");
+      setSignoffText("Puss och kram!");
+
+      // Keep quote and note empty by default (user can add)
+      setIntroQuote("");
+      setIntroNote("");
+    } else if (selectedTemplate !== "event" || !selectedEvent) {
+      // Clear all fields when template changes or no event selected
+      setHeadlineText("");
+      setSubjectLine("");
+      setIntroQuote("");
+      setIntroBody("");
+      setIntroGreeting("");
+      setIntroNote("");
+      setSignoffText("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEventId, selectedTemplate]);
 
   // Load people with filters
   useEffect(() => {
@@ -1071,11 +1117,17 @@ export function CrmTab() {
                   marginBottom: "6px",
                 }}
               >
-                Event content
+                Template
               </label>
               <select
-                value={selectedEventId}
-                onChange={(e) => setSelectedEventId(e.target.value)}
+                value={selectedTemplate}
+                onChange={(e) => {
+                  setSelectedTemplate(e.target.value);
+                  // Reset event selection when template changes
+                  if (e.target.value !== "event") {
+                    setSelectedEventId("");
+                  }
+                }}
                 style={{
                   width: "100%",
                   padding: "10px 12px",
@@ -1086,12 +1138,8 @@ export function CrmTab() {
                   fontSize: "14px",
                 }}
               >
-                <option value="">Choose event to use as email content</option>
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.title}
-                  </option>
-                ))}
+                <option value="event">Event email template</option>
+                {/* Future templates can be added here */}
               </select>
               <p
                 style={{
@@ -1100,123 +1148,596 @@ export function CrmTab() {
                   marginTop: "6px",
                 }}
               >
-                We&apos;ll populate the email template with this event&apos;s
-                image, title, date, location and booking link.
+                Choose the email template type for this campaign.
               </p>
             </div>
 
-            <div style={{ marginBottom: "16px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "12px",
-                  opacity: 0.7,
-                  marginBottom: "6px",
-                }}
-              >
-                Subject line
-              </label>
-              <input
-                type="text"
-                placeholder="E.g. Love Rönnlund till [Event Name]"
-                value={
-                  subjectLine && subjectLine.trim().length > 0
-                    ? subjectLine
-                    : selectedEvent
-                    ? `You're invited to ${selectedEvent.title}.`
-                    : ""
-                }
-                onChange={(e) => setSubjectLine(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(12,10,18,0.8)",
-                  color: "#fff",
-                  fontSize: "14px",
-                }}
-              />
-            </div>
+            {selectedTemplate === "event" && (
+              <div style={{ marginBottom: "16px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    opacity: 0.7,
+                    marginBottom: "6px",
+                  }}
+                >
+                  Event content
+                </label>
+                <select
+                  value={selectedEventId}
+                  onChange={(e) => {
+                    setSelectedEventId(e.target.value);
+                    // Reset editable fields when event changes
+                    setHeadlineText("");
+                    setSubjectLine("");
+                    setIntroQuote("");
+                    setIntroBody("");
+                    setIntroGreeting("");
+                    setIntroNote("");
+                    setSignoffText("");
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(12,10,18,0.8)",
+                    color: "#fff",
+                    fontSize: "14px",
+                  }}
+                >
+                  <option value="">Choose event to use as email content</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.title}
+                    </option>
+                  ))}
+                </select>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    opacity: 0.6,
+                    marginTop: "6px",
+                  }}
+                >
+                  We&apos;ll populate the email template with this event&apos;s
+                  image, title, date, location and booking link.
+                </p>
+              </div>
+            )}
 
-            {/* Simple email preview */}
-            {selectedEvent && (
-              <div
-                style={{
-                  marginTop: "4px",
-                  marginBottom: "12px",
-                  borderRadius: "16px",
-                  background: "rgba(12,10,18,0.9)",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  overflow: "hidden",
-                  boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
-                }}
-              >
-                {selectedEvent.imageUrl && (
-                  <div
+            {selectedTemplate === "event" && selectedEvent && (
+              <>
+                <div style={{ marginBottom: "16px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "12px",
+                      opacity: 0.7,
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Subject line
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="E.g. Love Rönnlund till [Event Name]"
+                    value={
+                      subjectLine && subjectLine.trim().length > 0
+                        ? subjectLine
+                        : selectedEvent
+                        ? `You're invited to ${selectedEvent.title}.`
+                        : ""
+                    }
+                    onChange={(e) => setSubjectLine(e.target.value)}
                     style={{
                       width: "100%",
-                      aspectRatio: "4/5",
-                      overflow: "hidden",
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(12,10,18,0.8)",
+                      color: "#fff",
+                      fontSize: "14px",
                     }}
-                  >
-                    <img
-                      src={selectedEvent.imageUrl}
-                      alt={selectedEvent.title}
+                  />
+                </div>
+
+                {/* Email preview - matches Resend template structure */}
+                <div
+                  style={{
+                    fontSize: "12px",
+                    opacity: 0.6,
+                    marginTop: "8px",
+                    marginBottom: "8px",
+                    textAlign: "center",
+                  }}
+                >
+                  Click any text to edit directly in the preview
+                </div>
+                <div
+                  style={{
+                    marginTop: "4px",
+                    marginBottom: "20px",
+                    borderRadius: "16px",
+                    background: "rgba(12,10,18,0.9)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    overflow: "hidden",
+                    boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  {/* Hero image */}
+                  {selectedEvent.imageUrl && (
+                    <div
                       style={{
                         width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        display: "block",
-                      }}
-                    />
-                  </div>
-                )}
-                <div style={{ padding: "18px 18px 20px" }}>
-                  <div
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: 600,
-                      marginBottom: "8px",
-                      textAlign: "center",
-                    }}
-                  >
-                    {selectedEvent.title}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      opacity: 0.8,
-                      textAlign: "center",
-                      marginBottom: "12px",
-                    }}
-                  >
-                    Join the guest list for{" "}
-                    <span style={{ fontWeight: 600 }}>
-                      {selectedEvent.title}
-                    </span>
-                    . This is how your invite email will look using this event.
-                  </div>
-                  <div style={{ textAlign: "center", marginTop: "16px" }}>
-                    <button
-                      type="button"
-                      style={{
-                        padding: "8px 20px",
-                        borderRadius: "999px",
-                        border: "none",
-                        background:
-                          "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                        color: "#fff",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        cursor: "default",
+                        aspectRatio: "4/5",
+                        overflow: "hidden",
                       }}
                     >
-                      BOKA
-                    </button>
+                      <img
+                        src={selectedEvent.imageUrl}
+                        alt={selectedEvent.title}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ padding: "20px 20px 24px" }}>
+                    {/* Headline - inline editable */}
+                    {editingField === "headline" ? (
+                      <input
+                        type="text"
+                        value={headlineText || selectedEvent.title}
+                        onChange={(e) => setHeadlineText(e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.target.blur();
+                          }
+                        }}
+                        autoFocus
+                        style={{
+                          width: "100%",
+                          margin: 0,
+                          padding: "12px",
+                          fontSize: "28px",
+                          lineHeight: "1.3",
+                          fontWeight: 600,
+                          textAlign: "center",
+                          marginBottom: "12px",
+                          background: "transparent",
+                          border: "1px dashed rgba(255,255,255,0.3)",
+                          borderRadius: "4px",
+                          color: "#fff",
+                          outline: "none",
+                        }}
+                      />
+                    ) : (
+                      <h1
+                        onClick={() => setEditingField("headline")}
+                        style={{
+                          margin: 0,
+                          padding: "12px",
+                          fontSize: "28px",
+                          lineHeight: "1.3",
+                          paddingTop: "12px",
+                          fontWeight: 600,
+                          textAlign: "center",
+                          marginBottom: "12px",
+                          cursor: "pointer",
+                          borderRadius: "8px",
+                          transition: "all 0.2s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            "rgba(139, 92, 246, 0.1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        {headlineText || selectedEvent.title}
+                      </h1>
+                    )}
+
+                    {/* Intro quote - inline editable */}
+                    {editingField === "quote" ? (
+                      <input
+                        type="text"
+                        value={introQuote}
+                        onChange={(e) => setIntroQuote(e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.target.blur();
+                          }
+                        }}
+                        placeholder='E.g. "Ett gratiserbjudande faller från ovan"'
+                        autoFocus
+                        style={{
+                          width: "100%",
+                          margin: 0,
+                          padding: "8px 12px",
+                          fontSize: "15px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          fontStyle: "italic",
+                          background: "transparent",
+                          border: "1px dashed rgba(255,255,255,0.3)",
+                          borderRadius: "4px",
+                          color: "#fff",
+                          opacity: 0.9,
+                          outline: "none",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        onClick={() => setEditingField("quote")}
+                        style={{
+                          margin: 0,
+                          padding: "8px 12px",
+                          fontSize: "15px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          fontStyle: "italic",
+                          opacity: introQuote ? 0.9 : 0.4,
+                          cursor: "pointer",
+                          borderRadius: "8px",
+                          minHeight: "32px",
+                          transition: "all 0.2s ease",
+                          border: introQuote
+                            ? "none"
+                            : "1px dashed rgba(255,255,255,0.2)",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            "rgba(139, 92, 246, 0.1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        {introQuote ? (
+                          <>&quot;{introQuote}&quot;</>
+                        ) : (
+                          <span style={{ fontSize: "12px" }}>
+                            Click to add quote / hook
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Intro body - inline editable */}
+                    {editingField === "body" ? (
+                      <textarea
+                        value={introBody}
+                        onChange={(e) => setIntroBody(e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus
+                        rows={3}
+                        style={{
+                          width: "100%",
+                          margin: 0,
+                          padding: "8px 12px",
+                          fontSize: "15px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          background: "transparent",
+                          border: "1px dashed rgba(255,255,255,0.3)",
+                          borderRadius: "4px",
+                          color: "#fff",
+                          opacity: 0.85,
+                          outline: "none",
+                          resize: "vertical",
+                          fontFamily: "inherit",
+                        }}
+                      />
+                    ) : (
+                      <p
+                        onClick={() => setEditingField("body")}
+                        style={{
+                          margin: 0,
+                          padding: "8px 12px",
+                          fontSize: "15px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          opacity: 0.85,
+                          cursor: "pointer",
+                          borderRadius: "8px",
+                          minHeight: "24px",
+                          transition: "all 0.2s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            "rgba(139, 92, 246, 0.1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        {introBody}
+                      </p>
+                    )}
+
+                    {/* Divider */}
+                    <hr
+                      style={{
+                        width: "100%",
+                        border: "none",
+                        borderTop: "1px solid rgba(255,255,255,0.1)",
+                        paddingBottom: "12px",
+                        marginTop: "12px",
+                        marginBottom: "12px",
+                      }}
+                    />
+
+                    {/* Intro greeting - inline editable */}
+                    {editingField === "greeting" ? (
+                      <input
+                        type="text"
+                        value={introGreeting}
+                        onChange={(e) => setIntroGreeting(e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.target.blur();
+                          }
+                        }}
+                        placeholder="E.g. God Jul❤️"
+                        autoFocus
+                        style={{
+                          width: "100%",
+                          margin: 0,
+                          padding: "8px 12px",
+                          fontSize: "15px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          background: "transparent",
+                          border: "1px dashed rgba(255,255,255,0.3)",
+                          borderRadius: "4px",
+                          color: "#fff",
+                          opacity: 0.85,
+                          outline: "none",
+                        }}
+                      />
+                    ) : (
+                      <p
+                        onClick={() => setEditingField("greeting")}
+                        style={{
+                          margin: 0,
+                          padding: "8px 12px",
+                          fontSize: "15px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          opacity: 0.85,
+                          cursor: "pointer",
+                          borderRadius: "8px",
+                          minHeight: "24px",
+                          transition: "all 0.2s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            "rgba(139, 92, 246, 0.1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        {introGreeting}
+                      </p>
+                    )}
+
+                    {/* Intro note - inline editable */}
+                    {editingField === "note" ? (
+                      <input
+                        type="text"
+                        value={introNote}
+                        onChange={(e) => setIntroNote(e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.target.blur();
+                          }
+                        }}
+                        placeholder='E.g. "Mask och foto av @partillejohnny"'
+                        autoFocus
+                        style={{
+                          width: "100%",
+                          margin: 0,
+                          padding: "8px 12px",
+                          fontSize: "13px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          background: "transparent",
+                          border: "1px dashed rgba(255,255,255,0.3)",
+                          borderRadius: "4px",
+                          color: "#fff",
+                          opacity: 0.7,
+                          outline: "none",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        onClick={() => setEditingField("note")}
+                        style={{
+                          margin: 0,
+                          padding: "8px 12px",
+                          fontSize: "13px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          opacity: introNote ? 0.7 : 0.4,
+                          cursor: "pointer",
+                          borderRadius: "8px",
+                          minHeight: "24px",
+                          transition: "all 0.2s ease",
+                          border: introNote
+                            ? "none"
+                            : "1px dashed rgba(255,255,255,0.2)",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            "rgba(139, 92, 246, 0.1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        {introNote || (
+                          <span style={{ fontSize: "11px" }}>
+                            Click to add credits / note
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CTA Button (not editable - hardcoded in template) */}
+                    <div style={{ textAlign: "center", marginTop: "20px" }}>
+                      <button
+                        type="button"
+                        style={{
+                          padding: "10px 24px",
+                          borderRadius: "4px",
+                          border: "none",
+                          background: "#000000",
+                          color: "#ffffff",
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          cursor: "default",
+                        }}
+                      >
+                        TO EVENT
+                      </button>
+                    </div>
+
+                    {/* Signoff - inline editable */}
+                    {editingField === "signoff" ? (
+                      <input
+                        type="text"
+                        value={signoffText}
+                        onChange={(e) => setSignoffText(e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.target.blur();
+                          }
+                        }}
+                        placeholder="E.g. Puss och kram!"
+                        autoFocus
+                        style={{
+                          width: "100%",
+                          margin: 0,
+                          padding: "16px 12px 8px",
+                          fontSize: "15px",
+                          paddingTop: "16px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          background: "transparent",
+                          border: "1px dashed rgba(255,255,255,0.3)",
+                          borderRadius: "4px",
+                          color: "#fff",
+                          opacity: 0.85,
+                          outline: "none",
+                        }}
+                      />
+                    ) : (
+                      <p
+                        onClick={() => setEditingField("signoff")}
+                        style={{
+                          margin: 0,
+                          padding: "16px 12px 8px",
+                          fontSize: "15px",
+                          paddingTop: "16px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          opacity: 0.85,
+                          cursor: "pointer",
+                          borderRadius: "8px",
+                          minHeight: "24px",
+                          transition: "all 0.2s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            "rgba(139, 92, 246, 0.1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        {signoffText}
+                      </p>
+                    )}
+
+                    {/* Footer (read-only) */}
+                    <div
+                      style={{
+                        marginTop: "24px",
+                        paddingTop: "20px",
+                        borderTop: "2px solid rgba(255,255,255,0.1)",
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: 0,
+                          padding: 0,
+                          fontSize: "12px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          opacity: 0.6,
+                        }}
+                      >
+                        You are receiving this email because you opted in via
+                        our site.
+                        <br />
+                        <br />
+                        Want to change how you receive these emails?
+                        <br />
+                        You can{" "}
+                        <span
+                          style={{
+                            color: "#0670DB",
+                            textDecoration: "underline",
+                          }}
+                        >
+                          unsubscribe from this list
+                        </span>
+                        .
+                      </p>
+                      <p
+                        style={{
+                          margin: 0,
+                          padding: 0,
+                          fontSize: "12px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          textAlign: "center",
+                          opacity: 0.6,
+                        }}
+                      >
+                        Pullup.se
+                        <br />
+                        Lorensbergsgatan 3b
+                        <br />
+                        117 33, Stockholm
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </>
             )}
 
             <div
@@ -1229,7 +1750,20 @@ export function CrmTab() {
             >
               <button
                 type="button"
-                onClick={() => setShowSendModal(false)}
+                onClick={() => {
+                  setShowSendModal(false);
+                  // Reset all fields
+                  setSelectedTemplate("event");
+                  setSubjectLine("");
+                  setSelectedEventId("");
+                  setHeadlineText("");
+                  setIntroQuote("");
+                  setIntroBody("");
+                  setIntroGreeting("");
+                  setIntroNote("");
+                  setSignoffText("");
+                  setEditingField(null);
+                }}
                 style={{
                   padding: "10px 18px",
                   borderRadius: "8px",
@@ -1254,8 +1788,17 @@ export function CrmTab() {
                     "success"
                   );
                   setShowSendModal(false);
+                  // Reset all fields
+                  setSelectedTemplate("event");
                   setSubjectLine("");
                   setSelectedEventId("");
+                  setHeadlineText("");
+                  setIntroQuote("");
+                  setIntroBody("");
+                  setIntroGreeting("");
+                  setIntroNote("");
+                  setSignoffText("");
+                  setEditingField(null);
                 }}
                 style={{
                   padding: "10px 20px",

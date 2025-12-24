@@ -897,6 +897,7 @@ function mapPersonFromDb(dbPerson) {
     interestedIn: dbPerson.interested_in || null,
     importSource: dbPerson.import_source || null,
     importMetadata: dbPerson.import_metadata || null,
+    campaignsReceived: dbPerson.campaigns_received || [],
     createdAt: dbPerson.created_at,
     updatedAt: dbPerson.updated_at,
   };
@@ -3487,4 +3488,232 @@ function mapProfileToDb(profile) {
   if (profile.stripeConnectedAccountId !== undefined)
     dbProfile.stripe_connected_account_id = profile.stripeConnectedAccountId;
   return dbProfile;
+}
+
+// ---------------------------
+// Email Campaign CRUD
+// ---------------------------
+
+/**
+ * Create an email campaign
+ */
+export async function createEmailCampaign({
+  userId,
+  name,
+  templateType = "event",
+  eventId = null,
+  subject,
+  templateContent = {},
+  filterCriteria = {},
+  totalRecipients = 0,
+}) {
+  const { data, error } = await supabase
+    .from("email_campaigns")
+    .insert({
+      user_id: userId,
+      name,
+      template_type: templateType,
+      event_id: eventId,
+      subject,
+      template_content: templateContent,
+      filter_criteria: filterCriteria,
+      total_recipients: totalRecipients,
+      status: "queued",
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating email campaign:", error);
+    throw new Error(`Failed to create campaign: ${error.message}`);
+  }
+
+  return {
+    id: data.id,
+    userId: data.user_id,
+    name: data.name,
+    templateType: data.template_type,
+    eventId: data.event_id,
+    subject: data.subject,
+    templateContent: data.template_content,
+    filterCriteria: data.filter_criteria,
+    totalRecipients: data.total_recipients,
+    totalSent: data.total_sent || 0,
+    totalFailed: data.total_failed || 0,
+    status: data.status,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
+}
+
+/**
+ * Get email campaign by ID (with ownership check)
+ */
+export async function getEmailCampaign(campaignId, userId) {
+  const { data, error } = await supabase
+    .from("email_campaigns")
+    .select("*")
+    .eq("id", campaignId)
+    .eq("user_id", userId)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      // Not found
+      return null;
+    }
+    console.error("Error fetching email campaign:", error);
+    throw new Error(`Failed to fetch campaign: ${error.message}`);
+  }
+
+  return {
+    id: data.id,
+    userId: data.user_id,
+    name: data.name,
+    templateType: data.template_type,
+    eventId: data.event_id,
+    subject: data.subject,
+    templateContent: data.template_content,
+    filterCriteria: data.filter_criteria,
+    totalRecipients: data.total_recipients || 0,
+    totalSent: data.total_sent || 0,
+    totalFailed: data.total_failed || 0,
+    status: data.status,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    sentAt: data.sent_at,
+  };
+}
+
+/**
+ * Update email campaign status and stats
+ */
+export async function updateEmailCampaignStatus(
+  campaignId,
+  status,
+  stats = {}
+) {
+  const updates = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (stats.totalSent !== undefined) updates.total_sent = stats.totalSent;
+  if (stats.totalFailed !== undefined)
+    updates.total_failed = stats.totalFailed;
+  if (status === "sent" && !stats.sentAt) {
+    updates.sent_at = new Date().toISOString();
+  }
+  if (stats.sentAt) updates.sent_at = stats.sentAt;
+
+  const { data, error } = await supabase
+    .from("email_campaigns")
+    .update(updates)
+    .eq("id", campaignId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating email campaign:", error);
+    throw new Error(`Failed to update campaign: ${error.message}`);
+  }
+
+  return {
+    id: data.id,
+    status: data.status,
+    totalSent: data.total_sent || 0,
+    totalFailed: data.total_failed || 0,
+    sentAt: data.sent_at,
+  };
+}
+
+/**
+ * Add campaign ID to person's campaigns_received array
+ */
+export async function addCampaignToPerson(personId, campaignId) {
+  // Get current campaigns_received array
+  const { data: person, error: fetchError } = await supabase
+    .from("people")
+    .select("campaigns_received")
+    .eq("id", personId)
+    .single();
+
+  if (fetchError) {
+    console.error("Error fetching person:", fetchError);
+    throw new Error(`Failed to fetch person: ${fetchError.message}`);
+  }
+
+  const currentCampaigns = person.campaigns_received || [];
+  
+  // Only add if not already present
+  if (!currentCampaigns.includes(campaignId)) {
+    const updatedCampaigns = [...currentCampaigns, campaignId];
+
+    const { error: updateError } = await supabase
+      .from("people")
+      .update({ campaigns_received: updatedCampaigns })
+      .eq("id", personId);
+
+    if (updateError) {
+      console.error("Error updating person campaigns:", updateError);
+      throw new Error(`Failed to update person: ${updateError.message}`);
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Batch update multiple people with campaign ID
+ */
+export async function addCampaignToPeople(personIds, campaignId) {
+  if (!personIds || personIds.length === 0) return { updated: 0, errors: [] };
+
+  const errors = [];
+  let updated = 0;
+
+  // Process in batches to avoid overwhelming the database
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < personIds.length; i += BATCH_SIZE) {
+    const batch = personIds.slice(i, i + BATCH_SIZE);
+    
+    // Fetch all people in batch
+    const { data: people, error: fetchError } = await supabase
+      .from("people")
+      .select("id, campaigns_received")
+      .in("id", batch);
+
+    if (fetchError) {
+      console.error(`Error fetching batch ${i}:`, fetchError);
+      errors.push(...batch.map(id => ({ personId: id, error: fetchError.message })));
+      continue;
+    }
+
+    // Update each person
+    for (const person of people) {
+      try {
+        const currentCampaigns = person.campaigns_received || [];
+        if (!currentCampaigns.includes(campaignId)) {
+          const updatedCampaigns = [...currentCampaigns, campaignId];
+          
+          const { error: updateError } = await supabase
+            .from("people")
+            .update({ campaigns_received: updatedCampaigns })
+            .eq("id", person.id);
+
+          if (updateError) {
+            errors.push({ personId: person.id, error: updateError.message });
+          } else {
+            updated++;
+          }
+        } else {
+          updated++; // Already has campaign, count as updated
+        }
+      } catch (err) {
+        errors.push({ personId: person.id, error: err.message });
+      }
+    }
+  }
+
+  return { updated, errors };
 }

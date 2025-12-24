@@ -1778,27 +1778,90 @@ export function CrmTab() {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   if (!selectedEventId) {
                     showToast("Pick an event before sending.", "error");
                     return;
                   }
-                  showToast(
-                    `Email campaign queued to ${total.toLocaleString()} contacts.`,
-                    "success"
-                  );
-                  setShowSendModal(false);
-                  // Reset all fields
-                  setSelectedTemplate("event");
-                  setSubjectLine("");
-                  setSelectedEventId("");
-                  setHeadlineText("");
-                  setIntroQuote("");
-                  setIntroBody("");
-                  setIntroGreeting("");
-                  setIntroNote("");
-                  setSignoffText("");
-                  setEditingField(null);
+
+                  try {
+                    // Prepare campaign data
+                    const campaignData = {
+                      templateType: "event",
+                      eventId: selectedEventId,
+                      subject:
+                        subjectLine ||
+                        `You're invited to ${selectedEvent?.title}.`,
+                      templateContent: {
+                        headline: headlineText || selectedEvent?.title || "",
+                        introQuote: introQuote || "",
+                        introBody: introBody || "",
+                        introGreeting: introGreeting || "",
+                        introNote: introNote || "",
+                        signoffText: signoffText || "",
+                        ctaLabel: "TO EVENT",
+                      },
+                      filterCriteria: filters, // Current filter state
+                    };
+
+                    // Create campaign
+                    const response = await authenticatedFetch(
+                      "/host/crm/campaigns",
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(campaignData),
+                      }
+                    );
+
+                    if (!response.ok) {
+                      const errorData = await response.json();
+                      throw new Error(
+                        errorData.message || "Failed to create campaign"
+                      );
+                    }
+
+                    const { campaignId, totalRecipients } =
+                      await response.json();
+
+                    // Start sending
+                    const sendResponse = await authenticatedFetch(
+                      `/host/crm/campaigns/${campaignId}/send`,
+                      { method: "POST" }
+                    );
+
+                    if (!sendResponse.ok) {
+                      const errorData = await sendResponse.json();
+                      throw new Error(
+                        errorData.message || "Failed to start sending"
+                      );
+                    }
+
+                    // Show success
+                    showToast(
+                      `Email campaign queued to ${totalRecipients.toLocaleString()} contacts.`,
+                      "success"
+                    );
+
+                    // Close modal and reset
+                    setShowSendModal(false);
+                    setSelectedTemplate("event");
+                    setSubjectLine("");
+                    setSelectedEventId("");
+                    setHeadlineText("");
+                    setIntroQuote("");
+                    setIntroBody("");
+                    setIntroGreeting("");
+                    setIntroNote("");
+                    setSignoffText("");
+                    setEditingField(null);
+                  } catch (error) {
+                    console.error("Error sending campaign:", error);
+                    showToast(
+                      error.message || "Failed to send campaign",
+                      "error"
+                    );
+                  }
                 }}
                 style={{
                   padding: "10px 20px",

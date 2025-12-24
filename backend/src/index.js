@@ -3371,6 +3371,165 @@ app.delete("/host/crm/views/:viewId", requireAuth, async (req, res) => {
 });
 
 // ---------------------------
+// PROTECTED: Email Campaigns (requires auth)
+// ---------------------------
+
+// POST /host/crm/campaigns - Create email campaign
+app.post("/host/crm/campaigns", requireAuth, async (req, res) => {
+  try {
+    const {
+      templateType = "event",
+      eventId,
+      subject,
+      templateContent = {},
+      filterCriteria = {},
+    } = req.body;
+
+    // Validate required fields
+    if (!subject) {
+      return res.status(400).json({ error: "Subject is required" });
+    }
+
+    if (templateType === "event" && !eventId) {
+      return res
+        .status(400)
+        .json({ error: "Event ID is required for event campaigns" });
+    }
+
+    // Get event for name generation
+    let event = null;
+    let campaignName = `Campaign - ${new Date().toLocaleDateString()}`;
+
+    if (eventId) {
+      const { findEventById } = await import("./data.js");
+      event = await findEventById(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      campaignName = `Event Campaign - ${
+        event.title
+      } - ${new Date().toLocaleDateString()}`;
+    }
+
+    // Get recipients count using filterCriteria
+    const { getPeopleWithFilters } = await import("./data.js");
+    const result = await getPeopleWithFilters(
+      req.user.id,
+      filterCriteria,
+      "created_at",
+      "desc",
+      1, // Just need count
+      0
+    );
+
+    const totalRecipients = result.total || 0;
+
+    // Create campaign
+    const { createEmailCampaign } = await import("./data.js");
+    const campaign = await createEmailCampaign({
+      userId: req.user.id,
+      name: campaignName,
+      templateType,
+      eventId,
+      subject,
+      templateContent,
+      filterCriteria,
+      totalRecipients,
+    });
+
+    res.status(201).json({
+      campaignId: campaign.id,
+      totalRecipients,
+      status: campaign.status,
+    });
+  } catch (error) {
+    console.error("Error creating email campaign:", error);
+    res.status(500).json({
+      error: "Failed to create campaign",
+      message: error.message,
+    });
+  }
+});
+
+// POST /host/crm/campaigns/:campaignId/send - Send campaign
+app.post(
+  "/host/crm/campaigns/:campaignId/send",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { campaignId } = req.params;
+      const { sendCampaignInBatches } = await import(
+        "./services/campaignSender.js"
+      );
+      const { getEmailCampaign } = await import("./data.js");
+
+      // Verify campaign ownership
+      const campaign = await getEmailCampaign(campaignId, req.user.id);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+
+      // Check if already sent
+      if (campaign.status === "sent") {
+        return res.status(400).json({
+          error: "Campaign has already been sent",
+        });
+      }
+
+      // Update status to "sending" and start async sending
+      // Don't await - return immediately and let it process in background
+      sendCampaignInBatches(campaignId, req.user.id).catch((error) => {
+        console.error("Error sending campaign in background:", error);
+        // Status will be updated to "failed" by sendCampaignInBatches
+      });
+
+      res.json({
+        message: "Campaign sending started",
+        campaignId,
+        status: "sending",
+      });
+    } catch (error) {
+      console.error("Error starting campaign send:", error);
+      res.status(500).json({
+        error: "Failed to start campaign send",
+        message: error.message,
+      });
+    }
+  }
+);
+
+// GET /host/crm/campaigns/:campaignId - Get campaign status
+app.get("/host/crm/campaigns/:campaignId", requireAuth, async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const { getEmailCampaign } = await import("./data.js");
+
+    const campaign = await getEmailCampaign(campaignId, req.user.id);
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    res.json({
+      id: campaign.id,
+      name: campaign.name,
+      subject: campaign.subject,
+      status: campaign.status,
+      totalRecipients: campaign.totalRecipients,
+      totalSent: campaign.totalSent,
+      totalFailed: campaign.totalFailed,
+      createdAt: campaign.createdAt,
+      sentAt: campaign.sentAt,
+    });
+  } catch (error) {
+    console.error("Error fetching campaign:", error);
+    res.status(500).json({
+      error: "Failed to fetch campaign",
+      message: error.message,
+    });
+  }
+});
+
+// ---------------------------
 // PROTECTED: Create payment intent for event (requires auth, verifies ownership)
 // ---------------------------
 app.post(

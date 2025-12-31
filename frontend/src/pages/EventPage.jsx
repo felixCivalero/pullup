@@ -188,6 +188,16 @@ export function EventPage() {
     );
   }, [event, pendingPayment, handlePaymentSuccess]);
 
+  // Check if event has passed - MUST be called before any early returns to follow Rules of Hooks
+  const isEventPast = useMemo(() => {
+    if (!event) return false;
+    const now = new Date();
+    // Use endsAt if available, otherwise use startsAt
+    const eventEndTime = event.endsAt ? new Date(event.endsAt) : (event.startsAt ? new Date(event.startsAt) : null);
+    if (!eventEndTime) return false;
+    return now > eventEndTime;
+  }, [event]);
+
   useEffect(() => {
     async function loadEvent() {
       setLoading(true);
@@ -1012,9 +1022,11 @@ export function EventPage() {
             onClick={() => setShowRsvpForm(true)}
             fullWidth
             size="lg"
-            disabled={loading || !event}
+            disabled={loading || !event || isEventPast}
           >
-            {event?.ticketType === "paid" && event?.ticketPrice
+            {isEventPast
+              ? "Event has ended"
+              : event?.ticketType === "paid" && event?.ticketPrice
               ? (() => {
                   // Show base price (1 ticket) on button - total will be shown in modal
                   const baseTotal = event.ticketPrice; // 1 ticket

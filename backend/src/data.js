@@ -3599,8 +3599,7 @@ export async function updateEmailCampaignStatus(
   };
 
   if (stats.totalSent !== undefined) updates.total_sent = stats.totalSent;
-  if (stats.totalFailed !== undefined)
-    updates.total_failed = stats.totalFailed;
+  if (stats.totalFailed !== undefined) updates.total_failed = stats.totalFailed;
   if (status === "sent" && !stats.sentAt) {
     updates.sent_at = new Date().toISOString();
   }
@@ -3644,7 +3643,7 @@ export async function addCampaignToPerson(personId, campaignId) {
   }
 
   const currentCampaigns = person.campaigns_received || [];
-  
+
   // Only add if not already present
   if (!currentCampaigns.includes(campaignId)) {
     const updatedCampaigns = [...currentCampaigns, campaignId];
@@ -3676,7 +3675,7 @@ export async function addCampaignToPeople(personIds, campaignId) {
   const BATCH_SIZE = 50;
   for (let i = 0; i < personIds.length; i += BATCH_SIZE) {
     const batch = personIds.slice(i, i + BATCH_SIZE);
-    
+
     // Fetch all people in batch
     const { data: people, error: fetchError } = await supabase
       .from("people")
@@ -3685,7 +3684,9 @@ export async function addCampaignToPeople(personIds, campaignId) {
 
     if (fetchError) {
       console.error(`Error fetching batch ${i}:`, fetchError);
-      errors.push(...batch.map(id => ({ personId: id, error: fetchError.message })));
+      errors.push(
+        ...batch.map((id) => ({ personId: id, error: fetchError.message }))
+      );
       continue;
     }
 
@@ -3695,7 +3696,7 @@ export async function addCampaignToPeople(personIds, campaignId) {
         const currentCampaigns = person.campaigns_received || [];
         if (!currentCampaigns.includes(campaignId)) {
           const updatedCampaigns = [...currentCampaigns, campaignId];
-          
+
           const { error: updateError } = await supabase
             .from("people")
             .update({ campaigns_received: updatedCampaigns })

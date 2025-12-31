@@ -682,6 +682,10 @@ export function RsvpSuccessPage() {
                         width: "100%",
                         fontSize: "14px",
                         padding: "10px 16px",
+                        background: "rgba(255, 255, 255, 0.2)",
+                        color: "#fff",
+                        border: "1px solid rgba(255, 255, 255, 0.3)",
+                        fontWeight: 600,
                       }}
                     >
                       <FaCalendar size={16} />
@@ -842,6 +846,10 @@ export function RsvpSuccessPage() {
                           width: "100%",
                           fontSize: "14px",
                           padding: "10px 16px",
+                          background: "rgba(255, 255, 255, 0.2)",
+                          color: "#fff",
+                          border: "1px solid rgba(255, 255, 255, 0.3)",
+                          fontWeight: 600,
                         }}
                       >
                         <FaCalendar size={16} />

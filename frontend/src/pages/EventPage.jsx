@@ -2,6 +2,7 @@
 // Mobile-first, Instagram-friendly event page
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { PartyPopper } from "lucide-react";
 import {
   FaPaperPlane,
   FaInstagram,
@@ -9,6 +10,7 @@ import {
   FaCalendar,
   FaMapMarkerAlt,
 } from "react-icons/fa";
+import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { useToast } from "../components/Toast";
 import {
   getEventShareUrl,
@@ -24,6 +26,7 @@ import { Badge } from "../components/ui/Badge";
 import { publicFetch } from "../lib/api.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 import { logger } from "../lib/logger.js";
+import { colors } from "../theme/colors.js";
 
 export function EventPage() {
   const { slug } = useParams();
@@ -304,7 +307,7 @@ export function EventPage() {
           minHeight: "100vh",
           position: "relative",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            `${colors.gradientGlow}, ${colors.background}`,
           padding: "40px 16px",
         }}
       >
@@ -332,7 +335,7 @@ export function EventPage() {
           minHeight: "100vh",
           position: "relative",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            `${colors.gradientGlow}, ${colors.background}`,
           padding: "40px 16px",
         }}
       >
@@ -469,7 +472,7 @@ export function EventPage() {
         }
       } else if (bookingStatus === "CONFIRMED") {
         // Fully confirmed
-        message = "You're in 🎉";
+        message = "You're in!";
         if (wantsDinner && dinnerBookingStatus === "CONFIRMED") {
           subtext = "Your dinner time is confirmed. Check the details above.";
         }
@@ -973,7 +976,7 @@ export function EventPage() {
                     style={{
                       background: "none",
                       border: "none",
-                      color: "#a78bfa",
+                      color: colors.silverText,
                       fontSize: "14px",
                       fontWeight: 500,
                       cursor: "pointer",
@@ -1070,7 +1073,10 @@ export function EventPage() {
                     marginBottom: "8px",
                   }}
                 >
-                  🎉 You've got a spot!
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                    <SilverIcon as={PartyPopper} size={20} style={{ color: "#3b82f6" }} />
+                    You've got a spot!
+                  </span>
                 </div>
                 <div style={{ fontSize: "14px", opacity: 0.9 }}>
                   Your booking details are locked based on your original

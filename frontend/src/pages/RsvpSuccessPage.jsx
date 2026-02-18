@@ -1,6 +1,7 @@
 // frontend/src/pages/RsvpSuccessPage.jsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { FileText, ArrowLeft } from "lucide-react";
 import {
   FaPaperPlane,
   FaCalendar,
@@ -10,6 +11,7 @@ import {
   FaUtensils,
   FaWineGlass,
 } from "react-icons/fa";
+import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { getEventShareUrl, generateCalendarUrls } from "../lib/urlUtils";
 import { formatEventTime, formatReadableDateTime } from "../lib/dateUtils.js";
 import { Button } from "../components/ui/Button";
@@ -17,6 +19,7 @@ import { Badge } from "../components/ui/Badge";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
 import { useToast } from "../components/Toast";
 import { publicFetch } from "../lib/api.js";
+import { colors } from "../theme/colors.js";
 
 // Single Share Button Component (Instagram-style with conditional logic)
 // URL-only sharing to ensure rich previews (OG tags) are shown
@@ -195,21 +198,21 @@ export function RsvpSuccessPage() {
         : null;
 
       calendarDescription = `${event.description || ""}\n\n`;
-      calendarDescription += `🍽️ Dinner: ${dinnerTime}`;
+      calendarDescription += `Dinner: ${dinnerTime}`;
       if (booking.dinnerPartySize > 1) {
         calendarDescription += ` (${booking.dinnerPartySize} people)`;
       }
       if (eventStartTime && eventStartTime !== dinnerTime) {
-        calendarDescription += `\n🥂 Cocktails: ${eventStartTime}`;
+        calendarDescription += `\nCocktails: ${eventStartTime}`;
       }
       if (event.location) {
-        calendarDescription += `\n📍 Location: ${event.location}`;
+        calendarDescription += `\nLocation: ${event.location}`;
       }
     } else {
       // Event start is the anchor, add dinner info if applicable
       if (hasConfirmedDinner && booking?.dinnerTimeSlot) {
         const dinnerTime = formatEventTime(booking.dinnerTimeSlot);
-        calendarDescription += `\n\n🍽️ Dinner: ${dinnerTime}`;
+        calendarDescription += `\n\nDinner: ${dinnerTime}`;
         if (booking.dinnerPartySize > 1) {
           calendarDescription += ` (${booking.dinnerPartySize} people)`;
         }
@@ -217,10 +220,10 @@ export function RsvpSuccessPage() {
         booking?.wantsDinner &&
         booking?.dinnerBookingStatus === "WAITLIST"
       ) {
-        calendarDescription += `\n\n🍽️ Dinner: Waitlisted (host will notify if a spot opens)`;
+        calendarDescription += `\n\nDinner: Waitlisted (host will notify if a spot opens)`;
       }
       if (event.location) {
-        calendarDescription += `\n📍 Location: ${event.location}`;
+        calendarDescription += `\nLocation: ${event.location}`;
       }
     }
 
@@ -272,7 +275,7 @@ export function RsvpSuccessPage() {
           alignItems: "center",
           justifyContent: "center",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            `${colors.gradientGlow}, ${colors.background}`,
         }}
       >
         <div style={{ fontSize: "18px", opacity: 0.8 }}>Loading...</div>
@@ -289,7 +292,7 @@ export function RsvpSuccessPage() {
           alignItems: "center",
           justifyContent: "center",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            `${colors.gradientGlow}, ${colors.background}`,
         }}
       >
         <div style={{ fontSize: "18px", opacity: 0.8 }}>Event not found</div>
@@ -599,11 +602,11 @@ export function RsvpSuccessPage() {
                     style={{
                       marginBottom: "16px",
                       padding: "20px",
-                      background: "rgba(236, 72, 153, 0.15)",
+                      background: colors.silverRgbaHover,
                       borderRadius: "16px",
-                      border: "1px solid rgba(236, 72, 153, 0.3)",
+                      border: `1px solid ${colors.silverRgba}`,
                       backdropFilter: "blur(10px)",
-                      boxShadow: "0 4px 20px rgba(236, 72, 153, 0.15)",
+                      boxShadow: `0 4px 20px ${colors.silverShadow}`,
                     }}
                   >
                     <div
@@ -614,7 +617,7 @@ export function RsvpSuccessPage() {
                         marginBottom: "12px",
                         fontSize: "15px",
                         fontWeight: 600,
-                        color: "#f472b6",
+                        color: colors.silverText,
                       }}
                     >
                       <FaWineGlass
@@ -760,11 +763,11 @@ export function RsvpSuccessPage() {
                       style={{
                         marginBottom: "24px",
                         padding: "20px",
-                        background: "rgba(139, 92, 246, 0.15)",
+                        background: colors.silverRgbaHover,
                         borderRadius: "16px",
-                        border: "1px solid rgba(139, 92, 246, 0.3)",
+                        border: `1px solid ${colors.silverRgba}`,
                         backdropFilter: "blur(10px)",
-                        boxShadow: "0 4px 20px rgba(139, 92, 246, 0.15)",
+                        boxShadow: `0 4px 20px ${colors.silverShadow}`,
                       }}
                     >
                       <div
@@ -775,7 +778,7 @@ export function RsvpSuccessPage() {
                           marginBottom: "12px",
                           fontSize: "15px",
                           fontWeight: 600,
-                          color: "#a78bfa",
+                          color: colors.silverText,
                         }}
                       >
                         <FaUtensils
@@ -928,9 +931,9 @@ export function RsvpSuccessPage() {
                     padding: "24px",
                     background: "rgba(20, 16, 30, 0.95)",
                     borderRadius: "16px",
-                    border: "2px solid rgba(139, 92, 246, 0.3)",
+                    border: `2px solid ${colors.silverRgba}`,
                     backdropFilter: "blur(10px)",
-                    boxShadow: "0 8px 32px rgba(139, 92, 246, 0.2)",
+                    boxShadow: `0 8px 32px ${colors.silverShadow}`,
                   }}
                 >
                   {/* Receipt Header */}
@@ -938,7 +941,7 @@ export function RsvpSuccessPage() {
                     style={{
                       marginBottom: "20px",
                       paddingBottom: "16px",
-                      borderBottom: "2px solid rgba(139, 92, 246, 0.3)",
+                      borderBottom: `2px solid ${colors.silverRgba}`,
                     }}
                   >
                     <div
@@ -1046,12 +1049,12 @@ export function RsvpSuccessPage() {
                           style={{
                             fontSize: "20px",
                             fontWeight: 700,
-                            color: "#a78bfa",
+                            color: colors.silverText,
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
                             paddingTop: "16px",
-                            borderTop: "2px solid rgba(139, 92, 246, 0.3)",
+                            borderTop: `2px solid ${colors.silverRgba}`,
                           }}
                         >
                           <span>Total Paid</span>
@@ -1110,7 +1113,7 @@ export function RsvpSuccessPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{
-                            color: "#a78bfa",
+                            color: colors.silverText,
                             textDecoration: "underline",
                             fontSize: "12px",
                             display: "inline-flex",
@@ -1118,7 +1121,7 @@ export function RsvpSuccessPage() {
                             gap: "6px",
                           }}
                         >
-                          <span>📄</span>
+                          <SilverIcon as={FileText} size={16} />
                           <span>View Receipt</span>
                         </a>
                       </div>
@@ -1158,7 +1161,7 @@ export function RsvpSuccessPage() {
               style={{
                 background: "none",
                 border: "none",
-                color: "#a78bfa",
+                color: colors.silverText,
                 cursor: "pointer",
                 textDecoration: "underline",
                 fontSize: "14px",

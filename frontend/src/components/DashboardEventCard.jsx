@@ -45,7 +45,7 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.3)";
+        e.currentTarget.style.borderColor = "rgba(192, 192, 192, 0.3)";
         e.currentTarget.style.boxShadow = "0 10px 30px rgba(0,0,0,0.3)";
       }}
       onMouseLeave={(e) => {
@@ -192,7 +192,7 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
             padding: "8px 16px",
             borderRadius: "999px",
             border: "none",
-            background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+            background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
             color: "#fff",
             fontWeight: 600,
             fontSize: "13px",
@@ -201,7 +201,7 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
           }}
           onMouseEnter={(e) => {
             e.target.style.transform = "translateY(-1px)";
-            e.target.style.boxShadow = "0 8px 20px rgba(139, 92, 246, 0.4)";
+            e.target.style.boxShadow = "0 8px 20px rgba(192, 192, 192, 0.4)";
           }}
           onMouseLeave={(e) => {
             e.target.style.transform = "translateY(0)";

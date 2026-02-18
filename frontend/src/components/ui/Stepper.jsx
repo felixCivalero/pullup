@@ -1,4 +1,6 @@
 // frontend/src/components/ui/Stepper.jsx
+import { colors } from "../../theme/colors.js";
+
 export function Stepper({
   value,
   onChange,
@@ -45,7 +47,7 @@ export function Stepper({
             background:
               value <= min
                 ? "rgba(255, 255, 255, 0.05)"
-                : "rgba(139, 92, 246, 0.2)",
+                : colors.silverRgbaHover,
             color: value <= min ? "rgba(255, 255, 255, 0.3)" : "#fff",
             fontSize: "22px",
             fontWeight: 600,
@@ -58,12 +60,12 @@ export function Stepper({
           }}
           onMouseEnter={(e) => {
             if (value > min) {
-              e.target.style.background = "rgba(139, 92, 246, 0.3)";
+              e.target.style.background = colors.silverRgba;
             }
           }}
           onMouseLeave={(e) => {
             if (value > min) {
-              e.target.style.background = "rgba(139, 92, 246, 0.2)";
+              e.target.style.background = colors.silverRgbaHover;
             }
           }}
         >
@@ -92,7 +94,7 @@ export function Stepper({
             background:
               value >= max
                 ? "rgba(255, 255, 255, 0.05)"
-                : "rgba(139, 92, 246, 0.2)",
+                : colors.silverRgbaHover,
             color: value >= max ? "rgba(255, 255, 255, 0.3)" : "#fff",
             fontSize: "22px",
             fontWeight: 600,
@@ -105,12 +107,12 @@ export function Stepper({
           }}
           onMouseEnter={(e) => {
             if (value < max) {
-              e.target.style.background = "rgba(139, 92, 246, 0.3)";
+              e.target.style.background = colors.silverRgba;
             }
           }}
           onMouseLeave={(e) => {
             if (value < max) {
-              e.target.style.background = "rgba(139, 92, 246, 0.2)";
+              e.target.style.background = colors.silverRgbaHover;
             }
           }}
         >

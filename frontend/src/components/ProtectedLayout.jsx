@@ -79,17 +79,33 @@ export function ProtectedLayout() {
             cursor: "pointer",
           }}
         >
-          PullUp {isHome ? "· Home" : ""}
+          PullUp
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <button
+            onClick={() => handleNav("/home")}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#fff",
+              fontWeight: 600,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              fontSize: "12px",
+              cursor: "pointer",
+            }}
+          >
+            Profile
+          </button>
           <button
             onClick={() => handleNav(isCreatingEvent ? "/home" : "/create")}
             style={{
               padding: "10px 18px",
               borderRadius: "999px",
               border: "none",
-              background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+              background:
+                "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
               color: "#fff",
               fontWeight: 600,
               fontSize: "clamp(11px, 2.5vw, 12px)",
@@ -97,17 +113,17 @@ export function ProtectedLayout() {
               textTransform: "uppercase",
               cursor: "pointer",
               transition: "all 0.3s ease",
-              boxShadow: "0 4px 12px rgba(139, 92, 246, 0.3)",
+              boxShadow: "0 4px 12px rgba(192, 192, 192, 0.3)",
               whiteSpace: "nowrap",
               touchAction: "manipulation",
             }}
             onMouseEnter={(e) => {
               e.target.style.transform = "translateY(-1px)";
-              e.target.style.boxShadow = "0 6px 16px rgba(139, 92, 246, 0.4)";
+              e.target.style.boxShadow = "0 6px 16px rgba(192, 192, 192, 0.4)";
             }}
             onMouseLeave={(e) => {
               e.target.style.transform = "translateY(0)";
-              e.target.style.boxShadow = "0 4px 12px rgba(139, 92, 246, 0.3)";
+              e.target.style.boxShadow = "0 4px 12px rgba(192, 192, 192, 0.3)";
             }}
           >
             {isCreatingEvent ? "Go to Profile" : "+ create event"}

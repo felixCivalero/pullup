@@ -1,6 +1,9 @@
 // frontend/src/components/WaitlistStatusBadge.jsx
 // Status badge for waitlist payment links
 
+import { Clock, Mail, Timer, Check } from "lucide-react";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
+
 function formatRelativeTime(dateString) {
   const date = new Date(dateString);
   const now = new Date();
@@ -51,25 +54,25 @@ export function WaitlistStatusBadge({ rsvp }) {
   const config = {
     WAITLIST: {
       label: "Waitlist",
-      icon: "⏳",
+      icon: <SilverIcon as={Clock} size={12} style={{ color: "#9ca3af" }} />,
       color: "#9ca3af",
       bgColor: "rgba(156, 163, 175, 0.1)",
     },
     LINK_SENT: {
       label: "Link Sent",
-      icon: "📧",
+      icon: <SilverIcon as={Mail} size={12} style={{ color: "#3b82f6" }} />,
       color: "#3b82f6",
       bgColor: "rgba(59, 130, 246, 0.1)",
     },
     LINK_EXPIRED: {
       label: "Link Expired",
-      icon: "⏰",
+      icon: <SilverIcon as={Timer} size={12} style={{ color: "#f59e0b" }} />,
       color: "#f59e0b",
       bgColor: "rgba(245, 158, 11, 0.1)",
     },
     CONFIRMED: {
       label: "Paid & Confirmed",
-      icon: "✅",
+      icon: <SilverIcon as={Check} size={12} style={{ color: "#10b981" }} />,
       color: "#10b981",
       bgColor: "rgba(16, 185, 129, 0.1)",
     },

@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Zap, Camera } from "lucide-react";
 import { useToast } from "../components/Toast";
+import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
 import { getEventShareUrl, generateCalendarUrls } from "../lib/urlUtils";
 import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
@@ -252,12 +254,12 @@ export function PostEventPage() {
           if (err?.name === "AbortError") return;
           // Error - fallback to copy
           navigator.clipboard.writeText(shareUrl);
-          showToast("Link copied to clipboard! 📋", "success");
+          showToast("Link copied to clipboard!", "success");
         });
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(shareUrl);
-      showToast("Link copied to clipboard! 📋", "success");
+      showToast("Link copied to clipboard!", "success");
     }
   }
 
@@ -290,16 +292,21 @@ export function PostEventPage() {
               padding: "0",
             }}
           >
-            ← Back
+            <ArrowLeft size={18} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }} />
+            Back
           </button>
           <h1
             style={{
               fontSize: "28px",
               fontWeight: 700,
               marginBottom: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
             }}
           >
-            Post event quick ⚡
+            Post event quick
+            <SilverIcon as={Zap} size={28} />
           </h1>
           <p style={{ fontSize: "14px", opacity: 0.7 }}>
             Create and share in seconds
@@ -476,8 +483,8 @@ export function PostEventPage() {
             >
               {!imagePreview && (
                 <>
-                  <div style={{ fontSize: "32px", marginBottom: "8px" }}>
-                    📷
+                  <div style={{ marginBottom: "8px", display: "flex", justifyContent: "center" }}>
+                    <SilverIcon as={Camera} size={32} />
                   </div>
                   <div style={{ fontSize: "14px", opacity: 0.7 }}>
                     Tap to add image
@@ -551,7 +558,7 @@ export function PostEventPage() {
             background:
               loading || !title.trim() || !startsAt
                 ? "rgba(255,255,255,0.1)"
-                : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
             color: "#fff",
             fontSize: "18px",
             fontWeight: 700,
@@ -560,7 +567,12 @@ export function PostEventPage() {
             opacity: loading || !title.trim() || !startsAt ? 0.5 : 1,
           }}
         >
-          {loading ? "Posting..." : "⚡ Post Event"}
+          {loading ? "Posting..." : (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <Zap size={20} style={{ color: "currentColor" }} />
+              Post Event
+            </span>
+          )}
         </button>
       </div>
     </div>

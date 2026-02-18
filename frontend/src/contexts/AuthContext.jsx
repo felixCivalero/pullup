@@ -30,6 +30,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signInWithGoogle = async (returnTo = null) => {
+    // Always use current origin so same Supabase project works on localhost and production
     const redirectTo = returnTo
       ? `${window.location.origin}${returnTo}`
       : `${window.location.origin}/home`;

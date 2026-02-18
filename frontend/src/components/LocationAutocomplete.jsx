@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { Loader2, MapPin } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 // Enhanced location picker with autocomplete and current location
 // Uses backend endpoint which supports Google Places API (with fallback to Nominatim)
@@ -281,9 +283,9 @@ export function LocationAutocomplete({
             marginLeft: "8px",
             padding: "10px 14px",
             background: isGettingLocation
-              ? "rgba(139, 92, 246, 0.3)"
-              : "rgba(139, 92, 246, 0.15)",
-            border: "1px solid rgba(139, 92, 246, 0.3)",
+              ? "rgba(192, 192, 192, 0.3)"
+              : "rgba(192, 192, 192, 0.15)",
+            border: "1px solid rgba(192, 192, 192, 0.3)",
             borderRadius: "10px",
             color: "#fff",
             fontSize: "13px",
@@ -298,17 +300,17 @@ export function LocationAutocomplete({
           }}
           onMouseEnter={(e) => {
             if (!disabled && !isGettingLocation) {
-              e.target.style.background = "rgba(139, 92, 246, 0.25)";
+              e.target.style.background = "rgba(192, 192, 192, 0.25)";
             }
           }}
           onMouseLeave={(e) => {
             if (!disabled && !isGettingLocation) {
-              e.target.style.background = "rgba(139, 92, 246, 0.15)";
+              e.target.style.background = "rgba(192, 192, 192, 0.15)";
             }
           }}
         >
           <span style={{ fontSize: "16px" }}>
-            {isGettingLocation ? "⏳" : ""}
+            {isGettingLocation ? <SilverIcon as={Loader2} size={16} /> : null}
           </span>
           <span style={{ display: isGettingLocation ? "none" : "inline" }}>
             Current
@@ -384,7 +386,7 @@ export function LocationAutocomplete({
                   width: "100%",
                   padding: "14px 16px",
                   background: isSelected
-                    ? "rgba(139, 92, 246, 0.2)"
+                    ? "rgba(192, 192, 192, 0.2)"
                     : "transparent",
                   border: "none",
                   textAlign: "left",
@@ -411,7 +413,7 @@ export function LocationAutocomplete({
                     marginTop: "2px",
                   }}
                 >
-                  📍
+                  <SilverIcon as={MapPin} size={18} />
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div

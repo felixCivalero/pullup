@@ -2,7 +2,9 @@
 // Extracted overview stats for ManageEventPage
 
 import React from "react";
+import { BarChart2, Wine, ClipboardList, Check, UtensilsCrossed } from "lucide-react";
 import { formatEventTime } from "../lib/dateUtils.js";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 // Reuse StatCard shape from ManageEventPage via props
 export function EventOverviewStats({
@@ -110,7 +112,7 @@ export function EventOverviewStats({
         {totalCapacity != null && (
           <div style={{ position: "relative" }}>
             <StatCard
-              icon="📊"
+              icon={<SilverIcon as={BarChart2} size={24} />}
               label="Total Capacity"
               value={`${attending}/${totalCapacity}`}
               color={totalOverCapacity > 0 ? "#f59e0b" : "#fff"}
@@ -139,7 +141,7 @@ export function EventOverviewStats({
         {cocktailCapacity != null && (
           <div style={{ position: "relative" }}>
             <StatCard
-              icon="🥂"
+              icon={<SilverIcon as={Wine} size={24} />}
               label="Cocktail Capacity"
               value={`${stats.cocktailsOnly}/${cocktailCapacity}`}
               color={cocktailOverCapacity > 0 ? "#f59e0b" : "#f59e0b"}
@@ -166,14 +168,14 @@ export function EventOverviewStats({
         )}
 
         <StatCard
-          icon="📋"
+          icon={<SilverIcon as={ClipboardList} size={24} />}
           label="Waitlist"
           value={stats.waitlist}
-          color="#ec4899"
+          color="#c0c0c0"
         />
 
         <StatCard
-          icon="✓"
+          icon={<SilverIcon as={Check} size={24} />}
           label="Pulled Up"
           value={`${stats.pulledUpTotal}/${attending}`}
           color="#10b981"
@@ -202,7 +204,7 @@ export function EventOverviewStats({
                 marginBottom: "24px",
               }}
             >
-              <span style={{ fontSize: "22px" }}>🍽️</span>
+              <SilverIcon as={UtensilsCrossed} size={22} style={{ color: "#10b981" }} />
               <div
                 style={{
                   fontSize: "16px",

@@ -1,8 +1,10 @@
 // frontend/src/components/EventGuestsTable.jsx
 // Presentational table for event guests list (host view)
 
+import { Users } from "lucide-react";
 import { CombinedStatusBadge } from "../pages/EventGuestsPage.jsx";
 import { formatEventTime, formatEventDate } from "../lib/dateUtils.js";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 function SortableHeader({
   column,
@@ -75,7 +77,7 @@ export function EventGuestsTable({
             opacity: 0.5,
           }}
         >
-          👥
+          <SilverIcon as={Users} size={48} />
         </div>
         <div style={{ fontSize: "16px", opacity: 0.7 }}>
           {searchQuery.trim()
@@ -108,8 +110,8 @@ export function EventGuestsTable({
           <tr
             style={{
               background:
-                "linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.1) 100%)",
-              borderBottom: "2px solid rgba(139, 92, 246, 0.3)",
+                "linear-gradient(135deg, rgba(192, 192, 192, 0.15) 0%, rgba(232, 232, 232, 0.08) 100%)",
+              borderBottom: "2px solid rgba(192, 192, 192, 0.3)",
             }}
           >
             <SortableHeader
@@ -230,7 +232,7 @@ export function EventGuestsTable({
                 cursor: "pointer",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(139, 92, 246, 0.08)";
+                e.currentTarget.style.background = "rgba(192, 192, 192, 0.08)";
                 e.currentTarget.style.transform = "scale(1.002)";
               }}
               onMouseLeave={(e) => {

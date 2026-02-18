@@ -1,10 +1,12 @@
 // frontend/src/components/ui/Badge.jsx
+import { colors } from "../../theme/colors.js";
+
 export function Badge({ children, variant = "default", ...props }) {
   const variants = {
     default: {
-      background: "rgba(139, 92, 246, 0.2)",
-      border: "1px solid rgba(139, 92, 246, 0.4)",
-      color: "#a78bfa",
+      background: colors.silverRgbaHover,
+      border: `1px solid ${colors.silverRgba}`,
+      color: colors.silverText,
     },
     success: {
       background: "rgba(16, 185, 129, 0.2)",

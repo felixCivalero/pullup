@@ -3,11 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../contexts/AuthContext";
 
-import { ProfileHeader } from "../components/HomeProfileHeader";
 import { TabButton } from "../components/HomeTabs";
 import { EventsTab } from "../components/HomeEventsTab";
-import { SettingsTab } from "../components/HomeSettingsTab";
-import { IntegrationsTab } from "../components/HomeIntegrationsTab";
 import { CrmTab } from "../components/HomeCrmTab";
 
 import { authenticatedFetch } from "../lib/api.js";
@@ -189,7 +186,7 @@ export function HomePage() {
           minHeight: "100vh",
           position: "relative",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
         }}
       >
         <div className="responsive-container responsive-container-wide">
@@ -218,7 +215,7 @@ export function HomePage() {
           minHeight: "100vh",
           position: "relative",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
         }}
       >
         <div className="responsive-container responsive-container-wide">
@@ -253,7 +250,7 @@ export function HomePage() {
         minHeight: "100vh",
         position: "relative",
         background:
-          "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
         paddingBottom: "clamp(20px, 5vw, 40px)",
       }}
     >
@@ -265,7 +262,7 @@ export function HomePage() {
           height: "600px",
           borderRadius: "50%",
           background:
-            "radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%)",
+            "radial-gradient(circle, rgba(192, 192, 192, 0.08) 0%, transparent 70%)",
           left: mousePosition.x - 300,
           top: mousePosition.y - 300,
           pointerEvents: "none",
@@ -297,15 +294,6 @@ export function HomePage() {
             border: "1px solid rgba(255,255,255,0.05)",
           }}
         >
-          {/* Profile header */}
-          <ProfileHeader
-            user={user}
-            stats={stats}
-            setUser={setUser}
-            onSave={handleSaveProfile}
-            showToast={showToast}
-          />
-
           {/* Main tabs - responsive for mobile */}
           <div
             style={{
@@ -329,16 +317,6 @@ export function HomePage() {
               active={activeTab === "crm"}
               onClick={() => setActiveTab("crm")}
             />
-            <TabButton
-              label="Integrations"
-              active={activeTab === "integrations"}
-              onClick={() => setActiveTab("integrations")}
-            />
-            <TabButton
-              label="Settings"
-              active={activeTab === "settings"}
-              onClick={() => setActiveTab("settings")}
-            />
           </div>
 
           {/* Tab content */}
@@ -349,17 +327,6 @@ export function HomePage() {
               setEventFilter={setEventFilter}
             />
           )}
-
-          {activeTab === "settings" && (
-            <SettingsTab
-              user={user}
-              setUser={setUser}
-              onSave={handleSaveProfile}
-              showToast={showToast}
-            />
-          )}
-
-          {activeTab === "integrations" && <IntegrationsTab />}
 
           {activeTab === "crm" && <CrmTab />}
         </div>
@@ -372,7 +339,7 @@ const primaryBtn = {
   padding: "12px 24px",
   borderRadius: "999px",
   border: "none",
-  background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+  background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
   color: "#fff",
   fontWeight: 600,
   fontSize: 14,

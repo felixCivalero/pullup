@@ -6,13 +6,13 @@ export function TabButton({ label, count, active, onClick }) {
         padding: "clamp(6px, 1.5vw, 8px) clamp(8px, 2vw, 14px)",
         borderRadius: "8px",
         border: "none",
-        background: active ? "rgba(139, 92, 246, 0.2)" : "transparent",
+        background: active ? "rgba(192, 192, 192, 0.2)" : "transparent",
         color: active ? "#fff" : "rgba(255,255,255,0.6)",
         fontWeight: active ? 600 : 500,
         fontSize: "clamp(11px, 2.5vw, 14px)",
         cursor: "pointer",
         transition: "all 0.2s ease",
-        borderBottom: active ? "2px solid #8b5cf6" : "2px solid transparent",
+        borderBottom: active ? "2px solid #c0c0c0" : "2px solid transparent",
         marginBottom: "-12px",
         display: "flex",
         alignItems: "center",
@@ -26,7 +26,7 @@ export function TabButton({ label, count, active, onClick }) {
       onMouseEnter={(e) => {
         if (!active) {
           e.target.style.color = "rgba(255,255,255,0.9)";
-          e.target.style.background = "rgba(139, 92, 246, 0.1)";
+          e.target.style.background = "rgba(192, 192, 192, 0.1)";
         }
       }}
       onMouseLeave={(e) => {
@@ -45,7 +45,7 @@ export function TabButton({ label, count, active, onClick }) {
             padding: "2px clamp(4px, 1vw, 6px)",
             borderRadius: "12px",
             background: active
-              ? "rgba(139, 92, 246, 0.3)"
+              ? "rgba(192, 192, 192, 0.3)"
               : "rgba(255,255,255,0.1)",
             fontSize: "clamp(9px, 2vw, 11px)",
             fontWeight: 600,
@@ -69,7 +69,7 @@ export function FilterButton({ label, count, active, onClick }) {
         padding: "6px 12px",
         borderRadius: "8px",
         border: "none",
-        background: active ? "rgba(139, 92, 246, 0.15)" : "transparent",
+        background: active ? "rgba(192, 192, 192, 0.15)" : "transparent",
         color: active ? "#fff" : "rgba(255,255,255,0.6)",
         fontWeight: active ? 600 : 500,
         fontSize: "13px",
@@ -82,7 +82,7 @@ export function FilterButton({ label, count, active, onClick }) {
       onMouseEnter={(e) => {
         if (!active) {
           e.target.style.color = "rgba(255,255,255,0.9)";
-          e.target.style.background = "rgba(139, 92, 246, 0.08)";
+          e.target.style.background = "rgba(192, 192, 192, 0.08)";
         }
       }}
       onMouseLeave={(e) => {
@@ -99,7 +99,7 @@ export function FilterButton({ label, count, active, onClick }) {
             padding: "2px 6px",
             borderRadius: "10px",
             background: active
-              ? "rgba(139, 92, 246, 0.3)"
+              ? "rgba(192, 192, 192, 0.3)"
               : "rgba(255,255,255,0.1)",
             fontSize: "11px",
             fontWeight: 600,

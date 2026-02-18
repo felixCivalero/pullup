@@ -1,7 +1,23 @@
 // src/components/HomeSettingsTab.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Camera,
+  Music,
+  Briefcase,
+  Globe,
+  Lock,
+  Shield,
+  Key,
+  Monitor,
+  LogOut,
+  AlertTriangle,
+  RefreshCw,
+  Apple,
+  Video,
+} from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 export function SettingsTab({ user, setUser, onSave, showToast }) {
   const navigate = useNavigate();
@@ -250,7 +266,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: "18px", flexShrink: 0 }}>📷</span>
+                  <SilverIcon as={Camera} size={18} />
                   <span
                     style={{
                       fontSize: "14px",
@@ -376,7 +392,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: "18px", flexShrink: 0 }}>🎵</span>
+                  <SilverIcon as={Music} size={18} />
                   <span
                     style={{
                       fontSize: "14px",
@@ -413,7 +429,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: "18px", flexShrink: 0 }}>💼</span>
+                  <SilverIcon as={Briefcase} size={18} />
                   <span
                     style={{
                       fontSize: "14px",
@@ -450,7 +466,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: "18px", flexShrink: 0 }}>🌐</span>
+                  <SilverIcon as={Globe} size={18} />
                   <input
                     type="text"
                     value={brandingLinks.website}
@@ -485,7 +501,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
               padding: "8px 16px",
               borderRadius: "8px",
               border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(139, 92, 246, 0.2)",
+              background: "rgba(192, 192, 192, 0.2)",
               color: "#fff",
               fontSize: "14px",
               fontWeight: 600,
@@ -548,7 +564,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     style={{
                       padding: "4px 10px",
                       borderRadius: "12px",
-                      background: "rgba(139, 92, 246, 0.2)",
+                      background: "rgba(192, 192, 192, 0.2)",
                       fontSize: "11px",
                       fontWeight: 600,
                     }}
@@ -602,7 +618,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
               padding: "12px 20px",
               borderRadius: "12px",
               border: "none",
-              background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+              background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
               color: "#fff",
               fontWeight: 600,
               fontSize: "14px",
@@ -631,19 +647,19 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <SecurityItem
-            icon="🔒"
+            icon={<SilverIcon as={Lock} size={18} />}
             title="Account Password"
             description="Please follow the instructions in the email to finish setting your password."
             buttonText="Set Password"
           />
           <SecurityItem
-            icon="🛡️"
+            icon={<SilverIcon as={Shield} size={18} />}
             title="Two-Factor Authentication"
             description="Please set a password before enabling two-factor authentication."
             buttonText="Enable 2FA"
           />
           <SecurityItem
-            icon="🔑"
+            icon={<SilverIcon as={Key} size={18} />}
             title="Passkeys"
             description="Passkeys are a secure and convenient way to sign in."
             buttonText="Add Passkey"
@@ -686,8 +702,8 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
               >
                 <span style={{ fontSize: "20px" }}>
                   {account.id === "google" && "G"}
-                  {account.id === "apple" && "🍎"}
-                  {account.id === "zoom" && "📹"}
+                  {account.id === "apple" && <SilverIcon as={Apple} size={18} />}
+                  {account.id === "zoom" && <SilverIcon as={Video} size={18} />}
                   {account.id === "solana" && "S"}
                   {account.id === "ethereum" && "Ξ"}
                 </span>
@@ -715,7 +731,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                     : "none",
                   background: account.linked
                     ? "transparent"
-                    : "rgba(139, 92, 246, 0.2)",
+                    : "rgba(192, 192, 192, 0.2)",
                   color: "#fff",
                   fontSize: "12px",
                   fontWeight: 600,
@@ -767,7 +783,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                 gap: "12px",
               }}
             >
-              <span style={{ fontSize: "20px" }}>💻</span>
+              <SilverIcon as={Monitor} size={20} />
               <div style={{ flex: 1 }}>
                 <div
                   style={{
@@ -830,7 +846,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
             e.target.style.background = "rgba(255,255,255,0.05)";
           }}
         >
-          <span>🚪</span>
+          <SilverIcon as={LogOut} size={18} />
           <span>Sign Out</span>
         </button>
       </SettingsSection>
@@ -863,7 +879,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
             e.target.style.background = "rgba(239, 68, 68, 0.2)";
           }}
         >
-          <span>⚠️</span>
+          <SilverIcon as={AlertTriangle} size={18} style={{ color: "#f59e0b" }} />
           <span>Delete My Account</span>
         </button>
       </SettingsSection>
@@ -877,12 +893,12 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
           padding: "14px 28px",
           borderRadius: "999px",
           border: "none",
-          background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+          background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
           color: "#fff",
           fontWeight: 700,
           fontSize: "15px",
           cursor: "pointer",
-          boxShadow: "0 10px 30px rgba(139, 92, 246, 0.4)",
+          boxShadow: "0 10px 30px rgba(192, 192, 192, 0.4)",
           transition: "all 0.3s ease",
           textTransform: "uppercase",
           letterSpacing: "0.05em",
@@ -891,7 +907,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
           gap: "8px",
         }}
       >
-        <span>🔄</span>
+        <SilverIcon as={RefreshCw} size={18} />
         <span>Save Changes</span>
       </button>
     </div>
@@ -970,7 +986,7 @@ export function SecurityItem({ icon, title, description, buttonText }) {
           padding: "8px 16px",
           borderRadius: "8px",
           border: "1px solid rgba(255,255,255,0.1)",
-          background: "rgba(139, 92, 246, 0.2)",
+          background: "rgba(192, 192, 192, 0.2)",
           color: "#fff",
           fontSize: "13px",
           fontWeight: 600,

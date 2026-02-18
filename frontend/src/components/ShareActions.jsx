@@ -3,7 +3,9 @@
 // This guarantees the OG card is the only thing that shows in chat apps.
 
 import { useState, useEffect } from "react";
+import { Link2, ClipboardList } from "lucide-react";
 import { useToast } from "./Toast";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 export function ShareActions({ url }) {
   const { showToast } = useToast();
@@ -64,8 +66,8 @@ export function ShareActions({ url }) {
         style={{
           padding: isMobile ? "10px 14px" : "10px 20px",
           borderRadius: "10px",
-          border: "1px solid rgba(139, 92, 246, 0.3)",
-          background: "rgba(139, 92, 246, 0.1)",
+          border: "1px solid rgba(192, 192, 192, 0.3)",
+          background: "rgba(192, 192, 192, 0.1)",
           color: "#a78bfa",
           fontWeight: 600,
           fontSize: isMobile ? "13px" : "14px",
@@ -79,18 +81,18 @@ export function ShareActions({ url }) {
         }}
         onMouseEnter={(e) => {
           if (!copying) {
-            e.target.style.background = "rgba(139, 92, 246, 0.2)";
-            e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+            e.target.style.background = "rgba(192, 192, 192, 0.2)";
+            e.target.style.borderColor = "rgba(192, 192, 192, 0.5)";
           }
         }}
         onMouseLeave={(e) => {
           if (!copying) {
-            e.target.style.background = "rgba(139, 92, 246, 0.1)";
-            e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+            e.target.style.background = "rgba(192, 192, 192, 0.1)";
+            e.target.style.borderColor = "rgba(192, 192, 192, 0.3)";
           }
         }}
       >
-        <span style={{ fontSize: isMobile ? "16px" : "18px" }}>🔗</span>
+        <SilverIcon as={Link2} size={isMobile ? 16 : 18} />
         {!isMobile && <span>Share</span>}
       </button>
 
@@ -126,7 +128,7 @@ export function ShareActions({ url }) {
           }
         }}
       >
-        <span style={{ fontSize: isMobile ? "16px" : "18px" }}>📋</span>
+        <SilverIcon as={ClipboardList} size={isMobile ? 16 : 18} />
         {!isMobile && <span>{copying ? "Copying..." : "Copy link"}</span>}
       </button>
     </div>

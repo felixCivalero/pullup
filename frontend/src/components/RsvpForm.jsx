@@ -5,6 +5,7 @@ import { Input } from "./ui/Input";
 import { Stepper } from "./ui/Stepper";
 import { Button } from "./ui/Button";
 import { publicFetch } from "../lib/api.js";
+import { colors } from "../theme/colors.js";
 
 function validateEmail(email) {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -467,7 +468,7 @@ export function RsvpForm({
                       style={{
                         fontSize: "18px",
                         fontWeight: 700,
-                        color: "#a78bfa",
+                        color: colors.silverText,
                         display: "flex",
                         justifyContent: "space-between",
                         paddingTop: "8px",
@@ -494,7 +495,7 @@ export function RsvpForm({
                       fontSize: "18px",
                       fontWeight: 700,
                       marginBottom: "16px",
-                      color: "#a78bfa",
+                      color: colors.silverText,
                     }}
                   >
                     Total: {symbol}
@@ -576,9 +577,9 @@ export function RsvpForm({
           style={{
             marginBottom: "24px",
             padding: "16px",
-            background: "rgba(139, 92, 246, 0.1)",
+            background: colors.silverRgbaHover,
             borderRadius: "12px",
-            border: "1px solid rgba(139, 92, 246, 0.2)",
+            border: `1px solid ${colors.silverRgba}`,
           }}
         >
           <label
@@ -599,7 +600,7 @@ export function RsvpForm({
                 width: "20px",
                 height: "20px",
                 cursor: "pointer",
-                accentColor: "#8b5cf6",
+                accentColor: colors.silver,
               }}
             />
             <span style={{ fontSize: "16px", fontWeight: 600, color: "#fff" }}>
@@ -669,12 +670,12 @@ export function RsvpForm({
                             padding: "14px 10px",
                             borderRadius: "10px",
                             border: isSelected
-                              ? "2px solid #8b5cf6"
+                              ? `2px solid ${colors.silver}`
                               : isFull
                               ? "1px solid rgba(255, 165, 0, 0.5)"
                               : "1px solid rgba(255,255,255,0.2)",
                             background: isSelected
-                              ? "rgba(139, 92, 246, 0.2)"
+                              ? colors.silverRgbaHover
                               : isFull
                               ? "rgba(255, 165, 0, 0.1)"
                               : "rgba(20, 16, 30, 0.6)",
@@ -757,11 +758,11 @@ export function RsvpForm({
             padding: "20px",
             background: isPaidEvent
               ? "rgba(20, 16, 30, 0.8)"
-              : "rgba(139, 92, 246, 0.1)",
+              : colors.silverRgbaHover,
             borderRadius: "12px",
             border: isPaidEvent
               ? "1px solid rgba(255,255,255,0.1)"
-              : "1px solid rgba(139, 92, 246, 0.2)",
+              : `1px solid ${colors.silverRgba}`,
           }}
         >
           {/* Party Summary Section */}
@@ -782,7 +783,7 @@ export function RsvpForm({
                   fontSize: "18px",
                   fontWeight: 700,
                   marginBottom: "8px",
-                  color: isPaidEvent ? "#fff" : "#a78bfa",
+                  color: isPaidEvent ? "#fff" : colors.silverText,
                 }}
               >
                 Total: {totalPartySize}{" "}
@@ -909,7 +910,7 @@ export function RsvpForm({
                         style={{
                           fontSize: "18px",
                           fontWeight: 700,
-                          color: "#a78bfa",
+                          color: colors.silverText,
                           display: "flex",
                           justifyContent: "space-between",
                           paddingTop: "8px",
@@ -935,7 +936,7 @@ export function RsvpForm({
                         fontSize: "18px",
                         fontWeight: 700,
                         marginBottom: "16px",
-                        color: "#a78bfa",
+                        color: colors.silverText,
                       }}
                     >
                       Total: {symbol}
@@ -962,7 +963,7 @@ export function RsvpForm({
                   fullWidth
                   style={{
                     background:
-                      "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                      colors.gradientPrimary,
                     marginBottom: "16px",
                   }}
                 >

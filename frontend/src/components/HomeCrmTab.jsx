@@ -1,8 +1,25 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Loader2,
+  Search,
+  Download,
+  Upload,
+  Mail,
+  Users,
+  CircleDollarSign,
+  CreditCard,
+  ClipboardList,
+  Calendar,
+  Check,
+  Clock,
+  FileEdit,
+} from "lucide-react";
 import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { getEventUrl } from "../lib/urlUtils.js";
+import { colors } from "../theme/colors.js";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -343,7 +360,9 @@ export function CrmTab() {
           opacity: 0.6,
         }}
       >
-        <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
+        <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+          <SilverIcon as={Loader2} size={48} style={{ animation: "crm-spin 1s linear infinite" }} />
+        </div>
         <div style={{ fontSize: "18px", fontWeight: 600 }}>
           Loading contacts...
         </div>
@@ -357,6 +376,9 @@ export function CrmTab() {
   return (
     <div>
       <style>{`
+        @keyframes crm-spin {
+          to { transform: rotate(360deg); }
+        }
         @media (max-width: 767px) {
           .export-csv-button, .import-csv-button {
             display: none !important;
@@ -404,7 +426,7 @@ export function CrmTab() {
               transition: "all 0.2s ease",
             }}
             onFocus={(e) => {
-              e.target.style.borderColor = "rgba(139, 92, 246, 0.4)";
+              e.target.style.borderColor = colors.silverRgbaStrong;
               e.target.style.background = "rgba(20, 16, 30, 0.8)";
             }}
             onBlur={(e) => {
@@ -418,11 +440,11 @@ export function CrmTab() {
             style={{
               padding: "8px 16px",
               borderRadius: "8px",
-              border: "1px solid rgba(139, 92, 246, 0.3)",
+              border: `1px solid ${colors.silverRgba}`,
               background: showFilters
-                ? "rgba(139, 92, 246, 0.2)"
-                : "rgba(139, 92, 246, 0.1)",
-              color: "#a78bfa",
+                ? colors.silverRgbaHover
+                : colors.silverRgbaHover,
+              color: colors.silverText,
               fontSize: "14px",
               fontWeight: 500,
               cursor: "pointer",
@@ -432,7 +454,8 @@ export function CrmTab() {
               gap: "6px",
             }}
           >
-            🔍 Filters
+            <SilverIcon as={Search} size={16} />
+            Filters
           </button>
 
           {/* <button
@@ -453,7 +476,8 @@ export function CrmTab() {
               gap: "6px",
             }}
           >
-            📥 Import CSV
+            <SilverIcon as={Download} size={16} />
+            Import CSV
           </button> */}
 
           <button
@@ -530,9 +554,9 @@ export function CrmTab() {
             style={{
               padding: "8px 16px",
               borderRadius: "8px",
-              border: "1px solid rgba(139, 92, 246, 0.3)",
-              background: "rgba(139, 92, 246, 0.1)",
-              color: "#a78bfa",
+              border: `1px solid ${colors.silverRgba}`,
+              background: colors.silverRgbaHover,
+              color: colors.silverText,
               fontSize: "14px",
               fontWeight: 500,
               cursor: "pointer",
@@ -542,7 +566,8 @@ export function CrmTab() {
               gap: "6px",
             }}
           >
-            📤 Export filtered CSV
+            <SilverIcon as={Upload} size={16} />
+            Export filtered CSV
           </button>
 
           <button
@@ -572,7 +597,8 @@ export function CrmTab() {
               gap: "6px",
             }}
           >
-            ✉️ Send invite to this segment
+            <SilverIcon as={Mail} size={16} />
+            Send invite to this segment
           </button>
         </div>
 
@@ -604,11 +630,11 @@ export function CrmTab() {
                   borderRadius: "6px",
                   border:
                     activeView?.id === view.id
-                      ? "1px solid rgba(139, 92, 246, 0.5)"
+                      ? `1px solid ${colors.silverRgba}`
                       : "1px solid rgba(255,255,255,0.1)",
                   background:
                     activeView?.id === view.id
-                      ? "rgba(139, 92, 246, 0.2)"
+                      ? colors.silverRgbaHover
                       : "rgba(20, 16, 30, 0.4)",
                   color: "#fff",
                   fontSize: "12px",
@@ -624,9 +650,9 @@ export function CrmTab() {
               style={{
                 padding: "6px 12px",
                 borderRadius: "6px",
-                border: "1px solid rgba(139, 92, 246, 0.3)",
-                background: "rgba(139, 92, 246, 0.1)",
-                color: "#a78bfa",
+                border: `1px solid ${colors.silverRgba}`,
+                background: colors.silverRgbaHover,
+                color: colors.silverText,
                 fontSize: "12px",
                 cursor: "pointer",
               }}
@@ -962,7 +988,7 @@ export function CrmTab() {
                   outline: "none",
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = "rgba(139, 92, 246, 0.4)";
+                  e.target.style.borderColor = colors.silverRgbaStrong;
                   e.target.style.background = "rgba(20, 16, 30, 0.8)";
                 }}
                 onBlur={(e) => {
@@ -1019,8 +1045,8 @@ export function CrmTab() {
                   border: "none",
                   background:
                     !importFile || importing
-                      ? "rgba(139, 92, 246, 0.3)"
-                      : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                      ? colors.silverRgba
+                      : colors.gradientPrimary,
                   color: "#fff",
                   fontSize: "14px",
                   fontWeight: 600,
@@ -1336,7 +1362,7 @@ export function CrmTab() {
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background =
-                            "rgba(139, 92, 246, 0.1)";
+                            colors.silverRgbaHover;
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.background = "transparent";
@@ -1399,7 +1425,7 @@ export function CrmTab() {
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background =
-                            "rgba(139, 92, 246, 0.1)";
+                            colors.silverRgbaHover;
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.background = "transparent";
@@ -1459,7 +1485,7 @@ export function CrmTab() {
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background =
-                            "rgba(139, 92, 246, 0.1)";
+                            colors.silverRgbaHover;
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.background = "transparent";
@@ -1529,7 +1555,7 @@ export function CrmTab() {
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background =
-                            "rgba(139, 92, 246, 0.1)";
+                            colors.silverRgbaHover;
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.background = "transparent";
@@ -1590,7 +1616,7 @@ export function CrmTab() {
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background =
-                            "rgba(139, 92, 246, 0.1)";
+                            colors.silverRgbaHover;
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.background = "transparent";
@@ -1671,7 +1697,7 @@ export function CrmTab() {
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background =
-                            "rgba(139, 92, 246, 0.1)";
+                            colors.silverRgbaHover;
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.background = "transparent";
@@ -1870,7 +1896,7 @@ export function CrmTab() {
                   background:
                     selectedEventId === ""
                       ? "rgba(139,92,246,0.3)"
-                      : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                      : colors.gradientPrimary,
                   color: "#fff",
                   fontSize: "14px",
                   fontWeight: 600,
@@ -1890,9 +1916,9 @@ export function CrmTab() {
         <div
           style={{
             padding: "16px 20px",
-            background: "rgba(139, 92, 246, 0.1)",
+            background: colors.silverRgbaHover,
             borderRadius: "12px",
-            border: "1px solid rgba(139, 92, 246, 0.3)",
+            border: `1px solid ${colors.silverRgba}`,
             marginBottom: "20px",
             display: "flex",
             alignItems: "center",
@@ -1915,7 +1941,7 @@ export function CrmTab() {
               style={{
                 fontSize: "24px",
                 fontWeight: 700,
-                color: "#a78bfa",
+                color: colors.silverText,
               }}
             >
               {total.toLocaleString()}
@@ -1954,7 +1980,9 @@ export function CrmTab() {
             opacity: 0.6,
           }}
         >
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>👥</div>
+          <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+            <SilverIcon as={Users} size={48} />
+          </div>
           <div
             style={{ fontSize: "18px", fontWeight: 600, marginBottom: "8px" }}
           >
@@ -1990,7 +2018,7 @@ export function CrmTab() {
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.3)";
+                  e.currentTarget.style.borderColor = colors.silverRgba;
                   e.currentTarget.style.boxShadow =
                     "0 10px 30px rgba(0,0,0,0.3)";
                 }}
@@ -2049,7 +2077,7 @@ export function CrmTab() {
                           <StatBadge
                             label="Total Spend"
                             value={formatCurrency(person.totalSpend)}
-                            icon="💰"
+                            icon={<SilverIcon as={CircleDollarSign} size={14} />}
                             color="#10b981"
                           />
                         )}
@@ -2057,15 +2085,15 @@ export function CrmTab() {
                           <StatBadge
                             label="Payments"
                             value={person.paymentCount}
-                            icon="💳"
-                            color="#8b5cf6"
+                            icon={<SilverIcon as={CreditCard} size={14} />}
+                            color={colors.silver}
                           />
                         )}
                         {person.subscriptionType && (
                           <StatBadge
                             label="Type"
                             value={person.subscriptionType}
-                            icon="📋"
+                            icon={<SilverIcon as={ClipboardList} size={14} />}
                             color="#f59e0b"
                           />
                         )}
@@ -2084,19 +2112,19 @@ export function CrmTab() {
                         <StatBadge
                           label="Events"
                           value={person.stats.totalEvents}
-                          icon="📅"
+                          icon={<SilverIcon as={Calendar} size={14} />}
                         />
                         <StatBadge
                           label="Attended"
                           value={person.stats.eventsAttended}
-                          icon="✅"
+                          icon={<SilverIcon as={Check} size={14} />}
                           color="#10b981"
                         />
                         {person.stats.eventsWaitlisted > 0 && (
                           <StatBadge
                             label="Waitlisted"
                             value={person.stats.eventsWaitlisted}
-                            icon="⏳"
+                            icon={<SilverIcon as={Clock} size={14} />}
                             color="#f59e0b"
                           />
                         )}
@@ -2104,8 +2132,8 @@ export function CrmTab() {
                           <StatBadge
                             label="Guests"
                             value={person.stats.totalGuestsBrought}
-                            icon="👥"
-                            color="#8b5cf6"
+                            icon={<SilverIcon as={Users} size={14} />}
+                            color={colors.silver}
                           />
                         )}
                       </div>
@@ -2169,15 +2197,16 @@ export function CrmTab() {
                               >
                                 <span
                                   style={{
-                                    fontSize: "16px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
                                     opacity: 0.8,
                                   }}
                                 >
                                   {isAttended
-                                    ? "✅"
+                                    ? <SilverIcon as={Check} size={16} />
                                     : isConfirmed
-                                    ? "📝"
-                                    : "⏳"}
+                                    ? <SilverIcon as={FileEdit} size={16} />
+                                    : <SilverIcon as={Clock} size={16} />}
                                 </span>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div
@@ -2208,10 +2237,10 @@ export function CrmTab() {
                                       opacity: 0.7,
                                       whiteSpace: "nowrap",
                                       padding: "2px 6px",
-                                      background: "rgba(139, 92, 246, 0.15)",
+                                      background: colors.silverRgbaHover,
                                       borderRadius: "6px",
                                       border:
-                                        "1px solid rgba(139, 92, 246, 0.3)",
+                                        `1px solid ${colors.silverRgba}`,
                                     }}
                                   >
                                     +{history.plusOnes}
@@ -2275,11 +2304,11 @@ export function CrmTab() {
                 style={{
                   padding: "8px 16px",
                   borderRadius: "8px",
-                  border: "1px solid rgba(139, 92, 246, 0.3)",
+                  border: `1px solid ${colors.silverRgba}`,
                   background: hasPrevPage
-                    ? "rgba(139, 92, 246, 0.1)"
-                    : "rgba(139, 92, 246, 0.05)",
-                  color: hasPrevPage ? "#a78bfa" : "rgba(167, 139, 250, 0.5)",
+                    ? colors.silverRgbaHover
+                    : "rgba(255, 255, 255, 0.05)",
+                  color: hasPrevPage ? colors.silverText : "rgba(255, 255, 255, 0.4)",
                   fontSize: "14px",
                   fontWeight: 500,
                   cursor: !hasPrevPage || loading ? "not-allowed" : "pointer",
@@ -2302,11 +2331,11 @@ export function CrmTab() {
                 style={{
                   padding: "8px 16px",
                   borderRadius: "8px",
-                  border: "1px solid rgba(139, 92, 246, 0.3)",
+                  border: `1px solid ${colors.silverRgba}`,
                   background: hasNextPage
-                    ? "rgba(139, 92, 246, 0.1)"
-                    : "rgba(139, 92, 246, 0.05)",
-                  color: hasNextPage ? "#a78bfa" : "rgba(167, 139, 250, 0.5)",
+                    ? colors.silverRgbaHover
+                    : "rgba(255, 255, 255, 0.05)",
+                  color: hasNextPage ? colors.silverText : "rgba(255, 255, 255, 0.4)",
                   fontSize: "14px",
                   fontWeight: 500,
                   cursor: !hasNextPage || loading ? "not-allowed" : "pointer",
@@ -2323,7 +2352,7 @@ export function CrmTab() {
   );
 }
 
-function StatBadge({ label, value, icon, color = "#8b5cf6" }) {
+function StatBadge({ label, value, icon, color = "#c0c0c0" }) {
   return (
     <div
       style={{

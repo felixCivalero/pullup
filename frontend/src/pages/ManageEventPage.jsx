@@ -1,6 +1,23 @@
 // frontend/src/pages/ManageEventPage.jsx
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
+import {
+  BarChart2,
+  Wine,
+  ClipboardList,
+  Check,
+  UtensilsCrossed,
+  Image as ImageIcon,
+  Users,
+  RefreshCw,
+  Trophy,
+  Ticket,
+  Clock,
+  Globe,
+  AlertTriangle,
+  Camera,
+  Lightbulb,
+} from "lucide-react";
 import { useToast } from "../components/Toast";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { getEventUrl, getEventShareUrl } from "../lib/urlUtils";
@@ -8,6 +25,7 @@ import { FaPaperPlane, FaCalendar } from "react-icons/fa";
 import { logger } from "../lib/logger.js";
 import { EventOverviewStats } from "../components/EventOverviewStats.jsx";
 import { useAuth } from "../contexts/AuthContext.jsx";
+import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 
 import { authenticatedFetch, publicFetch, API_BASE } from "../lib/api.js";
 import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
@@ -38,8 +56,8 @@ const inputStyle = {
 
 const focusedInputStyle = {
   ...inputStyle,
-  border: "1px solid rgba(139, 92, 246, 0.5)",
-  boxShadow: "0 0 0 3px rgba(139, 92, 246, 0.1)",
+  border: "1px solid rgba(192, 192, 192, 0.5)",
+  boxShadow: "0 0 0 3px rgba(192, 192, 192, 0.1)",
 };
 
 // Helper function to calculate cuisine timeslots (same as CreateEventPage)
@@ -222,7 +240,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
         {totalCapacity != null && (
           <div style={{ position: "relative" }}>
             <StatCard
-              icon="📊"
+              icon={<SilverIcon as={BarChart2} size={24} />}
               label="Total Capacity"
               value={`${attending}/${totalCapacity}`}
               color={totalOverCapacity > 0 ? "#f59e0b" : "#fff"}
@@ -251,7 +269,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
         {cocktailCapacity != null && (
           <div style={{ position: "relative" }}>
             <StatCard
-              icon="🥂"
+              icon={<SilverIcon as={Wine} size={24} />}
               label="Cocktail Capacity"
               value={`${stats.cocktailsOnly}/${cocktailCapacity}`}
               color={cocktailOverCapacity > 0 ? "#f59e0b" : "#f59e0b"}
@@ -278,14 +296,14 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
         )}
 
         <StatCard
-          icon="📋"
+          icon={<SilverIcon as={ClipboardList} size={24} />}
           label="Waitlist"
           value={stats.waitlist}
-          color="#ec4899"
+          color="#c0c0c0"
         />
 
         <StatCard
-          icon="✓"
+          icon={<SilverIcon as={Check} size={24} />}
           label="Pulled Up"
           value={`${stats.pulledUpTotal}/${attending}`}
           color="#10b981"
@@ -304,7 +322,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
         }}
       >
         <StatCard
-          icon="🥂✓"
+          icon={<SilverIcon as={Wine} size={24} style={{ marginRight: 4 }} />}
           label="Cocktails Pulled Up"
           value={`${stats.cocktailsPulledUp}/${stats.cocktailsOnly}`}
           color="#f59e0b"
@@ -333,7 +351,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                 marginBottom: "24px",
               }}
             >
-              <span style={{ fontSize: "22px" }}>🍽️</span>
+              <SilverIcon as={UtensilsCrossed} size={22} style={{ color: "#10b981" }} />
               <div
                 style={{
                   fontSize: "16px",
@@ -515,7 +533,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                       <div
                         style={{
                           fontSize: "14px",
-                          color: "#ec4899",
+                          color: "#c0c0c0",
                           marginTop: "8px",
                           opacity: 0.9,
                           fontWeight: 600,
@@ -794,7 +812,7 @@ function EventHostsSection({ eventId }) {
                 background:
                   !newHostEmail.trim() || adding
                     ? "rgba(139,92,246,0.3)"
-                    : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                    : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                 color: "#fff",
                 fontSize: "13px",
                 fontWeight: 600,
@@ -831,8 +849,8 @@ function StatCard({ icon, label, value, color }) {
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.3)";
-        e.currentTarget.style.boxShadow = "0 8px 24px rgba(139, 92, 246, 0.2)";
+        e.currentTarget.style.borderColor = "rgba(192, 192, 192, 0.3)";
+        e.currentTarget.style.boxShadow = "0 8px 24px rgba(192, 192, 192, 0.2)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
@@ -1335,18 +1353,18 @@ export function ManageEventPage() {
           url: shareUrl,
         })
         .then(() => {
-          showToast("Event shared! 🎉", "success");
+          showToast("Event shared!", "success");
         })
         .catch((err) => {
           if (err.name !== "AbortError") {
             navigator.clipboard.writeText(shareUrl);
-            showToast("Link copied to clipboard! 📋", "success");
+            showToast("Link copied to clipboard!", "success");
           }
         });
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(shareUrl);
-      showToast("Link copied to clipboard! 📋", "success");
+      showToast("Link copied to clipboard!", "success");
     }
   }
 
@@ -1732,7 +1750,7 @@ export function ManageEventPage() {
           minHeight: "100vh",
           position: "relative",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
         }}
       >
         <div className="responsive-container responsive-container-wide">
@@ -1759,7 +1777,7 @@ export function ManageEventPage() {
           minHeight: "100vh",
           position: "relative",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
         }}
       >
         <div className="responsive-container responsive-container-wide">
@@ -1786,7 +1804,7 @@ export function ManageEventPage() {
                 minHeight: "44px",
                 borderRadius: "999px",
                 border: "none",
-                background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                 color: "#fff",
                 fontWeight: 600,
                 fontSize: "16px",
@@ -1811,7 +1829,7 @@ export function ManageEventPage() {
           minHeight: "100vh",
           position: "relative",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
         }}
       >
         <div className="responsive-container responsive-container-wide">
@@ -1839,7 +1857,7 @@ export function ManageEventPage() {
         minHeight: "100vh",
         position: "relative",
         background:
-          "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
         paddingBottom: "40px",
       }}
     >
@@ -1851,7 +1869,7 @@ export function ManageEventPage() {
           height: "600px",
           borderRadius: "50%",
           background:
-            "radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%)",
+            "radial-gradient(circle, rgba(192, 192, 192, 0.08) 0%, transparent 70%)",
           left: mousePosition.x - 300,
           top: mousePosition.y - 300,
           pointerEvents: "none",
@@ -2170,16 +2188,16 @@ export function ManageEventPage() {
                 target="_blank"
                 rel="noreferrer"
                 style={{
-                  color: "#8b5cf6",
+                  color: "#c0c0c0",
                   textDecoration: "none",
                   fontWeight: 600,
                   fontSize: "16px",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.color = "#a78bfa";
+                  e.target.style.color = "#e5e5e5";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.color = "#8b5cf6";
+                  e.target.style.color = "#c0c0c0";
                 }}
               >
                 go to live
@@ -2242,10 +2260,10 @@ export function ManageEventPage() {
                     borderRadius: "16px",
                     overflow: "hidden",
                     background: isDragging
-                      ? "rgba(139, 92, 246, 0.2)"
+                      ? "rgba(192, 192, 192, 0.2)"
                       : "rgba(20, 16, 30, 0.3)",
                     border: isDragging
-                      ? "2px dashed rgba(139, 92, 246, 0.5)"
+                      ? "2px dashed rgba(192, 192, 192, 0.5)"
                       : "1px solid rgba(255,255,255,0.06)",
                     position: "relative",
                     cursor: "pointer",
@@ -2277,7 +2295,7 @@ export function ManageEventPage() {
                       justifyContent: "center",
                       gap: "16px",
                       background:
-                        "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(236, 72, 153, 0.12) 100%)",
+                        "linear-gradient(135deg, rgba(192, 192, 192, 0.12) 0%, rgba(232, 232, 232, 0.08) 100%)",
                       color: "#fff",
                     }}
                   >
@@ -2287,7 +2305,7 @@ export function ManageEventPage() {
                         opacity: 0.9,
                       }}
                     >
-                      🖼️
+                      <SilverIcon as={ImageIcon} size={20} />
                     </div>
                     <div
                       style={{
@@ -2390,12 +2408,12 @@ export function ManageEventPage() {
                   color: activeTab === "overview" ? "#fff" : "#9ca3af",
                   borderBottom:
                     activeTab === "overview"
-                      ? "2px solid #8b5cf6"
+                      ? "2px solid #c0c0c0"
                       : "2px solid transparent",
                   marginBottom: "-2px",
                   background:
                     activeTab === "overview"
-                      ? "rgba(139, 92, 246, 0.1)"
+                      ? "rgba(192, 192, 192, 0.1)"
                       : "transparent",
                   borderRadius: "8px 8px 0 0",
                   borderTop: "none",
@@ -2451,7 +2469,10 @@ export function ManageEventPage() {
                   e.target.style.background = "transparent";
                 }}
               >
-                👥 Guests ({guestsCount})
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                  <SilverIcon as={Users} size={18} />
+                  Guests ({guestsCount})
+                </span>
               </button>
               <button
                 onClick={() => {
@@ -2465,12 +2486,12 @@ export function ManageEventPage() {
                   color: activeTab === "hosts" ? "#fff" : "#9ca3af",
                   borderBottom:
                     activeTab === "hosts"
-                      ? "2px solid #8b5cf6"
+                      ? "2px solid #c0c0c0"
                       : "2px solid transparent",
                   marginBottom: "-2px",
                   background:
                     activeTab === "hosts"
-                      ? "rgba(139, 92, 246, 0.1)"
+                      ? "rgba(192, 192, 192, 0.1)"
                       : "transparent",
                   borderRadius: "8px 8px 0 0",
                   borderTop: "none",
@@ -2509,12 +2530,12 @@ export function ManageEventPage() {
                   color: activeTab === "edit" ? "#fff" : "#9ca3af",
                   borderBottom:
                     activeTab === "edit"
-                      ? "2px solid #8b5cf6"
+                      ? "2px solid #c0c0c0"
                       : "2px solid transparent",
                   marginBottom: "-2px",
                   background:
                     activeTab === "edit"
-                      ? "rgba(139, 92, 246, 0.1)"
+                      ? "rgba(192, 192, 192, 0.1)"
                       : "transparent",
                   borderRadius: "8px 8px 0 0",
                   borderTop: "none",
@@ -2606,7 +2627,7 @@ export function ManageEventPage() {
                       overflow: "hidden",
                       marginBottom: "24px",
                       background: isDragging
-                        ? "rgba(139, 92, 246, 0.2)"
+                        ? "rgba(192, 192, 192, 0.2)"
                         : (
                             imagePreview !== undefined
                               ? imagePreview
@@ -2615,7 +2636,7 @@ export function ManageEventPage() {
                         ? "transparent"
                         : "rgba(20, 16, 30, 0.3)",
                       border: isDragging
-                        ? "2px dashed rgba(139, 92, 246, 0.5)"
+                        ? "2px dashed rgba(192, 192, 192, 0.5)"
                         : (
                             imagePreview !== undefined
                               ? imagePreview
@@ -2687,7 +2708,7 @@ export function ManageEventPage() {
                                 marginBottom: "4px",
                               }}
                             >
-                              📷
+                              <SilverIcon as={Camera} size={18} />
                             </div>
                             <div
                               style={{
@@ -2713,7 +2734,7 @@ export function ManageEventPage() {
                           justifyContent: "center",
                           gap: "16px",
                           background:
-                            "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(236, 72, 153, 0.12) 100%)",
+                            "linear-gradient(135deg, rgba(192, 192, 192, 0.12) 0%, rgba(232, 232, 232, 0.08) 100%)",
                           color: "#fff",
                         }}
                       >
@@ -2724,7 +2745,7 @@ export function ManageEventPage() {
                             transition: "transform 0.3s ease",
                           }}
                         >
-                          🖼️
+                          <SilverIcon as={ImageIcon} size={18} />
                         </div>
                         <div
                           style={{
@@ -2781,9 +2802,9 @@ export function ManageEventPage() {
                     onFocus={(e) => {
                       e.target.style.background = "rgba(255,255,255,0.05)";
                       e.target.style.border =
-                        "1px solid rgba(139, 92, 246, 0.3)";
+                        "1px solid rgba(192, 192, 192, 0.3)";
                       e.target.style.boxShadow =
-                        "0 4px 12px rgba(139, 92, 246, 0.15)";
+                        "0 4px 12px rgba(192, 192, 192, 0.15)";
                       e.target.style.color = "#fff";
                     }}
                     onBlur={(e) => {
@@ -2826,9 +2847,9 @@ export function ManageEventPage() {
                     onFocus={(e) => {
                       e.target.style.background = "rgba(255,255,255,0.06)";
                       e.target.style.border =
-                        "1px solid rgba(139, 92, 246, 0.3)";
+                        "1px solid rgba(192, 192, 192, 0.3)";
                       e.target.style.boxShadow =
-                        "0 4px 12px rgba(139, 92, 246, 0.15)";
+                        "0 4px 12px rgba(192, 192, 192, 0.15)";
                     }}
                     onBlur={(e) => {
                       e.target.style.background = "rgba(255,255,255,0.04)";
@@ -2857,7 +2878,7 @@ export function ManageEventPage() {
                           borderRadius: "12px",
                           border:
                             focusedField === "location"
-                              ? "1px solid rgba(139, 92, 246, 0.4)"
+                              ? "1px solid rgba(192, 192, 192, 0.4)"
                               : "1px solid rgba(255,255,255,0.08)",
                           transition: "all 0.2s ease",
                           width: "100%",
@@ -2892,7 +2913,7 @@ export function ManageEventPage() {
                             padding: "0",
                             width: "100%",
                           }}
-                          placeholder="📍 Where's the event?"
+                          placeholder="Where's the event?"
                           disabled={saving}
                         />
                       </div>
@@ -2937,7 +2958,7 @@ export function ManageEventPage() {
                             ...(focusedField === "startDateTime"
                               ? {
                                   ...focusedInputStyle,
-                                  border: "1px solid rgba(139, 92, 246, 0.4)",
+                                  border: "1px solid rgba(192, 192, 192, 0.4)",
                                   background: "rgba(255,255,255,0.05)",
                                 }
                               : {
@@ -2980,7 +3001,7 @@ export function ManageEventPage() {
                             zIndex: 3,
                           }}
                         >
-                          🕒
+                          <SilverIcon as={Clock} size={18} />
                         </div>
                         <div
                           style={{
@@ -3075,7 +3096,7 @@ export function ManageEventPage() {
                             ...(focusedField === "endDateTime"
                               ? {
                                   ...focusedInputStyle,
-                                  border: "1px solid rgba(139, 92, 246, 0.4)",
+                                  border: "1px solid rgba(192, 192, 192, 0.4)",
                                   background: "rgba(255,255,255,0.05)",
                                 }
                               : {
@@ -3118,7 +3139,7 @@ export function ManageEventPage() {
                             zIndex: 3,
                           }}
                         >
-                          🕒
+                          <SilverIcon as={Clock} size={18} />
                         </div>
                         <div
                           style={{
@@ -3185,9 +3206,9 @@ export function ManageEventPage() {
                         }}
                         style={{
                           padding: "8px 12px",
-                          background: "rgba(139, 92, 246, 0.1)",
+                          background: "rgba(192, 192, 192, 0.1)",
                           borderRadius: "8px",
-                          border: "1px solid rgba(139, 92, 246, 0.2)",
+                          border: "1px solid rgba(192, 192, 192, 0.2)",
                           fontSize: "10px",
                           textAlign: "center",
                           cursor: "pointer",
@@ -3198,14 +3219,14 @@ export function ManageEventPage() {
                         }}
                         onTouchStart={(e) => {
                           e.target.style.background =
-                            "rgba(139, 92, 246, 0.15)";
+                            "rgba(192, 192, 192, 0.15)";
                         }}
                         onTouchEnd={(e) => {
-                          e.target.style.background = "rgba(139, 92, 246, 0.1)";
+                          e.target.style.background = "rgba(192, 192, 192, 0.1)";
                         }}
                       >
-                        <span style={{ fontSize: "14px" }}>🌐</span>
-                        <span style={{ fontWeight: 600, color: "#a78bfa" }}>
+                        <SilverIcon as={Globe} size={14} />
+                        <span style={{ fontWeight: 600, color: "#e5e5e5" }}>
                           {
                             formatTimezone(
                               event.timezone ||
@@ -3263,7 +3284,7 @@ export function ManageEventPage() {
 
                       {/* capacity */}
                       <OptionRow
-                        icon="👥"
+                        icon={<SilverIcon as={Users} size={20} />}
                         label="Cocktail capacity"
                         right={
                           <input
@@ -3293,7 +3314,7 @@ export function ManageEventPage() {
                       />
                       {/* waitlist */}
                       <OptionRow
-                        icon="🔄"
+                        icon={<SilverIcon as={RefreshCw} size={20} />}
                         label="Enable waitlist when full"
                         right={
                           <Toggle
@@ -3306,7 +3327,7 @@ export function ManageEventPage() {
                       />
                       {/* approval */}
                       <OptionRow
-                        icon="🏆"
+                        icon={<SilverIcon as={Trophy} size={20} />}
                         label="Require Approval"
                         right={
                           <Toggle
@@ -3385,7 +3406,7 @@ export function ManageEventPage() {
                                         10
                                       ) <= 1
                                         ? "rgba(255,255,255,0.05)"
-                                        : "rgba(139, 92, 246, 0.2)",
+                                        : "rgba(192, 192, 192, 0.2)",
                                     color: "#fff",
                                     fontSize: "20px",
                                     fontWeight: 600,
@@ -3416,7 +3437,7 @@ export function ManageEventPage() {
                                       ) > 1
                                     ) {
                                       e.target.style.background =
-                                        "rgba(139, 92, 246, 0.3)";
+                                        "rgba(192, 192, 192, 0.3)";
                                       e.target.style.transform = "scale(0.95)";
                                     }
                                   }}
@@ -3428,7 +3449,7 @@ export function ManageEventPage() {
                                       ) > 1
                                     ) {
                                       e.target.style.background =
-                                        "rgba(139, 92, 246, 0.2)";
+                                        "rgba(192, 192, 192, 0.2)";
                                       e.target.style.transform = "scale(1)";
                                     }
                                   }}
@@ -3481,7 +3502,7 @@ export function ManageEventPage() {
                                         10
                                       ) >= 5
                                         ? "rgba(255,255,255,0.05)"
-                                        : "rgba(139, 92, 246, 0.2)",
+                                        : "rgba(192, 192, 192, 0.2)",
                                     color: "#fff",
                                     fontSize: "20px",
                                     fontWeight: 600,
@@ -3512,7 +3533,7 @@ export function ManageEventPage() {
                                       ) < 5
                                     ) {
                                       e.target.style.background =
-                                        "rgba(139, 92, 246, 0.3)";
+                                        "rgba(192, 192, 192, 0.3)";
                                       e.target.style.transform = "scale(0.95)";
                                     }
                                   }}
@@ -3524,7 +3545,7 @@ export function ManageEventPage() {
                                       ) < 5
                                     ) {
                                       e.target.style.background =
-                                        "rgba(139, 92, 246, 0.2)";
+                                        "rgba(192, 192, 192, 0.2)";
                                       e.target.style.transform = "scale(1)";
                                     }
                                   }}
@@ -3553,7 +3574,7 @@ export function ManageEventPage() {
 
                       {/* TICKETS */}
                       <OptionRow
-                        icon="🎫"
+                        icon={<SilverIcon as={Ticket} size={20} />}
                         label="Sell tickets to this event"
                         description={
                           event.ticketType === "paid"
@@ -3590,9 +3611,9 @@ export function ManageEventPage() {
                             marginTop: "16px",
                             padding: "24px",
                             borderRadius: "16px",
-                            border: "1px solid rgba(139, 92, 246, 0.2)",
+                            border: "1px solid rgba(192, 192, 192, 0.2)",
                             background:
-                              "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%)",
+                              "linear-gradient(135deg, rgba(192, 192, 192, 0.08) 0%, rgba(232, 232, 232, 0.05) 100%)",
                             display: "flex",
                             flexDirection: "column",
                             gap: "20px",
@@ -3606,7 +3627,7 @@ export function ManageEventPage() {
                               marginBottom: "4px",
                             }}
                           >
-                            <span style={{ fontSize: "20px" }}>🎫</span>
+                            <SilverIcon as={Ticket} size={20} />
                             <div
                               style={{
                                 fontSize: "12px",
@@ -3634,7 +3655,7 @@ export function ManageEventPage() {
                               }}
                             >
                               <div style={{ fontSize: "20px", flexShrink: 0 }}>
-                                ⚠️
+                                <SilverIcon as={AlertTriangle} size={20} style={{ color: "#f59e0b" }} />
                               </div>
                               <div style={{ flex: 1 }}>
                                 <div
@@ -3674,7 +3695,7 @@ export function ManageEventPage() {
                                       borderRadius: "8px",
                                       border: "none",
                                       background:
-                                        "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                                        "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                                       color: "#fff",
                                       fontSize: "13px",
                                       fontWeight: 600,
@@ -3684,7 +3705,7 @@ export function ManageEventPage() {
                                     onMouseEnter={(e) => {
                                       e.target.style.transform = "scale(1.02)";
                                       e.target.style.boxShadow =
-                                        "0 4px 12px rgba(139, 92, 246, 0.4)";
+                                        "0 4px 12px rgba(192, 192, 192, 0.4)";
                                     }}
                                     onMouseLeave={(e) => {
                                       e.target.style.transform = "scale(1)";
@@ -3834,7 +3855,7 @@ export function ManageEventPage() {
 
                       {/* DINNER */}
                       <OptionRow
-                        icon="🍽️"
+                        icon={<SilverIcon as={UtensilsCrossed} size={20} />}
                         label="Food Serving Options"
                         description="Offer an optional food serving slot with limited seats."
                         right={
@@ -3861,9 +3882,9 @@ export function ManageEventPage() {
                             marginTop: "16px",
                             padding: "24px",
                             borderRadius: "16px",
-                            border: "1px solid rgba(139, 92, 246, 0.2)",
+                            border: "1px solid rgba(192, 192, 192, 0.2)",
                             background:
-                              "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%)",
+                              "linear-gradient(135deg, rgba(192, 192, 192, 0.08) 0%, rgba(232, 232, 232, 0.05) 100%)",
                             display: "flex",
                             flexDirection: "column",
                             gap: "20px",
@@ -3877,7 +3898,7 @@ export function ManageEventPage() {
                               marginBottom: "4px",
                             }}
                           >
-                            <span style={{ fontSize: "20px" }}>🍽️</span>
+                            <SilverIcon as={UtensilsCrossed} size={20} />
                             <div
                               style={{
                                 fontSize: "12px",
@@ -3980,7 +4001,7 @@ export function ManageEventPage() {
                                     zIndex: 3,
                                   }}
                                 >
-                                  🕒
+                                  <SilverIcon as={Clock} size={18} />
                                 </div>
                                 <div
                                   style={{
@@ -4082,7 +4103,7 @@ export function ManageEventPage() {
                                     zIndex: 3,
                                   }}
                                 >
-                                  🕒
+                                  <SilverIcon as={Clock} size={18} />
                                 </div>
                                 <div
                                   style={{
@@ -4195,7 +4216,7 @@ export function ManageEventPage() {
                                             "2"
                                         ) <= 0.5
                                           ? "rgba(255,255,255,0.05)"
-                                          : "rgba(139, 92, 246, 0.2)",
+                                          : "rgba(192, 192, 192, 0.2)",
                                       color: "#fff",
                                       fontSize: "22px",
                                       fontWeight: 600,
@@ -4226,7 +4247,7 @@ export function ManageEventPage() {
                                         ) > 0.5
                                       ) {
                                         e.target.style.background =
-                                          "rgba(139, 92, 246, 0.3)";
+                                          "rgba(192, 192, 192, 0.3)";
                                         e.target.style.transform =
                                           "scale(0.95)";
                                       }
@@ -4239,7 +4260,7 @@ export function ManageEventPage() {
                                         ) > 0.5
                                       ) {
                                         e.target.style.background =
-                                          "rgba(139, 92, 246, 0.2)";
+                                          "rgba(192, 192, 192, 0.2)";
                                         e.target.style.transform = "scale(1)";
                                       }
                                     }}
@@ -4293,7 +4314,7 @@ export function ManageEventPage() {
                                             "2"
                                         ) >= 12
                                           ? "rgba(255,255,255,0.05)"
-                                          : "rgba(139, 92, 246, 0.2)",
+                                          : "rgba(192, 192, 192, 0.2)",
                                       color: "#fff",
                                       fontSize: "22px",
                                       fontWeight: 600,
@@ -4324,7 +4345,7 @@ export function ManageEventPage() {
                                         ) < 12
                                       ) {
                                         e.target.style.background =
-                                          "rgba(139, 92, 246, 0.3)";
+                                          "rgba(192, 192, 192, 0.3)";
                                         e.target.style.transform =
                                           "scale(0.95)";
                                       }
@@ -4337,7 +4358,7 @@ export function ManageEventPage() {
                                         ) < 12
                                       ) {
                                         e.target.style.background =
-                                          "rgba(139, 92, 246, 0.2)";
+                                          "rgba(192, 192, 192, 0.2)";
                                         e.target.style.transform = "scale(1)";
                                       }
                                     }}
@@ -4354,10 +4375,10 @@ export function ManageEventPage() {
                                       style={{
                                         marginTop: "10px",
                                         padding: "12px 14px",
-                                        background: "rgba(139, 92, 246, 0.08)",
+                                        background: "rgba(192, 192, 192, 0.08)",
                                         borderRadius: "8px",
                                         border:
-                                          "1px solid rgba(139, 92, 246, 0.15)",
+                                          "1px solid rgba(192, 192, 192, 0.15)",
                                       }}
                                     >
                                       <div
@@ -4368,7 +4389,7 @@ export function ManageEventPage() {
                                           textTransform: "uppercase",
                                           letterSpacing: "0.08em",
                                           opacity: 0.75,
-                                          color: "rgba(139, 92, 246, 0.9)",
+                                          color: "rgba(192, 192, 192, 0.9)",
                                         }}
                                       >
                                         Calculated Timeslots
@@ -4416,10 +4437,10 @@ export function ManageEventPage() {
                                                 style={{
                                                   padding: "4px 10px",
                                                   background:
-                                                    "rgba(139, 92, 246, 0.15)",
+                                                    "rgba(192, 192, 192, 0.15)",
                                                   borderRadius: "6px",
                                                   border:
-                                                    "1px solid rgba(139, 92, 246, 0.25)",
+                                                    "1px solid rgba(192, 192, 192, 0.25)",
                                                   fontSize: "12px",
                                                   fontWeight: 500,
                                                   color:
@@ -4544,7 +4565,7 @@ export function ManageEventPage() {
                                         height: "44px",
                                         borderRadius: "10px",
                                         border: "none",
-                                        background: "rgba(139, 92, 246, 0.2)",
+                                        background: "rgba(192, 192, 192, 0.2)",
                                         color: "#fff",
                                         fontSize: "22px",
                                         fontWeight: 600,
@@ -4556,13 +4577,13 @@ export function ManageEventPage() {
                                       }}
                                       onTouchStart={(e) => {
                                         e.target.style.background =
-                                          "rgba(139, 92, 246, 0.3)";
+                                          "rgba(192, 192, 192, 0.3)";
                                         e.target.style.transform =
                                           "scale(0.95)";
                                       }}
                                       onTouchEnd={(e) => {
                                         e.target.style.background =
-                                          "rgba(139, 92, 246, 0.2)";
+                                          "rgba(192, 192, 192, 0.2)";
                                         e.target.style.transform = "scale(1)";
                                       }}
                                     >
@@ -4605,7 +4626,7 @@ export function ManageEventPage() {
                                         height: "44px",
                                         borderRadius: "10px",
                                         border: "none",
-                                        background: "rgba(139, 92, 246, 0.2)",
+                                        background: "rgba(192, 192, 192, 0.2)",
                                         color: "#fff",
                                         fontSize: "22px",
                                         fontWeight: 600,
@@ -4617,13 +4638,13 @@ export function ManageEventPage() {
                                       }}
                                       onTouchStart={(e) => {
                                         e.target.style.background =
-                                          "rgba(139, 92, 246, 0.3)";
+                                          "rgba(192, 192, 192, 0.3)";
                                         e.target.style.transform =
                                           "scale(0.95)";
                                       }}
                                       onTouchEnd={(e) => {
                                         e.target.style.background =
-                                          "rgba(139, 92, 246, 0.2)";
+                                          "rgba(192, 192, 192, 0.2)";
                                         e.target.style.transform = "scale(1)";
                                       }}
                                     >
@@ -4642,14 +4663,14 @@ export function ManageEventPage() {
                                 style={{
                                   padding: "14px",
                                   borderRadius: "12px",
-                                  border: "1px solid rgba(139, 92, 246, 0.3)",
-                                  background: "rgba(139, 92, 246, 0.1)",
+                                  border: "1px solid rgba(192, 192, 192, 0.3)",
+                                  background: "rgba(192, 192, 192, 0.1)",
                                   display: "flex",
                                   alignItems: "flex-start",
                                   gap: "12px",
                                 }}
                               >
-                                <span style={{ fontSize: "16px" }}>📋</span>
+                                <SilverIcon as={ClipboardList} size={16} />
                                 <div style={{ flex: 1 }}>
                                   <div
                                     style={{
@@ -4685,15 +4706,15 @@ export function ManageEventPage() {
                                   fontSize: "11px",
                                   opacity: 0.7,
                                   padding: "12px",
-                                  background: "rgba(139, 92, 246, 0.1)",
+                                  background: "rgba(192, 192, 192, 0.1)",
                                   borderRadius: "10px",
-                                  border: "1px solid rgba(139, 92, 246, 0.2)",
+                                  border: "1px solid rgba(192, 192, 192, 0.2)",
                                   display: "flex",
                                   alignItems: "center",
                                   gap: "8px",
                                 }}
                               >
-                                <span>💡</span>
+                                <SilverIcon as={Lightbulb} size={18} />
                                 <span>
                                   Time slots will be generated automatically
                                   based on your settings.
@@ -4717,14 +4738,14 @@ export function ManageEventPage() {
                       border: "none",
                       background: saving
                         ? "#666"
-                        : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                        : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                       color: "#fff",
                       fontWeight: 700,
                       fontSize: "17px",
                       cursor: saving ? "not-allowed" : "pointer",
                       boxShadow: saving
                         ? "none"
-                        : "0 8px 24px rgba(139, 92, 246, 0.5)",
+                        : "0 8px 24px rgba(192, 192, 192, 0.5)",
                       transition: "all 0.3s ease",
                       textTransform: "uppercase",
                       letterSpacing: "0.08em",
@@ -4735,14 +4756,14 @@ export function ManageEventPage() {
                       if (!saving) {
                         e.target.style.transform = "translateY(-2px)";
                         e.target.style.boxShadow =
-                          "0 12px 32px rgba(139, 92, 246, 0.6)";
+                          "0 12px 32px rgba(192, 192, 192, 0.6)";
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (!saving) {
                         e.target.style.transform = "translateY(0)";
                         e.target.style.boxShadow =
-                          "0 8px 24px rgba(139, 92, 246, 0.5)";
+                          "0 8px 24px rgba(192, 192, 192, 0.5)";
                       }
                     }}
                     onTouchStart={(e) => {
@@ -4873,7 +4894,7 @@ function Toggle({ checked, onChange }) {
           right: 0,
           bottom: 0,
           background: checked
-            ? "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)"
+            ? "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)"
             : "rgba(255,255,255,0.1)",
           borderRadius: "10px",
           transition: "all 0.3s ease",

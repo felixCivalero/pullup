@@ -1,4 +1,6 @@
 // frontend/src/components/ui/Input.jsx
+import { colors } from "../../theme/colors.js";
+
 export function Input({
   label,
   required = false,
@@ -47,8 +49,8 @@ export function Input({
             : {}),
         }}
         onFocus={(e) => {
-          e.target.style.borderColor = "#8b5cf6";
-          e.target.style.boxShadow = "0 0 0 3px rgba(139, 92, 246, 0.1)";
+          e.target.style.borderColor = colors.silver;
+          e.target.style.boxShadow = `0 0 0 3px ${colors.silverRgbaHover}`;
         }}
         onBlur={(e) => {
           e.target.style.borderColor = error

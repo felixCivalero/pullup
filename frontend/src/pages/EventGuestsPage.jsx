@@ -1,9 +1,22 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
+import {
+  Users,
+  Download,
+  Wine,
+  UtensilsCrossed,
+  RefreshCw,
+  Link2,
+  Check,
+  Clock,
+  AlertTriangle,
+  Loader2,
+} from "lucide-react";
 import { useToast } from "../components/Toast";
 import { FaPaperPlane, FaCalendar } from "react-icons/fa";
 import { getEventShareUrl } from "../lib/urlUtils";
 import { logger } from "../lib/logger.js";
+import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 
 import { authenticatedFetch, API_BASE } from "../lib/api.js";
 import { formatEventTime, formatEventDate } from "../lib/dateUtils.js";
@@ -339,13 +352,13 @@ export function EventGuestsPage() {
         .catch((err) => {
           if (err.name !== "AbortError") {
             navigator.clipboard.writeText(shareUrl);
-            showToast("Link copied to clipboard! 📋", "success");
+            showToast("Link copied to clipboard!", "success");
           }
         });
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(shareUrl);
-      showToast("Link copied to clipboard! 📋", "success");
+      showToast("Link copied to clipboard!", "success");
     }
   }
 
@@ -646,7 +659,7 @@ export function EventGuestsPage() {
           minHeight: "100vh",
           position: "relative",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.1) 0%, transparent 50%), #05040a",
         }}
       >
         <div className="responsive-container">
@@ -673,7 +686,7 @@ export function EventGuestsPage() {
           minHeight: "100vh",
           position: "relative",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.1) 0%, transparent 50%), #05040a",
         }}
       >
         <div className="responsive-container">
@@ -699,7 +712,7 @@ export function EventGuestsPage() {
                 padding: "12px 24px",
                 borderRadius: "999px",
                 border: "none",
-                background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                background: "linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 100%)",
                 color: "#fff",
                 fontWeight: 600,
                 fontSize: "14px",
@@ -722,7 +735,7 @@ export function EventGuestsPage() {
           minHeight: "100vh",
           position: "relative",
           background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.1) 0%, transparent 50%), #05040a",
         }}
       >
         <div className="responsive-container">
@@ -799,7 +812,7 @@ export function EventGuestsPage() {
         minHeight: "100vh",
         position: "relative",
         background:
-          "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%), #05040a",
+          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.1) 0%, transparent 50%), #05040a",
         paddingBottom: "40px",
       }}
     >
@@ -854,7 +867,7 @@ export function EventGuestsPage() {
           height: "600px",
           borderRadius: "50%",
           background:
-            "radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%)",
+            "radial-gradient(circle, rgba(192, 192, 192, 0.08) 0%, transparent 70%)",
           left: mousePosition.x - 300,
           top: mousePosition.y - 300,
           pointerEvents: "none",
@@ -1092,16 +1105,16 @@ export function EventGuestsPage() {
                 target="_blank"
                 rel="noreferrer"
                 style={{
-                  color: "#8b5cf6",
+                  color: "#c0c0c0",
                   textDecoration: "none",
                   fontWeight: 600,
                   fontSize: "16px",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.color = "#a78bfa";
+                  e.target.style.color = "#e5e5e5";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.color = "#8b5cf6";
+                  e.target.style.color = "#c0c0c0";
                 }}
               >
                 go to live
@@ -1190,9 +1203,9 @@ export function EventGuestsPage() {
                 minHeight: "44px",
                 fontWeight: 700,
                 color: "#fff",
-                borderBottom: "2px solid #8b5cf6",
+                borderBottom: "2px solid #c0c0c0",
                 marginBottom: "-2px",
-                background: "rgba(139, 92, 246, 0.1)",
+                background: "rgba(192, 192, 192, 0.1)",
                 borderRadius: "8px 8px 0 0",
                 fontSize: "16px",
                 display: "flex",
@@ -1200,7 +1213,10 @@ export function EventGuestsPage() {
                 gap: "6px",
               }}
             >
-              👥 Guests ({guests.length})
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <SilverIcon as={Users} size={18} />
+                Guests ({guests.length})
+              </span>
             </div>
             <button
               onClick={() => navigate(`/app/events/${id}/manage?tab=edit`)}
@@ -1276,9 +1292,9 @@ export function EventGuestsPage() {
                 style={{
                   padding: "12px 20px",
                   borderRadius: "12px",
-                  border: "1px solid rgba(139, 92, 246, 0.3)",
-                  background: "rgba(139, 92, 246, 0.1)",
-                  color: "#a78bfa",
+                  border: "1px solid rgba(192, 192, 192, 0.3)",
+                  background: "rgba(192, 192, 192, 0.1)",
+                  color: "#e5e5e5",
                   fontSize: "16px",
                   fontWeight: 500,
                   cursor: "pointer",
@@ -1291,15 +1307,16 @@ export function EventGuestsPage() {
                   WebkitTapHighlightColor: "transparent",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.background = "rgba(139, 92, 246, 0.2)";
-                  e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+                  e.target.style.background = "rgba(192, 192, 192, 0.2)";
+                  e.target.style.borderColor = "rgba(192, 192, 192, 0.5)";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.background = "rgba(139, 92, 246, 0.1)";
-                  e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
+                  e.target.style.background = "rgba(192, 192, 192, 0.1)";
+                  e.target.style.borderColor = "rgba(192, 192, 192, 0.3)";
                 }}
               >
-                📥 Export CSV
+                <SilverIcon as={Download} size={18} />
+                Export CSV
               </button>
             </div>
 
@@ -1329,7 +1346,7 @@ export function EventGuestsPage() {
                   backdropFilter: "blur(10px)",
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
+                  e.target.style.borderColor = "rgba(192, 192, 192, 0.5)";
                   e.target.style.background = "rgb(12 10 18 / 15%)";
                 }}
                 onBlur={(e) => {
@@ -1358,7 +1375,7 @@ export function EventGuestsPage() {
                     opacity: 0.5,
                   }}
                 >
-                  👥
+                  <SilverIcon as={Users} size={18} />
                 </div>
                 <div style={{ fontSize: "16px", opacity: 0.7 }}>
                   {searchQuery.trim()
@@ -1388,8 +1405,8 @@ export function EventGuestsPage() {
                     <tr
                       style={{
                         background:
-                          "linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.1) 100%)",
-                        borderBottom: "2px solid rgba(139, 92, 246, 0.3)",
+                          "linear-gradient(135deg, rgba(192, 192, 192, 0.15) 0%, rgba(232, 232, 232, 0.1) 100%)",
+                        borderBottom: "2px solid rgba(192, 192, 192, 0.3)",
                       }}
                     >
                       <SortableHeader
@@ -1513,7 +1530,7 @@ export function EventGuestsPage() {
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background =
-                            "rgba(139, 92, 246, 0.08)";
+                            "rgba(192, 192, 192, 0.08)";
                           e.currentTarget.style.transform = "scale(1.002)";
                         }}
                         onMouseLeave={(e) => {
@@ -1726,10 +1743,10 @@ export function EventGuestsPage() {
                                   fontSize: "11px",
                                   opacity: 0.8,
                                   padding: "3px 8px",
-                                  background: "rgba(139, 92, 246, 0.15)",
+                                  background: "rgba(192, 192, 192, 0.15)",
                                   borderRadius: "6px",
-                                  border: "1px solid rgba(139, 92, 246, 0.3)",
-                                  color: "#a78bfa",
+                                  border: "1px solid rgba(192, 192, 192, 0.3)",
+                                  color: "#e5e5e5",
                                   fontWeight: 600,
                                   marginTop: "4px",
                                 }}
@@ -1799,7 +1816,7 @@ export function EventGuestsPage() {
                                           "1px solid rgba(245, 158, 11, 0.3)",
                                       }}
                                     >
-                                      🥂 {cocktailsPulledUp}
+                                      <SilverIcon as={Wine} size={14} /> {cocktailsPulledUp}
                                     </div>
                                   )}
                                   {dinnerPulledUp > 0 && (
@@ -1815,7 +1832,7 @@ export function EventGuestsPage() {
                                           "1px solid rgba(16, 185, 129, 0.3)",
                                       }}
                                     >
-                                      🍽️ {dinnerPulledUp}
+                                      <SilverIcon as={UtensilsCrossed} size={14} /> {dinnerPulledUp}
                                     </div>
                                   )}
                                 </>
@@ -1840,9 +1857,9 @@ export function EventGuestsPage() {
                               style={{
                                 padding: "6px 12px",
                                 borderRadius: "8px",
-                                border: "1px solid rgba(139, 92, 246, 0.4)",
-                                background: "rgba(139, 92, 246, 0.1)",
-                                color: "#a78bfa",
+                                border: "1px solid rgba(192, 192, 192, 0.4)",
+                                background: "rgba(192, 192, 192, 0.1)",
+                                color: "#e5e5e5",
                                 fontSize: "12px",
                                 fontWeight: 600,
                                 cursor: "pointer",
@@ -1850,15 +1867,15 @@ export function EventGuestsPage() {
                               }}
                               onMouseEnter={(e) => {
                                 e.target.style.background =
-                                  "rgba(139, 92, 246, 0.2)";
+                                  "rgba(192, 192, 192, 0.2)";
                                 e.target.style.borderColor =
-                                  "rgba(139, 92, 246, 0.6)";
+                                  "rgba(192, 192, 192, 0.6)";
                               }}
                               onMouseLeave={(e) => {
                                 e.target.style.background =
-                                  "rgba(139, 92, 246, 0.1)";
+                                  "rgba(192, 192, 192, 0.1)";
                                 e.target.style.borderColor =
-                                  "rgba(139, 92, 246, 0.4)";
+                                  "rgba(192, 192, 192, 0.4)";
                               }}
                             >
                               Edit
@@ -1871,8 +1888,8 @@ export function EventGuestsPage() {
                               style={{
                                 padding: "6px 12px",
                                 borderRadius: "8px",
-                                border: "1px solid rgba(236, 72, 153, 0.4)",
-                                background: "rgba(236, 72, 153, 0.1)",
+                                border: "1px solid rgba(232, 232, 232, 0.4)",
+                                background: "rgba(232, 232, 232, 0.1)",
                                 color: "#f472b6",
                                 fontSize: "12px",
                                 fontWeight: 600,
@@ -1881,15 +1898,15 @@ export function EventGuestsPage() {
                               }}
                               onMouseEnter={(e) => {
                                 e.target.style.background =
-                                  "rgba(236, 72, 153, 0.2)";
+                                  "rgba(232, 232, 232, 0.2)";
                                 e.target.style.borderColor =
-                                  "rgba(236, 72, 153, 0.6)";
+                                  "rgba(232, 232, 232, 0.6)";
                               }}
                               onMouseLeave={(e) => {
                                 e.target.style.background =
-                                  "rgba(236, 72, 153, 0.1)";
+                                  "rgba(232, 232, 232, 0.1)";
                                 e.target.style.borderColor =
-                                  "rgba(236, 72, 153, 0.4)";
+                                  "rgba(232, 232, 232, 0.4)";
                               }}
                             >
                               Delete
@@ -2005,8 +2022,8 @@ function StatCard({ icon, label, value, color }) {
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.3)";
-        e.currentTarget.style.boxShadow = "0 8px 24px rgba(139, 92, 246, 0.2)";
+        e.currentTarget.style.borderColor = "rgba(192, 192, 192, 0.3)";
+        e.currentTarget.style.boxShadow = "0 8px 24px rgba(192, 192, 192, 0.2)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
@@ -2082,7 +2099,7 @@ function SortableHeader({
         position: "relative",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "rgba(139, 92, 246, 0.1)";
+        e.currentTarget.style.background = "rgba(192, 192, 192, 0.1)";
         e.currentTarget.style.opacity = "1";
       }}
       onMouseLeave={(e) => {
@@ -2119,7 +2136,7 @@ function SortableHeader({
               lineHeight: "1",
               color:
                 isActive && sortDirection === "asc"
-                  ? "#8b5cf6"
+                  ? "#c0c0c0"
                   : "rgba(255, 255, 255, 0.6)",
             }}
           >
@@ -2131,7 +2148,7 @@ function SortableHeader({
               lineHeight: "1",
               color:
                 isActive && sortDirection === "desc"
-                  ? "#8b5cf6"
+                  ? "#c0c0c0"
                   : "rgba(255, 255, 255, 0.6)",
             }}
           >
@@ -2246,8 +2263,8 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
     // Entire booking is on waitlist (all-or-nothing)
     // For paid events on waitlist, payment status doesn't matter (they pay when they get a link)
     label = "WAITLIST";
-    bg = "rgba(236, 72, 153, 0.2)";
-    border = "rgba(236, 72, 153, 0.5)";
+    bg = "rgba(232, 232, 232, 0.2)";
+    border = "rgba(232, 232, 232, 0.5)";
     color = "#f472b6";
   } else if (bookingStatus === "CANCELLED") {
     label = "CANCELLED";
@@ -2261,13 +2278,13 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
     label = status === "attending" ? "Attending" : "Waitlist";
     bg =
       status === "attending"
-        ? "rgba(139, 92, 246, 0.2)"
-        : "rgba(236, 72, 153, 0.2)";
+        ? "rgba(192, 192, 192, 0.2)"
+        : "rgba(232, 232, 232, 0.2)";
     border =
       status === "attending"
-        ? "rgba(139, 92, 246, 0.5)"
-        : "rgba(236, 72, 153, 0.5)";
-    color = status === "attending" ? "#a78bfa" : "#f472b6";
+        ? "rgba(192, 192, 192, 0.5)"
+        : "rgba(232, 232, 232, 0.5)";
+    color = status === "attending" ? "#e5e5e5" : "#f472b6";
   }
 
   // Add arrival status indicator (only for CONFIRMED bookings)
@@ -2437,10 +2454,10 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
             {generatingLink
               ? "Generating..."
               : linkStatus === "SENT"
-              ? "🔄 Regenerate"
+              ? <><SilverIcon as={RefreshCw} size={14} /> Regenerate</>
               : linkStatus === "EXPIRED"
-              ? "🔄 New Link"
-              : "🔗 Generate Link"}
+              ? <><SilverIcon as={RefreshCw} size={14} /> New Link</>
+              : <><SilverIcon as={Link2} size={14} /> Generate Link</>}
           </button>
         )}
     </div>
@@ -2451,14 +2468,14 @@ function StatusBadge({ status }) {
   const config = {
     attending: {
       label: "Attending",
-      bg: "rgba(139, 92, 246, 0.2)",
-      border: "rgba(139, 92, 246, 0.5)",
-      color: "#a78bfa",
+      bg: "rgba(192, 192, 192, 0.2)",
+      border: "rgba(192, 192, 192, 0.5)",
+      color: "#e5e5e5",
     },
     waitlist: {
       label: "Waitlist",
-      bg: "rgba(236, 72, 153, 0.2)",
-      border: "rgba(236, 72, 153, 0.5)",
+      bg: "rgba(232, 232, 232, 0.2)",
+      border: "rgba(232, 232, 232, 0.5)",
       color: "#f472b6",
     },
   };
@@ -2488,28 +2505,32 @@ function StatusBadge({ status }) {
 function DinnerStatusBadge({ status }) {
   const config = {
     confirmed: {
-      label: "✅ Confirmed",
+      label: "Confirmed",
+      icon: <SilverIcon as={Check} size={12} />,
       bg: "rgba(16, 185, 129, 0.2)",
       border: "rgba(16, 185, 129, 0.5)",
       color: "#10b981",
     },
     waitlist: {
-      label: "⏳ Waitlist",
-      bg: "rgba(236, 72, 153, 0.2)",
-      border: "rgba(236, 72, 153, 0.5)",
+      label: "Waitlist",
+      icon: <SilverIcon as={Clock} size={12} />,
+      bg: "rgba(232, 232, 232, 0.2)",
+      border: "rgba(232, 232, 232, 0.5)",
       color: "#f472b6",
     },
     cocktails: {
-      label: "🥂 Cocktails",
+      label: "Cocktails",
+      icon: <SilverIcon as={Wine} size={12} />,
       bg: "rgba(245, 158, 11, 0.2)",
       border: "rgba(245, 158, 11, 0.5)",
       color: "#f59e0b",
     },
     cocktails_waitlist: {
-      label: "🥂⏳ Both",
-      bg: "rgba(139, 92, 246, 0.2)",
-      border: "rgba(139, 92, 246, 0.5)",
-      color: "#a78bfa",
+      label: "Both",
+      icon: <SilverIcon as={Wine} size={12} />,
+      bg: "rgba(192, 192, 192, 0.2)",
+      border: "rgba(192, 192, 192, 0.5)",
+      color: "#e5e5e5",
     },
   };
 
@@ -2918,7 +2939,7 @@ function EditGuestModal({
                     background:
                       plusOnes <= 0
                         ? "rgba(255, 255, 255, 0.05)"
-                        : "rgba(139, 92, 246, 0.2)",
+                        : "rgba(192, 192, 192, 0.2)",
                     color: plusOnes <= 0 ? "rgba(255, 255, 255, 0.3)" : "#fff",
                     fontSize: "22px",
                     fontWeight: 600,
@@ -2958,7 +2979,7 @@ function EditGuestModal({
                     background:
                       plusOnes >= maxPlusOnes
                         ? "rgba(255, 255, 255, 0.05)"
-                        : "rgba(139, 92, 246, 0.2)",
+                        : "rgba(192, 192, 192, 0.2)",
                     color:
                       plusOnes >= maxPlusOnes
                         ? "rgba(255, 255, 255, 0.3)"
@@ -3289,7 +3310,7 @@ function EditGuestModal({
                       color: pulledUpForCocktails !== null ? "#f59e0b" : "#fff",
                     }}
                   >
-                    🥂 Cocktails
+                    <SilverIcon as={Wine} size={18} /> Cocktails
                   </span>
                 </label>
                 {pulledUpForCocktails !== null && (
@@ -3482,7 +3503,7 @@ function EditGuestModal({
                         color: pulledUpForDinner !== null ? "#10b981" : "#fff",
                       }}
                     >
-                      🍽️ Dinner
+                      <SilverIcon as={UtensilsCrossed} size={18} /> Dinner
                     </span>
                   </label>
                   {pulledUpForDinner !== null && (
@@ -3633,7 +3654,7 @@ function EditGuestModal({
                   fontSize: "14px",
                 }}
               >
-                <span style={{ fontSize: "18px" }}>⚠️</span>
+                <SilverIcon as={AlertTriangle} size={18} style={{ color: "#f59e0b" }} />
                 <span>You're overriding capacity</span>
               </div>
               <div style={{ opacity: 0.9 }}>
@@ -3707,7 +3728,7 @@ function EditGuestModal({
                   capacityCheck.willExceedCocktail ||
                   capacityCheck.willExceedDinner
                     ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
-                    : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                    : "linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 100%)",
                 color: "#fff",
                 fontSize: "15px",
                 fontWeight: 600,
@@ -3903,9 +3924,9 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
           style={{
             marginBottom: "20px",
             padding: "16px",
-            background: "rgba(139, 92, 246, 0.1)",
+            background: "rgba(192, 192, 192, 0.1)",
             borderRadius: "12px",
-            border: "1px solid rgba(139, 92, 246, 0.2)",
+            border: "1px solid rgba(192, 192, 192, 0.2)",
           }}
         >
           <div style={{ fontSize: "14px", opacity: 0.8, marginBottom: "8px" }}>
@@ -4058,7 +4079,7 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
                   color: "#10b981",
                 }}
               >
-                🍽️ Dinner
+                <SilverIcon as={UtensilsCrossed} size={18} /> Dinner
               </label>
               <div
                 style={{
@@ -4216,7 +4237,7 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
                 border: "none",
                 background: saved
                   ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-                  : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                  : "linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 100%)",
                 color: "#fff",
                 fontSize: "15px",
                 fontWeight: 600,
@@ -4231,7 +4252,7 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
             >
               {loading ? (
                 <>
-                  <span>⏳</span> Saving...
+                  <SilverIcon as={Loader2} size={16} /> Saving...
                 </>
               ) : saved ? (
                 <>
@@ -4337,7 +4358,7 @@ function DeleteConfirmModal({ guest, onClose, onConfirm }) {
               padding: "14px 24px",
               borderRadius: "12px",
               border: "none",
-              background: "linear-gradient(135deg, #ec4899 0%, #dc2626 100%)",
+              background: "linear-gradient(135deg, #a8a8a8 0%, #dc2626 100%)",
               color: "#fff",
               fontSize: "15px",
               fontWeight: 600,

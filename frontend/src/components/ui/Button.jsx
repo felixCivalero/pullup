@@ -1,4 +1,6 @@
 // frontend/src/components/ui/Button.jsx
+import { colors } from "../../theme/colors.js";
+
 export function Button({
   children,
   onClick,
@@ -39,10 +41,10 @@ export function Button({
       background:
         disabled || loading
           ? "rgba(255, 255, 255, 0.1)"
-          : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-      color: "#fff",
+          : colors.gradientPrimary,
+      color: "#05040a",
       boxShadow:
-        disabled || loading ? "none" : "0 4px 20px rgba(139, 92, 246, 0.3)",
+        disabled || loading ? "none" : `0 4px 20px ${colors.silverShadow}`,
     },
     secondary: {
       background:
@@ -50,7 +52,7 @@ export function Button({
           ? "rgba(255, 255, 255, 0.05)"
           : "rgba(255, 255, 255, 0.08)",
       color: "#fff",
-      border: "1px solid rgba(255, 255, 255, 0.15)",
+      border: "1px solid rgba(255, 255, 255, 0.2)",
       backdropFilter: "blur(10px)",
     },
     danger: {
@@ -80,12 +82,11 @@ export function Button({
         if (!disabled && !loading) {
           e.target.style.transform = "translateY(-2px)";
           if (variant === "primary") {
-            e.target.style.boxShadow = "0 6px 25px rgba(139, 92, 246, 0.4)";
+            e.target.style.boxShadow = `0 6px 25px ${colors.silverShadowHover}`;
           } else if (variant === "secondary") {
-            e.target.style.background =
-              "linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(236, 72, 153, 0.25) 100%)";
-            e.target.style.borderColor = "rgba(139, 92, 246, 0.5)";
-            e.target.style.boxShadow = "0 4px 15px rgba(139, 92, 246, 0.3)";
+            e.target.style.background = colors.gradientPrimarySoft;
+            e.target.style.borderColor = colors.silverRgba;
+            e.target.style.boxShadow = `0 4px 15px ${colors.silverShadow}`;
           }
         }
       }}
@@ -93,12 +94,12 @@ export function Button({
         if (!disabled && !loading) {
           e.target.style.transform = "translateY(0)";
           if (variant === "primary") {
-            e.target.style.boxShadow = "0 4px 20px rgba(139, 92, 246, 0.3)";
+            e.target.style.boxShadow = `0 4px 20px ${colors.silverShadow}`;
           } else if (variant === "secondary") {
             e.target.style.background =
-              "linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)";
-            e.target.style.borderColor = "rgba(139, 92, 246, 0.3)";
-            e.target.style.boxShadow = "0 2px 10px rgba(139, 92, 246, 0.2)";
+              "linear-gradient(135deg, rgba(192, 192, 192, 0.12) 0%, rgba(232, 232, 232, 0.1) 100%)";
+            e.target.style.borderColor = "rgba(255, 255, 255, 0.2)";
+            e.target.style.boxShadow = "0 2px 10px rgba(192, 192, 192, 0.15)";
           }
         }
       }}

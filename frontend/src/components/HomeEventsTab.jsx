@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom";
+import { ScrollText, Calendar } from "lucide-react";
 import { FilterButton } from "./HomeTabs";
 import { DashboardEventCard, getEventStatus } from "./DashboardEventCard";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 export function EventsTab({ events, eventFilter, setEventFilter }) {
   const navigate = useNavigate();
@@ -126,7 +128,7 @@ export function EventsTab({ events, eventFilter, setEventFilter }) {
                   height: "100px",
                   borderRadius: "50%",
                   background:
-                    "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                    "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                   border: "none",
                   color: "#fff",
                   fontSize: "48px",
@@ -138,18 +140,18 @@ export function EventsTab({ events, eventFilter, setEventFilter }) {
                   position: "relative",
                   transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                   marginBottom: "24px",
-                  boxShadow: "0 8px 32px rgba(139, 92, 246, 0.4)",
+                  boxShadow: "0 8px 32px rgba(192, 192, 192, 0.4)",
                   touchAction: "manipulation",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "scale(1.1) rotate(90deg)";
                   e.currentTarget.style.boxShadow =
-                    "0 16px 48px rgba(139, 92, 246, 0.6)";
+                    "0 16px 48px rgba(192, 192, 192, 0.6)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "scale(1) rotate(0deg)";
                   e.currentTarget.style.boxShadow =
-                    "0 8px 32px rgba(139, 92, 246, 0.4)";
+                    "0 8px 32px rgba(192, 192, 192, 0.4)";
                 }}
               >
                 <span style={{ lineHeight: "1", userSelect: "none" }}>+</span>
@@ -168,7 +170,7 @@ export function EventsTab({ events, eventFilter, setEventFilter }) {
                     fontWeight: 700,
                     marginBottom: "12px",
                     background:
-                      "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                      "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
                     backgroundClip: "text",
@@ -191,7 +193,7 @@ export function EventsTab({ events, eventFilter, setEventFilter }) {
               }}
             >
               <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-                {eventFilter === "past" ? "📜" : "📅"}
+                {eventFilter === "past" ? <SilverIcon as={ScrollText} size={18} /> : <SilverIcon as={Calendar} size={18} />}
               </div>
               <div
                 style={{
@@ -224,24 +226,24 @@ export function EventsTab({ events, eventFilter, setEventFilter }) {
                     borderRadius: "999px",
                     border: "none",
                     background:
-                      "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                      "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                     color: "#fff",
                     fontWeight: 600,
                     fontSize: "15px",
                     cursor: "pointer",
                     transition: "all 0.3s ease",
-                    boxShadow: "0 4px 16px rgba(139, 92, 246, 0.3)",
+                    boxShadow: "0 4px 16px rgba(192, 192, 192, 0.3)",
                     touchAction: "manipulation",
                   }}
                   onMouseEnter={(e) => {
                     e.target.style.transform = "translateY(-2px)";
                     e.target.style.boxShadow =
-                      "0 12px 30px rgba(139, 92, 246, 0.5)";
+                      "0 12px 30px rgba(192, 192, 192, 0.5)";
                   }}
                   onMouseLeave={(e) => {
                     e.target.style.transform = "translateY(0)";
                     e.target.style.boxShadow =
-                      "0 4px 16px rgba(139, 92, 246, 0.3)";
+                      "0 4px 16px rgba(192, 192, 192, 0.3)";
                   }}
                 >
                   Create Event

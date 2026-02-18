@@ -3,28 +3,13 @@
 
 import jwt from "jsonwebtoken";
 
-// Determine environment mode
-const isDevelopment = process.env.NODE_ENV === "development";
-
-// In development: prefer TEST_ prefixed variables, fallback to regular
-// In production: always use regular variable names
-let WAITLIST_TOKEN_SECRET;
-
-if (isDevelopment) {
-  WAITLIST_TOKEN_SECRET =
-    process.env.WAITLIST_TOKEN_SECRET ||
-    process.env.TEST_SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY;
-} else {
-  WAITLIST_TOKEN_SECRET =
-    process.env.WAITLIST_TOKEN_SECRET || process.env.SUPABASE_SERVICE_KEY;
-}
+let WAITLIST_TOKEN_SECRET =
+  process.env.WAITLIST_TOKEN_SECRET || process.env.SUPABASE_SERVICE_KEY;
 
 if (!WAITLIST_TOKEN_SECRET) {
-  const missingVar = isDevelopment
-    ? "WAITLIST_TOKEN_SECRET, TEST_SUPABASE_SERVICE_KEY, or SUPABASE_SERVICE_KEY"
-    : "WAITLIST_TOKEN_SECRET or SUPABASE_SERVICE_KEY";
-  console.warn(`⚠️  ${missingVar} not set`);
+  console.warn(
+    "⚠️  WAITLIST_TOKEN_SECRET or SUPABASE_SERVICE_KEY not set"
+  );
 }
 
 /**
@@ -40,10 +25,9 @@ if (!WAITLIST_TOKEN_SECRET) {
  */
 export function generateWaitlistToken(payload) {
   if (!WAITLIST_TOKEN_SECRET) {
-    const missingVar = isDevelopment
-      ? "WAITLIST_TOKEN_SECRET, TEST_SUPABASE_SERVICE_KEY, or SUPABASE_SERVICE_KEY"
-      : "WAITLIST_TOKEN_SECRET or SUPABASE_SERVICE_KEY";
-    throw new Error(`${missingVar} must be set`);
+    throw new Error(
+      "WAITLIST_TOKEN_SECRET or SUPABASE_SERVICE_KEY must be set"
+    );
   }
 
   return jwt.sign(payload, WAITLIST_TOKEN_SECRET, {
@@ -59,10 +43,9 @@ export function generateWaitlistToken(payload) {
  */
 export function verifyWaitlistToken(token) {
   if (!WAITLIST_TOKEN_SECRET) {
-    const missingVar = isDevelopment
-      ? "WAITLIST_TOKEN_SECRET, TEST_SUPABASE_SERVICE_KEY, or SUPABASE_SERVICE_KEY"
-      : "WAITLIST_TOKEN_SECRET or SUPABASE_SERVICE_KEY";
-    throw new Error(`${missingVar} must be set`);
+    throw new Error(
+      "WAITLIST_TOKEN_SECRET or SUPABASE_SERVICE_KEY must be set"
+    );
   }
 
   try {

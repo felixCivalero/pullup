@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { Calendar, MapPin, Link2, ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
 import { useToast } from "../components/Toast";
+import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { publicFetch, API_BASE } from "../lib/api.js";
 import {
   getEventShareUrl,
@@ -232,13 +234,13 @@ export function EventSuccessPage() {
         .catch((err) => {
           if (err.name !== "AbortError") {
             navigator.clipboard.writeText(shareUrl);
-            showToast("Link copied to clipboard! 📋", "success");
+            showToast("Link copied to clipboard!", "success");
           }
         });
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(shareUrl);
-      showToast("Link copied to clipboard! 📋", "success");
+      showToast("Link copied to clipboard!", "success");
     }
   }
 
@@ -416,7 +418,7 @@ export function EventSuccessPage() {
                     gap: "8px",
                   }}
                 >
-                  <span>📅</span>
+                  <SilverIcon as={Calendar} size={18} />
                   <span>{formatReadableDateTime(event.startsAt)}</span>
                 </div>
               )}
@@ -431,7 +433,7 @@ export function EventSuccessPage() {
                     gap: "8px",
                   }}
                 >
-                  <span>📍</span>
+                  <SilverIcon as={MapPin} size={18} />
                   <a
                     href={getGoogleMapsUrl(
                       event.location,
@@ -474,14 +476,17 @@ export function EventSuccessPage() {
                 padding: "18px",
                 borderRadius: "12px",
                 border: "none",
-                background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                 color: "#fff",
                 fontSize: "18px",
                 fontWeight: 700,
                 cursor: "pointer",
               }}
             >
-              🔗 Share Event
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <SilverIcon as={Link2} size={20} style={{ color: "#05040a" }} />
+                Share Event
+              </span>
             </button>
           </div>
 
@@ -515,9 +520,9 @@ export function EventSuccessPage() {
                 gap: "8px",
               }}
             >
-              <span>📅</span>
+              <SilverIcon as={Calendar} size={18} />
               <span>Add to calendar</span>
-              <span>{showCalendarDropdown ? "▲" : "▼"}</span>
+              {showCalendarDropdown ? <ChevronUp size={16} style={{ opacity: 0.8 }} /> : <ChevronDown size={16} style={{ opacity: 0.8 }} />}
             </button>
 
             {showCalendarDropdown && (
@@ -640,7 +645,7 @@ export function EventSuccessPage() {
               fontSize: "14px",
             }}
           >
-            View event page →
+            View event page <ChevronRight size={14} style={{ display: "inline", verticalAlign: "middle" }} />
           </a>
         </div>
       </div>

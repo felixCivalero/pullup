@@ -17,18 +17,8 @@ import { publicFetch } from "../lib/api.js";
 // Get Stripe publishable key from environment
 // In development: prefer TEST_ prefixed, fallback to regular
 // In production: use regular variable name
-const isDevelopment =
-  import.meta.env.DEV || import.meta.env.MODE === "development";
-
-const getStripePublishableKey = () => {
-  if (isDevelopment) {
-    return (
-      import.meta.env.VITE_TEST_STRIPE_PUBLISHABLE_KEY ||
-      import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
-    );
-  }
-  return import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-};
+const getStripePublishableKey = () =>
+  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
 const stripePromise = (() => {
   const key = getStripePublishableKey();
@@ -187,7 +177,7 @@ function PaymentFormInner({
       // Handle different payment intent statuses
       if (paymentIntent.status === "succeeded") {
         console.log("[PaymentForm] Payment succeeded, calling onSuccess");
-        showToast("Payment successful! 🎉", "success");
+        showToast("Payment successful!", "success");
         onSuccess(paymentIntent);
         // Don't set processing to false here - let parent handle it
       } else if (paymentIntent.status === "requires_action") {
@@ -297,7 +287,7 @@ function PaymentFormInner({
           // Use appearance prop for styling (not style inside options)
           appearance={{
             variables: {
-              colorPrimary: "#8b5cf6",
+              colorPrimary: "#c0c0c0",
               colorBackground: "transparent",
               colorText: "#fff",
               colorDanger: "#ef4444",
@@ -315,7 +305,7 @@ function PaymentFormInner({
                 color: "rgba(255,255,255,0.5)",
               },
               ".Input:focus": {
-                borderColor: "#8b5cf6",
+                borderColor: "#c0c0c0",
               },
             },
           }}
@@ -381,8 +371,8 @@ function PaymentFormInner({
           style={{
             background:
               processing || !stripe || !elements || !clientSecret || !isReady
-                ? "rgba(139, 92, 246, 0.5)"
-                : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                ? "rgba(192, 192, 192, 0.5)"
+                : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
             cursor:
               processing || !stripe || !elements || !clientSecret || !isReady
                 ? "not-allowed"
@@ -396,20 +386,20 @@ function PaymentFormInner({
             boxShadow:
               processing || !stripe || !elements || !clientSecret || !isReady
                 ? "none"
-                : "0 4px 20px rgba(139, 92, 246, 0.3)",
+                : "0 4px 20px rgba(192, 192, 192, 0.3)",
           }}
           onMouseEnter={(e) => {
             if (!processing && stripe && elements && clientSecret && isReady) {
               e.currentTarget.style.transform = "translateY(-1px)";
               e.currentTarget.style.boxShadow =
-                "0 6px 24px rgba(139, 92, 246, 0.4)";
+                "0 6px 24px rgba(192, 192, 192, 0.4)";
             }
           }}
           onMouseLeave={(e) => {
             if (!processing && stripe && elements && clientSecret && isReady) {
               e.currentTarget.style.transform = "translateY(0)";
               e.currentTarget.style.boxShadow =
-                "0 4px 20px rgba(139, 92, 246, 0.3)";
+                "0 4px 20px rgba(192, 192, 192, 0.3)";
             }
           }}
         >
@@ -461,10 +451,10 @@ export function PaymentForm({
       <div
         style={{
           padding: "20px",
-          background: "rgba(139, 92, 246, 0.1)",
-          border: "1px solid rgba(139, 92, 246, 0.3)",
+          background: "rgba(192, 192, 192, 0.1)",
+          border: "1px solid rgba(192, 192, 192, 0.3)",
           borderRadius: "12px",
-          color: "#a78bfa",
+          color: "#e5e5e5",
         }}
       >
         Waiting for payment setup...

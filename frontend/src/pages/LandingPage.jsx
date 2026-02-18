@@ -1,7 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { Zap, ChevronRight, Ban, Sparkles } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { logger } from "../lib/logger.js";
+import { colors } from "../theme/colors.js";
+import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 
 // Simple analytics tracking function
 function trackEvent(eventName, properties = {}) {
@@ -130,8 +133,7 @@ export function LandingPage() {
           left: 0,
           right: 0,
           bottom: 0,
-          background:
-            "radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.15) 0%, transparent 50%), #05040a",
+          background: `${colors.gradientGlow}, ${colors.background}`,
           zIndex: 0,
         }}
       />
@@ -143,8 +145,7 @@ export function LandingPage() {
           width: "600px",
           height: "600px",
           borderRadius: "50%",
-          background:
-            "radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%)",
+          background: colors.gradientCursorGlow,
           left: mousePosition.x - 300,
           top: mousePosition.y - 300,
           pointerEvents: "none",
@@ -217,8 +218,7 @@ export function LandingPage() {
               Make 'em{" "}
               <span
                 style={{
-                  background:
-                    "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                  background: colors.gradientPrimary,
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
@@ -256,20 +256,19 @@ export function LandingPage() {
             >
               {/* Post event quick - Fast & Energetic */}
               <button
-                onClick={() => handlePrimaryCTA("post")}
+                onClick={() => handlePrimaryCTA("create")}
                 disabled={signingIn}
                 style={{
                   width: "100%",
                   padding: "20px 24px",
                   borderRadius: "16px",
                   border: "none",
-                  background:
-                    "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-                  color: "#fff",
+                  background: colors.gradientPrimary,
+                  color: "#05040a",
                   fontWeight: 700,
                   fontSize: "18px",
                   cursor: signingIn ? "wait" : "pointer",
-                  boxShadow: "0 8px 24px rgba(139, 92, 246, 0.4)",
+                  boxShadow: `0 8px 24px ${colors.silverShadowHover}`,
                   transition: "all 0.15s ease",
                   textAlign: "center",
                   opacity: signingIn ? 0.7 : 1,
@@ -293,7 +292,7 @@ export function LandingPage() {
                   }
                 }}
               >
-                <span style={{ fontSize: "22px" }}>⚡</span>
+                <SilverIcon as={Zap} size={22} style={{ color: "#05040a" }} />
                 <div
                   style={{
                     display: "flex",
@@ -303,7 +302,7 @@ export function LandingPage() {
                   }}
                 >
                   <span style={{ fontSize: "18px", fontWeight: 700 }}>
-                    Post event quick
+                    Create your first event
                   </span>
                   <span
                     style={{
@@ -319,60 +318,6 @@ export function LandingPage() {
               </button>
 
               {/* Plan event in detail - Secure & Professional */}
-              <button
-                onClick={() => handlePrimaryCTA("create")}
-                disabled={signingIn}
-                style={{
-                  width: "100%",
-                  padding: "20px 24px",
-                  borderRadius: "16px",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
-                  background: "rgba(255, 255, 255, 0.05)",
-                  backdropFilter: "blur(10px)",
-                  color: "#fff",
-                  fontWeight: 600,
-                  fontSize: "18px",
-                  cursor: signingIn ? "wait" : "pointer",
-                  boxShadow: "0 4px 16px rgba(0, 0, 0, 0.2)",
-                  transition: "all 0.2s ease",
-                  textAlign: "center",
-                  opacity: signingIn ? 0.7 : 1,
-                  minHeight: "64px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-                onTouchStart={(e) => {
-                  if (!signingIn) {
-                    e.currentTarget.style.transform = "scale(0.98)";
-                    e.currentTarget.style.background =
-                      "rgba(255, 255, 255, 0.08)";
-                  }
-                }}
-                onTouchEnd={(e) => {
-                  if (!signingIn) {
-                    e.currentTarget.style.transform = "scale(1)";
-                    e.currentTarget.style.background =
-                      "rgba(255, 255, 255, 0.05)";
-                  }
-                }}
-              >
-                <span style={{ fontSize: "18px", fontWeight: 600 }}>
-                  Plan event in detail
-                </span>
-                <span
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 400,
-                    opacity: 0.85,
-                    textTransform: "none",
-                  }}
-                >
-                  Structured, Dinner & Paid events
-                </span>
-              </button>
             </div>
 
             {/* Visual Separator - Subtle */}
@@ -417,7 +362,15 @@ export function LandingPage() {
                   e.target.style.opacity = "0.7";
                 }}
               >
-                Log in →
+                Log in{" "}
+                <ChevronRight
+                  size={14}
+                  style={{
+                    display: "inline",
+                    verticalAlign: "middle",
+                    opacity: 0.9,
+                  }}
+                />
               </a>
             </div>
 
@@ -434,9 +387,21 @@ export function LandingPage() {
                 paddingTop: "24px",
               }}
             >
-              <div>⚡ Instant</div>
-              <div>🚫 No signup</div>
-              <div>🔥 Free</div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <SilverIcon as={Zap} size={14} /> Instant
+              </div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <SilverIcon as={Ban} size={14} /> No signup
+              </div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <SilverIcon as={Sparkles} size={14} /> Free
+              </div>
             </div>
           </div>
         </section>

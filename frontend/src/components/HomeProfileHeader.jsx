@@ -1,5 +1,7 @@
 import { useState, useRef } from "react";
+import { Smile } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 import {
   uploadProfileImage,
   validateImageFile,
@@ -85,7 +87,7 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
             borderRadius: "50%",
             background: user.profilePicture
               ? "transparent"
-              : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+              : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -118,7 +120,7 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
               }}
             />
           ) : (
-            "😊"
+            <SilverIcon as={Smile} size={24} />
           )}
           {isHovering && (
             <div

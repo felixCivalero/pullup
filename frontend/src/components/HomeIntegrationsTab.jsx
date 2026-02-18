@@ -1,7 +1,9 @@
 // src/components/HomeIntegrationsTab.jsx
 import { useState, useEffect } from "react";
+import { CreditCard, Calendar } from "lucide-react";
 import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 export function IntegrationsTab() {
   const { showToast } = useToast();
@@ -48,7 +50,7 @@ export function IntegrationsTab() {
     const errorMessage = params.get("message");
 
     if (stripeConnect === "success" && accountId) {
-      showToast("Stripe connected successfully! 💳", "success");
+      showToast("Stripe connected successfully!", "success");
       // Reload status
       loadStripeStatus();
       // Clean URL
@@ -152,7 +154,7 @@ export function IntegrationsTab() {
                 flexShrink: 0,
               }}
             >
-              💳
+              <SilverIcon as={CreditCard} size={20} />
             </div>
             <div style={{ flex: 1 }}>
               <div
@@ -203,7 +205,7 @@ export function IntegrationsTab() {
                   ? "rgba(255,255,255,0.1)"
                   : stripeConnected
                   ? "transparent"
-                  : "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+                  : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
               color: "#fff",
               fontSize: "13px",
               fontWeight: 600,
@@ -243,7 +245,7 @@ export function IntegrationsTab() {
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <SyncItem
-            icon="📅"
+            icon={<SilverIcon as={Calendar} size={18} />}
             title="Calendar Syncing"
             description="Sync your PullUp events with your Google, Outlook, or Apple calendar."
             buttonText="Add iCal Subscription"
@@ -331,7 +333,7 @@ function SyncItem({ icon, title, description, buttonText }) {
           padding: "8px 16px",
           borderRadius: "8px",
           border: "1px solid rgba(255,255,255,0.1)",
-          background: "rgba(139, 92, 246, 0.2)",
+          background: "rgba(192, 192, 192, 0.2)",
           color: "#fff",
           fontSize: "13px",
           fontWeight: 600,

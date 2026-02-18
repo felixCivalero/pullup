@@ -2,9 +2,11 @@
 // Actions for generating and managing waitlist payment links
 
 import { useState } from "react";
+import { Mail, ClipboardList, RefreshCw, Check } from "lucide-react";
 import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { WaitlistStatusBadge } from "./WaitlistStatusBadge.jsx";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 function getWaitlistLinkStatus(rsvp) {
   if (rsvp.bookingStatus !== "WAITLIST") {
@@ -98,7 +100,7 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
             opacity: generating ? 0.6 : 1,
           }}
         >
-          {generating ? "Generating..." : "📧 Generate Link"}
+          {generating ? "Generating..." : <><SilverIcon as={Mail} size={14} /> Generate Link</>}
         </button>
       )}
 
@@ -116,7 +118,7 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
               cursor: "pointer",
             }}
           >
-            📋 Copy
+            <SilverIcon as={ClipboardList} size={12} /> Copy
           </button>
           <button
             onClick={handleGenerateLink}
@@ -132,7 +134,7 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
               opacity: generating ? 0.6 : 1,
             }}
           >
-            {generating ? "..." : "🔄 Regenerate"}
+            {generating ? "..." : <><SilverIcon as={RefreshCw} size={12} /> Regenerate</>}
           </button>
         </div>
       )}
@@ -152,13 +154,13 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
             opacity: generating ? 0.6 : 1,
           }}
         >
-          {generating ? "Generating..." : "🔄 Generate New Link"}
+          {generating ? "Generating..." : <><SilverIcon as={RefreshCw} size={12} /> Generate New Link</>}
         </button>
       )}
 
       {linkStatus === "CONFIRMED" && (
         <span style={{ fontSize: "11px", opacity: 0.7 }}>
-          ✅ Paid & Confirmed
+          <SilverIcon as={Check} size={12} /> Paid & Confirmed
         </span>
       )}
     </div>

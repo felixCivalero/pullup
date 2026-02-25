@@ -61,9 +61,9 @@ export function CrmTab() {
   const [importing, setImporting] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importEventUrl, setImportEventUrl] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({});
   const [total, setTotal] = useState(0);
+  const [baselineTotal, setBaselineTotal] = useState(null);
   const [page, setPage] = useState(0); // zero-based page index
   const [savedViews, setSavedViews] = useState([]);
   const [activeView, setActiveView] = useState(null);
@@ -83,6 +83,12 @@ export function CrmTab() {
 
   // Track which field is currently being edited inline
   const [editingField, setEditingField] = useState(null);
+
+  // CRM UI state
+  const [showEventDropdown, setShowEventDropdown] = useState(false);
+  const [expandedPersonId, setExpandedPersonId] = useState(null);
+  const [personDetails, setPersonDetails] = useState({});
+  const [showAllEventsByPerson, setShowAllEventsByPerson] = useState({});
 
   const selectedEvent =
     events.find((event) => event.id === selectedEventId) || null;
@@ -127,48 +133,26 @@ export function CrmTab() {
       try {
         const params = new URLSearchParams();
         if (searchQuery) params.append("search", searchQuery);
-        if (filters.email) params.append("email", filters.email);
-        if (filters.name) params.append("name", filters.name);
-        if (filters.totalSpendMin)
-          params.append("totalSpendMin", filters.totalSpendMin);
-        if (filters.totalSpendMax)
-          params.append("totalSpendMax", filters.totalSpendMax);
-        if (filters.paymentCountMin)
-          params.append("paymentCountMin", filters.paymentCountMin);
-        if (filters.paymentCountMax)
-          params.append("paymentCountMax", filters.paymentCountMax);
-        if (filters.subscriptionType)
-          params.append("subscriptionType", filters.subscriptionType);
-        if (filters.interestedIn)
-          params.append("interestedIn", filters.interestedIn);
-        if (filters.hasStripeCustomerId !== undefined)
-          params.append(
-            "hasStripeCustomerId",
-            filters.hasStripeCustomerId.toString()
-          );
-        if (filters.attendedEventId) {
-          console.log(
-            "[CRM] Filtering by event ID:",
-            filters.attendedEventId,
-            "Event title:",
-            events.find((e) => e.id === filters.attendedEventId)?.title
-          );
-          params.append("attendedEventId", filters.attendedEventId);
+
+        // Event attending filter: allow multi-select (comma-separated IDs)
+        if (
+          filters.attendedEventIds &&
+          Array.isArray(filters.attendedEventIds) &&
+          filters.attendedEventIds.length > 0
+        ) {
+          params.append("attendedEventIds", filters.attendedEventIds.join(","));
         }
-        if (filters.hasDinner !== undefined)
+
+        // Dinner filter: true = only guests who had dinner, undefined = no filter
+        if (filters.hasDinner !== undefined) {
           params.append("hasDinner", filters.hasDinner.toString());
-        if (filters.attendanceStatus)
-          params.append("attendanceStatus", filters.attendanceStatus);
-        if (filters.eventsAttendedMin !== undefined)
-          params.append(
-            "eventsAttendedMin",
-            filters.eventsAttendedMin.toString()
-          );
-        if (filters.eventsAttendedMax !== undefined)
-          params.append(
-            "eventsAttendedMax",
-            filters.eventsAttendedMax.toString()
-          );
+        }
+
+        // Always route through the advanced CRM filters pipeline so we
+        // get enriched eventHistory (with attendanceStatus, cocktails/dinner, etc.)
+        // for consistent Pull Up scoring, even when no visible filters are set.
+        params.append("eventsAttendedMin", "0");
+
         params.append("sortBy", "created_at");
         params.append("sortOrder", "desc");
         params.append("limit", PAGE_SIZE.toString());
@@ -180,10 +164,20 @@ export function CrmTab() {
         console.log(
           `[CRM] Received ${data.people?.length || 0} people for page ${
             page + 1
-          } (total: ${data.total || 0})`
+          } (total: ${data.total || 0})`,
         );
+        const nextTotal = data.total || 0;
         setPeople(data.people || []);
-        setTotal(data.total || 0);
+        setTotal(nextTotal);
+
+        // Capture the unfiltered baseline when there are no search/filters
+        if (
+          (baselineTotal === null || baselineTotal === 0) &&
+          !searchQuery &&
+          Object.keys(filters).length === 0
+        ) {
+          setBaselineTotal(nextTotal);
+        }
       } catch (err) {
         console.error(err);
         showToast("Failed to load contacts", "error");
@@ -192,7 +186,63 @@ export function CrmTab() {
       }
     }
     loadPeople();
-  }, [searchQuery, filters, page, showToast, events]);
+  }, [searchQuery, filters, page, showToast, events, baselineTotal]);
+
+  // Load detailed touchpoints (campaign history etc.) for a single person
+  async function loadPersonDetails(personId) {
+    // Avoid refetch if we already have data or currently loading
+    setPersonDetails((prev) => {
+      const current = prev[personId] || {};
+      if (current.loading) return prev;
+      return {
+        ...prev,
+        [personId]: { ...current, loading: true, error: null },
+      };
+    });
+
+    try {
+      const res = await authenticatedFetch(`/host/crm/people/${personId}`);
+      if (!res.ok) {
+        throw new Error("Failed to load person details");
+      }
+      const data = await res.json();
+      const emails = data.touchpoints?.emails || [];
+
+      // Compute simple campaign stats
+      const campaignIds = new Set();
+      let lastCampaignAt = null;
+      emails.forEach((email) => {
+        if (email.campaignId) {
+          campaignIds.add(email.campaignId);
+        }
+        const ts = email.sentAt || email.deliveredAt || email.createdAt;
+        if (ts && (!lastCampaignAt || new Date(ts) > new Date(lastCampaignAt))) {
+          lastCampaignAt = ts;
+        }
+      });
+
+      setPersonDetails((prev) => ({
+        ...prev,
+        [personId]: {
+          ...prev[personId],
+          loading: false,
+          error: null,
+          campaignsSent: campaignIds.size,
+          lastCampaignAt,
+        },
+      }));
+    } catch (error) {
+      console.error("Failed to load person details:", error);
+      setPersonDetails((prev) => ({
+        ...prev,
+        [personId]: {
+          ...prev[personId],
+          loading: false,
+          error: error.message || "Failed to load details",
+        },
+      }));
+    }
+  }
 
   // Load saved views
   useEffect(() => {
@@ -220,7 +270,7 @@ export function CrmTab() {
           setEvents(data || []);
           console.log(
             "[CRM] Loaded events for filter:",
-            (data || []).map((e) => ({ id: e.id, title: e.title }))
+            (data || []).map((e) => ({ id: e.id, title: e.title })),
           );
         }
       } catch (err) {
@@ -274,12 +324,12 @@ export function CrmTab() {
               }
             } catch (err) {
               throw new Error(
-                "Could not find event. Please check the URL or use the event ID directly."
+                "Could not find event. Please check the URL or use the event ID directly.",
               );
             }
           } else {
             throw new Error(
-              "Invalid event URL. Please use format: https://pullup.se/e/event-slug or paste the event ID directly."
+              "Invalid event URL. Please use format: https://pullup.se/e/event-slug or paste the event ID directly.",
             );
           }
         }
@@ -308,7 +358,7 @@ export function CrmTab() {
           : "";
       showToast(
         `Import complete: ${result.summary.created} created, ${result.summary.updated} updated${rsvpMessage}`,
-        "success"
+        "success",
       );
 
       // Reload people
@@ -360,8 +410,18 @@ export function CrmTab() {
           opacity: 0.6,
         }}
       >
-        <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
-          <SilverIcon as={Loader2} size={48} style={{ animation: "crm-spin 1s linear infinite" }} />
+        <div
+          style={{
+            marginBottom: "16px",
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <SilverIcon
+            as={Loader2}
+            size={48}
+            style={{ animation: "crm-spin 1s linear infinite" }}
+          />
         </div>
         <div style={{ fontSize: "18px", fontWeight: 600 }}>
           Loading contacts...
@@ -395,211 +455,303 @@ export function CrmTab() {
           marginBottom: "24px",
         }}
       >
-        {/* Top Row: Search and Actions */}
+        {/* Segment container */}
         <div
           style={{
+            marginTop: "8px",
+            padding: "14px 16px 12px",
+            background: "rgba(20, 16, 30, 0.7)",
+            borderRadius: "16px",
+            border: "1px solid rgba(34, 197, 94, 0.3)",
+            boxShadow:
+              "0 0 0 1px rgba(34,197,94,0.12), 0 14px 40px rgba(0,0,0,0.55)",
             display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            flexWrap: "wrap",
+            flexDirection: "column",
+            gap: "10px",
           }}
         >
-          <input
-            type="text"
-            placeholder="Search contacts..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setPage(0); // Reset to first page on search
-            }}
+          {/* Segment heading + total counter */}
+          <div
             style={{
-              padding: "8px 16px",
-              borderRadius: "999px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(20, 16, 30, 0.6)",
-              color: "#fff",
-              fontSize: "14px",
-              outline: "none",
-              flex: "1 1 auto",
-              minWidth: "200px",
-              maxWidth: "400px",
-              transition: "all 0.2s ease",
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = colors.silverRgbaStrong;
-              e.target.style.background = "rgba(20, 16, 30, 0.8)";
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = "rgba(255,255,255,0.1)";
-              e.target.style.background = "rgba(20, 16, 30, 0.6)";
-            }}
-          />
-
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              border: `1px solid ${colors.silverRgba}`,
-              background: showFilters
-                ? colors.silverRgbaHover
-                : colors.silverRgbaHover,
-              color: colors.silverText,
-              fontSize: "14px",
-              fontWeight: 500,
-              cursor: "pointer",
-              transition: "all 0.2s ease",
               display: "flex",
-              alignItems: "center",
-              gap: "6px",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              gap: "12px",
+              flexWrap: "wrap",
+              marginBottom: "4px",
             }}
           >
-            <SilverIcon as={Search} size={16} />
-            Filters
-          </button>
+            <div
+              style={{
+                fontSize: "13px",
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                opacity: 0.8,
+              }}
+            >
+              Segment
+            </div>
+            <div
+              style={{
+                fontSize: "13px",
+                opacity: 0.8,
+              }}
+            >
+              {total.toLocaleString()} /{" "}
+              {(baselineTotal ?? total).toLocaleString()} contacts
+            </div>
+          </div>
 
-          {/* <button
-            onClick={() => setShowImportModal(true)}
-            className="import-csv-button"
+          {/* Filters + CTA row */}
+          <div
             style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              border: "1px solid rgba(34, 197, 94, 0.3)",
-              background: "rgba(34, 197, 94, 0.1)",
-              color: "#4ade80",
-              fontSize: "14px",
-              fontWeight: 500,
-              cursor: "pointer",
-              transition: "all 0.2s ease",
               display: "flex",
+              flexWrap: "wrap",
+              gap: "16px",
               alignItems: "center",
-              gap: "6px",
             }}
           >
-            <SilverIcon as={Download} size={16} />
-            Import CSV
-          </button> */}
-
-          <button
-            onClick={async () => {
-              try {
-                // Build the same filter query used for the list, but without
-                // pagination, so the export matches the current filtered view.
-                const params = new URLSearchParams();
-                if (searchQuery) params.append("search", searchQuery);
-                if (filters.email) params.append("email", filters.email);
-                if (filters.name) params.append("name", filters.name);
-                if (filters.totalSpendMin)
-                  params.append("totalSpendMin", filters.totalSpendMin);
-                if (filters.totalSpendMax)
-                  params.append("totalSpendMax", filters.totalSpendMax);
-                if (filters.paymentCountMin)
-                  params.append("paymentCountMin", filters.paymentCountMin);
-                if (filters.paymentCountMax)
-                  params.append("paymentCountMax", filters.paymentCountMax);
-                if (filters.subscriptionType)
-                  params.append("subscriptionType", filters.subscriptionType);
-                if (filters.interestedIn)
-                  params.append("interestedIn", filters.interestedIn);
-                if (filters.hasStripeCustomerId !== undefined)
-                  params.append(
-                    "hasStripeCustomerId",
-                    filters.hasStripeCustomerId.toString()
+          {/* Event attending multi-select dropdown */}
+          <div
+            style={{
+              minWidth: "220px",
+              flex: "1 1 220px",
+              position: "relative",
+            }}
+          >
+            <label
+              style={{
+                display: "block",
+                fontSize: "12px",
+                opacity: 0.7,
+                marginBottom: "4px",
+              }}
+            >
+              Attended events
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowEventDropdown((open) => !open)}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: "999px",
+                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(12, 10, 18, 0.8)",
+                color: "#fff",
+                fontSize: "13px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ opacity: 0.85 }}>
+                {filters.attendedEventIds &&
+                Array.isArray(filters.attendedEventIds) &&
+                filters.attendedEventIds.length > 0
+                  ? `${filters.attendedEventIds.length} event${
+                      filters.attendedEventIds.length > 1 ? "s" : ""
+                    } selected`
+                  : "All events"}
+              </span>
+              <span
+                style={{
+                  marginLeft: "8px",
+                  fontSize: "10px",
+                  opacity: 0.7,
+                }}
+              >
+                ▼
+              </span>
+            </button>
+            {showEventDropdown && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  marginTop: 6,
+                  zIndex: 10,
+                  background: "rgba(12, 10, 18, 0.98)",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  padding: "8px",
+                  maxHeight: "220px",
+                  overflowY: "auto",
+                  minWidth: "100%",
+                  boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
+                }}
+              >
+                {events.map((event) => {
+                  const selectedIds = filters.attendedEventIds || [];
+                  const checked = selectedIds.includes(event.id);
+                  return (
+                    <label
+                      key={event.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "6px 4px",
+                        fontSize: "13px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const current = filters.attendedEventIds || [];
+                          let next;
+                          if (e.target.checked) {
+                            next = [...current, event.id];
+                          } else {
+                            next = current.filter((id) => id !== event.id);
+                          }
+                          setFilters((prev) => ({
+                            ...prev,
+                            attendedEventIds: next.length ? next : undefined,
+                          }));
+                          setPage(0);
+                        }}
+                        style={{ margin: 0 }}
+                      />
+                      <span style={{ opacity: 0.9 }}>{event.title}</span>
+                    </label>
                   );
-                if (filters.attendedEventId)
-                  params.append("attendedEventId", filters.attendedEventId);
-                if (filters.hasDinner !== undefined)
-                  params.append("hasDinner", filters.hasDinner.toString());
-                if (filters.attendanceStatus)
-                  params.append("attendanceStatus", filters.attendanceStatus);
-                if (filters.eventsAttendedMin !== undefined)
-                  params.append(
-                    "eventsAttendedMin",
-                    filters.eventsAttendedMin.toString()
-                  );
-                if (filters.eventsAttendedMax !== undefined)
-                  params.append(
-                    "eventsAttendedMax",
-                    filters.eventsAttendedMax.toString()
-                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilters((prev) => ({
+                      ...prev,
+                      attendedEventIds: undefined,
+                    }));
+                    setPage(0);
+                  }}
+                  style={{
+                    marginTop: "6px",
+                    width: "100%",
+                    padding: "6px 10px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(255,255,255,0.06)",
+                    color: "#fff",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Clear selection
+                </button>
+              </div>
+            )}
+          </div>
 
-                const queryString =
-                  params.toString().length > 0 ? `?${params.toString()}` : "";
+          {/* Dinner filter: Yes / No (dinners only) */}
+          <div style={{ minWidth: "180px", flex: "0 0 auto" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "12px",
+                opacity: 0.7,
+                marginBottom: "4px",
+              }}
+            >
+              Dinners only
+            </label>
+            <div
+              style={{
+                display: "inline-flex",
+                borderRadius: "999px",
+                padding: "3px",
+                background: "rgba(12, 10, 18, 0.8)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                gap: "4px",
+              }}
+            >
+              {[
+                { key: "no", label: "No" },
+                { key: "yes", label: "Yes" },
+              ].map((option) => {
+                const isActive =
+                  (option.key === "yes" && filters.hasDinner === true) ||
+                  (option.key === "no" && filters.hasDinner !== true);
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => {
+                      setFilters((prev) => ({
+                        ...prev,
+                        hasDinner:
+                          option.key === "yes" ? true : undefined,
+                      }));
+                      setPage(0);
+                    }}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "999px",
+                      border: "none",
+                      background: isActive
+                        ? "rgba(34, 197, 94, 0.2)"
+                        : "transparent",
+                      color: isActive ? "#4ade80" : "#fff",
+                      fontSize: "11px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      minWidth: 40,
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-                const res = await authenticatedFetch(
-                  `/host/crm/people/export${queryString}`
-                );
-                if (!res.ok) throw new Error("Export failed");
-                const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `crm-contacts-${
-                  new Date().toISOString().split("T")[0]
-                }.csv`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                showToast(
-                  "Exported current filtered view to CSV successfully",
-                  "success"
-                );
-              } catch (err) {
-                console.error(err);
-                showToast("Failed to export CSV", "error");
-              }
-            }}
-            className="export-csv-button"
+          {/* Segment CTA */}
+          <div
             style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              border: `1px solid ${colors.silverRgba}`,
-              background: colors.silverRgbaHover,
-              color: colors.silverText,
-              fontSize: "14px",
-              fontWeight: 500,
-              cursor: "pointer",
-              transition: "all 0.2s ease",
+              marginLeft: "auto",
               display: "flex",
               alignItems: "center",
-              gap: "6px",
+              gap: "10px",
+              flexWrap: "wrap",
             }}
           >
-            <SilverIcon as={Upload} size={16} />
-            Export filtered CSV
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (!total) {
-                showToast(
-                  "There are no contacts in this view to send to.",
-                  "error"
-                );
-                return;
-              }
-              setShowSendModal(true);
-            }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              border: "1px solid rgba(34, 197, 94, 0.3)",
-              background: "rgba(34, 197, 94, 0.08)",
-              color: "#4ade80",
-              fontSize: "14px",
-              fontWeight: 500,
-              cursor: total ? "pointer" : "not-allowed",
-              opacity: total ? 1 : 0.6,
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            <SilverIcon as={Mail} size={16} />
-            Send invite to this segment
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!total) {
+                  showToast(
+                    "There are no contacts in this view to send to.",
+                    "error",
+                  );
+                  return;
+                }
+                setShowSendModal(true);
+              }}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "1px solid rgba(34, 197, 94, 0.3)",
+                background: "rgba(34, 197, 94, 0.08)",
+                color: "#4ade80",
+                fontSize: "14px",
+                fontWeight: 500,
+                cursor: total ? "pointer" : "not-allowed",
+                opacity: total ? 1 : 0.6,
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <SilverIcon as={Mail} size={16} />
+              Send email
+            </button>
+          </div>
+          </div> {/* End filters + CTA row */}
         </div>
 
         {/* Saved Views Tabs */}
@@ -659,236 +811,6 @@ export function CrmTab() {
             >
               + Save View
             </button>
-          </div>
-        )}
-
-        {/* Advanced Filters Panel */}
-        {showFilters && (
-          <div
-            style={{
-              padding: "20px",
-              background: "rgba(20, 16, 30, 0.6)",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: "16px",
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "12px",
-                  opacity: 0.7,
-                  marginBottom: "6px",
-                }}
-              >
-                Attended Event
-              </label>
-              <select
-                value={filters.attendedEventId || ""}
-                onChange={(e) =>
-                  setFilters({
-                    ...filters,
-                    attendedEventId: e.target.value || undefined,
-                  })
-                }
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(12, 10, 18, 0.6)",
-                  color: "#fff",
-                  fontSize: "14px",
-                }}
-              >
-                <option value="">All Events</option>
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "12px",
-                  opacity: 0.7,
-                  marginBottom: "6px",
-                }}
-              >
-                Attendance Status
-              </label>
-              <select
-                value={filters.attendanceStatus || ""}
-                onChange={(e) =>
-                  setFilters({
-                    ...filters,
-                    attendanceStatus: e.target.value || undefined,
-                  })
-                }
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(12, 10, 18, 0.6)",
-                  color: "#fff",
-                  fontSize: "14px",
-                }}
-              >
-                <option value="">All Statuses</option>
-                <option value="attended">Attended</option>
-                <option value="waitlisted">Waitlisted</option>
-                <option value="confirmed">Confirmed</option>
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "12px",
-                  opacity: 0.7,
-                  marginBottom: "6px",
-                }}
-              >
-                Had Dinner
-              </label>
-              <select
-                value={
-                  filters.hasDinner === undefined
-                    ? ""
-                    : filters.hasDinner
-                    ? "yes"
-                    : "no"
-                }
-                onChange={(e) =>
-                  setFilters({
-                    ...filters,
-                    hasDinner:
-                      e.target.value === ""
-                        ? undefined
-                        : e.target.value === "yes",
-                  })
-                }
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(12, 10, 18, 0.6)",
-                  color: "#fff",
-                  fontSize: "14px",
-                }}
-              >
-                <option value="">All</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "12px",
-                  opacity: 0.7,
-                  marginBottom: "6px",
-                }}
-              >
-                Events Attended (min)
-              </label>
-              <input
-                type="number"
-                value={filters.eventsAttendedMin || ""}
-                onChange={(e) =>
-                  setFilters({
-                    ...filters,
-                    eventsAttendedMin: e.target.value
-                      ? parseInt(e.target.value, 10)
-                      : undefined,
-                  })
-                }
-                placeholder="Min events"
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(12, 10, 18, 0.6)",
-                  color: "#fff",
-                  fontSize: "14px",
-                }}
-              />
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "12px",
-                  opacity: 0.7,
-                  marginBottom: "6px",
-                }}
-              >
-                Events Attended (max)
-              </label>
-              <input
-                type="number"
-                value={filters.eventsAttendedMax || ""}
-                onChange={(e) =>
-                  setFilters({
-                    ...filters,
-                    eventsAttendedMax: e.target.value
-                      ? parseInt(e.target.value, 10)
-                      : undefined,
-                  })
-                }
-                placeholder="Max events"
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(12, 10, 18, 0.6)",
-                  color: "#fff",
-                  fontSize: "14px",
-                }}
-              />
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-end",
-                gap: "8px",
-              }}
-            >
-              <button
-                onClick={() => {
-                  setFilters({});
-                  setActiveView(null);
-                  setPage(0); // Reset to first page when clearing filters
-                }}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                }}
-              >
-                Clear
-              </button>
-            </div>
           </div>
         )}
       </div>
@@ -1253,8 +1175,8 @@ export function CrmTab() {
                       subjectLine && subjectLine.trim().length > 0
                         ? subjectLine
                         : selectedEvent
-                        ? `You're invited to ${selectedEvent.title}.`
-                        : ""
+                          ? `You're invited to ${selectedEvent.title}.`
+                          : ""
                     }
                     onChange={(e) => setSubjectLine(e.target.value)}
                     style={{
@@ -1837,13 +1759,13 @@ export function CrmTab() {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(campaignData),
-                      }
+                      },
                     );
 
                     if (!response.ok) {
                       const errorData = await response.json();
                       throw new Error(
-                        errorData.message || "Failed to create campaign"
+                        errorData.message || "Failed to create campaign",
                       );
                     }
 
@@ -1853,20 +1775,20 @@ export function CrmTab() {
                     // Start sending
                     const sendResponse = await authenticatedFetch(
                       `/host/crm/campaigns/${campaignId}/send`,
-                      { method: "POST" }
+                      { method: "POST" },
                     );
 
                     if (!sendResponse.ok) {
                       const errorData = await sendResponse.json();
                       throw new Error(
-                        errorData.message || "Failed to start sending"
+                        errorData.message || "Failed to start sending",
                       );
                     }
 
                     // Show success
                     showToast(
                       `Email campaign queued to ${totalRecipients.toLocaleString()} contacts.`,
-                      "success"
+                      "success",
                     );
 
                     // Close modal and reset
@@ -1885,7 +1807,7 @@ export function CrmTab() {
                     console.error("Error sending campaign:", error);
                     showToast(
                       error.message || "Failed to send campaign",
-                      "error"
+                      "error",
                     );
                   }
                 }}
@@ -1911,65 +1833,153 @@ export function CrmTab() {
         </div>
       )}
 
-      {/* Total Summary */}
-      {total > 0 && (
-        <div
+      {/* Top Row: Search and Actions */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="Search contacts..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(0); // Reset to first page on search
+          }}
           style={{
-            padding: "16px 20px",
-            background: colors.silverRgbaHover,
-            borderRadius: "12px",
+            padding: "8px 16px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(20, 16, 30, 0.6)",
+            color: "#fff",
+            fontSize: "14px",
+            outline: "none",
+            flex: "1 1 auto",
+            minWidth: "200px",
+            maxWidth: "400px",
+            transition: "all 0.2s ease",
+          }}
+          onFocus={(e) => {
+            e.target.style.borderColor = colors.silverRgbaStrong;
+            e.target.style.background = "rgba(20, 16, 30, 0.8)";
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = "rgba(255,255,255,0.1)";
+            e.target.style.background = "rgba(20, 16, 30, 0.6)";
+          }}
+        />
+
+        <button
+          style={{
+            padding: "8px",
+            borderRadius: "999px",
             border: `1px solid ${colors.silverRgba}`,
-            marginBottom: "20px",
+            background: colors.silverRgbaHover,
+            color: colors.silverText,
+            cursor: "default",
+            transition: "all 0.2s ease",
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: "12px",
+            justifyContent: "center",
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: "14px",
-                opacity: 0.8,
-                marginBottom: "4px",
-              }}
-            >
-              Total contacts in this view
-            </div>
-            <div
-              style={{
-                fontSize: "24px",
-                fontWeight: 700,
-                color: colors.silverText,
-              }}
-            >
-              {total.toLocaleString()}
-            </div>
-          </div>
-          <div
+          <SilverIcon as={Search} size={16} />
+        </button>
+
+        {/* <button
+            onClick={() => setShowImportModal(true)}
+            className="import-csv-button"
             style={{
-              fontSize: "13px",
-              opacity: 0.6,
+              padding: "8px 16px",
+              borderRadius: "8px",
+              border: "1px solid rgba(34, 197, 94, 0.3)",
+              background: "rgba(34, 197, 94, 0.1)",
+              color: "#4ade80",
+              fontSize: "14px",
+              fontWeight: 500,
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
             }}
           >
-            {total === 0 ? (
-              "Showing 0 of 0"
-            ) : (
-              <>
-                Showing {(page * PAGE_SIZE + 1).toLocaleString()} –{" "}
-                {Math.min((page + 1) * PAGE_SIZE, total).toLocaleString()} of{" "}
-                {total.toLocaleString()} contacts on this page.{" "}
-                <span style={{ opacity: 0.9 }}>
-                  Export and email actions will use{" "}
-                  <strong>all {total.toLocaleString()} contacts</strong> in this
-                  filtered view.
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+            <SilverIcon as={Download} size={16} />
+            Import CSV
+          </button> */}
+
+        <button
+          onClick={async () => {
+            try {
+              // Build the same filter query used for the list, but without
+              // pagination, so the export matches the current filtered view.
+              const params = new URLSearchParams();
+              if (searchQuery) params.append("search", searchQuery);
+              if (
+                filters.attendedEventIds &&
+                Array.isArray(filters.attendedEventIds) &&
+                filters.attendedEventIds.length > 0
+              ) {
+                params.append(
+                  "attendedEventIds",
+                  filters.attendedEventIds.join(","),
+                );
+              }
+              if (filters.hasDinner !== undefined) {
+                params.append("hasDinner", filters.hasDinner.toString());
+              }
+
+              const queryString =
+                params.toString().length > 0 ? `?${params.toString()}` : "";
+
+              const res = await authenticatedFetch(
+                `/host/crm/people/export${queryString}`,
+              );
+              if (!res.ok) throw new Error("Export failed");
+              const blob = await res.blob();
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `crm-contacts-${
+                new Date().toISOString().split("T")[0]
+              }.csv`;
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              document.body.removeChild(a);
+              showToast(
+                "Exported current filtered view to CSV successfully",
+                "success",
+              );
+            } catch (err) {
+              console.error(err);
+              showToast("Failed to export CSV", "error");
+            }
+          }}
+          className="export-csv-button"
+          style={{
+            padding: "8px 16px",
+            borderRadius: "8px",
+            border: `1px solid ${colors.silverRgba}`,
+            background: colors.silverRgbaHover,
+            color: colors.silverText,
+            fontSize: "14px",
+            fontWeight: 500,
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          <SilverIcon as={Upload} size={16} />
+          Export filtered CSV
+        </button>
+      </div>
 
       {/* People List */}
       {people.length === 0 ? (
@@ -1980,7 +1990,13 @@ export function CrmTab() {
             opacity: 0.6,
           }}
         >
-          <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+          <div
+            style={{
+              marginBottom: "16px",
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
             <SilverIcon as={Users} size={48} />
           </div>
           <div
@@ -2005,284 +2021,551 @@ export function CrmTab() {
               gap: "12px",
             }}
           >
-            {people.map((person) => (
-              <div
-                key={person.id}
-                style={{
-                  padding: "20px",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  borderRadius: "16px",
-                  border: "1px solid rgba(255,255,255,0.05)",
-                  transition: "all 0.3s ease",
-                  cursor: "pointer",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.borderColor = colors.silverRgba;
-                  e.currentTarget.style.boxShadow =
-                    "0 10px 30px rgba(0,0,0,0.3)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-                onClick={() => navigate(`/app/crm/${person.id}`)}
-              >
+            {people.map((person) => {
+              const metrics = computePersonMetrics(person);
+              const isExpanded = expandedPersonId === person.id;
+              const details = personDetails[person.id] || {};
+
+              return (
                 <div
+                  key={person.id}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: "20px",
-                    flexWrap: "wrap",
+                    padding: "18px 20px",
+                    background: "rgba(20, 16, 30, 0.6)",
+                    borderRadius: "16px",
+                    border: "1px solid rgba(255,255,255,0.05)",
+                    transition: "all 0.3s ease",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.borderColor = colors.silverRgba;
+                    e.currentTarget.style.boxShadow =
+                      "0 10px 30px rgba(0,0,0,0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.borderColor =
+                      "rgba(255,255,255,0.05)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                  onClick={() => {
+                    setExpandedPersonId((prev) =>
+                      prev === person.id ? null : person.id,
+                    );
+                    if (!personDetails[person.id]) {
+                      void loadPersonDetails(person.id);
+                    }
                   }}
                 >
-                  {/* Left: Person Info */}
-                  <div style={{ flex: 1, minWidth: "200px" }}>
-                    <div
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: 600,
-                        marginBottom: "6px",
-                        color: "#fff",
-                      }}
-                    >
-                      {person.name || "Unnamed Contact"}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        opacity: 0.7,
-                        marginBottom: "12px",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {person.email}
-                    </div>
-
-                    {/* CRM Stats */}
-                    {(person.totalSpend > 0 ||
-                      person.paymentCount > 0 ||
-                      person.subscriptionType) && (
+                  {/* Collapsed header */}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "16px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {/* Identity + last seen */}
+                    <div style={{ flex: 1, minWidth: "180px" }}>
                       <div
                         style={{
-                          display: "flex",
-                          gap: "12px",
-                          flexWrap: "wrap",
-                          marginBottom: "12px",
+                          fontSize: "16px",
+                          fontWeight: 600,
+                          marginBottom: "4px",
+                          color: "#fff",
                         }}
                       >
-                        {person.totalSpend > 0 && (
-                          <StatBadge
-                            label="Total Spend"
-                            value={formatCurrency(person.totalSpend)}
-                            icon={<SilverIcon as={CircleDollarSign} size={14} />}
-                            color="#10b981"
-                          />
-                        )}
-                        {person.paymentCount > 0 && (
-                          <StatBadge
-                            label="Payments"
-                            value={person.paymentCount}
-                            icon={<SilverIcon as={CreditCard} size={14} />}
-                            color={colors.silver}
-                          />
-                        )}
-                        {person.subscriptionType && (
-                          <StatBadge
-                            label="Type"
-                            value={person.subscriptionType}
-                            icon={<SilverIcon as={ClipboardList} size={14} />}
-                            color="#f59e0b"
-                          />
-                        )}
+                        {person.name || "Unnamed contact"}
                       </div>
-                    )}
-
-                    {/* Event Stats */}
-                    {person.stats && (
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          opacity: 0.7,
+                          marginBottom: "4px",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {person.email}
+                      </div>
                       <div
                         style={{
                           display: "flex",
-                          gap: "12px",
-                          flexWrap: "wrap",
+                          alignItems: "center",
+                          gap: "6px",
+                          fontSize: "11px",
+                          opacity: 0.65,
                         }}
                       >
-                        <StatBadge
-                          label="Events"
-                          value={person.stats.totalEvents}
-                          icon={<SilverIcon as={Calendar} size={14} />}
-                        />
-                        <StatBadge
-                          label="Attended"
-                          value={person.stats.eventsAttended}
-                          icon={<SilverIcon as={Check} size={14} />}
-                          color="#10b981"
-                        />
-                        {person.stats.eventsWaitlisted > 0 && (
-                          <StatBadge
-                            label="Waitlisted"
-                            value={person.stats.eventsWaitlisted}
-                            icon={<SilverIcon as={Clock} size={14} />}
-                            color="#f59e0b"
-                          />
-                        )}
-                        {person.stats.totalGuestsBrought > 0 && (
-                          <StatBadge
-                            label="Guests"
-                            value={person.stats.totalGuestsBrought}
-                            icon={<SilverIcon as={Users} size={14} />}
-                            color={colors.silver}
-                          />
-                        )}
+                        <SilverIcon as={Clock} size={12} />
+                        <span>
+                          Last seen ·{" "}
+                          {metrics.lastAttendedAt
+                            ? formatDate(metrics.lastAttendedAt)
+                            : "—"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Golden Pull Up score */}
+                    {metrics.pullUpScore !== null && (
+                      <div
+                        style={{
+                          flex: "0 0 auto",
+                          display: "flex",
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 56,
+                            height: 56,
+                            borderRadius: "999px",
+                            border: "1px solid rgba(255, 215, 0, 0.35)",
+                            background:
+                              "radial-gradient(circle at 30% 0%, rgba(255,255,255,0.12), rgba(12,10,18,0.95))",
+                            boxShadow:
+                              "0 0 0 1px rgba(0,0,0,0.6), 0 10px 25px rgba(0,0,0,0.75)",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "4px 6px",
+                            transform: "translateY(0)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              background:
+                                "linear-gradient(90deg, #FFD700 0%, #FFB200 40%, #FFF7AA 100%)",
+                              WebkitBackgroundClip: "text",
+                              WebkitTextFillColor: "transparent",
+                              backgroundClip: "text",
+                              fontWeight: 800,
+                              letterSpacing: "0.01em",
+                              textShadow:
+                                "0 2px 8px rgba(255, 215, 0, 0.28)",
+                              fontSize: "18px",
+                              lineHeight: 1,
+                            }}
+                          >
+                            {metrics.pullUpScore}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.14em",
+                              opacity: 0.8,
+                              marginTop: "2px",
+                              color: "rgba(255,255,255,0.85)",
+                            }}
+                          >
+                            Pull Up
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Right: Event History */}
-                  <div style={{ flex: 1, minWidth: "300px" }}>
+                  {/* Expanded details */}
+                  {isExpanded && (
                     <div
                       style={{
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.1em",
-                        opacity: 0.7,
-                        marginBottom: "12px",
+                        marginTop: "14px",
+                        paddingTop: "14px",
+                        borderTop: "1px solid rgba(255,255,255,0.06)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "14px",
                       }}
                     >
-                      Event History
-                    </div>
-                    {person.eventHistory && person.eventHistory.length === 0 ? (
+                      {/* All-time stats */}
                       <div
                         style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit, minmax(160px, 1fr))",
+                          gap: "10px",
                           fontSize: "13px",
-                          opacity: 0.5,
-                          fontStyle: "italic",
                         }}
                       >
-                        No events yet
+                        <div>
+                          <div style={{ opacity: 0.7, marginBottom: "2px" }}>
+                            Events
+                          </div>
+                          <div>
+                            {metrics.eventsAttended} attended /{" "}
+                            {metrics.eventsBooked} booked
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ opacity: 0.7, marginBottom: "2px" }}>
+                            Guests
+                          </div>
+                          <div>
+                            {metrics.guestsAttended} showed /{" "}
+                            {metrics.guestsBooked} expected
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ opacity: 0.7, marginBottom: "2px" }}>
+                            Dinners
+                          </div>
+                          <div>
+                            {metrics.dinnersAttendedEvents} attended /{" "}
+                            {metrics.dinnersBookedEvents} booked
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ opacity: 0.7, marginBottom: "2px" }}>
+                            Dinner guests
+                          </div>
+                          <div>
+                            {metrics.dinnerGuestsAttended} showed /{" "}
+                            {metrics.dinnerGuestsBooked} booked
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ opacity: 0.7, marginBottom: "2px" }}>
+                            Spend
+                          </div>
+                          <div>
+                            {person.totalSpend > 0
+                              ? formatCurrency(person.totalSpend)
+                              : "—"}
+                            {metrics.avgTicket && (
+                              <span style={{ opacity: 0.7 }}>
+                                {" "}
+                                · Avg {formatCurrency(metrics.avgTicket)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ opacity: 0.7, marginBottom: "2px" }}>
+                            Activity
+                          </div>
+                          <div>
+                            {metrics.eventsLast12Months} events last 12 months
+                          </div>
+                        </div>
                       </div>
-                    ) : (
+
+                      {/* Campaign history (from detailed touchpoints) */}
                       <div
                         style={{
+                          fontSize: "12px",
+                          opacity: 0.8,
                           display: "flex",
-                          flexDirection: "column",
+                          flexWrap: "wrap",
                           gap: "8px",
+                          alignItems: "center",
                         }}
                       >
-                        {person.eventHistory?.slice(0, 3).map((history) => {
-                          const isAttended =
-                            history.attendanceStatus === "attended";
-                          const isConfirmed =
-                            history.attendanceStatus === "confirmed";
+                        <span
+                          style={{
+                            textTransform: "uppercase",
+                            letterSpacing: "0.12em",
+                            opacity: 0.7,
+                          }}
+                        >
+                          Campaign history
+                        </span>
+                        {details.loading ? (
+                          <span>Loading…</span>
+                        ) : details.error ? (
+                          <span style={{ color: "#f97373" }}>
+                            {details.error}
+                          </span>
+                        ) : (
+                          <>
+                            <span>
+                              {details.campaignsSent || 0} campaigns sent
+                            </span>
+                            <span style={{ opacity: 0.7 }}>
+                              · Last{" "}
+                              {details.lastCampaignAt
+                                ? formatDate(details.lastCampaignAt)
+                                : "—"}
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Event history preview */}
+                      <div>
+                        {(() => {
+                          const history = person.eventHistory || [];
+                          if (history.length === 0) {
+                            return (
+                              <>
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.1em",
+                                    opacity: 0.7,
+                                    marginBottom: "8px",
+                                  }}
+                                >
+                                  Event history
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "13px",
+                                    opacity: 0.5,
+                                    fontStyle: "italic",
+                                  }}
+                                >
+                                  No events yet
+                                </div>
+                              </>
+                            );
+                          }
+
+                          const now = new Date();
+                          const upcoming = [];
+                          const past = [];
+
+                          history.forEach((h) => {
+                            const eventDate = h.eventDate
+                              ? new Date(h.eventDate)
+                              : null;
+                            const status = h.attendanceStatus || h.status;
+                            const isAttendingFuture =
+                              eventDate &&
+                              eventDate >= now &&
+                              (status === "attended" ||
+                                status === "CONFIRMED" ||
+                                status === "attending" ||
+                                status === "confirmed");
+
+                            if (isAttendingFuture) {
+                              upcoming.push(h);
+                            } else {
+                              past.push(h);
+                            }
+                          });
+
+                          // Sort upcoming by soonest first
+                          upcoming.sort((a, b) => {
+                            const da = a.eventDate ? new Date(a.eventDate) : 0;
+                            const db = b.eventDate ? new Date(b.eventDate) : 0;
+                            return da - db;
+                          });
+
+                          const showAllEvents =
+                            !!showAllEventsByPerson[person.id];
+                          const visiblePast = showAllEvents
+                            ? past
+                            : past.slice(0, 3);
+                          const hasMorePast = past.length > 3;
+
+                          const renderEventRow = (item) => {
+                            const status = item.attendanceStatus || item.status;
+                            const isAttended =
+                              status === "attended" ||
+                              status === "CONFIRMED" ||
+                              status === "attending";
+                            const isConfirmed =
+                              !isAttended &&
+                              (status === "confirmed" ||
+                                status === "CONFIRMED");
+
+                            return (
+                              <div
+                                key={item.rsvpId}
+                                style={{
+                                  padding: "12px",
+                                  background: "rgba(12, 10, 18, 0.4)",
+                                  borderRadius: "8px",
+                                  fontSize: "13px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "12px",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      opacity: 0.8,
+                                    }}
+                                  >
+                                    {isAttended ? (
+                                      <SilverIcon as={Check} size={16} />
+                                    ) : isConfirmed ? (
+                                      <SilverIcon as={FileEdit} size={16} />
+                                    ) : (
+                                      <SilverIcon as={Clock} size={16} />
+                                    )}
+                                  </span>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div
+                                      style={{
+                                        fontWeight: 600,
+                                        marginBottom: "4px",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      {item.eventTitle}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: "11px",
+                                        opacity: 0.6,
+                                        marginBottom: "4px",
+                                      }}
+                                    >
+                                      {formatEventDate(item.eventDate)}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: "11px",
+                                        opacity: 0.75,
+                                      }}
+                                    >
+                                      Party{" "}
+                                      {(item.cocktailsBooked || 0) +
+                                        (item.dinnerBooked || 0)}{" "}
+                                      booked ·{" "}
+                                      {(item.cocktailsAttended || 0) +
+                                        (item.dinnerAttended || 0)}{" "}
+                                      attended
+                                    </div>
+                                    {item.dinnerBooked > 0 && (
+                                      <div
+                                        style={{
+                                          fontSize: "11px",
+                                          opacity: 0.75,
+                                          marginTop: "2px",
+                                        }}
+                                      >
+                                        Dinner {item.dinnerAttended || 0} /{" "}
+                                        {item.dinnerBooked}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          };
 
                           return (
                             <div
-                              key={history.rsvpId}
                               style={{
-                                padding: "12px",
-                                background: "rgba(12, 10, 18, 0.4)",
-                                borderRadius: "8px",
-                                fontSize: "13px",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "10px",
                               }}
                             >
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "12px",
-                                }}
-                              >
-                                <span
+                              {upcoming.length > 0 && (
+                                <div
                                   style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    opacity: 0.8,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "8px",
                                   }}
                                 >
-                                  {isAttended
-                                    ? <SilverIcon as={Check} size={16} />
-                                    : isConfirmed
-                                    ? <SilverIcon as={FileEdit} size={16} />
-                                    : <SilverIcon as={Clock} size={16} />}
-                                </span>
-                                <div style={{ flex: 1, minWidth: 0 }}>
                                   <div
                                     style={{
+                                      fontSize: "12px",
                                       fontWeight: 600,
-                                      marginBottom: "4px",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
-                                    {history.eventTitle}
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.6,
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    {formatEventDate(history.eventDate)}
-                                  </div>
-                                </div>
-                                {history.plusOnes > 0 && (
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.1em",
                                       opacity: 0.7,
-                                      whiteSpace: "nowrap",
-                                      padding: "2px 6px",
-                                      background: colors.silverRgbaHover,
-                                      borderRadius: "6px",
-                                      border:
-                                        `1px solid ${colors.silverRgba}`,
+                                      marginBottom: "4px",
                                     }}
                                   >
-                                    +{history.plusOnes}
+                                    Upcoming events
                                   </div>
-                                )}
-                              </div>
+                                  {upcoming.map((item) => renderEventRow(item))}
+                                </div>
+                              )}
+
+                              {past.length > 0 && (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "8px",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: "12px",
+                                      fontWeight: 600,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.1em",
+                                      opacity: 0.7,
+                                      marginBottom: "4px",
+                                    }}
+                                  >
+                                    Event history
+                                  </div>
+                                  {visiblePast.map((item) =>
+                                    renderEventRow(item),
+                                  )}
+                                  {hasMorePast && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowAllEventsByPerson((prev) => ({
+                                          ...prev,
+                                          [person.id]: !showAllEvents,
+                                        }));
+                                      }}
+                                      style={{
+                                        alignSelf: "flex-start",
+                                        marginTop: "2px",
+                                        fontSize: "12px",
+                                        color: colors.silverText,
+                                        background: "transparent",
+                                        border: "none",
+                                        padding: 0,
+                                        cursor: "pointer",
+                                        opacity: 0.75,
+                                      }}
+                                    >
+                                      {showAllEvents
+                                        ? "Show fewer events"
+                                        : "Show more events"}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
-                        })}
-                        {person.eventHistory &&
-                          person.eventHistory.length > 3 && (
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                opacity: 0.6,
-                                fontStyle: "italic",
-                                paddingLeft: "8px",
-                              }}
-                            >
-                              +{person.eventHistory.length - 3} more event
-                              {person.eventHistory.length - 3 !== 1 ? "s" : ""}
-                            </div>
-                          )}
+                        })()}
                       </div>
-                    )}
-                  </div>
-                </div>
 
-                {/* Footer: First seen */}
-                <div
-                  style={{
-                    marginTop: "16px",
-                    paddingTop: "16px",
-                    borderTop: "1px solid rgba(255,255,255,0.05)",
-                    fontSize: "12px",
-                    opacity: 0.5,
-                  }}
-                >
-                  First seen: {formatDate(person.createdAt)}
+                      {/* Footer: First seen */}
+                      <div
+                        style={{
+                          paddingTop: "8px",
+                          borderTop: "1px solid rgba(255,255,255,0.05)",
+                          fontSize: "12px",
+                          opacity: 0.5,
+                        }}
+                      >
+                        First seen: {formatDate(person.createdAt)}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Pagination */}
@@ -2308,7 +2591,9 @@ export function CrmTab() {
                   background: hasPrevPage
                     ? colors.silverRgbaHover
                     : "rgba(255, 255, 255, 0.05)",
-                  color: hasPrevPage ? colors.silverText : "rgba(255, 255, 255, 0.4)",
+                  color: hasPrevPage
+                    ? colors.silverText
+                    : "rgba(255, 255, 255, 0.4)",
                   fontSize: "14px",
                   fontWeight: 500,
                   cursor: !hasPrevPage || loading ? "not-allowed" : "pointer",
@@ -2335,7 +2620,9 @@ export function CrmTab() {
                   background: hasNextPage
                     ? colors.silverRgbaHover
                     : "rgba(255, 255, 255, 0.05)",
-                  color: hasNextPage ? colors.silverText : "rgba(255, 255, 255, 0.4)",
+                  color: hasNextPage
+                    ? colors.silverText
+                    : "rgba(255, 255, 255, 0.4)",
                   fontSize: "14px",
                   fontWeight: 500,
                   cursor: !hasNextPage || loading ? "not-allowed" : "pointer",
@@ -2371,4 +2658,117 @@ function StatBadge({ label, value, icon, color = "#c0c0c0" }) {
       <span style={{ opacity: 0.7, fontSize: "11px" }}>{label}</span>
     </div>
   );
+}
+
+// Derive all-time stats + Pull Up score for a person
+function computePersonMetrics(person) {
+  const history = person.eventHistory || [];
+
+  const eventsBooked = history.length;
+  const eventsAttended = history.filter((h) => {
+    const status = h.attendanceStatus || h.status;
+    return (
+      status === "attended" ||
+      status === "CONFIRMED" ||
+      status === "attending"
+    );
+  }).length;
+
+  let guestsBooked = 0;
+  let guestsAttended = 0;
+  let dinnersBookedEvents = 0;
+  let dinnersAttendedEvents = 0;
+  let dinnerGuestsBooked = 0;
+  let dinnerGuestsAttended = 0;
+  let lastAttendedAt = null;
+  let eventsLast12Months = 0;
+
+  const now = new Date();
+  const twelveMonthsAgo = new Date(
+    now.getFullYear() - 1,
+    now.getMonth(),
+    now.getDate(),
+  );
+
+  history.forEach((h) => {
+    const date = h.eventDate ? new Date(h.eventDate) : null;
+
+    const booked =
+      (h.cocktailsBooked || 0) +
+      (h.dinnerBooked || 0) +
+      (h.plusOnes || 0);
+    const attended =
+      (h.cocktailsAttended || 0) +
+      (h.dinnerAttended || 0) +
+      (h.plusOnesAttended || 0);
+
+    guestsBooked += booked;
+    guestsAttended += attended;
+
+    if (h.dinnerBooked > 0) {
+      dinnersBookedEvents += 1;
+      dinnerGuestsBooked += h.dinnerBooked || 0;
+    }
+    if (h.dinnerAttended > 0) {
+      dinnersAttendedEvents += 1;
+      dinnerGuestsAttended += h.dinnerAttended || 0;
+    }
+
+    const status = h.attendanceStatus || h.status;
+    if (
+      (status === "attended" ||
+        status === "CONFIRMED" ||
+        status === "attending") &&
+      date
+    ) {
+      if (!lastAttendedAt || date > new Date(lastAttendedAt)) {
+        lastAttendedAt = date.toISOString();
+      }
+      if (date >= twelveMonthsAgo) {
+        eventsLast12Months += 1;
+      }
+    }
+  });
+
+  const payments = person.paymentCount || 0;
+  const totalSpend = person.totalSpend || 0;
+  const avgTicket = payments > 0 ? totalSpend / payments : null;
+
+  const attendanceRate =
+    eventsBooked > 0 ? eventsAttended / eventsBooked : null;
+  const guestRate = guestsBooked > 0 ? guestsAttended / guestsBooked : null;
+  const dinnerRate =
+    dinnerGuestsBooked > 0
+      ? dinnerGuestsAttended / dinnerGuestsBooked
+      : null;
+
+  let score = 0;
+  if (attendanceRate != null) score += attendanceRate * 40;
+  if (guestRate != null) score += guestRate * 30;
+  if (dinnerRate != null) score += dinnerRate * 20;
+
+  // Light bonus from spend (0–10 range)
+  if (totalSpend > 0) {
+    const spendK = totalSpend / 100_000; // assume cents; 100k = 1,000 SEK
+    const spendBonus = Math.min(10, spendK * 2);
+    score += spendBonus;
+  }
+
+  const pullUpScore =
+    score > 0 ? Math.max(1, Math.min(100, Math.round(score))) : null;
+
+  return {
+    eventsBooked,
+    eventsAttended,
+    guestsBooked,
+    guestsAttended,
+    dinnersBookedEvents,
+    dinnersAttendedEvents,
+    dinnerGuestsBooked,
+    dinnerGuestsAttended,
+    lastAttendedAt,
+    eventsLast12Months,
+    avgTicket,
+    pullUpScore,
+  };
 }

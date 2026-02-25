@@ -1,32 +1,28 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../contexts/AuthContext";
 
 import { TabButton } from "../components/HomeTabs";
 import { EventsTab } from "../components/HomeEventsTab";
-import { CrmTab } from "../components/HomeCrmTab";
 
 import { authenticatedFetch } from "../lib/api.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
 export function HomePage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { showToast } = useToast();
   const { user: authUser } = useAuth();
 
-  const [events, setEvents] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [upcomingEvents, setUpcomingEvents] = useState(null);
+  const [pastEvents, setPastEvents] = useState(null);
+  const [loadingUpcoming, setLoadingUpcoming] = useState(true);
+  const [loadingPast, setLoadingPast] = useState(false);
+  const [pastLoaded, setPastLoaded] = useState(false);
   const [networkError, setNetworkError] = useState(false);
   const [user, setUser] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
-  // Check for tab query parameter
-  const [activeTab, setActiveTab] = useState(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get("tab") || "events";
-  }); // "events" | "settings" | "integrations" | "crm"
   const [eventFilter, setEventFilter] = useState("upcoming"); // "upcoming" | "past"
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
@@ -129,18 +125,6 @@ export function HomePage() {
     }
   };
 
-  // Sync activeTab with URL query parameter
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const tabParam = params.get("tab");
-    if (
-      tabParam &&
-      ["events", "settings", "integrations", "crm"].includes(tabParam)
-    ) {
-      setActiveTab(tabParam);
-    }
-  }, [location.search]);
-
   useEffect(() => {
     function handleMouseMove(e) {
       setMousePosition({ x: e.clientX, y: e.clientY });
@@ -150,13 +134,14 @@ export function HomePage() {
   }, []);
 
   useEffect(() => {
-    async function loadEvents() {
+    async function loadUpcomingEvents() {
       setNetworkError(false);
+      setLoadingUpcoming(true);
       try {
-        const res = await authenticatedFetch("/events");
+        const res = await authenticatedFetch("/events?filter=upcoming");
         if (!res.ok) throw new Error("Failed to load events");
         const data = await res.json();
-        setEvents(data);
+        setUpcomingEvents(data);
       } catch (err) {
         console.error("Failed to load events", err);
         if (isNetworkError(err)) {
@@ -166,19 +151,37 @@ export function HomePage() {
           showToast("Failed to load events", "error");
         }
       } finally {
-        setLoading(false);
+        setLoadingUpcoming(false);
       }
     }
-    loadEvents();
+    loadUpcomingEvents();
   }, [showToast]);
 
-  const allEvents = events || [];
-  const stats = {
-    hosted: allEvents.length,
-    attended: 0,
-  };
+  // Lazy-load past events only when needed
+  useEffect(() => {
+    if (eventFilter !== "past") return;
+    if (pastLoaded || loadingPast) return;
 
-  if (loading || profileLoading || !user) {
+    async function loadPastEvents() {
+      try {
+        setLoadingPast(true);
+        const res = await authenticatedFetch("/events?filter=past");
+        if (!res.ok) throw new Error("Failed to load past events");
+        const data = await res.json();
+        setPastEvents(data);
+        setPastLoaded(true);
+      } catch (err) {
+        console.error("Failed to load past events", err);
+        showToast("Failed to load past events", "error");
+      } finally {
+        setLoadingPast(false);
+      }
+    }
+
+    loadPastEvents();
+  }, [eventFilter, pastLoaded, loadingPast, showToast]);
+
+  if (loadingUpcoming || profileLoading || !user) {
     return (
       <div
         className="page-with-header"
@@ -286,6 +289,44 @@ export function HomePage() {
             }
           }
         `}</style>
+
+        {/* Main app mode tabs (Events / CRM) */}
+        <div
+          style={{
+            position: "sticky",
+            top: 56,
+            zIndex: 5,
+            marginBottom: "clamp(12px, 3vw, 20px)",
+          }}
+        >
+          <div
+            className="main-tabs-rail"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "4px",
+              background: "rgba(5, 4, 10, 0.96)",
+              borderRadius: "999px",
+              padding: "4px",
+              border: "1px solid rgba(255,255,255,0.06)",
+              boxShadow: "0 18px 40px rgba(0,0,0,0.65)",
+              maxWidth: "420px",
+              margin: "0 auto",
+            }}
+          >
+            <TabButton
+              label="Events"
+              count={(upcomingEvents || []).length}
+                active={true}
+            />
+            <TabButton
+              label="CRM"
+                active={false}
+                onClick={() => navigate("/crm")}
+            />
+          </div>
+        </div>
+
         <div
           className="responsive-card"
           style={{
@@ -294,41 +335,14 @@ export function HomePage() {
             border: "1px solid rgba(255,255,255,0.05)",
           }}
         >
-          {/* Main tabs - responsive for mobile */}
-          <div
-            style={{
-              display: "flex",
-              gap: "clamp(2px, 0.5vw, 8px)",
-              marginBottom: "clamp(16px, 3vw, 24px)",
-              borderBottom: "1px solid rgba(255,255,255,0.05)",
-              paddingBottom: "clamp(8px, 2vw, 12px)",
-              justifyContent: "space-between",
-            }}
-            className="tabs-container"
-          >
-            <TabButton
-              label="Events"
-              count={allEvents.length}
-              active={activeTab === "events"}
-              onClick={() => setActiveTab("events")}
-            />
-            <TabButton
-              label="CRM"
-              active={activeTab === "crm"}
-              onClick={() => setActiveTab("crm")}
-            />
-          </div>
-
-          {/* Tab content */}
-          {activeTab === "events" && (
-            <EventsTab
-              events={allEvents}
-              eventFilter={eventFilter}
-              setEventFilter={setEventFilter}
-            />
-          )}
-
-          {activeTab === "crm" && <CrmTab />}
+          {/* Events content */}
+          <EventsTab
+            upcomingEvents={upcomingEvents || []}
+            pastEvents={pastEvents || []}
+            eventFilter={eventFilter}
+            setEventFilter={setEventFilter}
+            loadingPast={loadingPast}
+          />
         </div>
       </div>
     </div>

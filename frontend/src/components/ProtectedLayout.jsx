@@ -4,7 +4,6 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 export function ProtectedLayout() {
-  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading } = useAuth();
@@ -17,11 +16,9 @@ export function ProtectedLayout() {
   }, [user, loading, navigate]);
 
   function handleNav(path) {
-    setOpen(false);
     navigate(path);
   }
 
-  const isHome = location.pathname === "/home";
   const isCreatingEvent =
     location.pathname === "/create" || location.pathname === "/post";
 
@@ -67,7 +64,7 @@ export function ProtectedLayout() {
         }}
       >
         <button
-          onClick={() => handleNav("/home")}
+          onClick={() => handleNav("/events")}
           style={{
             background: "transparent",
             border: "none",
@@ -83,23 +80,50 @@ export function ProtectedLayout() {
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {/* Profile avatar */}
           <button
-            onClick={() => handleNav("/home")}
+            onClick={() => handleNav("/settings")}
             style={{
-              background: "transparent",
-              border: "none",
-              color: "#fff",
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              fontSize: "12px",
+              width: 32,
+              height: 32,
+              borderRadius: "999px",
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(12,10,18,0.9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               cursor: "pointer",
+              overflow: "hidden",
+              padding: 0,
             }}
           >
-            Profile
+            {user?.user_metadata?.picture || user?.user_metadata?.avatar_url ? (
+              <img
+                src={
+                  user.user_metadata.picture || user.user_metadata.avatar_url
+                }
+                alt="Profile"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                }}
+              />
+            ) : (
+              <span
+                style={{
+                  color: "#fff",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                }}
+              >
+                {(user?.email || "?").slice(0, 2).toUpperCase()}
+              </span>
+            )}
           </button>
           <button
-            onClick={() => handleNav(isCreatingEvent ? "/home" : "/create")}
+            onClick={() => handleNav(isCreatingEvent ? "/profile" : "/create")}
             style={{
               padding: "10px 18px",
               borderRadius: "999px",
@@ -129,53 +153,6 @@ export function ProtectedLayout() {
             {isCreatingEvent ? "Go to Profile" : "+ create event"}
           </button>
         </div>
-
-        {/* Hamburger */}
-        {/* <button
-          onClick={() => setOpen((o) => !o)}
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: "999px",
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(12,10,18,0.9)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <span style={barStyle} />
-            <span style={barStyle} />
-            <span style={barStyle} />
-          </div>
-        </button> */}
-
-        {/* Dropdown menu */}
-        {/* {open && (
-          <div
-            style={{
-              position: "absolute",
-              top: 52,
-              right: 12,
-              background: "#0C0A12",
-              borderRadius: "14px",
-              boxShadow: "0 16px 40px rgba(0,0,0,0.7)",
-              padding: "8px",
-              minWidth: "160px",
-              zIndex: 30,
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}
-          >
-            <MenuItem onClick={() => handleNav("/home")}>Home</MenuItem>
-            <MenuItem onClick={() => handleNav("/create")}>
-              Create PullUp
-            </MenuItem>
-
-          </div>
-        )}
-         */}
       </header>
 
       {/* Page content */}
@@ -184,27 +161,6 @@ export function ProtectedLayout() {
         <Outlet />
       </main>
     </div>
-  );
-}
-
-function MenuItem({ children, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        width: "100%",
-        padding: "8px 10px",
-        borderRadius: "10px",
-        border: "none",
-        background: "transparent",
-        color: "#fff",
-        fontSize: "14px",
-        textAlign: "left",
-        cursor: "pointer",
-      }}
-    >
-      {children}
-    </button>
   );
 }
 

@@ -3,17 +3,17 @@ export function TabButton({ label, count, active, onClick }) {
     <button
       onClick={onClick}
       style={{
-        padding: "clamp(6px, 1.5vw, 8px) clamp(8px, 2vw, 14px)",
-        borderRadius: "8px",
+        padding: "clamp(8px, 2vw, 10px) clamp(10px, 3vw, 18px)",
+        borderRadius: "999px",
         border: "none",
-        background: active ? "rgba(192, 192, 192, 0.2)" : "transparent",
-        color: active ? "#fff" : "rgba(255,255,255,0.6)",
+        background: active
+          ? "linear-gradient(135deg, #f5f5f5 0%, #d4d4d4 45%, #a3a3a3 100%)"
+          : "transparent",
+        color: active ? "#05040a" : "rgba(255,255,255,0.7)",
         fontWeight: active ? 600 : 500,
         fontSize: "clamp(11px, 2.5vw, 14px)",
         cursor: "pointer",
         transition: "all 0.2s ease",
-        borderBottom: active ? "2px solid #c0c0c0" : "2px solid transparent",
-        marginBottom: "-12px",
         display: "flex",
         alignItems: "center",
         gap: "clamp(4px, 1vw, 6px)",
@@ -26,7 +26,7 @@ export function TabButton({ label, count, active, onClick }) {
       onMouseEnter={(e) => {
         if (!active) {
           e.target.style.color = "rgba(255,255,255,0.9)";
-          e.target.style.background = "rgba(192, 192, 192, 0.1)";
+          e.target.style.background = "rgba(255,255,255,0.06)";
         }
       }}
       onMouseLeave={(e) => {
@@ -109,5 +109,96 @@ export function FilterButton({ label, count, active, onClick }) {
         </span>
       )}
     </button>
+  );
+}
+
+export function SubTabToggle({
+  leftLabel,
+  leftCount,
+  rightLabel,
+  rightCount,
+  active, // "left" | "right"
+  onChange,
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "flex-end",
+        marginBottom: "16px",
+        marginTop: "-8px",
+      }}
+    >
+      <div
+        style={{
+          display: "inline-flex",
+          gap: "8px",
+          alignItems: "center",
+          padding: "4px",
+          background: "rgba(255,255,255,0.02)",
+          borderRadius: "999px",
+        }}
+      >
+        <button
+          onClick={() => onChange("left")}
+          style={{
+            padding: "4px 10px",
+            borderRadius: "999px",
+            border: "none",
+            background:
+              active === "left" ? "rgba(255,255,255,0.08)" : "transparent",
+            color:
+              active === "left"
+                ? "rgba(255,255,255,0.9)"
+                : "rgba(255,255,255,0.4)",
+            fontWeight: active === "left" ? 500 : 400,
+            fontSize: "11px",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {leftLabel}
+          {leftCount > 0 && (
+            <span style={{ marginLeft: "4px", opacity: 0.6 }}>
+              ({leftCount})
+            </span>
+          )}
+        </button>
+        <div
+          style={{
+            width: "1px",
+            height: "12px",
+            background: "rgba(255,255,255,0.1)",
+          }}
+        />
+        <button
+          onClick={() => onChange("right")}
+          style={{
+            padding: "4px 10px",
+            borderRadius: "999px",
+            border: "none",
+            background:
+              active === "right" ? "rgba(255,255,255,0.08)" : "transparent",
+            color:
+              active === "right"
+                ? "rgba(255,255,255,0.9)"
+                : "rgba(255,255,255,0.4)",
+            fontWeight: active === "right" ? 500 : 400,
+            fontSize: "11px",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {rightLabel}
+          {rightCount > 0 && (
+            <span style={{ marginLeft: "4px", opacity: 0.6 }}>
+              ({rightCount})
+            </span>
+          )}
+        </button>
+      </div>
+    </div>
   );
 }

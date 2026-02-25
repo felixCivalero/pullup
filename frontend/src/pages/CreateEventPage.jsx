@@ -138,7 +138,7 @@ function calculateCuisineTimeslots(startTime, endTime, intervalHours) {
       startMonth - 1,
       startDay,
       startHour,
-      startMinute
+      startMinute,
     );
     const endDate = new Date(endYear, endMonth - 1, endDay, endHour, endMinute);
     const interval = parseFloat(intervalHours);
@@ -164,7 +164,7 @@ function calculateCuisineTimeslots(startTime, endTime, intervalHours) {
       const hours = currentTime.getHours();
       const minutes = currentTime.getMinutes();
       const timeStr = `${String(hours).padStart(2, "0")}:${String(
-        minutes
+        minutes,
       ).padStart(2, "0")}`;
 
       slots.push(timeStr);
@@ -284,7 +284,7 @@ export function CreateEventPage() {
       try {
         const { authenticatedFetch } = await import("../lib/api.js");
         const response = await authenticatedFetch(
-          "/host/stripe/connect/status"
+          "/host/stripe/connect/status",
         );
         if (response.ok) {
           const data = await response.json();
@@ -366,7 +366,7 @@ export function CreateEventPage() {
         setImagePreview(reader.result);
         showToast(
           "Image selected! It will be uploaded when you create the event. ✨",
-          "success"
+          "success",
         );
       }
     };
@@ -399,7 +399,7 @@ export function CreateEventPage() {
         const slots = calculateCuisineTimeslots(
           dinnerStartTime,
           dinnerEndTime,
-          dinnerSeatingIntervalHours
+          dinnerSeatingIntervalHours,
         );
         const maxSeatsPerSlot = Number(dinnerMaxSeatsPerSlot);
         if (slots.length > 0 && maxSeatsPerSlot > 0) {
@@ -503,7 +503,7 @@ export function CreateEventPage() {
         console.error(err);
         showToast(
           err?.message || "Failed to create event. Please try again.",
-          "error"
+          "error",
         );
       }
     } finally {
@@ -625,13 +625,13 @@ export function CreateEventPage() {
                 background: isDragging
                   ? "rgba(192, 192, 192, 0.2)"
                   : imagePreview
-                  ? "transparent"
-                  : "rgba(20, 16, 30, 0.3)",
+                    ? "transparent"
+                    : "rgba(20, 16, 30, 0.3)",
                 border: isDragging
                   ? "2px dashed rgba(192, 192, 192, 0.5)"
                   : imagePreview
-                  ? "1px solid rgba(255,255,255,0.1)"
-                  : "1px solid rgba(255,255,255,0.06)",
+                    ? "1px solid rgba(255,255,255,0.1)"
+                    : "1px solid rgba(255,255,255,0.06)",
                 position: "relative",
                 cursor: "pointer",
                 transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -1171,7 +1171,7 @@ export function CreateEventPage() {
                   onClick={() => {
                     showToast(
                       `Timezone: ${tzInfo.tzName} ${tzInfo.city}`,
-                      "info"
+                      "info",
                     );
                   }}
                   style={{
@@ -1579,7 +1579,7 @@ export function CreateEventPage() {
                           >
                             {dinnerStartTime
                               ? formatReadableDateTime(
-                                  new Date(dinnerStartTime)
+                                  new Date(dinnerStartTime),
                                 )
                               : "First slot start *"}
                           </div>
@@ -1713,7 +1713,7 @@ export function CreateEventPage() {
                                   parseFloat(dinnerSeatingIntervalHours) || 2;
                                 if (current > 0.5) {
                                   setDinnerSeatingIntervalHours(
-                                    String(Math.max(0.5, current - 0.5))
+                                    String(Math.max(0.5, current - 0.5)),
                                   );
                                 }
                               }}
@@ -1785,7 +1785,7 @@ export function CreateEventPage() {
                                   parseFloat(dinnerSeatingIntervalHours) || 2;
                                 if (current < 12) {
                                   setDinnerSeatingIntervalHours(
-                                    String(Math.min(12, current + 0.5))
+                                    String(Math.min(12, current + 0.5)),
                                   );
                                 }
                               }}
@@ -1868,7 +1868,7 @@ export function CreateEventPage() {
                                   const slots = calculateCuisineTimeslots(
                                     dinnerStartTime,
                                     dinnerEndTime,
-                                    dinnerSeatingIntervalHours
+                                    dinnerSeatingIntervalHours,
                                   );
                                   if (slots.length === 0) {
                                     return (
@@ -1992,7 +1992,7 @@ export function CreateEventPage() {
                                     parseInt(dinnerMaxSeatsPerSlot, 10) || 1;
                                   if (current > 1) {
                                     setDinnerMaxSeatsPerSlot(
-                                      String(current - 1)
+                                      String(current - 1),
                                     );
                                   } else {
                                     setDinnerMaxSeatsPerSlot("");
@@ -2209,7 +2209,13 @@ export function CreateEventPage() {
                         gap: "12px",
                       }}
                     >
-                      <div style={{ flexShrink: 0 }}><SilverIcon as={AlertTriangle} size={20} style={{ color: "#f59e0b" }} /></div>
+                      <div style={{ flexShrink: 0 }}>
+                        <SilverIcon
+                          as={AlertTriangle}
+                          size={20}
+                          style={{ color: "#f59e0b" }}
+                        />
+                      </div>
                       <div style={{ flex: 1 }}>
                         <div
                           style={{
@@ -2242,7 +2248,7 @@ export function CreateEventPage() {
                             type="button"
                             onClick={() => {
                               // Save current state and navigate to integrations
-                              navigate("/home?tab=integrations");
+                              navigate("/events?tab=integrations");
                             }}
                             style={{
                               padding: "8px 16px",
@@ -2394,10 +2400,18 @@ export function CreateEventPage() {
                       lineHeight: "1.5",
                     }}
                   >
-                    <strong><SilverIcon as={Lightbulb} size={14} style={{ verticalAlign: "middle", marginRight: 4 }} /> Automatic Setup:</strong> When you create this
-                    event, a Stripe product and price will be automatically
-                    created using the event name, description, and ticket price
-                    you've entered above. No manual setup required!
+                    <strong>
+                      <SilverIcon
+                        as={Lightbulb}
+                        size={14}
+                        style={{ verticalAlign: "middle", marginRight: 4 }}
+                      />{" "}
+                      Automatic Setup:
+                    </strong>{" "}
+                    When you create this event, a Stripe product and price will
+                    be automatically created using the event name, description,
+                    and ticket price you've entered above. No manual setup
+                    required!
                   </div>
                 </div>
               )}

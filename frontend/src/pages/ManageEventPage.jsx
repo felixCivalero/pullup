@@ -3688,7 +3688,7 @@ export function ManageEventPage() {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      navigate("/home?tab=integrations");
+                                      navigate("/events?tab=integrations");
                                     }}
                                     style={{
                                       padding: "8px 16px",

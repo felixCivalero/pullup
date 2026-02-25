@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
     // Always use current origin so same Supabase project works on localhost and production
     const redirectTo = returnTo
       ? `${window.location.origin}${returnTo}`
-      : `${window.location.origin}/home`;
+      : `${window.location.origin}/events`;
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",

@@ -508,7 +508,31 @@ app.get("/events", requireAuth, async (req, res) => {
       })
     );
 
-    res.json(eventsWithStats);
+    // Optional filtering: ?filter=upcoming|past|all
+    const filter = (req.query.filter || "all").toString().toLowerCase();
+    let filteredEvents = eventsWithStats;
+
+    if (filter === "upcoming") {
+      const now = new Date();
+      filteredEvents = eventsWithStats.filter((event) => {
+        if (!event.startsAt) return true;
+        const start = new Date(event.startsAt);
+        const end = event.endsAt ? new Date(event.endsAt) : null;
+        // Match frontend getEventStatus: treat "ongoing" as not past
+        if (end && now > end) return false; // past
+        return true; // upcoming or ongoing
+      });
+    } else if (filter === "past") {
+      const now = new Date();
+      filteredEvents = eventsWithStats.filter((event) => {
+        if (!event.startsAt) return false;
+        const end = event.endsAt ? new Date(event.endsAt) : null;
+        // Match frontend getEventStatus "past" definition
+        return !!end && now > end;
+      });
+    }
+
+    res.json(filteredEvents);
   } catch (error) {
     console.error("Error fetching events:", error);
     res.status(500).json({ error: "Failed to fetch events" });
@@ -2792,6 +2816,7 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
       tags,
       hasStripeCustomerId,
       attendedEventId,
+      attendedEventIds,
       hasDinner,
       attendanceStatus,
       eventsAttendedMin,
@@ -2816,6 +2841,7 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
       tags ||
       hasStripeCustomerId !== undefined ||
       attendedEventId ||
+      attendedEventIds ||
       hasDinner !== undefined ||
       attendanceStatus ||
       eventsAttendedMin ||
@@ -2842,6 +2868,9 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
             ? hasStripeCustomerId === "true"
             : undefined,
         attendedEventId,
+        attendedEventIds: attendedEventIds
+          ? attendedEventIds.split(",")
+          : undefined,
         hasDinner: hasDinner !== undefined ? hasDinner === "true" : undefined,
         attendanceStatus,
         eventsAttendedMin: eventsAttendedMin
@@ -2935,6 +2964,7 @@ app.get("/host/crm/people/export", requireAuth, async (req, res) => {
       tags,
       hasStripeCustomerId,
       attendedEventId,
+      attendedEventIds,
       hasDinner,
       attendanceStatus,
       eventsAttendedMin,
@@ -2957,6 +2987,7 @@ app.get("/host/crm/people/export", requireAuth, async (req, res) => {
       tags ||
       hasStripeCustomerId !== undefined ||
       attendedEventId ||
+      attendedEventIds ||
       hasDinner !== undefined ||
       attendanceStatus ||
       eventsAttendedMin ||
@@ -2983,6 +3014,9 @@ app.get("/host/crm/people/export", requireAuth, async (req, res) => {
             ? hasStripeCustomerId === "true"
             : undefined,
         attendedEventId,
+        attendedEventIds: attendedEventIds
+          ? attendedEventIds.split(",")
+          : undefined,
         hasDinner: hasDinner !== undefined ? hasDinner === "true" : undefined,
         attendanceStatus,
         eventsAttendedMin: eventsAttendedMin
@@ -4139,7 +4173,7 @@ app.get("/host/stripe/connect/callback", async (req, res) => {
 
     // Redirect to frontend with success status
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const redirectUrl = `${frontendUrl}/home?stripe_connect=success&account_id=${result.connectedAccountId}`;
+    const redirectUrl = `${frontendUrl}/events?stripe_connect=success&account_id=${result.connectedAccountId}`;
 
     res.redirect(redirectUrl);
   } catch (error) {
@@ -4147,7 +4181,7 @@ app.get("/host/stripe/connect/callback", async (req, res) => {
 
     // Redirect to frontend with error status
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const redirectUrl = `${frontendUrl}/home?stripe_connect=error&message=${encodeURIComponent(
+    const redirectUrl = `${frontendUrl}/events?stripe_connect=error&message=${encodeURIComponent(
       error.message
     )}`;
 

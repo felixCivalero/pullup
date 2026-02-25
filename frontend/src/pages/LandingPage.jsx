@@ -83,13 +83,13 @@ export function LandingPage() {
     });
 
     if (user) {
-      // Already logged in, go straight to home
-      navigate("/home");
+      // Already logged in, go straight to events dashboard
+      navigate("/events");
     } else {
-      // Not logged in, go to login (which will redirect to /home after)
+      // Not logged in, go to login (which will redirect to /events after)
       try {
         setSigningIn(true);
-        await signInWithGoogle("/home");
+        await signInWithGoogle("/events");
         // OAuth redirect will happen automatically
       } catch (error) {
         console.error("Sign in error:", error);
@@ -240,7 +240,21 @@ export function LandingPage() {
                 textAlign: "center",
               }}
             >
-              Create an RSVP link. Drop it in your bio.
+              Everything cultural hosts need -{" "}
+              <span
+                style={{
+                  background:
+                    "linear-gradient(90deg, #FFD700 0%, #FFB200 40%, #FFF7AA 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  fontWeight: 800,
+                  letterSpacing: "0.01em",
+                  textShadow: "0 2px 8px rgba(255, 215, 0, 0.28)",
+                }}
+              >
+                always free
+              </span>
             </p>
 
             {/* Primary CTAs - Mobile First, Stacked, Large Touch Targets */}
@@ -342,7 +356,7 @@ export function LandingPage() {
             >
               <span style={{ opacity: 0.6 }}>Already hosting? </span>
               <a
-                href="/home"
+                href="/events"
                 onClick={(e) => {
                   e.preventDefault();
                   handleLoginClick();
@@ -390,12 +404,12 @@ export function LandingPage() {
               <div
                 style={{ display: "flex", alignItems: "center", gap: "6px" }}
               >
-                <SilverIcon as={Zap} size={14} /> Instant
+                <SilverIcon as={Sparkles} size={14} /> Custom events
               </div>
               <div
                 style={{ display: "flex", alignItems: "center", gap: "6px" }}
               >
-                <SilverIcon as={Ban} size={14} /> No signup
+                <SilverIcon as={Sparkles} size={14} /> Email marketing
               </div>
               <div
                 style={{ display: "flex", alignItems: "center", gap: "6px" }}

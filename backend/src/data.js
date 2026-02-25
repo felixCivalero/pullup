@@ -1167,9 +1167,26 @@ export async function getPeopleWithFilters(
     );
 
   // Apply event-based filters
-  if (filters.attendedEventId) {
+  if (filters.attendedEventIds && filters.attendedEventIds.length > 0) {
+    const requestedIds = filters.attendedEventIds.map((id) => String(id));
+    const eventIdsStr = eventIds.map((id) => String(id));
+
+    const validIds = requestedIds.filter((id) => eventIdsStr.includes(id));
+
+    if (validIds.length === 0) {
+      console.warn(
+        `[CRM Filter] None of the requested attendedEventIds belong to user ${userId}.`
+      );
+      return { people: [], total: 0 };
+    }
+
+    console.log(
+      `[CRM Filter] Filtering RSVPs by multiple event_ids:`,
+      validIds
+    );
+    rsvpQuery = rsvpQuery.in("event_id", validIds);
+  } else if (filters.attendedEventId) {
     // Verify the event belongs to this user
-    // Convert both to strings for comparison (UUIDs can be compared as strings)
     const eventIdStr = String(filters.attendedEventId);
     const eventIdsStr = eventIds.map((id) => String(id));
 

@@ -1,6 +1,6 @@
 // backend/src/services/campaignSender.js
 import { getEmailCampaign, updateEmailCampaignStatus } from "../data.js";
-import { getPeopleWithFilters } from "../data.js";
+import { getPeopleWithFilters, recordEmailSend } from "../data.js";
 import { findEventById } from "../data.js";
 import { addCampaignToPeople } from "../data.js";
 import { sendEmailWithTemplate } from "./emailService.js";
@@ -78,8 +78,18 @@ export async function sendCampaignInBatches(
           event,
           person,
         })
-          .then(() => {
+          .then(async () => {
             totalSent++;
+
+            // Record successful send for per-person campaign history
+            await recordEmailSend({
+              personId: person.id,
+              campaignId: campaign.id,
+              email: person.email,
+              subject: campaign.subject,
+              status: "sent",
+            });
+
             return { success: true, personId: person.id };
           })
           .catch((error) => {

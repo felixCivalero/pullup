@@ -73,7 +73,7 @@ export function renderEventEmailTemplate({ event, templateContent, person }) {
     html = html.split(key).join(value);
   }
 
-  // Clean up empty sections (remove quote/note if empty)
+  // Clean up empty sections (remove quote/greeting/note/signoff if empty)
   if (!templateContent.introQuote) {
     // Remove the intro-quote paragraph
     html = html.replace(
@@ -86,6 +86,20 @@ export function renderEventEmailTemplate({ event, templateContent, person }) {
     // Remove the intro-note paragraph
     html = html.replace(
       /<p\s+class="intro-note"[^>]*>.*?<\/p>/gs,
+      ""
+    );
+  }
+
+  if (!templateContent.introGreeting) {
+    html = html.replace(
+      /<p\s+class="intro-greeting"[^>]*>.*?<\/p>/gs,
+      ""
+    );
+  }
+
+  if (!templateContent.signoffText) {
+    html = html.replace(
+      /<p\s+class="signoff"[^>]*>.*?<\/p>/gs,
       ""
     );
   }

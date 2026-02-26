@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   Loader2,
@@ -89,6 +90,19 @@ export function CrmTab() {
   const [expandedPersonId, setExpandedPersonId] = useState(null);
   const [personDetails, setPersonDetails] = useState({});
   const [showAllEventsByPerson, setShowAllEventsByPerson] = useState({});
+  const [segmentRecipients, setSegmentRecipients] = useState([]);
+  const [excludedRecipientIds, setExcludedRecipientIds] = useState(
+    () => new Set(),
+  );
+  const [isConfirmSendOpen, setIsConfirmSendOpen] = useState(false);
+  const [sendStage, setSendStage] = useState("confirm"); // "confirm" | "sending" | "success" | "error"
+  const [sendingCampaignId, setSendingCampaignId] = useState(null);
+  const [sendingStats, setSendingStats] = useState({
+    totalRecipients: 0,
+    totalSent: 0,
+    totalFailed: 0,
+  });
+  const [sendingErrorMessage, setSendingErrorMessage] = useState("");
 
   const selectedEvent =
     events.find((event) => event.id === selectedEventId) || null;
@@ -106,9 +120,9 @@ export function CrmTab() {
         : "Skriv om du vill komma så får du länk till gästlistan!";
       setIntroBody(bodyText);
 
-      // Set default greeting and signoff (user can edit)
-      setIntroGreeting("God Jul❤️");
-      setSignoffText("Puss och kram!");
+      // Leave greeting/signoff empty by default; UI will show placeholders
+      setIntroGreeting("");
+      setSignoffText("");
 
       // Keep quote and note empty by default (user can add)
       setIntroQuote("");
@@ -188,6 +202,52 @@ export function CrmTab() {
     loadPeople();
   }, [searchQuery, filters, page, showToast, events, baselineTotal]);
 
+  // Open "Send campaign" modal and load concrete recipients for current segment
+  async function openSendModal() {
+    if (!total) {
+      showToast("There are no contacts in this view to send to.", "error");
+      return;
+    }
+
+    setShowSendModal(true);
+    setSegmentRecipients([]);
+    setExcludedRecipientIds(() => new Set());
+
+    try {
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("search", searchQuery);
+
+      if (
+        filters.attendedEventIds &&
+        Array.isArray(filters.attendedEventIds) &&
+        filters.attendedEventIds.length > 0
+      ) {
+        params.append("attendedEventIds", filters.attendedEventIds.join(","));
+      }
+
+      if (filters.hasDinner !== undefined) {
+        params.append("hasDinner", filters.hasDinner.toString());
+      }
+
+      // Route via advanced CRM filters so we get enriched stats
+      params.append("eventsAttendedMin", "0");
+      params.append("sortBy", "created_at");
+      params.append("sortOrder", "desc");
+      params.append("limit", "1000");
+      params.append("offset", "0");
+
+      const res = await authenticatedFetch(`/host/crm/people?${params}`);
+      if (!res.ok) {
+        throw new Error("Failed to load recipients for this segment");
+      }
+      const data = await res.json();
+      setSegmentRecipients(data.people || []);
+    } catch (error) {
+      console.error("Failed to load segment recipients:", error);
+      showToast("Failed to load recipients for this segment", "error");
+    }
+  }
+
   // Load detailed touchpoints (campaign history etc.) for a single person
   async function loadPersonDetails(personId) {
     // Avoid refetch if we already have data or currently loading
@@ -211,15 +271,37 @@ export function CrmTab() {
       // Compute simple campaign stats
       const campaignIds = new Set();
       let lastCampaignAt = null;
+      let openCount = 0;
+      let clickCount = 0;
+      let bounceCount = 0;
+
       emails.forEach((email) => {
         if (email.campaignId) {
           campaignIds.add(email.campaignId);
         }
+
         const ts = email.sentAt || email.deliveredAt || email.createdAt;
-        if (ts && (!lastCampaignAt || new Date(ts) > new Date(lastCampaignAt))) {
+        if (
+          ts &&
+          (!lastCampaignAt || new Date(ts) > new Date(lastCampaignAt))
+        ) {
           lastCampaignAt = ts;
         }
+
+        if (email.openedAt) openCount += 1;
+        if (email.clickedAt) clickCount += 1;
+
+        const status = (email.status || "").toLowerCase();
+        if (
+          status.includes("bounce") ||
+          status.includes("failed") ||
+          status.includes("error")
+        ) {
+          bounceCount += 1;
+        }
       });
+
+      const recentEmails = emails.slice(0, 5);
 
       setPersonDetails((prev) => ({
         ...prev,
@@ -229,6 +311,10 @@ export function CrmTab() {
           error: null,
           campaignsSent: campaignIds.size,
           lastCampaignAt,
+          recentEmails,
+          openCount,
+          clickCount,
+          bounceCount,
         },
       }));
     } catch (error) {
@@ -287,6 +373,130 @@ export function CrmTab() {
       setPage(0); // Reset to first page when view changes
     }
   }, [activeView]);
+
+  const effectiveRecipientCount =
+    segmentRecipients.length > 0
+      ? segmentRecipients.filter((p) => !excludedRecipientIds.has(p.id)).length
+      : total;
+
+  async function handleConfirmSendCampaign() {
+    if (!selectedEventId) {
+      setSendStage("error");
+      setSendingErrorMessage("No event selected.");
+      return;
+    }
+
+    const filterCriteria = {
+      search: searchQuery || undefined,
+      attendedEventIds: filters.attendedEventIds,
+      hasDinner: filters.hasDinner,
+      eventsAttendedMin: 0,
+      excludePersonIds: Array.from(excludedRecipientIds),
+    };
+
+    setSendStage("sending");
+    setSendingErrorMessage("");
+
+    try {
+      const campaignData = {
+        templateType: "event",
+        eventId: selectedEventId,
+        subject:
+          subjectLine ||
+          (selectedEvent ? `You're invited to ${selectedEvent.title}.` : ""),
+        templateContent: {
+          headline: headlineText || selectedEvent?.title || "",
+          introQuote: introQuote || "",
+          introBody: introBody || "",
+          introGreeting: introGreeting || "",
+          introNote: introNote || "",
+          signoffText: signoffText || "",
+          ctaLabel: "TO EVENT",
+        },
+        filterCriteria,
+      };
+
+      // 1) Create campaign
+      const createRes = await authenticatedFetch("/host/crm/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(campaignData),
+      });
+
+      if (!createRes.ok) {
+        const errJson = await createRes.json().catch(() => ({}));
+        throw new Error(errJson.message || "Failed to create campaign");
+      }
+
+      const { campaignId, totalRecipients } = await createRes.json();
+      setSendingCampaignId(campaignId);
+      setSendingStats((prev) => ({
+        ...prev,
+        totalRecipients:
+          totalRecipients != null ? totalRecipients : prev.totalRecipients,
+      }));
+
+      // 2) Start sending
+      const sendRes = await authenticatedFetch(
+        `/host/crm/campaigns/${campaignId}/send`,
+        { method: "POST" },
+      );
+      if (!sendRes.ok) {
+        const errJson = await sendRes.json().catch(() => ({}));
+        throw new Error(errJson.message || "Failed to start sending");
+      }
+
+      // 3) Poll status until "sent" or "failed"
+      let attempts = 0;
+      const maxAttempts = 60; // ~2 minutes at 2s intervals
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (attempts >= maxAttempts) {
+          setSendStage("error");
+          setSendingErrorMessage(
+            "Timed out while waiting for campaign to finish.",
+          );
+          return;
+        }
+
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        const statusRes = await authenticatedFetch(
+          `/host/crm/campaigns/${campaignId}`,
+        );
+        if (!statusRes.ok) {
+          continue;
+        }
+
+        const statusJson = await statusRes.json();
+
+        setSendingStats({
+          totalRecipients: statusJson.totalRecipients || 0,
+          totalSent: statusJson.totalSent || 0,
+          totalFailed: statusJson.totalFailed || 0,
+        });
+
+        if (statusJson.status === "sent") {
+          setSendStage("success");
+          return;
+        }
+        if (statusJson.status === "failed") {
+          setSendStage("error");
+          setSendingErrorMessage("The email provider reported a failure.");
+          return;
+        }
+        // statuses "queued" or "sending" -> keep polling
+      }
+    } catch (error) {
+      console.error("Error sending campaign:", error);
+      setSendStage("error");
+      setSendingErrorMessage(
+        error.message || "Unexpected error while sending campaign.",
+      );
+    }
+  }
 
   const handleImportCsv = async () => {
     if (!importFile) {
@@ -501,7 +711,6 @@ export function CrmTab() {
               {(baselineTotal ?? total).toLocaleString()} contacts
             </div>
           </div>
-
           {/* Filters + CTA row */}
           <div
             style={{
@@ -511,247 +720,238 @@ export function CrmTab() {
               alignItems: "center",
             }}
           >
-          {/* Event attending multi-select dropdown */}
-          <div
-            style={{
-              minWidth: "220px",
-              flex: "1 1 220px",
-              position: "relative",
-            }}
-          >
-            <label
-              style={{
-                display: "block",
-                fontSize: "12px",
-                opacity: 0.7,
-                marginBottom: "4px",
-              }}
-            >
-              Attended events
-            </label>
-            <button
-              type="button"
-              onClick={() => setShowEventDropdown((open) => !open)}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                borderRadius: "999px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(12, 10, 18, 0.8)",
-                color: "#fff",
-                fontSize: "13px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                cursor: "pointer",
-              }}
-            >
-              <span style={{ opacity: 0.85 }}>
-                {filters.attendedEventIds &&
-                Array.isArray(filters.attendedEventIds) &&
-                filters.attendedEventIds.length > 0
-                  ? `${filters.attendedEventIds.length} event${
-                      filters.attendedEventIds.length > 1 ? "s" : ""
-                    } selected`
-                  : "All events"}
-              </span>
-              <span
-                style={{
-                  marginLeft: "8px",
-                  fontSize: "10px",
-                  opacity: 0.7,
-                }}
-              >
-                ▼
-              </span>
-            </button>
-            {showEventDropdown && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  marginTop: 6,
-                  zIndex: 10,
-                  background: "rgba(12, 10, 18, 0.98)",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  padding: "8px",
-                  maxHeight: "220px",
-                  overflowY: "auto",
-                  minWidth: "100%",
-                  boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
-                }}
-              >
-                {events.map((event) => {
-                  const selectedIds = filters.attendedEventIds || [];
-                  const checked = selectedIds.includes(event.id);
-                  return (
-                    <label
-                      key={event.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        padding: "6px 4px",
-                        fontSize: "13px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          const current = filters.attendedEventIds || [];
-                          let next;
-                          if (e.target.checked) {
-                            next = [...current, event.id];
-                          } else {
-                            next = current.filter((id) => id !== event.id);
-                          }
-                          setFilters((prev) => ({
-                            ...prev,
-                            attendedEventIds: next.length ? next : undefined,
-                          }));
-                          setPage(0);
-                        }}
-                        style={{ margin: 0 }}
-                      />
-                      <span style={{ opacity: 0.9 }}>{event.title}</span>
-                    </label>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilters((prev) => ({
-                      ...prev,
-                      attendedEventIds: undefined,
-                    }));
-                    setPage(0);
-                  }}
-                  style={{
-                    marginTop: "6px",
-                    width: "100%",
-                    padding: "6px 10px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(255,255,255,0.06)",
-                    color: "#fff",
-                    fontSize: "12px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Clear selection
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Dinner filter: Yes / No (dinners only) */}
-          <div style={{ minWidth: "180px", flex: "0 0 auto" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "12px",
-                opacity: 0.7,
-                marginBottom: "4px",
-              }}
-            >
-              Dinners only
-            </label>
+            {/* Event attending multi-select dropdown */}
             <div
               style={{
-                display: "inline-flex",
-                borderRadius: "999px",
-                padding: "3px",
-                background: "rgba(12, 10, 18, 0.8)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                gap: "4px",
+                minWidth: "220px",
+                flex: "1 1 220px",
+                position: "relative",
               }}
             >
-              {[
-                { key: "no", label: "No" },
-                { key: "yes", label: "Yes" },
-              ].map((option) => {
-                const isActive =
-                  (option.key === "yes" && filters.hasDinner === true) ||
-                  (option.key === "no" && filters.hasDinner !== true);
-                return (
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  opacity: 0.7,
+                  marginBottom: "4px",
+                }}
+              >
+                Attended events
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowEventDropdown((open) => !open)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(12, 10, 18, 0.8)",
+                  color: "#fff",
+                  fontSize: "13px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ opacity: 0.85 }}>
+                  {filters.attendedEventIds &&
+                  Array.isArray(filters.attendedEventIds) &&
+                  filters.attendedEventIds.length > 0
+                    ? `${filters.attendedEventIds.length} event${
+                        filters.attendedEventIds.length > 1 ? "s" : ""
+                      } selected`
+                    : "All events"}
+                </span>
+                <span
+                  style={{
+                    marginLeft: "8px",
+                    fontSize: "10px",
+                    opacity: 0.7,
+                  }}
+                >
+                  ▼
+                </span>
+              </button>
+              {showEventDropdown && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    marginTop: 6,
+                    zIndex: 10,
+                    background: "rgba(12, 10, 18, 0.98)",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    padding: "8px",
+                    maxHeight: "220px",
+                    overflowY: "auto",
+                    minWidth: "100%",
+                    boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
+                  }}
+                >
+                  {events.map((event) => {
+                    const selectedIds = filters.attendedEventIds || [];
+                    const checked = selectedIds.includes(event.id);
+                    return (
+                      <label
+                        key={event.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "6px 4px",
+                          fontSize: "13px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const current = filters.attendedEventIds || [];
+                            let next;
+                            if (e.target.checked) {
+                              next = [...current, event.id];
+                            } else {
+                              next = current.filter((id) => id !== event.id);
+                            }
+                            setFilters((prev) => ({
+                              ...prev,
+                              attendedEventIds: next.length ? next : undefined,
+                            }));
+                            setPage(0);
+                          }}
+                          style={{ margin: 0 }}
+                        />
+                        <span style={{ opacity: 0.9 }}>{event.title}</span>
+                      </label>
+                    );
+                  })}
                   <button
-                    key={option.key}
                     type="button"
                     onClick={() => {
                       setFilters((prev) => ({
                         ...prev,
-                        hasDinner:
-                          option.key === "yes" ? true : undefined,
+                        attendedEventIds: undefined,
                       }));
                       setPage(0);
                     }}
                     style={{
-                      padding: "4px 10px",
-                      borderRadius: "999px",
+                      marginTop: "6px",
+                      width: "100%",
+                      padding: "6px 10px",
+                      borderRadius: "6px",
                       border: "none",
-                      background: isActive
-                        ? "rgba(34, 197, 94, 0.2)"
-                        : "transparent",
-                      color: isActive ? "#4ade80" : "#fff",
-                      fontSize: "11px",
-                      fontWeight: 500,
+                      background: "rgba(255,255,255,0.06)",
+                      color: "#fff",
+                      fontSize: "12px",
                       cursor: "pointer",
-                      minWidth: 40,
                     }}
                   >
-                    {option.label}
+                    Clear selection
                   </button>
-                );
-              })}
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Segment CTA */}
-          <div
-            style={{
-              marginLeft: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                if (!total) {
-                  showToast(
-                    "There are no contacts in this view to send to.",
-                    "error",
+            {/* Dinner filter: Yes / No (dinners only) */}
+            <div style={{ minWidth: "180px", flex: "0 0 auto" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  opacity: 0.7,
+                  marginBottom: "4px",
+                }}
+              >
+                Dinners only
+              </label>
+              <div
+                style={{
+                  display: "inline-flex",
+                  borderRadius: "999px",
+                  padding: "3px",
+                  background: "rgba(12, 10, 18, 0.8)",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  gap: "4px",
+                }}
+              >
+                {[
+                  { key: "no", label: "No" },
+                  { key: "yes", label: "Yes" },
+                ].map((option) => {
+                  const isActive =
+                    (option.key === "yes" && filters.hasDinner === true) ||
+                    (option.key === "no" && filters.hasDinner !== true);
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => {
+                        setFilters((prev) => ({
+                          ...prev,
+                          hasDinner: option.key === "yes" ? true : undefined,
+                        }));
+                        setPage(0);
+                      }}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: "999px",
+                        border: "none",
+                        background: isActive
+                          ? "rgba(34, 197, 94, 0.2)"
+                          : "transparent",
+                        color: isActive ? "#4ade80" : "#fff",
+                        fontSize: "11px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        minWidth: 40,
+                      }}
+                    >
+                      {option.label}
+                    </button>
                   );
-                  return;
-                }
-                setShowSendModal(true);
-              }}
+                })}
+              </div>
+            </div>
+
+            {/* Segment CTA */}
+            <div
               style={{
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: "1px solid rgba(34, 197, 94, 0.3)",
-                background: "rgba(34, 197, 94, 0.08)",
-                color: "#4ade80",
-                fontSize: "14px",
-                fontWeight: 500,
-                cursor: total ? "pointer" : "not-allowed",
-                opacity: total ? 1 : 0.6,
+                marginLeft: "auto",
                 display: "flex",
                 alignItems: "center",
-                gap: "6px",
+                gap: "10px",
+                flexWrap: "wrap",
               }}
             >
-              <SilverIcon as={Mail} size={16} />
-              Send email
-            </button>
-          </div>
-          </div> {/* End filters + CTA row */}
+              <button
+                type="button"
+                onClick={openSendModal}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(34, 197, 94, 0.3)",
+                  background: "rgba(34, 197, 94, 0.08)",
+                  color: "#4ade80",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: total ? "pointer" : "not-allowed",
+                  opacity: total ? 1 : 0.6,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <SilverIcon as={Mail} size={16} />
+                Create email
+              </button>
+            </div>
+          </div>{" "}
+          {/* End filters + CTA row */}
         </div>
 
         {/* Saved Views Tabs */}
@@ -1019,7 +1219,7 @@ export function CrmTab() {
                 marginBottom: "8px",
               }}
             >
-              Send invite to this segment
+              Send campaign to segment
             </h2>
             <div
               style={{
@@ -1032,15 +1232,6 @@ export function CrmTab() {
               }}
             >
               <div style={{ fontWeight: 600, marginBottom: "4px" }}>
-                Recipients
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: "8px",
-                }}
-              >
                 <span
                   style={{
                     fontSize: "24px",
@@ -1048,11 +1239,86 @@ export function CrmTab() {
                     color: "#4ade80",
                   }}
                 >
-                  {total.toLocaleString()}
+                  {effectiveRecipientCount.toLocaleString()}
                 </span>
-                <span style={{ opacity: 0.85 }}>
-                  contacts in this filtered view will receive this email.
-                </span>
+              </div>
+              <div
+                style={{
+                  marginTop: "10px",
+                  maxHeight: "140px",
+                  overflowY: "auto",
+                  paddingRight: "4px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                }}
+              >
+                {segmentRecipients.length === 0 ? (
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      opacity: 0.7,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Loading recipients for this segment…
+                  </div>
+                ) : (
+                  segmentRecipients
+                    .filter((p) => !excludedRecipientIds.has(p.id))
+                    .map((p) => (
+                      <div
+                        key={p.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "6px 10px",
+                          borderRadius: "999px",
+                          background: "rgba(12,10,18,0.9)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          fontSize: "12px",
+                        }}
+                      >
+                        <span
+                          style={{
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            marginRight: "8px",
+                          }}
+                        >
+                          {p.email || "Unknown contact"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExcludedRecipientIds((prev) => {
+                              const next = new Set(prev);
+                              next.add(p.id);
+                              return next;
+                            });
+                          }}
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: "50%",
+                            border: "none",
+                            background: "rgba(239,68,68,0.25)",
+                            color: "#fecaca",
+                            fontSize: "11px",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))
+                )}
               </div>
             </div>
 
@@ -1089,15 +1355,6 @@ export function CrmTab() {
                 <option value="event">Event email template</option>
                 {/* Future templates can be added here */}
               </select>
-              <p
-                style={{
-                  fontSize: "12px",
-                  opacity: 0.6,
-                  marginTop: "6px",
-                }}
-              >
-                Choose the email template type for this campaign.
-              </p>
             </div>
 
             {selectedTemplate === "event" && (
@@ -1142,21 +1399,21 @@ export function CrmTab() {
                     </option>
                   ))}
                 </select>
-                <p
-                  style={{
-                    fontSize: "12px",
-                    opacity: 0.6,
-                    marginTop: "6px",
-                  }}
-                >
-                  We&apos;ll populate the email template with this event&apos;s
-                  image, title, date, location and booking link.
-                </p>
               </div>
             )}
 
             {selectedTemplate === "event" && selectedEvent && (
-              <>
+              <div
+                style={{
+                  background: "rgba(20, 16, 30, 0.7)",
+                  borderRadius: "16px",
+                  border: "1px solid rgba(34, 197, 94, 0.3)",
+                  boxShadow:
+                    "0 0 0 1px rgba(34,197,94,0.12), 0 14px 40px rgba(0,0,0,0.55)",
+                  margin: "0px -25px 0px -24px",
+                  padding: "22px",
+                }}
+              >
                 <div style={{ marginBottom: "16px" }}>
                   <label
                     style={{
@@ -1180,7 +1437,7 @@ export function CrmTab() {
                     }
                     onChange={(e) => setSubjectLine(e.target.value)}
                     style={{
-                      width: "100%",
+                      width: "92%",
                       padding: "10px 12px",
                       borderRadius: "10px",
                       border: "1px solid rgba(255,255,255,0.1)",
@@ -1192,17 +1449,7 @@ export function CrmTab() {
                 </div>
 
                 {/* Email preview - matches Resend template structure */}
-                <div
-                  style={{
-                    fontSize: "12px",
-                    opacity: 0.6,
-                    marginTop: "8px",
-                    marginBottom: "8px",
-                    textAlign: "center",
-                  }}
-                >
-                  Click any text to edit directly in the preview
-                </div>
+
                 <div
                   style={{
                     marginTop: "4px",
@@ -1441,7 +1688,7 @@ export function CrmTab() {
                             e.target.blur();
                           }
                         }}
-                        placeholder="E.g. God Jul❤️"
+                        placeholder="Click to add greeting"
                         autoFocus
                         style={{
                           width: "100%",
@@ -1483,7 +1730,13 @@ export function CrmTab() {
                           e.currentTarget.style.background = "transparent";
                         }}
                       >
-                        {introGreeting}
+                        {introGreeting ? (
+                          introGreeting
+                        ) : (
+                          <span style={{ fontSize: "12px", opacity: 0.6 }}>
+                            Click to add greeting
+                          </span>
+                        )}
                       </p>
                     )}
 
@@ -1552,19 +1805,20 @@ export function CrmTab() {
                       </div>
                     )}
 
-                    {/* CTA Button (not editable - hardcoded in template) */}
+                    {/* CTA Button (visual preview only, actual link handled in template) */}
                     <div style={{ textAlign: "center", marginTop: "20px" }}>
                       <button
                         type="button"
                         style={{
                           padding: "10px 24px",
-                          borderRadius: "4px",
-                          border: "none",
-                          background: "#000000",
-                          color: "#ffffff",
+                          borderRadius: "999px",
+                          border: `1px solid ${colors.silverRgbaBorder}`,
+                          background: colors.gradientPrimary,
+                          color: "#05040a",
                           fontSize: "14px",
                           fontWeight: 600,
                           cursor: "default",
+                          boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
                         }}
                       >
                         TO EVENT
@@ -1583,7 +1837,7 @@ export function CrmTab() {
                             e.target.blur();
                           }
                         }}
-                        placeholder="E.g. Puss och kram!"
+                        placeholder="Click to add signoff"
                         autoFocus
                         style={{
                           width: "100%",
@@ -1625,7 +1879,13 @@ export function CrmTab() {
                           e.currentTarget.style.background = "transparent";
                         }}
                       >
-                        {signoffText}
+                        {signoffText ? (
+                          signoffText
+                        ) : (
+                          <span style={{ fontSize: "12px", opacity: 0.6 }}>
+                            Click to add signoff
+                          </span>
+                        )}
                       </p>
                     )}
 
@@ -1685,7 +1945,7 @@ export function CrmTab() {
                     </div>
                   </div>
                 </div>
-              </>
+              </div>
             )}
 
             <div
@@ -1726,90 +1986,28 @@ export function CrmTab() {
               </button>
               <button
                 type="button"
-                onClick={async () => {
+                onClick={() => {
                   if (!selectedEventId) {
                     showToast("Pick an event before sending.", "error");
                     return;
                   }
-
-                  try {
-                    // Prepare campaign data
-                    const campaignData = {
-                      templateType: "event",
-                      eventId: selectedEventId,
-                      subject:
-                        subjectLine ||
-                        `You're invited to ${selectedEvent?.title}.`,
-                      templateContent: {
-                        headline: headlineText || selectedEvent?.title || "",
-                        introQuote: introQuote || "",
-                        introBody: introBody || "",
-                        introGreeting: introGreeting || "",
-                        introNote: introNote || "",
-                        signoffText: signoffText || "",
-                        ctaLabel: "TO EVENT",
-                      },
-                      filterCriteria: filters, // Current filter state
-                    };
-
-                    // Create campaign
-                    const response = await authenticatedFetch(
-                      "/host/crm/campaigns",
-                      {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(campaignData),
-                      },
-                    );
-
-                    if (!response.ok) {
-                      const errorData = await response.json();
-                      throw new Error(
-                        errorData.message || "Failed to create campaign",
-                      );
-                    }
-
-                    const { campaignId, totalRecipients } =
-                      await response.json();
-
-                    // Start sending
-                    const sendResponse = await authenticatedFetch(
-                      `/host/crm/campaigns/${campaignId}/send`,
-                      { method: "POST" },
-                    );
-
-                    if (!sendResponse.ok) {
-                      const errorData = await sendResponse.json();
-                      throw new Error(
-                        errorData.message || "Failed to start sending",
-                      );
-                    }
-
-                    // Show success
+                  if (!effectiveRecipientCount) {
                     showToast(
-                      `Email campaign queued to ${totalRecipients.toLocaleString()} contacts.`,
-                      "success",
-                    );
-
-                    // Close modal and reset
-                    setShowSendModal(false);
-                    setSelectedTemplate("event");
-                    setSubjectLine("");
-                    setSelectedEventId("");
-                    setHeadlineText("");
-                    setIntroQuote("");
-                    setIntroBody("");
-                    setIntroGreeting("");
-                    setIntroNote("");
-                    setSignoffText("");
-                    setEditingField(null);
-                  } catch (error) {
-                    console.error("Error sending campaign:", error);
-                    showToast(
-                      error.message || "Failed to send campaign",
+                      "There are no contacts in this view to send to.",
                       "error",
                     );
+                    return;
                   }
+
+                  setSendStage("confirm");
+                  setSendingCampaignId(null);
+                  setSendingStats({
+                    totalRecipients: effectiveRecipientCount,
+                    totalSent: 0,
+                    totalFailed: 0,
+                  });
+                  setSendingErrorMessage("");
+                  setIsConfirmSendOpen(true);
                 }}
                 style={{
                   padding: "10px 20px",
@@ -1833,6 +2031,256 @@ export function CrmTab() {
         </div>
       )}
 
+      {/* Confirm / Sending Campaign Modal */}
+      {isConfirmSendOpen &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.8)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1100,
+              padding: "20px",
+            }}
+            onClick={() => {
+              if (
+                sendStage === "confirm" ||
+                sendStage === "success" ||
+                sendStage === "error"
+              ) {
+                setIsConfirmSendOpen(false);
+              }
+            }}
+          >
+            <div
+              style={{
+                background: "rgba(12, 10, 18, 0.97)",
+                borderRadius: "16px",
+                padding: "24px 24px 20px",
+                width: "100%",
+                maxWidth: "460px",
+                border: "1px solid rgba(255,255,255,0.12)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+            <h3
+              style={{
+                fontSize: "18px",
+                fontWeight: 600,
+                marginBottom: "8px",
+              }}
+            >
+              {sendStage === "confirm"
+                ? "Send campaign to segment?"
+                : sendStage === "sending"
+                ? "Sending campaign…"
+                : sendStage === "success"
+                ? "Campaign sent"
+                : "Campaign failed"}
+            </h3>
+
+            {sendStage === "confirm" && (
+              <div
+                style={{
+                  fontSize: "14px",
+                  opacity: 0.85,
+                  marginBottom: "16px",
+                }}
+              >
+                <p style={{ marginBottom: "8px" }}>
+                  This email will be sent to{" "}
+                  <span style={{ fontWeight: 600 }}>
+                    {sendingStats.totalRecipients.toLocaleString()}
+                  </span>{" "}
+                  contacts in the current segment.
+                </p>
+                {selectedEvent && (
+                  <p style={{ margin: 0 }}>
+                    <span style={{ fontWeight: 600 }}>Event:</span>{" "}
+                    {selectedEvent.title}
+                    <br />
+                    <span style={{ fontWeight: 600 }}>Subject:</span>{" "}
+                    {subjectLine && subjectLine.trim().length > 0
+                      ? subjectLine
+                      : `You're invited to ${selectedEvent.title}.`}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {sendStage === "sending" && (
+              <div
+                style={{
+                  fontSize: "14px",
+                  opacity: 0.85,
+                  marginBottom: "12px",
+                }}
+              >
+                <p style={{ marginBottom: "8px" }}>
+                  Sending to{" "}
+                  <span style={{ fontWeight: 600 }}>
+                    {sendingStats.totalRecipients.toLocaleString()}
+                  </span>{" "}
+                  contacts…
+                </p>
+                <p style={{ margin: 0 }}>
+                  Sent{" "}
+                  <span style={{ fontWeight: 600 }}>
+                    {sendingStats.totalSent.toLocaleString()}
+                  </span>{" "}
+                  / {sendingStats.totalRecipients.toLocaleString()}
+                  {sendingStats.totalFailed
+                    ? ` · ${sendingStats.totalFailed.toLocaleString()} failed`
+                    : ""}
+                </p>
+              </div>
+            )}
+
+            {sendStage === "success" && (
+              <div
+                style={{
+                  fontSize: "14px",
+                  opacity: 0.9,
+                  marginBottom: "12px",
+                }}
+              >
+                <p style={{ marginBottom: "6px" }}>
+                  Successfully sent to{" "}
+                  <span style={{ fontWeight: 600 }}>
+                    {sendingStats.totalSent.toLocaleString()}
+                  </span>{" "}
+                  contacts.
+                </p>
+                {sendingStats.totalFailed > 0 && (
+                  <p style={{ margin: 0, opacity: 0.8 }}>
+                    {sendingStats.totalFailed.toLocaleString()} deliveries
+                    reported as failed.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {sendStage === "error" && (
+              <div
+                style={{
+                  fontSize: "14px",
+                  color: "#f97373",
+                  marginBottom: "12px",
+                }}
+              >
+                <p style={{ marginBottom: "6px" }}>
+                  We couldn’t complete this send. No more emails will be sent.
+                </p>
+                {sendingErrorMessage && (
+                  <p style={{ margin: 0, opacity: 0.8 }}>
+                    {sendingErrorMessage}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+                marginTop: "8px",
+              }}
+            >
+              {sendStage === "confirm" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmSendOpen(false)}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: "rgba(12,10,18,0.8)",
+                      color: "#fff",
+                      fontSize: "14px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmSendCampaign}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: colors.gradientPrimary,
+                      color: "#05040a",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Send campaign
+                  </button>
+                </>
+              )}
+
+              {sendStage === "sending" && (
+                <button
+                  type="button"
+                  disabled
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "rgba(12,10,18,0.8)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    opacity: 0.7,
+                    cursor: "not-allowed",
+                  }}
+                >
+                  Sending…
+                </button>
+              )}
+
+              {(sendStage === "success" || sendStage === "error") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsConfirmSendOpen(false);
+                    setShowSendModal(false);
+                    setSelectedTemplate("event");
+                    setSubjectLine("");
+                    setSelectedEventId("");
+                    setHeadlineText("");
+                    setIntroQuote("");
+                    setIntroBody("");
+                    setIntroGreeting("");
+                    setIntroNote("");
+                    setSignoffText("");
+                    setEditingField(null);
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "rgba(12,10,18,0.8)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Close
+                </button>
+              )}
+            </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
       {/* Top Row: Search and Actions */}
       <div
         style={{
@@ -1840,6 +2288,7 @@ export function CrmTab() {
           alignItems: "center",
           gap: "12px",
           flexWrap: "wrap",
+          marginBottom: "24px",
         }}
       >
         <input
@@ -2145,8 +2594,7 @@ export function CrmTab() {
                               backgroundClip: "text",
                               fontWeight: 800,
                               letterSpacing: "0.01em",
-                              textShadow:
-                                "0 2px 8px rgba(255, 215, 0, 0.28)",
+                              textShadow: "0 2px 8px rgba(255, 215, 0, 0.28)",
                               fontSize: "18px",
                               lineHeight: 1,
                             }}
@@ -2260,39 +2708,143 @@ export function CrmTab() {
                           fontSize: "12px",
                           opacity: 0.8,
                           display: "flex",
-                          flexWrap: "wrap",
-                          gap: "8px",
-                          alignItems: "center",
+                          flexDirection: "column",
+                          gap: "6px",
                         }}
                       >
-                        <span
+                        <div
                           style={{
-                            textTransform: "uppercase",
-                            letterSpacing: "0.12em",
-                            opacity: 0.7,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "8px",
+                            alignItems: "center",
                           }}
                         >
-                          Campaign history
-                        </span>
-                        {details.loading ? (
-                          <span>Loading…</span>
-                        ) : details.error ? (
-                          <span style={{ color: "#f97373" }}>
-                            {details.error}
+                          <span
+                            style={{
+                              textTransform: "uppercase",
+                              letterSpacing: "0.12em",
+                              opacity: 0.7,
+                            }}
+                          >
+                            Campaign history
                           </span>
-                        ) : (
-                          <>
-                            <span>
-                              {details.campaignsSent || 0} campaigns sent
+                          {details.loading ? (
+                            <span>Loading…</span>
+                          ) : details.error ? (
+                            <span style={{ color: "#f97373" }}>
+                              {details.error}
                             </span>
-                            <span style={{ opacity: 0.7 }}>
-                              · Last{" "}
-                              {details.lastCampaignAt
-                                ? formatDate(details.lastCampaignAt)
-                                : "—"}
-                            </span>
-                          </>
-                        )}
+                          ) : (
+                            <>
+                              <span>
+                                {details.campaignsSent || 0} campaigns sent
+                              </span>
+                              <span style={{ opacity: 0.7 }}>
+                                · Last{" "}
+                                {details.lastCampaignAt
+                                  ? formatDate(details.lastCampaignAt)
+                                  : "—"}
+                              </span>
+                              <span style={{ opacity: 0.7 }}>
+                                · Opens {details.openCount || 0} · Clicks{" "}
+                                {details.clickCount || 0} · Bounces{" "}
+                                {details.bounceCount || 0}
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        {!details.loading &&
+                          !details.error &&
+                          details.recentEmails &&
+                          details.recentEmails.length > 0 && (
+                            <div
+                              style={{
+                                marginTop: "4px",
+                                paddingLeft: "2px",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "6px",
+                              }}
+                            >
+                              {details.recentEmails.map((email) => (
+                                <div
+                                  key={email.id}
+                                  style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "2px",
+                                    fontSize: "11px",
+                                    opacity: 0.85,
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      alignItems: "center",
+                                      gap: "8px",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                        maxWidth: "70%",
+                                      }}
+                                    >
+                                      <span style={{ fontWeight: 500 }}>
+                                        {email.campaignName}
+                                      </span>
+                                      {email.subject && (
+                                        <span style={{ opacity: 0.8 }}>
+                                          {" "}
+                                          · {email.subject}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ opacity: 0.7 }}>
+                                      {email.sentAt
+                                        ? formatDate(email.sentAt)
+                                        : "—"}
+                                    </div>
+                                  </div>
+                                  <div style={{ opacity: 0.7 }}>
+                                    {(() => {
+                                      const statusStr = (email.status || "")
+                                        .toLowerCase();
+                                      let statusLabel = "Sent";
+                                      if (email.clickedAt) statusLabel = "Clicked";
+                                      else if (email.openedAt)
+                                        statusLabel = "Opened";
+                                      else if (email.deliveredAt)
+                                        statusLabel = "Delivered";
+                                      else if (
+                                        statusStr.includes("bounce") ||
+                                        statusStr.includes("failed") ||
+                                        statusStr.includes("error")
+                                      ) {
+                                        statusLabel = "Bounced / failed";
+                                      }
+
+                                      const opens = email.openedAt ? 1 : 0;
+                                      const clicks = email.clickedAt ? 1 : 0;
+                                      const bounces =
+                                        statusStr.includes("bounce") ||
+                                        statusStr.includes("failed") ||
+                                        statusStr.includes("error")
+                                          ? 1
+                                          : 0;
+
+                                      return `${statusLabel} · Opens ${opens} · Clicks ${clicks} · Bounces ${bounces}`;
+                                    })()}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                       </div>
 
                       {/* Event history preview */}
@@ -2668,9 +3220,7 @@ function computePersonMetrics(person) {
   const eventsAttended = history.filter((h) => {
     const status = h.attendanceStatus || h.status;
     return (
-      status === "attended" ||
-      status === "CONFIRMED" ||
-      status === "attending"
+      status === "attended" || status === "CONFIRMED" || status === "attending"
     );
   }).length;
 
@@ -2694,9 +3244,7 @@ function computePersonMetrics(person) {
     const date = h.eventDate ? new Date(h.eventDate) : null;
 
     const booked =
-      (h.cocktailsBooked || 0) +
-      (h.dinnerBooked || 0) +
-      (h.plusOnes || 0);
+      (h.cocktailsBooked || 0) + (h.dinnerBooked || 0) + (h.plusOnes || 0);
     const attended =
       (h.cocktailsAttended || 0) +
       (h.dinnerAttended || 0) +
@@ -2738,9 +3286,7 @@ function computePersonMetrics(person) {
     eventsBooked > 0 ? eventsAttended / eventsBooked : null;
   const guestRate = guestsBooked > 0 ? guestsAttended / guestsBooked : null;
   const dinnerRate =
-    dinnerGuestsBooked > 0
-      ? dinnerGuestsAttended / dinnerGuestsBooked
-      : null;
+    dinnerGuestsBooked > 0 ? dinnerGuestsAttended / dinnerGuestsBooked : null;
 
   let score = 0;
   if (attendanceRate != null) score += attendanceRate * 40;

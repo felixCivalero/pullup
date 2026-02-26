@@ -65,7 +65,7 @@ export function LandingPage() {
       // The returnTo will be passed to signInWithGoogle
       try {
         setSigningIn(true);
-        await signInWithGoogle(type === "post" ? "/post" : "/create");
+        await signInWithGoogle(type === "post" ? "/events" : "/events");
         // OAuth redirect will happen automatically
       } catch (error) {
         console.error("Sign in error:", error);
@@ -73,7 +73,7 @@ export function LandingPage() {
       }
     } else {
       // Already logged in, go directly to the flow
-      navigate(type === "post" ? "/post" : "/create");
+      navigate(type === "post" ? "/events" : "/events");
     }
   };
 

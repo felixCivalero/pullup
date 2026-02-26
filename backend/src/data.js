@@ -1771,9 +1771,18 @@ export async function getPeopleWithFilters(
     };
   });
 
+  // Apply optional per-person exclusions (e.g. manual removals from a segment)
+  let finalPeople = enrichedPeople;
+  if (filters.excludePersonIds && filters.excludePersonIds.length > 0) {
+    const excludeSet = new Set(filters.excludePersonIds.map((id) => String(id)));
+    finalPeople = enrichedPeople.filter(
+      (person) => !excludeSet.has(String(person.id))
+    );
+  }
+
   return {
-    people: enrichedPeople,
-    total: count || 0,
+    people: finalPeople,
+    total: finalPeople.length,
   };
 }
 
@@ -3641,6 +3650,36 @@ export async function updateEmailCampaignStatus(
     totalFailed: data.total_failed || 0,
     sentAt: data.sent_at,
   };
+}
+
+/**
+ * Record a single email send for a person/campaign.
+ * This feeds the email_sends table used for per-person campaign history.
+ */
+export async function recordEmailSend({
+  personId,
+  campaignId = null,
+  email,
+  subject,
+  status = "sent",
+  sentAt = new Date().toISOString(),
+}) {
+  try {
+    const { error } = await supabase.from("email_sends").insert({
+      person_id: personId,
+      campaign_id: campaignId,
+      email,
+      subject,
+      status,
+      sent_at: sentAt,
+    });
+
+    if (error) {
+      console.error("Error recording email send:", error);
+    }
+  } catch (error) {
+    console.error("Unexpected error recording email send:", error);
+  }
 }
 
 /**

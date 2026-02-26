@@ -49,8 +49,9 @@ export function LocationAutocomplete({
     try {
       const response = await fetch(
         `${
-          import.meta.env.VITE_API_URL || "http://localhost:3001"
-        }/api/location/autocomplete?query=${encodeURIComponent(query)}`
+          import.meta.env.VITE_API_URL ||
+          (import.meta.env.DEV ? "http://localhost:3001" : "/api")
+        }/location/autocomplete?query=${encodeURIComponent(query)}`
       );
 
       if (!response.ok) throw new Error("Failed to fetch suggestions");
@@ -71,8 +72,9 @@ export function LocationAutocomplete({
     try {
       const response = await fetch(
         `${
-          import.meta.env.VITE_API_URL || "http://localhost:3001"
-        }/api/location/details?place_id=${encodeURIComponent(
+          import.meta.env.VITE_API_URL ||
+          (import.meta.env.DEV ? "http://localhost:3001" : "/api")
+        }/location/details?place_id=${encodeURIComponent(
           placeId
         )}&source=${source}`
       );

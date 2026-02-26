@@ -88,10 +88,16 @@ function getFrontendUrl() {
       process.env.FRONTEND_URL ||
       "http://localhost:5173"
     );
-  } else {
-    // Production mode: use regular variable or production default
-    return process.env.FRONTEND_URL || "https://pullup.se";
   }
+
+  // In production, FRONTEND_URL must be explicitly configured
+  if (!process.env.FRONTEND_URL) {
+    throw new Error(
+      "FRONTEND_URL environment variable is required in production.",
+    );
+  }
+
+  return process.env.FRONTEND_URL;
 }
 
 const app = express();
@@ -582,7 +588,7 @@ app.get("/e/:slug", async (req, res) => {
         return res.status(404).send("Event not found");
       }
       // Redirect browsers to frontend (which will handle 404)
-      return res.redirect(`https://pullup.se/e/${slug}`);
+      return res.redirect(`${getFrontendUrl()}/e/${slug}`);
     }
 
     // Always return OG HTML (crawlers get OG tags, browsers get redirected via meta refresh)
@@ -4172,16 +4178,14 @@ app.get("/host/stripe/connect/callback", async (req, res) => {
     const result = await handleConnectCallback(code, state);
 
     // Redirect to frontend with success status
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const redirectUrl = `${frontendUrl}/events?stripe_connect=success&account_id=${result.connectedAccountId}`;
+    const redirectUrl = `${getFrontendUrl()}/events?stripe_connect=success&account_id=${result.connectedAccountId}`;
 
     res.redirect(redirectUrl);
   } catch (error) {
     console.error("Error handling Stripe Connect callback:", error);
 
     // Redirect to frontend with error status
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const redirectUrl = `${frontendUrl}/events?stripe_connect=error&message=${encodeURIComponent(
+    const redirectUrl = `${getFrontendUrl()}/events?stripe_connect=error&message=${encodeURIComponent(
       error.message
     )}`;
 

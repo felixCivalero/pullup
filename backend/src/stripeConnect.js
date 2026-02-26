@@ -12,6 +12,25 @@ import crypto from "crypto";
 // Determine environment mode
 const isDevelopment = process.env.NODE_ENV === "development";
 
+// Helper: derive the public frontend base URL from env
+function getFrontendBaseUrl() {
+  if (isDevelopment) {
+    return (
+      process.env.TEST_FRONTEND_URL ||
+      process.env.FRONTEND_URL ||
+      "http://localhost:5173"
+    );
+  }
+
+  if (!process.env.FRONTEND_URL) {
+    throw new Error(
+      "FRONTEND_URL environment variable is required in production for Stripe Connect redirects.",
+    );
+  }
+
+  return process.env.FRONTEND_URL;
+}
+
 // Get Stripe Connect Client ID
 function getStripeConnectClientId() {
   let clientId;
@@ -51,16 +70,17 @@ function getStripeConnectRedirectUri() {
   let redirectUri;
 
   if (isDevelopment) {
-    // Development mode: prefer TEST_ variables, fallback to regular, then defaults
+    // Development mode: prefer TEST_ variables, fallback to regular, then localhost backend
     redirectUri =
       process.env.TEST_STRIPE_CONNECT_REDIRECT_URI ||
       process.env.STRIPE_CONNECT_REDIRECT_URI ||
       "http://localhost:3001/host/stripe/connect/callback";
   } else {
-    // Production mode: use regular variable or default
+    // Production mode: use regular variable or derive from FRONTEND_URL + /api
+    const frontendBase = getFrontendBaseUrl().replace(/\/$/, "");
     redirectUri =
       process.env.STRIPE_CONNECT_REDIRECT_URI ||
-      "https://pullup.se/api/host/stripe/connect/callback";
+      `${frontendBase}/api/host/stripe/connect/callback`;
   }
 
   return redirectUri;

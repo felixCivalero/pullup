@@ -5,19 +5,24 @@
  * Get the base URL for the frontend
  * Matches the logic from frontend/src/lib/urlUtils.js
  */
+const isDevelopment = process.env.NODE_ENV === "development";
+
 export function getBaseUrl() {
-  // Check for explicit FRONTEND_URL environment variable first
-  if (process.env.FRONTEND_URL) {
-    return process.env.FRONTEND_URL;
+  if (isDevelopment) {
+    return (
+      process.env.TEST_FRONTEND_URL ||
+      process.env.FRONTEND_URL ||
+      "http://localhost:5173"
+    );
   }
 
-  // In development, use localhost (Vite default port)
-  if (process.env.NODE_ENV === "development") {
-    return "http://localhost:5173";
+  if (!process.env.FRONTEND_URL) {
+    throw new Error(
+      "FRONTEND_URL environment variable is required in production for URL generation.",
+    );
   }
 
-  // In production, use the canonical domain
-  return "https://pullup.se";
+  return process.env.FRONTEND_URL;
 }
 
 /**

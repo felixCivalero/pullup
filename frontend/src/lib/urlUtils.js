@@ -2,18 +2,53 @@
 // Utility functions for URL handling (localhost vs production)
 import { formatDateForCalendar, addHours } from "./dateUtils.js";
 
+// Frontend and backend base URLs are driven by env, with sensible dev fallbacks.
+// This keeps dev/prod/staging deploys aligned without hardcoding domains.
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || "";
+const DEV_FRONTEND_FALLBACK = "http://localhost:5173";
+const DEV_API_FALLBACK = "http://localhost:3001";
+
 export function getBaseUrl() {
-  // In dev, use the current origin (vite)
-  if (import.meta.env.DEV) return window.location.origin;
-  // In prod, hardcode your canonical domain
-  return "https://pullup.se";
+  // In development, prefer the real browser origin when available
+  if (import.meta.env.DEV) {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return window.location.origin;
+    }
+    // Fallback if window isn't available (e.g. during SSR or tests)
+    return FRONTEND_URL || DEV_FRONTEND_FALLBACK;
+  }
+
+  // In production-like builds, use explicit env when provided
+  if (FRONTEND_URL) {
+    return FRONTEND_URL;
+  }
+
+  // As a last resort, fall back to window.location.origin if available
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+
+  throw new Error(
+    "[getBaseUrl] VITE_FRONTEND_URL is not set and window.location.origin is unavailable.",
+  );
 }
 
 function getShareOrigin() {
-  // In dev, your backend serves /share/:slug directly
-  if (import.meta.env.DEV) return "http://localhost:3001";
-  // In prod, nginx proxies /share/:slug to backend on the same domain
-  return "https://pullup.se";
+  // In dev, the backend serves /share/:slug directly.
+  // Prefer an explicit share origin or API URL, then default to localhost backend.
+  if (import.meta.env.DEV) {
+    const apiBase =
+      import.meta.env.VITE_API_URL ||
+      (import.meta.env.DEV ? DEV_API_FALLBACK : "/api");
+    return (
+      import.meta.env.VITE_SHARE_ORIGIN ||
+      apiBase.replace(/\/api\/?$/, "").replace(/\/$/, "")
+    );
+  }
+
+  // In prod, nginx (or your proxy) usually serves /share/:slug on the same domain as the frontend.
+  const baseUrl = getBaseUrl();
+  return import.meta.env.VITE_SHARE_ORIGIN || baseUrl;
 }
 
 export function getEventUrl(slug) {
@@ -22,8 +57,8 @@ export function getEventUrl(slug) {
 
 /**
  * Share URL for link previews (ALWAYS use this in share text)
- * - Dev: http://localhost:3001/share/:slug
- * - Prod: https://pullup.se/share/:slug
+ * - Dev: {shareOrigin}/share/:slug (usually http://localhost:3001/share/:slug)
+ * - Prod: {shareOrigin}/share/:slug (usually https://your-domain/share/:slug)
  */
 export function getEventShareUrl(slug) {
   if (!slug) {

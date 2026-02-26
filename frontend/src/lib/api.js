@@ -3,8 +3,14 @@
 
 import { supabase } from "./supabase.js";
 
-// Use environment variable for production, fallback to localhost for development
-const API_BASE = import.meta.env.DEV ? "http://localhost:3001" : "/api";
+// API base URL:
+// - Prefer VITE_API_URL when set (for staging/custom domains)
+// - Otherwise:
+//   - Dev: talk directly to backend on localhost:3001
+//   - Prod: use /api on the same origin (fronted by a proxy)
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? "http://localhost:3001" : "/api");
 
 /**
  * Make an authenticated API request

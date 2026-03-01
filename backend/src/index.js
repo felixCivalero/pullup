@@ -38,6 +38,9 @@ import {
   getEventHostRole,
   HOST_ROLES,
   findPersonById,
+  createEventHostInvitation,
+  getPendingInvitationsForEvent,
+  claimPendingInvitationsForUser,
 } from "./data.js";
 
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
@@ -64,7 +67,7 @@ import {
 } from "./stripeConnect.js";
 import { logger } from "./logger.js";
 
-import { sendEmail } from "./services/emailService.js";
+import { sendEmail, coHostAddedEmailBody, coHostInvitedEmailBody } from "./services/emailService.js";
 import {
   signupConfirmationEmail,
   reminder8hEmail,
@@ -481,6 +484,13 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 // ---------------------------
 app.get("/events", requireAuth, async (req, res) => {
   try {
+    // Claim any pending co-host invitations for this user (by email)
+    try {
+      await claimPendingInvitationsForUser(req.user.id, req.user.email);
+    } catch (claimErr) {
+      console.error("Error claiming pending invitations:", claimErr.message);
+    }
+
     // Fetch events where the authenticated user is a host (owner or co-host)
     const eventIds = await getUserEventIds(req.user.id);
 
@@ -1810,7 +1820,8 @@ app.get("/host/events/:id/hosts", requireAuth, async (req, res) => {
     }
 
     const hosts = await getHostsForEvent(event);
-    res.json({ hosts });
+    const pendingInvitations = await getPendingInvitationsForEvent(event.id).catch(() => []);
+    res.json({ hosts, pendingInvitations });
   } catch (error) {
     console.error("Error listing event hosts:", error);
     if (error.code === "PGRST205") {
@@ -1820,86 +1831,18 @@ app.get("/host/events/:id/hosts", requireAuth, async (req, res) => {
   }
 });
 
-// Add a host to an event (owner only)
-// Accepts either a userId (auth.users.id) OR an email address for lookup.
+// Add a host to an event (owner or admin).
+// If the email has an account: add to event_hosts and send "added" email.
+// If not: create pending invitation and send "invited" email (they'll see the event when they sign up).
 app.post("/host/events/:id/hosts", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { userId: rawUserId, email, role = "editor" } = req.body || {};
 
-    let userId = rawUserId;
-
-    if (!userId && email) {
-      const normalizedEmail = String(email).trim().toLowerCase();
-
-      try {
-        const { supabase } = await import("./supabase.js");
-
-        // 1) Try to find auth user by email using Admin API
-        // Note: We need to list users and filter, as there's no direct "get by email" method
-        const {
-          data: { users },
-          error: authError,
-        } = await supabase.auth.admin.listUsers();
-
-        if (authError) {
-          console.error("Error listing auth users:", authError);
-        } else if (users && users.length > 0) {
-          // Find user with matching email (case-insensitive)
-          const matchingUser = users.find(
-            (u) => u.email?.toLowerCase() === normalizedEmail
-          );
-          if (matchingUser?.id) {
-            userId = matchingUser.id;
-          }
-        }
-
-        // 2) If not found in auth.users, try to find profile where additional_emails contains this email
-        if (!userId) {
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("id, additional_emails")
-            .contains("additional_emails", [normalizedEmail])
-            .maybeSingle();
-
-          if (profileError) {
-            console.error(
-              "Error looking up profile by additional_emails:",
-              profileError
-            );
-          }
-
-          if (profile?.id) {
-            userId = profile.id;
-          }
-        }
-      } catch (lookupError) {
-        console.error(
-          "Unexpected error looking up user by email:",
-          lookupError
-        );
-        return res.status(500).json({
-          error: "user_lookup_failed",
-          message: "Failed to look up user by email",
-        });
-      }
-    }
-
-    if (!userId) {
-      return res.status(400).json({
-        error: "user_not_found",
-        message:
-          "Could not find a PullUp user with that email. Ask them to sign up first.",
-      });
-    }
-
     const event = await findEventById(id);
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    const { isHost, role: currentRole } = await isUserEventHost(
-      req.user.id,
-      event.id
-    );
+    const { isHost } = await isUserEventHost(req.user.id, event.id);
     if (!isHost || !(await canManageHosts(req.user.id, event.id))) {
       return res.status(403).json({
         error: "Forbidden",
@@ -1916,32 +1859,188 @@ app.post("/host/events/:id/hosts", requireAuth, async (req, res) => {
     const roleToInsert =
       role && allowedRoles.includes(role) ? role : HOST_ROLES.EDITOR;
 
-    const { supabase } = await import("./supabase.js");
-    const { error } = await supabase.from("event_hosts").insert({
-      event_id: event.id,
-      user_id: userId,
-      role: roleToInsert,
-    });
+    let userId = rawUserId;
 
-    if (error) {
-      console.error("Error adding event host:", error);
-      if (error.code === "PGRST205") {
-        return res.status(400).json({
-          error: "hosts_not_enabled",
-          message:
-            "Hosts feature is not enabled in this environment yet (missing event_hosts table).",
+    if (!userId && email) {
+      const normalizedEmail = String(email).trim().toLowerCase();
+
+      try {
+        const { supabase } = await import("./supabase.js");
+
+        const {
+          data: { users },
+          error: authError,
+        } = await supabase.auth.admin.listUsers();
+
+        if (authError) {
+          console.error("Error listing auth users:", authError);
+        } else if (users && users.length > 0) {
+          const matchingUser = users.find(
+            (u) => u.email?.toLowerCase() === normalizedEmail
+          );
+          if (matchingUser?.id) userId = matchingUser.id;
+        }
+
+        if (!userId) {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, additional_emails")
+            .contains("additional_emails", [normalizedEmail])
+            .maybeSingle();
+
+          if (!profileError && profile?.id) userId = profile.id;
+        }
+      } catch (lookupError) {
+        console.error("Error looking up user by email:", lookupError);
+        return res.status(500).json({
+          error: "user_lookup_failed",
+          message: "Failed to look up user by email",
         });
       }
-      return res.status(500).json({ error: "Failed to add event host" });
+    }
+
+    if (userId) {
+      // User exists: add to event_hosts and send "added" email
+      const { supabase } = await import("./supabase.js");
+      const { error } = await supabase.from("event_hosts").insert({
+        event_id: event.id,
+        user_id: userId,
+        role: roleToInsert,
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          return res.status(400).json({
+            error: "already_host",
+            message: "This user is already an arranger for this event",
+          });
+        }
+        if (error.code === "PGRST205") {
+          return res.status(400).json({
+            error: "hosts_not_enabled",
+            message:
+              "Hosts feature is not enabled in this environment yet (missing event_hosts table).",
+          });
+        }
+        console.error("Error adding event host:", error);
+        return res.status(500).json({ error: "Failed to add event host" });
+      }
+
+      try {
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.admin.getUserById(userId);
+        const toEmail = authUser?.email;
+        if (toEmail) {
+          await sendEmail({
+            to: toEmail,
+            subject: `You've been added as ${roleToInsert} to "${event.title}"`,
+            text: coHostAddedEmailBody({
+              eventTitle: event.title,
+              role: roleToInsert,
+            }),
+          });
+        }
+      } catch (emailErr) {
+        console.error("Failed to send co-host added email:", emailErr.message);
+      }
+
+      const hosts = await getHostsForEvent(event);
+      const pendingInvitations = await getPendingInvitationsForEvent(event.id).catch(() => []);
+      return res.status(201).json({ hosts, pendingInvitations });
+    }
+
+    // No account yet: create pending invitation and send "invited" email
+    if (!email) {
+      return res.status(400).json({
+        error: "email_required",
+        message: "Email is required to invite someone who doesn't have an account yet",
+      });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    try {
+      await createEventHostInvitation({
+        eventId: event.id,
+        email: normalizedEmail,
+        role: roleToInsert,
+        invitedByUserId: req.user.id,
+      });
+    } catch (invErr) {
+      if (invErr.code === "23505") {
+        return res.status(400).json({
+          error: "already_invited",
+          message: "This email has already been invited to this event",
+        });
+      }
+      console.error("Error creating invitation:", invErr);
+      return res.status(500).json({ error: "Failed to create invitation" });
+    }
+
+    try {
+      await sendEmail({
+        to: normalizedEmail,
+        subject: `You're invited to co-host "${event.title}"`,
+        text: coHostInvitedEmailBody({
+          eventTitle: event.title,
+          role: roleToInsert,
+        }),
+      });
+    } catch (emailErr) {
+      console.error("Failed to send co-host invitation email:", emailErr.message);
     }
 
     const hosts = await getHostsForEvent(event);
-    res.status(201).json({ hosts });
+    const pendingInvitations = await getPendingInvitationsForEvent(event.id).catch(() => []);
+    return res.status(201).json({ hosts, pendingInvitations });
   } catch (error) {
     console.error("Error adding event host:", error);
     res.status(500).json({ error: "Failed to add event host" });
   }
 });
+
+// Revoke a pending co-host invitation (owner or admin)
+app.delete(
+  "/host/events/:eventId/invitations/:email",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId, email } = req.params;
+      const normalizedEmail = decodeURIComponent(email).trim().toLowerCase();
+
+      const event = await findEventById(eventId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+
+      const { isHost } = await isUserEventHost(req.user.id, event.id);
+      if (!isHost || !(await canManageHosts(req.user.id, event.id))) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Only the event owner or admin can revoke invitations",
+        });
+      }
+
+      const { supabase } = await import("./supabase.js");
+      const { error } = await supabase
+        .from("event_host_invitations")
+        .delete()
+        .eq("event_id", event.id)
+        .eq("email", normalizedEmail)
+        .eq("status", "pending");
+
+      if (error) {
+        if (error.code === "PGRST205") return res.status(404).json({ error: "Not found" });
+        return res.status(500).json({ error: "Failed to revoke invitation" });
+      }
+
+      const hosts = await getHostsForEvent(event);
+      const pendingInvitations = await getPendingInvitationsForEvent(event.id).catch(() => []);
+      return res.json({ hosts, pendingInvitations });
+    } catch (err) {
+      console.error("Error revoking invitation:", err);
+      res.status(500).json({ error: "Failed to revoke invitation" });
+    }
+  }
+);
 
 // Remove a host from an event (owner only)
 app.delete(

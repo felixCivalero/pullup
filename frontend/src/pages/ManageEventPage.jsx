@@ -645,10 +645,19 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
   const { showToast } = useToast();
   const { user } = useAuth();
   const [hosts, setHosts] = useState([]);
+  const [pendingInvitations, setPendingInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newHostEmail, setNewHostEmail] = useState("");
   const [newHostRole, setNewHostRole] = useState("editor");
   const [adding, setAdding] = useState(false);
+
+  const applyHostsResponse = (data) => {
+    const list = (data.hosts || []).sort((a, b) =>
+      a.role === "owner" ? -1 : b.role === "owner" ? 1 : 0,
+    );
+    setHosts(list);
+    setPendingInvitations(data.pendingInvitations || []);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -658,14 +667,7 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
         const res = await authenticatedFetch(`/host/events/${eventId}/hosts`);
         if (!res.ok) throw new Error("Failed to load hosts");
         const data = await res.json();
-        if (isMounted) {
-          const list = data.hosts || [];
-          setHosts(
-            list.sort((a, b) =>
-              a.role === "owner" ? -1 : b.role === "owner" ? 1 : 0,
-            ),
-          );
-        }
+        if (isMounted) applyHostsResponse(data);
       } catch (err) {
         console.error("Failed to load hosts:", err);
       } finally {
@@ -698,19 +700,21 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
           role: newHostRole,
         }),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Failed to add host");
+        throw new Error(data.message || data.error || "Failed to add host");
       }
-      const data = await res.json();
-      const list = data.hosts || [];
-      setHosts(
-        list.sort((a, b) =>
-          a.role === "owner" ? -1 : b.role === "owner" ? 1 : 0,
-        ),
-      );
+      applyHostsResponse(data);
       setNewHostEmail("");
-      showToast("Host added successfully", "success");
+      const wasInvitation = (data.pendingInvitations || []).some(
+        (p) => p.email === newHostEmail.trim().toLowerCase(),
+      );
+      showToast(
+        wasInvitation
+          ? "Invitation sent. They'll receive an email to sign up."
+          : "Arranger added. They'll receive an email.",
+        "success",
+      );
     } catch (err) {
       console.error("Failed to add host:", err);
       showToast(err.message || "Failed to add host", "error");
@@ -739,7 +743,6 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
         throw new Error(body.error || "Failed to remove host");
       }
 
-      // Optimistically update list without full refetch
       setHosts((prev) =>
         prev.filter(
           (h) =>
@@ -747,9 +750,37 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
         ),
       );
       showToast("Host removed", "success");
+      const refetch = await authenticatedFetch(`/host/events/${eventId}/hosts`);
+      if (refetch.ok) {
+        const data = await refetch.json();
+        applyHostsResponse(data);
+      }
     } catch (err) {
       console.error("Failed to remove host:", err);
       showToast(err.message || "Failed to remove host", "error");
+    }
+  };
+
+  const handleRevokeInvitation = async (email) => {
+    if (!canManageHosts) {
+      showToast("Only the event owner or admin can revoke invitations", "error");
+      return;
+    }
+    try {
+      const res = await authenticatedFetch(
+        `/host/events/${eventId}/invitations/${encodeURIComponent(email)}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || body.error || "Failed to revoke");
+      }
+      const data = await res.json();
+      applyHostsResponse(data);
+      showToast("Invitation revoked", "success");
+    } catch (err) {
+      console.error("Failed to revoke invitation:", err);
+      showToast(err.message || "Failed to revoke invitation", "error");
     }
   };
 
@@ -800,8 +831,8 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
     >
       {loading ? (
         <div style={{ fontSize: "13px", opacity: 0.7 }}>Loading hosts...</div>
-      ) : hosts.length === 0 ? (
-        <div style={{ fontSize: "13px", opacity: 0.7 }}>No hosts found.</div>
+      ) : hosts.length === 0 && pendingInvitations.length === 0 ? (
+        <div style={{ fontSize: "13px", opacity: 0.7 }}>No arrangers yet.</div>
       ) : (
         <div
           style={{
@@ -918,6 +949,90 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
                     }}
                   >
                     Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          {pendingInvitations.map((inv) => (
+            <div
+              key={inv.id || inv.email}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                background: "rgba(20, 16, 30, 0.5)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                fontSize: "13px",
+                gap: "12px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                  minWidth: 0,
+                }}
+              >
+                <span style={{ fontWeight: 600, color: "rgba(255,255,255,0.9)" }}>
+                  {inv.email}
+                </span>
+                <span style={{ opacity: 0.6, color: "#9ca3af", fontSize: "12px" }}>
+                  Invitation sent – awaiting sign up
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    padding: "4px 10px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(234,179,8,0.6)",
+                    color: "#fef08a",
+                    background: "rgba(234,179,8,0.2)",
+                  }}
+                >
+                  Pending
+                </span>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "rgba(255,255,255,0.6)",
+                  }}
+                >
+                  {inv.role}
+                </span>
+                {canManageHosts && (
+                  <button
+                    type="button"
+                    onClick={() => handleRevokeInvitation(inv.email)}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(239,68,68,0.5)",
+                      background: "rgba(239,68,68,0.1)",
+                      color: "#fecaca",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Revoke
                   </button>
                 )}
               </div>

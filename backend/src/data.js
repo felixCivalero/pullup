@@ -331,6 +331,94 @@ export async function isUserEventOwner(userId, eventId) {
   return false;
 }
 
+// ---------------------------
+// Event host invitations (pending co-hosts by email, no account yet)
+// ---------------------------
+
+/**
+ * Create a pending invitation. Email normalized to lowercase.
+ */
+export async function createEventHostInvitation({
+  eventId,
+  email,
+  role,
+  invitedByUserId,
+}) {
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const { data, error } = await supabase
+    .from("event_host_invitations")
+    .insert({
+      event_id: eventId,
+      email: normalizedEmail,
+      role: role || "editor",
+      invited_by_user_id: invitedByUserId,
+      status: "pending",
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Get pending invitations for an event (status = 'pending').
+ */
+export async function getPendingInvitationsForEvent(eventId) {
+  const { data, error } = await supabase
+    .from("event_host_invitations")
+    .select("id, event_id, email, role, invited_at")
+    .eq("event_id", eventId)
+    .eq("status", "pending")
+    .order("invited_at", { ascending: true });
+  if (error) {
+    if (error.code === "PGRST205") return []; // table missing
+    throw error;
+  }
+  return data || [];
+}
+
+/**
+ * Claim pending invitations for a user by email: create event_hosts rows and mark invitations accepted.
+ * Call after signup/login so the user sees the events they were invited to.
+ */
+export async function claimPendingInvitationsForUser(userId, userEmail) {
+  if (!userEmail) return [];
+  const normalizedEmail = String(userEmail).trim().toLowerCase();
+  const { data: pending, error: fetchError } = await supabase
+    .from("event_host_invitations")
+    .select("id, event_id, role")
+    .eq("email", normalizedEmail)
+    .eq("status", "pending");
+  if (fetchError) {
+    if (fetchError.code === "PGRST205") return [];
+    throw fetchError;
+  }
+  if (!pending || pending.length === 0) return [];
+
+  const claimed = [];
+  for (const inv of pending) {
+    const { error: insertError } = await supabase.from("event_hosts").insert({
+      event_id: inv.event_id,
+      user_id: userId,
+      role: inv.role,
+    });
+    if (insertError) {
+      if (insertError.code === "23505") {
+        // unique violation: already a host, just mark invitation accepted
+      } else {
+        console.error("Error creating event_host from invitation:", insertError);
+        continue;
+      }
+    }
+    const { error: updateError } = await supabase
+      .from("event_host_invitations")
+      .update({ status: "accepted", accepted_at: new Date().toISOString() })
+      .eq("id", inv.id);
+    if (!updateError) claimed.push(inv);
+  }
+  return claimed;
+}
+
 // Helper: Map application event updates to database format
 function mapEventToDb(eventData) {
   const dbData = {};

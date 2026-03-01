@@ -640,6 +640,7 @@ export function EventGuestsPage() {
   }
 
   function handleRowClick(guest, e) {
+    if (!canCheckIn) return;
     // Don't open modal if clicking on action buttons or inputs
     if (
       e.target.closest("button") ||
@@ -789,6 +790,13 @@ export function EventGuestsPage() {
   const totalSpotsLeft =
     totalCapacity != null ? Math.max(totalCapacity - attending, 0) : null;
 
+  const canEditGuests =
+    event?.myRole &&
+    ["owner", "admin", "editor"].includes(event.myRole);
+  const canCheckIn =
+    event?.myRole &&
+    ["owner", "admin", "editor", "reception"].includes(event.myRole);
+
   // Sorting function
   const handleSort = (column) => {
     if (sortColumn === column) {
@@ -812,7 +820,7 @@ export function EventGuestsPage() {
         minHeight: "100vh",
         position: "relative",
         background:
-          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.1) 0%, transparent 50%), #05040a",
+          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
         paddingBottom: "40px",
       }}
     >
@@ -1123,7 +1131,7 @@ export function EventGuestsPage() {
           </div>
         )}
 
-        {/* Title - Above Menu */}
+        {/* Title - Above Menu (same as ManageEventPage) */}
         {event && (
           <h1
             style={{
@@ -1140,15 +1148,19 @@ export function EventGuestsPage() {
             {event.title || "Untitled event"}
           </h1>
         )}
+
+        {/* Content Card - same layout/design as Overview and Edit on ManageEventPage */}
         <div
+          className="responsive-card"
           style={{
-            background: "rgba(12, 10, 18, 0.6)",
-            backdropFilter: "blur(10px)",
+            background: "#0c0a12",
             border: "1px solid rgba(255,255,255,0.05)",
-            width: "100%",
+            marginTop: event?.imageUrl ? "0" : "0",
             maxWidth: "100%",
             borderRadius: "0",
-            padding: "0",
+            marginLeft: "0",
+            marginRight: "0",
+            padding: "20px",
             boxSizing: "border-box",
           }}
         >
@@ -1219,7 +1231,7 @@ export function EventGuestsPage() {
               </span>
             </div>
             <button
-              onClick={() => navigate(`/app/events/${id}/manage?tab=edit`)}
+              onClick={() => navigate(`/app/events/${id}/manage/edit`)}
               style={{
                 background: "transparent",
                 border: "none",
@@ -1849,6 +1861,8 @@ export function EventGuestsPage() {
                               flexWrap: "wrap",
                             }}
                           >
+                            {canEditGuests && (
+                              <>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1911,6 +1925,8 @@ export function EventGuestsPage() {
                             >
                               Delete
                             </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1931,7 +1947,7 @@ export function EventGuestsPage() {
           allGuests={guests}
           onClose={() => setEditingGuest(null)}
           onSave={(updates) => handleUpdateGuest(editingGuest.id, updates)}
-          onRefund={(guest) => setShowRefundConfirm(guest)}
+          onRefund={canEditGuests ? (guest) => setShowRefundConfirm(guest) : undefined}
         />
       )}
 
@@ -3746,8 +3762,9 @@ function EditGuestModal({
             </button>
           </div>
 
-          {/* Refund button for paid guests - shown at bottom of modal */}
-          {event.ticketType === "paid" &&
+          {/* Refund button for paid guests - only when caller has permission */}
+          {onRefund &&
+            event.ticketType === "paid" &&
             guest.paymentId &&
             guest.paymentStatus === "paid" &&
             guest.bookingStatus === "CONFIRMED" && (

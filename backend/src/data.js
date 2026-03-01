@@ -222,6 +222,66 @@ export async function isUserEventHost(userId, eventId) {
   return { isHost: false, role: null };
 }
 
+// Arranger roles (event_hosts.role). Owner is only from events.host_id.
+export const HOST_ROLES = Object.freeze({
+  OWNER: "owner",
+  ADMIN: "admin",
+  EDITOR: "editor",
+  RECEPTION: "reception",
+  VIEWER: "viewer",
+});
+const MANAGER_ROLES = [HOST_ROLES.OWNER, HOST_ROLES.ADMIN];
+const GUEST_EDIT_ROLES = [HOST_ROLES.OWNER, HOST_ROLES.ADMIN, HOST_ROLES.EDITOR];
+const CHECKIN_ROLES = [HOST_ROLES.OWNER, HOST_ROLES.ADMIN, HOST_ROLES.EDITOR, HOST_ROLES.RECEPTION];
+
+function roleIn(role, allowed) {
+  return role && allowed.includes(role);
+}
+
+/**
+ * Get the user's role for an event (owner from events.host_id, else from event_hosts).
+ * Returns role string or null if not a host.
+ */
+export async function getEventHostRole(userId, eventId) {
+  const { isHost, role } = await isUserEventHost(userId, eventId);
+  if (!isHost) return null;
+  // Normalize legacy co_host to editor for permission purposes
+  if (role === "co_host") return HOST_ROLES.EDITOR;
+  return role;
+}
+
+/**
+ * Can add/remove hosts and change roles. Owner or admin only.
+ */
+export async function canManageHosts(userId, eventId) {
+  const role = await getEventHostRole(userId, eventId);
+  return roleIn(role, MANAGER_ROLES);
+}
+
+/**
+ * Can edit event details, publish, Stripe, image upload. Owner or admin.
+ */
+export async function canEditEvent(userId, eventId) {
+  const role = await getEventHostRole(userId, eventId);
+  return roleIn(role, MANAGER_ROLES);
+}
+
+/**
+ * Can edit guest list (add/edit/cancel RSVP, refunds). Owner, admin, or editor.
+ */
+export async function canEditGuests(userId, eventId) {
+  const role = await getEventHostRole(userId, eventId);
+  return roleIn(role, GUEST_EDIT_ROLES);
+}
+
+/**
+ * Can check in guests (mark arrived, pulled up). Owner, admin, editor, or reception.
+ */
+export async function canCheckIn(userId, eventId) {
+  const role = await getEventHostRole(userId, eventId);
+  return roleIn(role, CHECKIN_ROLES);
+}
+
 /**
  * Check if user is the owner of an event (not just a co-host).
  * Returns boolean.

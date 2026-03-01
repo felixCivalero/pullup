@@ -40,3 +40,23 @@ export async function deleteOrphanedEvents() {
 
   return data;
 }
+
+/**
+ * Backfill event_hosts: set role = 'editor' where role = 'co_host'.
+ * Matches backend/migrations/event_hosts_roles.sql.
+ * Safe to run multiple times (idempotent).
+ */
+export async function backfillEventHostsCoHostToEditor() {
+  const { data, error } = await supabase
+    .from("event_hosts")
+    .update({ role: "editor" })
+    .eq("role", "co_host")
+    .select();
+
+  if (error) {
+    console.error("Error backfilling event_hosts co_host -> editor:", error);
+    throw error;
+  }
+
+  return data;
+}

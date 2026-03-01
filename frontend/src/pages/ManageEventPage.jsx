@@ -1,6 +1,6 @@
 // frontend/src/pages/ManageEventPage.jsx
 import { useEffect, useState, useRef } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link, useLocation } from "react-router-dom";
 import {
   BarChart2,
   Wine,
@@ -87,7 +87,7 @@ function calculateCuisineTimeslots(startTime, endTime, intervalHours) {
       startMonth - 1,
       startDay,
       startHour,
-      startMinute
+      startMinute,
     );
     const endDate = new Date(endYear, endMonth - 1, endDay, endHour, endMinute);
     const interval = parseFloat(intervalHours);
@@ -113,7 +113,7 @@ function calculateCuisineTimeslots(startTime, endTime, intervalHours) {
       const hours = currentTime.getHours();
       const minutes = currentTime.getMinutes();
       const formattedTime = `${String(hours).padStart(2, "0")}:${String(
-        minutes
+        minutes,
       ).padStart(2, "0")}`;
       slots.push(formattedTime);
 
@@ -142,16 +142,16 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
         (g.status === "attending"
           ? "CONFIRMED"
           : g.status === "waitlist"
-          ? "WAITLIST"
-          : "CANCELLED");
+            ? "WAITLIST"
+            : "CANCELLED");
       const wantsDinner = g.dinner?.enabled || g.wantsDinner;
       const dinnerBookingStatus =
         g.dinner?.bookingStatus ||
         (g.dinnerStatus === "confirmed"
           ? "CONFIRMED"
           : g.dinnerStatus === "waitlist"
-          ? "WAITLIST"
-          : null);
+            ? "WAITLIST"
+            : null);
       const dinnerPartySizeNew = g.dinner?.partySize || dinnerPartySize;
 
       if (bookingStatus === "WAITLIST" || g.status === "waitlist") {
@@ -206,7 +206,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
       pulledUpTotal: 0,
       cocktailsPulledUp: 0,
       dinnerPulledUp: 0,
-    }
+    },
   );
 
   // Calculate total pulled up (sum of both)
@@ -215,6 +215,12 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
   const attending = stats.attending;
   const cocktailCapacity = event.cocktailCapacity ?? null;
   const totalCapacity = event.totalCapacity ?? null;
+
+  // Total dinner spots (when dinner is enabled): slots × seats per slot
+  const totalDinnerSpots =
+    event.dinnerEnabled && event.dinnerMaxSeatsPerSlot && dinnerSlots.length > 0
+      ? dinnerSlots.length * event.dinnerMaxSeatsPerSlot
+      : null;
 
   // Calculate over-capacity indicators
   const totalOverCapacity =
@@ -226,24 +232,72 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
 
   return (
     <>
-      {/* Summary Stats */}
+      {/* Waitlist - own category, full row, compact */}
       <div
         style={{
-          marginBottom: "32px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "10px 14px",
+          marginBottom: "16px",
+          background: "rgb(12 10 18 / 10%)",
+          borderRadius: "12px",
+          border: "1px solid rgba(255,255,255,0.05)",
+        }}
+      >
+        <span
+          style={{
+            fontSize: "13px",
+            fontWeight: 600,
+            opacity: 0.8,
+            color: "#fff",
+          }}
+        >
+          Waitlist:
+        </span>
+        <span
+          style={{
+            fontSize: "18px",
+            fontWeight: 700,
+            color: "#c0c0c0",
+          }}
+        >
+          {stats.waitlist}
+        </span>
+      </div>
+
+      {/* Capacity / signups / registrations */}
+      <div
+        style={{
+          fontSize: "11px",
+          textTransform: "uppercase",
+          letterSpacing: "0.12em",
+          fontWeight: 600,
+          opacity: 0.6,
+          marginBottom: "10px",
+          color: "#fff",
+        }}
+      >
+        Registrations
+      </div>
+      <div
+        style={{
+          marginBottom: "24px",
           display: "grid",
           gridTemplateColumns: isMobile
-            ? "1fr"
+            ? "repeat(3, 1fr)"
             : "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: "20px",
+          gap: isMobile ? "12px" : "20px",
         }}
       >
         {totalCapacity != null && (
           <div style={{ position: "relative" }}>
             <StatCard
-              icon={<SilverIcon as={BarChart2} size={24} />}
-              label="Total Capacity"
+              icon={<SilverIcon as={BarChart2} size={isMobile ? 20 : 24} />}
+              label="Total"
               value={`${attending}/${totalCapacity}`}
               color={totalOverCapacity > 0 ? "#f59e0b" : "#fff"}
+              compact={isMobile}
             />
             {totalOverCapacity > 0 && (
               <div
@@ -251,7 +305,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                   position: "absolute",
                   top: "8px",
                   right: "8px",
-                  fontSize: "14px",
+                  fontSize: isMobile ? "11px" : "14px",
                   fontWeight: 600,
                   color: "#f59e0b",
                   padding: "4px 8px",
@@ -269,10 +323,11 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
         {cocktailCapacity != null && (
           <div style={{ position: "relative" }}>
             <StatCard
-              icon={<SilverIcon as={Wine} size={24} />}
-              label="Cocktail Capacity"
+              icon={<SilverIcon as={Wine} size={isMobile ? 20 : 24} />}
+              label="List"
               value={`${stats.cocktailsOnly}/${cocktailCapacity}`}
               color={cocktailOverCapacity > 0 ? "#f59e0b" : "#f59e0b"}
+              compact={isMobile}
             />
             {cocktailOverCapacity > 0 && (
               <div
@@ -280,7 +335,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                   position: "absolute",
                   top: "8px",
                   right: "8px",
-                  fontSize: "14px",
+                  fontSize: isMobile ? "11px" : "14px",
                   fontWeight: 600,
                   color: "#f59e0b",
                   padding: "4px 8px",
@@ -295,48 +350,81 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
           </div>
         )}
 
-        <StatCard
-          icon={<SilverIcon as={ClipboardList} size={24} />}
-          label="Waitlist"
-          value={stats.waitlist}
-          color="#c0c0c0"
-        />
-
-        <StatCard
-          icon={<SilverIcon as={Check} size={24} />}
-          label="Pulled Up"
-          value={`${stats.pulledUpTotal}/${attending}`}
-          color="#10b981"
-        />
+        {totalDinnerSpots != null && (
+          <StatCard
+            icon={<SilverIcon as={UtensilsCrossed} size={isMobile ? 20 : 24} />}
+            label="Dinner"
+            value={`${stats.dinnerConfirmed}/${totalDinnerSpots}`}
+            color="#10b981"
+            compact={isMobile}
+          />
+        )}
       </div>
 
-      {/* Pulled Up Details */}
+      {/* Pulled up - total, list, dinner */}
+      <div
+        style={{
+          fontSize: "11px",
+          textTransform: "uppercase",
+          letterSpacing: "0.12em",
+          fontWeight: 600,
+          opacity: 0.6,
+          marginBottom: "10px",
+          color: "#fff",
+        }}
+      >
+        Pulled up
+      </div>
       <div
         style={{
           marginBottom: "32px",
           display: "grid",
           gridTemplateColumns: isMobile
-            ? "1fr"
+            ? "repeat(3, 1fr)"
             : "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: "20px",
+          gap: isMobile ? "12px" : "20px",
         }}
       >
         <StatCard
-          icon={<SilverIcon as={Wine} size={24} style={{ marginRight: 4 }} />}
-          label="Cocktails Pulled Up"
+          icon={<SilverIcon as={Check} size={isMobile ? 20 : 24} />}
+          label="Total"
+          value={`${stats.pulledUpTotal}/${attending}`}
+          color="#d1d5db"
+          compact={isMobile}
+        />
+
+        <StatCard
+          icon={
+            <SilverIcon
+              as={Wine}
+              size={isMobile ? 20 : 24}
+              style={{ marginRight: 4 }}
+            />
+          }
+          label="List"
           value={`${stats.cocktailsPulledUp}/${stats.cocktailsOnly}`}
           color="#f59e0b"
+          compact={isMobile}
+        />
+
+        <StatCard
+          icon={<SilverIcon as={UtensilsCrossed} size={isMobile ? 20 : 24} />}
+          label="Dinner"
+          value={`${stats.dinnerPulledUp}/${stats.dinnerConfirmed}`}
+          color="#10b981"
+          compact={isMobile}
         />
       </div>
 
-      {/* Dinner Slots Section */}
+      {/* Dinner - its own section, same alignment as Registrations/Pulled up */}
       {event.dinnerEnabled &&
         event.dinnerMaxSeatsPerSlot &&
         dinnerSlots.length > 0 && (
           <div
             style={{
+              marginTop: "40px",
               marginBottom: "32px",
-              padding: "28px",
+              padding: "24px 0 28px 0",
               background: "rgb(12 10 18 / 10%)",
               borderRadius: "18px",
               border: "1px solid rgba(255,255,255,0.05)",
@@ -351,7 +439,11 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                 marginBottom: "24px",
               }}
             >
-              <SilverIcon as={UtensilsCrossed} size={22} style={{ color: "#10b981" }} />
+              <SilverIcon
+                as={UtensilsCrossed}
+                size={22}
+                style={{ color: "#10b981" }}
+              />
               <div
                 style={{
                   fontSize: "16px",
@@ -362,16 +454,14 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                   color: "#10b981",
                 }}
               >
-                Dinner Slots
+                Dinner
               </div>
             </div>
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "16px",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: isMobile ? "12px" : "16px",
               }}
             >
               {dinnerSlots.map((slot) => {
@@ -397,7 +487,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                         g.dinnerPartySize ||
                         g.partySize ||
                         1),
-                    0
+                    0,
                   );
 
                 // Calculate pulled up count for this specific slot
@@ -419,7 +509,7 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                   .reduce(
                     (sum, g) =>
                       sum + (g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0),
-                    0
+                    0,
                   );
 
                 const slotOverCapacity = confirmed > capacity;
@@ -428,9 +518,9 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                   <div
                     key={slot.time}
                     style={{
-                      padding: "18px",
+                      padding: isMobile ? "12px" : "18px",
                       background: "rgb(12 10 18 / 10%)",
-                      borderRadius: "14px",
+                      borderRadius: isMobile ? "12px" : "14px",
                       border: "1px solid rgba(255,255,255,0.05)",
                       backdropFilter: "blur(10px)",
                       transition: "all 0.3s ease",
@@ -449,13 +539,13 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                       e.currentTarget.style.boxShadow = "none";
                     }}
                   >
+                    {/* Time for slot */}
                     <div
                       style={{
-                        fontSize: "14px",
+                        fontSize: isMobile ? "11px" : "14px",
                         fontWeight: 600,
                         opacity: 0.75,
-                        marginBottom: "10px",
-                        textTransform: "uppercase",
+                        marginBottom: isMobile ? "8px" : "10px",
                         letterSpacing: "0.08em",
                         color: "rgba(255, 255, 255, 0.8)",
                       }}
@@ -465,74 +555,72 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
                         minute: "2-digit",
                       })}
                     </div>
+                    {/* Registrations x/x */}
                     <div
                       style={{
-                        fontSize: "28px",
-                        fontWeight: 700,
-                        color: slotOverCapacity ? "#f59e0b" : "#10b981",
-                        display: "flex",
-                        alignItems: "baseline",
-                        gap: "6px",
-                        lineHeight: "1",
-                        marginBottom: "8px",
+                        fontSize: "11px",
+                        letterSpacing: "0.06em",
+                        opacity: 0.7,
+                        marginBottom: "2px",
+                        color: "rgba(255, 255, 255, 0.8)",
                       }}
                     >
-                      <span>{confirmed}</span>
-                      <span
-                        style={{
-                          fontSize: "18px",
-                          opacity: 0.5,
-                          fontWeight: 500,
-                          color: "rgba(255, 255, 255, 0.6)",
-                        }}
-                      >
-                        /{capacity}
-                      </span>
+                      Registrations
+                    </div>
+                    <div
+                      style={{
+                        fontSize: isMobile ? "22px" : "26px",
+                        fontWeight: 700,
+                        color: slotOverCapacity ? "#f59e0b" : "#10b981",
+                        lineHeight: "1",
+                        marginBottom: isMobile ? "10px" : "14px",
+                      }}
+                    >
+                      {confirmed}/{capacity}
                     </div>
                     {slotOverCapacity && (
                       <div
                         style={{
-                          fontSize: "14px",
+                          fontSize: isMobile ? "10px" : "12px",
                           fontWeight: 600,
                           color: "#f59e0b",
                           marginBottom: "8px",
-                          padding: "4px 8px",
+                          padding: "2px 6px",
                           background: "rgba(245, 158, 11, 0.15)",
                           borderRadius: "6px",
                           display: "inline-block",
                         }}
                       >
-                        Over capacity by {confirmed - capacity}
+                        Over by {confirmed - capacity}
                       </div>
                     )}
+                    {/* Pullup x/x */}
                     <div
                       style={{
-                        fontSize: "20px",
-                        fontWeight: 700,
-                        color: "#10b981",
-                        display: "flex",
-                        alignItems: "baseline",
-                        gap: "6px",
-                        lineHeight: "1",
-                        opacity: slotPulledUp > 0 ? 1 : 0.5,
+                        fontSize: "11px",
+                        letterSpacing: "0.06em",
+                        opacity: 0.7,
+                        marginBottom: "2px",
+                        color: "rgba(255, 255, 255, 0.8)",
                       }}
                     >
-                      <span>✓ {slotPulledUp}</span>
-                      <span
-                        style={{
-                          fontSize: "14px",
-                          opacity: 0.6,
-                          fontWeight: 500,
-                          color: "rgba(255, 255, 255, 0.6)",
-                        }}
-                      >
-                        /{confirmed} pulled up
-                      </span>
+                      Pulled up
+                    </div>
+                    <div
+                      style={{
+                        fontSize: isMobile ? "18px" : "22px",
+                        fontWeight: 700,
+                        color: slotOverCapacity ? "#f59e0b" : "#10b981",
+                        lineHeight: "1",
+                        opacity: slotPulledUp > 0 ? 1 : 0.6,
+                      }}
+                    >
+                      {slotPulledUp}/{confirmed}
                     </div>
                     {slot.waitlist > 0 && (
                       <div
                         style={{
-                          fontSize: "14px",
+                          fontSize: "12px",
                           color: "#c0c0c0",
                           marginTop: "8px",
                           opacity: 0.9,
@@ -552,13 +640,14 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
   );
 }
 
-// Simple hosts list component
-function EventHostsSection({ eventId }) {
+// Simple hosts list component. canManageHosts = owner or admin can add/remove hosts.
+function EventHostsSection({ eventId, canManageHosts = false }) {
   const { showToast } = useToast();
   const { user } = useAuth();
   const [hosts, setHosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newHostEmail, setNewHostEmail] = useState("");
+  const [newHostRole, setNewHostRole] = useState("editor");
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
@@ -570,7 +659,12 @@ function EventHostsSection({ eventId }) {
         if (!res.ok) throw new Error("Failed to load hosts");
         const data = await res.json();
         if (isMounted) {
-          setHosts(data.hosts || []);
+          const list = data.hosts || [];
+          setHosts(
+            list.sort((a, b) =>
+              a.role === "owner" ? -1 : b.role === "owner" ? 1 : 0,
+            ),
+          );
         }
       } catch (err) {
         console.error("Failed to load hosts:", err);
@@ -587,14 +681,11 @@ function EventHostsSection({ eventId }) {
   }, [eventId]);
 
   const currentUserId = user?.id;
-  const isOwner = hosts.some(
-    (host) => host.userId === currentUserId && host.role === "owner"
-  );
 
   const handleAddHost = async () => {
     if (!newHostEmail.trim()) return;
-    if (!isOwner) {
-      showToast("Only event owners can add hosts", "error");
+    if (!canManageHosts) {
+      showToast("Only the event owner or admin can add hosts", "error");
       return;
     }
     setAdding(true);
@@ -602,14 +693,22 @@ function EventHostsSection({ eventId }) {
       const res = await authenticatedFetch(`/host/events/${eventId}/hosts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newHostEmail.trim(), role: "co_host" }),
+        body: JSON.stringify({
+          email: newHostEmail.trim(),
+          role: newHostRole,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || "Failed to add host");
       }
       const data = await res.json();
-      setHosts(data.hosts || []);
+      const list = data.hosts || [];
+      setHosts(
+        list.sort((a, b) =>
+          a.role === "owner" ? -1 : b.role === "owner" ? 1 : 0,
+        ),
+      );
       setNewHostEmail("");
       showToast("Host added successfully", "success");
     } catch (err) {
@@ -621,9 +720,8 @@ function EventHostsSection({ eventId }) {
   };
 
   const handleRemoveHost = async (hostToRemove) => {
-    // Only owners can remove hosts, and we never allow removing the owner via UI
-    if (!isOwner) {
-      showToast("Only event owners can remove hosts", "error");
+    if (!canManageHosts) {
+      showToast("Only the event owner or admin can remove hosts", "error");
       return;
     }
     if (hostToRemove.role === "owner") {
@@ -634,7 +732,7 @@ function EventHostsSection({ eventId }) {
         `/host/events/${eventId}/hosts/${hostToRemove.userId}`,
         {
           method: "DELETE",
-        }
+        },
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -645,15 +743,47 @@ function EventHostsSection({ eventId }) {
       setHosts((prev) =>
         prev.filter(
           (h) =>
-            !(
-              h.userId === hostToRemove.userId && h.role === hostToRemove.role
-            )
-        )
+            !(h.userId === hostToRemove.userId && h.role === hostToRemove.role),
+        ),
       );
       showToast("Host removed", "success");
     } catch (err) {
       console.error("Failed to remove host:", err);
       showToast(err.message || "Failed to remove host", "error");
+    }
+  };
+
+  const [updatingRoleFor, setUpdatingRoleFor] = useState(null);
+  const handleUpdateRole = async (host, newRole) => {
+    if (!canManageHosts || host.role === "owner") return;
+    if (host.role === newRole) return;
+    setUpdatingRoleFor(host.userId);
+    try {
+      const res = await authenticatedFetch(
+        `/host/events/${eventId}/hosts/${host.userId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: newRole }),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || body.message || "Failed to update role");
+      }
+      const data = await res.json();
+      const list = data.hosts || [];
+      setHosts(
+        list.sort((a, b) =>
+          a.role === "owner" ? -1 : b.role === "owner" ? 1 : 0,
+        ),
+      );
+      showToast(`Role updated to ${newRole}`, "success");
+    } catch (err) {
+      console.error("Failed to update host role:", err);
+      showToast(err.message || "Failed to update role", "error");
+    } finally {
+      setUpdatingRoleFor(null);
     }
   };
 
@@ -668,34 +798,6 @@ function EventHostsSection({ eventId }) {
         background: "rgba(12, 10, 18, 0.8)",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "12px",
-          gap: "12px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: "14px",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              color: "#e5e7eb",
-            }}
-          >
-            ARRANGERS
-          </div>
-          <div style={{ fontSize: "12px", opacity: 0.6 }}>
-            People who can manage this event (owner or co-hosts).
-          </div>
-        </div>
-      </div>
-
       {loading ? (
         <div style={{ fontSize: "13px", opacity: 0.7 }}>Loading hosts...</div>
       ) : hosts.length === 0 ? (
@@ -716,51 +818,97 @@ function EventHostsSection({ eventId }) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "8px 10px",
+                padding: "10px 12px",
                 borderRadius: "8px",
                 background: "rgba(20, 16, 30, 0.6)",
                 border: "1px solid rgba(255,255,255,0.06)",
                 fontSize: "13px",
-                gap: "8px",
+                gap: "12px",
+                flexWrap: "wrap",
               }}
             >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                  minWidth: 0,
+                }}
+              >
                 <span style={{ fontWeight: 600, color: "#fff" }}>
                   {host.profile?.name || "Unknown user"}
                 </span>
-                <span style={{ opacity: 0.6, color: "#9ca3af" }}>
-                  {host.email ? `Email: ${host.email}` : `ID: ${host.userId}`}
+                <span
+                  style={{ opacity: 0.6, color: "#9ca3af", fontSize: "12px" }}
+                >
+                  {host.email ? host.email : `ID: ${host.userId}`}
                 </span>
               </div>
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px",
+                  gap: "10px",
                   flexShrink: 0,
                 }}
               >
-                <span
-                  style={{
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    padding: "4px 8px",
-                    borderRadius: "999px",
-                    border: "1px solid rgba(139,92,246,0.6)",
-                    color: "#fff",
-                    background: "rgba(139,92,246,0.3)",
-                  }}
-                >
-                  {host.role}
-                </span>
-                {isOwner && host.role !== "owner" && (
+                {host.role === "owner" ? (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      padding: "4px 10px",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(139,92,246,0.6)",
+                      color: "#fff",
+                      background: "rgba(139,92,246,0.3)",
+                    }}
+                  >
+                    Owner
+                  </span>
+                ) : canManageHosts ? (
+                  <select
+                    value={host.role}
+                    onChange={(e) => handleUpdateRole(host, e.target.value)}
+                    disabled={updatingRoleFor === host.userId}
+                    style={{
+                      ...inputStyle,
+                      minHeight: "32px",
+                      fontSize: "12px",
+                      padding: "4px 8px",
+                      minWidth: "100px",
+                    }}
+                    aria-label={`Change role for ${host.profile?.name || host.email}`}
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="editor">Editor</option>
+                    <option value="reception">Reception</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      padding: "4px 8px",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(139,92,246,0.6)",
+                      color: "#fff",
+                      background: "rgba(139,92,246,0.3)",
+                    }}
+                  >
+                    {host.role}
+                  </span>
+                )}
+                {canManageHosts && host.role !== "owner" && (
                   <button
                     type="button"
                     onClick={() => handleRemoveHost(host)}
                     style={{
-                      padding: "4px 8px",
-                      borderRadius: "999px",
+                      padding: "4px 10px",
+                      borderRadius: "8px",
                       border: "1px solid rgba(239,68,68,0.5)",
                       background: "rgba(239,68,68,0.1)",
                       color: "#fecaca",
@@ -778,35 +926,66 @@ function EventHostsSection({ eventId }) {
         </div>
       )}
 
-      {isOwner && (
+      {canManageHosts && (
         <>
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "rgba(255,255,255,0.7)",
+              marginBottom: "8px",
+            }}
+          >
+            Add host
+          </div>
           <div
             style={{
               display: "flex",
               gap: "8px",
               alignItems: "center",
               flexWrap: "wrap",
-              marginTop: "8px",
+              marginTop: "4px",
             }}
           >
             <input
               type="text"
-              placeholder="Add host by email..."
+              placeholder="Email address..."
               value={newHostEmail}
               onChange={(e) => setNewHostEmail(e.target.value)}
               style={{
                 ...inputStyle,
                 minHeight: "36px",
                 fontSize: "13px",
-                flex: "1 1 220px",
+                flex: "1 1 200px",
               }}
+              aria-label="Email of person to add as arranger"
             />
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <select
+                id="new-host-role"
+                value={newHostRole}
+                onChange={(e) => setNewHostRole(e.target.value)}
+                style={{
+                  ...inputStyle,
+                  minHeight: "36px",
+                  fontSize: "13px",
+                  width: "auto",
+                  minWidth: "110px",
+                }}
+                aria-label="Role for new arranger"
+              >
+                <option value="admin">Admin</option>
+                <option value="editor">Editor</option>
+                <option value="reception">Reception</option>
+                <option value="viewer">Viewer</option>
+              </select>
+            </div>
             <button
               type="button"
               onClick={handleAddHost}
               disabled={adding || !newHostEmail.trim()}
               style={{
-                padding: "8px 14px",
+                padding: "8px 16px",
                 borderRadius: "8px",
                 border: "none",
                 background:
@@ -821,12 +1000,47 @@ function EventHostsSection({ eventId }) {
                 whiteSpace: "nowrap",
               }}
             >
-              {adding ? "Adding..." : "Add Host"}
+              {adding ? "Adding…" : "Add"}
             </button>
           </div>
           <div style={{ fontSize: "11px", opacity: 0.6, marginTop: "6px" }}>
-            Hosts are added by the email associated with their Pullup account.
-            Make sure they have signed up first.
+            {(() => {
+              switch (newHostRole) {
+                case "admin":
+                  return (
+                    <span>
+                      <strong>Admin:</strong> Full control. Can add/remove
+                      hosts, edit event details, and manage all aspects of the
+                      event.
+                    </span>
+                  );
+                case "editor":
+                  return (
+                    <span>
+                      <strong>Editor:</strong> Can edit event details and assist
+                      with managing the event, but cannot add or remove other
+                      hosts.
+                    </span>
+                  );
+                case "reception":
+                  return (
+                    <span>
+                      <strong>Reception:</strong> Can help greet/check in guests
+                      and manage attendee information but cannot edit event
+                      details or hosts.
+                    </span>
+                  );
+                case "viewer":
+                  return (
+                    <span>
+                      <strong>Viewer:</strong> Can see event details and the
+                      guest list but cannot make changes.
+                    </span>
+                  );
+                default:
+                  return null;
+              }
+            })()}
           </div>
         </>
       )}
@@ -835,14 +1049,14 @@ function EventHostsSection({ eventId }) {
 }
 
 // StatCard component for Overview tab
-function StatCard({ icon, label, value, color }) {
+function StatCard({ icon, label, value, color, compact = false }) {
   const isGradient = color.includes("gradient");
   return (
     <div
       style={{
-        padding: "20px",
+        padding: compact ? "12px" : "20px",
         background: "rgb(12 10 18 / 10%)",
-        borderRadius: "16px",
+        borderRadius: compact ? "12px" : "16px",
         border: "1px solid rgba(255,255,255,0.05)",
         backdropFilter: "blur(10px)",
         transition: "all 0.3s ease",
@@ -860,8 +1074,8 @@ function StatCard({ icon, label, value, color }) {
     >
       <div
         style={{
-          fontSize: "24px",
-          marginBottom: "8px",
+          fontSize: compact ? "18px" : "24px",
+          marginBottom: compact ? "4px" : "8px",
           opacity: 0.9,
         }}
       >
@@ -869,11 +1083,11 @@ function StatCard({ icon, label, value, color }) {
       </div>
       <div
         style={{
-          fontSize: "14px",
+          fontSize: compact ? "11px" : "14px",
           opacity: 0.7,
-          marginBottom: "8px",
-          textTransform: "uppercase",
-          letterSpacing: "0.1em",
+          marginBottom: compact ? "4px" : "8px",
+          textTransform: compact ? "none" : "uppercase",
+          letterSpacing: compact ? "0" : "0.1em",
           fontWeight: 600,
         }}
       >
@@ -881,7 +1095,7 @@ function StatCard({ icon, label, value, color }) {
       </div>
       <div
         style={{
-          fontSize: "32px",
+          fontSize: compact ? "22px" : "32px",
           fontWeight: 700,
           ...(isGradient
             ? {
@@ -1049,9 +1263,10 @@ export function ManageEventPage() {
   const [hasUnsavedImage, setHasUnsavedImage] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [guestsCount, setGuestsCount] = useState(0);
-  const [activeTab, setActiveTab] = useState("overview"); // "overview", "hosts", or "edit"
   const [guests, setGuests] = useState([]);
   const [dinnerSlots, setDinnerSlots] = useState([]);
+  const location = useLocation();
+  const isEditPage = location.pathname.endsWith("/edit");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
   const calendarDropdownRef = useRef(null);
@@ -1081,18 +1296,18 @@ export function ManageEventPage() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Update activeTab when URL changes
+  // Route path determines overview vs edit; no tab state to sync
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const tabFromUrl = urlParams.get("tab") || "overview";
+    const search = new URLSearchParams(location.search);
+    const tab = search.get("tab");
     if (
-      tabFromUrl === "overview" ||
-      tabFromUrl === "hosts" ||
-      tabFromUrl === "edit"
+      location.pathname.endsWith("/manage") &&
+      !location.pathname.endsWith("/edit") &&
+      (tab === "edit" || tab === "hosts")
     ) {
-      setActiveTab(tabFromUrl);
+      navigate(`/app/events/${id}/manage/edit`, { replace: true });
     }
-  }, [window.location.search]);
+  }, [location.pathname, location.search, id, navigate]);
 
   // Close calendar dropdown when clicking outside
   useEffect(() => {
@@ -1115,7 +1330,7 @@ export function ManageEventPage() {
     async function loadStripeStatus() {
       try {
         const response = await authenticatedFetch(
-          "/host/stripe/connect/status"
+          "/host/stripe/connect/status",
         );
         if (response.ok) {
           const data = await response.json();
@@ -1220,25 +1435,25 @@ export function ManageEventPage() {
         if (!hasUnsavedImage) {
           if (data.imageUrl) {
             logger.debug(
-              "📥 [Load] Setting imagePreview from loaded event (no unsaved changes)"
+              "📥 [Load] Setting imagePreview from loaded event (no unsaved changes)",
             );
             setImagePreview(data.imageUrl);
           } else {
             logger.debug(
-              "📥 [Load] No imageUrl in loaded event, setting imagePreview to null"
+              "📥 [Load] No imageUrl in loaded event, setting imagePreview to null",
             );
             setImagePreview(null);
           }
         } else {
           logger.debug(
-            "📥 [Load] Skipping imagePreview update - user has unsaved image changes"
+            "📥 [Load] Skipping imagePreview update - user has unsaved image changes",
           );
         }
 
         // Fetch guests data for Overview tab
         try {
           const guestsRes = await authenticatedFetch(
-            `/host/events/${id}/guests`
+            `/host/events/${id}/guests`,
           );
           if (guestsRes.ok) {
             const guestsData = await guestsRes.json();
@@ -1249,7 +1464,7 @@ export function ManageEventPage() {
             if (data.dinnerEnabled && data.slug) {
               try {
                 const slotsRes = await publicFetch(
-                  `/events/${data.slug}/dinner-slots`
+                  `/events/${data.slug}/dinner-slots`,
                 );
                 if (slotsRes.ok) {
                   const slotsData = await slotsRes.json();
@@ -1449,7 +1664,7 @@ export function ManageEventPage() {
       if (!stripeConnected) {
         showToast(
           "Please connect your Stripe account to enable paid events",
-          "error"
+          "error",
         );
         setSaving(false);
         return;
@@ -1469,7 +1684,7 @@ export function ManageEventPage() {
           : Number(event.dinnerMaxSeatsPerSlotInput);
 
       const dinnerSeatingIntervalHours = Number(
-        event.dinnerSeatingIntervalHoursInput || 2
+        event.dinnerSeatingIntervalHoursInput || 2,
       );
 
       // Calculate capacities (same logic as CreateEventPage)
@@ -1496,7 +1711,7 @@ export function ManageEventPage() {
         const slots = calculateCuisineTimeslots(
           dinnerStartTimeForCalc,
           dinnerEndTimeForCalc,
-          event.dinnerSeatingIntervalHoursInput || "2"
+          event.dinnerSeatingIntervalHoursInput || "2",
         );
         const maxSeatsPerSlot = Number(dinnerMaxSeatsPerSlot);
         if (slots.length > 0 && maxSeatsPerSlot > 0) {
@@ -1563,8 +1778,8 @@ export function ManageEventPage() {
           event.ticketType === "paid" && event.ticketPriceInput
             ? Math.round(parseFloat(event.ticketPriceInput) * 100)
             : event.ticketType === "free"
-            ? null
-            : event.ticketPrice || null, // Convert to cents, or keep existing
+              ? null
+              : event.ticketPrice || null, // Convert to cents, or keep existing
         ticketCurrency:
           event.ticketType === "paid"
             ? (
@@ -1648,13 +1863,13 @@ export function ManageEventPage() {
         // We explicitly set imagePreview (either uploaded new or deleted)
         // Use what server returned to confirm
         console.log(
-          "💾 [Save] imagePreview was defined, updating from server response"
+          "💾 [Save] imagePreview was defined, updating from server response",
         );
         setImagePreview(updated.imageUrl || null);
       } else {
         // We didn't change imagePreview, so update it from server response
         console.log(
-          "💾 [Save] imagePreview was undefined, updating from server response"
+          "💾 [Save] imagePreview was undefined, updating from server response",
         );
         setImagePreview(updated.imageUrl || null);
       }
@@ -1727,12 +1942,12 @@ export function ManageEventPage() {
       if (isNetworkError(err)) {
         showToast(
           "Network error. Please check your connection and try again.",
-          "error"
+          "error",
         );
       } else {
         showToast(
           err.message || "Failed to save event. Please try again.",
-          "error"
+          "error",
         );
       }
     } finally {
@@ -1804,7 +2019,8 @@ export function ManageEventPage() {
                 minHeight: "44px",
                 borderRadius: "999px",
                 border: "none",
-                background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+                background:
+                  "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                 color: "#fff",
                 fontWeight: 600,
                 fontSize: "16px",
@@ -1901,7 +2117,7 @@ export function ManageEventPage() {
               e.preventDefault();
               if (
                 window.confirm(
-                  "Are you sure you want to remove this image? You can add a new one by clicking on the image."
+                  "Are you sure you want to remove this image? You can add a new one by clicking on the image.",
                 )
               ) {
                 async function deleteImage() {
@@ -1911,7 +2127,7 @@ export function ManageEventPage() {
                       {
                         method: "PUT",
                         body: JSON.stringify({ imageUrl: null }),
-                      }
+                      },
                     );
 
                     if (updateRes.ok) {
@@ -2365,8 +2581,7 @@ export function ManageEventPage() {
           <div
             className="responsive-card"
             style={{
-              background: "rgba(12, 10, 18, 0.6)",
-              backdropFilter: "blur(10px)",
+              background: "#0c0a12",
               border: "1px solid rgba(255,255,255,0.05)",
               marginTop: (
                 imagePreview !== undefined ? imagePreview : event.imageUrl
@@ -2397,24 +2612,19 @@ export function ManageEventPage() {
               }}
             >
               <button
-                onClick={() => {
-                  setActiveTab("overview");
-                  navigate(`/app/events/${id}/manage`);
-                }}
+                onClick={() => navigate(`/app/events/${id}/manage`)}
                 style={{
                   padding: "14px 20px",
                   minHeight: "44px",
-                  fontWeight: activeTab === "overview" ? 700 : 500,
-                  color: activeTab === "overview" ? "#fff" : "#9ca3af",
-                  borderBottom:
-                    activeTab === "overview"
-                      ? "2px solid #c0c0c0"
-                      : "2px solid transparent",
+                  fontWeight: !isEditPage ? 700 : 500,
+                  color: !isEditPage ? "#fff" : "#9ca3af",
+                  borderBottom: !isEditPage
+                    ? "2px solid #c0c0c0"
+                    : "2px solid transparent",
                   marginBottom: "-2px",
-                  background:
-                    activeTab === "overview"
-                      ? "rgba(192, 192, 192, 0.1)"
-                      : "transparent",
+                  background: !isEditPage
+                    ? "rgba(192, 192, 192, 0.1)"
+                    : "transparent",
                   borderRadius: "8px 8px 0 0",
                   borderTop: "none",
                   borderLeft: "none",
@@ -2426,13 +2636,13 @@ export function ManageEventPage() {
                   WebkitTapHighlightColor: "transparent",
                 }}
                 onMouseEnter={(e) => {
-                  if (activeTab !== "overview") {
+                  if (isEditPage) {
                     e.target.style.color = "#fff";
                     e.target.style.background = "rgba(255,255,255,0.05)";
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (activeTab !== "overview") {
+                  if (isEditPage) {
                     e.target.style.color = "#9ca3af";
                     e.target.style.background = "transparent";
                   }
@@ -2469,30 +2679,31 @@ export function ManageEventPage() {
                   e.target.style.background = "transparent";
                 }}
               >
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
                   <SilverIcon as={Users} size={18} />
                   Guests ({guestsCount})
                 </span>
               </button>
               <button
-                onClick={() => {
-                  setActiveTab("hosts");
-                  navigate(`/app/events/${id}/manage?tab=hosts`);
-                }}
+                onClick={() => navigate(`/app/events/${id}/manage/edit`)}
                 style={{
                   padding: "14px 20px",
                   minHeight: "44px",
-                  fontWeight: activeTab === "hosts" ? 700 : 500,
-                  color: activeTab === "hosts" ? "#fff" : "#9ca3af",
-                  borderBottom:
-                    activeTab === "hosts"
-                      ? "2px solid #c0c0c0"
-                      : "2px solid transparent",
+                  fontWeight: isEditPage ? 700 : 500,
+                  color: isEditPage ? "#fff" : "#9ca3af",
+                  borderBottom: isEditPage
+                    ? "2px solid #c0c0c0"
+                    : "2px solid transparent",
                   marginBottom: "-2px",
-                  background:
-                    activeTab === "hosts"
-                      ? "rgba(192, 192, 192, 0.1)"
-                      : "transparent",
+                  background: isEditPage
+                    ? "rgba(192, 192, 192, 0.1)"
+                    : "transparent",
                   borderRadius: "8px 8px 0 0",
                   borderTop: "none",
                   borderLeft: "none",
@@ -2504,57 +2715,13 @@ export function ManageEventPage() {
                   WebkitTapHighlightColor: "transparent",
                 }}
                 onMouseEnter={(e) => {
-                  if (activeTab !== "hosts") {
+                  if (!isEditPage) {
                     e.target.style.color = "#fff";
                     e.target.style.background = "rgba(255,255,255,0.05)";
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (activeTab !== "hosts") {
-                    e.target.style.color = "#9ca3af";
-                    e.target.style.background = "transparent";
-                  }
-                }}
-              >
-                Hosts
-              </button>
-              <button
-                onClick={() => {
-                  setActiveTab("edit");
-                  navigate(`/app/events/${id}/manage?tab=edit`);
-                }}
-                style={{
-                  padding: "14px 20px",
-                  minHeight: "44px",
-                  fontWeight: activeTab === "edit" ? 700 : 500,
-                  color: activeTab === "edit" ? "#fff" : "#9ca3af",
-                  borderBottom:
-                    activeTab === "edit"
-                      ? "2px solid #c0c0c0"
-                      : "2px solid transparent",
-                  marginBottom: "-2px",
-                  background:
-                    activeTab === "edit"
-                      ? "rgba(192, 192, 192, 0.1)"
-                      : "transparent",
-                  borderRadius: "8px 8px 0 0",
-                  borderTop: "none",
-                  borderLeft: "none",
-                  borderRight: "none",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  fontSize: "16px",
-                  touchAction: "manipulation",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-                onMouseEnter={(e) => {
-                  if (activeTab !== "edit") {
-                    e.target.style.color = "#fff";
-                    e.target.style.background = "rgba(255,255,255,0.05)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (activeTab !== "edit") {
+                  if (!isEditPage) {
                     e.target.style.color = "#9ca3af";
                     e.target.style.background = "transparent";
                   }
@@ -2572,8 +2739,8 @@ export function ManageEventPage() {
                 boxSizing: "border-box",
               }}
             >
-              {/* Overview Tab Content */}
-              {activeTab === "overview" && event && (
+              {/* Overview content (route: /app/events/:id/manage) */}
+              {!isEditPage && event && (
                 <OverviewTabContent
                   event={event}
                   guests={guests}
@@ -2582,1790 +2749,2251 @@ export function ManageEventPage() {
                 />
               )}
 
-              {/* Hosts Tab Content */}
-              {activeTab === "hosts" && event && (
-                <EventHostsSection eventId={event.id} />
-              )}
-
-              {/* Edit Tab Content */}
-              {activeTab === "edit" && event && (
-                <form
-                  onSubmit={handleSave}
-                  style={{
-                    width: "100%",
-                    maxWidth: "100%",
-                    margin: "0",
-                  }}
-                >
-                  <h2
-                    style={{
-                      fontSize: "11px",
-                      textTransform: "uppercase",
-                      opacity: 0.7,
-                      letterSpacing: "0.15em",
-                      fontWeight: 600,
-                      marginBottom: "24px",
-                      color: "#fff",
-                    }}
-                  >
-                    PULLUP · EDIT EVENT
-                  </h2>
-
-                  {/* Image upload section */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    style={{ display: "none" }}
+              {/* Edit content (route: /app/events/:id/manage/edit) */}
+              {isEditPage && event && (
+                <>
+                  <EventHostsSection
+                    eventId={event.id}
+                    canManageHosts={
+                      event.myRole === "owner" || event.myRole === "admin"
+                    }
                   />
-                  <div
-                    style={{
-                      width: "100%",
-                      aspectRatio: "16/9",
-                      borderRadius: "16px",
-                      overflow: "hidden",
-                      marginBottom: "24px",
-                      background: isDragging
-                        ? "rgba(192, 192, 192, 0.2)"
-                        : (
-                            imagePreview !== undefined
-                              ? imagePreview
-                              : event.imageUrl
-                          )
-                        ? "transparent"
-                        : "rgba(20, 16, 30, 0.3)",
-                      border: isDragging
-                        ? "2px dashed rgba(192, 192, 192, 0.5)"
-                        : (
-                            imagePreview !== undefined
-                              ? imagePreview
-                              : event.imageUrl
-                          )
-                        ? "1px solid rgba(255,255,255,0.1)"
-                        : "1px solid rgba(255,255,255,0.06)",
-                      position: "relative",
-                      cursor: "pointer",
-                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                      transform: isDragging ? "scale(1.02)" : "scale(1)",
-                    }}
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                  >
-                    {(
-                      imagePreview !== undefined ? imagePreview : event.imageUrl
-                    ) ? (
-                      <>
-                        <img
-                          src={
-                            imagePreview !== undefined
-                              ? imagePreview
-                              : event.imageUrl
-                          }
-                          alt="Event cover"
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                          }}
-                        />
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            background:
-                              "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            opacity: 0,
-                            transition: "opacity 0.3s ease",
-                          }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.opacity = "1")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.opacity = "0")
-                          }
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              gap: "8px",
-                              color: "#fff",
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: "32px",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              <SilverIcon as={Camera} size={18} />
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                fontWeight: 600,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                              }}
-                            >
-                              Change Image
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
+                  {event.myRole === "owner" || event.myRole === "admin" ? (
+                    <>
                       <div
                         style={{
+                          marginTop: "32px",
+                          paddingTop: "24px",
+                          borderTop: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      />
+                      <form
+                        onSubmit={handleSave}
+                        style={{
                           width: "100%",
-                          height: "100%",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "16px",
-                          background:
-                            "linear-gradient(135deg, rgba(192, 192, 192, 0.12) 0%, rgba(232, 232, 232, 0.08) 100%)",
-                          color: "#fff",
+                          maxWidth: "100%",
+                          margin: "0",
                         }}
                       >
-                        <div
-                          style={{
-                            fontSize: "56px",
-                            opacity: 0.9,
-                            transition: "transform 0.3s ease",
-                          }}
-                        >
-                          <SilverIcon as={ImageIcon} size={18} />
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: 600,
-                            opacity: 0.9,
-                            textAlign: "center",
-                            padding: "0 16px",
-                          }}
-                        >
-                          {isDragging
-                            ? "Drop image here"
-                            : "Click or drag to upload"}
-                        </div>
-                        <div
+                        <h2
                           style={{
                             fontSize: "11px",
-                            opacity: 0.6,
-                            textAlign: "center",
-                            padding: "0 16px",
-                          }}
-                        >
-                          Recommended: 16:9 ratio, max 5MB
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Title input - Enhanced visibility with subtle background */}
-                  <input
-                    value={event.title || ""}
-                    onChange={(e) =>
-                      setEvent({ ...event, title: e.target.value })
-                    }
-                    placeholder="Event Name"
-                    required
-                    style={{
-                      width: "100%",
-                      boxSizing: "border-box",
-                      fontSize: "clamp(24px, 5vw, 32px)",
-                      fontWeight: 700,
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: "12px",
-                      color: event.title ? "#fff" : "rgba(255,255,255,0.6)",
-                      outline: "none",
-                      marginBottom: "16px",
-                      padding: "16px 18px",
-                      lineHeight: "1.3",
-                      textShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                      transition: "all 0.2s ease",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                      e.target.style.border =
-                        "1px solid rgba(192, 192, 192, 0.3)";
-                      e.target.style.boxShadow =
-                        "0 4px 12px rgba(192, 192, 192, 0.15)";
-                      e.target.style.color = "#fff";
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.03)";
-                      e.target.style.border =
-                        "1px solid rgba(255,255,255,0.08)";
-                      e.target.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
-                      e.target.style.color = event.title
-                        ? "#fff"
-                        : "rgba(255,255,255,0.6)";
-                    }}
-                  />
-
-                  {/* Description textarea - More visual but subtle */}
-                  <textarea
-                    value={event.description || ""}
-                    onChange={(e) =>
-                      setEvent({ ...event, description: e.target.value })
-                    }
-                    placeholder="Tell people what to expect..."
-                    style={{
-                      width: "100%",
-                      boxSizing: "border-box",
-                      fontSize: "16px",
-                      lineHeight: "1.7",
-                      marginBottom: "24px",
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: "12px",
-                      color: "#fff",
-                      outline: "none",
-                      resize: "vertical",
-                      minHeight: "80px",
-                      padding: "16px 18px",
-                      fontFamily: "inherit",
-                      fontWeight: 400,
-                      transition: "all 0.2s ease",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.06)";
-                      e.target.style.border =
-                        "1px solid rgba(192, 192, 192, 0.3)";
-                      e.target.style.boxShadow =
-                        "0 4px 12px rgba(192, 192, 192, 0.15)";
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.04)";
-                      e.target.style.border = "1px solid rgba(255,255,255,0.1)";
-                      e.target.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
-                    }}
-                  />
-
-                  {/* Location and Date/Time - Integrated together */}
-                  <div
-                    style={{
-                      marginTop: "28px",
-                      marginBottom: "32px",
-                    }}
-                  >
-                    {/* Location - Enhanced with autocomplete and current location */}
-                    <div style={{ marginBottom: "20px", width: "100%" }}>
-                      <div
-                        style={{
-                          position: "relative",
-                          padding: "16px 18px",
-                          background:
-                            focusedField === "location"
-                              ? "rgba(255,255,255,0.05)"
-                              : "rgba(255,255,255,0.03)",
-                          borderRadius: "12px",
-                          border:
-                            focusedField === "location"
-                              ? "1px solid rgba(192, 192, 192, 0.4)"
-                              : "1px solid rgba(255,255,255,0.08)",
-                          transition: "all 0.2s ease",
-                          width: "100%",
-                          boxSizing: "border-box",
-                          display: "flex",
-                          alignItems: "center",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                        }}
-                      >
-                        <LocationAutocomplete
-                          value={event.location || ""}
-                          onChange={(e) =>
-                            setEvent({ ...event, location: e.target.value })
-                          }
-                          onLocationSelect={(locationData) => {
-                            setEvent({
-                              ...event,
-                              location: locationData.address,
-                              locationLat: locationData.lat,
-                              locationLng: locationData.lng,
-                            });
-                          }}
-                          onFocus={() => setFocusedField("location")}
-                          onBlur={() => setFocusedField(null)}
-                          style={{
-                            flex: 1,
-                            background: "transparent",
-                            border: "none",
+                            textTransform: "uppercase",
+                            opacity: 0.7,
+                            letterSpacing: "0.15em",
+                            fontWeight: 600,
+                            marginBottom: "24px",
                             color: "#fff",
-                            fontSize: "15px",
-                            outline: "none",
-                            padding: "0",
-                            width: "100%",
                           }}
-                          placeholder="Where's the event?"
-                          disabled={saving}
-                        />
-                      </div>
-                    </div>
+                        >
+                          PULLUP · EDIT EVENT
+                        </h2>
 
-                    {/* Start Date & Time - Simple button interface */}
-                    <div style={{ marginBottom: "20px" }}>
-                      <div
-                        style={{
-                          position: "relative",
-                          width: "100%",
-                          cursor: "pointer",
-                        }}
-                        onClick={() => {
-                          startDateTimeInputRef.current?.focus();
-                          startDateTimeInputRef.current?.showPicker?.();
-                        }}
-                      >
+                        {/* Image upload section */}
                         <input
-                          ref={startDateTimeInputRef}
-                          type="datetime-local"
-                          value={
-                            event.startsAt
-                              ? isoToLocalDateTime(event.startsAt)
-                              : event.startsAtLocal || ""
-                          }
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              const isoValue = localDateTimeToIso(
-                                e.target.value
-                              );
-                              setEvent({
-                                ...event,
-                                startsAtLocal: e.target.value,
-                                startsAt: isoValue,
-                              });
-                            }
-                          }}
-                          onFocus={() => setFocusedField("startDateTime")}
-                          onBlur={() => setFocusedField(null)}
-                          style={{
-                            ...(focusedField === "startDateTime"
-                              ? {
-                                  ...focusedInputStyle,
-                                  border: "1px solid rgba(192, 192, 192, 0.4)",
-                                  background: "rgba(255,255,255,0.05)",
-                                }
-                              : {
-                                  ...inputStyle,
-                                  background: "rgba(255,255,255,0.03)",
-                                  border: "1px solid rgba(255,255,255,0.08)",
-                                }),
-                            fontSize: "16px",
-                            padding: "16px 18px 16px 48px",
-                            paddingRight:
-                              event.startsAt || event.startsAtLocal
-                                ? "120px"
-                                : "18px",
-                            width: "100%",
-                            height: "52px",
-                            fontWeight: 500,
-                            borderRadius: "12px",
-                            textAlign: "left",
-                            color: "transparent",
-                            cursor: "pointer",
-                            boxSizing: "border-box",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                            appearance: "none",
-                            WebkitAppearance: "none",
-                            MozAppearance: "textfield",
-                            position: "relative",
-                            zIndex: 2,
-                          }}
-                          required
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          style={{ display: "none" }}
                         />
                         <div
                           style={{
-                            position: "absolute",
-                            left: "18px",
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            pointerEvents: "none",
-                            fontSize: "16px",
-                            opacity: 0.7,
-                            zIndex: 3,
-                          }}
-                        >
-                          <SilverIcon as={Clock} size={18} />
-                        </div>
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: "48px",
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            pointerEvents: "none",
-                            color:
-                              event.startsAt || event.startsAtLocal
-                                ? "#fff"
-                                : "rgba(255,255,255,0.5)",
-                            fontSize: "15px",
-                            zIndex: 3,
-                          }}
-                        >
-                          {event.startsAt || event.startsAtLocal
-                            ? formatReadableDateTime(
-                                new Date(event.startsAt || event.startsAtLocal)
-                              )
-                            : "Event start"}
-                        </div>
-                        {(event.startsAt || event.startsAtLocal) && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              right: "18px",
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              pointerEvents: "none",
-                              fontSize: "11px",
-                              opacity: 0.6,
-                              fontWeight: 600,
-                              zIndex: 3,
-                            }}
-                          >
-                            {formatRelativeTime(
-                              new Date(event.startsAt || event.startsAtLocal)
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* End Date & Time - Simple button interface */}
-                    <div style={{ marginBottom: "20px" }}>
-                      <div
-                        style={{
-                          position: "relative",
-                          width: "100%",
-                          cursor: "pointer",
-                        }}
-                        onClick={() => {
-                          endDateTimeInputRef.current?.focus();
-                          endDateTimeInputRef.current?.showPicker?.();
-                        }}
-                      >
-                        <input
-                          ref={endDateTimeInputRef}
-                          type="datetime-local"
-                          value={
-                            event.endsAt
-                              ? isoToLocalDateTime(event.endsAt)
-                              : event.endsAtLocal || ""
-                          }
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              const isoValue = localDateTimeToIso(
-                                e.target.value
-                              );
-                              setEvent({
-                                ...event,
-                                endsAtLocal: e.target.value,
-                                endsAt: isoValue,
-                              });
-                            } else {
-                              setEvent({
-                                ...event,
-                                endsAtLocal: "",
-                                endsAt: null,
-                              });
-                            }
-                          }}
-                          onFocus={() => setFocusedField("endDateTime")}
-                          onBlur={() => setFocusedField(null)}
-                          min={
-                            event.startsAt
-                              ? isoToLocalDateTime(event.startsAt)
-                              : event.startsAtLocal || undefined
-                          }
-                          style={{
-                            ...(focusedField === "endDateTime"
-                              ? {
-                                  ...focusedInputStyle,
-                                  border: "1px solid rgba(192, 192, 192, 0.4)",
-                                  background: "rgba(255,255,255,0.05)",
-                                }
-                              : {
-                                  ...inputStyle,
-                                  background: "rgba(255,255,255,0.03)",
-                                  border: "1px solid rgba(255,255,255,0.08)",
-                                }),
-                            fontSize: "16px",
-                            padding: "16px 18px 16px 48px",
-                            paddingRight:
-                              event.endsAt || event.endsAtLocal
-                                ? "120px"
-                                : "18px",
                             width: "100%",
-                            height: "52px",
-                            fontWeight: 500,
-                            borderRadius: "12px",
-                            textAlign: "left",
-                            color: "transparent",
-                            cursor: "pointer",
-                            boxSizing: "border-box",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                            appearance: "none",
-                            WebkitAppearance: "none",
-                            MozAppearance: "textfield",
+                            aspectRatio: "16/9",
+                            borderRadius: "16px",
+                            overflow: "hidden",
+                            marginBottom: "24px",
+                            background: isDragging
+                              ? "rgba(192, 192, 192, 0.2)"
+                              : (
+                                    imagePreview !== undefined
+                                      ? imagePreview
+                                      : event.imageUrl
+                                  )
+                                ? "transparent"
+                                : "rgba(20, 16, 30, 0.3)",
+                            border: isDragging
+                              ? "2px dashed rgba(192, 192, 192, 0.5)"
+                              : (
+                                    imagePreview !== undefined
+                                      ? imagePreview
+                                      : event.imageUrl
+                                  )
+                                ? "1px solid rgba(255,255,255,0.1)"
+                                : "1px solid rgba(255,255,255,0.06)",
                             position: "relative",
-                            zIndex: 2,
+                            cursor: "pointer",
+                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                            transform: isDragging ? "scale(1.02)" : "scale(1)",
                           }}
-                          required
-                        />
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: "18px",
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            pointerEvents: "none",
-                            fontSize: "16px",
-                            opacity: 0.7,
-                            zIndex: 3,
-                          }}
+                          onClick={() => fileInputRef.current?.click()}
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
                         >
-                          <SilverIcon as={Clock} size={18} />
-                        </div>
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: "48px",
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            pointerEvents: "none",
-                            color:
-                              event.endsAt || event.endsAtLocal
-                                ? "#fff"
-                                : "rgba(255,255,255,0.5)",
-                            fontSize: "15px",
-                            zIndex: 3,
-                          }}
-                        >
-                          {event.endsAt || event.endsAtLocal
-                            ? formatReadableDateTime(
-                                new Date(event.endsAt || event.endsAtLocal)
-                              )
-                            : "Event end"}
-                        </div>
-                        {(event.endsAt || event.endsAtLocal) && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              right: "18px",
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              pointerEvents: "none",
-                              fontSize: "11px",
-                              opacity: 0.6,
-                              fontWeight: 600,
-                              zIndex: 3,
-                            }}
-                          >
-                            {formatRelativeTime(
-                              new Date(event.endsAt || event.endsAtLocal)
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Timezone - Subtle, integrated at bottom */}
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "flex-end",
-                        marginTop: "8px",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const tzInfo = formatTimezone(
-                            event.timezone ||
-                              Intl.DateTimeFormat().resolvedOptions().timeZone
-                          );
-                          showToast(
-                            `Timezone: ${tzInfo.tzName} ${tzInfo.city}`,
-                            "info"
-                          );
-                        }}
-                        style={{
-                          padding: "8px 12px",
-                          background: "rgba(192, 192, 192, 0.1)",
-                          borderRadius: "8px",
-                          border: "1px solid rgba(192, 192, 192, 0.2)",
-                          fontSize: "10px",
-                          textAlign: "center",
-                          cursor: "pointer",
-                          transition: "all 0.15s ease",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                        }}
-                        onTouchStart={(e) => {
-                          e.target.style.background =
-                            "rgba(192, 192, 192, 0.15)";
-                        }}
-                        onTouchEnd={(e) => {
-                          e.target.style.background = "rgba(192, 192, 192, 0.1)";
-                        }}
-                      >
-                        <SilverIcon as={Globe} size={14} />
-                        <span style={{ fontWeight: 600, color: "#e5e5e5" }}>
-                          {
-                            formatTimezone(
-                              event.timezone ||
-                                Intl.DateTimeFormat().resolvedOptions().timeZone
-                            ).tzName
-                          }
-                        </span>
-                        <span style={{ opacity: 0.7, fontSize: "9px" }}>
-                          {
-                            formatTimezone(
-                              event.timezone ||
-                                Intl.DateTimeFormat().resolvedOptions().timeZone
-                            ).city
-                          }
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Advanced Options Section */}
-                  <div
-                    style={{
-                      marginTop: "32px",
-                      paddingTop: "32px",
-                      borderTop: "1px solid rgba(255,255,255,0.1)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.15em",
-                        opacity: 0.7,
-                        fontWeight: 600,
-                        marginBottom: "20px",
-                      }}
-                    >
-                      EVENT SETTINGS
-                    </div>
-
-                    {/* event options - Better mobile hierarchy */}
-                    <div style={{ marginBottom: "36px" }}>
-                      <h3
-                        style={{
-                          fontSize: "13px",
-                          fontWeight: 700,
-                          marginBottom: "18px",
-                          opacity: 0.9,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.1em",
-                        }}
-                      >
-                        Event Options
-                      </h3>
-
-                      {/* capacity */}
-                      <OptionRow
-                        icon={<SilverIcon as={Users} size={20} />}
-                        label="Cocktail capacity"
-                        right={
-                          <input
-                            type="number"
-                            min="1"
-                            value={event.maxAttendeesInput || ""}
-                            onChange={(e) =>
-                              setEvent({
-                                ...event,
-                                maxAttendeesInput: e.target.value,
-                              })
-                            }
-                            placeholder="Unlimited"
-                            style={{
-                              width: "95px",
-                              padding: "5px 10px",
-                              borderRadius: "8px",
-                              border: "1px solid rgba(255,255,255,0.04)",
-                              background: "rgba(12, 10, 18, 0.4)",
-                              color: "#fff",
-                              fontSize: "16px",
-                              textAlign: "right",
-                              outline: "none",
-                            }}
-                          />
-                        }
-                      />
-                      {/* waitlist */}
-                      <OptionRow
-                        icon={<SilverIcon as={RefreshCw} size={20} />}
-                        label="Enable waitlist when full"
-                        right={
-                          <Toggle
-                            checked={event.waitlistEnabled !== false}
-                            onChange={(checked) =>
-                              setEvent({ ...event, waitlistEnabled: checked })
-                            }
-                          />
-                        }
-                      />
-                      {/* approval */}
-                      <OptionRow
-                        icon={<SilverIcon as={Trophy} size={20} />}
-                        label="Require Approval"
-                        right={
-                          <Toggle
-                            checked={!!event.requireApproval}
-                            onChange={(checked) =>
-                              setEvent({ ...event, requireApproval: checked })
-                            }
-                          />
-                        }
-                      />
-
-                      {/* PLUS-ONES */}
-                      <OptionRow
-                        icon="➕"
-                        label="Plus-Ones"
-                        description="Let guests bring friends on a single RSVP."
-                        right={
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 12,
-                            }}
-                          >
-                            {parseInt(
-                              event.maxPlusOnesPerGuestInput || "0",
-                              10
-                            ) > 0 && (
+                          {(
+                            imagePreview !== undefined
+                              ? imagePreview
+                              : event.imageUrl
+                          ) ? (
+                            <>
+                              <img
+                                src={
+                                  imagePreview !== undefined
+                                    ? imagePreview
+                                    : event.imageUrl
+                                }
+                                alt="Event cover"
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                }}
+                              />
                               <div
                                 style={{
+                                  position: "absolute",
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  background:
+                                    "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)",
                                   display: "flex",
                                   alignItems: "center",
-                                  gap: "8px",
-                                  background: "rgba(255,255,255,0.05)",
-                                  borderRadius: "10px",
-                                  border: "1px solid rgba(255,255,255,0.1)",
-                                  padding: "4px",
+                                  justifyContent: "center",
+                                  opacity: 0,
+                                  transition: "opacity 0.3s ease",
                                 }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.opacity = "1")
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.opacity = "0")
+                                }
                               >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const current =
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) || 1;
-                                    if (current > 1) {
-                                      setEvent({
-                                        ...event,
-                                        maxPlusOnesPerGuestInput: String(
-                                          current - 1
-                                        ),
-                                      });
-                                    } else {
-                                      setEvent({
-                                        ...event,
-                                        maxPlusOnesPerGuestInput: "0",
-                                      });
-                                    }
-                                  }}
-                                  disabled={
-                                    parseInt(
-                                      event.maxPlusOnesPerGuestInput || "0",
-                                      10
-                                    ) <= 1
-                                  }
+                                <div
                                   style={{
-                                    width: "40px",
-                                    height: "40px",
-                                    borderRadius: "8px",
-                                    border: "none",
-                                    background:
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) <= 1
-                                        ? "rgba(255,255,255,0.05)"
-                                        : "rgba(192, 192, 192, 0.2)",
-                                    color: "#fff",
-                                    fontSize: "20px",
-                                    fontWeight: 600,
-                                    cursor:
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) <= 1
-                                        ? "not-allowed"
-                                        : "pointer",
                                     display: "flex",
+                                    flexDirection: "column",
                                     alignItems: "center",
-                                    justifyContent: "center",
-                                    transition: "all 0.2s ease",
-                                    opacity:
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) <= 1
-                                        ? 0.4
-                                        : 1,
-                                  }}
-                                  onTouchStart={(e) => {
-                                    if (
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) > 1
-                                    ) {
-                                      e.target.style.background =
-                                        "rgba(192, 192, 192, 0.3)";
-                                      e.target.style.transform = "scale(0.95)";
-                                    }
-                                  }}
-                                  onTouchEnd={(e) => {
-                                    if (
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) > 1
-                                    ) {
-                                      e.target.style.background =
-                                        "rgba(192, 192, 192, 0.2)";
-                                      e.target.style.transform = "scale(1)";
-                                    }
-                                  }}
-                                >
-                                  −
-                                </button>
-                                <div
-                                  style={{
-                                    minWidth: "32px",
-                                    textAlign: "center",
-                                    fontSize: "18px",
-                                    fontWeight: 600,
-                                    color: "#fff",
-                                    padding: "0 8px",
-                                  }}
-                                >
-                                  {event.maxPlusOnesPerGuestInput || "0"}
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const current =
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) || 1;
-                                    if (current < 5) {
-                                      setEvent({
-                                        ...event,
-                                        maxPlusOnesPerGuestInput: String(
-                                          current + 1
-                                        ),
-                                      });
-                                    }
-                                  }}
-                                  disabled={
-                                    parseInt(
-                                      event.maxPlusOnesPerGuestInput || "0",
-                                      10
-                                    ) >= 5
-                                  }
-                                  style={{
-                                    width: "40px",
-                                    height: "40px",
-                                    borderRadius: "8px",
-                                    border: "none",
-                                    background:
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) >= 5
-                                        ? "rgba(255,255,255,0.05)"
-                                        : "rgba(192, 192, 192, 0.2)",
-                                    color: "#fff",
-                                    fontSize: "20px",
-                                    fontWeight: 600,
-                                    cursor:
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) >= 5
-                                        ? "not-allowed"
-                                        : "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    transition: "all 0.2s ease",
-                                    opacity:
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) >= 5
-                                        ? 0.4
-                                        : 1,
-                                  }}
-                                  onTouchStart={(e) => {
-                                    if (
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) < 5
-                                    ) {
-                                      e.target.style.background =
-                                        "rgba(192, 192, 192, 0.3)";
-                                      e.target.style.transform = "scale(0.95)";
-                                    }
-                                  }}
-                                  onTouchEnd={(e) => {
-                                    if (
-                                      parseInt(
-                                        event.maxPlusOnesPerGuestInput || "0",
-                                        10
-                                      ) < 5
-                                    ) {
-                                      e.target.style.background =
-                                        "rgba(192, 192, 192, 0.2)";
-                                      e.target.style.transform = "scale(1)";
-                                    }
-                                  }}
-                                >
-                                  +
-                                </button>
-                              </div>
-                            )}
-                            <Toggle
-                              checked={
-                                parseInt(
-                                  event.maxPlusOnesPerGuestInput || "0",
-                                  10
-                                ) > 0
-                              }
-                              onChange={(checked) =>
-                                setEvent({
-                                  ...event,
-                                  maxPlusOnesPerGuestInput: checked ? "3" : "0",
-                                })
-                              }
-                            />
-                          </div>
-                        }
-                      />
-
-                      {/* TICKETS */}
-                      <OptionRow
-                        icon={<SilverIcon as={Ticket} size={20} />}
-                        label="Sell tickets to this event"
-                        description={
-                          event.ticketType === "paid"
-                            ? "Event is currently paid"
-                            : "Enable ticket sales for this event"
-                        }
-                        right={
-                          <Toggle
-                            checked={event.ticketType === "paid"}
-                            onChange={(checked) => {
-                              const newTicketType = checked ? "paid" : "free";
-                              setEvent({
-                                ...event,
-                                ticketType: newTicketType,
-                                // Reset ticket price if switching to free
-                                ticketPriceInput:
-                                  newTicketType === "free"
-                                    ? ""
-                                    : event.ticketPriceInput,
-                                ticketCurrencyInput:
-                                  newTicketType === "free"
-                                    ? "USD"
-                                    : event.ticketCurrencyInput || "USD",
-                              });
-                            }}
-                          />
-                        }
-                      />
-
-                      {/* Ticket Price & Currency (shown when paid) */}
-                      {event.ticketType === "paid" && (
-                        <div
-                          style={{
-                            marginTop: "16px",
-                            padding: "24px",
-                            borderRadius: "16px",
-                            border: "1px solid rgba(192, 192, 192, 0.2)",
-                            background:
-                              "linear-gradient(135deg, rgba(192, 192, 192, 0.08) 0%, rgba(232, 232, 232, 0.05) 100%)",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "20px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "10px",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            <SilverIcon as={Ticket} size={20} />
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.1em",
-                                opacity: 0.9,
-                              }}
-                            >
-                              Ticket Configuration
-                            </div>
-                          </div>
-
-                          {/* Stripe Connection Check */}
-                          {!stripeConnected && (
-                            <div
-                              style={{
-                                padding: "16px",
-                                borderRadius: "12px",
-                                border: "1px solid rgba(251, 191, 36, 0.3)",
-                                background: "rgba(251, 191, 36, 0.1)",
-                                display: "flex",
-                                alignItems: "flex-start",
-                                gap: "12px",
-                              }}
-                            >
-                              <div style={{ fontSize: "20px", flexShrink: 0 }}>
-                                <SilverIcon as={AlertTriangle} size={20} style={{ color: "#f59e0b" }} />
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <div
-                                  style={{
-                                    fontSize: "14px",
-                                    fontWeight: 600,
-                                    marginBottom: "8px",
-                                  }}
-                                >
-                                  Stripe Account Required
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: "12px",
-                                    opacity: 0.8,
-                                    marginBottom: "12px",
-                                    lineHeight: "1.5",
-                                  }}
-                                >
-                                  You need to connect your Stripe account to
-                                  accept payments for this event.
-                                </div>
-                                <div
-                                  style={{
-                                    display: "flex",
                                     gap: "8px",
-                                    flexWrap: "wrap",
+                                    color: "#fff",
                                   }}
                                 >
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      navigate("/events?tab=integrations");
-                                    }}
-                                    style={{
-                                      padding: "8px 16px",
-                                      borderRadius: "8px",
-                                      border: "none",
-                                      background:
-                                        "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                                      color: "#fff",
-                                      fontSize: "13px",
-                                      fontWeight: 600,
-                                      cursor: "pointer",
-                                      transition: "all 0.2s ease",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.target.style.transform = "scale(1.02)";
-                                      e.target.style.boxShadow =
-                                        "0 4px 12px rgba(192, 192, 192, 0.4)";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.target.style.transform = "scale(1)";
-                                      e.target.style.boxShadow = "none";
-                                    }}
-                                  >
-                                    Connect Stripe
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {stripeConnected && stripeAccountEmail && (
-                            <div
-                              style={{
-                                padding: "12px 16px",
-                                borderRadius: "8px",
-                                background: "rgba(34, 197, 94, 0.1)",
-                                border: "1px solid rgba(34, 197, 94, 0.2)",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                fontSize: "12px",
-                              }}
-                            >
-                              <span>✓</span>
-                              <span style={{ opacity: 0.9 }}>
-                                Connected as {stripeAccountEmail}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Price and Currency */}
-                          <div>
-                            <div
-                              style={{
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                opacity: 0.7,
-                                marginBottom: "12px",
-                              }}
-                            >
-                              Price & Currency
-                            </div>
-                            <div
-                              style={{
-                                display: "grid",
-                                gridTemplateColumns: "1fr 120px",
-                                gap: "12px",
-                              }}
-                            >
-                              <div>
-                                <label
-                                  style={{
-                                    display: "block",
-                                    fontSize: "12px",
-                                    opacity: 0.8,
-                                    marginBottom: "8px",
-                                  }}
-                                >
-                                  Ticket Price{" "}
-                                  <span style={{ color: "#ef4444" }}>*</span>
-                                </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={event.ticketPriceInput || ""}
-                                  onChange={(e) =>
-                                    setEvent({
-                                      ...event,
-                                      ticketPriceInput: e.target.value,
-                                    })
-                                  }
-                                  placeholder="0.00"
-                                  required={event.ticketType === "paid"}
-                                  disabled={!stripeConnected}
-                                  style={{
-                                    ...inputStyle,
-                                    fontSize: "14px",
-                                    padding: "12px 14px",
-                                    width: "100%",
-                                    opacity: !stripeConnected ? 0.5 : 1,
-                                    cursor: !stripeConnected
-                                      ? "not-allowed"
-                                      : "text",
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <label
-                                  style={{
-                                    display: "block",
-                                    fontSize: "12px",
-                                    opacity: 0.8,
-                                    marginBottom: "8px",
-                                  }}
-                                >
-                                  Currency{" "}
-                                  <span style={{ color: "#ef4444" }}>*</span>
-                                </label>
-                                <select
-                                  value={
-                                    event.ticketCurrencyInput?.toUpperCase() ||
-                                    "USD"
-                                  }
-                                  onChange={(e) =>
-                                    setEvent({
-                                      ...event,
-                                      ticketCurrencyInput: e.target.value,
-                                    })
-                                  }
-                                  required={event.ticketType === "paid"}
-                                  disabled={!stripeConnected}
-                                  style={{
-                                    ...inputStyle,
-                                    fontSize: "14px",
-                                    padding: "12px 14px",
-                                    width: "100%",
-                                    cursor: !stripeConnected
-                                      ? "not-allowed"
-                                      : "pointer",
-                                    appearance: "none",
-                                    backgroundImage:
-                                      "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
-                                    backgroundRepeat: "no-repeat",
-                                    backgroundPosition: "right 8px center",
-                                    paddingRight: "28px",
-                                    opacity: !stripeConnected ? 0.5 : 1,
-                                  }}
-                                >
-                                  <option value="USD">USD ($)</option>
-                                  <option value="EUR">EUR (€)</option>
-                                  <option value="GBP">GBP (£)</option>
-                                  <option value="SEK">SEK (kr)</option>
-                                  <option value="DKK">DKK (kr)</option>
-                                  <option value="NOK">NOK (kr)</option>
-                                </select>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* DINNER */}
-                      <OptionRow
-                        icon={<SilverIcon as={UtensilsCrossed} size={20} />}
-                        label="Food Serving Options"
-                        description="Offer an optional food serving slot with limited seats."
-                        right={
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 10,
-                            }}
-                          >
-                            <Toggle
-                              checked={!!event.dinnerEnabled}
-                              onChange={(checked) =>
-                                setEvent({ ...event, dinnerEnabled: checked })
-                              }
-                            />
-                          </div>
-                        }
-                      />
-
-                      {event.dinnerEnabled && (
-                        <div
-                          style={{
-                            marginTop: "16px",
-                            padding: "24px",
-                            borderRadius: "16px",
-                            border: "1px solid rgba(192, 192, 192, 0.2)",
-                            background:
-                              "linear-gradient(135deg, rgba(192, 192, 192, 0.08) 0%, rgba(232, 232, 232, 0.05) 100%)",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "20px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "10px",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            <SilverIcon as={UtensilsCrossed} size={20} />
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.1em",
-                                opacity: 0.9,
-                              }}
-                            >
-                              Cuisine Configuration
-                            </div>
-                          </div>
-
-                          {/* Time Range */}
-                          <div>
-                            <div
-                              style={{
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                opacity: 0.7,
-                                marginBottom: "12px",
-                              }}
-                            >
-                              Cuisine Time Window
-                            </div>
-                            <div
-                              style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: "16px",
-                              }}
-                            >
-                              {/* First Slot Start */}
-                              <div
-                                style={{
-                                  position: "relative",
-                                  width: "100%",
-                                  cursor: "pointer",
-                                }}
-                                onClick={() => {
-                                  dinnerStartTimeInputRef.current?.focus();
-                                  dinnerStartTimeInputRef.current?.showPicker?.();
-                                }}
-                              >
-                                <input
-                                  ref={dinnerStartTimeInputRef}
-                                  type="datetime-local"
-                                  value={
-                                    event.dinnerStartTime
-                                      ? isoToLocalDateTime(
-                                          event.dinnerStartTime
-                                        )
-                                      : event.dinnerStartTimeLocal || ""
-                                  }
-                                  onChange={(e) => {
-                                    if (e.target.value) {
-                                      const isoValue = localDateTimeToIso(
-                                        e.target.value
-                                      );
-                                      setEvent({
-                                        ...event,
-                                        dinnerStartTimeLocal: e.target.value,
-                                        dinnerStartTime: isoValue,
-                                      });
-                                    }
-                                  }}
-                                  required={event.dinnerEnabled}
-                                  style={{
-                                    ...inputStyle,
-                                    fontSize: "16px",
-                                    padding: "14px 16px 14px 48px",
-                                    width: "100%",
-                                    height: "48px",
-                                    textAlign: "left",
-                                    color: "transparent",
-                                    cursor: "pointer",
-                                    boxSizing: "border-box",
-                                    background: "rgba(255,255,255,0.03)",
-                                    border: "1px solid rgba(255,255,255,0.08)",
-                                    borderRadius: "12px",
-                                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                                    appearance: "none",
-                                    WebkitAppearance: "none",
-                                    MozAppearance: "textfield",
-                                    position: "relative",
-                                    zIndex: 2,
-                                  }}
-                                />
-                                <div
-                                  style={{
-                                    position: "absolute",
-                                    left: "16px",
-                                    top: "50%",
-                                    transform: "translateY(-50%)",
-                                    pointerEvents: "none",
-                                    fontSize: "16px",
-                                    opacity: 0.7,
-                                    zIndex: 3,
-                                  }}
-                                >
-                                  <SilverIcon as={Clock} size={18} />
-                                </div>
-                                <div
-                                  style={{
-                                    position: "absolute",
-                                    left: "48px",
-                                    top: "50%",
-                                    transform: "translateY(-50%)",
-                                    pointerEvents: "none",
-                                    color:
-                                      event.dinnerStartTime ||
-                                      event.dinnerStartTimeLocal
-                                        ? "#fff"
-                                        : "rgba(255,255,255,0.5)",
-                                    fontSize: "14px",
-                                    zIndex: 3,
-                                  }}
-                                >
-                                  {event.dinnerStartTime ||
-                                  event.dinnerStartTimeLocal
-                                    ? formatReadableDateTime(
-                                        new Date(
-                                          event.dinnerStartTime ||
-                                            event.dinnerStartTimeLocal
-                                        )
-                                      )
-                                    : "First slot start *"}
-                                </div>
-                              </div>
-                              {/* Last Slot Start */}
-                              <div
-                                style={{
-                                  position: "relative",
-                                  width: "100%",
-                                  cursor: "pointer",
-                                }}
-                                onClick={() => {
-                                  dinnerEndTimeInputRef.current?.focus();
-                                  dinnerEndTimeInputRef.current?.showPicker?.();
-                                }}
-                              >
-                                <input
-                                  ref={dinnerEndTimeInputRef}
-                                  type="datetime-local"
-                                  value={
-                                    event.dinnerEndTime
-                                      ? isoToLocalDateTime(event.dinnerEndTime)
-                                      : event.dinnerEndTimeLocal || ""
-                                  }
-                                  onChange={(e) => {
-                                    if (e.target.value) {
-                                      const isoValue = localDateTimeToIso(
-                                        e.target.value
-                                      );
-                                      setEvent({
-                                        ...event,
-                                        dinnerEndTimeLocal: e.target.value,
-                                        dinnerEndTime: isoValue,
-                                      });
-                                    }
-                                  }}
-                                  required={event.dinnerEnabled}
-                                  min={
-                                    event.dinnerStartTime
-                                      ? isoToLocalDateTime(
-                                          event.dinnerStartTime
-                                        )
-                                      : event.dinnerStartTimeLocal || undefined
-                                  }
-                                  style={{
-                                    ...inputStyle,
-                                    fontSize: "16px",
-                                    padding: "14px 16px 14px 48px",
-                                    width: "100%",
-                                    height: "48px",
-                                    textAlign: "left",
-                                    color: "transparent",
-                                    cursor: "pointer",
-                                    boxSizing: "border-box",
-                                    background: "rgba(255,255,255,0.03)",
-                                    border: "1px solid rgba(255,255,255,0.08)",
-                                    borderRadius: "12px",
-                                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                                    appearance: "none",
-                                    WebkitAppearance: "none",
-                                    MozAppearance: "textfield",
-                                    position: "relative",
-                                    zIndex: 2,
-                                  }}
-                                />
-                                <div
-                                  style={{
-                                    position: "absolute",
-                                    left: "16px",
-                                    top: "50%",
-                                    transform: "translateY(-50%)",
-                                    pointerEvents: "none",
-                                    fontSize: "16px",
-                                    opacity: 0.7,
-                                    zIndex: 3,
-                                  }}
-                                >
-                                  <SilverIcon as={Clock} size={18} />
-                                </div>
-                                <div
-                                  style={{
-                                    position: "absolute",
-                                    left: "48px",
-                                    top: "50%",
-                                    transform: "translateY(-50%)",
-                                    pointerEvents: "none",
-                                    color:
-                                      event.dinnerEndTime ||
-                                      event.dinnerEndTimeLocal
-                                        ? "#fff"
-                                        : "rgba(255,255,255,0.5)",
-                                    fontSize: "14px",
-                                    zIndex: 3,
-                                  }}
-                                >
-                                  {event.dinnerEndTime ||
-                                  event.dinnerEndTimeLocal
-                                    ? formatReadableDateTime(
-                                        new Date(
-                                          event.dinnerEndTime ||
-                                            event.dinnerEndTimeLocal
-                                        )
-                                      )
-                                    : "Last slot start *"}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Seating Configuration */}
-                          <div>
-                            <div
-                              style={{
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                opacity: 0.7,
-                                marginBottom: "12px",
-                              }}
-                            >
-                              Seating Settings
-                            </div>
-                            <div
-                              style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: "20px",
-                              }}
-                            >
-                              {/* Hours per slot - Counter */}
-                              <div>
-                                <label
-                                  style={{
-                                    display: "block",
-                                    fontSize: "12px",
-                                    opacity: 0.8,
-                                    marginBottom: "12px",
-                                    fontWeight: 500,
-                                  }}
-                                >
-                                  Hours per slot
-                                </label>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "12px",
-                                    background: "rgba(255,255,255,0.05)",
-                                    borderRadius: "12px",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    padding: "6px",
-                                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                                  }}
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const current =
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) || 2;
-                                      if (current > 0.5) {
-                                        setEvent({
-                                          ...event,
-                                          dinnerSeatingIntervalHoursInput:
-                                            String(
-                                              Math.max(0.5, current - 0.5)
-                                            ),
-                                        });
-                                      }
-                                    }}
-                                    disabled={
-                                      parseFloat(
-                                        event.dinnerSeatingIntervalHoursInput ||
-                                          "2"
-                                      ) <= 0.5
-                                    }
-                                    style={{
-                                      width: "44px",
-                                      height: "44px",
-                                      borderRadius: "10px",
-                                      border: "none",
-                                      background:
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) <= 0.5
-                                          ? "rgba(255,255,255,0.05)"
-                                          : "rgba(192, 192, 192, 0.2)",
-                                      color: "#fff",
-                                      fontSize: "22px",
-                                      fontWeight: 600,
-                                      cursor:
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) <= 0.5
-                                          ? "not-allowed"
-                                          : "pointer",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      transition: "all 0.2s ease",
-                                      opacity:
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) <= 0.5
-                                          ? 0.4
-                                          : 1,
-                                    }}
-                                    onTouchStart={(e) => {
-                                      if (
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) > 0.5
-                                      ) {
-                                        e.target.style.background =
-                                          "rgba(192, 192, 192, 0.3)";
-                                        e.target.style.transform =
-                                          "scale(0.95)";
-                                      }
-                                    }}
-                                    onTouchEnd={(e) => {
-                                      if (
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) > 0.5
-                                      ) {
-                                        e.target.style.background =
-                                          "rgba(192, 192, 192, 0.2)";
-                                        e.target.style.transform = "scale(1)";
-                                      }
-                                    }}
-                                  >
-                                    −
-                                  </button>
                                   <div
                                     style={{
-                                      flex: 1,
-                                      textAlign: "center",
-                                      fontSize: "18px",
-                                      fontWeight: 600,
-                                      color: "#fff",
-                                      padding: "0 12px",
+                                      fontSize: "32px",
+                                      marginBottom: "4px",
                                     }}
                                   >
-                                    {event.dinnerSeatingIntervalHoursInput ||
-                                      "2"}
-                                    h
+                                    <SilverIcon as={Camera} size={18} />
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const current =
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) || 2;
-                                      if (current < 12) {
-                                        setEvent({
-                                          ...event,
-                                          dinnerSeatingIntervalHoursInput:
-                                            String(Math.min(12, current + 0.5)),
-                                        });
-                                      }
-                                    }}
-                                    disabled={
-                                      parseFloat(
-                                        event.dinnerSeatingIntervalHoursInput ||
-                                          "2"
-                                      ) >= 12
-                                    }
+                                  <div
                                     style={{
-                                      width: "44px",
-                                      height: "44px",
-                                      borderRadius: "10px",
-                                      border: "none",
-                                      background:
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) >= 12
-                                          ? "rgba(255,255,255,0.05)"
-                                          : "rgba(192, 192, 192, 0.2)",
-                                      color: "#fff",
-                                      fontSize: "22px",
+                                      fontSize: "12px",
                                       fontWeight: 600,
-                                      cursor:
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) >= 12
-                                          ? "not-allowed"
-                                          : "pointer",
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.05em",
+                                    }}
+                                  >
+                                    Change Image
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "16px",
+                                background:
+                                  "linear-gradient(135deg, rgba(192, 192, 192, 0.12) 0%, rgba(232, 232, 232, 0.08) 100%)",
+                                color: "#fff",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: "56px",
+                                  opacity: 0.9,
+                                  transition: "transform 0.3s ease",
+                                }}
+                              >
+                                <SilverIcon as={ImageIcon} size={18} />
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                  opacity: 0.9,
+                                  textAlign: "center",
+                                  padding: "0 16px",
+                                }}
+                              >
+                                {isDragging
+                                  ? "Drop image here"
+                                  : "Click or drag to upload"}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "11px",
+                                  opacity: 0.6,
+                                  textAlign: "center",
+                                  padding: "0 16px",
+                                }}
+                              >
+                                Recommended: 16:9 ratio, max 5MB
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Title input - Enhanced visibility with subtle background */}
+                        <input
+                          value={event.title || ""}
+                          onChange={(e) =>
+                            setEvent({ ...event, title: e.target.value })
+                          }
+                          placeholder="Event Name"
+                          required
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            fontSize: "clamp(24px, 5vw, 32px)",
+                            fontWeight: 700,
+                            background: "rgba(255,255,255,0.03)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: "12px",
+                            color: event.title
+                              ? "#fff"
+                              : "rgba(255,255,255,0.6)",
+                            outline: "none",
+                            marginBottom: "16px",
+                            padding: "16px 18px",
+                            lineHeight: "1.3",
+                            textShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                            transition: "all 0.2s ease",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                          }}
+                          onFocus={(e) => {
+                            e.target.style.background =
+                              "rgba(255,255,255,0.05)";
+                            e.target.style.border =
+                              "1px solid rgba(192, 192, 192, 0.3)";
+                            e.target.style.boxShadow =
+                              "0 4px 12px rgba(192, 192, 192, 0.15)";
+                            e.target.style.color = "#fff";
+                          }}
+                          onBlur={(e) => {
+                            e.target.style.background =
+                              "rgba(255,255,255,0.03)";
+                            e.target.style.border =
+                              "1px solid rgba(255,255,255,0.08)";
+                            e.target.style.boxShadow =
+                              "0 2px 8px rgba(0,0,0,0.1)";
+                            e.target.style.color = event.title
+                              ? "#fff"
+                              : "rgba(255,255,255,0.6)";
+                          }}
+                        />
+
+                        {/* Description textarea - More visual but subtle */}
+                        <textarea
+                          value={event.description || ""}
+                          onChange={(e) =>
+                            setEvent({ ...event, description: e.target.value })
+                          }
+                          placeholder="Tell people what to expect..."
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            fontSize: "16px",
+                            lineHeight: "1.7",
+                            marginBottom: "24px",
+                            background: "rgba(255,255,255,0.04)",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: "12px",
+                            color: "#fff",
+                            outline: "none",
+                            resize: "vertical",
+                            minHeight: "80px",
+                            padding: "16px 18px",
+                            fontFamily: "inherit",
+                            fontWeight: 400,
+                            transition: "all 0.2s ease",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                          }}
+                          onFocus={(e) => {
+                            e.target.style.background =
+                              "rgba(255,255,255,0.06)";
+                            e.target.style.border =
+                              "1px solid rgba(192, 192, 192, 0.3)";
+                            e.target.style.boxShadow =
+                              "0 4px 12px rgba(192, 192, 192, 0.15)";
+                          }}
+                          onBlur={(e) => {
+                            e.target.style.background =
+                              "rgba(255,255,255,0.04)";
+                            e.target.style.border =
+                              "1px solid rgba(255,255,255,0.1)";
+                            e.target.style.boxShadow =
+                              "0 2px 8px rgba(0,0,0,0.1)";
+                          }}
+                        />
+
+                        {/* Location and Date/Time - Integrated together */}
+                        <div
+                          style={{
+                            marginTop: "28px",
+                            marginBottom: "32px",
+                          }}
+                        >
+                          {/* Location - Enhanced with autocomplete and current location */}
+                          <div style={{ marginBottom: "20px", width: "100%" }}>
+                            <div
+                              style={{
+                                position: "relative",
+                                padding: "16px 18px",
+                                background:
+                                  focusedField === "location"
+                                    ? "rgba(255,255,255,0.05)"
+                                    : "rgba(255,255,255,0.03)",
+                                borderRadius: "12px",
+                                border:
+                                  focusedField === "location"
+                                    ? "1px solid rgba(192, 192, 192, 0.4)"
+                                    : "1px solid rgba(255,255,255,0.08)",
+                                transition: "all 0.2s ease",
+                                width: "100%",
+                                boxSizing: "border-box",
+                                display: "flex",
+                                alignItems: "center",
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                              }}
+                            >
+                              <LocationAutocomplete
+                                value={event.location || ""}
+                                onChange={(e) =>
+                                  setEvent({
+                                    ...event,
+                                    location: e.target.value,
+                                  })
+                                }
+                                onLocationSelect={(locationData) => {
+                                  setEvent({
+                                    ...event,
+                                    location: locationData.address,
+                                    locationLat: locationData.lat,
+                                    locationLng: locationData.lng,
+                                  });
+                                }}
+                                onFocus={() => setFocusedField("location")}
+                                onBlur={() => setFocusedField(null)}
+                                style={{
+                                  flex: 1,
+                                  background: "transparent",
+                                  border: "none",
+                                  color: "#fff",
+                                  fontSize: "15px",
+                                  outline: "none",
+                                  padding: "0",
+                                  width: "100%",
+                                }}
+                                placeholder="Where's the event?"
+                                disabled={saving}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Start Date & Time - Simple button interface */}
+                          <div style={{ marginBottom: "20px" }}>
+                            <div
+                              style={{
+                                position: "relative",
+                                width: "100%",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => {
+                                startDateTimeInputRef.current?.focus();
+                                startDateTimeInputRef.current?.showPicker?.();
+                              }}
+                            >
+                              <input
+                                ref={startDateTimeInputRef}
+                                type="datetime-local"
+                                value={
+                                  event.startsAt
+                                    ? isoToLocalDateTime(event.startsAt)
+                                    : event.startsAtLocal || ""
+                                }
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    const isoValue = localDateTimeToIso(
+                                      e.target.value,
+                                    );
+                                    setEvent({
+                                      ...event,
+                                      startsAtLocal: e.target.value,
+                                      startsAt: isoValue,
+                                    });
+                                  }
+                                }}
+                                onFocus={() => setFocusedField("startDateTime")}
+                                onBlur={() => setFocusedField(null)}
+                                style={{
+                                  ...(focusedField === "startDateTime"
+                                    ? {
+                                        ...focusedInputStyle,
+                                        border:
+                                          "1px solid rgba(192, 192, 192, 0.4)",
+                                        background: "rgba(255,255,255,0.05)",
+                                      }
+                                    : {
+                                        ...inputStyle,
+                                        background: "rgba(255,255,255,0.03)",
+                                        border:
+                                          "1px solid rgba(255,255,255,0.08)",
+                                      }),
+                                  fontSize: "16px",
+                                  padding: "16px 18px 16px 48px",
+                                  paddingRight:
+                                    event.startsAt || event.startsAtLocal
+                                      ? "120px"
+                                      : "18px",
+                                  width: "100%",
+                                  height: "52px",
+                                  fontWeight: 500,
+                                  borderRadius: "12px",
+                                  textAlign: "left",
+                                  color: "transparent",
+                                  cursor: "pointer",
+                                  boxSizing: "border-box",
+                                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                                  appearance: "none",
+                                  WebkitAppearance: "none",
+                                  MozAppearance: "textfield",
+                                  position: "relative",
+                                  zIndex: 2,
+                                }}
+                                required
+                              />
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: "18px",
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  pointerEvents: "none",
+                                  fontSize: "16px",
+                                  opacity: 0.7,
+                                  zIndex: 3,
+                                }}
+                              >
+                                <SilverIcon as={Clock} size={18} />
+                              </div>
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: "48px",
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  pointerEvents: "none",
+                                  color:
+                                    event.startsAt || event.startsAtLocal
+                                      ? "#fff"
+                                      : "rgba(255,255,255,0.5)",
+                                  fontSize: "15px",
+                                  zIndex: 3,
+                                }}
+                              >
+                                {event.startsAt || event.startsAtLocal
+                                  ? formatReadableDateTime(
+                                      new Date(
+                                        event.startsAt || event.startsAtLocal,
+                                      ),
+                                    )
+                                  : "Event start"}
+                              </div>
+                              {(event.startsAt || event.startsAtLocal) && (
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    right: "18px",
+                                    top: "50%",
+                                    transform: "translateY(-50%)",
+                                    pointerEvents: "none",
+                                    fontSize: "11px",
+                                    opacity: 0.6,
+                                    fontWeight: 600,
+                                    zIndex: 3,
+                                  }}
+                                >
+                                  {formatRelativeTime(
+                                    new Date(
+                                      event.startsAt || event.startsAtLocal,
+                                    ),
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* End Date & Time - Simple button interface */}
+                          <div style={{ marginBottom: "20px" }}>
+                            <div
+                              style={{
+                                position: "relative",
+                                width: "100%",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => {
+                                endDateTimeInputRef.current?.focus();
+                                endDateTimeInputRef.current?.showPicker?.();
+                              }}
+                            >
+                              <input
+                                ref={endDateTimeInputRef}
+                                type="datetime-local"
+                                value={
+                                  event.endsAt
+                                    ? isoToLocalDateTime(event.endsAt)
+                                    : event.endsAtLocal || ""
+                                }
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    const isoValue = localDateTimeToIso(
+                                      e.target.value,
+                                    );
+                                    setEvent({
+                                      ...event,
+                                      endsAtLocal: e.target.value,
+                                      endsAt: isoValue,
+                                    });
+                                  } else {
+                                    setEvent({
+                                      ...event,
+                                      endsAtLocal: "",
+                                      endsAt: null,
+                                    });
+                                  }
+                                }}
+                                onFocus={() => setFocusedField("endDateTime")}
+                                onBlur={() => setFocusedField(null)}
+                                min={
+                                  event.startsAt
+                                    ? isoToLocalDateTime(event.startsAt)
+                                    : event.startsAtLocal || undefined
+                                }
+                                style={{
+                                  ...(focusedField === "endDateTime"
+                                    ? {
+                                        ...focusedInputStyle,
+                                        border:
+                                          "1px solid rgba(192, 192, 192, 0.4)",
+                                        background: "rgba(255,255,255,0.05)",
+                                      }
+                                    : {
+                                        ...inputStyle,
+                                        background: "rgba(255,255,255,0.03)",
+                                        border:
+                                          "1px solid rgba(255,255,255,0.08)",
+                                      }),
+                                  fontSize: "16px",
+                                  padding: "16px 18px 16px 48px",
+                                  paddingRight:
+                                    event.endsAt || event.endsAtLocal
+                                      ? "120px"
+                                      : "18px",
+                                  width: "100%",
+                                  height: "52px",
+                                  fontWeight: 500,
+                                  borderRadius: "12px",
+                                  textAlign: "left",
+                                  color: "transparent",
+                                  cursor: "pointer",
+                                  boxSizing: "border-box",
+                                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                                  appearance: "none",
+                                  WebkitAppearance: "none",
+                                  MozAppearance: "textfield",
+                                  position: "relative",
+                                  zIndex: 2,
+                                }}
+                                required
+                              />
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: "18px",
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  pointerEvents: "none",
+                                  fontSize: "16px",
+                                  opacity: 0.7,
+                                  zIndex: 3,
+                                }}
+                              >
+                                <SilverIcon as={Clock} size={18} />
+                              </div>
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: "48px",
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  pointerEvents: "none",
+                                  color:
+                                    event.endsAt || event.endsAtLocal
+                                      ? "#fff"
+                                      : "rgba(255,255,255,0.5)",
+                                  fontSize: "15px",
+                                  zIndex: 3,
+                                }}
+                              >
+                                {event.endsAt || event.endsAtLocal
+                                  ? formatReadableDateTime(
+                                      new Date(
+                                        event.endsAt || event.endsAtLocal,
+                                      ),
+                                    )
+                                  : "Event end"}
+                              </div>
+                              {(event.endsAt || event.endsAtLocal) && (
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    right: "18px",
+                                    top: "50%",
+                                    transform: "translateY(-50%)",
+                                    pointerEvents: "none",
+                                    fontSize: "11px",
+                                    opacity: 0.6,
+                                    fontWeight: 600,
+                                    zIndex: 3,
+                                  }}
+                                >
+                                  {formatRelativeTime(
+                                    new Date(event.endsAt || event.endsAtLocal),
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Timezone - Subtle, integrated at bottom */}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              marginTop: "8px",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const tzInfo = formatTimezone(
+                                  event.timezone ||
+                                    Intl.DateTimeFormat().resolvedOptions()
+                                      .timeZone,
+                                );
+                                showToast(
+                                  `Timezone: ${tzInfo.tzName} ${tzInfo.city}`,
+                                  "info",
+                                );
+                              }}
+                              style={{
+                                padding: "8px 12px",
+                                background: "rgba(192, 192, 192, 0.1)",
+                                borderRadius: "8px",
+                                border: "1px solid rgba(192, 192, 192, 0.2)",
+                                fontSize: "10px",
+                                textAlign: "center",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                              }}
+                              onTouchStart={(e) => {
+                                e.target.style.background =
+                                  "rgba(192, 192, 192, 0.15)";
+                              }}
+                              onTouchEnd={(e) => {
+                                e.target.style.background =
+                                  "rgba(192, 192, 192, 0.1)";
+                              }}
+                            >
+                              <SilverIcon as={Globe} size={14} />
+                              <span
+                                style={{ fontWeight: 600, color: "#e5e5e5" }}
+                              >
+                                {
+                                  formatTimezone(
+                                    event.timezone ||
+                                      Intl.DateTimeFormat().resolvedOptions()
+                                        .timeZone,
+                                  ).tzName
+                                }
+                              </span>
+                              <span style={{ opacity: 0.7, fontSize: "9px" }}>
+                                {
+                                  formatTimezone(
+                                    event.timezone ||
+                                      Intl.DateTimeFormat().resolvedOptions()
+                                        .timeZone,
+                                  ).city
+                                }
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Advanced Options Section */}
+                        <div
+                          style={{
+                            marginTop: "32px",
+                            paddingTop: "32px",
+                            borderTop: "1px solid rgba(255,255,255,0.1)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.15em",
+                              opacity: 0.7,
+                              fontWeight: 600,
+                              marginBottom: "20px",
+                            }}
+                          >
+                            EVENT SETTINGS
+                          </div>
+
+                          {/* event options - Better mobile hierarchy */}
+                          <div style={{ marginBottom: "36px" }}>
+                            <h3
+                              style={{
+                                fontSize: "13px",
+                                fontWeight: 700,
+                                marginBottom: "18px",
+                                opacity: 0.9,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.1em",
+                              }}
+                            >
+                              Event Options
+                            </h3>
+
+                            {/* capacity */}
+                            <OptionRow
+                              icon={<SilverIcon as={Users} size={20} />}
+                              label="Cocktail capacity"
+                              right={
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={event.maxAttendeesInput || ""}
+                                  onChange={(e) =>
+                                    setEvent({
+                                      ...event,
+                                      maxAttendeesInput: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Unlimited"
+                                  style={{
+                                    width: "95px",
+                                    padding: "5px 10px",
+                                    borderRadius: "8px",
+                                    border: "1px solid rgba(255,255,255,0.04)",
+                                    background: "rgba(12, 10, 18, 0.4)",
+                                    color: "#fff",
+                                    fontSize: "16px",
+                                    textAlign: "right",
+                                    outline: "none",
+                                  }}
+                                />
+                              }
+                            />
+                            {/* waitlist */}
+                            <OptionRow
+                              icon={<SilverIcon as={RefreshCw} size={20} />}
+                              label="Enable waitlist when full"
+                              right={
+                                <Toggle
+                                  checked={event.waitlistEnabled !== false}
+                                  onChange={(checked) =>
+                                    setEvent({
+                                      ...event,
+                                      waitlistEnabled: checked,
+                                    })
+                                  }
+                                />
+                              }
+                            />
+                            {/* approval */}
+                            <OptionRow
+                              icon={<SilverIcon as={Trophy} size={20} />}
+                              label="Require Approval"
+                              right={
+                                <Toggle
+                                  checked={!!event.requireApproval}
+                                  onChange={(checked) =>
+                                    setEvent({
+                                      ...event,
+                                      requireApproval: checked,
+                                    })
+                                  }
+                                />
+                              }
+                            />
+
+                            {/* PLUS-ONES */}
+                            <OptionRow
+                              icon="➕"
+                              label="Plus-Ones"
+                              description="Let guests bring friends on a single RSVP."
+                              right={
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 12,
+                                  }}
+                                >
+                                  {parseInt(
+                                    event.maxPlusOnesPerGuestInput || "0",
+                                    10,
+                                  ) > 0 && (
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "8px",
+                                        background: "rgba(255,255,255,0.05)",
+                                        borderRadius: "10px",
+                                        border:
+                                          "1px solid rgba(255,255,255,0.1)",
+                                        padding: "4px",
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const current =
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) || 1;
+                                          if (current > 1) {
+                                            setEvent({
+                                              ...event,
+                                              maxPlusOnesPerGuestInput: String(
+                                                current - 1,
+                                              ),
+                                            });
+                                          } else {
+                                            setEvent({
+                                              ...event,
+                                              maxPlusOnesPerGuestInput: "0",
+                                            });
+                                          }
+                                        }}
+                                        disabled={
+                                          parseInt(
+                                            event.maxPlusOnesPerGuestInput ||
+                                              "0",
+                                            10,
+                                          ) <= 1
+                                        }
+                                        style={{
+                                          width: "40px",
+                                          height: "40px",
+                                          borderRadius: "8px",
+                                          border: "none",
+                                          background:
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) <= 1
+                                              ? "rgba(255,255,255,0.05)"
+                                              : "rgba(192, 192, 192, 0.2)",
+                                          color: "#fff",
+                                          fontSize: "20px",
+                                          fontWeight: 600,
+                                          cursor:
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) <= 1
+                                              ? "not-allowed"
+                                              : "pointer",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          transition: "all 0.2s ease",
+                                          opacity:
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) <= 1
+                                              ? 0.4
+                                              : 1,
+                                        }}
+                                        onTouchStart={(e) => {
+                                          if (
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) > 1
+                                          ) {
+                                            e.target.style.background =
+                                              "rgba(192, 192, 192, 0.3)";
+                                            e.target.style.transform =
+                                              "scale(0.95)";
+                                          }
+                                        }}
+                                        onTouchEnd={(e) => {
+                                          if (
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) > 1
+                                          ) {
+                                            e.target.style.background =
+                                              "rgba(192, 192, 192, 0.2)";
+                                            e.target.style.transform =
+                                              "scale(1)";
+                                          }
+                                        }}
+                                      >
+                                        −
+                                      </button>
+                                      <div
+                                        style={{
+                                          minWidth: "32px",
+                                          textAlign: "center",
+                                          fontSize: "18px",
+                                          fontWeight: 600,
+                                          color: "#fff",
+                                          padding: "0 8px",
+                                        }}
+                                      >
+                                        {event.maxPlusOnesPerGuestInput || "0"}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const current =
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) || 1;
+                                          if (current < 5) {
+                                            setEvent({
+                                              ...event,
+                                              maxPlusOnesPerGuestInput: String(
+                                                current + 1,
+                                              ),
+                                            });
+                                          }
+                                        }}
+                                        disabled={
+                                          parseInt(
+                                            event.maxPlusOnesPerGuestInput ||
+                                              "0",
+                                            10,
+                                          ) >= 5
+                                        }
+                                        style={{
+                                          width: "40px",
+                                          height: "40px",
+                                          borderRadius: "8px",
+                                          border: "none",
+                                          background:
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) >= 5
+                                              ? "rgba(255,255,255,0.05)"
+                                              : "rgba(192, 192, 192, 0.2)",
+                                          color: "#fff",
+                                          fontSize: "20px",
+                                          fontWeight: 600,
+                                          cursor:
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) >= 5
+                                              ? "not-allowed"
+                                              : "pointer",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          transition: "all 0.2s ease",
+                                          opacity:
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) >= 5
+                                              ? 0.4
+                                              : 1,
+                                        }}
+                                        onTouchStart={(e) => {
+                                          if (
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) < 5
+                                          ) {
+                                            e.target.style.background =
+                                              "rgba(192, 192, 192, 0.3)";
+                                            e.target.style.transform =
+                                              "scale(0.95)";
+                                          }
+                                        }}
+                                        onTouchEnd={(e) => {
+                                          if (
+                                            parseInt(
+                                              event.maxPlusOnesPerGuestInput ||
+                                                "0",
+                                              10,
+                                            ) < 5
+                                          ) {
+                                            e.target.style.background =
+                                              "rgba(192, 192, 192, 0.2)";
+                                            e.target.style.transform =
+                                              "scale(1)";
+                                          }
+                                        }}
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  )}
+                                  <Toggle
+                                    checked={
+                                      parseInt(
+                                        event.maxPlusOnesPerGuestInput || "0",
+                                        10,
+                                      ) > 0
+                                    }
+                                    onChange={(checked) =>
+                                      setEvent({
+                                        ...event,
+                                        maxPlusOnesPerGuestInput: checked
+                                          ? "3"
+                                          : "0",
+                                      })
+                                    }
+                                  />
+                                </div>
+                              }
+                            />
+
+                            {/* TICKETS */}
+                            <OptionRow
+                              icon={<SilverIcon as={Ticket} size={20} />}
+                              label="Sell tickets to this event"
+                              description={
+                                event.ticketType === "paid"
+                                  ? "Event is currently paid"
+                                  : "Enable ticket sales for this event"
+                              }
+                              right={
+                                <Toggle
+                                  checked={event.ticketType === "paid"}
+                                  onChange={(checked) => {
+                                    const newTicketType = checked
+                                      ? "paid"
+                                      : "free";
+                                    setEvent({
+                                      ...event,
+                                      ticketType: newTicketType,
+                                      // Reset ticket price if switching to free
+                                      ticketPriceInput:
+                                        newTicketType === "free"
+                                          ? ""
+                                          : event.ticketPriceInput,
+                                      ticketCurrencyInput:
+                                        newTicketType === "free"
+                                          ? "USD"
+                                          : event.ticketCurrencyInput || "USD",
+                                    });
+                                  }}
+                                />
+                              }
+                            />
+
+                            {/* Ticket Price & Currency (shown when paid) */}
+                            {event.ticketType === "paid" && (
+                              <div
+                                style={{
+                                  marginTop: "16px",
+                                  padding: "24px",
+                                  borderRadius: "16px",
+                                  border: "1px solid rgba(192, 192, 192, 0.2)",
+                                  background:
+                                    "linear-gradient(135deg, rgba(192, 192, 192, 0.08) 0%, rgba(232, 232, 232, 0.05) 100%)",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "20px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "10px",
+                                    marginBottom: "4px",
+                                  }}
+                                >
+                                  <SilverIcon as={Ticket} size={20} />
+                                  <div
+                                    style={{
+                                      fontSize: "12px",
+                                      fontWeight: 700,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.1em",
+                                      opacity: 0.9,
+                                    }}
+                                  >
+                                    Ticket Configuration
+                                  </div>
+                                </div>
+
+                                {/* Stripe Connection Check */}
+                                {!stripeConnected && (
+                                  <div
+                                    style={{
+                                      padding: "16px",
+                                      borderRadius: "12px",
+                                      border:
+                                        "1px solid rgba(251, 191, 36, 0.3)",
+                                      background: "rgba(251, 191, 36, 0.1)",
+                                      display: "flex",
+                                      alignItems: "flex-start",
+                                      gap: "12px",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        fontSize: "20px",
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      <SilverIcon
+                                        as={AlertTriangle}
+                                        size={20}
+                                        style={{ color: "#f59e0b" }}
+                                      />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                      <div
+                                        style={{
+                                          fontSize: "14px",
+                                          fontWeight: 600,
+                                          marginBottom: "8px",
+                                        }}
+                                      >
+                                        Stripe Account Required
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: "12px",
+                                          opacity: 0.8,
+                                          marginBottom: "12px",
+                                          lineHeight: "1.5",
+                                        }}
+                                      >
+                                        You need to connect your Stripe account
+                                        to accept payments for this event.
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          gap: "8px",
+                                          flexWrap: "wrap",
+                                        }}
+                                      >
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            navigate(
+                                              "/events?tab=integrations",
+                                            );
+                                          }}
+                                          style={{
+                                            padding: "8px 16px",
+                                            borderRadius: "8px",
+                                            border: "none",
+                                            background:
+                                              "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+                                            color: "#fff",
+                                            fontSize: "13px",
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            transition: "all 0.2s ease",
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.target.style.transform =
+                                              "scale(1.02)";
+                                            e.target.style.boxShadow =
+                                              "0 4px 12px rgba(192, 192, 192, 0.4)";
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.target.style.transform =
+                                              "scale(1)";
+                                            e.target.style.boxShadow = "none";
+                                          }}
+                                        >
+                                          Connect Stripe
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {stripeConnected && stripeAccountEmail && (
+                                  <div
+                                    style={{
+                                      padding: "12px 16px",
+                                      borderRadius: "8px",
+                                      background: "rgba(34, 197, 94, 0.1)",
+                                      border:
+                                        "1px solid rgba(34, 197, 94, 0.2)",
                                       display: "flex",
                                       alignItems: "center",
-                                      justifyContent: "center",
-                                      transition: "all 0.2s ease",
-                                      opacity:
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) >= 12
-                                          ? 0.4
-                                          : 1,
-                                    }}
-                                    onTouchStart={(e) => {
-                                      if (
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) < 12
-                                      ) {
-                                        e.target.style.background =
-                                          "rgba(192, 192, 192, 0.3)";
-                                        e.target.style.transform =
-                                          "scale(0.95)";
-                                      }
-                                    }}
-                                    onTouchEnd={(e) => {
-                                      if (
-                                        parseFloat(
-                                          event.dinnerSeatingIntervalHoursInput ||
-                                            "2"
-                                        ) < 12
-                                      ) {
-                                        e.target.style.background =
-                                          "rgba(192, 192, 192, 0.2)";
-                                        e.target.style.transform = "scale(1)";
-                                      }
+                                      gap: "8px",
+                                      fontSize: "12px",
                                     }}
                                   >
-                                    +
-                                  </button>
+                                    <span>✓</span>
+                                    <span style={{ opacity: 0.9 }}>
+                                      Connected as {stripeAccountEmail}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Price and Currency */}
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.05em",
+                                      opacity: 0.7,
+                                      marginBottom: "12px",
+                                    }}
+                                  >
+                                    Price & Currency
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "grid",
+                                      gridTemplateColumns: "1fr 120px",
+                                      gap: "12px",
+                                    }}
+                                  >
+                                    <div>
+                                      <label
+                                        style={{
+                                          display: "block",
+                                          fontSize: "12px",
+                                          opacity: 0.8,
+                                          marginBottom: "8px",
+                                        }}
+                                      >
+                                        Ticket Price{" "}
+                                        <span style={{ color: "#ef4444" }}>
+                                          *
+                                        </span>
+                                      </label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={event.ticketPriceInput || ""}
+                                        onChange={(e) =>
+                                          setEvent({
+                                            ...event,
+                                            ticketPriceInput: e.target.value,
+                                          })
+                                        }
+                                        placeholder="0.00"
+                                        required={event.ticketType === "paid"}
+                                        disabled={!stripeConnected}
+                                        style={{
+                                          ...inputStyle,
+                                          fontSize: "14px",
+                                          padding: "12px 14px",
+                                          width: "100%",
+                                          opacity: !stripeConnected ? 0.5 : 1,
+                                          cursor: !stripeConnected
+                                            ? "not-allowed"
+                                            : "text",
+                                        }}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label
+                                        style={{
+                                          display: "block",
+                                          fontSize: "12px",
+                                          opacity: 0.8,
+                                          marginBottom: "8px",
+                                        }}
+                                      >
+                                        Currency{" "}
+                                        <span style={{ color: "#ef4444" }}>
+                                          *
+                                        </span>
+                                      </label>
+                                      <select
+                                        value={
+                                          event.ticketCurrencyInput?.toUpperCase() ||
+                                          "USD"
+                                        }
+                                        onChange={(e) =>
+                                          setEvent({
+                                            ...event,
+                                            ticketCurrencyInput: e.target.value,
+                                          })
+                                        }
+                                        required={event.ticketType === "paid"}
+                                        disabled={!stripeConnected}
+                                        style={{
+                                          ...inputStyle,
+                                          fontSize: "14px",
+                                          padding: "12px 14px",
+                                          width: "100%",
+                                          cursor: !stripeConnected
+                                            ? "not-allowed"
+                                            : "pointer",
+                                          appearance: "none",
+                                          backgroundImage:
+                                            "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
+                                          backgroundRepeat: "no-repeat",
+                                          backgroundPosition:
+                                            "right 8px center",
+                                          paddingRight: "28px",
+                                          opacity: !stripeConnected ? 0.5 : 1,
+                                        }}
+                                      >
+                                        <option value="USD">USD ($)</option>
+                                        <option value="EUR">EUR (€)</option>
+                                        <option value="GBP">GBP (£)</option>
+                                        <option value="SEK">SEK (kr)</option>
+                                        <option value="DKK">DKK (kr)</option>
+                                        <option value="NOK">NOK (kr)</option>
+                                      </select>
+                                    </div>
+                                  </div>
                                 </div>
+                              </div>
+                            )}
+
+                            {/* DINNER */}
+                            <OptionRow
+                              icon={
+                                <SilverIcon as={UtensilsCrossed} size={20} />
+                              }
+                              label="Food Serving Options"
+                              description="Offer an optional food serving slot with limited seats."
+                              right={
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 10,
+                                  }}
+                                >
+                                  <Toggle
+                                    checked={!!event.dinnerEnabled}
+                                    onChange={(checked) =>
+                                      setEvent({
+                                        ...event,
+                                        dinnerEnabled: checked,
+                                      })
+                                    }
+                                  />
+                                </div>
+                              }
+                            />
+
+                            {event.dinnerEnabled && (
+                              <div
+                                style={{
+                                  marginTop: "16px",
+                                  padding: "24px",
+                                  borderRadius: "16px",
+                                  border: "1px solid rgba(192, 192, 192, 0.2)",
+                                  background:
+                                    "linear-gradient(135deg, rgba(192, 192, 192, 0.08) 0%, rgba(232, 232, 232, 0.05) 100%)",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "20px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "10px",
+                                    marginBottom: "4px",
+                                  }}
+                                >
+                                  <SilverIcon as={UtensilsCrossed} size={20} />
+                                  <div
+                                    style={{
+                                      fontSize: "12px",
+                                      fontWeight: 700,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.1em",
+                                      opacity: 0.9,
+                                    }}
+                                  >
+                                    Cuisine Configuration
+                                  </div>
+                                </div>
+
+                                {/* Time Range */}
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.05em",
+                                      opacity: 0.7,
+                                      marginBottom: "12px",
+                                    }}
+                                  >
+                                    Cuisine Time Window
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      gap: "16px",
+                                    }}
+                                  >
+                                    {/* First Slot Start */}
+                                    <div
+                                      style={{
+                                        position: "relative",
+                                        width: "100%",
+                                        cursor: "pointer",
+                                      }}
+                                      onClick={() => {
+                                        dinnerStartTimeInputRef.current?.focus();
+                                        dinnerStartTimeInputRef.current?.showPicker?.();
+                                      }}
+                                    >
+                                      <input
+                                        ref={dinnerStartTimeInputRef}
+                                        type="datetime-local"
+                                        value={
+                                          event.dinnerStartTime
+                                            ? isoToLocalDateTime(
+                                                event.dinnerStartTime,
+                                              )
+                                            : event.dinnerStartTimeLocal || ""
+                                        }
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            const isoValue = localDateTimeToIso(
+                                              e.target.value,
+                                            );
+                                            setEvent({
+                                              ...event,
+                                              dinnerStartTimeLocal:
+                                                e.target.value,
+                                              dinnerStartTime: isoValue,
+                                            });
+                                          }
+                                        }}
+                                        required={event.dinnerEnabled}
+                                        style={{
+                                          ...inputStyle,
+                                          fontSize: "16px",
+                                          padding: "14px 16px 14px 48px",
+                                          width: "100%",
+                                          height: "48px",
+                                          textAlign: "left",
+                                          color: "transparent",
+                                          cursor: "pointer",
+                                          boxSizing: "border-box",
+                                          background: "rgba(255,255,255,0.03)",
+                                          border:
+                                            "1px solid rgba(255,255,255,0.08)",
+                                          borderRadius: "12px",
+                                          boxShadow:
+                                            "0 2px 8px rgba(0,0,0,0.1)",
+                                          appearance: "none",
+                                          WebkitAppearance: "none",
+                                          MozAppearance: "textfield",
+                                          position: "relative",
+                                          zIndex: 2,
+                                        }}
+                                      />
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          left: "16px",
+                                          top: "50%",
+                                          transform: "translateY(-50%)",
+                                          pointerEvents: "none",
+                                          fontSize: "16px",
+                                          opacity: 0.7,
+                                          zIndex: 3,
+                                        }}
+                                      >
+                                        <SilverIcon as={Clock} size={18} />
+                                      </div>
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          left: "48px",
+                                          top: "50%",
+                                          transform: "translateY(-50%)",
+                                          pointerEvents: "none",
+                                          color:
+                                            event.dinnerStartTime ||
+                                            event.dinnerStartTimeLocal
+                                              ? "#fff"
+                                              : "rgba(255,255,255,0.5)",
+                                          fontSize: "14px",
+                                          zIndex: 3,
+                                        }}
+                                      >
+                                        {event.dinnerStartTime ||
+                                        event.dinnerStartTimeLocal
+                                          ? formatReadableDateTime(
+                                              new Date(
+                                                event.dinnerStartTime ||
+                                                  event.dinnerStartTimeLocal,
+                                              ),
+                                            )
+                                          : "First slot start *"}
+                                      </div>
+                                    </div>
+                                    {/* Last Slot Start */}
+                                    <div
+                                      style={{
+                                        position: "relative",
+                                        width: "100%",
+                                        cursor: "pointer",
+                                      }}
+                                      onClick={() => {
+                                        dinnerEndTimeInputRef.current?.focus();
+                                        dinnerEndTimeInputRef.current?.showPicker?.();
+                                      }}
+                                    >
+                                      <input
+                                        ref={dinnerEndTimeInputRef}
+                                        type="datetime-local"
+                                        value={
+                                          event.dinnerEndTime
+                                            ? isoToLocalDateTime(
+                                                event.dinnerEndTime,
+                                              )
+                                            : event.dinnerEndTimeLocal || ""
+                                        }
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            const isoValue = localDateTimeToIso(
+                                              e.target.value,
+                                            );
+                                            setEvent({
+                                              ...event,
+                                              dinnerEndTimeLocal:
+                                                e.target.value,
+                                              dinnerEndTime: isoValue,
+                                            });
+                                          }
+                                        }}
+                                        required={event.dinnerEnabled}
+                                        min={
+                                          event.dinnerStartTime
+                                            ? isoToLocalDateTime(
+                                                event.dinnerStartTime,
+                                              )
+                                            : event.dinnerStartTimeLocal ||
+                                              undefined
+                                        }
+                                        style={{
+                                          ...inputStyle,
+                                          fontSize: "16px",
+                                          padding: "14px 16px 14px 48px",
+                                          width: "100%",
+                                          height: "48px",
+                                          textAlign: "left",
+                                          color: "transparent",
+                                          cursor: "pointer",
+                                          boxSizing: "border-box",
+                                          background: "rgba(255,255,255,0.03)",
+                                          border:
+                                            "1px solid rgba(255,255,255,0.08)",
+                                          borderRadius: "12px",
+                                          boxShadow:
+                                            "0 2px 8px rgba(0,0,0,0.1)",
+                                          appearance: "none",
+                                          WebkitAppearance: "none",
+                                          MozAppearance: "textfield",
+                                          position: "relative",
+                                          zIndex: 2,
+                                        }}
+                                      />
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          left: "16px",
+                                          top: "50%",
+                                          transform: "translateY(-50%)",
+                                          pointerEvents: "none",
+                                          fontSize: "16px",
+                                          opacity: 0.7,
+                                          zIndex: 3,
+                                        }}
+                                      >
+                                        <SilverIcon as={Clock} size={18} />
+                                      </div>
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          left: "48px",
+                                          top: "50%",
+                                          transform: "translateY(-50%)",
+                                          pointerEvents: "none",
+                                          color:
+                                            event.dinnerEndTime ||
+                                            event.dinnerEndTimeLocal
+                                              ? "#fff"
+                                              : "rgba(255,255,255,0.5)",
+                                          fontSize: "14px",
+                                          zIndex: 3,
+                                        }}
+                                      >
+                                        {event.dinnerEndTime ||
+                                        event.dinnerEndTimeLocal
+                                          ? formatReadableDateTime(
+                                              new Date(
+                                                event.dinnerEndTime ||
+                                                  event.dinnerEndTimeLocal,
+                                              ),
+                                            )
+                                          : "Last slot start *"}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Seating Configuration */}
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.05em",
+                                      opacity: 0.7,
+                                      marginBottom: "12px",
+                                    }}
+                                  >
+                                    Seating Settings
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      gap: "20px",
+                                    }}
+                                  >
+                                    {/* Hours per slot - Counter */}
+                                    <div>
+                                      <label
+                                        style={{
+                                          display: "block",
+                                          fontSize: "12px",
+                                          opacity: 0.8,
+                                          marginBottom: "12px",
+                                          fontWeight: 500,
+                                        }}
+                                      >
+                                        Hours per slot
+                                      </label>
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "12px",
+                                          background: "rgba(255,255,255,0.05)",
+                                          borderRadius: "12px",
+                                          border:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                          padding: "6px",
+                                          boxShadow:
+                                            "0 2px 8px rgba(0,0,0,0.1)",
+                                        }}
+                                      >
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const current =
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) || 2;
+                                            if (current > 0.5) {
+                                              setEvent({
+                                                ...event,
+                                                dinnerSeatingIntervalHoursInput:
+                                                  String(
+                                                    Math.max(
+                                                      0.5,
+                                                      current - 0.5,
+                                                    ),
+                                                  ),
+                                              });
+                                            }
+                                          }}
+                                          disabled={
+                                            parseFloat(
+                                              event.dinnerSeatingIntervalHoursInput ||
+                                                "2",
+                                            ) <= 0.5
+                                          }
+                                          style={{
+                                            width: "44px",
+                                            height: "44px",
+                                            borderRadius: "10px",
+                                            border: "none",
+                                            background:
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) <= 0.5
+                                                ? "rgba(255,255,255,0.05)"
+                                                : "rgba(192, 192, 192, 0.2)",
+                                            color: "#fff",
+                                            fontSize: "22px",
+                                            fontWeight: 600,
+                                            cursor:
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) <= 0.5
+                                                ? "not-allowed"
+                                                : "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            transition: "all 0.2s ease",
+                                            opacity:
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) <= 0.5
+                                                ? 0.4
+                                                : 1,
+                                          }}
+                                          onTouchStart={(e) => {
+                                            if (
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) > 0.5
+                                            ) {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.3)";
+                                              e.target.style.transform =
+                                                "scale(0.95)";
+                                            }
+                                          }}
+                                          onTouchEnd={(e) => {
+                                            if (
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) > 0.5
+                                            ) {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.2)";
+                                              e.target.style.transform =
+                                                "scale(1)";
+                                            }
+                                          }}
+                                        >
+                                          −
+                                        </button>
+                                        <div
+                                          style={{
+                                            flex: 1,
+                                            textAlign: "center",
+                                            fontSize: "18px",
+                                            fontWeight: 600,
+                                            color: "#fff",
+                                            padding: "0 12px",
+                                          }}
+                                        >
+                                          {event.dinnerSeatingIntervalHoursInput ||
+                                            "2"}
+                                          h
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const current =
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) || 2;
+                                            if (current < 12) {
+                                              setEvent({
+                                                ...event,
+                                                dinnerSeatingIntervalHoursInput:
+                                                  String(
+                                                    Math.min(12, current + 0.5),
+                                                  ),
+                                              });
+                                            }
+                                          }}
+                                          disabled={
+                                            parseFloat(
+                                              event.dinnerSeatingIntervalHoursInput ||
+                                                "2",
+                                            ) >= 12
+                                          }
+                                          style={{
+                                            width: "44px",
+                                            height: "44px",
+                                            borderRadius: "10px",
+                                            border: "none",
+                                            background:
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) >= 12
+                                                ? "rgba(255,255,255,0.05)"
+                                                : "rgba(192, 192, 192, 0.2)",
+                                            color: "#fff",
+                                            fontSize: "22px",
+                                            fontWeight: 600,
+                                            cursor:
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) >= 12
+                                                ? "not-allowed"
+                                                : "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            transition: "all 0.2s ease",
+                                            opacity:
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) >= 12
+                                                ? 0.4
+                                                : 1,
+                                          }}
+                                          onTouchStart={(e) => {
+                                            if (
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) < 12
+                                            ) {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.3)";
+                                              e.target.style.transform =
+                                                "scale(0.95)";
+                                            }
+                                          }}
+                                          onTouchEnd={(e) => {
+                                            if (
+                                              parseFloat(
+                                                event.dinnerSeatingIntervalHoursInput ||
+                                                  "2",
+                                              ) < 12
+                                            ) {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.2)";
+                                              e.target.style.transform =
+                                                "scale(1)";
+                                            }
+                                          }}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                      {(event.dinnerStartTime ||
+                                        event.dinnerStartTimeLocal) &&
+                                        (event.dinnerEndTime ||
+                                          event.dinnerEndTimeLocal) &&
+                                        event.dinnerSeatingIntervalHoursInput && (
+                                          <div
+                                            style={{
+                                              marginTop: "10px",
+                                              padding: "12px 14px",
+                                              background:
+                                                "rgba(192, 192, 192, 0.08)",
+                                              borderRadius: "8px",
+                                              border:
+                                                "1px solid rgba(192, 192, 192, 0.15)",
+                                            }}
+                                          >
+                                            <div
+                                              style={{
+                                                fontWeight: 600,
+                                                marginBottom: "8px",
+                                                fontSize: "10px",
+                                                textTransform: "uppercase",
+                                                letterSpacing: "0.08em",
+                                                opacity: 0.75,
+                                                color:
+                                                  "rgba(192, 192, 192, 0.9)",
+                                              }}
+                                            >
+                                              Calculated Timeslots
+                                            </div>
+                                            {(() => {
+                                              const slots =
+                                                calculateCuisineTimeslots(
+                                                  event.dinnerStartTimeLocal ||
+                                                    (event.dinnerStartTime
+                                                      ? isoToLocalDateTime(
+                                                          event.dinnerStartTime,
+                                                        )
+                                                      : ""),
+                                                  event.dinnerEndTimeLocal ||
+                                                    (event.dinnerEndTime
+                                                      ? isoToLocalDateTime(
+                                                          event.dinnerEndTime,
+                                                        )
+                                                      : ""),
+                                                  event.dinnerSeatingIntervalHoursInput,
+                                                );
+                                              if (slots.length === 0) {
+                                                return (
+                                                  <div
+                                                    style={{
+                                                      fontSize: "11px",
+                                                      opacity: 0.6,
+                                                      fontStyle: "italic",
+                                                    }}
+                                                  >
+                                                    Invalid time window or
+                                                    interval
+                                                  </div>
+                                                );
+                                              }
+                                              return (
+                                                <div
+                                                  style={{
+                                                    display: "flex",
+                                                    flexWrap: "wrap",
+                                                    gap: "6px",
+                                                  }}
+                                                >
+                                                  {slots.map((slot, index) => (
+                                                    <span
+                                                      key={index}
+                                                      style={{
+                                                        padding: "4px 10px",
+                                                        background:
+                                                          "rgba(192, 192, 192, 0.15)",
+                                                        borderRadius: "6px",
+                                                        border:
+                                                          "1px solid rgba(192, 192, 192, 0.25)",
+                                                        fontSize: "12px",
+                                                        fontWeight: 500,
+                                                        color:
+                                                          "rgba(255, 255, 255, 0.95)",
+                                                        fontFamily: "monospace",
+                                                        letterSpacing: "0.5px",
+                                                      }}
+                                                    >
+                                                      {slot}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              );
+                                            })()}
+                                          </div>
+                                        )}
+                                      {(!(
+                                        event.dinnerStartTime ||
+                                        event.dinnerStartTimeLocal
+                                      ) ||
+                                        !(
+                                          event.dinnerEndTime ||
+                                          event.dinnerEndTimeLocal
+                                        ) ||
+                                        !event.dinnerSeatingIntervalHoursInput) && (
+                                        <div
+                                          style={{
+                                            fontSize: "10px",
+                                            opacity: 0.6,
+                                            marginTop: "4px",
+                                          }}
+                                        >
+                                          Set time window above to see
+                                          calculated timeslots
+                                        </div>
+                                      )}
+                                    </div>
+                                    {/* Max Seats Per Slot - Counter with Unlimited */}
+                                    <div>
+                                      <label
+                                        style={{
+                                          display: "block",
+                                          fontSize: "12px",
+                                          opacity: 0.8,
+                                          marginBottom: "12px",
+                                          fontWeight: 500,
+                                        }}
+                                      >
+                                        Max Seats Per Slot
+                                      </label>
+                                      {!event.dinnerMaxSeatsPerSlotInput ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setEvent({
+                                              ...event,
+                                              dinnerMaxSeatsPerSlotInput: "10",
+                                            })
+                                          }
+                                          style={{
+                                            width: "100%",
+                                            padding: "14px 16px",
+                                            background:
+                                              "rgba(255,255,255,0.05)",
+                                            border:
+                                              "1px solid rgba(255,255,255,0.1)",
+                                            borderRadius: "12px",
+                                            color: "rgba(255,255,255,0.6)",
+                                            fontSize: "14px",
+                                            fontWeight: 500,
+                                            cursor: "pointer",
+                                            textAlign: "left",
+                                            boxShadow:
+                                              "0 2px 8px rgba(0,0,0,0.1)",
+                                            transition: "all 0.2s ease",
+                                          }}
+                                          onTouchStart={(e) => {
+                                            e.target.style.background =
+                                              "rgba(255,255,255,0.08)";
+                                          }}
+                                          onTouchEnd={(e) => {
+                                            e.target.style.background =
+                                              "rgba(255,255,255,0.05)";
+                                          }}
+                                        >
+                                          Unlimited
+                                        </button>
+                                      ) : (
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "12px",
+                                            background:
+                                              "rgba(255,255,255,0.05)",
+                                            borderRadius: "12px",
+                                            border:
+                                              "1px solid rgba(255,255,255,0.1)",
+                                            padding: "6px",
+                                            boxShadow:
+                                              "0 2px 8px rgba(0,0,0,0.1)",
+                                          }}
+                                        >
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const current =
+                                                parseInt(
+                                                  event.dinnerMaxSeatsPerSlotInput,
+                                                  10,
+                                                ) || 1;
+                                              if (current > 1) {
+                                                setEvent({
+                                                  ...event,
+                                                  dinnerMaxSeatsPerSlotInput:
+                                                    String(current - 1),
+                                                });
+                                              } else {
+                                                setEvent({
+                                                  ...event,
+                                                  dinnerMaxSeatsPerSlotInput:
+                                                    "",
+                                                });
+                                              }
+                                            }}
+                                            style={{
+                                              width: "44px",
+                                              height: "44px",
+                                              borderRadius: "10px",
+                                              border: "none",
+                                              background:
+                                                "rgba(192, 192, 192, 0.2)",
+                                              color: "#fff",
+                                              fontSize: "22px",
+                                              fontWeight: 600,
+                                              cursor: "pointer",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              transition: "all 0.2s ease",
+                                            }}
+                                            onTouchStart={(e) => {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.3)";
+                                              e.target.style.transform =
+                                                "scale(0.95)";
+                                            }}
+                                            onTouchEnd={(e) => {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.2)";
+                                              e.target.style.transform =
+                                                "scale(1)";
+                                            }}
+                                          >
+                                            {parseInt(
+                                              event.dinnerMaxSeatsPerSlotInput,
+                                              10,
+                                            ) === 1
+                                              ? "∞"
+                                              : "−"}
+                                          </button>
+                                          <div
+                                            style={{
+                                              flex: 1,
+                                              textAlign: "center",
+                                              fontSize: "18px",
+                                              fontWeight: 600,
+                                              color: "#fff",
+                                              padding: "0 12px",
+                                            }}
+                                          >
+                                            {event.dinnerMaxSeatsPerSlotInput}
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const current =
+                                                parseInt(
+                                                  event.dinnerMaxSeatsPerSlotInput,
+                                                  10,
+                                                ) || 1;
+                                              setEvent({
+                                                ...event,
+                                                dinnerMaxSeatsPerSlotInput:
+                                                  String(current + 1),
+                                              });
+                                            }}
+                                            style={{
+                                              width: "44px",
+                                              height: "44px",
+                                              borderRadius: "10px",
+                                              border: "none",
+                                              background:
+                                                "rgba(192, 192, 192, 0.2)",
+                                              color: "#fff",
+                                              fontSize: "22px",
+                                              fontWeight: 600,
+                                              cursor: "pointer",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              transition: "all 0.2s ease",
+                                            }}
+                                            onTouchStart={(e) => {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.3)";
+                                              e.target.style.transform =
+                                                "scale(0.95)";
+                                            }}
+                                            onTouchEnd={(e) => {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.2)";
+                                              e.target.style.transform =
+                                                "scale(1)";
+                                            }}
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Overflow Handling */}
+                                {event.dinnerMaxSeatsPerSlotInput && (
+                                  <div>
+                                    <div
+                                      style={{
+                                        padding: "14px",
+                                        borderRadius: "12px",
+                                        border:
+                                          "1px solid rgba(192, 192, 192, 0.3)",
+                                        background: "rgba(192, 192, 192, 0.1)",
+                                        display: "flex",
+                                        alignItems: "flex-start",
+                                        gap: "12px",
+                                      }}
+                                    >
+                                      <SilverIcon
+                                        as={ClipboardList}
+                                        size={16}
+                                      />
+                                      <div style={{ flex: 1 }}>
+                                        <div
+                                          style={{
+                                            fontWeight: 600,
+                                            fontSize: "14px",
+                                            color: "#fff",
+                                            marginBottom: "4px",
+                                          }}
+                                        >
+                                          Add to Waitlist
+                                        </div>
+                                        <div
+                                          style={{
+                                            fontSize: "12px",
+                                            opacity: 0.7,
+                                            color: "rgba(255,255,255,0.8)",
+                                          }}
+                                        >
+                                          When dinner seats are full, guests
+                                          will be added to the waitlist
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
                                 {(event.dinnerStartTime ||
                                   event.dinnerStartTimeLocal) &&
                                   (event.dinnerEndTime ||
@@ -4373,413 +5001,99 @@ export function ManageEventPage() {
                                   event.dinnerSeatingIntervalHoursInput && (
                                     <div
                                       style={{
-                                        marginTop: "10px",
-                                        padding: "12px 14px",
-                                        background: "rgba(192, 192, 192, 0.08)",
-                                        borderRadius: "8px",
+                                        fontSize: "11px",
+                                        opacity: 0.7,
+                                        padding: "12px",
+                                        background: "rgba(192, 192, 192, 0.1)",
+                                        borderRadius: "10px",
                                         border:
-                                          "1px solid rgba(192, 192, 192, 0.15)",
+                                          "1px solid rgba(192, 192, 192, 0.2)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "8px",
                                       }}
                                     >
-                                      <div
-                                        style={{
-                                          fontWeight: 600,
-                                          marginBottom: "8px",
-                                          fontSize: "10px",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.08em",
-                                          opacity: 0.75,
-                                          color: "rgba(192, 192, 192, 0.9)",
-                                        }}
-                                      >
-                                        Calculated Timeslots
-                                      </div>
-                                      {(() => {
-                                        const slots = calculateCuisineTimeslots(
-                                          event.dinnerStartTimeLocal ||
-                                            (event.dinnerStartTime
-                                              ? isoToLocalDateTime(
-                                                  event.dinnerStartTime
-                                                )
-                                              : ""),
-                                          event.dinnerEndTimeLocal ||
-                                            (event.dinnerEndTime
-                                              ? isoToLocalDateTime(
-                                                  event.dinnerEndTime
-                                                )
-                                              : ""),
-                                          event.dinnerSeatingIntervalHoursInput
-                                        );
-                                        if (slots.length === 0) {
-                                          return (
-                                            <div
-                                              style={{
-                                                fontSize: "11px",
-                                                opacity: 0.6,
-                                                fontStyle: "italic",
-                                              }}
-                                            >
-                                              Invalid time window or interval
-                                            </div>
-                                          );
-                                        }
-                                        return (
-                                          <div
-                                            style={{
-                                              display: "flex",
-                                              flexWrap: "wrap",
-                                              gap: "6px",
-                                            }}
-                                          >
-                                            {slots.map((slot, index) => (
-                                              <span
-                                                key={index}
-                                                style={{
-                                                  padding: "4px 10px",
-                                                  background:
-                                                    "rgba(192, 192, 192, 0.15)",
-                                                  borderRadius: "6px",
-                                                  border:
-                                                    "1px solid rgba(192, 192, 192, 0.25)",
-                                                  fontSize: "12px",
-                                                  fontWeight: 500,
-                                                  color:
-                                                    "rgba(255, 255, 255, 0.95)",
-                                                  fontFamily: "monospace",
-                                                  letterSpacing: "0.5px",
-                                                }}
-                                              >
-                                                {slot}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        );
-                                      })()}
+                                      <SilverIcon as={Lightbulb} size={18} />
+                                      <span>
+                                        Time slots will be generated
+                                        automatically based on your settings.
+                                      </span>
                                     </div>
                                   )}
-                                {(!(
-                                  event.dinnerStartTime ||
-                                  event.dinnerStartTimeLocal
-                                ) ||
-                                  !(
-                                    event.dinnerEndTime ||
-                                    event.dinnerEndTimeLocal
-                                  ) ||
-                                  !event.dinnerSeatingIntervalHoursInput) && (
-                                  <div
-                                    style={{
-                                      fontSize: "10px",
-                                      opacity: 0.6,
-                                      marginTop: "4px",
-                                    }}
-                                  >
-                                    Set time window above to see calculated
-                                    timeslots
-                                  </div>
-                                )}
-                              </div>
-                              {/* Max Seats Per Slot - Counter with Unlimited */}
-                              <div>
-                                <label
-                                  style={{
-                                    display: "block",
-                                    fontSize: "12px",
-                                    opacity: 0.8,
-                                    marginBottom: "12px",
-                                    fontWeight: 500,
-                                  }}
-                                >
-                                  Max Seats Per Slot
-                                </label>
-                                {!event.dinnerMaxSeatsPerSlotInput ? (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setEvent({
-                                        ...event,
-                                        dinnerMaxSeatsPerSlotInput: "10",
-                                      })
-                                    }
-                                    style={{
-                                      width: "100%",
-                                      padding: "14px 16px",
-                                      background: "rgba(255,255,255,0.05)",
-                                      border: "1px solid rgba(255,255,255,0.1)",
-                                      borderRadius: "12px",
-                                      color: "rgba(255,255,255,0.6)",
-                                      fontSize: "14px",
-                                      fontWeight: 500,
-                                      cursor: "pointer",
-                                      textAlign: "left",
-                                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                                      transition: "all 0.2s ease",
-                                    }}
-                                    onTouchStart={(e) => {
-                                      e.target.style.background =
-                                        "rgba(255,255,255,0.08)";
-                                    }}
-                                    onTouchEnd={(e) => {
-                                      e.target.style.background =
-                                        "rgba(255,255,255,0.05)";
-                                    }}
-                                  >
-                                    Unlimited
-                                  </button>
-                                ) : (
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "12px",
-                                      background: "rgba(255,255,255,0.05)",
-                                      borderRadius: "12px",
-                                      border: "1px solid rgba(255,255,255,0.1)",
-                                      padding: "6px",
-                                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                                    }}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const current =
-                                          parseInt(
-                                            event.dinnerMaxSeatsPerSlotInput,
-                                            10
-                                          ) || 1;
-                                        if (current > 1) {
-                                          setEvent({
-                                            ...event,
-                                            dinnerMaxSeatsPerSlotInput: String(
-                                              current - 1
-                                            ),
-                                          });
-                                        } else {
-                                          setEvent({
-                                            ...event,
-                                            dinnerMaxSeatsPerSlotInput: "",
-                                          });
-                                        }
-                                      }}
-                                      style={{
-                                        width: "44px",
-                                        height: "44px",
-                                        borderRadius: "10px",
-                                        border: "none",
-                                        background: "rgba(192, 192, 192, 0.2)",
-                                        color: "#fff",
-                                        fontSize: "22px",
-                                        fontWeight: 600,
-                                        cursor: "pointer",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        transition: "all 0.2s ease",
-                                      }}
-                                      onTouchStart={(e) => {
-                                        e.target.style.background =
-                                          "rgba(192, 192, 192, 0.3)";
-                                        e.target.style.transform =
-                                          "scale(0.95)";
-                                      }}
-                                      onTouchEnd={(e) => {
-                                        e.target.style.background =
-                                          "rgba(192, 192, 192, 0.2)";
-                                        e.target.style.transform = "scale(1)";
-                                      }}
-                                    >
-                                      {parseInt(
-                                        event.dinnerMaxSeatsPerSlotInput,
-                                        10
-                                      ) === 1
-                                        ? "∞"
-                                        : "−"}
-                                    </button>
-                                    <div
-                                      style={{
-                                        flex: 1,
-                                        textAlign: "center",
-                                        fontSize: "18px",
-                                        fontWeight: 600,
-                                        color: "#fff",
-                                        padding: "0 12px",
-                                      }}
-                                    >
-                                      {event.dinnerMaxSeatsPerSlotInput}
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const current =
-                                          parseInt(
-                                            event.dinnerMaxSeatsPerSlotInput,
-                                            10
-                                          ) || 1;
-                                        setEvent({
-                                          ...event,
-                                          dinnerMaxSeatsPerSlotInput: String(
-                                            current + 1
-                                          ),
-                                        });
-                                      }}
-                                      style={{
-                                        width: "44px",
-                                        height: "44px",
-                                        borderRadius: "10px",
-                                        border: "none",
-                                        background: "rgba(192, 192, 192, 0.2)",
-                                        color: "#fff",
-                                        fontSize: "22px",
-                                        fontWeight: 600,
-                                        cursor: "pointer",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        transition: "all 0.2s ease",
-                                      }}
-                                      onTouchStart={(e) => {
-                                        e.target.style.background =
-                                          "rgba(192, 192, 192, 0.3)";
-                                        e.target.style.transform =
-                                          "scale(0.95)";
-                                      }}
-                                      onTouchEnd={(e) => {
-                                        e.target.style.background =
-                                          "rgba(192, 192, 192, 0.2)";
-                                        e.target.style.transform = "scale(1)";
-                                      }}
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Overflow Handling */}
-                          {event.dinnerMaxSeatsPerSlotInput && (
-                            <div>
-                              <div
-                                style={{
-                                  padding: "14px",
-                                  borderRadius: "12px",
-                                  border: "1px solid rgba(192, 192, 192, 0.3)",
-                                  background: "rgba(192, 192, 192, 0.1)",
-                                  display: "flex",
-                                  alignItems: "flex-start",
-                                  gap: "12px",
-                                }}
-                              >
-                                <SilverIcon as={ClipboardList} size={16} />
-                                <div style={{ flex: 1 }}>
-                                  <div
-                                    style={{
-                                      fontWeight: 600,
-                                      fontSize: "14px",
-                                      color: "#fff",
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    Add to Waitlist
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "12px",
-                                      opacity: 0.7,
-                                      color: "rgba(255,255,255,0.8)",
-                                    }}
-                                  >
-                                    When dinner seats are full, guests will be
-                                    added to the waitlist
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {(event.dinnerStartTime ||
-                            event.dinnerStartTimeLocal) &&
-                            (event.dinnerEndTime || event.dinnerEndTimeLocal) &&
-                            event.dinnerSeatingIntervalHoursInput && (
-                              <div
-                                style={{
-                                  fontSize: "11px",
-                                  opacity: 0.7,
-                                  padding: "12px",
-                                  background: "rgba(192, 192, 192, 0.1)",
-                                  borderRadius: "10px",
-                                  border: "1px solid rgba(192, 192, 192, 0.2)",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "8px",
-                                }}
-                              >
-                                <SilverIcon as={Lightbulb} size={18} />
-                                <span>
-                                  Time slots will be generated automatically
-                                  based on your settings.
-                                </span>
                               </div>
                             )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Submit Button - Mobile-first, prominent */}
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    style={{
-                      marginTop: "40px",
-                      width: "100%",
-                      padding: "18px 24px",
-                      borderRadius: "14px",
-                      border: "none",
-                      background: saving
-                        ? "#666"
-                        : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                      color: "#fff",
-                      fontWeight: 700,
-                      fontSize: "17px",
-                      cursor: saving ? "not-allowed" : "pointer",
-                      boxShadow: saving
-                        ? "none"
-                        : "0 8px 24px rgba(192, 192, 192, 0.5)",
-                      transition: "all 0.3s ease",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      opacity: saving ? 0.7 : 1,
-                      minHeight: "56px",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!saving) {
-                        e.target.style.transform = "translateY(-2px)";
-                        e.target.style.boxShadow =
-                          "0 12px 32px rgba(192, 192, 192, 0.6)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!saving) {
-                        e.target.style.transform = "translateY(0)";
-                        e.target.style.boxShadow =
-                          "0 8px 24px rgba(192, 192, 192, 0.5)";
-                      }
-                    }}
-                    onTouchStart={(e) => {
-                      if (!saving) {
-                        e.target.style.transform = "scale(0.98)";
-                      }
-                    }}
-                    onTouchEnd={(e) => {
-                      if (!saving) {
-                        e.target.style.transform = "scale(1)";
-                      }
-                    }}
-                  >
-                    {saving ? "Saving…" : "SAVE CHANGES"}
-                  </button>
-                </form>
+                        {/* Submit Button - Mobile-first, prominent */}
+                        <button
+                          type="submit"
+                          disabled={saving}
+                          style={{
+                            marginTop: "40px",
+                            width: "100%",
+                            padding: "18px 24px",
+                            borderRadius: "14px",
+                            border: "none",
+                            background: saving
+                              ? "#666"
+                              : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+                            color: "#fff",
+                            fontWeight: 700,
+                            fontSize: "17px",
+                            cursor: saving ? "not-allowed" : "pointer",
+                            boxShadow: saving
+                              ? "none"
+                              : "0 8px 24px rgba(192, 192, 192, 0.5)",
+                            transition: "all 0.3s ease",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                            opacity: saving ? 0.7 : 1,
+                            minHeight: "56px",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!saving) {
+                              e.target.style.transform = "translateY(-2px)";
+                              e.target.style.boxShadow =
+                                "0 12px 32px rgba(192, 192, 192, 0.6)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!saving) {
+                              e.target.style.transform = "translateY(0)";
+                              e.target.style.boxShadow =
+                                "0 8px 24px rgba(192, 192, 192, 0.5)";
+                            }
+                          }}
+                          onTouchStart={(e) => {
+                            if (!saving) {
+                              e.target.style.transform = "scale(0.98)";
+                            }
+                          }}
+                          onTouchEnd={(e) => {
+                            if (!saving) {
+                              e.target.style.transform = "scale(1)";
+                            }
+                          }}
+                        >
+                          {saving ? "Saving…" : "SAVE CHANGES"}
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <div
+                      style={{
+                        marginTop: "32px",
+                        padding: "24px 0",
+                        fontSize: "14px",
+                        opacity: 0.8,
+                        color: "rgba(255,255,255,0.8)",
+                      }}
+                    >
+                      Only the event owner or admin can edit event details.
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

@@ -58,6 +58,14 @@ function App() {
             }
           />
           <Route
+            path="/app/events/:id/manage/edit"
+            element={
+              <ErrorBoundary>
+                <ManageEventPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
             path="/app/events/:id/guests"
             element={
               <ErrorBoundary>

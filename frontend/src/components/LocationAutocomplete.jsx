@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2, MapPin } from "lucide-react";
-import { authenticatedFetch } from "../lib/api.js";
+import { MapPin } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { loadGooglePlaces } from "../lib/loadGooglePlaces.js";
 
 // Enhanced location picker with autocomplete and current location
 // Uses backend endpoint which supports Google Places API (with fallback to Nominatim)
@@ -20,10 +20,38 @@ export function LocationAutocomplete({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
   const timeoutRef = useRef(null);
+  const hasRequestedLocationRef = useRef(false);
+  const autocompleteServiceRef = useRef(null);
+  const placesServiceRef = useRef(null);
+
+  async function ensurePlacesLoaded() {
+    if (typeof window === "undefined") return false;
+    if (autocompleteServiceRef.current && placesServiceRef.current) return true;
+
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+    const loaded = await loadGooglePlaces(apiKey);
+    if (!loaded || !window.google?.maps?.places) {
+      console.error("Google Places library not available");
+      return false;
+    }
+
+    autocompleteServiceRef.current =
+      autocompleteServiceRef.current ||
+      new window.google.maps.places.AutocompleteService();
+
+    placesServiceRef.current =
+      placesServiceRef.current ||
+      new window.google.maps.places.PlacesService(
+        document.createElement("div"),
+      );
+
+    return true;
+  }
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -39,6 +67,28 @@ export function LocationAutocomplete({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  function maybeRequestUserLocationForBias() {
+    if (hasRequestedLocationRef.current) return;
+    if (!navigator.geolocation) return;
+
+    hasRequestedLocationRef.current = true;
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ lat: latitude, lng: longitude });
+      },
+      () => {
+        // Silently ignore failures for bias-only location
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 8000,
+        maximumAge: 5 * 60 * 1000,
+      },
+    );
+  }
+
   async function fetchSuggestions(query) {
     if (!query || query.length < 2) {
       setSuggestions([]);
@@ -47,51 +97,70 @@ export function LocationAutocomplete({
 
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL ||
-          (import.meta.env.DEV ? "http://localhost:3001" : "/api")
-        }/location/autocomplete?query=${encodeURIComponent(query)}`
+      const ok = await ensurePlacesLoaded();
+      if (!ok || !autocompleteServiceRef.current) {
+        setIsLoading(false);
+        return;
+      }
+
+      const request = {
+        input: query,
+        types: ["establishment", "geocode"],
+      };
+
+      if (userLocation?.lat && userLocation?.lng) {
+        request.locationBias = {
+          center: {
+            lat: userLocation.lat,
+            lng: userLocation.lng,
+          },
+          radius: 50000, // ~50km
+        };
+      }
+
+      autocompleteServiceRef.current.getPlacePredictions(
+        request,
+        (predictions, status) => {
+          setIsLoading(false);
+
+          if (
+            status !==
+              window.google.maps.places.PlacesServiceStatus.OK ||
+            !predictions
+          ) {
+            setSuggestions([]);
+            setShowSuggestions(false);
+            return;
+          }
+
+          const mapped = predictions.map((pred) => ({
+            place_id: pred.place_id,
+            description: pred.description,
+            main_text:
+              pred.structured_formatting?.main_text || pred.description,
+            secondary_text:
+              pred.structured_formatting?.secondary_text || "",
+            source: "google",
+          }));
+
+          setSuggestions(mapped);
+          setShowSuggestions(true);
+          setSelectedIndex(-1);
+        },
       );
-
-      if (!response.ok) throw new Error("Failed to fetch suggestions");
-
-      const data = await response.json();
-      setSuggestions(data.predictions || []);
-      setShowSuggestions(true);
-      setSelectedIndex(-1);
     } catch (error) {
       console.error("Error fetching location suggestions:", error);
-      setSuggestions([]);
-    } finally {
       setIsLoading(false);
+      setSuggestions([]);
     }
-  }
-
-  async function getPlaceDetails(placeId, source) {
-    try {
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL ||
-          (import.meta.env.DEV ? "http://localhost:3001" : "/api")
-        }/location/details?place_id=${encodeURIComponent(
-          placeId
-        )}&source=${source}`
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        return data;
-      }
-    } catch (error) {
-      console.error("Error fetching place details:", error);
-    }
-    return null;
   }
 
   function handleInputChange(e) {
     const newValue = e.target.value;
     onChange(e);
+
+    // Try to get user location (once) so we can bias results nearby
+    maybeRequestUserLocationForBias();
 
     // Debounce API calls
     if (timeoutRef.current) {
@@ -105,29 +174,40 @@ export function LocationAutocomplete({
 
   async function handleSelectSuggestion(suggestion) {
     let address = suggestion.description || suggestion.main_text;
-    let lat = suggestion.lat;
-    let lng = suggestion.lon;
+    let lat = null;
+    let lng = null;
 
-    // If using Google Places, fetch details for coordinates
     if (suggestion.source === "google" && suggestion.place_id) {
-      const details = await getPlaceDetails(suggestion.place_id, "google");
-      if (details) {
-        address = details.address || address;
-        lat = details.lat;
-        lng = details.lng;
-    }
-    }
-
-    // If Nominatim already has coordinates, use them
-    if (suggestion.source === "nominatim" && suggestion.lat && suggestion.lon) {
-      lat = parseFloat(suggestion.lat);
-      lng = parseFloat(suggestion.lon);
+      const ok = await ensurePlacesLoaded();
+      if (ok && placesServiceRef.current) {
+        await new Promise((resolve) => {
+          placesServiceRef.current.getDetails(
+            {
+              placeId: suggestion.place_id,
+              fields: ["formatted_address", "geometry.location"],
+            },
+            (result, status) => {
+              if (
+                status ===
+                  window.google.maps.places.PlacesServiceStatus.OK &&
+                result
+              ) {
+                address = result.formatted_address || address;
+                if (result.geometry?.location) {
+                  lat = result.geometry.location.lat();
+                  lng = result.geometry.location.lng();
+                }
+              }
+              resolve();
+            },
+          );
+        });
+      }
     }
 
     onChange({ target: { value: address } });
 
-    // Call callback with location data including coordinates
-    if (onLocationSelect && lat && lng) {
+    if (onLocationSelect && lat != null && lng != null) {
       onLocationSelect({
         address,
         lat,
@@ -138,91 +218,6 @@ export function LocationAutocomplete({
     setShowSuggestions(false);
     setSuggestions([]);
     inputRef.current?.blur();
-  }
-
-  async function handleUseCurrentLocation() {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
-      return;
-    }
-
-    setIsGettingLocation(true);
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-
-        try {
-          // Reverse geocode to get address
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?` +
-              `format=json&` +
-              `lat=${latitude}&` +
-              `lon=${longitude}&` +
-              `addressdetails=1`,
-            {
-              headers: {
-                "User-Agent": "PullUp App",
-              },
-            }
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            const address = data.display_name || `${latitude}, ${longitude}`;
-
-            onChange({ target: { value: address } });
-
-            if (onLocationSelect) {
-              onLocationSelect({
-                address,
-                lat: latitude,
-                lng: longitude,
-              });
-            }
-          } else {
-            // Fallback: just use coordinates
-            const address = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-            onChange({ target: { value: address } });
-
-            if (onLocationSelect) {
-              onLocationSelect({
-                address,
-                lat: latitude,
-                lng: longitude,
-              });
-            }
-          }
-        } catch (error) {
-          console.error("Error reverse geocoding:", error);
-          // Fallback: use coordinates
-          const address = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-          onChange({ target: { value: address } });
-
-          if (onLocationSelect) {
-            onLocationSelect({
-              address,
-              lat: latitude,
-              lng: longitude,
-            });
-          }
-        } finally {
-          setIsGettingLocation(false);
-        }
-      },
-      (error) => {
-        console.error("Geolocation error:", error);
-        alert(
-          "Unable to get your location. Please check your browser permissions."
-        );
-        setIsGettingLocation(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      }
-    );
   }
 
   function handleKeyDown(e) {
@@ -259,6 +254,7 @@ export function LocationAutocomplete({
           onChange={handleInputChange}
           onFocus={(e) => {
             onFocus?.(e);
+            maybeRequestUserLocationForBias();
             if (suggestions.length > 0) {
               setShowSuggestions(true);
             }
@@ -275,49 +271,6 @@ export function LocationAutocomplete({
           disabled={disabled}
           autoComplete="off"
         />
-
-        {/* Current Location Button */}
-        <button
-          type="button"
-          onClick={handleUseCurrentLocation}
-          disabled={disabled || isGettingLocation}
-          style={{
-            marginLeft: "8px",
-            padding: "10px 14px",
-            background: isGettingLocation
-              ? "rgba(192, 192, 192, 0.3)"
-              : "rgba(192, 192, 192, 0.15)",
-            border: "1px solid rgba(192, 192, 192, 0.3)",
-            borderRadius: "10px",
-            color: "#fff",
-            fontSize: "13px",
-            fontWeight: 600,
-            cursor: disabled || isGettingLocation ? "not-allowed" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            flexShrink: 0,
-            transition: "all 0.2s ease",
-            opacity: disabled ? 0.5 : 1,
-          }}
-          onMouseEnter={(e) => {
-            if (!disabled && !isGettingLocation) {
-              e.target.style.background = "rgba(192, 192, 192, 0.25)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!disabled && !isGettingLocation) {
-              e.target.style.background = "rgba(192, 192, 192, 0.15)";
-            }
-          }}
-        >
-          <span style={{ fontSize: "16px" }}>
-            {isGettingLocation ? <SilverIcon as={Loader2} size={16} /> : null}
-          </span>
-          <span style={{ display: isGettingLocation ? "none" : "inline" }}>
-            Current
-          </span>
-        </button>
       </div>
 
       {/* Loading indicator */}

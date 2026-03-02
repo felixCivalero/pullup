@@ -29,6 +29,7 @@ import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 
 import { authenticatedFetch, publicFetch, API_BASE } from "../lib/api.js";
 import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
+import { fetchTimezoneForLocation } from "../lib/timezone.js";
 
 function isNetworkError(error) {
   return (
@@ -731,6 +732,10 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
     if (hostToRemove.role === "owner") {
       return;
     }
+    const confirmed = window.confirm(
+      "Are you sure you want to remove this arranger?",
+    );
+    if (!confirmed) return;
     try {
       const res = await authenticatedFetch(
         `/host/events/${eventId}/hosts/${hostToRemove.userId}`,
@@ -763,7 +768,10 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
 
   const handleRevokeInvitation = async (email) => {
     if (!canManageHosts) {
-      showToast("Only the event owner or admin can revoke invitations", "error");
+      showToast(
+        "Only the event owner or admin can revoke invitations",
+        "error",
+      );
       return;
     }
     try {
@@ -785,6 +793,7 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
   };
 
   const [updatingRoleFor, setUpdatingRoleFor] = useState(null);
+  const [editingRoleFor, setEditingRoleFor] = useState(null);
   const handleUpdateRole = async (host, newRole) => {
     if (!canManageHosts || host.role === "owner") return;
     if (host.role === newRole) return;
@@ -815,6 +824,7 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
       showToast(err.message || "Failed to update role", "error");
     } finally {
       setUpdatingRoleFor(null);
+      setEditingRoleFor(null);
     }
   };
 
@@ -898,7 +908,7 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
                   >
                     Owner
                   </span>
-                ) : canManageHosts ? (
+                ) : editingRoleFor === host.userId ? (
                   <select
                     value={host.role}
                     onChange={(e) => handleUpdateRole(host, e.target.value)}
@@ -908,7 +918,7 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
                       minHeight: "32px",
                       fontSize: "12px",
                       padding: "4px 8px",
-                      minWidth: "100px",
+                      minWidth: "110px",
                     }}
                     aria-label={`Change role for ${host.profile?.name || host.email}`}
                   >
@@ -934,22 +944,62 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
                   </span>
                 )}
                 {canManageHosts && host.role !== "owner" && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveHost(host)}
+                  <div
                     style={{
-                      padding: "4px 10px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(239,68,68,0.5)",
-                      background: "rgba(239,68,68,0.1)",
-                      color: "#fecaca",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
                     }}
                   >
-                    Remove
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingRoleFor(
+                          editingRoleFor === host.userId ? null : host.userId,
+                        )
+                      }
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: "999px",
+                        border: "1px solid rgba(148,163,184,0.5)",
+                        background: "rgba(15,23,42,0.8)",
+                        color: "#e5e7eb",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "13px",
+                        cursor: "pointer",
+                      }}
+                      aria-label={`Edit role for ${
+                        host.profile?.name || host.email || "arranger"
+                      }`}
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveHost(host)}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: "999px",
+                        border: "1px solid rgba(248,113,113,0.7)",
+                        background: "rgba(127,29,29,0.5)",
+                        color: "#fecaca",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "13px",
+                        cursor: "pointer",
+                      }}
+                      aria-label={`Remove ${
+                        host.profile?.name || host.email || "arranger"
+                      }`}
+                    >
+                      🗑
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -978,10 +1028,14 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
                   minWidth: 0,
                 }}
               >
-                <span style={{ fontWeight: 600, color: "rgba(255,255,255,0.9)" }}>
+                <span
+                  style={{ fontWeight: 600, color: "rgba(255,255,255,0.9)" }}
+                >
                   {inv.email}
                 </span>
-                <span style={{ opacity: 0.6, color: "#9ca3af", fontSize: "12px" }}>
+                <span
+                  style={{ opacity: 0.6, color: "#9ca3af", fontSize: "12px" }}
+                >
                   Invitation sent – awaiting sign up
                 </span>
               </div>
@@ -1043,16 +1097,6 @@ function EventHostsSection({ eventId, canManageHosts = false }) {
 
       {canManageHosts && (
         <>
-          <div
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "rgba(255,255,255,0.7)",
-              marginBottom: "8px",
-            }}
-          >
-            Add host
-          </div>
           <div
             style={{
               display: "flex",
@@ -1627,9 +1671,9 @@ export function ManageEventPage() {
     if (event.endsAt) {
       endDate = formatDateForGoogle(event.endsAt);
     } else {
-      // Default to 2 hours after start if no end date
+      // Default to 3 hours after start if no end date (for calendar only)
       const start = new Date(event.startsAt);
-      const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+      const end = new Date(start.getTime() + 3 * 60 * 60 * 1000);
       endDate = formatDateForGoogle(end.toISOString());
     }
 
@@ -3169,7 +3213,7 @@ export function ManageEventPage() {
                             marginBottom: "32px",
                           }}
                         >
-                          {/* Location - Enhanced with autocomplete and current location */}
+                              {/* Location - Enhanced with autocomplete */}
                           <div style={{ marginBottom: "20px", width: "100%" }}>
                             <div
                               style={{
@@ -3200,13 +3244,23 @@ export function ManageEventPage() {
                                     location: e.target.value,
                                   })
                                 }
-                                onLocationSelect={(locationData) => {
-                                  setEvent({
+                                onLocationSelect={async (locationData) => {
+                                  const updatedEvent = {
                                     ...event,
                                     location: locationData.address,
                                     locationLat: locationData.lat,
                                     locationLng: locationData.lng,
-                                  });
+                                  };
+
+                                  const tz = await fetchTimezoneForLocation(
+                                    locationData.lat,
+                                    locationData.lng,
+                                  );
+                                  if (tz) {
+                                    updatedEvent.timezone = tz;
+                                  }
+
+                                  setEvent(updatedEvent);
                                 }}
                                 onFocus={() => setFocusedField("location")}
                                 onBlur={() => setFocusedField(null)}

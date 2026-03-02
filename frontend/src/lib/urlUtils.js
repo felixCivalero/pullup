@@ -110,7 +110,8 @@ export function generateCalendarUrls({
   const start = formatDateForCalendar(startsAt);
   if (!start) return {};
 
-  const end = formatDateForCalendar(endsAt || addHours(startsAt, 2));
+  // If no explicit end time is provided, default to 3 hours after start
+  const end = formatDateForCalendar(endsAt || addHours(startsAt, 3));
   const encodedTitle = encodeURIComponent(title || "Event");
   const encodedLocation = encodeURIComponent(location || "");
 

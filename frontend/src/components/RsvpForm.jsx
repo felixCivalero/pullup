@@ -102,6 +102,9 @@ export function RsvpForm({
       ? dinnerSlots.find((s) => s.time === dinnerTimeSlot)
       : null;
 
+  const maxDinnerPerBooking =
+    (selectedSlot && selectedSlot.maxGuestsPerBooking) || 8;
+
   // Calculate cocktails-only spots needed for this booking
   // For cocktails-only: partySize = 1 (booker) + cocktailGuests
   // For dinner: cocktailsOnly = cocktailGuests (plus-ones only)
@@ -176,8 +179,10 @@ export function RsvpForm({
       return;
     }
 
-    if (wantsDinner && dinnerSeats > 8) {
-      setError("For parties larger than 8, please contact the host directly");
+    if (wantsDinner && dinnerSeats > maxDinnerPerBooking) {
+      setError(
+        "For parties larger than this slot allows, please contact the host directly",
+      );
       return;
     }
 
@@ -722,8 +727,12 @@ export function RsvpForm({
                     value={dinnerSeats}
                     onChange={setDinnerSeats}
                     min={1}
-                    max={8}
-                    helperText="Total number of people for dinner (including you)"
+                    max={maxDinnerPerBooking}
+                    helperText={
+                      selectedSlot && selectedSlot.maxGuestsPerBooking
+                        ? `Total number of people for dinner (including you). For larger parties, please email the host.`
+                        : "Total number of people for dinner (including you)"
+                    }
                   />
                 </>
               )}

@@ -168,11 +168,12 @@ export function RsvpSuccessPage() {
     const anchorEnd = useDinnerTime
       ? booking?.dinnerTimeSlot
         ? new Date(
-            new Date(booking.dinnerTimeSlot).getTime() + 2 * 60 * 60 * 1000
-          ) // 2 hours by default
+            new Date(booking.dinnerTimeSlot).getTime() + 3 * 60 * 60 * 1000
+          ) // 3 hours by default when using dinner as anchor
         : event.endsAt || event.startsAt
       : event.endsAt ||
-        new Date(new Date(event.startsAt).getTime() + 2 * 60 * 60 * 1000); // default +2h
+        // If no explicit end time, default to 3 hours after start for calendar only
+        new Date(new Date(event.startsAt).getTime() + 3 * 60 * 60 * 1000);
 
     const hasConfirmedDinner =
       booking?.wantsDinner &&

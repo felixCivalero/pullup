@@ -872,6 +872,7 @@ app.post("/events", requireAuth, async (req, res) => {
     dinnerSeatingIntervalHours,
     dinnerMaxSeatsPerSlot,
     dinnerOverflowAction,
+    dinnerSlots,
 
     // Capacity fields
     cocktailCapacity,
@@ -916,6 +917,7 @@ app.post("/events", requireAuth, async (req, res) => {
     dinnerSeatingIntervalHours,
     dinnerMaxSeatsPerSlot,
     dinnerOverflowAction,
+    dinnerSlots,
     ticketPrice,
     ticketCurrency: ticketCurrency || "USD",
     cocktailCapacity,
@@ -2459,28 +2461,39 @@ app.put("/host/events/:id/publish", requireAuth, async (req, res) => {
 // ---------------------------
 // Location Autocomplete Endpoint
 // Uses Google Places API if available, falls back to Nominatim (free)
+// Supports optional lat/lng for location-biased results.
 // ---------------------------
 app.get("/api/location/autocomplete", async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, lat, lng } = req.query;
 
     if (!query || query.length < 2) {
       return res.json({ predictions: [] });
     }
 
-    const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
+    const GOOGLE_PLACES_API_KEY =
+      process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
     // Try Google Places API first if API key is available
     if (GOOGLE_PLACES_API_KEY) {
       try {
-        const response = await fetch(
+        let googleUrl =
           `https://maps.googleapis.com/maps/api/place/autocomplete/json?` +
-            `input=${encodeURIComponent(query)}&` +
-            `key=${GOOGLE_PLACES_API_KEY}&` +
-            `types=establishment|geocode&` +
-            `components=country:us|country:se&` + // Restrict to US and Sweden for better results
-            `fields=place_id,description,structured_formatting`
-        );
+          `input=${encodeURIComponent(query)}&` +
+          `key=${GOOGLE_PLACES_API_KEY}&` +
+          `types=establishment|geocode&` +
+          `components=country:us|country:se`;
+
+        // If we have user coordinates, bias results near them
+        if (lat && lng) {
+          const latNum = Number(lat);
+          const lngNum = Number(lng);
+          if (!Number.isNaN(latNum) && !Number.isNaN(lngNum)) {
+            googleUrl += `&locationbias=point:${latNum},${lngNum}`;
+          }
+        }
+
+        const response = await fetch(googleUrl);
 
         if (response.ok) {
           const data = await response.json();
@@ -2505,19 +2518,33 @@ app.get("/api/location/autocomplete", async (req, res) => {
     }
 
     // Fallback to Nominatim (OpenStreetMap) - free, no API key needed
-    const nominatimResponse = await fetch(
+    let nominatimUrl =
       `https://nominatim.openstreetmap.org/search?` +
-        `format=json&` +
-        `q=${encodeURIComponent(query)}&` +
-        `limit=5&` +
-        `addressdetails=1&` +
-        `extratags=1`,
-      {
-        headers: {
-          "User-Agent": "PullUp App",
-        },
+      `format=json&` +
+      `q=${encodeURIComponent(query)}&` +
+      `limit=5&` +
+      `addressdetails=1&` +
+      `extratags=1`;
+
+    // If we have user coordinates, try to bias Nominatim around them using a bounding box
+    if (lat && lng) {
+      const latNum = Number(lat);
+      const lngNum = Number(lng);
+      if (!Number.isNaN(latNum) && !Number.isNaN(lngNum)) {
+        const delta = 0.5; // ~50km; rough bounding box
+        const left = lngNum - delta;
+        const right = lngNum + delta;
+        const top = latNum + delta;
+        const bottom = latNum - delta;
+        nominatimUrl += `&viewbox=${left},${top},${right},${bottom}&bounded=1`;
       }
-    );
+    }
+
+    const nominatimResponse = await fetch(nominatimUrl, {
+      headers: {
+        "User-Agent": "PullUp App",
+      },
+    });
 
     if (nominatimResponse.ok) {
       const data = await nominatimResponse.json();
@@ -2554,7 +2581,8 @@ app.get("/api/location/details", async (req, res) => {
       return res.status(400).json({ error: "place_id is required" });
     }
 
-    const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
+    const GOOGLE_PLACES_API_KEY =
+      process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
     if (source === "google" && GOOGLE_PLACES_API_KEY) {
       try {
@@ -2735,16 +2763,46 @@ app.get("/events/:slug/dinner-slots", async (req, res) => {
 
     // Enrich slots with availability info
     const enrichedSlots = slots.map((slotTime) => {
+      // Look up per-slot configuration if available
+      let configuredCapacity = null;
+      let maxGuestsPerBooking = null;
+      if (Array.isArray(event.dinnerSlots) && event.dinnerSlots.length > 0) {
+        const match = event.dinnerSlots.find((slot) => {
+          if (!slot) return false;
+          const slotValue =
+            typeof slot === "string" ? slot : slot.time || null;
+          if (!slotValue) return false;
+          try {
+            return new Date(slotValue).getTime() === new Date(slotTime).getTime();
+          } catch {
+            return false;
+          }
+        });
+        if (match && typeof match === "object") {
+          if (typeof match.capacity === "number") {
+            configuredCapacity = match.capacity;
+          }
+          if (typeof match.maxGuestsPerBooking === "number") {
+            maxGuestsPerBooking = match.maxGuestsPerBooking;
+          }
+        }
+      }
+
       const counts = slotCounts[slotTime] || { confirmed: 0, waitlist: 0 };
+      const slotCapacity =
+        configuredCapacity != null
+          ? configuredCapacity
+          : event.dinnerMaxSeatsPerSlot ?? null;
       const available =
-        !event.dinnerMaxSeatsPerSlot ||
-        counts.confirmed < event.dinnerMaxSeatsPerSlot;
-      const remaining = event.dinnerMaxSeatsPerSlot
-        ? Math.max(0, event.dinnerMaxSeatsPerSlot - counts.confirmed)
+        !slotCapacity || counts.confirmed < slotCapacity;
+      const remaining = slotCapacity
+        ? Math.max(0, slotCapacity - counts.confirmed)
         : null;
 
       return {
         time: slotTime,
+        capacity: slotCapacity,
+        maxGuestsPerBooking,
         available,
         remaining,
         confirmed: counts.confirmed,

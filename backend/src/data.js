@@ -115,6 +115,7 @@ export async function mapEventFromDb(dbEvent) {
     dinnerEndTime: dbEvent.dinner_end_time,
     dinnerSeatingIntervalHours: dbEvent.dinner_seating_interval_hours || 2,
     dinnerMaxSeatsPerSlot: dbEvent.dinner_max_seats_per_slot,
+    dinnerSlots: dbEvent.dinner_slots || null,
     dinnerOverflowAction: dbEvent.dinner_overflow_action || "waitlist",
     ticketPrice: dbEvent.ticket_price,
     ticketCurrency: dbEvent.ticket_currency || "usd",
@@ -475,6 +476,8 @@ function mapEventToDb(eventData) {
     dbData.dinner_max_seats_per_slot = eventData.dinnerMaxSeatsPerSlot;
   if (eventData.dinnerOverflowAction !== undefined)
     dbData.dinner_overflow_action = eventData.dinnerOverflowAction;
+  if (eventData.dinnerSlots !== undefined)
+    dbData.dinner_slots = eventData.dinnerSlots;
   if (eventData.ticketPrice !== undefined)
     dbData.ticket_price = eventData.ticketPrice;
   if (eventData.ticketCurrency !== undefined)
@@ -531,6 +534,7 @@ export async function createEvent({
   dinnerSeatingIntervalHours = 2,
   dinnerMaxSeatsPerSlot = null,
   dinnerOverflowAction = "waitlist",
+  dinnerSlots = null,
 
   // Stripe fields
   ticketPrice = null, // Price in cents (e.g., 2000 = $20.00)
@@ -600,6 +604,10 @@ export async function createEvent({
       ? Number(dinnerMaxSeatsPerSlot)
       : null,
     dinnerOverflowAction: "waitlist",
+    dinnerSlots:
+      Array.isArray(dinnerSlots) && dinnerSlots.length > 0
+        ? dinnerSlots
+        : null,
     ticketPrice:
       ticketType === "paid" && ticketPrice ? Number(ticketPrice) : null,
     ticketCurrency: ticketCurrency
@@ -799,6 +807,26 @@ export async function getCocktailsOnlyCount(eventId) {
 
 // Generate dinner time slots based on start, end, and interval
 export function generateDinnerTimeSlots(event) {
+  // Prefer explicit slots configuration if provided
+  if (Array.isArray(event.dinnerSlots) && event.dinnerSlots.length > 0) {
+    return event.dinnerSlots
+      .map((slot) =>
+        typeof slot === "string"
+          ? slot
+          : slot && typeof slot.time === "string"
+          ? slot.time
+          : null
+      )
+      .filter((time) => !!time)
+      .map((time) => {
+        const d = new Date(time);
+        return isNaN(d.getTime()) ? null : d.toISOString();
+      })
+      .filter((time) => !!time)
+      .sort((a, b) => new Date(a) - new Date(b));
+  }
+
+  // Legacy fallback: derive slots from start, end, and interval
   if (!event.dinnerEnabled || !event.dinnerStartTime || !event.dinnerEndTime) {
     return [];
   }

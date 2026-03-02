@@ -104,18 +104,18 @@ export function PostEventPage() {
       // Convert start to ISO string (this converts local time to UTC)
       const startsAtISO = startDate.toISOString();
 
-      // Add exactly 2 hours (2 * 60 * 60 * 1000 milliseconds = 7,200,000 ms)
-      const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
+      // Add exactly 3 hours so calendar exports have a sensible duration
+      const endDate = new Date(startDate.getTime() + 3 * 60 * 60 * 1000);
       const endsAt = endDate.toISOString();
 
       // Verify the calculation
       const durationMs = endDate.getTime() - startDate.getTime();
       const durationHours = durationMs / (60 * 60 * 1000);
 
-      if (Math.abs(durationHours - 2) > 0.01) {
+      if (Math.abs(durationHours - 3) > 0.01) {
         console.error("Duration calculation error:", {
           durationHours,
-          expected: 2,
+          expected: 3,
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
         });

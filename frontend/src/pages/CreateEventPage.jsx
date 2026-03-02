@@ -21,6 +21,7 @@ import { authenticatedFetch } from "../lib/api.js";
 import {
   formatRelativeTime,
   formatReadableDateTime,
+  formatEventTime,
 } from "../lib/dateUtils.js";
 import { uploadEventImage } from "../lib/imageUtils.js";
 import {
@@ -28,6 +29,7 @@ import {
   handleNetworkError,
   handleApiError,
 } from "../lib/errorHandler.js";
+import { fetchTimezoneForLocation } from "../lib/timezone.js";
 
 const inputStyle = {
   width: "100%",
@@ -180,6 +182,29 @@ function calculateCuisineTimeslots(startTime, endTime, intervalHours) {
   }
 }
 
+// Helper to adjust a datetime-local string by a number of hours
+function shiftLocalDateTimeString(localDateTimeString, hoursDelta) {
+  if (!localDateTimeString || typeof localDateTimeString !== "string") {
+    return localDateTimeString;
+  }
+
+  const [datePart, timePart] = localDateTimeString.split("T");
+  if (!datePart || !timePart) return localDateTimeString;
+
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hours, minutes] = timePart.split(":").map(Number);
+  const date = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  if (isNaN(date.getTime())) return localDateTimeString;
+
+  const shifted = new Date(date.getTime() + hoursDelta * 60 * 60 * 1000);
+  const y = shifted.getFullYear();
+  const m = String(shifted.getMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getDate()).padStart(2, "0");
+  const hh = String(shifted.getHours()).padStart(2, "0");
+  const mm = String(shifted.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+}
+
 function getQuickDateOptions() {
   const now = new Date();
   const options = [];
@@ -246,7 +271,7 @@ export function CreateEventPage() {
   const [endsAt, setEndsAt] = useState("");
   const [timezone, setTimezone] = useState(getUserTimezone());
   const [maxAttendees, setMaxAttendees] = useState("");
-  const [waitlistEnabled, setWaitlistEnabled] = useState(true);
+  const [waitlistEnabled, setWaitlistEnabled] = useState(false);
   const [imageFile, setImageFile] = useState(null); // Store file for upload
   const [imagePreview, setImagePreview] = useState(null);
   const [theme] = useState("minimal");
@@ -265,10 +290,12 @@ export function CreateEventPage() {
   const [dinnerEnabled, setDinnerEnabled] = useState(false);
   const [dinnerStartTime, setDinnerStartTime] = useState("");
   const [dinnerEndTime, setDinnerEndTime] = useState("");
-  const [dinnerSeatingIntervalHours, setDinnerSeatingIntervalHours] =
-    useState("2");
+  const [dinnerSeatingIntervalHours] = useState("1.5");
   const [dinnerMaxSeatsPerSlot, setDinnerMaxSeatsPerSlot] = useState("");
+  const [dinnerMaxGuestsPerBooking, setDinnerMaxGuestsPerBooking] =
+    useState("");
   const [dinnerOverflowAction, setDinnerOverflowAction] = useState("waitlist");
+  const [dinnerSlotsConfig, setDinnerSlotsConfig] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -339,6 +366,59 @@ export function CreateEventPage() {
     }
   }
 
+  function handleToggleDinnerEnabled(nextValue) {
+    if (nextValue && !startsAt) {
+      showToast(
+        "Set an event start date and time before adding food serving slots.",
+        "warning",
+      );
+      return;
+    }
+    setDinnerEnabled(nextValue);
+    setDinnerSlotsConfig((prev) => {
+      if (!nextValue) {
+        // Turning dinner off clears slot configuration
+        return [];
+      }
+      // Ensure at least one slot exists when enabling
+      if (prev.length > 0) return prev;
+      return [
+        {
+          time: "",
+          maxSeats: dinnerMaxSeatsPerSlot || "",
+          maxGuestsPerBooking: dinnerMaxGuestsPerBooking || "",
+        },
+      ];
+    });
+  }
+
+  function handleAddDinnerSlot() {
+    if (!dinnerEnabled) return;
+    setDinnerSlotsConfig((prev) => {
+      const last = prev[prev.length - 1] || {
+        time: "",
+        maxSeats: dinnerMaxSeatsPerSlot || "",
+        maxGuestsPerBooking: dinnerMaxGuestsPerBooking || "",
+      };
+      return [
+        ...prev,
+        {
+          time: "",
+          maxSeats: last.maxSeats,
+          maxGuestsPerBooking: last.maxGuestsPerBooking,
+        },
+      ];
+    });
+  }
+
+  function handleRemoveDinnerSlot() {
+    if (!dinnerEnabled) return;
+    setDinnerSlotsConfig((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.slice(0, prev.length - 1);
+    });
+  }
+
   async function handleImageUpload(e) {
     const file = e.target.files?.[0] || e.dataTransfer?.files?.[0];
     if (!file) return;
@@ -387,23 +467,74 @@ export function CreateEventPage() {
       // Calculate capacities
       const cocktailCapacity = maxAttendees ? Number(maxAttendees) : null;
 
-      // Calculate food capacity: max seats per slot * number of timeslots
+      // Calculate food capacity and slot metadata based on per-slot configuration
       let foodCapacity = null;
-      if (
-        dinnerEnabled &&
-        dinnerStartTime &&
-        dinnerEndTime &&
-        dinnerSeatingIntervalHours &&
-        dinnerMaxSeatsPerSlot
-      ) {
-        const slots = calculateCuisineTimeslots(
-          dinnerStartTime,
-          dinnerEndTime,
-          dinnerSeatingIntervalHours,
-        );
-        const maxSeatsPerSlot = Number(dinnerMaxSeatsPerSlot);
-        if (slots.length > 0 && maxSeatsPerSlot > 0) {
-          foodCapacity = slots.length * maxSeatsPerSlot;
+      let backendDinnerMaxSeatsPerSlot = null;
+      let dinnerSlotsIso = [];
+      let dinnerStartTimeIso = null;
+      let dinnerEndTimeIso = null;
+
+      if (dinnerEnabled && startsAt && dinnerSlotsConfig.length > 0) {
+        const eventLocalStart = isoToLocalDateTime(startsAt);
+        const [eventDatePart] = (eventLocalStart || "").split("T");
+
+        const slotLocalDateTimes =
+          eventDatePart && dinnerSlotsConfig.length > 0
+            ? dinnerSlotsConfig
+                .map((slot) => slot?.time)
+                .filter(Boolean)
+                .map((time) => `${eventDatePart}T${time}`)
+            : [];
+
+        const slotsWithIso = slotLocalDateTimes
+          .map((local, index) => {
+            const iso = localDateTimeToIso(local);
+            if (!iso) return null;
+            const baseConfig = dinnerSlotsConfig[index] || {};
+            const capacity =
+              Number(baseConfig.maxSeats || dinnerMaxSeatsPerSlot || 0) || 0;
+            const maxGuestsPerBooking =
+              Number(
+                baseConfig.maxGuestsPerBooking ||
+                  dinnerMaxGuestsPerBooking ||
+                  0,
+              ) || null;
+            return {
+              time: iso,
+              capacity: capacity > 0 ? capacity : null,
+              maxGuestsPerBooking,
+            };
+          })
+          .filter(Boolean);
+
+        dinnerSlotsIso = slotsWithIso.map((slot) => slot.time);
+
+        if (dinnerSlotsIso.length > 0) {
+          const sorted = [...dinnerSlotsIso].sort(
+            (a, b) => new Date(a) - new Date(b),
+          );
+          dinnerStartTimeIso = sorted[0];
+          dinnerEndTimeIso = sorted[sorted.length - 1];
+        }
+
+        // Seats per slot
+        let totalSeats = 0;
+        let minSeats = null;
+
+        slotsWithIso.forEach((slot) => {
+          if (slot.capacity && slot.capacity > 0) {
+            totalSeats += slot.capacity;
+            if (minSeats === null || slot.capacity < minSeats) {
+              minSeats = slot.capacity;
+            }
+          }
+        });
+
+        if (totalSeats > 0) {
+          foodCapacity = totalSeats;
+        }
+        if (minSeats !== null) {
+          backendDinnerMaxSeatsPerSlot = minSeats;
         }
       }
 
@@ -444,22 +575,39 @@ export function CreateEventPage() {
         // NEW
         maxPlusOnesPerGuest: parsedMaxPlus,
         dinnerEnabled,
-        dinnerStartTime:
-          dinnerEnabled && dinnerStartTime
-            ? new Date(dinnerStartTime).toISOString()
-            : null,
-        dinnerEndTime:
-          dinnerEnabled && dinnerEndTime
-            ? new Date(dinnerEndTime).toISOString()
-            : null,
+        dinnerStartTime: dinnerEnabled ? dinnerStartTimeIso : null,
+        dinnerEndTime: dinnerEnabled ? dinnerEndTimeIso : null,
         dinnerSeatingIntervalHours: dinnerEnabled
           ? Number(dinnerSeatingIntervalHours) || 2
           : 2,
         dinnerMaxSeatsPerSlot:
-          dinnerEnabled && dinnerMaxSeatsPerSlot
-            ? Number(dinnerMaxSeatsPerSlot)
-            : null,
+          dinnerEnabled && backendDinnerMaxSeatsPerSlot != null
+            ? backendDinnerMaxSeatsPerSlot
+            : dinnerEnabled && dinnerMaxSeatsPerSlot
+              ? Number(dinnerMaxSeatsPerSlot)
+              : null,
         dinnerOverflowAction: dinnerEnabled ? dinnerOverflowAction : "waitlist",
+        // Explicit per-slot configuration for backend & analytics
+        dinnerSlots:
+          dinnerEnabled && dinnerSlotsIso.length > 0
+            ? dinnerSlotsIso.map((timeIso, index) => {
+                const baseConfig = dinnerSlotsConfig[index] || {};
+                const capacity =
+                  Number(baseConfig.maxSeats || dinnerMaxSeatsPerSlot || 0) ||
+                  null;
+                const maxGuestsPerBooking =
+                  Number(
+                    baseConfig.maxGuestsPerBooking ||
+                      dinnerMaxGuestsPerBooking ||
+                      0,
+                  ) || null;
+                return {
+                  time: timeIso,
+                  capacity,
+                  maxGuestsPerBooking,
+                };
+              })
+            : null,
 
         // Deliberate Planner flow: create as DRAFT
         createdVia: "create",
@@ -522,7 +670,8 @@ export function CreateEventPage() {
         background:
           "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.12) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.12) 0%, transparent 50%), #05040a",
         paddingBottom: "40px",
-        overflow: "hidden",
+        overflowX: "hidden",
+        overflowY: "auto",
       }}
     >
       {/* animated background */}
@@ -920,10 +1069,18 @@ export function CreateEventPage() {
                   <LocationAutocomplete
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    onLocationSelect={(locationData) => {
+                    onLocationSelect={async (locationData) => {
                       setLocation(locationData.address);
                       setLocationLat(locationData.lat);
                       setLocationLng(locationData.lng);
+
+                      const tz = await fetchTimezoneForLocation(
+                        locationData.lat,
+                        locationData.lng,
+                      );
+                      if (tz) {
+                        setTimezone(tz);
+                      }
                     }}
                     onFocus={() => setFocusedField("location")}
                     onBlur={() => setFocusedField(null)}
@@ -961,8 +1118,29 @@ export function CreateEventPage() {
                     type="datetime-local"
                     value={isoToLocalDateTime(startsAt)}
                     onChange={(e) => {
-                      if (e.target.value) {
-                        setStartsAt(localDateTimeToIso(e.target.value));
+                      const localValue = e.target.value;
+                      if (localValue) {
+                        // Update event start
+                        setStartsAt(localDateTimeToIso(localValue));
+
+                        // Keep dinner slot date in sync with event date
+                        const [eventDatePart] = localValue.split("T");
+                        if (eventDatePart) {
+                          if (dinnerStartTime) {
+                            const [, timePart] = dinnerStartTime.split("T");
+                            if (timePart) {
+                              setDinnerStartTime(
+                                `${eventDatePart}T${timePart}`,
+                              );
+                            }
+                          }
+                          if (dinnerEndTime) {
+                            const [, timePart] = dinnerEndTime.split("T");
+                            if (timePart) {
+                              setDinnerEndTime(`${eventDatePart}T${timePart}`);
+                            }
+                          }
+                        }
                       }
                     }}
                     onFocus={() => setFocusedField("startDateTime")}
@@ -1106,7 +1284,6 @@ export function CreateEventPage() {
                       position: "relative",
                       zIndex: 2,
                     }}
-                    required
                   />
                   <div
                     style={{
@@ -1244,7 +1421,7 @@ export function CreateEventPage() {
                 {/* capacity */}
                 <OptionRow
                   icon={<SilverIcon as={Users} size={20} />}
-                  label="Cocktail capacity"
+                  label="List capacity"
                   right={
                     <input
                       type="number"
@@ -1447,7 +1624,7 @@ export function CreateEventPage() {
                     >
                       <Toggle
                         checked={dinnerEnabled}
-                        onChange={setDinnerEnabled}
+                        onChange={handleToggleDinnerEnabled}
                       />
                     </div>
                   }
@@ -1491,407 +1668,708 @@ export function CreateEventPage() {
 
                     {/* Time Range */}
                     <div>
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          opacity: 0.7,
-                          marginBottom: "12px",
-                        }}
-                      >
-                        Cuisine Time Window
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "16px",
-                        }}
-                      >
-                        {/* First Slot Start */}
-                        <div
-                          style={{
-                            position: "relative",
-                            width: "100%",
-                            cursor: "pointer",
-                          }}
-                          onClick={() => {
-                            dinnerStartTimeInputRef.current?.focus();
-                            dinnerStartTimeInputRef.current?.showPicker?.();
-                          }}
-                        >
-                          <input
-                            ref={dinnerStartTimeInputRef}
-                            type="datetime-local"
-                            value={dinnerStartTime}
-                            onChange={(e) => setDinnerStartTime(e.target.value)}
-                            required={dinnerEnabled}
-                            style={{
-                              ...inputStyle,
-                              fontSize: "16px",
-                              padding: "14px 16px 14px 48px",
-                              width: "100%",
-                              height: "48px",
-                              textAlign: "left",
-                              color: "transparent",
-                              cursor: "pointer",
-                              boxSizing: "border-box",
-                              background: "rgba(255,255,255,0.03)",
-                              border: "1px solid rgba(255,255,255,0.08)",
-                              borderRadius: "12px",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                              appearance: "none",
-                              WebkitAppearance: "none",
-                              MozAppearance: "textfield",
-                              position: "relative",
-                              zIndex: 2,
-                            }}
-                          />
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: "16px",
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              pointerEvents: "none",
-                              fontSize: "16px",
-                              opacity: 0.7,
-                              zIndex: 3,
-                            }}
-                          >
-                            <SilverIcon as={Clock} size={18} />
-                          </div>
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: "48px",
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              pointerEvents: "none",
-                              color: dinnerStartTime
-                                ? "#fff"
-                                : "rgba(255,255,255,0.5)",
-                              fontSize: "14px",
-                              zIndex: 3,
-                            }}
-                          >
-                            {dinnerStartTime
-                              ? formatReadableDateTime(
-                                  new Date(dinnerStartTime),
-                                )
-                              : "First slot start *"}
-                          </div>
-                        </div>
-                        {/* Last Slot Start */}
-                        <div
-                          style={{
-                            position: "relative",
-                            width: "100%",
-                            cursor: "pointer",
-                          }}
-                          onClick={() => {
-                            dinnerEndTimeInputRef.current?.focus();
-                            dinnerEndTimeInputRef.current?.showPicker?.();
-                          }}
-                        >
-                          <input
-                            ref={dinnerEndTimeInputRef}
-                            type="datetime-local"
-                            value={dinnerEndTime}
-                            onChange={(e) => setDinnerEndTime(e.target.value)}
-                            required={dinnerEnabled}
-                            min={dinnerStartTime || undefined}
-                            style={{
-                              ...inputStyle,
-                              fontSize: "16px",
-                              padding: "14px 16px 14px 48px",
-                              width: "100%",
-                              height: "48px",
-                              textAlign: "left",
-                              color: "transparent",
-                              cursor: "pointer",
-                              boxSizing: "border-box",
-                              background: "rgba(255,255,255,0.03)",
-                              border: "1px solid rgba(255,255,255,0.08)",
-                              borderRadius: "12px",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                              appearance: "none",
-                              WebkitAppearance: "none",
-                              MozAppearance: "textfield",
-                              position: "relative",
-                              zIndex: 2,
-                            }}
-                          />
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: "16px",
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              pointerEvents: "none",
-                              fontSize: "16px",
-                              opacity: 0.7,
-                              zIndex: 3,
-                            }}
-                          >
-                            <SilverIcon as={Clock} size={18} />
-                          </div>
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: "48px",
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              pointerEvents: "none",
-                              color: dinnerEndTime
-                                ? "#fff"
-                                : "rgba(255,255,255,0.5)",
-                              fontSize: "14px",
-                              zIndex: 3,
-                            }}
-                          >
-                            {dinnerEndTime
-                              ? formatReadableDateTime(new Date(dinnerEndTime))
-                              : "Last slot start *"}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                      {(() => {
+                        const slotCount = Math.max(
+                          1,
+                          dinnerSlotsConfig.length || 0,
+                        );
 
-                    {/* Seating Configuration */}
-                    <div>
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          opacity: 0.7,
-                          marginBottom: "12px",
-                        }}
-                      >
-                        Seating Settings
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "20px",
-                        }}
-                      >
-                        {/* Hours per slot - Counter */}
-                        <div>
-                          <label
-                            style={{
-                              display: "block",
-                              fontSize: "12px",
-                              opacity: 0.8,
-                              marginBottom: "12px",
-                              fontWeight: 500,
-                            }}
-                          >
-                            Hours per slot
-                          </label>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "12px",
-                              background: "rgba(255,255,255,0.05)",
-                              borderRadius: "12px",
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              padding: "6px",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                            }}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const current =
-                                  parseFloat(dinnerSeatingIntervalHours) || 2;
-                                if (current > 0.5) {
-                                  setDinnerSeatingIntervalHours(
-                                    String(Math.max(0.5, current - 0.5)),
-                                  );
-                                }
-                              }}
-                              disabled={
-                                parseFloat(dinnerSeatingIntervalHours) <= 0.5
-                              }
-                              style={{
-                                width: "44px",
-                                height: "44px",
-                                borderRadius: "10px",
-                                border: "none",
-                                background:
-                                  parseFloat(dinnerSeatingIntervalHours) <= 0.5
-                                    ? "rgba(255,255,255,0.05)"
-                                    : "rgba(192, 192, 192, 0.2)",
-                                color: "#fff",
-                                fontSize: "22px",
-                                fontWeight: 600,
-                                cursor:
-                                  parseFloat(dinnerSeatingIntervalHours) <= 0.5
-                                    ? "not-allowed"
-                                    : "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                transition: "all 0.2s ease",
-                                opacity:
-                                  parseFloat(dinnerSeatingIntervalHours) <= 0.5
-                                    ? 0.4
-                                    : 1,
-                              }}
-                              onTouchStart={(e) => {
-                                if (
-                                  parseFloat(dinnerSeatingIntervalHours) > 0.5
-                                ) {
-                                  e.target.style.background =
-                                    "rgba(192, 192, 192, 0.3)";
-                                  e.target.style.transform = "scale(0.95)";
-                                }
-                              }}
-                              onTouchEnd={(e) => {
-                                if (
-                                  parseFloat(dinnerSeatingIntervalHours) > 0.5
-                                ) {
-                                  e.target.style.background =
-                                    "rgba(192, 192, 192, 0.2)";
-                                  e.target.style.transform = "scale(1)";
-                                }
-                              }}
-                            >
-                              −
-                            </button>
-                            <div
-                              style={{
-                                flex: 1,
-                                textAlign: "center",
-                                fontSize: "18px",
-                                fontWeight: 600,
-                                color: "#fff",
-                                padding: "0 12px",
-                              }}
-                            >
-                              {dinnerSeatingIntervalHours || "2"}h
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const current =
-                                  parseFloat(dinnerSeatingIntervalHours) || 2;
-                                if (current < 12) {
-                                  setDinnerSeatingIntervalHours(
-                                    String(Math.min(12, current + 0.5)),
-                                  );
-                                }
-                              }}
-                              disabled={
-                                parseFloat(dinnerSeatingIntervalHours) >= 12
-                              }
-                              style={{
-                                width: "44px",
-                                height: "44px",
-                                borderRadius: "10px",
-                                border: "none",
-                                background:
-                                  parseFloat(dinnerSeatingIntervalHours) >= 12
-                                    ? "rgba(255,255,255,0.05)"
-                                    : "rgba(192, 192, 192, 0.2)",
-                                color: "#fff",
-                                fontSize: "22px",
-                                fontWeight: 600,
-                                cursor:
-                                  parseFloat(dinnerSeatingIntervalHours) >= 12
-                                    ? "not-allowed"
-                                    : "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                transition: "all 0.2s ease",
-                                opacity:
-                                  parseFloat(dinnerSeatingIntervalHours) >= 12
-                                    ? 0.4
-                                    : 1,
-                              }}
-                              onTouchStart={(e) => {
-                                if (
-                                  parseFloat(dinnerSeatingIntervalHours) < 12
-                                ) {
-                                  e.target.style.background =
-                                    "rgba(192, 192, 192, 0.3)";
-                                  e.target.style.transform = "scale(0.95)";
-                                }
-                              }}
-                              onTouchEnd={(e) => {
-                                if (
-                                  parseFloat(dinnerSeatingIntervalHours) < 12
-                                ) {
-                                  e.target.style.background =
-                                    "rgba(192, 192, 192, 0.2)";
-                                  e.target.style.transform = "scale(1)";
-                                }
-                              }}
-                            >
-                              +
-                            </button>
-                          </div>
-                          {dinnerStartTime &&
-                            dinnerEndTime &&
-                            dinnerSeatingIntervalHours && (
+                        return (
+                          <>
+                            {Array.from({ length: slotCount }).map(
+                              (_, index) => (
+                                <div
+                                  key={index}
+                                  style={{
+                                    marginBottom:
+                                      index === slotCount - 1 ? 0 : 20,
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.05em",
+                                      opacity: 0.7,
+                                      marginBottom: "12px",
+                                    }}
+                                  >
+                                    {`SLOT ${index + 1}`}
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      gap: "16px",
+                                    }}
+                                  >
+                                    {/* Slot start time (independent per slot) */}
+                                    <div
+                                      style={{
+                                        position: "relative",
+                                        width: "100%",
+                                        cursor: "pointer",
+                                      }}
+                                      onClick={() => {
+                                        dinnerStartTimeInputRef.current?.focus();
+                                      }}
+                                    >
+                                      <input
+                                        ref={
+                                          index === 0
+                                            ? dinnerStartTimeInputRef
+                                            : null
+                                        }
+                                        type="time"
+                                        value={
+                                          dinnerSlotsConfig[index]?.time || ""
+                                        }
+                                        onChange={(e) => {
+                                          const timeValue = e.target.value;
+                                          setDinnerSlotsConfig((prev) => {
+                                            const next = [...prev];
+                                            const currentConfig = next[
+                                              index
+                                            ] || {
+                                              time: "",
+                                              maxSeats:
+                                                dinnerMaxSeatsPerSlot || "",
+                                              maxGuestsPerBooking:
+                                                dinnerMaxGuestsPerBooking || "",
+                                            };
+                                            next[index] = {
+                                              ...currentConfig,
+                                              time: timeValue,
+                                            };
+                                            return next;
+                                          });
+                                        }}
+                                        required={dinnerEnabled}
+                                        style={{
+                                          ...inputStyle,
+                                          fontSize: "16px",
+                                          padding: "14px 16px 14px 48px",
+                                          width: "100%",
+                                          height: "48px",
+                                          textAlign: "left",
+                                          color: "transparent",
+                                          cursor: "pointer",
+                                          boxSizing: "border-box",
+                                          background: "rgba(255,255,255,0.03)",
+                                          border:
+                                            "1px solid rgba(255,255,255,0.08)",
+                                          borderRadius: "12px",
+                                          boxShadow:
+                                            "0 2px 8px rgba(0,0,0,0.1)",
+                                          appearance: "none",
+                                          WebkitAppearance: "none",
+                                          MozAppearance: "textfield",
+                                          position: "relative",
+                                          zIndex: 2,
+                                        }}
+                                      />
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          left: "16px",
+                                          top: "50%",
+                                          transform: "translateY(-50%)",
+                                          pointerEvents: "none",
+                                          fontSize: "16px",
+                                          opacity: 0.7,
+                                          zIndex: 3,
+                                        }}
+                                      >
+                                        <SilverIcon as={Clock} size={18} />
+                                      </div>
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          left: "48px",
+                                          top: "50%",
+                                          transform: "translateY(-50%)",
+                                          pointerEvents: "none",
+                                          color: dinnerSlotsConfig[index]?.time
+                                            ? "#fff"
+                                            : "rgba(255,255,255,0.5)",
+                                          fontSize: "14px",
+                                          zIndex: 3,
+                                        }}
+                                      >
+                                        {(() => {
+                                          const timeValue =
+                                            dinnerSlotsConfig[index]?.time;
+                                          if (!timeValue || !startsAt)
+                                            return "Slot time *";
+                                          const localEventStart =
+                                            isoToLocalDateTime(startsAt);
+                                          if (!localEventStart) {
+                                            return timeValue;
+                                          }
+                                          const [eventDatePart] =
+                                            localEventStart.split("T");
+                                          const localDateTime = `${eventDatePart}T${timeValue}`;
+                                          return formatEventTime(
+                                            new Date(localDateTime),
+                                          );
+                                        })()}
+                                      </div>
+                                    </div>
+
+                                    {/* Total seats for this slot */}
+                                    <div>
+                                      <label
+                                        style={{
+                                          display: "block",
+                                          fontSize: "12px",
+                                          opacity: 0.8,
+                                          marginBottom: "12px",
+                                          fontWeight: 500,
+                                        }}
+                                      >
+                                        Total seats for this slot{" "}
+                                      </label>
+
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "12px",
+                                          background: "rgba(255,255,255,0.05)",
+                                          borderRadius: "12px",
+                                          border:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                          padding: "6px",
+                                          boxShadow:
+                                            "0 2px 8px rgba(0,0,0,0.1)",
+                                        }}
+                                      >
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setDinnerSlotsConfig((prev) => {
+                                              const next = [...prev];
+                                              const currentConfig = next[
+                                                index
+                                              ] || {
+                                                maxSeats:
+                                                  dinnerMaxSeatsPerSlot || "",
+                                                maxGuestsPerBooking:
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "",
+                                              };
+                                              const currentSeats =
+                                                parseInt(
+                                                  currentConfig.maxSeats || "0",
+                                                  10,
+                                                ) || 1;
+                                              const updatedSeats =
+                                                currentSeats > 1
+                                                  ? String(currentSeats - 1)
+                                                  : "";
+                                              next[index] = {
+                                                ...currentConfig,
+                                                maxSeats: updatedSeats,
+                                              };
+                                              return next;
+                                            });
+                                          }}
+                                          style={{
+                                            width: "44px",
+                                            height: "44px",
+                                            borderRadius: "10px",
+                                            border: "none",
+                                            background:
+                                              "rgba(192, 192, 192, 0.2)",
+                                            color: "#fff",
+                                            fontSize: "22px",
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            transition: "all 0.2s ease",
+                                          }}
+                                          onTouchStart={(e) => {
+                                            e.target.style.background =
+                                              "rgba(192, 192, 192, 0.3)";
+                                            e.target.style.transform =
+                                              "scale(0.95)";
+                                          }}
+                                          onTouchEnd={(e) => {
+                                            e.target.style.background =
+                                              "rgba(192, 192, 192, 0.2)";
+                                            e.target.style.transform =
+                                              "scale(1)";
+                                          }}
+                                        >
+                                          {parseInt(
+                                            dinnerSlotsConfig[index]
+                                              ?.maxSeats ||
+                                              dinnerMaxSeatsPerSlot ||
+                                              "0" ||
+                                              "0",
+                                            10,
+                                          ) === 1
+                                            ? "∞"
+                                            : "−"}
+                                        </button>
+                                        <div
+                                          style={{
+                                            flex: 1,
+                                            textAlign: "center",
+                                            fontSize: "18px",
+                                            fontWeight: 600,
+                                            color: "#fff",
+                                            padding: "0 12px",
+                                          }}
+                                        >
+                                          {dinnerSlotsConfig[index]?.maxSeats ??
+                                            dinnerMaxSeatsPerSlot}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setDinnerSlotsConfig((prev) => {
+                                              const next = [...prev];
+                                              const currentConfig = next[
+                                                index
+                                              ] || {
+                                                maxSeats:
+                                                  dinnerMaxSeatsPerSlot || "",
+                                                maxGuestsPerBooking:
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "",
+                                              };
+                                              const currentSeats =
+                                                parseInt(
+                                                  currentConfig.maxSeats || "0",
+                                                  10,
+                                                ) || 1;
+                                              const updatedSeats =
+                                                currentSeats + 1;
+                                              next[index] = {
+                                                ...currentConfig,
+                                                maxSeats:
+                                                  String(updatedSeats) || "",
+                                              };
+                                              return next;
+                                            });
+                                          }}
+                                          style={{
+                                            width: "44px",
+                                            height: "44px",
+                                            borderRadius: "10px",
+                                            border: "none",
+                                            background:
+                                              "rgba(192, 192, 192, 0.2)",
+                                            color: "#fff",
+                                            fontSize: "22px",
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            transition: "all 0.2s ease",
+                                          }}
+                                          onTouchStart={(e) => {
+                                            e.target.style.background =
+                                              "rgba(192, 192, 192, 0.3)";
+                                            e.target.style.transform =
+                                              "scale(0.95)";
+                                          }}
+                                          onTouchEnd={(e) => {
+                                            e.target.style.background =
+                                              "rgba(192, 192, 192, 0.2)";
+                                            e.target.style.transform =
+                                              "scale(1)";
+                                          }}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Max guests per booking */}
+                                    <div>
+                                      <label
+                                        style={{
+                                          display: "block",
+                                          fontSize: "12px",
+                                          opacity: 0.8,
+                                          marginBottom: "12px",
+                                          fontWeight: 500,
+                                        }}
+                                      >
+                                        Max guests per individual booking
+                                      </label>
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "12px",
+                                          background: "rgba(255,255,255,0.05)",
+                                          borderRadius: "12px",
+                                          border:
+                                            "1px solid rgba(255,255,255,0.1)",
+                                          padding: "6px",
+                                          boxShadow:
+                                            "0 2px 8px rgba(0,0,0,0.1)",
+                                        }}
+                                      >
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setDinnerSlotsConfig((prev) => {
+                                              const next = [...prev];
+                                              const currentConfig = next[
+                                                index
+                                              ] || {
+                                                maxSeats:
+                                                  dinnerMaxSeatsPerSlot || "",
+                                                maxGuestsPerBooking:
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "",
+                                              };
+                                              const current =
+                                                parseInt(
+                                                  currentConfig.maxGuestsPerBooking ||
+                                                    "0",
+                                                  10,
+                                                ) || 1;
+                                              if (current > 1) {
+                                                next[index] = {
+                                                  ...currentConfig,
+                                                  maxGuestsPerBooking: String(
+                                                    current - 1,
+                                                  ),
+                                                };
+                                              }
+                                              return next;
+                                            });
+                                          }}
+                                          disabled={
+                                            !(
+                                              dinnerSlotsConfig[index]
+                                                ?.maxGuestsPerBooking ||
+                                              dinnerMaxGuestsPerBooking
+                                            ) ||
+                                            parseInt(
+                                              dinnerSlotsConfig[index]
+                                                ?.maxGuestsPerBooking ||
+                                                dinnerMaxGuestsPerBooking ||
+                                                "0",
+                                              10,
+                                            ) <= 1
+                                          }
+                                          style={{
+                                            width: "44px",
+                                            height: "44px",
+                                            borderRadius: "10px",
+                                            border: "none",
+                                            background:
+                                              !(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                dinnerMaxGuestsPerBooking
+                                              ) ||
+                                              parseInt(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "0",
+                                                10,
+                                              ) <= 1
+                                                ? "rgba(255,255,255,0.05)"
+                                                : "rgba(192, 192, 192, 0.2)",
+                                            color: "#fff",
+                                            fontSize: "22px",
+                                            fontWeight: 600,
+                                            cursor:
+                                              !(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                dinnerMaxGuestsPerBooking
+                                              ) ||
+                                              parseInt(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "0",
+                                                10,
+                                              ) <= 1
+                                                ? "not-allowed"
+                                                : "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            transition: "all 0.2s ease",
+                                            opacity:
+                                              !(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                dinnerMaxGuestsPerBooking
+                                              ) ||
+                                              parseInt(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "0",
+                                                10,
+                                              ) <= 1
+                                                ? 0.5
+                                                : 1,
+                                          }}
+                                          onTouchStart={(e) => {
+                                            if (
+                                              (dinnerSlotsConfig[index]
+                                                ?.maxGuestsPerBooking ||
+                                                dinnerMaxGuestsPerBooking) &&
+                                              parseInt(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "0",
+                                                10,
+                                              ) > 1
+                                            ) {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.3)";
+                                              e.target.style.transform =
+                                                "scale(0.95)";
+                                            }
+                                          }}
+                                          onTouchEnd={(e) => {
+                                            if (
+                                              (dinnerSlotsConfig[index]
+                                                ?.maxGuestsPerBooking ||
+                                                dinnerMaxGuestsPerBooking) &&
+                                              parseInt(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "0",
+                                                10,
+                                              ) > 1
+                                            ) {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.2)";
+                                              e.target.style.transform =
+                                                "scale(1)";
+                                            }
+                                          }}
+                                        >
+                                          −
+                                        </button>
+                                        <div
+                                          style={{
+                                            flex: 1,
+                                            textAlign: "center",
+                                            fontSize: "18px",
+                                            fontWeight: 600,
+                                            color: "#fff",
+                                            padding: "0 12px",
+                                          }}
+                                        >
+                                          {dinnerSlotsConfig[index]
+                                            ?.maxGuestsPerBooking ??
+                                            dinnerMaxGuestsPerBooking ??
+                                            "—"}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setDinnerSlotsConfig((prev) => {
+                                              const nextConfigs = [...prev];
+                                              const currentConfig = nextConfigs[
+                                                index
+                                              ] || {
+                                                maxSeats:
+                                                  dinnerMaxSeatsPerSlot || "",
+                                                maxGuestsPerBooking:
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "",
+                                              };
+                                              const current =
+                                                parseInt(
+                                                  currentConfig.maxGuestsPerBooking ||
+                                                    "0",
+                                                  10,
+                                                ) || 0;
+                                              const next =
+                                                current <= 0 ? 1 : current + 1;
+                                              // Soft cap at 12 guests per booking
+                                              if (next <= 12) {
+                                                nextConfigs[index] = {
+                                                  ...currentConfig,
+                                                  maxGuestsPerBooking:
+                                                    String(next),
+                                                };
+                                              }
+                                              return nextConfigs;
+                                            });
+                                          }}
+                                          disabled={
+                                            parseInt(
+                                              dinnerSlotsConfig[index]
+                                                ?.maxGuestsPerBooking ||
+                                                dinnerMaxGuestsPerBooking ||
+                                                "0",
+                                              10,
+                                            ) >= 12
+                                          }
+                                          style={{
+                                            width: "44px",
+                                            height: "44px",
+                                            borderRadius: "10px",
+                                            border: "none",
+                                            background:
+                                              parseInt(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "0",
+                                                10,
+                                              ) >= 12
+                                                ? "rgba(255,255,255,0.05)"
+                                                : "rgba(192, 192, 192, 0.2)",
+                                            color: "#fff",
+                                            fontSize: "22px",
+                                            fontWeight: 600,
+                                            cursor:
+                                              parseInt(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "0",
+                                                10,
+                                              ) >= 12
+                                                ? "not-allowed"
+                                                : "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            transition: "all 0.2s ease",
+                                            opacity:
+                                              parseInt(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "0",
+                                                10,
+                                              ) >= 12
+                                                ? 0.5
+                                                : 1,
+                                          }}
+                                          onTouchStart={(e) => {
+                                            if (
+                                              parseInt(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "0",
+                                                10,
+                                              ) < 12
+                                            ) {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.3)";
+                                              e.target.style.transform =
+                                                "scale(0.95)";
+                                            }
+                                          }}
+                                          onTouchEnd={(e) => {
+                                            if (
+                                              parseInt(
+                                                dinnerSlotsConfig[index]
+                                                  ?.maxGuestsPerBooking ||
+                                                  dinnerMaxGuestsPerBooking ||
+                                                  "0",
+                                                10,
+                                              ) < 12
+                                            ) {
+                                              e.target.style.background =
+                                                "rgba(192, 192, 192, 0.2)";
+                                              e.target.style.transform =
+                                                "scale(1)";
+                                            }
+                                          }}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ),
+                            )}
+                            {dinnerSlotsConfig.some(
+                              (slot) => slot?.time && slot.time.length > 0,
+                            ) && (
                               <div
                                 style={{
-                                  marginTop: "10px",
-                                  padding: "12px 14px",
-                                  background: "rgba(192, 192, 192, 0.08)",
-                                  borderRadius: "8px",
-                                  border: "1px solid rgba(192, 192, 192, 0.15)",
+                                  marginTop: "16px",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "12px",
                                 }}
                               >
                                 <div
                                   style={{
-                                    fontWeight: 600,
-                                    marginBottom: "8px",
-                                    fontSize: "10px",
+                                    fontSize: "11px",
+                                    fontWeight: 500,
                                     textTransform: "uppercase",
                                     letterSpacing: "0.08em",
                                     opacity: 0.75,
                                     color: "rgba(192, 192, 192, 0.9)",
                                   }}
                                 >
-                                  Calculated Timeslots
+                                  Calculated Slots
                                 </div>
-                                {(() => {
-                                  const slots = calculateCuisineTimeslots(
-                                    dinnerStartTime,
-                                    dinnerEndTime,
-                                    dinnerSeatingIntervalHours,
-                                  );
-                                  if (slots.length === 0) {
-                                    return (
-                                      <div
-                                        style={{
-                                          fontSize: "11px",
-                                          opacity: 0.6,
-                                          fontStyle: "italic",
-                                        }}
-                                      >
-                                        Invalid time window or interval
-                                      </div>
-                                    );
-                                  }
-                                  return (
-                                    <div
-                                      style={{
-                                        display: "flex",
-                                        flexWrap: "wrap",
-                                        gap: "6px",
-                                      }}
-                                    >
-                                      {slots.map((slot, index) => (
+                                {dinnerSlotsConfig.filter(
+                                  (slot) => slot?.time && slot.time.length > 0,
+                                ).length > 0 ? (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexWrap: "wrap",
+                                      gap: "6px",
+                                    }}
+                                  >
+                                    {dinnerSlotsConfig.map((slot, index) => {
+                                      if (!slot?.time) return null;
+                                      if (!startsAt) {
+                                        return (
+                                          <span
+                                            key={index}
+                                            style={{
+                                              padding: "4px 10px",
+                                              background:
+                                                "rgba(192, 192, 192, 0.15)",
+                                              borderRadius: "6px",
+                                              border:
+                                                "1px solid rgba(192, 192, 192, 0.25)",
+                                              fontSize: "12px",
+                                              fontWeight: 500,
+                                              color:
+                                                "rgba(255, 255, 255, 0.95)",
+                                              fontFamily: "monospace",
+                                              letterSpacing: "0.5px",
+                                            }}
+                                          >
+                                            {slot.time}
+                                          </span>
+                                        );
+                                      }
+                                      const localEventStart =
+                                        isoToLocalDateTime(startsAt);
+                                      const [eventDatePart] = (
+                                        localEventStart || ""
+                                      ).split("T");
+                                      const localDateTime = eventDatePart
+                                        ? `${eventDatePart}T${slot.time}`
+                                        : slot.time;
+                                      return (
                                         <span
                                           key={index}
                                           style={{
@@ -1908,243 +2386,129 @@ export function CreateEventPage() {
                                             letterSpacing: "0.5px",
                                           }}
                                         >
-                                          {slot}
+                                          {formatEventTime(
+                                            new Date(localDateTime),
+                                          )}
                                         </span>
-                                      ))}
-                                    </div>
-                                  );
-                                })()}
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div
+                                    style={{
+                                      fontSize: "10px",
+                                      opacity: 0.6,
+                                      fontStyle: "italic",
+                                    }}
+                                  >
+                                    Choose a start time, then add slots below to
+                                    see them here.
+                                  </div>
+                                )}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: "8px",
+                                    marginTop: "8px",
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={handleAddDinnerSlot}
+                                    style={{
+                                      flex: 1,
+                                      padding: "10px 14px",
+                                      borderRadius: "10px",
+                                      border: "none",
+                                      background: "rgba(255,255,255,0.08)",
+                                      color: "#fff",
+                                      fontSize: "13px",
+                                      fontWeight: 500,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      gap: "6px",
+                                      transition: "all 0.2s ease",
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontSize: "18px",
+                                        lineHeight: 1,
+                                      }}
+                                    >
+                                      +
+                                    </span>
+                                    <span>Add another slot</span>
+                                  </button>
+                                  {slotCount > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={handleRemoveDinnerSlot}
+                                      style={{
+                                        padding: "10px 14px",
+                                        borderRadius: "10px",
+                                        border:
+                                          "1px solid rgba(255,255,255,0.18)",
+                                        background: "rgba(255,255,255,0.02)",
+                                        color: "rgba(255,255,255,0.85)",
+                                        fontSize: "13px",
+                                        fontWeight: 500,
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "6px",
+                                        transition: "all 0.2s ease",
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          fontSize: "18px",
+                                          lineHeight: 1,
+                                        }}
+                                      >
+                                        −
+                                      </span>
+                                      <span>Remove last</span>
+                                    </button>
+                                  )}
+                                </div>
+                                {dinnerSlotsConfig.some(
+                                  (slot) =>
+                                    slot?.time &&
+                                    slot.time.length > 0 &&
+                                    slot.maxSeats,
+                                ) && (
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      opacity: 0.7,
+                                      padding: "12px",
+                                      background: "rgba(192, 192, 192, 0.1)",
+                                      borderRadius: "10px",
+                                      border:
+                                        "1px solid rgba(192, 192, 192, 0.2)",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "8px",
+                                    }}
+                                  >
+                                    <SilverIcon as={Lightbulb} size={18} />
+                                    <span>
+                                      Each slot has its own time and seat
+                                      allocation. Adjust them above to match
+                                      your exact service plan.
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             )}
-                          {(!dinnerStartTime ||
-                            !dinnerEndTime ||
-                            !dinnerSeatingIntervalHours) && (
-                            <div
-                              style={{
-                                fontSize: "10px",
-                                opacity: 0.6,
-                                marginTop: "4px",
-                              }}
-                            >
-                              Set time window above to see calculated timeslots
-                            </div>
-                          )}
-                        </div>
-                        {/* Max Seats Per Slot - Counter with Unlimited */}
-                        <div>
-                          <label
-                            style={{
-                              display: "block",
-                              fontSize: "12px",
-                              opacity: 0.8,
-                              marginBottom: "12px",
-                              fontWeight: 500,
-                            }}
-                          >
-                            Max Seats Per Slot
-                          </label>
-                          {!dinnerMaxSeatsPerSlot ? (
-                            <button
-                              type="button"
-                              onClick={() => setDinnerMaxSeatsPerSlot("10")}
-                              style={{
-                                width: "100%",
-                                padding: "14px 16px",
-                                background: "rgba(255,255,255,0.05)",
-                                border: "1px solid rgba(255,255,255,0.1)",
-                                borderRadius: "12px",
-                                color: "rgba(255,255,255,0.6)",
-                                fontSize: "14px",
-                                fontWeight: 500,
-                                cursor: "pointer",
-                                textAlign: "left",
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                                transition: "all 0.2s ease",
-                              }}
-                              onTouchStart={(e) => {
-                                e.target.style.background =
-                                  "rgba(255,255,255,0.08)";
-                              }}
-                              onTouchEnd={(e) => {
-                                e.target.style.background =
-                                  "rgba(255,255,255,0.05)";
-                              }}
-                            >
-                              Unlimited
-                            </button>
-                          ) : (
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "12px",
-                                background: "rgba(255,255,255,0.05)",
-                                borderRadius: "12px",
-                                border: "1px solid rgba(255,255,255,0.1)",
-                                padding: "6px",
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                              }}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const current =
-                                    parseInt(dinnerMaxSeatsPerSlot, 10) || 1;
-                                  if (current > 1) {
-                                    setDinnerMaxSeatsPerSlot(
-                                      String(current - 1),
-                                    );
-                                  } else {
-                                    setDinnerMaxSeatsPerSlot("");
-                                  }
-                                }}
-                                style={{
-                                  width: "44px",
-                                  height: "44px",
-                                  borderRadius: "10px",
-                                  border: "none",
-                                  background: "rgba(192, 192, 192, 0.2)",
-                                  color: "#fff",
-                                  fontSize: "22px",
-                                  fontWeight: 600,
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  transition: "all 0.2s ease",
-                                }}
-                                onTouchStart={(e) => {
-                                  e.target.style.background =
-                                    "rgba(192, 192, 192, 0.3)";
-                                  e.target.style.transform = "scale(0.95)";
-                                }}
-                                onTouchEnd={(e) => {
-                                  e.target.style.background =
-                                    "rgba(192, 192, 192, 0.2)";
-                                  e.target.style.transform = "scale(1)";
-                                }}
-                              >
-                                {parseInt(dinnerMaxSeatsPerSlot, 10) === 1
-                                  ? "∞"
-                                  : "−"}
-                              </button>
-                              <div
-                                style={{
-                                  flex: 1,
-                                  textAlign: "center",
-                                  fontSize: "18px",
-                                  fontWeight: 600,
-                                  color: "#fff",
-                                  padding: "0 12px",
-                                }}
-                              >
-                                {dinnerMaxSeatsPerSlot}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const current =
-                                    parseInt(dinnerMaxSeatsPerSlot, 10) || 1;
-                                  setDinnerMaxSeatsPerSlot(String(current + 1));
-                                }}
-                                style={{
-                                  width: "44px",
-                                  height: "44px",
-                                  borderRadius: "10px",
-                                  border: "none",
-                                  background: "rgba(192, 192, 192, 0.2)",
-                                  color: "#fff",
-                                  fontSize: "22px",
-                                  fontWeight: 600,
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  transition: "all 0.2s ease",
-                                }}
-                                onTouchStart={(e) => {
-                                  e.target.style.background =
-                                    "rgba(192, 192, 192, 0.3)";
-                                  e.target.style.transform = "scale(0.95)";
-                                }}
-                                onTouchEnd={(e) => {
-                                  e.target.style.background =
-                                    "rgba(192, 192, 192, 0.2)";
-                                  e.target.style.transform = "scale(1)";
-                                }}
-                              >
-                                +
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                          </>
+                        );
+                      })()}
                     </div>
-
-                    {/* Overflow Handling */}
-                    {dinnerMaxSeatsPerSlot && (
-                      <div>
-                        <div
-                          style={{
-                            padding: "14px",
-                            borderRadius: "12px",
-                            border: "1px solid rgba(192, 192, 192, 0.3)",
-                            background: "rgba(192, 192, 192, 0.1)",
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: "12px",
-                          }}
-                        >
-                          <SilverIcon as={ClipboardList} size={16} />
-                          <div style={{ flex: 1 }}>
-                            <div
-                              style={{
-                                fontWeight: 600,
-                                fontSize: "14px",
-                                color: "#fff",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              Add to Waitlist
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                opacity: 0.7,
-                                color: "rgba(255,255,255,0.8)",
-                              }}
-                            >
-                              When dinner seats are full, guests will be added
-                              to the waitlist
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {dinnerStartTime &&
-                      dinnerEndTime &&
-                      dinnerSeatingIntervalHours && (
-                        <div
-                          style={{
-                            fontSize: "11px",
-                            opacity: 0.7,
-                            padding: "12px",
-                            background: "rgba(192, 192, 192, 0.1)",
-                            borderRadius: "10px",
-                            border: "1px solid rgba(192, 192, 192, 0.2)",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                          }}
-                        >
-                          <SilverIcon as={Lightbulb} size={18} />
-                          <span>
-                            Time slots will be generated automatically based on
-                            your settings.
-                          </span>
-                        </div>
-                      )}
                   </div>
                 )}
               </div>

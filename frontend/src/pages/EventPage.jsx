@@ -44,6 +44,8 @@ export function EventPage() {
   const [currentPartySize, setCurrentPartySize] = useState(1); // Track party size for price calculation
   const [waitlistOffer, setWaitlistOffer] = useState(null); // Waitlist payment link offer
   const [waitlistToken, setWaitlistToken] = useState(null); // Waitlist token from URL
+  const [vipOffer, setVipOffer] = useState(null); // VIP invite offer
+  const [vipToken, setVipToken] = useState(null); // VIP token from URL
 
   // Memoize the payment success handler to prevent PaymentForm remounts
   // MUST be called before any early returns to follow Rules of Hooks
@@ -206,40 +208,68 @@ export function EventPage() {
       setLoading(true);
       setNotFound(false);
 
-      // Check for waitlist token first
-      const token = searchParams.get("wl");
+      // Check for waitlist or VIP token first
+      const waitlistQueryToken = searchParams.get("wl");
+      const vipQueryToken = searchParams.get("vip");
 
-      if (token) {
+      // Prefer waitlist token if both are present (they shouldn't be)
+      const initialTokenType = waitlistQueryToken
+        ? "waitlist"
+        : vipQueryToken
+          ? "vip"
+          : null;
+      const initialToken = waitlistQueryToken || vipQueryToken || null;
+
+      if (initialToken && initialTokenType === "waitlist") {
         // If waitlist token exists, validate it first to get event info
         try {
           const offerRes = await publicFetch(
-            `/events/${slug}/waitlist-offer?wl=${token}`
+            `/events/${slug}/waitlist-offer?wl=${initialToken}`
           );
           if (offerRes.ok) {
             const offerData = await offerRes.json();
             // Token is valid - use event from token response directly
             if (offerData.event && offerData.event.id) {
-              // Use the full event data from the response
-              // The backend returns the complete event object
               setEvent(offerData.event);
               setWaitlistOffer(offerData);
-              setWaitlistToken(token);
-              // Remove token from URL (clean URL)
+              setWaitlistToken(initialToken);
               setSearchParams({}, { replace: true });
               setLoading(false);
               return;
             }
           } else {
-            // Token invalid - show error but still try to load event normally
             const error = await offerRes.json().catch(() => ({}));
             console.error("Invalid waitlist token:", error);
-            // Remove invalid token from URL
             setSearchParams({}, { replace: true });
           }
         } catch (err) {
           console.error("Error validating waitlist token:", err);
           setSearchParams({}, { replace: true });
-          // Continue to load event normally if token validation fails
+        }
+      } else if (initialToken && initialTokenType === "vip") {
+        // VIP token: validate to get event + invite info
+        try {
+          const offerRes = await publicFetch(
+            `/events/${slug}/vip-offer?vip=${initialToken}`
+          );
+          if (offerRes.ok) {
+            const offerData = await offerRes.json();
+            if (offerData.event && offerData.event.id) {
+              setEvent(offerData.event);
+              setVipOffer(offerData);
+              setVipToken(initialToken);
+              setSearchParams({}, { replace: true });
+              setLoading(false);
+              return;
+            }
+          } else {
+            const error = await offerRes.json().catch(() => ({}));
+            console.error("Invalid VIP token:", error);
+            setSearchParams({}, { replace: true });
+          }
+        } catch (err) {
+          console.error("Error validating VIP token:", err);
+          setSearchParams({}, { replace: true });
         }
       }
 
@@ -265,25 +295,43 @@ export function EventPage() {
         }
         setEvent(data);
 
-        // If we have a token and event loaded, validate it now
-        if (token) {
+        // If we still have tokens in the URL and event loaded, validate now
+        if (waitlistQueryToken) {
           try {
             const offerRes = await publicFetch(
-              `/events/${slug}/waitlist-offer?wl=${token}`
+              `/events/${slug}/waitlist-offer?wl=${waitlistQueryToken}`
             );
             if (offerRes.ok) {
               const offerData = await offerRes.json();
               setWaitlistOffer(offerData);
-              setWaitlistToken(token);
-              // Remove token from URL (clean URL)
+              setWaitlistToken(waitlistQueryToken);
               setSearchParams({}, { replace: true });
             } else {
-              const error = await offerRes.json();
+              const error = await offerRes.json().catch(() => ({}));
               console.error("Invalid waitlist token:", error);
               setSearchParams({}, { replace: true });
             }
           } catch (err) {
             console.error("Error validating waitlist token:", err);
+            setSearchParams({}, { replace: true });
+          }
+        } else if (vipQueryToken) {
+          try {
+            const offerRes = await publicFetch(
+              `/events/${slug}/vip-offer?vip=${vipQueryToken}`
+            );
+            if (offerRes.ok) {
+              const offerData = await offerRes.json();
+              setVipOffer(offerData);
+              setVipToken(vipQueryToken);
+              setSearchParams({}, { replace: true });
+            } else {
+              const error = await offerRes.json().catch(() => ({}));
+              console.error("Invalid VIP token:", error);
+              setSearchParams({}, { replace: true });
+            }
+          } catch (err) {
+            console.error("Error validating VIP token:", err);
             setSearchParams({}, { replace: true });
           }
         }
@@ -362,14 +410,20 @@ export function EventPage() {
     setRsvpLoading(true);
     const submittedData = data; // Store submitted data for later use
     try {
-      // Include waitlist upgrade data if present
-      const requestBody = waitlistOffer
-        ? {
-            ...data,
-            waitlistRsvpId: waitlistOffer.rsvpDetails.id,
-            waitlistToken: waitlistToken,
-          }
-        : data;
+      // Include waitlist or VIP data if present
+      let requestBody = { ...data };
+      if (waitlistOffer && waitlistOffer.rsvpDetails && waitlistToken) {
+        requestBody = {
+          ...requestBody,
+          waitlistRsvpId: waitlistOffer.rsvpDetails.id,
+          waitlistToken: waitlistToken,
+        };
+      } else if (vipOffer && vipOffer.invite && vipToken) {
+        requestBody = {
+          ...requestBody,
+          vipToken,
+        };
+      }
 
       const res = await publicFetch(`/events/${event.slug}/rsvp`, {
         method: "POST",
@@ -1094,11 +1148,16 @@ export function EventPage() {
                 // Clear waitlist offer when closing
                 setWaitlistOffer(null);
                 setWaitlistToken(null);
+                setVipOffer(null);
+                setVipToken(null);
               }}
               onPartySizeChange={setCurrentPartySize}
               // Waitlist upgrade props
               waitlistOffer={waitlistOffer}
               waitlistToken={waitlistToken}
+              // VIP invite props
+              vipOffer={vipOffer}
+              vipToken={vipToken}
               // Payment props for paid events
               isPaidEvent={event?.ticketType === "paid"}
               ticketPrice={event?.ticketPrice}

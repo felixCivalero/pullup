@@ -280,7 +280,6 @@ export function CreateEventPage() {
   const [sellTicketsEnabled, setSellTicketsEnabled] = useState(false);
   const [ticketPrice, setTicketPrice] = useState("");
   const [ticketCurrency, setTicketCurrency] = useState("USD");
-  const [requireApproval, setRequireApproval] = useState(false);
 
   // NEW: plus-ones
   const [allowPlusOnes, setAllowPlusOnes] = useState(false);
@@ -570,8 +569,6 @@ export function CreateEventPage() {
             : null, // Convert to cents
         ticketCurrency: sellTicketsEnabled ? ticketCurrency : null,
         // Stripe product and price will be auto-created by backend
-        requireApproval,
-
         // NEW
         maxPlusOnesPerGuest: parsedMaxPlus,
         dinnerEnabled,
@@ -1454,18 +1451,6 @@ export function CreateEventPage() {
                     />
                   }
                 />
-                {/* approval */}
-                <OptionRow
-                  icon={<SilverIcon as={Trophy} size={20} />}
-                  label="Require Approval"
-                  right={
-                    <Toggle
-                      checked={requireApproval}
-                      onChange={setRequireApproval}
-                    />
-                  }
-                />
-
                 {/* PLUS-ONES */}
                 <OptionRow
                   icon="➕"

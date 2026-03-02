@@ -41,6 +41,10 @@ import {
   createEventHostInvitation,
   getPendingInvitationsForEvent,
   claimPendingInvitationsForUser,
+  createVipInvite,
+  findVipInviteById,
+  markVipInviteUsed,
+  updateVipInvite,
 } from "./data.js";
 
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
@@ -843,6 +847,123 @@ app.get("/events/:slug/waitlist-offer", async (req, res) => {
 });
 
 // ---------------------------
+// PUBLIC: VIP invite offer (validate VIP token)
+// ---------------------------
+app.get("/events/:slug/vip-offer", async (req, res) => {
+  const { slug } = req.params;
+  const { vip: token } = req.query;
+
+  if (!token) {
+    return res.status(400).json({ error: "Token is required" });
+  }
+
+  try {
+    // Verify token
+    let decoded;
+    try {
+      decoded = verifyWaitlistToken(token);
+    } catch (error) {
+      return res.status(400).json({
+        error: "Invalid or expired token",
+        message: error.message,
+      });
+    }
+
+    if (!decoded || decoded.type !== "vip_invite") {
+      return res.status(400).json({ error: "Invalid token type" });
+    }
+
+    const { inviteId, eventId, email, maxGuests, freeEntry, discountPercent } =
+      decoded;
+
+    if (!inviteId || !eventId || !email) {
+      return res.status(400).json({ error: "Invalid token structure" });
+    }
+
+    // Load event (prefer ID, fall back to slug)
+    let event = await findEventById(eventId);
+    if (!event) {
+      event = await findEventBySlug(slug);
+    }
+
+    if (!event) {
+      return res.status(404).json({
+        error: "Event not found",
+        message:
+          "The event associated with this VIP link could not be found",
+      });
+    }
+
+    if (event.id !== eventId) {
+      return res.status(400).json({
+        error: "Event ID mismatch",
+        message: "The event in the link does not match the URL",
+      });
+    }
+
+    // Load invite from database
+    const invite = await findVipInviteById(inviteId);
+    if (!invite) {
+      return res.status(404).json({ error: "Invite not found" });
+    }
+
+    // Basic consistency checks
+    if (
+      invite.event_id !== event.id ||
+      invite.email.toLowerCase() !== String(email).toLowerCase()
+    ) {
+      return res.status(400).json({
+        error: "Invite mismatch",
+        message: "This VIP link is not valid for this event or email",
+      });
+    }
+
+    // Check if already used
+    if (invite.used_at) {
+      return res.status(400).json({
+        error: "invite_used",
+        message: "This VIP link has already been used.",
+      });
+    }
+
+    // Check expiration (prefer DB expires_at, fall back to token.expiresAt)
+    const expiresAt =
+      invite.expires_at || (decoded.expiresAt && new Date(decoded.expiresAt));
+    if (expiresAt && new Date(expiresAt) < new Date()) {
+      return res.status(400).json({
+        error: "invite_expired",
+        message: "This VIP link has expired.",
+      });
+    }
+
+    // Build response
+    return res.json({
+      valid: true,
+      event: {
+        id: event.id,
+        slug: event.slug,
+        title: event.title,
+        ticketType: event.ticketType,
+        ticketPrice: event.ticketPrice,
+        ticketCurrency: event.ticketCurrency,
+        ...event,
+      },
+      invite: {
+        id: invite.id,
+        email: invite.email,
+        maxGuests: invite.max_guests,
+        freeEntry: invite.free_entry,
+        discountPercent: invite.discount_percent,
+      },
+      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+    });
+  } catch (error) {
+    console.error("Error validating VIP offer:", error);
+    res.status(500).json({ error: "Failed to validate VIP offer" });
+  }
+});
+
+// ---------------------------
 // PROTECTED: Create event (requires auth)
 // ---------------------------
 app.post("/events", requireAuth, async (req, res) => {
@@ -983,10 +1104,109 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       dinnerPartySize = null, // NEW: party size for dinner (can differ from event party size)
       waitlistRsvpId = null, // NEW: RSVP ID for waitlist upgrade
       waitlistToken = null, // NEW: JWT token for waitlist upgrade
+      vipToken = null, // NEW: JWT token for VIP invite
     } = req.body;
 
-    if (!email) {
+    if (!email && !vipToken) {
       return res.status(400).json({ error: "email is required" });
+    }
+
+    // Handle VIP invite flow
+    let vipInvite = null;
+    let vipDecoded = null;
+    if (vipToken && !waitlistToken && !waitlistRsvpId) {
+      try {
+        vipDecoded = verifyWaitlistToken(vipToken);
+        if (!vipDecoded || vipDecoded.type !== "vip_invite") {
+          return res.status(400).json({ error: "Invalid VIP token" });
+        }
+
+        if (!vipDecoded.inviteId || !vipDecoded.eventId || !vipDecoded.email) {
+          return res.status(400).json({ error: "Invalid VIP token structure" });
+        }
+
+        // Load event and ensure it matches slug + token
+        const event = await findEventBySlug(slug);
+        if (!event || event.id !== vipDecoded.eventId) {
+          return res.status(400).json({
+            error: "vip_event_mismatch",
+            message: "VIP link is for a different event",
+          });
+        }
+
+        // Load invite
+        const invite = await findVipInviteById(vipDecoded.inviteId);
+        if (!invite) {
+          return res.status(404).json({ error: "VIP invite not found" });
+        }
+
+        if (
+          invite.event_id !== event.id ||
+          invite.email.toLowerCase() !==
+            String(vipDecoded.email).toLowerCase()
+        ) {
+          return res.status(400).json({
+            error: "vip_invite_mismatch",
+            message: "VIP invite does not match this event or email",
+          });
+        }
+
+        if (invite.used_at) {
+          return res.status(400).json({
+            error: "vip_invite_used",
+            message: "This VIP link has already been used.",
+          });
+        }
+
+        const expiresAt =
+          invite.expires_at ||
+          (vipDecoded.expiresAt && new Date(vipDecoded.expiresAt));
+        if (expiresAt && new Date(expiresAt) < new Date()) {
+          return res.status(400).json({
+            error: "vip_invite_expired",
+            message: "This VIP link has expired.",
+          });
+        }
+
+        vipInvite = invite;
+      } catch (tokenError) {
+        return res.status(400).json({
+          error: "Invalid or expired VIP token",
+          message: tokenError.message,
+        });
+      }
+    }
+
+    const effectiveEmail = vipInvite ? vipInvite.email : email;
+
+    // Enforce VIP max guests (server-side)
+    if (vipInvite && typeof vipInvite.max_guests === "number") {
+      const maxGuests =
+        vipInvite.max_guests && vipInvite.max_guests > 0
+          ? vipInvite.max_guests
+          : 1;
+
+      const plus = Number(plusOnes) || 0;
+      let requestedPartySize = 1 + plus;
+
+      if (
+        wantsDinner &&
+        dinnerPartySize !== null &&
+        dinnerPartySize !== undefined
+      ) {
+        const parsedDinnerPartySize = Math.max(
+          1,
+          Math.floor(Number(dinnerPartySize) || 1)
+        );
+        requestedPartySize = parsedDinnerPartySize + plus;
+      }
+
+      if (requestedPartySize > maxGuests) {
+        return res.status(400).json({
+          error: "vip_max_guests_exceeded",
+          message: `This VIP link allows up to ${maxGuests} guests in total.`,
+        });
+      }
     }
 
     // Handle waitlist upgrade flow
@@ -1063,7 +1283,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       : {
           slug,
           name,
-          email,
+          email: effectiveEmail,
           plusOnes,
           wantsDinner,
           dinnerTimeSlot,
@@ -1071,6 +1291,25 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         };
 
     const result = await addRsvp(rsvpData);
+
+    const isEventPaid =
+      result.event?.ticketType === "paid" && result.event?.ticketPrice;
+    const isVipFreeEntry =
+      !!vipInvite && vipInvite.free_entry === true && isEventPaid;
+
+    // Mark VIP invite as used immediately for free-entry or non-paid events
+    if (
+      vipInvite &&
+      result.rsvp &&
+      !existingWaitlistRsvp &&
+      (!isEventPaid || isVipFreeEntry)
+    ) {
+      try {
+        await markVipInviteUsed(vipInvite.id, result.rsvp.id);
+      } catch (err) {
+        console.error("[VIP] Failed to mark invite as used:", err);
+      }
+    }
 
     if (result.error === "not_found") {
       return res.status(404).json({ error: "Event not found" });
@@ -1138,6 +1377,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         result.rsvp?.bookingStatus === "WAITLIST";
 
       if (
+        !isVipFreeEntry &&
         result.event?.ticketType === "paid" &&
         result.event?.ticketPrice &&
         (isWaitlistUpgrade || // Waitlist upgrade - always allow if RSVP is WAITLIST
@@ -1468,6 +1708,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
 
     try {
       if (
+        !isVipFreeEntry &&
         result.event?.ticketType === "paid" &&
         result.event?.ticketPrice &&
         result.event?.hostId &&
@@ -2250,6 +2491,114 @@ app.post(
       console.error("Error generating waitlist link:", error);
       res.status(500).json({
         error: "Failed to generate waitlist link",
+        message: error.message,
+      });
+    }
+  }
+);
+
+// ---------------------------
+// PROTECTED: Create VIP invite (requires auth, verifies ownership)
+// ---------------------------
+app.post(
+  "/host/events/:eventId/vip-invites",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const {
+        email,
+        maxGuests = 1,
+        freeEntry = false,
+        discountPercent = null,
+        expiresInHours = 48,
+      } = req.body || {};
+
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ error: "Valid email is required" });
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!normalizedEmail) {
+        return res.status(400).json({ error: "Valid email is required" });
+      }
+
+      const maxGuestsInt =
+        typeof maxGuests === "number"
+          ? Math.max(1, Math.floor(maxGuests))
+          : 1;
+
+      // Verify event exists
+      const event = await findEventById(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      // Verify user is a host for this event
+      const { isHost } = await isUserEventHost(req.user.id, event.id);
+      if (!isHost) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      // Compute expiration
+      const expiresAt = new Date(
+        Date.now() +
+          (typeof expiresInHours === "number" && expiresInHours > 0
+            ? expiresInHours
+            : 48) *
+            60 *
+            60 *
+            1000
+      );
+
+      // Create invite record (without token first)
+      const invite = await createVipInvite({
+        eventId: event.id,
+        email: normalizedEmail,
+        maxGuests: maxGuestsInt,
+        freeEntry: !!freeEntry,
+        discountPercent:
+          typeof discountPercent === "number" ? discountPercent : null,
+        expiresAt: expiresAt.toISOString(),
+        token: null,
+      });
+
+      // Generate signed token
+      const token = generateWaitlistToken({
+        type: "vip_invite",
+        inviteId: invite.id,
+        eventId: event.id,
+        email: normalizedEmail,
+        maxGuests: maxGuestsInt,
+        freeEntry: !!freeEntry,
+        discountPercent:
+          typeof discountPercent === "number" ? discountPercent : null,
+        expiresAt: expiresAt.toISOString(),
+      });
+
+      // Store token on invite (best-effort)
+      await updateVipInvite(invite.id, { token });
+
+      const frontendUrl = getFrontendUrl();
+      const link = `${frontendUrl}/e/${event.slug}?vip=${token}`;
+
+      return res.status(201).json({
+        link,
+        token,
+        invite: {
+          id: invite.id,
+          email: normalizedEmail,
+          maxGuests: maxGuestsInt,
+          freeEntry: !!freeEntry,
+          discountPercent:
+            typeof discountPercent === "number" ? discountPercent : null,
+        },
+        expiresAt: expiresAt.toISOString(),
+      });
+    } catch (error) {
+      console.error("Error creating VIP invite:", error);
+      res.status(500).json({
+        error: "Failed to create VIP invite",
         message: error.message,
       });
     }

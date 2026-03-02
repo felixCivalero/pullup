@@ -1,5 +1,5 @@
 // backend/src/utils/waitlistTokens.js
-// JWT token generation and verification for waitlist payment links
+// JWT token generation and verification for waitlist payment links and VIP invites
 
 import jwt from "jsonwebtoken";
 
@@ -13,14 +13,11 @@ if (!WAITLIST_TOKEN_SECRET) {
 }
 
 /**
- * Generate a signed JWT token for waitlist payment link
+ * Generate a signed JWT token (waitlist or VIP).
+ * The payload MUST include a `type` field so callers can distinguish
+ * between "waitlist_offer", "vip_invite", etc. during verification.
+ *
  * @param {Object} payload - Token payload
- * @param {string} payload.eventId - Event ID
- * @param {string} payload.rsvpId - RSVP ID
- * @param {string} payload.email - Person's email
- * @param {string} payload.type - Token type (should be "waitlist_offer")
- * @param {string} payload.expiresAt - ISO string of expiration time
- * @param {Object} payload.rsvpDetails - RSVP details for validation
  * @returns {string} Signed JWT token
  */
 export function generateWaitlistToken(payload) {
@@ -36,7 +33,9 @@ export function generateWaitlistToken(payload) {
 }
 
 /**
- * Verify and decode a waitlist token
+ * Verify and decode a token used for waitlist or VIP flows.
+ * Callers must check the `type` field in the decoded payload.
+ *
  * @param {string} token - JWT token to verify
  * @returns {Object} Decoded token payload
  * @throws {Error} If token is invalid or expired

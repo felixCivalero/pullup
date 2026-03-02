@@ -137,6 +137,234 @@ function sortGuests(guests, sortColumn, sortDirection) {
 }
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
+function VipInviteSection({ event, showToast }) {
+  const [email, setEmail] = useState("");
+  const [maxGuests, setMaxGuests] = useState("4");
+  const [freeEntry, setFreeEntry] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [lastLink, setLastLink] = useState(null);
+
+  if (!event) return null;
+
+  async function handleGenerateVipInvite(e) {
+    e?.preventDefault();
+    if (!email.trim()) {
+      showToast("Enter an email for the VIP invite.", "warning");
+      return;
+    }
+
+    const maxGuestsInt = parseInt(maxGuests || "1", 10);
+    if (!Number.isFinite(maxGuestsInt) || maxGuestsInt <= 0) {
+      showToast("Max guests must be at least 1.", "warning");
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const res = await authenticatedFetch(
+        `/host/events/${event.id}/vip-invites`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: email.trim(),
+            maxGuests: maxGuestsInt,
+            freeEntry,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to create VIP invite");
+      }
+
+      const data = await res.json();
+      setLastLink(data.link || null);
+
+      if (data.link && navigator.clipboard) {
+        await navigator.clipboard.writeText(data.link);
+        showToast("VIP link created and copied to clipboard!", "success");
+      } else {
+        showToast("VIP link created!", "success");
+      }
+    } catch (err) {
+      console.error("Failed to create VIP invite", err);
+      showToast(
+        err.message || "Failed to create VIP invite. Please try again.",
+        "error"
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleCopyLastLink() {
+    if (!lastLink || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(lastLink);
+    showToast("VIP link copied!", "success");
+  }
+
+  return (
+    <div
+      style={{
+        padding: "0 20px 16px",
+        marginTop: "8px",
+        marginBottom: "8px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+          background: "rgba(12,10,18,0.6)",
+          borderRadius: "16px",
+          border: "1px solid rgba(255,255,255,0.06)",
+          padding: "14px 16px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "8px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              opacity: 0.85,
+            }}
+          >
+            <SilverIcon as={Link2} size={16} />
+            VIP Invites
+          </div>
+          {lastLink && (
+            <button
+              type="button"
+              onClick={handleCopyLastLink}
+              style={{
+                fontSize: "11px",
+                padding: "4px 8px",
+                borderRadius: "999px",
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(15,23,42,0.6)",
+                color: "#e5e5e5",
+                cursor: "pointer",
+              }}
+            >
+              Copy last link
+            </button>
+          )}
+        </div>
+
+        <form
+          onSubmit={handleGenerateVipInvite}
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "8px",
+            alignItems: "center",
+          }}
+        >
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="VIP guest email"
+            style={{
+              flex: "1 1 180px",
+              minWidth: "0",
+              padding: "8px 10px",
+              borderRadius: "999px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(15,23,42,0.9)",
+              color: "#fff",
+              fontSize: "13px",
+              outline: "none",
+            }}
+          />
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={maxGuests}
+            onChange={(e) => setMaxGuests(e.target.value)}
+            placeholder="Max guests"
+            style={{
+              width: "90px",
+              padding: "8px 10px",
+              borderRadius: "999px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(15,23,42,0.9)",
+              color: "#fff",
+              fontSize: "13px",
+              outline: "none",
+              textAlign: "center",
+            }}
+          />
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "12px",
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={freeEntry}
+              onChange={(e) => setFreeEntry(e.target.checked)}
+              style={{ accentColor: "#e5e5e5" }}
+            />
+            <span>Free entry (comp)</span>
+          </label>
+          <button
+            type="submit"
+            disabled={generating}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "8px 12px",
+              borderRadius: "999px",
+              border: "none",
+              background: "linear-gradient(135deg,#3b82f6,#a855f7)",
+              color: "#fff",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: generating ? "not-allowed" : "pointer",
+              opacity: generating ? 0.6 : 1,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {generating ? "Creating..." : "Create VIP link"}
+          </button>
+        </form>
+        <div
+          style={{
+            fontSize: "11px",
+            opacity: 0.7,
+            lineHeight: 1.4,
+          }}
+        >
+          Create a one-time VIP link for a specific guest. They can RSVP with a
+          larger guest list, and on paid events you can comp their entry.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function generateDinnerTimeSlots(event) {
   if (!event.dinnerEnabled || !event.dinnerStartTime || !event.dinnerEndTime) {
     return [];
@@ -1331,6 +1559,9 @@ export function EventGuestsPage() {
                 Export CSV
               </button>
             </div>
+
+            {/* VIP Invites - host/admin controls */}
+            <VipInviteSection event={event} showToast={showToast} />
 
             {/* Search Bar - Smartphone Friendly */}
             <div

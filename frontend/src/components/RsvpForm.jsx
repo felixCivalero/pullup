@@ -21,6 +21,9 @@ export function RsvpForm({
   // Waitlist upgrade props
   waitlistOffer = null, // { valid, event, rsvpDetails, expiresAt }
   waitlistToken = null, // JWT token
+  // VIP invite props
+  vipOffer = null, // { valid, event, invite, expiresAt }
+  vipToken = null, // JWT token
   // Payment-related props (for paid events)
   isPaidEvent = false,
   ticketPrice = null,
@@ -47,11 +50,24 @@ export function RsvpForm({
     }
   }, []);
 
-  const maxPlusOnes =
+  // Base max plus-ones from event config
+  const baseMaxPlusOnes =
     typeof event?.maxPlusOnesPerGuest === "number" &&
     event?.maxPlusOnesPerGuest > 0
       ? event?.maxPlusOnesPerGuest
       : 0;
+
+  // VIP override: allow a larger guest list for this booking
+  // We treat invite.maxGuests as total party size, so max plus-ones ≈ maxGuests - 1.
+  const vipMaxGuests =
+    vipOffer && vipOffer.invite && typeof vipOffer.invite.maxGuests === "number"
+      ? vipOffer.invite.maxGuests
+      : null;
+
+  const maxPlusOnes =
+    vipMaxGuests && vipMaxGuests > 0
+      ? Math.max(0, vipMaxGuests - 1)
+      : baseMaxPlusOnes;
 
   // Load dinner slots if dinner is enabled
   useEffect(() => {
@@ -163,15 +179,17 @@ export function RsvpForm({
       return;
     }
 
-    // Normal flow - validate inputs
-    if (!email.trim()) {
-      setError("Email is required");
-      return;
-    }
+    // Normal / VIP flow - validate inputs
+    if (!isVipInvite) {
+      if (!email.trim()) {
+        setError("Email is required");
+        return;
+      }
 
-    if (!validateEmail(email.trim())) {
-      setError("Please enter a valid email address");
-      return;
+      if (!validateEmail(email.trim())) {
+        setError("Please enter a valid email address");
+        return;
+      }
     }
 
     if (wantsDinner && !dinnerTimeSlot) {
@@ -189,7 +207,9 @@ export function RsvpForm({
     if (onSubmit) {
       try {
         const result = await onSubmit({
-          email: email.trim(),
+          email: isVipInvite
+            ? (vipOffer.invite?.email || "").trim()
+            : email.trim(),
           name: name.trim() || null,
           plusOnes: cocktailGuests,
           wantsDinner,
@@ -209,6 +229,7 @@ export function RsvpForm({
 
   // If waitlist upgrade, show read-only booking summary instead of form
   const isWaitlistUpgrade = waitlistOffer && waitlistOffer.rsvpDetails;
+  const isVipInvite = !!vipOffer && !!vipOffer.invite;
 
   // If waitlist upgrade, show read-only booking summary
   if (isWaitlistUpgrade) {

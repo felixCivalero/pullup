@@ -45,6 +45,7 @@ import {
   findVipInviteById,
   markVipInviteUsed,
   updateVipInvite,
+  getVipInvitesForEvent,
 } from "./data.js";
 
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
@@ -2511,7 +2512,6 @@ app.post(
         maxGuests = 1,
         freeEntry = false,
         discountPercent = null,
-        expiresInHours = 48,
       } = req.body || {};
 
       if (!email || typeof email !== "string") {
@@ -2540,23 +2540,28 @@ app.post(
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      // Compute expiration
-      const expiresAt = new Date(
-        Date.now() +
-          (typeof expiresInHours === "number" && expiresInHours > 0
-            ? expiresInHours
-            : 48) *
-            60 *
-            60 *
-            1000
-      );
+      const eventIsPaid =
+        event.ticketType === "paid" && event.ticketPrice && event.ticketPrice > 0;
+      const effectiveFreeEntry = eventIsPaid && !!freeEntry;
+
+      // Compute expiration: default to event start time; fallback to +48h from now
+      let expiresAt = null;
+      if (event.startsAt) {
+        const start = new Date(event.startsAt);
+        if (!isNaN(start.getTime())) {
+          expiresAt = start;
+        }
+      }
+      if (!expiresAt) {
+        expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      }
 
       // Create invite record (without token first)
       const invite = await createVipInvite({
         eventId: event.id,
         email: normalizedEmail,
         maxGuests: maxGuestsInt,
-        freeEntry: !!freeEntry,
+        freeEntry: effectiveFreeEntry,
         discountPercent:
           typeof discountPercent === "number" ? discountPercent : null,
         expiresAt: expiresAt.toISOString(),
@@ -2570,7 +2575,7 @@ app.post(
         eventId: event.id,
         email: normalizedEmail,
         maxGuests: maxGuestsInt,
-        freeEntry: !!freeEntry,
+        freeEntry: effectiveFreeEntry,
         discountPercent:
           typeof discountPercent === "number" ? discountPercent : null,
         expiresAt: expiresAt.toISOString(),
@@ -2582,6 +2587,61 @@ app.post(
       const frontendUrl = getFrontendUrl();
       const link = `${frontendUrl}/e/${event.slug}?vip=${token}`;
 
+      // Send VIP link via email to the guest
+      try {
+        const niceDate = expiresAt.toLocaleString("en-US", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+
+        const subject = `VIP invite for "${event.title}"`;
+
+        const textBody = `You've received a VIP invite for "${event.title}".
+
+Use this link to RSVP with your guest list:
+
+${link}
+
+This VIP link is valid until the event starts (${niceDate}).`;
+
+        const htmlBody = `
+          <p>You've received a <strong>VIP invite</strong> for "<strong>${event.title}</strong>".</p>
+          <p style="margin: 16px 0;">
+            <a
+              href="${link}"
+              style="
+                display: inline-block;
+                padding: 10px 18px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 45%, #d97706 100%);
+                color: #05040a;
+                font-weight: 600;
+                font-size: 14px;
+                text-decoration: none;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                box-shadow: 0 0 14px rgba(245, 158, 11, 0.75);
+              "
+            >
+              VIP SIGNUP LINK
+            </a>
+          </p>
+          <p style="font-size: 13px; color: #4b5563;">
+            This VIP link is valid until the event starts (${niceDate}).
+          </p>
+        `;
+
+        await sendEmail({
+          to: normalizedEmail,
+          subject,
+          text: textBody,
+          html: htmlBody,
+        });
+      } catch (emailError) {
+        console.error("Error sending VIP invite email:", emailError);
+        // Don't fail the API if email sending fails
+      }
+
       return res.status(201).json({
         link,
         token,
@@ -2589,7 +2649,7 @@ app.post(
           id: invite.id,
           email: normalizedEmail,
           maxGuests: maxGuestsInt,
-          freeEntry: !!freeEntry,
+          freeEntry: effectiveFreeEntry,
           discountPercent:
             typeof discountPercent === "number" ? discountPercent : null,
         },
@@ -2599,6 +2659,99 @@ app.post(
       console.error("Error creating VIP invite:", error);
       res.status(500).json({
         error: "Failed to create VIP invite",
+        message: error.message,
+      });
+    }
+  }
+);
+
+// ---------------------------
+// PROTECTED: List VIP invites for event (requires auth, verifies ownership)
+// ---------------------------
+app.get(
+  "/host/events/:eventId/vip-invites",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId } = req.params;
+
+      const event = await findEventById(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      const { isHost } = await isUserEventHost(req.user.id, event.id);
+      if (!isHost) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const invites = await getVipInvitesForEvent(event.id);
+      const frontendUrl = getFrontendUrl();
+
+      const mappedInvites = (invites || []).map((inv) => ({
+        id: inv.id,
+        email: inv.email,
+        maxGuests: inv.max_guests,
+        freeEntry: inv.free_entry,
+        createdAt: inv.created_at,
+        expiresAt: inv.expires_at,
+        link:
+          inv.token && event.slug
+            ? `${frontendUrl}/e/${event.slug}?vip=${inv.token}`
+            : null,
+      }));
+
+      return res.json({ invites: mappedInvites });
+    } catch (error) {
+      console.error("Error listing VIP invites:", error);
+      return res.status(500).json({
+        error: "Failed to list VIP invites",
+        message: error.message,
+      });
+    }
+  }
+);
+
+// ---------------------------
+// PROTECTED: Delete VIP invite (requires auth, verifies ownership)
+// ---------------------------
+app.delete(
+  "/host/events/:eventId/vip-invites/:inviteId",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId, inviteId } = req.params;
+
+      const event = await findEventById(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      const { isHost } = await isUserEventHost(req.user.id, event.id);
+      if (!isHost) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const { supabase } = await import("./supabase.js");
+      const { error } = await supabase
+        .from("vip_invites")
+        .delete()
+        .eq("id", inviteId)
+        .eq("event_id", event.id);
+
+      if (error) {
+        if (error.code === "PGRST205") {
+          return res.status(404).json({ error: "Invite not found" });
+        }
+        console.error("Error deleting VIP invite:", error);
+        return res.status(500).json({ error: "Failed to delete invite" });
+      }
+
+      return res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting VIP invite:", error);
+      return res.status(500).json({
+        error: "Failed to delete invite",
         message: error.message,
       });
     }

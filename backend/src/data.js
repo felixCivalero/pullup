@@ -541,6 +541,31 @@ export async function markVipInviteUsed(inviteId, rsvpId) {
   return invite;
 }
 
+/**
+ * Get all unused VIP invites for an event.
+ */
+export async function getVipInvitesForEvent(eventId) {
+  const { data, error } = await supabase
+    .from("vip_invites")
+    .select("*")
+    .eq("event_id", eventId)
+    .is("used_at", null)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    if (error.code === "PGRST205") {
+      console.error(
+        "[getVipInvitesForEvent] vip_invites table missing. Did you run migrations?"
+      );
+      return [];
+    }
+    console.error("[getVipInvitesForEvent] Error fetching VIP invites:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
 // Helper: Map application event updates to database format
 function mapEventToDb(eventData) {
   const dbData = {};

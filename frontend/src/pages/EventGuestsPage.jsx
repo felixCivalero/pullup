@@ -20,6 +20,7 @@ import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 
 import { authenticatedFetch, API_BASE } from "../lib/api.js";
 import { formatEventTime, formatEventDate } from "../lib/dateUtils.js";
+import { colors } from "../theme/colors.js";
 
 // -----------------------------
 // Helpers: stats, filtering, sorting
@@ -73,7 +74,7 @@ function computeGuestStats(guests) {
       dinnerConfirmed: 0,
       dinnerWaitlist: 0,
       dinnerCocktails: 0,
-    }
+    },
   );
 }
 
@@ -139,12 +140,44 @@ import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
 function VipInviteSection({ event, showToast }) {
   const [email, setEmail] = useState("");
-  const [maxGuests, setMaxGuests] = useState("4");
+  // Number of friends they can bring on top of themselves
+  const [maxPlusOnes, setMaxPlusOnes] = useState("3");
   const [freeEntry, setFreeEntry] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [lastLink, setLastLink] = useState(null);
+  const [invites, setInvites] = useState([]);
 
   if (!event) return null;
+
+  const isPaidEvent =
+    event.ticketType === "paid" &&
+    typeof event.ticketPrice === "number" &&
+    event.ticketPrice > 0;
+
+  // Load existing VIP invites for this event (unused only)
+  useEffect(() => {
+    let isMounted = true;
+    if (!event?.id) return;
+
+    (async () => {
+      try {
+        const res = await authenticatedFetch(
+          `/host/events/${event.id}/vip-invites`,
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted) {
+          setInvites(data.invites || []);
+        }
+      } catch (err) {
+        console.error("Failed to load VIP invites", err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [event?.id]);
 
   async function handleGenerateVipInvite(e) {
     e?.preventDefault();
@@ -153,25 +186,32 @@ function VipInviteSection({ event, showToast }) {
       return;
     }
 
-    const maxGuestsInt = parseInt(maxGuests || "1", 10);
-    if (!Number.isFinite(maxGuestsInt) || maxGuestsInt <= 0) {
-      showToast("Max guests must be at least 1.", "warning");
+    const maxPlusOnesInt = parseInt(maxPlusOnes || "0", 10);
+    if (!Number.isFinite(maxPlusOnesInt) || maxPlusOnesInt < 0) {
+      showToast("Max plus-ones must be 0 or more.", "warning");
       return;
     }
 
+    // Backend expects total guests (VIP + their plus-ones)
+    const maxGuestsInt = maxPlusOnesInt + 1;
+
     setGenerating(true);
     try {
+      const payload = {
+        email: email.trim(),
+        maxGuests: maxGuestsInt,
+      };
+      if (isPaidEvent) {
+        payload.freeEntry = freeEntry;
+      }
+
       const res = await authenticatedFetch(
         `/host/events/${event.id}/vip-invites`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: email.trim(),
-            maxGuests: maxGuestsInt,
-            freeEntry,
-          }),
-        }
+          body: JSON.stringify(payload),
+        },
       );
 
       if (!res.ok) {
@@ -180,29 +220,52 @@ function VipInviteSection({ event, showToast }) {
       }
 
       const data = await res.json();
-      setLastLink(data.link || null);
+      showToast(
+        `VIP link created and emailed to ${email.trim()}.`,
+        "success",
+      );
 
-      if (data.link && navigator.clipboard) {
-        await navigator.clipboard.writeText(data.link);
-        showToast("VIP link created and copied to clipboard!", "success");
+      // Expose the link for quick copy in the UI.
+      if (data.link) {
+        setLastLink(data.link);
+        // Best-effort preload clipboard for convenience (non-blocking)
+        if (navigator.clipboard) {
+          try {
+            await navigator.clipboard.writeText(data.link);
+          } catch {
+            // Ignore clipboard errors
+          }
+        }
       } else {
-        showToast("VIP link created!", "success");
+        setLastLink(null);
+      }
+
+      // Clear form inputs
+      setEmail("");
+      setMaxPlusOnes("3");
+      setFreeEntry(false);
+
+      // Reload invites from backend for a fresh, end-to-end view
+      try {
+        const resInv = await authenticatedFetch(
+          `/host/events/${event.id}/vip-invites`,
+        );
+        if (resInv.ok) {
+          const dataInv = await resInv.json();
+          setInvites(dataInv.invites || []);
+        }
+      } catch (reloadErr) {
+        console.error("Failed to reload VIP invites after creation", reloadErr);
       }
     } catch (err) {
       console.error("Failed to create VIP invite", err);
       showToast(
         err.message || "Failed to create VIP invite. Please try again.",
-        "error"
+        "error",
       );
     } finally {
       setGenerating(false);
     }
-  }
-
-  async function handleCopyLastLink() {
-    if (!lastLink || !navigator.clipboard) return;
-    await navigator.clipboard.writeText(lastLink);
-    showToast("VIP link copied!", "success");
   }
 
   return (
@@ -247,23 +310,6 @@ function VipInviteSection({ event, showToast }) {
             <SilverIcon as={Link2} size={16} />
             VIP Invites
           </div>
-          {lastLink && (
-            <button
-              type="button"
-              onClick={handleCopyLastLink}
-              style={{
-                fontSize: "11px",
-                padding: "4px 8px",
-                borderRadius: "999px",
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "rgba(15,23,42,0.6)",
-                color: "#e5e5e5",
-                cursor: "pointer",
-              }}
-            >
-              Copy last link
-            </button>
-          )}
         </div>
 
         <form
@@ -292,42 +338,131 @@ function VipInviteSection({ event, showToast }) {
               outline: "none",
             }}
           />
-          <input
-            type="number"
-            min={1}
-            max={50}
-            value={maxGuests}
-            onChange={(e) => setMaxGuests(e.target.value)}
-            placeholder="Max guests"
+          <div
             style={{
-              width: "90px",
-              padding: "8px 10px",
-              borderRadius: "999px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(15,23,42,0.9)",
-              color: "#fff",
-              fontSize: "13px",
-              outline: "none",
-              textAlign: "center",
-            }}
-          />
-          <label
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "12px",
-              cursor: "pointer",
+              display: "flex",
+              flexDirection: "column",
+              gap: "4px",
+              minWidth: "0",
             }}
           >
-            <input
-              type="checkbox"
-              checked={freeEntry}
-              onChange={(e) => setFreeEntry(e.target.checked)}
-              style={{ accentColor: "#e5e5e5" }}
-            />
-            <span>Free entry (comp)</span>
-          </label>
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                opacity: 0.8,
+              }}
+            >
+              Plus-ones on their list
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                background: "rgb(12 10 18 / 10%)",
+                borderRadius: "999px",
+                padding: "4px 6px",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  const current =
+                    parseInt(maxPlusOnes || "0", 10) || 0;
+                  const next = Math.max(0, current - 1);
+                  setMaxPlusOnes(String(next));
+                }}
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background:
+                    (parseInt(maxPlusOnes || "0", 10) || 0) <= 0
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(192,192,192,0.2)",
+                  color:
+                    (parseInt(maxPlusOnes || "0", 10) || 0) <= 0
+                      ? "rgba(255,255,255,0.3)"
+                      : "#fff",
+                  fontSize: "18px",
+                  fontWeight: 600,
+                  cursor:
+                    (parseInt(maxPlusOnes || "0", 10) || 0) <= 0
+                      ? "not-allowed"
+                      : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                −
+              </button>
+              <div
+                style={{
+                  minWidth: "32px",
+                  textAlign: "center",
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  color: "#fff",
+                }}
+              >
+                {parseInt(maxPlusOnes || "0", 10) || 0}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const current =
+                    parseInt(maxPlusOnes || "0", 10) || 0;
+                  const next = Math.min(50, current + 1);
+                  setMaxPlusOnes(String(next));
+                }}
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "rgba(192,192,192,0.2)",
+                  color: "#fff",
+                  fontSize: "18px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+          {isPaidEvent && (
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "12px",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={freeEntry}
+                onChange={(e) => setFreeEntry(e.target.checked)}
+                style={{ accentColor: "#e5e5e5" }}
+              />
+              <span>Free entry (comp)</span>
+            </label>
+          )}
           <button
             type="submit"
             disabled={generating}
@@ -337,9 +472,10 @@ function VipInviteSection({ event, showToast }) {
               gap: "6px",
               padding: "8px 12px",
               borderRadius: "999px",
-              border: "none",
-              background: "linear-gradient(135deg,#3b82f6,#a855f7)",
-              color: "#fff",
+              border: "1px solid " + colors.goldRgba,
+              backgroundImage: colors.gradientGold,
+              boxShadow: colors.goldShadow,
+              color: "#05040a",
               fontSize: "12px",
               fontWeight: 600,
               cursor: generating ? "not-allowed" : "pointer",
@@ -347,19 +483,9 @@ function VipInviteSection({ event, showToast }) {
               whiteSpace: "nowrap",
             }}
           >
-            {generating ? "Creating..." : "Create VIP link"}
+            {generating ? "Creating..." : "Email link"}
           </button>
         </form>
-        <div
-          style={{
-            fontSize: "11px",
-            opacity: 0.7,
-            lineHeight: 1.4,
-          }}
-        >
-          Create a one-time VIP link for a specific guest. They can RSVP with a
-          larger guest list, and on paid events you can comp their entry.
-        </div>
       </div>
     </div>
   );
@@ -430,7 +556,7 @@ export function EventGuestsPage() {
         if (data.event?.dinnerEnabled) {
           try {
             const slotsRes = await fetch(
-              `${API_BASE}/events/${data.event.slug}/dinner-slots`
+              `${API_BASE}/events/${data.event.slug}/dinner-slots`,
             );
             if (slotsRes.ok) {
               const slotsData = await slotsRes.json();
@@ -471,7 +597,7 @@ export function EventGuestsPage() {
                 guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? null,
                 guest.cocktailOnlyPullUpCount ??
                   guest.pulledUpForCocktails ??
-                  null
+                  null,
               );
             }
             return currentGuests;
@@ -609,7 +735,7 @@ export function EventGuestsPage() {
                 guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? null,
                 guest.cocktailOnlyPullUpCount ??
                   guest.pulledUpForCocktails ??
-                  null
+                  null,
               );
             }
             return currentGuests;
@@ -661,7 +787,7 @@ export function EventGuestsPage() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updates),
-        }
+        },
       );
 
       if (!res.ok) {
@@ -690,7 +816,7 @@ export function EventGuestsPage() {
         `/host/events/${id}/rsvps/${guest.id}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (!res.ok) {
@@ -729,7 +855,7 @@ export function EventGuestsPage() {
             moveToWaitlist: moveToWaitlist,
             reason: "requested_by_host",
           }),
-        }
+        },
       );
 
       if (!res.ok) {
@@ -744,7 +870,7 @@ export function EventGuestsPage() {
             ? " - Guest moved to waitlist"
             : ""
         }`,
-        "success"
+        "success",
       );
 
       // Close modal
@@ -768,7 +894,7 @@ export function EventGuestsPage() {
   function updateLocalPulledUpState(
     rsvpId,
     dinnerPullUpCount,
-    cocktailOnlyPullUpCount
+    cocktailOnlyPullUpCount,
   ) {
     setGuests((prev) =>
       prev.map((g) =>
@@ -787,8 +913,8 @@ export function EventGuestsPage() {
                 (dinnerPullUpCount || 0) + (cocktailOnlyPullUpCount || 0) ||
                 null,
             }
-          : g
-      )
+          : g,
+      ),
     );
   }
 
@@ -796,7 +922,7 @@ export function EventGuestsPage() {
   async function persistPulledUpChange(
     rsvpId,
     dinnerPullUpCount,
-    cocktailOnlyPullUpCount
+    cocktailOnlyPullUpCount,
   ) {
     try {
       const res = await authenticatedFetch(
@@ -811,7 +937,7 @@ export function EventGuestsPage() {
             pulledUpForDinner: dinnerPullUpCount || null,
             pulledUpForCocktails: cocktailOnlyPullUpCount || null,
           }),
-        }
+        },
       );
 
       if (!res.ok) {
@@ -834,13 +960,13 @@ export function EventGuestsPage() {
     rsvpId,
     dinnerPullUpCount,
     cocktailOnlyPullUpCount,
-    debounce = false
+    debounce = false,
   ) {
     // Update local state immediately for instant UI feedback
     updateLocalPulledUpState(
       rsvpId,
       dinnerPullUpCount,
-      cocktailOnlyPullUpCount
+      cocktailOnlyPullUpCount,
     );
 
     if (debounce) {
@@ -853,7 +979,7 @@ export function EventGuestsPage() {
         persistPulledUpChange(
           rsvpId,
           dinnerPullUpCount,
-          cocktailOnlyPullUpCount
+          cocktailOnlyPullUpCount,
         );
         delete debounceTimers.current[rsvpId];
       }, 300);
@@ -1019,8 +1145,7 @@ export function EventGuestsPage() {
     totalCapacity != null ? Math.max(totalCapacity - attending, 0) : null;
 
   const canEditGuests =
-    event?.myRole &&
-    ["owner", "admin", "editor"].includes(event.myRole);
+    event?.myRole && ["owner", "admin", "editor"].includes(event.myRole);
   const canCheckIn =
     event?.myRole &&
     ["owner", "admin", "editor", "reception"].includes(event.myRole);
@@ -1453,7 +1578,13 @@ export function EventGuestsPage() {
                 gap: "6px",
               }}
             >
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
                 <SilverIcon as={Users} size={18} />
                 Guests ({guests.length})
               </span>
@@ -1510,7 +1641,7 @@ export function EventGuestsPage() {
                 onClick={async () => {
                   try {
                     const res = await authenticatedFetch(
-                      `/host/events/${id}/guests/export`
+                      `/host/events/${id}/guests/export`,
                     );
                     if (!res.ok) throw new Error("Export failed");
                     const blob = await res.blob();
@@ -1815,7 +1946,7 @@ export function EventGuestsPage() {
                               // Refresh guests list after link generation
                               try {
                                 const res = await authenticatedFetch(
-                                  `/host/events/${id}/guests`
+                                  `/host/events/${id}/guests`,
                                 );
                                 if (res.ok) {
                                   const data = await res.json();
@@ -1899,8 +2030,8 @@ export function EventGuestsPage() {
                                         color: isConfirmed
                                           ? "#10b981"
                                           : isWaitlist
-                                          ? "#f472b6"
-                                          : "#f59e0b",
+                                            ? "#f472b6"
+                                            : "#f59e0b",
                                       }}
                                     >
                                       {dinnerPartySize}
@@ -2059,7 +2190,8 @@ export function EventGuestsPage() {
                                           "1px solid rgba(245, 158, 11, 0.3)",
                                       }}
                                     >
-                                      <SilverIcon as={Wine} size={14} /> {cocktailsPulledUp}
+                                      <SilverIcon as={Wine} size={14} />{" "}
+                                      {cocktailsPulledUp}
                                     </div>
                                   )}
                                   {dinnerPulledUp > 0 && (
@@ -2075,7 +2207,11 @@ export function EventGuestsPage() {
                                           "1px solid rgba(16, 185, 129, 0.3)",
                                       }}
                                     >
-                                      <SilverIcon as={UtensilsCrossed} size={14} /> {dinnerPulledUp}
+                                      <SilverIcon
+                                        as={UtensilsCrossed}
+                                        size={14}
+                                      />{" "}
+                                      {dinnerPulledUp}
                                     </div>
                                   )}
                                 </>
@@ -2094,68 +2230,70 @@ export function EventGuestsPage() {
                           >
                             {canEditGuests && (
                               <>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditGuest(g);
-                              }}
-                              style={{
-                                padding: "6px 12px",
-                                borderRadius: "8px",
-                                border: "1px solid rgba(192, 192, 192, 0.4)",
-                                background: "rgba(192, 192, 192, 0.1)",
-                                color: "#e5e5e5",
-                                fontSize: "12px",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                transition: "all 0.2s ease",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.target.style.background =
-                                  "rgba(192, 192, 192, 0.2)";
-                                e.target.style.borderColor =
-                                  "rgba(192, 192, 192, 0.6)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.target.style.background =
-                                  "rgba(192, 192, 192, 0.1)";
-                                e.target.style.borderColor =
-                                  "rgba(192, 192, 192, 0.4)";
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowDeleteConfirm(g);
-                              }}
-                              style={{
-                                padding: "6px 12px",
-                                borderRadius: "8px",
-                                border: "1px solid rgba(232, 232, 232, 0.4)",
-                                background: "rgba(232, 232, 232, 0.1)",
-                                color: "#f472b6",
-                                fontSize: "12px",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                transition: "all 0.2s ease",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.target.style.background =
-                                  "rgba(232, 232, 232, 0.2)";
-                                e.target.style.borderColor =
-                                  "rgba(232, 232, 232, 0.6)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.target.style.background =
-                                  "rgba(232, 232, 232, 0.1)";
-                                e.target.style.borderColor =
-                                  "rgba(232, 232, 232, 0.4)";
-                              }}
-                            >
-                              Delete
-                            </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditGuest(g);
+                                  }}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: "8px",
+                                    border:
+                                      "1px solid rgba(192, 192, 192, 0.4)",
+                                    background: "rgba(192, 192, 192, 0.1)",
+                                    color: "#e5e5e5",
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    transition: "all 0.2s ease",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.background =
+                                      "rgba(192, 192, 192, 0.2)";
+                                    e.target.style.borderColor =
+                                      "rgba(192, 192, 192, 0.6)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.background =
+                                      "rgba(192, 192, 192, 0.1)";
+                                    e.target.style.borderColor =
+                                      "rgba(192, 192, 192, 0.4)";
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowDeleteConfirm(g);
+                                  }}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: "8px",
+                                    border:
+                                      "1px solid rgba(232, 232, 232, 0.4)",
+                                    background: "rgba(232, 232, 232, 0.1)",
+                                    color: "#f472b6",
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    transition: "all 0.2s ease",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.background =
+                                      "rgba(232, 232, 232, 0.2)";
+                                    e.target.style.borderColor =
+                                      "rgba(232, 232, 232, 0.6)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.background =
+                                      "rgba(232, 232, 232, 0.1)";
+                                    e.target.style.borderColor =
+                                      "rgba(232, 232, 232, 0.4)";
+                                  }}
+                                >
+                                  Delete
+                                </button>
                               </>
                             )}
                           </div>
@@ -2178,7 +2316,9 @@ export function EventGuestsPage() {
           allGuests={guests}
           onClose={() => setEditingGuest(null)}
           onSave={(updates) => handleUpdateGuest(editingGuest.id, updates)}
-          onRefund={canEditGuests ? (guest) => setShowRefundConfirm(guest) : undefined}
+          onRefund={
+            canEditGuests ? (guest) => setShowRefundConfirm(guest) : undefined
+          }
         />
       )}
 
@@ -2202,7 +2342,7 @@ export function EventGuestsPage() {
                     pulledUpForDinner: dinnerPullUpCount || null,
                     pulledUpForCocktails: cocktailOnlyPullUpCount || null,
                   }),
-                }
+                },
               );
 
               if (!res.ok) {
@@ -2211,7 +2351,7 @@ export function EventGuestsPage() {
 
               // Refetch guests to get latest data
               const guestsRes = await authenticatedFetch(
-                `/host/events/${id}/guests`
+                `/host/events/${id}/guests`,
               );
               if (guestsRes.ok) {
                 const data = await guestsRes.json();
@@ -2363,8 +2503,8 @@ function SortableHeader({
             align === "center"
               ? "center"
               : align === "right"
-              ? "flex-end"
-              : "flex-start",
+                ? "flex-end"
+                : "flex-start",
         }}
       >
         <span>{label}</span>
@@ -2417,16 +2557,16 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
     (guest.status === "attending"
       ? "CONFIRMED"
       : guest.status === "waitlist"
-      ? "WAITLIST"
-      : "CANCELLED");
+        ? "WAITLIST"
+        : "CANCELLED");
   const wantsDinner = guest.dinner?.enabled || guest.wantsDinner || false;
   const dinnerBookingStatus =
     guest.dinner?.bookingStatus ||
     (guest.dinnerStatus === "confirmed"
       ? "CONFIRMED"
       : guest.dinnerStatus === "waitlist"
-      ? "WAITLIST"
-      : null);
+        ? "WAITLIST"
+        : null);
 
   // Backward compatibility for display
   const status =
@@ -2436,8 +2576,8 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
     (dinnerBookingStatus === "CONFIRMED"
       ? "confirmed"
       : dinnerBookingStatus === "WAITLIST"
-      ? "waitlist"
-      : null);
+        ? "waitlist"
+        : null);
 
   // Get payment status (for paid events)
   const paymentStatus = guest.paymentStatus || null;
@@ -2561,7 +2701,7 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
     try {
       const res = await authenticatedFetch(
         `/host/events/${eventId}/waitlist-link/${guest.id}`,
-        { method: "POST" }
+        { method: "POST" },
       );
 
       if (!res.ok) {
@@ -2647,8 +2787,8 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
               pullUpStatus === "FULL"
                 ? "#10b981"
                 : pullUpStatus === "PARTIAL"
-                ? "#f59e0b"
-                : "rgba(255,255,255,0.5)",
+                  ? "#f59e0b"
+                  : "rgba(255,255,255,0.5)",
             textTransform: "none",
             letterSpacing: "0.02em",
             marginTop: "2px",
@@ -2698,13 +2838,21 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
               }
             }}
           >
-            {generatingLink
-              ? "Generating..."
-              : linkStatus === "SENT"
-              ? <><SilverIcon as={RefreshCw} size={14} /> Regenerate</>
-              : linkStatus === "EXPIRED"
-              ? <><SilverIcon as={RefreshCw} size={14} /> New Link</>
-              : <><SilverIcon as={Link2} size={14} /> Generate Link</>}
+            {generatingLink ? (
+              "Generating..."
+            ) : linkStatus === "SENT" ? (
+              <>
+                <SilverIcon as={RefreshCw} size={14} /> Regenerate
+              </>
+            ) : linkStatus === "EXPIRED" ? (
+              <>
+                <SilverIcon as={RefreshCw} size={14} /> New Link
+              </>
+            ) : (
+              <>
+                <SilverIcon as={Link2} size={14} /> Generate Link
+              </>
+            )}
           </button>
         )}
     </div>
@@ -2833,20 +2981,20 @@ function EditGuestModal({
     guest.bookingStatus === "CONFIRMED"
       ? "attending"
       : guest.bookingStatus === "WAITLIST"
-      ? "waitlist"
-      : guest.status || "attending"
+        ? "waitlist"
+        : guest.status || "attending",
   );
   const [wantsDinner, setWantsDinner] = useState(guestWantsDinner);
   const [dinnerTimeSlot, setDinnerTimeSlot] = useState(guestDinnerTimeSlot);
   const [dinnerPartySize, setDinnerPartySize] = useState(
-    guestDinnerPartySize > 0 ? guestDinnerPartySize : guestPartySize
+    guestDinnerPartySize > 0 ? guestDinnerPartySize : guestPartySize,
   );
   // Use new model fields with backward compatibility
   const [pulledUpForDinner, setPulledUpForDinner] = useState(
-    guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? null
+    guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? null,
   );
   const [pulledUpForCocktails, setPulledUpForCocktails] = useState(
-    guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? null
+    guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? null,
   );
   const [loading, setLoading] = useState(false);
 
@@ -2878,7 +3026,7 @@ function EditGuestModal({
       .filter(
         (g) =>
           g.id !== guest.id &&
-          (g.bookingStatus === "CONFIRMED" || g.status === "attending")
+          (g.bookingStatus === "CONFIRMED" || g.status === "attending"),
       )
       .reduce((sum, g) => {
         const gWantsDinner = g.dinner?.enabled || g.wantsDinner || false;
@@ -2900,7 +3048,7 @@ function EditGuestModal({
             })
             .reduce(
               (sum, g) => sum + (g.dinner?.partySize || g.dinnerPartySize || 1),
-              0
+              0,
             )
         : 0;
 
@@ -2942,8 +3090,8 @@ function EditGuestModal({
     guest.dinner?.bookingStatus === "CONFIRMED"
       ? "confirmed"
       : guest.dinner?.bookingStatus === "WAITLIST"
-      ? "waitlist"
-      : guest.dinnerStatus || null;
+        ? "waitlist"
+        : guest.dinnerStatus || null;
 
   // BUSINESS RULE: Cannot change status for paid and confirmed guests
   // If guest has paid and is confirmed, they cannot be moved to waitlist
@@ -3591,7 +3739,7 @@ function EditGuestModal({
                             onClick={() => {
                               const newValue = Math.max(0, currentValue - 1);
                               setPulledUpForCocktails(
-                                newValue === 0 ? 0 : newValue
+                                newValue === 0 ? 0 : newValue,
                               );
                             }}
                             disabled={currentValue <= 0}
@@ -3637,7 +3785,7 @@ function EditGuestModal({
                             onClick={() => {
                               const newValue = Math.min(
                                 cocktailsMax,
-                                currentValue + 1
+                                currentValue + 1,
                               );
                               setPulledUpForCocktails(newValue || null);
                             }}
@@ -3775,7 +3923,7 @@ function EditGuestModal({
                               onClick={() => {
                                 const newValue = Math.max(0, currentValue - 1);
                                 setPulledUpForDinner(
-                                  newValue === 0 ? 0 : newValue
+                                  newValue === 0 ? 0 : newValue,
                                 );
                               }}
                               disabled={currentValue <= 0}
@@ -3821,7 +3969,7 @@ function EditGuestModal({
                               onClick={() => {
                                 const newValue = Math.min(
                                   dinnerMax,
-                                  currentValue + 1
+                                  currentValue + 1,
                                 );
                                 setPulledUpForDinner(newValue || null);
                               }}
@@ -3901,7 +4049,11 @@ function EditGuestModal({
                   fontSize: "14px",
                 }}
               >
-                <SilverIcon as={AlertTriangle} size={18} style={{ color: "#f59e0b" }} />
+                <SilverIcon
+                  as={AlertTriangle}
+                  size={18}
+                  style={{ color: "#f59e0b" }}
+                />
                 <span>You're overriding capacity</span>
               </div>
               <div style={{ opacity: 0.9 }}>
@@ -3987,9 +4139,9 @@ function EditGuestModal({
               {loading
                 ? "Saving..."
                 : capacityCheck.willExceedCocktail ||
-                  capacityCheck.willExceedDinner
-                ? "Confirm anyway (over capacity)"
-                : "Save changes"}
+                    capacityCheck.willExceedDinner
+                  ? "Confirm anyway (over capacity)"
+                  : "Save changes"}
             </button>
           </div>
 
@@ -4047,10 +4199,10 @@ function EditGuestModal({
 
 function PulledUpModal({ guest, event, onClose, onSave }) {
   const [dinnerPullUpCount, setDinnerPullUpCount] = useState(
-    guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? 0
+    guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? 0,
   );
   const [cocktailOnlyPullUpCount, setCocktailOnlyPullUpCount] = useState(
-    guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? 0
+    guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? 0,
   );
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -4074,7 +4226,7 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
     try {
       const success = await onSave(
         dinnerPullUpCount || 0,
-        cocktailOnlyPullUpCount || 0
+        cocktailOnlyPullUpCount || 0,
       );
 
       if (success) {
@@ -4216,7 +4368,7 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
                 onClick={() => {
                   const newValue = Math.max(
                     0,
-                    (cocktailOnlyPullUpCount || 0) - 1
+                    (cocktailOnlyPullUpCount || 0) - 1,
                   );
                   setCocktailOnlyPullUpCount(newValue);
                 }}
@@ -4265,7 +4417,7 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
                 onClick={() => {
                   const newValue = Math.min(
                     cocktailsMax,
-                    (cocktailOnlyPullUpCount || 0) + 1
+                    (cocktailOnlyPullUpCount || 0) + 1,
                   );
                   setCocktailOnlyPullUpCount(newValue);
                 }}
@@ -4389,7 +4541,7 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
                   onClick={() => {
                     const newValue = Math.min(
                       dinnerPartySize,
-                      (dinnerPullUpCount || 0) + 1
+                      (dinnerPullUpCount || 0) + 1,
                     );
                     setDinnerPullUpCount(newValue);
                   }}

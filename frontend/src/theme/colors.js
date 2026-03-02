@@ -27,6 +27,13 @@ export const colors = {
     "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.12) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%)",
   gradientCursorGlow: "radial-gradient(circle, rgba(192, 192, 192, 0.1) 0%, transparent 70%)",
 
+  // Gold / VIP accents (blingy, similar to silver but warm)
+  gold: "#fbbf24",
+  gradientGold:
+    "linear-gradient(135deg, #fbbf24 0%, #f59e0b 45%, #d97706 100%)",
+  goldRgba: "rgba(245, 158, 11, 0.9)",
+  goldShadow: "0 0 14px rgba(245, 158, 11, 0.75)",
+
   // RGBA for shadows, borders, hovers
   silverRgba: "rgba(192, 192, 192, 0.3)",
   silverRgbaLight: "rgba(232, 232, 232, 0.25)",

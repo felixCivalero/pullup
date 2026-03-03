@@ -8,9 +8,14 @@ const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || "";
 const DEV_FRONTEND_FALLBACK = "http://localhost:5173";
 const DEV_API_FALLBACK = "http://localhost:3001";
 
+// Allow explicit control via VITE_NODE_ENV, but also respect Vite's DEV flag.
+const VITE_NODE_ENV = import.meta.env.VITE_NODE_ENV || "";
+const IS_DEV =
+  VITE_NODE_ENV.toLowerCase() === "development" || import.meta.env.DEV;
+
 export function getBaseUrl() {
   // In development, prefer the real browser origin when available
-  if (import.meta.env.DEV) {
+  if (IS_DEV) {
     if (typeof window !== "undefined" && window.location?.origin) {
       return window.location.origin;
     }
@@ -36,7 +41,7 @@ export function getBaseUrl() {
 function getShareOrigin() {
   // In dev, the backend serves /share/:slug directly.
   // Prefer an explicit share origin or API URL, then default to localhost backend.
-  if (import.meta.env.DEV) {
+  if (IS_DEV) {
     const apiBase =
       import.meta.env.VITE_API_URL ||
       (import.meta.env.DEV ? DEV_API_FALLBACK : "/api");

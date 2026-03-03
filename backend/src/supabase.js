@@ -5,17 +5,15 @@
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 
-const isDevelopment = process.env.NODE_ENV === "development";
-const envFile = isDevelopment ? ".env.development" : ".env";
-dotenv.config({ path: envFile });
+// Load environment variables (if not already loaded by index.js or a script).
+dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error(
-    "Missing SUPABASE_URL or SUPABASE_SERVICE_KEY. " +
-      `Check your ${envFile} file.`
+    "Missing SUPABASE_URL or SUPABASE_SERVICE_KEY in environment variables."
   );
 }
 

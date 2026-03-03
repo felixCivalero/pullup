@@ -72,7 +72,11 @@ import {
 } from "./stripeConnect.js";
 import { logger } from "./logger.js";
 
-import { sendEmail, coHostAddedEmailBody, coHostInvitedEmailBody } from "./services/emailService.js";
+import {
+  sendEmail,
+  coHostAddedEmailBody,
+  coHostInvitedEmailBody,
+} from "./services/emailService.js";
 import {
   signupConfirmationEmail,
   reminder8hEmail,
@@ -82,16 +86,13 @@ import {
   verifyWaitlistToken,
 } from "./utils/waitlistTokens.js";
 
-// Load environment-specific .env file
-// In development, loads .env.development
-// In production, loads .env (or .env.production if you create one)
-const envFile =
-  process.env.NODE_ENV === "development" ? ".env.development" : ".env";
+// Load environment variables once. NODE_ENV can come from the process
+// (PM2, npm scripts) or from .env.
+dotenv.config();
 
-dotenv.config({ path: envFile });
-
-// Determine environment mode
-const isDevelopment = process.env.NODE_ENV === "development";
+// Determine environment mode (supports NODE_ENV set via env or .env)
+const nodeEnv = process.env.NODE_ENV || "development";
+const isDevelopment = nodeEnv === "development";
 
 // Helper: Get frontend URL based on environment
 function getFrontendUrl() {

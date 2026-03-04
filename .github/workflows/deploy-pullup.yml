@@ -19,7 +19,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -e
+            set -euo pipefail
             export PATH=$PATH:/usr/local/bin:/usr/bin
 
             echo "🚀 Starting Pullup deployment..."
@@ -30,19 +30,56 @@ jobs:
             git fetch --all
             git reset --hard origin/master
 
+            echo "🔐 Loading backend environment (if available)..."
+            if [ -f backend/.env ]; then
+              set -a
+              . backend/.env
+              set +a
+              echo "✅ Loaded backend/.env"
+            else
+              echo "⚠️ backend/.env not found; continuing without auto-loading env" >&2
+            fi
+
+            echo "🔎 Checking Node.js and npm..."
+            if ! command -v node >/dev/null 2>&1; then
+              echo "❌ Node.js is not installed or not on PATH" >&2
+              exit 1
+            fi
+            if ! command -v npm >/dev/null 2>&1; then
+              echo "❌ npm is not installed or not on PATH" >&2
+              exit 1
+            fi
+            echo "✅ Node.js: $(node -v), npm: $(npm -v)"
+
             echo "📦 Installing frontend dependencies..."
             cd frontend
-            npm ci
+            if [ -f package-lock.json ]; then
+              npm ci
+            else
+              npm install
+            fi
 
             echo "🏗 Building frontend..."
             npm run build
 
             echo "📦 Installing backend dependencies..."
             cd ../backend
-            npm ci
+            if [ -f package-lock.json ]; then
+              npm ci
+            else
+              npm install
+            fi
 
             echo "🔄 Restarting PM2 process..."
-            pm2 restart pullup-api
+            if ! pm2 restart pullup-api; then
+              if [ -f ecosystem.config.js ]; then
+                echo "ℹ️ pm2 process not found, starting from ecosystem.config.js"
+                pm2 start ecosystem.config.js --only pullup-api
+              else
+                echo "❌ Failed to restart pm2 process 'pullup-api' and no ecosystem.config.js found" >&2
+                exit 1
+              fi
+            fi
             pm2 save
 
             echo "✅ Deployment complete"

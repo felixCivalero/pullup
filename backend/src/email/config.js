@@ -1,0 +1,41 @@
+// backend/src/email/config.js
+
+const bool = (value, defaultValue = false) => {
+  if (value === undefined || value === null) return defaultValue;
+  return String(value).toLowerCase() === "true";
+};
+
+export const EMAIL_PROVIDER =
+  process.env.EMAIL_PROVIDER?.trim().toLowerCase() || "resend";
+
+export const SES_REGION = process.env.SES_REGION || null;
+
+export const SES_FROM_EMAIL =
+  process.env.SES_FROM_EMAIL || '"PullUp" <no-reply@pullup.se>';
+
+export const SES_CONFIGURATION_SET_NAME =
+  process.env.SES_CONFIGURATION_SET_NAME || null;
+
+export const SES_TEST_MODE = bool(process.env.SES_TEST_MODE, true);
+
+export const EMAIL_SEND_RATE_PER_SEC = Number(
+  process.env.EMAIL_SEND_RATE_PER_SEC || 10,
+);
+
+export const EMAIL_MAX_RETRIES = Number(
+  process.env.EMAIL_MAX_RETRIES || 6,
+);
+
+export const EMAIL_RETRY_BASE_SECONDS = Number(
+  process.env.EMAIL_RETRY_BASE_SECONDS || 15,
+);
+
+export const EMAIL_WORKER_BATCH_SIZE = Number(
+  process.env.EMAIL_WORKER_BATCH_SIZE || 50,
+);
+
+export const WEBHOOK_SNS_VERIFY = bool(
+  process.env.WEBHOOK_SNS_VERIFY,
+  true,
+);
+

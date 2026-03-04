@@ -1,20 +1,14 @@
-import { Resend } from "resend";
+import { sendEmail as infraSendEmail } from "../email/index.js";
 import { renderEventEmailTemplate } from "./emailTemplateService.js";
 
-const resend = new Resend(
-  process.env.RESEND_API_KEY || process.env.TEST_RESEND_API_KEY
-);
-
 export async function sendEmail({ to, subject, html, text }) {
-  const payload = {
+  return infraSendEmail({
     from: '"PullUp RSVP" <no-reply@pullup.se>',
     to,
     subject,
-  };
-  if (text) payload.text = text;
-  if (html) payload.html = html;
-  if (!payload.text && !payload.html) payload.html = "";
-  return resend.emails.send(payload);
+    html,
+    text,
+  });
 }
 
 const PULLUP_URL = "https://pullup.se";
@@ -51,7 +45,7 @@ ${PULLUP_URL}
  * @param {Object} params.templateContent - Template content (headline, introQuote, etc.)
  * @param {Object} params.event - Event data
  * @param {Object} params.person - Person data (optional, for personalization)
- * @returns {Promise} Resend API response
+ * @returns {Promise} Enqueued outbox row
  */
 export async function sendEmailWithTemplate({
   to,
@@ -62,7 +56,7 @@ export async function sendEmailWithTemplate({
 }) {
   const html = renderEventEmailTemplate({ event, templateContent, person });
 
-  return resend.emails.send({
+  return infraSendEmail({
     from: '"PullUp" <no-reply@pullup.se>',
     to,
     subject,

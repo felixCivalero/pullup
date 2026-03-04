@@ -2155,7 +2155,7 @@ export async function getPersonTouchpoints(personId, userId) {
 
   // Get emails (campaign sends)
   const { data: emails, error: emailsError } = await supabase
-    .from("email_sends")
+    .from("campaign_sends")
     .select(
       `
       *,
@@ -2194,6 +2194,7 @@ export async function getPersonTouchpoints(personId, userId) {
       campaignName: email.campaigns?.name || "Unknown Campaign",
       subject: email.subject,
       status: email.status,
+      deliveryStatus: email.delivery_status || null,
       sentAt: email.sent_at,
       deliveredAt: email.delivered_at,
       openedAt: email.opened_at,
@@ -3856,7 +3857,7 @@ export async function createEmailCampaign({
   totalRecipients = 0,
 }) {
   const { data, error } = await supabase
-    .from("email_campaigns")
+    .from("campaign_campaigns")
     .insert({
       user_id: userId,
       name,
@@ -3899,7 +3900,7 @@ export async function createEmailCampaign({
  */
 export async function getEmailCampaign(campaignId, userId) {
   const { data, error } = await supabase
-    .from("email_campaigns")
+    .from("campaign_campaigns")
     .select("*")
     .eq("id", campaignId)
     .eq("user_id", userId)
@@ -3954,7 +3955,7 @@ export async function updateEmailCampaignStatus(
   if (stats.sentAt) updates.sent_at = stats.sentAt;
 
   const { data, error } = await supabase
-    .from("email_campaigns")
+    .from("campaign_campaigns")
     .update(updates)
     .eq("id", campaignId)
     .select()
@@ -3976,7 +3977,7 @@ export async function updateEmailCampaignStatus(
 
 /**
  * Record a single email send for a person/campaign.
- * This feeds the email_sends table used for per-person campaign history.
+ * This feeds the campaign_sends table used for per-person campaign history.
  */
 export async function recordEmailSend({
   personId,
@@ -3987,20 +3988,28 @@ export async function recordEmailSend({
   sentAt = new Date().toISOString(),
 }) {
   try {
-    const { error } = await supabase.from("email_sends").insert({
-      person_id: personId,
-      campaign_id: campaignId,
-      email,
-      subject,
-      status,
-      sent_at: sentAt,
-    });
+    const { data, error } = await supabase
+      .from("campaign_sends")
+      .insert({
+        person_id: personId,
+        campaign_id: campaignId,
+        email,
+        subject,
+        status,
+        sent_at: sentAt,
+      })
+      .select()
+      .single();
 
     if (error) {
       console.error("Error recording email send:", error);
+      return null;
     }
+
+    return data;
   } catch (error) {
     console.error("Unexpected error recording email send:", error);
+    return null;
   }
 }
 

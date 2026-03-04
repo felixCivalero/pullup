@@ -3,7 +3,8 @@ import { getEmailCampaign, updateEmailCampaignStatus } from "../data.js";
 import { getPeopleWithFilters, recordEmailSend } from "../data.js";
 import { findEventById } from "../data.js";
 import { addCampaignToPeople } from "../data.js";
-import { sendEmailWithTemplate } from "./emailService.js";
+import { enqueueOutbox } from "../email/index.js";
+import { renderEventEmailTemplate } from "./emailTemplateService.js";
 
 /**
  * Send campaign in batches
@@ -71,18 +72,16 @@ export async function sendCampaignInBatches(
       const batchPromises = [];
 
       for (const person of batch) {
-        const sendPromise = sendEmailWithTemplate({
-          to: person.email,
-          subject: campaign.subject,
-          templateContent: campaign.templateContent,
-          event,
-          person,
-        })
-          .then(async () => {
-            totalSent++;
+        const sendPromise = (async () => {
+          try {
+            const html = renderEventEmailTemplate({
+              event,
+              templateContent: campaign.templateContent,
+              person,
+            });
 
-            // Record successful send for per-person campaign history
-            await recordEmailSend({
+            // Record CRM-level send (campaign_sends)
+            const campaignSend = await recordEmailSend({
               personId: person.id,
               campaignId: campaign.id,
               email: person.email,
@@ -90,9 +89,22 @@ export async function sendCampaignInBatches(
               status: "sent",
             });
 
+            const campaignSendId = campaignSend?.id || null;
+
+            // Enqueue into delivery outbox
+            await enqueueOutbox({
+              toEmail: person.email,
+              subject: campaign.subject,
+              htmlBody: html,
+              textBody: null,
+              campaignSendId,
+              idempotencyKey: `${campaign.id}:${person.id}`,
+            });
+
+            totalSent++;
+
             return { success: true, personId: person.id };
-          })
-          .catch((error) => {
+          } catch (error) {
             totalFailed++;
             errors.push({
               personId: person.id,
@@ -100,7 +112,8 @@ export async function sendCampaignInBatches(
               error: error.message || "Unknown error",
             });
             return { success: false, personId: person.id, error };
-          });
+          }
+        })();
 
         batchPromises.push(sendPromise);
       }

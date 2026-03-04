@@ -1,5 +1,6 @@
 // backend/src/index.js
 import express from "express";
+import crypto from "crypto";
 import cors from "cors";
 import dotenv from "dotenv";
 
@@ -85,6 +86,8 @@ import {
   generateWaitlistToken,
   verifyWaitlistToken,
 } from "./utils/waitlistTokens.js";
+import { processSesEvent } from "./email/events/processSesEvent.js";
+import { handleProviderEvent } from "./email/index.js";
 
 // Load environment variables once. NODE_ENV can come from the process
 // (PM2, npm scripts) or from .env.
@@ -481,9 +484,87 @@ app.post(
 );
 
 // Allow base64 images in body
-app.use(express.json({ limit: "50mb" }));
+app.use(
+  express.json({
+    limit: "50mb",
+    verify: (req, res, buf) => {
+      // Preserve raw body for HMAC verification on webhooks.
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(express.text({ limit: "50mb", type: "text/csv" })); // For CSV import
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// ---------------------------
+// WEBHOOKS: SES SNS webhook
+// ---------------------------
+app.post("/webhooks/ses", async (req, res) => {
+  try {
+    const result = await handleProviderEvent({
+      provider: "ses",
+      rawHeaders: req.headers,
+      rawBody: req.body,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    console.error("[Webhook][SES] Error processing webhook", error);
+    res.status(500).json({ error: "Failed to process SES webhook" });
+  }
+});
+
+// ---------------------------
+// INTERNAL: SES EventBridge forwarder
+// ---------------------------
+app.post("/internal/webhooks/ses-eventbridge", async (req, res) => {
+  try {
+    const secret = process.env.EVENTS_WEBHOOK_SECRET;
+
+    if (secret) {
+      const signatureHeader =
+        req.headers["x-events-signature"] ||
+        req.headers["X-Events-Signature"];
+
+      if (!signatureHeader) {
+        console.warn(
+          "[Webhook][SES-EventBridge] Missing x-events-signature header",
+        );
+        return res.status(401).json({ error: "Missing events signature" });
+      }
+
+      const rawBody =
+        req.rawBody || Buffer.from(JSON.stringify(req.body), "utf8");
+      const expectedSignature = crypto
+        .createHmac("sha256", secret)
+        .update(rawBody)
+        .digest("hex");
+
+      const expectedBuf = Buffer.from(expectedSignature, "hex");
+      const providedBuf = Buffer.from(String(signatureHeader), "hex");
+
+      if (
+        expectedBuf.length !== providedBuf.length ||
+        !crypto.timingSafeEqual(expectedBuf, providedBuf)
+      ) {
+        console.warn(
+          "[Webhook][SES-EventBridge] Invalid events signature",
+        );
+        return res.status(401).json({ error: "Invalid events signature" });
+      }
+    }
+
+    const notification = req.body;
+    const result = await processSesEvent(notification);
+
+    res.json({ ok: true, eventType: result.eventType });
+  } catch (error) {
+    console.error(
+      "[Webhook][SES-EventBridge] Error processing webhook",
+      error,
+    );
+    res.status(500).json({ error: "Failed to process SES EventBridge webhook" });
+  }
+});
 
 // ---------------------------
 // PROTECTED: List user's events (requires auth)

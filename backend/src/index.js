@@ -514,6 +514,68 @@ app.post("/webhooks/ses", async (req, res) => {
 });
 
 // ---------------------------
+// WEBHOOKS: SES EventBridge (raw SES notifications)
+// ---------------------------
+app.post("/webhooks/ses-eventbridge", async (req, res) => {
+  try {
+    const secret = process.env.EVENTS_WEBHOOK_SECRET;
+    const signatureHeader =
+      req.headers["x-pullup-signature"] || req.headers["X-Pullup-Signature"];
+
+    if (!secret || !signatureHeader || signatureHeader !== secret) {
+      console.warn("[Webhook][SES-EventBridge] Unauthorized request", {
+        hasSecret: !!secret,
+        hasSignature: !!signatureHeader,
+      });
+      return res.status(401).json({ ok: false, error: "unauthorized" });
+    }
+
+    const notification = req.body;
+
+    if (!notification || typeof notification !== "object") {
+      console.warn(
+        "[Webhook][SES-EventBridge] Invalid body, expected object",
+        typeof notification,
+      );
+      return res
+        .status(400)
+        .json({ ok: false, error: "invalid_body" });
+    }
+
+    const mail = notification.mail || {};
+    const tags = mail.tags || {};
+    const eventType = notification.eventType || null;
+    const messageId = mail.messageId || null;
+    const outboxIdTag = tags.outbox_id;
+    const outboxId = Array.isArray(outboxIdTag)
+      ? outboxIdTag[0]
+      : outboxIdTag || null;
+
+    console.log("[Webhook][SES-EventBridge] Incoming SES event", {
+      eventType,
+      messageId,
+      outboxId,
+    });
+
+    const result = await processSesEvent(notification);
+
+    return res.json({
+      ok: true,
+      eventType: result?.eventType ?? null,
+    });
+  } catch (error) {
+    console.error(
+      "[Webhook][SES-EventBridge] Error processing EventBridge webhook",
+      error,
+    );
+    res.status(500).json({
+      ok: false,
+      error: "Failed to process SES EventBridge webhook",
+    });
+  }
+});
+
+// ---------------------------
 // INTERNAL: SES EventBridge forwarder
 // ---------------------------
 app.post("/internal/webhooks/ses-eventbridge", async (req, res) => {

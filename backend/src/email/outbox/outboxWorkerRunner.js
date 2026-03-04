@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { processBatch } from "./outboxWorker.js";
 
 function sleep(ms) {

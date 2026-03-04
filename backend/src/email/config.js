@@ -18,9 +18,11 @@ export const SES_CONFIGURATION_SET_NAME =
 
 export const SES_TEST_MODE = bool(process.env.SES_TEST_MODE, true);
 
-export const EMAIL_SEND_RATE_PER_SEC = Number(
-  process.env.EMAIL_SEND_RATE_PER_SEC || 10,
-);
+const emailSendRateEnv =
+  process.env.EMAIL_SEND_RATE_PER_SEC ??
+  process.env.EMAIL_SEND_RATE_PER_SECOND;
+
+export const EMAIL_SEND_RATE_PER_SEC = Number(emailSendRateEnv || 10);
 
 export const EMAIL_MAX_RETRIES = Number(
   process.env.EMAIL_MAX_RETRIES || 6,

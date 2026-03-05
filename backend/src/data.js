@@ -3747,6 +3747,7 @@ export async function createDefaultProfile(userId) {
     },
     additional_emails: [],
     third_party_accounts: [],
+    is_admin: false,
   };
 
   const { data, error } = await supabase
@@ -3793,6 +3794,31 @@ export async function getUserStripeConnectedAccountId(userId) {
   return profile.stripeConnectedAccountId || null;
 }
 
+// ---------------------------
+// Newsletter subscriptions
+// ---------------------------
+
+export async function getNewsletterSubscribers({
+  status = "confirmed",
+  limit = 10000,
+} = {}) {
+  const { data, error, count } = await supabase
+    .from("newsletter_subscriptions")
+    .select("id, email, user_id, status", { count: "exact" })
+    .eq("status", status)
+    .limit(limit);
+
+  if (error) {
+    console.error("[getNewsletterSubscribers] Error:", error);
+    throw error;
+  }
+
+  return {
+    subscribers: data || [],
+    total: typeof count === "number" ? count : (data || []).length,
+  };
+}
+
 // Helper: Map database profile to application format
 function mapProfileFromDb(dbProfile) {
   return {
@@ -3813,6 +3839,7 @@ function mapProfileFromDb(dbProfile) {
     emails: dbProfile.additional_emails || [],
     thirdPartyAccounts: dbProfile.third_party_accounts || [],
     stripeConnectedAccountId: dbProfile.stripe_connected_account_id || null,
+    isAdmin: dbProfile.is_admin || false,
     createdAt: dbProfile.created_at,
     updatedAt: dbProfile.updated_at,
   };
@@ -3836,6 +3863,7 @@ function mapProfileToDb(profile) {
     dbProfile.third_party_accounts = profile.thirdPartyAccounts;
   if (profile.stripeConnectedAccountId !== undefined)
     dbProfile.stripe_connected_account_id = profile.stripeConnectedAccountId;
+  if (profile.isAdmin !== undefined) dbProfile.is_admin = profile.isAdmin;
   return dbProfile;
 }
 

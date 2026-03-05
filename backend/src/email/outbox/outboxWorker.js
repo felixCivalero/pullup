@@ -6,6 +6,8 @@ import {
   EMAIL_WORKER_BATCH_SIZE,
 } from "../config.js";
 import { getActiveProvider } from "../providers/providerRouter.js";
+import { sendEmailViaSes } from "../providers/sesProvider.js";
+import { sendEmailViaResend } from "../providers/resendProvider.js";
 import {
   claimOutboxBatch,
   markSent,
@@ -50,8 +52,7 @@ export async function processBatch({
   workerId = `worker-${process.pid}`,
   batchSize = EMAIL_WORKER_BATCH_SIZE,
 } = {}) {
-  const provider = getActiveProvider();
-  const providerName = provider?.name || null;
+  const activeProvider = getActiveProvider();
 
   const claimed = await claimOutboxBatch({
     workerId,
@@ -85,7 +86,19 @@ export async function processBatch({
 
       await throttle(EMAIL_SEND_RATE_PER_SEC);
 
-      const result = await provider.sendEmail({
+      const category = row.category || "transactional";
+
+      let providerName = activeProvider?.name || null;
+      let sendEmailFn = activeProvider?.sendEmail;
+
+      if (category === "newsletter") {
+        providerName = "ses";
+        sendEmailFn = sendEmailViaSes;
+      } else if (providerName === "resend") {
+        sendEmailFn = sendEmailViaResend;
+      }
+
+      const result = await sendEmailFn({
         from: row.from_email,
         to: row.to_email,
         subject: row.subject,
@@ -94,7 +107,7 @@ export async function processBatch({
         tags: {
           outbox_id: row.id,
           email_type: row.campaign_send_id ? "campaign" : "transactional",
-          provider: row.provider,
+          provider: providerName || row.provider,
         },
       });
 

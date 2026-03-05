@@ -34,19 +34,28 @@ function loadEmailTemplate() {
 export function renderEventEmailTemplate({ event, templateContent, person }) {
   let html = loadEmailTemplate();
 
-  // Generate CTA URL
-  const ctaUrl = event?.slug ? getEventUrl(event.slug) : "#";
-  if (!event?.slug) {
-    console.warn("[renderEventEmailTemplate] Event slug missing, CTA URL will be #");
+  // Generate CTA URL (allow override from templateContent)
+  const ctaUrl =
+    (templateContent && templateContent.ctaUrl) ||
+    (event?.slug ? getEventUrl(event.slug) : "#");
+  if (!event?.slug && !templateContent?.ctaUrl) {
+    console.warn(
+      "[renderEventEmailTemplate] Event slug and custom CTA URL missing, CTA URL will be #"
+    );
   } else {
-    console.log(`[renderEventEmailTemplate] Generated CTA URL: ${ctaUrl} for event: ${event.title}`);
+    console.log(
+      `[renderEventEmailTemplate] Generated CTA URL: ${ctaUrl} for event: ${
+        event?.title || "n/a"
+      }`
+    );
   }
 
   // Replace template variables
   const replacements = {
     // Hero image
-    "{{{hero_img_url}}}": event?.imageUrl || "",
-    "{{{hero_img_alt}}}": event?.title || "Event",
+    "{{{hero_img_url}}}": templateContent.heroImageUrl || event?.imageUrl || "",
+    "{{{hero_img_alt}}}":
+      templateContent.heroImageAlt || event?.title || "Event",
 
     // Headline
     "{{{headline_text}}}": templateContent.headline || event?.title || "",
@@ -62,6 +71,9 @@ export function renderEventEmailTemplate({ event, templateContent, person }) {
 
     // CTA - Use pre-generated URL
     "{{{cta_url}}}": ctaUrl,
+
+    // CTA label (if the template uses it)
+    "{{{cta_label}}}": templateContent.ctaLabel || "TO EVENT",
 
     // Resend unsubscribe URL (Resend will replace this automatically)
     "{{{RESEND_UNSUBSCRIBE_URL}}}": "{{{RESEND_UNSUBSCRIBE_URL}}}",

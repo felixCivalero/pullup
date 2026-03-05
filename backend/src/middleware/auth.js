@@ -2,6 +2,7 @@
 // Authentication middleware for Express
 
 import { supabase } from "../supabase.js";
+import { getUserProfile } from "../data.js";
 
 /**
  * Middleware to verify Supabase JWT token and attach user to request
@@ -74,5 +75,42 @@ export async function optionalAuth(req, res, next) {
   } catch (error) {
     // Continue without auth if error
     next();
+  }
+}
+
+/**
+ * Middleware to require that the authenticated user is an admin.
+ * Uses profiles.is_admin flag for authorization.
+ */
+export async function requireAdmin(req, res, next) {
+  try {
+    // First ensure the user is authenticated
+    await requireAuth(req, res, async () => {
+      try {
+        const profile = await getUserProfile(req.user.id);
+        if (!profile?.isAdmin) {
+          return res.status(403).json({
+            error: "forbidden",
+            message: "Admin access required",
+          });
+        }
+
+        // Attach profile for downstream handlers if needed
+        req.profile = profile;
+        next();
+      } catch (error) {
+        console.error("requireAdmin error loading profile:", error);
+        return res.status(500).json({
+          error: "server_error",
+          message: "Failed to verify admin access",
+        });
+      }
+    });
+  } catch (error) {
+    console.error("requireAdmin middleware error:", error);
+    return res.status(500).json({
+      error: "server_error",
+      message: "Failed to verify admin access",
+    });
   }
 }

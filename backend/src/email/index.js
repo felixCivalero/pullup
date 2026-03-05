@@ -50,6 +50,7 @@ export async function enqueueOutbox({
   campaignSendId = null,
   idempotencyKey = null,
   sendAfter = null,
+  category = "transactional",
 }) {
   if (!toEmail) {
     throw new Error("[email] enqueueOutbox: toEmail is required");
@@ -61,6 +62,9 @@ export async function enqueueOutbox({
   const suppression = await isSuppressed(toEmail);
   if (suppression.suppressed) {
     // Insert a suppressed row for observability, but do not attempt to send.
+    const providerName =
+      category === "newsletter" ? "ses" : getActiveProvider().name;
+
     return insertOutboxRow({
       fromEmail,
       toEmail,
@@ -69,9 +73,13 @@ export async function enqueueOutbox({
       textBody,
       campaignSendId,
       idempotencyKey,
-      provider: getActiveProvider().name,
+      provider: providerName,
+      category,
     }).then((row) => row);
   }
+
+  const providerName =
+    category === "newsletter" ? "ses" : getActiveProvider().name;
 
   const row = await insertOutboxRow({
     fromEmail,
@@ -81,7 +89,8 @@ export async function enqueueOutbox({
     textBody,
     campaignSendId,
     idempotencyKey,
-    provider: getActiveProvider().name,
+    provider: providerName,
+    category,
   });
 
   if (sendAfter) {

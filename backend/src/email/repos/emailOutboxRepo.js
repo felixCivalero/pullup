@@ -11,6 +11,7 @@ export async function insertOutboxRow({
   campaignSendId = null,
   idempotencyKey = null,
   provider = "ses",
+  category = "transactional",
 }) {
   const payload = {
     from_email: fromEmail,
@@ -21,6 +22,7 @@ export async function insertOutboxRow({
     campaign_send_id: campaignSendId,
     idempotency_key: idempotencyKey,
     provider,
+    category,
     status: "queued",
   };
 

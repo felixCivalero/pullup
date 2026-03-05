@@ -8,6 +8,7 @@ export function ProtectedLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Redirect to landing page if not authenticated
   useEffect(() => {
@@ -24,6 +25,26 @@ export function ProtectedLayout() {
       }).catch(() => {
         // Fire-and-forget; linking failure shouldn't block the app
       });
+    }
+  }, [loading, user]);
+
+  // Load profile once to determine admin badge
+  useEffect(() => {
+    async function loadProfileAdminFlag() {
+      try {
+        const res = await authenticatedFetch("/host/profile");
+        if (!res.ok) return;
+        const profile = await res.json();
+        if (profile?.isAdmin) {
+          setIsAdmin(true);
+        }
+      } catch {
+        // Ignore errors; admin badge is purely cosmetic
+      }
+    }
+
+    if (!loading && user) {
+      loadProfileAdminFlag();
     }
   }, [loading, user]);
 
@@ -92,6 +113,37 @@ export function ProtectedLayout() {
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {isAdmin && (
+            <button
+              onClick={() => handleNav("/admin")}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "999px",
+                border: "none",
+                padding: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background:
+                  "radial-gradient(circle at 30% 0%, #fff7cc 0, #ffdd55 30%, #c9982a 65%, #5b3b10 100%)",
+                boxShadow:
+                  "0 0 0 1px rgba(0,0,0,0.6), 0 0 18px rgba(255, 223, 128, 0.7)",
+                cursor: "pointer",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 800,
+                  color: "#120b02",
+                  textShadow: "0 1px 3px rgba(255,255,255,0.5)",
+                }}
+              >
+                S
+              </span>
+            </button>
+          )}
           {/* Profile avatar */}
           <button
             onClick={() => handleNav("/settings")}

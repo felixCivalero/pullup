@@ -49,7 +49,7 @@ import {
   getVipInvitesForEvent,
 } from "./data.js";
 
-import { requireAuth, optionalAuth } from "./middleware/auth.js";
+import { requireAuth, optionalAuth, requireAdmin } from "./middleware/auth.js";
 import {
   validateEventData,
   validateRsvpData,
@@ -87,7 +87,7 @@ import {
   verifyWaitlistToken,
 } from "./utils/waitlistTokens.js";
 import { processSesEvent } from "./email/events/processSesEvent.js";
-import { handleProviderEvent } from "./email/index.js";
+import { handleProviderEvent, enqueueOutbox } from "./email/index.js";
 
 // Load environment variables once. NODE_ENV can come from the process
 // (PM2, npm scripts) or from .env.
@@ -5526,6 +5526,190 @@ app.post("/auth/link-newsletter", requireAuth, async (req, res) => {
     return res.status(500).json({
       linked: false,
       code: "newsletter_link_error",
+    });
+  }
+});
+
+// ---------------------------
+// ADMIN: Newsletter preview & send
+// ---------------------------
+
+app.post("/admin/newsletter/preview", requireAdmin, async (req, res) => {
+  try {
+    const { getNewsletterSubscribers } = await import("./data.js");
+    const { subscribers, total } = await getNewsletterSubscribers({
+      status: "confirmed",
+    });
+
+    return res.json({
+      totalRecipients: total,
+      subscribers: (subscribers || []).map((s) => ({
+        id: s.id,
+        email: s.email,
+        userId: s.user_id || null,
+        status: s.status,
+      })),
+    });
+  } catch (error) {
+    console.error("[admin] Newsletter preview error:", error);
+    return res.status(500).json({
+      error: "newsletter_preview_failed",
+      message: "Failed to load newsletter preview.",
+    });
+  }
+});
+
+app.post("/admin/newsletter/send", requireAdmin, async (req, res) => {
+  try {
+    const {
+      subject,
+      templateType = "event",
+      templateName = "event",
+      templateContent = {},
+      htmlBody,
+      textBody,
+      excludeSubscriberIds,
+    } = req.body || {};
+
+    if (!subject || typeof subject !== "string") {
+      return res.status(400).json({
+        error: "invalid_request",
+        message: "Subject is required.",
+      });
+    }
+
+    const { getNewsletterSubscribers } = await import("./data.js");
+    const { findEventById } = await import("./data.js");
+    const { renderEventEmailTemplate } = await import(
+      "./services/emailTemplateService.js"
+    );
+    const { subscribers, total } = await getNewsletterSubscribers({
+      status: "confirmed",
+    });
+
+    if (!subscribers.length) {
+      return res.json({
+        totalRecipients: 0,
+        enqueued: 0,
+        failed: 0,
+      });
+    }
+
+    const excludedIdSet = new Set(
+      Array.isArray(excludeSubscriberIds) ? excludeSubscriberIds : []
+    );
+
+    const campaignId = `admin-${Date.now()}`;
+    let enqueued = 0;
+    let failed = 0;
+
+    // Resolve backing event from Supabase, hard-coded to Pull up 53 for now.
+    // This mirrors the CRM "event" email template usage.
+    let event = null;
+    if (templateType === "event" && templateName === "event") {
+      try {
+        // Use the concrete event ID provided for the newsletter template
+        event = await findEventById("5e7abfb7-70a5-4bd3-b820-42dd04d1e0c7");
+      } catch (e) {
+        console.error("[admin] Failed to load event for newsletter template:", e);
+      }
+    }
+
+    for (const subscriber of subscribers) {
+      try {
+        if (excludedIdSet.has(subscriber.id)) {
+          continue;
+        }
+
+        let finalHtmlBody = htmlBody || null;
+        let finalTextBody = textBody || null;
+
+        // If we're using the event template and have an event, render HTML from it.
+        if (templateType === "event" && event) {
+          const content = {
+            heroImageUrl: templateContent.heroImageUrl || event.imageUrl || "",
+            headline: templateContent.headline || event.title || "",
+            introQuote: templateContent.introQuote || "",
+            introBody:
+              templateContent.introBody ||
+              "Skriv om du vill komma så får du länk till gästlistan!",
+            introGreeting: templateContent.introGreeting || "",
+            introNote: templateContent.introNote || "",
+            signoffText: templateContent.signoffText || "",
+            ctaLabel: templateContent.ctaLabel || "TO EVENT",
+            ctaUrl: templateContent.ctaUrl || undefined,
+          };
+
+          finalHtmlBody = renderEventEmailTemplate({
+            event,
+            templateContent: content,
+            person: null,
+          });
+        }
+
+        await enqueueOutbox({
+          toEmail: subscriber.email,
+          subject,
+          htmlBody: finalHtmlBody,
+          textBody: finalTextBody,
+          campaignSendId: null,
+          idempotencyKey: `${campaignId}:${subscriber.id}`,
+          category: "newsletter",
+        });
+        enqueued += 1;
+      } catch (error) {
+        failed += 1;
+        console.error(
+          "[admin] Failed to enqueue newsletter email:",
+          subscriber.email,
+          error
+        );
+      }
+    }
+
+    console.log(
+      `[admin] Newsletter send complete by user ${req.user.id}: total=${total}, enqueued=${enqueued}, failed=${failed}`
+    );
+
+    return res.json({
+      totalRecipients: total,
+      enqueued,
+      failed,
+    });
+  } catch (error) {
+    console.error("[admin] Newsletter send error:", error);
+    return res.status(500).json({
+      error: "newsletter_send_failed",
+      message: "Failed to send newsletter.",
+    });
+  }
+});
+
+// Admin helper: fetch event used for newsletter template preview
+app.get("/admin/newsletter/event-template", requireAdmin, async (req, res) => {
+  try {
+    const { findEventById } = await import("./data.js");
+    const event = await findEventById("5e7abfb7-70a5-4bd3-b820-42dd04d1e0c7");
+
+    if (!event) {
+      return res.status(404).json({
+        error: "event_not_found",
+        message: "Event for newsletter template not found.",
+      });
+    }
+
+    return res.json({
+      id: event.id,
+      title: event.title,
+      imageUrl: event.imageUrl || null,
+      slug: event.slug,
+      description: event.description || "",
+    });
+  } catch (error) {
+    console.error("[admin] Newsletter event template error:", error);
+    return res.status(500).json({
+      error: "newsletter_event_template_failed",
+      message: "Failed to load newsletter event template.",
     });
   }
 });

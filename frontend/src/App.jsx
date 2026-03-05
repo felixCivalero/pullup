@@ -12,6 +12,7 @@ import { ManageEventPage } from "./pages/ManageEventPage";
 import { EventGuestsPage } from "./pages/EventGuestsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { AdminPage } from "./pages/AdminPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -44,6 +45,7 @@ function App() {
           {/* Events / CRM dashboard */}
           <Route path="/events" element={<HomePage />} />
           <Route path="/crm" element={<CrmPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           {/* Backwards-compat: /home currently points to events */}
           <Route path="/home" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />

@@ -18,7 +18,7 @@ export const SES_FROM_EMAIL =
 export const SES_CONFIGURATION_SET_NAME =
   process.env.SES_CONFIGURATION_SET_NAME || null;
 
-export const SES_TEST_MODE = bool(process.env.SES_TEST_MODE, false);
+export const SES_TEST_MODE = bool(process.env.SES_TEST_MODE, true);
 
 const emailSendRateEnv =
   process.env.EMAIL_SEND_RATE_PER_SEC ?? process.env.EMAIL_SEND_RATE_PER_SECOND;

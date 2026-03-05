@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { authenticatedFetch } from "../lib/api.js";
 
 export function ProtectedLayout() {
   const navigate = useNavigate();
@@ -14,6 +15,17 @@ export function ProtectedLayout() {
       navigate("/");
     }
   }, [user, loading, navigate]);
+
+  // On first authenticated load, link any existing newsletter subscriptions
+  useEffect(() => {
+    if (!loading && user) {
+      authenticatedFetch("/auth/link-newsletter", {
+        method: "POST",
+      }).catch(() => {
+        // Fire-and-forget; linking failure shouldn't block the app
+      });
+    }
+  }, [loading, user]);
 
   function handleNav(path) {
     navigate(path);

@@ -5219,6 +5219,318 @@ app.post("/host/profile/picture", requireAuth, async (req, res) => {
 });
 
 // ---------------------------
+// PUBLIC: Newsletter subscription & unsubscribe
+// ---------------------------
+
+function generateUnsubscribeToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+app.post("/newsletter", optionalAuth, async (req, res) => {
+  try {
+    const rawEmail = req.body?.email;
+    const source = req.body?.source || "landing_newsletter";
+
+    if (!rawEmail || typeof rawEmail !== "string") {
+      return res.status(400).json({
+        code: "invalid_email",
+        message: "Email is required.",
+      });
+    }
+
+    const normalizedEmail = rawEmail.trim().toLowerCase();
+
+    // Very lightweight email validation to avoid obviously bad input
+    if (
+      !normalizedEmail ||
+      !normalizedEmail.includes("@") ||
+      normalizedEmail.length > 320
+    ) {
+      return res.status(400).json({
+        code: "invalid_email",
+        message: "Enter a valid email address to continue.",
+      });
+    }
+
+    const { supabase } = await import("./supabase.js");
+
+    const {
+      data: existing,
+      error: selectError,
+    } = await supabase
+      .from("newsletter_subscriptions")
+      .select("id, status, user_id")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (selectError) {
+      // Table missing or other structural issue
+      if (selectError.code === "PGRST116" || selectError.code === "42P01") {
+        console.error(
+          "[newsletter] newsletter_subscriptions table missing:",
+          selectError
+        );
+        return res.status(500).json({
+          code: "newsletter_not_configured",
+          message: "Newsletter is not configured yet.",
+        });
+      }
+
+      console.error("[newsletter] Error fetching subscription:", selectError);
+      return res.status(500).json({
+        code: "newsletter_error",
+        message: "Failed to subscribe.",
+      });
+    }
+
+    const userId = req.user?.id || existing?.user_id || null;
+    const now = new Date().toISOString();
+
+    // Helper to map Supabase auth/rate-limit errors into HTTP responses
+    function handleSupabaseWriteError(err, defaultStatus = 500) {
+      const msg = (err?.message || "").toLowerCase();
+      if (msg.includes("rate limit") || msg.includes("too many requests")) {
+        return res.status(429).json({
+          code: "rate_limited",
+          message:
+            "Too many attempts for this email. Wait a moment and try again.",
+        });
+      }
+
+      console.error("[newsletter] Write error:", err);
+      return res.status(defaultStatus).json({
+        code: "newsletter_error",
+        message: "Failed to update subscription.",
+      });
+    }
+
+    // No existing subscription: create a new confirmed subscription
+    if (!existing) {
+      const unsubscribeToken = generateUnsubscribeToken();
+
+      const { error: insertError } = await supabase
+        .from("newsletter_subscriptions")
+        .insert({
+          email: normalizedEmail,
+          user_id: userId,
+          status: "confirmed",
+          source,
+          confirmed_at: now,
+          created_at: now,
+          updated_at: now,
+          unsubscribe_token: unsubscribeToken,
+        });
+
+      if (insertError) {
+        return handleSupabaseWriteError(insertError);
+      }
+
+      return res.json({ status: "subscribed", created: true });
+    }
+
+    // Existing subscription: branch on status
+    if (existing.status === "bounced" || existing.status === "suppressed") {
+      return res.status(400).json({
+        code: "suppressed",
+        message: "We can't subscribe this address right now.",
+      });
+    }
+
+    let nextStatus = existing.status;
+    let responseStatus = "already_subscribed";
+    const patch = {
+      user_id: userId,
+      updated_at: now,
+    };
+
+    if (existing.status === "unsubscribed") {
+      nextStatus = "confirmed";
+      responseStatus = "resubscribed";
+      const unsubscribeToken = generateUnsubscribeToken();
+      Object.assign(patch, {
+        status: nextStatus,
+        confirmed_at: now,
+        unsubscribed_at: null,
+        unsubscribe_token: unsubscribeToken,
+      });
+    } else if (existing.status === "pending") {
+      nextStatus = "confirmed";
+      responseStatus = "resubscribed";
+      Object.assign(patch, {
+        status: nextStatus,
+        confirmed_at: now,
+      });
+    } else {
+      // confirmed / other non-terminal statuses
+      Object.assign(patch, {
+        status: existing.status || "confirmed",
+      });
+    }
+
+    const { error: updateError } = await supabase
+      .from("newsletter_subscriptions")
+      .update(patch)
+      .eq("id", existing.id);
+
+    if (updateError) {
+      return handleSupabaseWriteError(updateError);
+    }
+
+    return res.json({ status: responseStatus, created: false });
+  } catch (error) {
+    console.error("[newsletter] Unexpected error:", error);
+    return res.status(500).json({
+      code: "newsletter_error",
+      message: "Failed to subscribe.",
+    });
+  }
+});
+
+app.post("/newsletter/unsubscribe-token", async (req, res) => {
+  try {
+    const rawToken = req.body?.token;
+    if (!rawToken || typeof rawToken !== "string") {
+      return res.status(400).json({
+        code: "invalid_token",
+        message: "Invalid unsubscribe link.",
+      });
+    }
+
+    const token = rawToken.trim();
+    if (!token) {
+      return res.status(400).json({
+        code: "invalid_token",
+        message: "Invalid unsubscribe link.",
+      });
+    }
+
+    const { supabase } = await import("./supabase.js");
+
+    const {
+      data: existing,
+      error: selectError,
+    } = await supabase
+      .from("newsletter_subscriptions")
+      .select("id, status")
+      .eq("unsubscribe_token", token)
+      .maybeSingle();
+
+    if (selectError) {
+      if (selectError.code === "PGRST116" || selectError.code === "42P01") {
+        console.error(
+          "[newsletter] newsletter_subscriptions table missing on unsubscribe:",
+          selectError
+        );
+        return res.status(400).json({
+          code: "invalid_token",
+          message: "This unsubscribe link is no longer valid.",
+        });
+      }
+
+      console.error(
+        "[newsletter] Error fetching unsubscribe token:",
+        selectError
+      );
+      return res.status(400).json({
+        code: "invalid_token",
+        message: "This unsubscribe link is no longer valid.",
+      });
+    }
+
+    if (!existing) {
+      return res.status(400).json({
+        code: "invalid_token",
+        message: "This unsubscribe link is no longer valid.",
+      });
+    }
+
+    if (existing.status === "unsubscribed") {
+      return res.json({ status: "already_unsubscribed" });
+    }
+
+    if (existing.status === "bounced" || existing.status === "suppressed") {
+      return res.json({ status: "suppressed" });
+    }
+
+    const now = new Date().toISOString();
+
+    const { error: updateError } = await supabase
+      .from("newsletter_subscriptions")
+      .update({
+        status: "unsubscribed",
+        unsubscribed_at: now,
+        updated_at: now,
+      })
+      .eq("id", existing.id);
+
+    if (updateError) {
+      console.error(
+        "[newsletter] Error updating unsubscribe status:",
+        updateError
+      );
+      return res.status(500).json({
+        code: "newsletter_error",
+        message: "Failed to update subscription.",
+      });
+    }
+
+    return res.json({ status: "unsubscribed" });
+  } catch (error) {
+    console.error("[newsletter] Unexpected unsubscribe error:", error);
+    return res.status(500).json({
+      code: "newsletter_error",
+      message: "Failed to update subscription.",
+    });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Link newsletter subscriptions to authenticated user
+// ---------------------------
+
+app.post("/auth/link-newsletter", requireAuth, async (req, res) => {
+  try {
+    const rawEmail = req.user?.email;
+    if (!rawEmail) {
+      return res.json({ linked: false });
+    }
+
+    const email = String(rawEmail).trim().toLowerCase();
+    if (!email) {
+      return res.json({ linked: false });
+    }
+
+    const { supabase } = await import("./supabase.js");
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("newsletter_subscriptions")
+      .update({
+        user_id: req.user.id,
+        updated_at: now,
+      })
+      .eq("email", email)
+      .is("user_id", null);
+
+    if (error) {
+      console.error("[newsletter] Error linking subscription to user:", error);
+      return res.status(500).json({
+        linked: false,
+        code: "newsletter_link_error",
+      });
+    }
+
+    return res.json({ linked: true });
+  } catch (error) {
+    console.error("[newsletter] Unexpected link-newsletter error:", error);
+    return res.status(500).json({
+      linked: false,
+      code: "newsletter_link_error",
+    });
+  }
+});
+
+// ---------------------------
 // Server
 // ---------------------------
 const PORT = process.env.PORT || 3001;

@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import { LandingPage } from "./pages/LandingPage";
+import { NewsletterPage } from "./pages/NewsletterPage";
 import { HomePage } from "./pages/HomePage";
 import { CrmPage } from "./pages/CrmPage";
 import { CreateEventPage } from "./pages/CreateEventPage";
@@ -20,6 +21,7 @@ function App() {
       <Routes>
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/newsletter" element={<NewsletterPage />} />
         <Route
           path="/e/:slug"
           element={

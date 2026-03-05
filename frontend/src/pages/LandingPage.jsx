@@ -1,10 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Zap, ChevronRight, Ban, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { logger } from "../lib/logger.js";
 import { colors } from "../theme/colors.js";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
+import { authenticatedFetch } from "../lib/api.js";
 
 // Simple analytics tracking function
 function trackEvent(eventName, properties = {}) {
@@ -15,9 +16,16 @@ function trackEvent(eventName, properties = {}) {
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const { signInWithGoogle, user } = useAuth();
+  const { signInWithGoogle, signInWithEmailPassword, user } = useAuth();
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [signingIn, setSigningIn] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [formError, setFormError] = useState("");
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterStatus, setNewsletterStatus] = useState(null);
+  const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
+  const [newsletterPopup, setNewsletterPopup] = useState(null);
 
   // Note: Removed auto-redirect to /home
   // Users should explicitly choose their path, even if logged in
@@ -54,47 +62,152 @@ export function LandingPage() {
     };
   }, []);
 
-  const handlePrimaryCTA = async (type) => {
-    trackEvent("landing_cta_click", {
-      type,
+  const handleEmailPasswordSubmit = async (event) => {
+    event.preventDefault();
+    if (signingIn) return;
+
+    setFormError("");
+    trackEvent("landing_email_login_submit", {
       user_logged_in: !!user,
     });
 
-    if (!user) {
-      // Store intent, then redirect to login
-      // The returnTo will be passed to signInWithGoogle
-      try {
-        setSigningIn(true);
-        await signInWithGoogle(type === "post" ? "/events" : "/events");
-        // OAuth redirect will happen automatically
-      } catch (error) {
-        console.error("Sign in error:", error);
-        setSigningIn(false);
+    try {
+      setSigningIn(true);
+      await signInWithEmailPassword(email.trim(), password);
+      navigate("/events");
+    } catch (error) {
+      const raw = error?.message || "";
+      const msg = raw.toLowerCase();
+
+      let friendlyMessage = "Something went wrong signing you in. Please try again.";
+
+      if (msg.includes("email not confirmed")) {
+        friendlyMessage =
+          "Check your email to confirm your account, then come back here to enter pullup.";
+      } else if (msg.includes("email address") && msg.includes("invalid")) {
+        friendlyMessage = "Enter a valid email address to continue.";
+      } else if (msg.includes("rate limit") || msg.includes("too many requests")) {
+        friendlyMessage =
+          "Too many attempts for this email. Wait a moment, then try again.";
+      } else if (msg.includes("already registered")) {
+        friendlyMessage =
+          "This email already uses a sign-in method. Try \"Continue with Google\" for this address.";
+      } else if (msg.includes("password")) {
+        friendlyMessage = raw;
+      } else if (msg.includes("invalid login credentials")) {
+        friendlyMessage = "Incorrect email or password.";
       }
-    } else {
-      // Already logged in, go directly to the flow
-      navigate(type === "post" ? "/events" : "/events");
+
+      setFormError(friendlyMessage);
+    } finally {
+      setSigningIn(false);
     }
   };
 
-  const handleLoginClick = async () => {
-    trackEvent("landing_login_click", {
+  const handleGoogleContinue = async () => {
+    if (signingIn) return;
+
+    trackEvent("landing_google_continue_click", {
       user_logged_in: !!user,
     });
 
     if (user) {
-      // Already logged in, go straight to events dashboard
       navigate("/events");
-    } else {
-      // Not logged in, go to login (which will redirect to /events after)
+      return;
+    }
+
+    try {
+      setSigningIn(true);
+      await signInWithGoogle("/events");
+    } catch (error) {
+      console.error("Sign in error:", error);
+      setFormError("Google sign-in failed. Please try again.");
+      setSigningIn(false);
+    }
+  };
+
+  const handleNewsletterSubmit = async (event) => {
+    event.preventDefault();
+    if (!newsletterEmail || newsletterSubmitting) return;
+
+    setNewsletterStatus(null);
+    setNewsletterPopup(null);
+    trackEvent("landing_newsletter_submit", {
+      email_present: !!newsletterEmail,
+    });
+
+    try {
+      setNewsletterSubmitting(true);
+      const response = await authenticatedFetch("/newsletter", {
+        method: "POST",
+        body: JSON.stringify({
+          email: newsletterEmail.trim(),
+          source: "landing_newsletter",
+        }),
+      });
+
+      let payload = null;
       try {
-        setSigningIn(true);
-        await signInWithGoogle("/events");
-        // OAuth redirect will happen automatically
-      } catch (error) {
-        console.error("Sign in error:", error);
-        setSigningIn(false);
+        payload = await response.json();
+      } catch {
+        payload = null;
       }
+
+      if (!response.ok) {
+        const code = String(payload?.code || "").toLowerCase();
+
+        let message = "Couldn’t sign you up. Try again soon.";
+        if (code === "invalid_email") {
+          message = "Enter a valid email address to continue.";
+        } else if (code === "rate_limited") {
+          message =
+            "Too many attempts for this email. Wait a moment, then try again.";
+        } else if (code === "suppressed") {
+          message =
+            "We can't subscribe this address right now. Try a different email.";
+        } else if (code === "newsletter_not_configured") {
+          message = "Newsletter is not configured yet.";
+        }
+
+        setNewsletterStatus(message);
+        setNewsletterPopup({
+          type: "error",
+          title: "Couldn’t sign you up",
+          message,
+        });
+        return;
+      }
+
+      const status = payload?.status || "subscribed";
+      let message = "You’re in. Watch your inbox for upcoming underground events.";
+      let title = "Subscribed";
+
+      if (status === "already_subscribed") {
+        title = "Already subscribed";
+        message = "You’re already in. We’ll keep you in the loop.";
+      } else if (status === "resubscribed") {
+        title = "Welcome back";
+        message = "Welcome back. You’ll start getting invites again.";
+      }
+
+      setNewsletterStatus(message);
+      setNewsletterPopup({
+        type: "success",
+        title,
+        message,
+      });
+      setNewsletterEmail("");
+    } catch (error) {
+      console.error("Newsletter signup error:", error);
+      const message = "Couldn’t sign you up. Try again soon.";
+      setNewsletterStatus(message);
+      setNewsletterPopup({
+        type: "error",
+        title: "Couldn’t sign you up",
+        message,
+      });
+    } finally {
+      setNewsletterSubmitting(false);
     }
   };
 
@@ -167,7 +280,7 @@ export function LandingPage() {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            padding: "40px 20px",
+            padding: "32px 20px 96px",
             boxSizing: "border-box",
             overflow: "hidden",
             overscrollBehavior: "none",
@@ -177,7 +290,7 @@ export function LandingPage() {
           {/* Floating Module - Mobile First, Centered */}
           <div
             style={{
-              maxWidth: "400px",
+              maxWidth: "420px",
               width: "100%",
               padding: "0 20px",
               display: "flex",
@@ -186,27 +299,13 @@ export function LandingPage() {
               textAlign: "center",
             }}
           >
-            {/* Logo/Brand - Smaller for mobile */}
-            <div
-              style={{
-                fontSize: "10px",
-                textTransform: "uppercase",
-                letterSpacing: "0.2em",
-                opacity: 0.5,
-                marginBottom: "32px",
-                fontWeight: 600,
-              }}
-            >
-              PullUp
-            </div>
-
             {/* Main Headline - Mobile Optimized */}
             <h1
               style={{
-                fontSize: "clamp(32px, 10vw, 56px)",
+                fontSize: "clamp(34px, 9vw, 60px)",
                 fontWeight: 800,
                 lineHeight: "1.1",
-                marginBottom: "16px",
+                marginBottom: "18px",
                 background:
                   "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.9) 100%)",
                 WebkitBackgroundClip: "text",
@@ -235,7 +334,7 @@ export function LandingPage() {
                 fontSize: "clamp(14px, 3.5vw, 18px)",
                 opacity: 0.85,
                 lineHeight: "1.5",
-                marginBottom: "48px",
+                marginBottom: "20px",
                 maxWidth: "320px",
                 textAlign: "center",
               }}
@@ -257,137 +356,256 @@ export function LandingPage() {
               </span>
             </p>
 
-            {/* Primary CTAs - Mobile First, Stacked, Large Touch Targets */}
+            {/* Auth card - email/password + Google */}
             <div
               style={{
+                width: "100%",
+                maxWidth: "320px",
+                padding: "20px 18px 18px",
+                borderRadius: "22px",
+                background:
+                  "linear-gradient(145deg, rgba(11,10,20,0.96), rgba(17,15,30,0.98))",
+                boxShadow:
+                  "0 22px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                backdropFilter: "blur(18px)",
                 display: "flex",
                 flexDirection: "column",
-                gap: "12px",
-                width: "100%",
-                maxWidth: "340px",
-                marginBottom: "32px",
+                gap: "14px",
+                alignItems: "stretch",
+                marginBottom: "18px",
               }}
             >
-              {/* Post event quick - Fast & Energetic */}
-              <button
-                onClick={() => handlePrimaryCTA("create")}
-                disabled={signingIn}
+              <form
+                onSubmit={handleEmailPasswordSubmit}
                 style={{
-                  width: "100%",
-                  padding: "20px 24px",
-                  borderRadius: "16px",
-                  border: "none",
-                  background: colors.gradientPrimary,
-                  color: "#05040a",
-                  fontWeight: 700,
-                  fontSize: "18px",
-                  cursor: signingIn ? "wait" : "pointer",
-                  boxShadow: `0 8px 24px ${colors.silverShadowHover}`,
-                  transition: "all 0.15s ease",
-                  textAlign: "center",
-                  opacity: signingIn ? 0.7 : 1,
-                  minHeight: "64px",
                   display: "flex",
-                  flexDirection: "row",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-                onTouchStart={(e) => {
-                  if (!signingIn) {
-                    e.currentTarget.style.transform = "scale(0.97)";
-                    e.currentTarget.style.opacity = "0.9";
-                  }
-                }}
-                onTouchEnd={(e) => {
-                  if (!signingIn) {
-                    e.currentTarget.style.transform = "scale(1)";
-                    e.currentTarget.style.opacity = "1";
-                  }
+                  flexDirection: "column",
+                  gap: "10px",
                 }}
               >
-                <SilverIcon as={Zap} size={22} style={{ color: "#05040a" }} />
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 6 }}
+                >
+                  <label
+                    style={{
+                      fontSize: "12px",
+                      color: "rgba(255,255,255,0.72)",
+                      textAlign: "left",
+                    }}
+                    htmlFor="landing-email"
+                  >
+                    Email
+                  </label>
+                  <input
+                    id="landing-email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    style={{
+                      width: "100%",
+                      padding: "12px 14px",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(255,255,255,0.14)",
+                      background:
+                        "radial-gradient(circle at 0 0, rgba(255,255,255,0.09), transparent 60%), rgba(8,7,15,0.92)",
+                      color: "#fff",
+                      fontSize: "13px",
+                      outline: "none",
+                      boxShadow: "0 0 0 1px rgba(0,0,0,0.4)",
+                    }}
+                  />
+                </div>
+
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 6 }}
+                >
+                  <label
+                    style={{
+                      fontSize: "12px",
+                      color: "rgba(255,255,255,0.72)",
+                      textAlign: "left",
+                    }}
+                    htmlFor="landing-password"
+                  >
+                    Password
+                  </label>
+                  <input
+                    id="landing-password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Your password"
+                    style={{
+                      width: "100%",
+                      padding: "12px 14px",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(255,255,255,0.14)",
+                      background:
+                        "radial-gradient(circle at 0 0, rgba(255,255,255,0.07), transparent 60%), rgba(8,7,15,0.92)",
+                      color: "#fff",
+                      fontSize: "13px",
+                      outline: "none",
+                      boxShadow: "0 0 0 1px rgba(0,0,0,0.4)",
+                    }}
+                  />
+                </div>
+
                 <div
                   style={{
                     display: "flex",
                     flexDirection: "column",
-                    alignItems: "flex-start",
-                    gap: "2px",
+                    alignItems: "stretch",
+                    marginTop: "2px",
+                    marginBottom: "2px",
                   }}
                 >
-                  <span style={{ fontSize: "18px", fontWeight: 700 }}>
-                    Create your first event
-                  </span>
-                  <span
+                  <button
+                    type="submit"
+                    disabled={signingIn}
                     style={{
-                      fontSize: "12px",
-                      fontWeight: 400,
-                      opacity: 0.95,
-                      textTransform: "none",
+                      width: "100%",
+                      padding: "13px 0",
+                      borderRadius: "999px",
+                      border: "none",
+                      background:
+                        "linear-gradient(135deg, #A7A8AA 0%, #ECECEC 65%, #87898C 100%)", // PullUp original silver gradient
+                      color: "#232629",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      minWidth: "0",
+                      cursor: signingIn ? "wait" : "pointer",
+                      boxShadow:
+                        "0 8px 20px rgba(170,170,175,0.12), 0 0 0 1px rgba(160,160,170,0.18)",
+                      opacity: signingIn ? 0.8 : 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      letterSpacing: "0.01em",
+                      transition: "background 0.18s, box-shadow 0.18s",
                     }}
                   >
-                    Friends pullup & social events
-                  </span>
+                    {signingIn ? "Entering..." : "Enter pullup"}
+                  </button>
                 </div>
-              </button>
 
-              {/* Plan event in detail - Secure & Professional */}
-            </div>
+                {formError && (
+                  <div
+                    style={{
+                      marginTop: "4px",
+                      fontSize: "11px",
+                      color: "rgba(255, 119, 119, 0.96)",
+                      textAlign: "left",
+                    }}
+                  >
+                    {formError}
+                  </div>
+                )}
 
-            {/* Visual Separator - Subtle */}
-            <div
-              style={{
-                width: "100%",
-                maxWidth: "280px",
-                height: "1px",
-                background: "rgba(255, 255, 255, 0.08)",
-                marginBottom: "20px",
-              }}
-            />
-
-            {/* Secondary Login - De-emphasized, Link Style */}
-            <div
-              style={{
-                fontSize: "14px",
-                opacity: 0.5,
-                textAlign: "center",
-                marginBottom: "32px",
-              }}
-            >
-              <span style={{ opacity: 0.6 }}>Already hosting? </span>
-              <a
-                href="/events"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleLoginClick();
-                }}
-                style={{
-                  color: "rgba(255, 255, 255, 0.7)",
-                  textDecoration: "none",
-                  cursor: "pointer",
-                  transition: "opacity 0.2s ease",
-                  borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
-                  paddingBottom: "2px",
-                }}
-                onTouchStart={(e) => {
-                  e.target.style.opacity = "1";
-                }}
-                onTouchEnd={(e) => {
-                  e.target.style.opacity = "0.7";
-                }}
-              >
-                Log in{" "}
-                <ChevronRight
-                  size={14}
+                <div
                   style={{
-                    display: "inline",
-                    verticalAlign: "middle",
-                    opacity: 0.9,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    marginTop: "10px",
+                    marginBottom: "4px",
                   }}
-                />
-              </a>
-            </div>
+                >
+                  <div
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      background: "rgba(255,255,255,0.06)",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.16em",
+                      color: "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    or
+                  </span>
+                  <div
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      background: "rgba(255,255,255,0.06)",
+                    }}
+                  />
+                </div>
 
+                <button
+                  type="button"
+                  onClick={handleGoogleContinue}
+                  disabled={signingIn}
+                  style={{
+                    width: "100%",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(0,0,0,0.16)",
+                    background: "#ffffff",
+                    padding: "10px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 10,
+                    cursor: signingIn ? "wait" : "pointer",
+                    boxShadow:
+                      "0 1px 2px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.1)",
+                    color: "#3c4043",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 2,
+                      overflow: "hidden",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 48 48"
+                      style={{ width: 18, height: 18, display: "block" }}
+                    >
+                      <path
+                        fill="#EA4335"
+                        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.61l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.4 5.38 2.56 13.22l7.98 6.2C12.48 13.02 17.74 9.5 24 9.5z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M46.98 24.55c0-1.64-.15-3.21-.43-4.74H24v9.02h12.94c-.56 2.9-2.26 5.36-4.82 7.02l7.66 5.94C44.54 37.89 46.98 31.76 46.98 24.55z"
+                      />
+                      <path
+                        fill="#4A90E2"
+                        d="M10.54 28.42a10.5 10.5 0 0 1-.55-3.17c0-1.1.2-2.16.55-3.17l-7.98-6.2A23.86 23.86 0 0 0 0 25.25c0 3.8.9 7.39 2.56 10.62l7.98-6.2z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M24 47.5c6.48 0 11.93-2.13 15.9-5.79l-7.66-5.94C30.62 37.48 27.61 38.5 24 38.5c-6.26 0-11.52-3.52-13.46-8.92l-7.98 6.2C6.4 42.62 14.62 47.5 24 47.5z"
+                      />
+                      <path fill="none" d="M0 0h48v48H0z" />
+                    </svg>
+                  </span>
+                  <span>Continue with Google</span>
+                </button>
+              </form>
+            </div>
             {/* Stats/Trust indicators - Mobile Optimized */}
             <div
               style={{
@@ -396,9 +614,8 @@ export function LandingPage() {
                 justifyContent: "center",
                 flexWrap: "wrap",
                 fontSize: "12px",
-                opacity: 0.5,
-                marginTop: "auto",
-                paddingTop: "24px",
+                opacity: 0.55,
+                marginTop: "16px",
               }}
             >
               <div
@@ -416,6 +633,132 @@ export function LandingPage() {
               >
                 <SilverIcon as={Sparkles} size={14} /> Free
               </div>
+            </div>
+
+            {/* Newsletter block - integrated with content */}
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "320px",
+                marginTop: "66px",
+                padding: "14px 14px 12px",
+                borderRadius: "18px",
+                background:
+                  "linear-gradient(135deg, rgba(56,40,6,0.92) 0%, rgba(102,76,14,0.9) 45%, rgba(150,112,24,0.9) 100%)",
+                border: "1px solid rgba(255,230,160,0.18)",
+                boxShadow:
+                  "0 18px 38px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.75)",
+                backdropFilter: "blur(12px)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+            >
+              <form
+                onSubmit={handleNewsletterSubmit}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                <div
+                  style={{
+                    textAlign: "left",
+                    width: "100%",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      letterSpacing: "0.02em",
+                      color: "rgba(255,255,255,0.9)",
+                      marginBottom: 2,
+                    }}
+                  >
+                    Stay in the loop, fomo is real.
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      lineHeight: 1.6,
+                      color: "rgba(255,255,255,0.68)",
+                      maxWidth: "320px",
+                    }}
+                  >
+                    Get invites to special underground events, private dinners
+                    and deep cultural experiences.
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    width: "100%",
+                  }}
+                >
+                  <input
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    required
+                    value={newsletterEmail}
+                    onChange={(e) => setNewsletterEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    style={{
+                      flex: 1,
+                      padding: "9px 12px",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      background:
+                        "radial-gradient(circle at 0 0, rgba(255,255,255,0.09), transparent 60%), rgba(7,6,14,0.92)",
+                      color: "#fff",
+                      fontSize: "12px",
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={newsletterSubmitting}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "999px",
+                      border: "none",
+                      background:
+                        "linear-gradient(135deg, #f5f5f5 0%, #c7c7c7 60%, #a1a1a1 100%)",
+                      color: "#121212",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      cursor: newsletterSubmitting ? "wait" : "pointer",
+                      whiteSpace: "nowrap",
+                      boxShadow:
+                        "0 4px 10px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.4)",
+                      opacity: newsletterSubmitting ? 0.8 : 1,
+                    }}
+                  >
+                    {newsletterSubmitting ? "Joining..." : "Join"}
+                  </button>
+                </div>
+
+                {newsletterStatus && (
+                  <div
+                    style={{
+                      marginTop: 2,
+                      fontSize: "11px",
+                      color: "rgba(255,255,255,0.7)",
+                      textAlign: "left",
+                    }}
+                  >
+                    {newsletterStatus}
+                  </div>
+                )}
+              </form>
             </div>
           </div>
         </section>
@@ -442,6 +785,78 @@ export function LandingPage() {
           touch-action: none !important;
         }
       `}</style>
+      {newsletterPopup && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 40,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0, 0, 0, 0.6)",
+            padding: "24px",
+          }}
+          onClick={() => setNewsletterPopup(null)}
+        >
+          <div
+            style={{
+              maxWidth: "340px",
+              width: "100%",
+              borderRadius: "20px",
+              background:
+                "linear-gradient(145deg, rgba(11,10,20,0.98), rgba(17,15,30,0.98))",
+              boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
+              border: "1px solid rgba(255,255,255,0.16)",
+              padding: "18px 18px 14px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                marginBottom: 6,
+                color:
+                  newsletterPopup.type === "success"
+                    ? "rgba(255,255,255,0.96)"
+                    : "rgba(255,180,180,0.96)",
+              }}
+            >
+              {newsletterPopup.title}
+            </div>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "rgba(255,255,255,0.8)",
+                marginBottom: 14,
+              }}
+            >
+              {newsletterPopup.message}
+            </div>
+            <button
+              type="button"
+              onClick={() => setNewsletterPopup(null)}
+              style={{
+                width: "100%",
+                padding: "10px 0",
+                borderRadius: "999px",
+                border: "none",
+                background:
+                  "linear-gradient(135deg, #f5f5f5 0%, #c7c7c7 60%, #a1a1a1 100%)",
+                color: "#121212",
+                fontSize: "12px",
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

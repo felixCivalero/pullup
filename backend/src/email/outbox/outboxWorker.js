@@ -19,6 +19,7 @@ import {
 import { isSuppressed } from "../repos/emailSuppressionsRepo.js";
 import { getRetryDelaySeconds } from "./retryPolicy.js";
 import { throttle } from "./rateLimiter.js";
+import { insertEvent } from "../repos/emailEventsRepo.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,6 +51,7 @@ export async function processBatch({
   batchSize = EMAIL_WORKER_BATCH_SIZE,
 } = {}) {
   const provider = getActiveProvider();
+  const providerName = provider?.name || null;
 
   const claimed = await claimOutboxBatch({
     workerId,
@@ -96,6 +98,35 @@ export async function processBatch({
         },
       });
 
+      if (providerName === "resend") {
+        if (result?.messageId) {
+          await markDelivered(row.id);
+        }
+
+        try {
+          await insertEvent({
+            provider: "resend",
+            providerMessageId: result?.messageId || null,
+            eventType: "delivery",
+            emailOutboxId: row.id,
+            recipient: row.to_email,
+            payload: {
+              provider: "resend",
+              messageId: result?.messageId || null,
+              raw: result?.raw ?? result ?? null,
+            },
+          });
+        } catch (eventError) {
+          console.error(
+            "[outboxWorker] Failed to insert Resend delivery event",
+            {
+              outboxId: row.id,
+              error: eventError?.message,
+            },
+          );
+        }
+      }
+
       await markSent(row.id, {
         providerMessageId: result.messageId,
       });
@@ -114,6 +145,30 @@ export async function processBatch({
           errorCode: error?.code || error?.name || null,
           errorMessage: error?.message || "Permanent failure",
         });
+        if (providerName === "resend") {
+          try {
+            await insertEvent({
+              provider: "resend",
+              providerMessageId: null,
+              eventType: "failed",
+              emailOutboxId: row.id,
+              recipient: row.to_email,
+              payload: {
+                errorCode: error?.code || error?.name || null,
+                errorMessage:
+                  error?.message || "Permanent failure while sending",
+              },
+            });
+          } catch (eventError) {
+            console.error(
+              "[outboxWorker] Failed to insert Resend failure event",
+              {
+                outboxId: row.id,
+                error: eventError?.message,
+              },
+            );
+          }
+        }
         failed += 1;
         continue;
       }

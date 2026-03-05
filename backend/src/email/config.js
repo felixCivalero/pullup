@@ -18,7 +18,7 @@ export const SES_FROM_EMAIL =
 export const SES_CONFIGURATION_SET_NAME =
   process.env.SES_CONFIGURATION_SET_NAME || null;
 
-export const SES_TEST_MODE = bool(process.env.SES_TEST_MODE, true);
+export const SES_TEST_MODE = bool(process.env.SES_TEST_MODE, false);
 
 const emailSendRateEnv =
   process.env.EMAIL_SEND_RATE_PER_SEC ?? process.env.EMAIL_SEND_RATE_PER_SECOND;
@@ -36,13 +36,3 @@ export const EMAIL_WORKER_BATCH_SIZE = Number(
 );
 
 export const WEBHOOK_SNS_VERIFY = bool(process.env.WEBHOOK_SNS_VERIFY, true);
-
-console.log("EMAIL_PROVIDER", EMAIL_PROVIDER);
-console.log("SES_REGION", SES_REGION);
-console.log("SES_FROM_EMAIL", SES_FROM_EMAIL);
-console.log("SES_CONFIGURATION_SET_NAME", SES_CONFIGURATION_SET_NAME);
-console.log("SES_TEST_MODE", SES_TEST_MODE);
-console.log("EMAIL_SEND_RATE_PER_SEC", EMAIL_SEND_RATE_PER_SEC);
-console.log("EMAIL_MAX_RETRIES", EMAIL_MAX_RETRIES);
-console.log("EMAIL_RETRY_BASE_SECONDS", EMAIL_RETRY_BASE_SECONDS);
-console.log("EMAIL_WORKER_BATCH_SIZE", EMAIL_WORKER_BATCH_SIZE);

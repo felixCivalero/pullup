@@ -66,18 +66,12 @@ export async function mapEventFromDb(dbEvent) {
         }
       }
 
-      // Try to generate signed URL first (for private buckets)
-      const { data: signedUrlData, error: urlError } = await supabase.storage
-        .from("event-images")
-        .createSignedUrl(filePath, 3600); // 1 hour expiry
-
-      if (!urlError && signedUrlData?.signedUrl) {
-        imageUrl = signedUrlData.signedUrl;
-      } else {
-        // Fallback to public URL (for public buckets or if signed URL fails)
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("event-images").getPublicUrl(filePath);
+      // The event-images bucket is public; use a permanent public URL so links
+      // in emails and shares never expire.
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("event-images").getPublicUrl(filePath);
+      if (publicUrl) {
         imageUrl = publicUrl;
       }
     } catch (urlError) {

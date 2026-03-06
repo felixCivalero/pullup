@@ -49,7 +49,6 @@ export async function sendEmailViaSes({
     text = "";
   }
 
-  console.log("SES_TEST_MODE from sesProvider", SES_TEST_MODE);
   if (SES_TEST_MODE) {
     const fakeId = `TEST-${crypto.randomUUID()}`;
     console.log("[sesProvider] SES_TEST_MODE=true, not sending to SES", {

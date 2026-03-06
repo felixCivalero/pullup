@@ -70,17 +70,32 @@ jobs:
               npm install
             fi
 
-            echo "🔄 Restarting PM2 process..."
-            if ! pm2 restart pullup-api; then
+            echo "🔄 Restarting PM2 processes with updated env..."
+
+            # API
+            if ! pm2 restart pullup-api --update-env; then
               if [ -f ecosystem.config.js ]; then
-                echo "ℹ️ pm2 process not found, starting from ecosystem.config.js"
+                echo "ℹ️ pm2 process 'pullup-api' not found, starting from ecosystem.config.js"
                 pm2 start ecosystem.config.js --only pullup-api
               else
                 echo "❌ Failed to restart pm2 process 'pullup-api' and no ecosystem.config.js found" >&2
                 exit 1
               fi
             fi
+
+            # Email worker
+            if ! pm2 restart pullup-email-worker --update-env; then
+              if [ -f ecosystem.config.js ]; then
+                echo "ℹ️ pm2 process 'pullup-email-worker' not found, starting from ecosystem.config.js"
+                pm2 start ecosystem.config.js --only pullup-email-worker
+              else
+                echo "❌ Failed to restart pm2 process 'pullup-email-worker' and no ecosystem.config.js found" >&2
+                exit 1
+              fi
+            fi
+
             pm2 save
 
             echo "✅ Deployment complete"
             pm2 status pullup-api
+            pm2 status pullup-email-worker

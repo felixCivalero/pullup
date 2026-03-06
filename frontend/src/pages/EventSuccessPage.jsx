@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { Calendar, MapPin, Link2, ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
+import {
+  Calendar,
+  MapPin,
+  Link2,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  Megaphone,
+  ExternalLink,
+} from "lucide-react";
 import { useToast } from "../components/Toast";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { publicFetch, API_BASE } from "../lib/api.js";
@@ -57,7 +66,7 @@ export function EventSuccessPage() {
             // Not authenticated - can't fetch DRAFT events, but that's okay
             // The event from state is good enough
             logger.debug(
-              "[EventSuccessPage] Not authenticated, skipping image refetch for DRAFT event"
+              "[EventSuccessPage] Not authenticated, skipping image refetch for DRAFT event",
             );
           }
         };
@@ -104,7 +113,7 @@ export function EventSuccessPage() {
           // If 401/403, fallback to public endpoint
           if (response.status === 401 || response.status === 403) {
             logger.info(
-              "[EventSuccessPage] Auth failed, trying public endpoint"
+              "[EventSuccessPage] Auth failed, trying public endpoint",
             );
             response = await publicFetch(`/events/${slug}`);
           }
@@ -112,7 +121,7 @@ export function EventSuccessPage() {
           // Network error or other issue - try public endpoint
           logger.warn(
             "[EventSuccessPage] Auth request failed, trying public endpoint",
-            { error: authError?.message }
+            { error: authError?.message },
           );
           response = await publicFetch(`/events/${slug}`);
         }
@@ -135,12 +144,12 @@ export function EventSuccessPage() {
         // If we have event from state, don't navigate away - just log the error
         if (location.state?.event) {
           console.warn(
-            "Failed to refetch event, but using event from navigation state"
+            "Failed to refetch event, but using event from navigation state",
           );
           // Keep using the event from state
         } else if (!isRetry) {
           console.error(
-            `Failed to fetch event: ${response?.status} ${response?.statusText}`
+            `Failed to fetch event: ${response?.status} ${response?.statusText}`,
           );
           const errorData = response
             ? await response.json().catch(() => ({}))
@@ -325,16 +334,6 @@ export function EventSuccessPage() {
         }}
       >
         <div style={{ maxWidth: "400px", width: "100%", textAlign: "center" }}>
-          {/* Success icon */}
-          <div
-            style={{
-              fontSize: "64px",
-              marginBottom: "24px",
-            }}
-          >
-            ✨
-          </div>
-
           <h1
             style={{
               fontSize: "28px",
@@ -347,15 +346,40 @@ export function EventSuccessPage() {
 
           {/* Event preview card */}
           <div
+            onClick={() => window.open(`/e/${event.slug}`, "_blank")}
             style={{
               background: "rgba(255,255,255,0.08)",
               backdropFilter: "blur(10px)",
               borderRadius: "16px",
               padding: "20px",
-              marginBottom: "32px",
+              marginBottom: "24px",
               border: "1px solid rgba(255,255,255,0.1)",
+              position: "relative",
+              cursor: "pointer",
             }}
           >
+            {/* Go to event hint */}
+            <div
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 10px",
+                borderRadius: "999px",
+                background: "rgba(5,4,10,0.75)",
+                border: "1px solid rgba(255,255,255,0.18)",
+                fontSize: 10,
+                letterSpacing: 0.6,
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.85)",
+              }}
+            >
+              <span style={{ opacity: 0.9 }}>View page</span>
+              <SilverIcon as={ExternalLink} size={14} />
+            </div>
             {/* Event image */}
             {eventImageUrl && (
               <div
@@ -383,21 +407,6 @@ export function EventSuccessPage() {
             >
               {event.title}
             </h2>
-
-            {/* Event description */}
-            {event.description && (
-              <p
-                style={{
-                  fontSize: "14px",
-                  opacity: 0.8,
-                  marginBottom: "12px",
-                  textAlign: "left",
-                  lineHeight: "1.5",
-                }}
-              >
-                {event.description}
-              </p>
-            )}
 
             {/* Event details */}
             <div
@@ -438,7 +447,7 @@ export function EventSuccessPage() {
                     href={getGoogleMapsUrl(
                       event.location,
                       event.locationLat,
-                      event.locationLng
+                      event.locationLng,
                     )}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -467,36 +476,109 @@ export function EventSuccessPage() {
             </div>
           </div>
 
-          {/* Share button - Primary action */}
-          <div style={{ marginBottom: "12px", width: "100%" }}>
+          {/* Next steps header */}
+          <h2
+            style={{
+              fontSize: "18px",
+              fontWeight: 600,
+              marginBottom: "10px",
+              textAlign: "left",
+            }}
+          >
+            What's next?
+          </h2>
+
+          {/* Primary CTAs */}
+          <div
+            style={{
+              marginBottom: "10px",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            {/* Go to CRM */}
+            <button
+              type="button"
+              onClick={() => navigate("/crm")}
+              style={{
+                width: "100%",
+                padding: "16px",
+                borderRadius: "14px",
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(10,10,18,0.92)",
+                color: "#fff",
+                fontSize: "16px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                position: "relative",
+              }}
+            >
+              <SilverIcon as={Megaphone} size={18} />
+              <span>Send campaign</span>
+              <ChevronRight size={16} style={{ opacity: 0.9 }} />
+              <span
+                style={{
+                  position: "absolute",
+                  top: 6,
+                  right: 10,
+                  padding: "3px 8px",
+                  borderRadius: "999px",
+                  background:
+                    "linear-gradient(135deg, #fff7cc 0%, #ffdf88 35%, #c6952c 70%, #5a3510 100%)",
+                  boxShadow:
+                    "0 0 0 1px rgba(0,0,0,0.75), 0 0 10px rgba(255,223,128,0.9)",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: 0.8,
+                  textTransform: "uppercase",
+                  color: "#120b02",
+                }}
+              >
+                Popular
+              </span>
+            </button>
+
             <button
               onClick={handleShare}
               style={{
                 width: "100%",
-                padding: "18px",
-                borderRadius: "12px",
-                border: "none",
-                background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+                padding: "16px",
+                borderRadius: "14px",
+                border: "1px solid rgba(255,255,255,0.14)",
+                background:
+                  "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                 color: "#fff",
-                fontSize: "18px",
-                fontWeight: 700,
+                fontSize: "16px",
+                fontWeight: 600,
                 cursor: "pointer",
               }}
             >
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
                 <SilverIcon as={Link2} size={20} style={{ color: "#05040a" }} />
                 Share Event
               </span>
             </button>
           </div>
 
-          {/* Add to calendar dropdown */}
+          {/* Add to calendar */}
           <div
             ref={calendarDropdownRef}
             style={{
               position: "relative",
               width: "100%",
-              marginBottom: "16px",
+              marginBottom: "4px",
             }}
           >
             <button
@@ -507,9 +589,9 @@ export function EventSuccessPage() {
               style={{
                 width: "100%",
                 padding: "16px",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.05)",
+                borderRadius: "14px",
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(255,255,255,0.04)",
                 color: "#fff",
                 fontSize: "16px",
                 fontWeight: 600,
@@ -522,7 +604,11 @@ export function EventSuccessPage() {
             >
               <SilverIcon as={Calendar} size={18} />
               <span>Add to calendar</span>
-              {showCalendarDropdown ? <ChevronUp size={16} style={{ opacity: 0.8 }} /> : <ChevronDown size={16} style={{ opacity: 0.8 }} />}
+              {showCalendarDropdown ? (
+                <ChevronUp size={16} style={{ opacity: 0.8 }} />
+              ) : (
+                <ChevronDown size={16} style={{ opacity: 0.8 }} />
+              )}
             </button>
 
             {showCalendarDropdown && (
@@ -631,22 +717,6 @@ export function EventSuccessPage() {
               </div>
             )}
           </div>
-
-          {/* View event link */}
-          <a
-            href={`/e/${event.slug}`}
-            onClick={(e) => {
-              e.preventDefault();
-              window.open(`/e/${event.slug}`, "_blank");
-            }}
-            style={{
-              color: "rgba(255,255,255,0.6)",
-              textDecoration: "none",
-              fontSize: "14px",
-            }}
-          >
-            View event page <ChevronRight size={14} style={{ display: "inline", verticalAlign: "middle" }} />
-          </a>
         </div>
       </div>
     </div>

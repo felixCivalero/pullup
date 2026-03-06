@@ -404,8 +404,8 @@ export function RsvpSuccessPage() {
             display: "flex",
             flexDirection: "column",
             padding: "clamp(20px, 5vw, 40px)",
-            paddingBottom: "120px", // Space for actions
             alignItems: "center",
+            justifyContent: "center",
           }}
         >
           {/* Content - Responsive container: edge-to-edge on mobile, constrained on desktop */}
@@ -415,12 +415,21 @@ export function RsvpSuccessPage() {
               position: "relative",
               width: "100%",
               boxSizing: "border-box",
-              marginTop: "auto",
-              paddingTop: "clamp(40px, 8vh, 60px)",
             }}
           >
-            {/* Status Badge */}
-            <div style={{ marginBottom: "32px", textAlign: "center" }}>
+            {/* Centered card container */}
+            <div
+              style={{
+                background: "rgba(5, 4, 10, 0.88)",
+                borderRadius: "20px",
+                padding: "24px 20px 22px",
+                border: "1px solid rgba(255,255,255,0.12)",
+                boxShadow: "0 24px 80px rgba(0,0,0,0.8)",
+                backdropFilter: "blur(18px)",
+              }}
+            >
+              {/* Status Badge */}
+              <div style={{ marginBottom: "24px", textAlign: "center" }}>
               {booking?.bookingStatus === "CONFIRMED" ? (
                 <Badge
                   variant="success"
@@ -506,97 +515,99 @@ export function RsvpSuccessPage() {
                   </div>
                 </>
               )}
-            </div>
+              </div>
 
-            {/* Event Name */}
-            <h2
-              style={{
-                fontSize: "clamp(32px, 6vw, 42px)",
-                fontWeight: 800,
-                marginBottom: "24px",
-                textAlign: "left",
-                color: "#fff",
-                lineHeight: "1.2",
-                letterSpacing: "-0.03em",
-                textShadow: "0 2px 10px rgba(0, 0, 0, 0.3)",
-              }}
-            >
-              {event.title}
-            </h2>
-
-            {/* Date */}
-            {eventDate && (
-              <div
+              {/* Event Name */}
+              <h2
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "14px",
-                  marginBottom: "20px",
-                  fontSize: "17px",
-                  lineHeight: "1.6",
-                  color: "rgba(255, 255, 255, 0.95)",
+                  fontSize: "clamp(26px, 5vw, 34px)",
+                  fontWeight: 800,
+                  marginBottom: "18px",
+                  textAlign: "center",
+                  color: "#fff",
+                  lineHeight: "1.2",
+                  letterSpacing: "-0.03em",
+                  textShadow: "0 2px 10px rgba(0, 0, 0, 0.35)",
                 }}
               >
-                <FaCalendar
-                  size={20}
-                  style={{
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    marginTop: "2px",
-                    color: "rgba(255, 255, 255, 0.8)",
-                  }}
-                />
-                <span
+                {event.title}
+              </h2>
+
+              {/* Date */}
+              {eventDate && (
+                <div
                   style={{
                     display: "flex",
-                    alignItems: "center",
-                    fontWeight: 400,
+                    alignItems: "flex-start",
+                    justifyContent: "center",
+                    gap: "10px",
+                    marginBottom: "12px",
+                    fontSize: "15px",
+                    lineHeight: "1.5",
+                    color: "rgba(255, 255, 255, 0.95)",
                   }}
                 >
-                  {eventDate}
-                </span>
-              </div>
-            )}
+                  <FaCalendar
+                    size={18}
+                    style={{
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      marginTop: "1px",
+                      color: "rgba(255, 255, 255, 0.8)",
+                    }}
+                  />
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      fontWeight: 400,
+                    }}
+                  >
+                    {eventDate}
+                  </span>
+                </div>
+              )}
 
-            {/* Location */}
-            {event.location && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "14px",
-                  marginBottom: "32px",
-                  fontSize: "17px",
-                  lineHeight: "1.6",
-                  color: "rgba(255, 255, 255, 0.95)",
-                }}
-              >
-                <FaMapMarkerAlt
-                  size={20}
-                  style={{
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    marginTop: "2px",
-                    color: "rgba(255, 255, 255, 0.8)",
-                  }}
-                />
-                <span
+              {/* Location */}
+              {event.location && (
+                <div
                   style={{
                     display: "flex",
-                    alignItems: "center",
-                    fontWeight: 400,
+                    alignItems: "flex-start",
+                    justifyContent: "center",
+                    gap: "10px",
+                    marginBottom: "22px",
+                    fontSize: "15px",
+                    lineHeight: "1.5",
+                    color: "rgba(255, 255, 255, 0.9)",
                   }}
                 >
-                  {event.location}
-                </span>
-              </div>
-            )}
+                  <FaMapMarkerAlt
+                    size={18}
+                    style={{
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      marginTop: "1px",
+                      color: "rgba(255, 255, 255, 0.8)",
+                    }}
+                  />
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      fontWeight: 400,
+                    }}
+                  >
+                    {event.location}
+                  </span>
+                </div>
+              )}
 
-            {/* Confirmation Badges with Integrated Calendar Buttons */}
-            {booking && (
-              <>
+              {/* Confirmation Badges with Integrated Calendar Buttons */}
+              {booking && (
+                <>
                 {/* Cocktails Confirmation */}
                 {booking.bookingStatus && (
                   <div
@@ -919,8 +930,8 @@ export function RsvpSuccessPage() {
                       </ModalOrDrawer>
                     </div>
                   )}
-              </>
-            )}
+                </>
+              )}
 
             {/* Payment Receipt Section (for paid events only) - Moved below calendar modules */}
             {event?.ticketType === "paid" &&
@@ -1172,6 +1183,7 @@ export function RsvpSuccessPage() {
               ← Back to event
             </button>
           </div> */}
+            </div>
           </div>
         </div>
 

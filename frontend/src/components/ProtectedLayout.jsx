@@ -114,35 +114,39 @@ export function ProtectedLayout() {
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           {isAdmin && (
-            <button
-              onClick={() => handleNav("/admin")}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: "999px",
-                border: "none",
-                padding: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background:
-                  "radial-gradient(circle at 30% 0%, #fff7cc 0, #ffdd55 30%, #c9982a 65%, #5b3b10 100%)",
-                boxShadow:
-                  "0 0 0 1px rgba(0,0,0,0.6), 0 0 18px rgba(255, 223, 128, 0.7)",
-                cursor: "pointer",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 800,
-                  color: "#120b02",
-                  textShadow: "0 1px 3px rgba(255,255,255,0.5)",
-                }}
-              >
-                S
-              </span>
-            </button>
+            <>
+              {[
+                { label: "Events", path: "/admin/stockholm-events" },
+                { label: "Newsletter", path: "/admin" },
+              ].map(({ label, path }) => {
+                const isActive =
+                  path === "/admin"
+                    ? location.pathname === "/admin"
+                    : location.pathname.startsWith(path);
+                return (
+                  <button
+                    key={path}
+                    onClick={() => handleNav(path)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: isActive ? "#fff" : "rgba(255,255,255,0.4)",
+                      fontSize: "12px",
+                      fontWeight: isActive ? 600 : 400,
+                      letterSpacing: "0.04em",
+                      cursor: "pointer",
+                      padding: "4px 0",
+                      borderBottom: isActive
+                        ? "1px solid rgba(255,255,255,0.6)"
+                        : "1px solid transparent",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </>
           )}
           {/* Profile avatar */}
           <button

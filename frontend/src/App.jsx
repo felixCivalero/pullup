@@ -13,6 +13,7 @@ import { EventGuestsPage } from "./pages/EventGuestsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
+import { StockholmEventsPage } from "./pages/StockholmEventsPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -46,6 +47,7 @@ function App() {
           <Route path="/events" element={<HomePage />} />
           <Route path="/crm" element={<CrmPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/stockholm-events" element={<StockholmEventsPage />} />
           {/* Backwards-compat: /home currently points to events */}
           <Route path="/home" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />

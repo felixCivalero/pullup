@@ -44,6 +44,13 @@ export function AdminPage() {
   const [ctaUrl, setCtaUrl] = useState("");
   const [editingField, setEditingField] = useState(null);
 
+  // Weekly Happenings state
+  const [weeklyEvents, setWeeklyEvents] = useState([]);
+  const [weeklyEventsLoading, setWeeklyEventsLoading] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [weeklyHeadline, setWeeklyHeadline] = useState("This Week in Stockholm");
+  const [weeklyIntroBody, setWeeklyIntroBody] = useState("");
+
   // Fixed template: we’re using the event-style Resend template
   // backed by Supabase event data, same as CRM.
   const templateType = "event";
@@ -142,6 +149,76 @@ export function AdminPage() {
     heroImageUrl,
   ]);
 
+  function getWeekBounds(offset = 0) {
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now);
+    mon.setDate(now.getDate() + diffToMon + offset * 7);
+    mon.setHours(0, 0, 0, 0);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    sun.setHours(23, 59, 59, 999);
+    return { from: mon, to: sun };
+  }
+
+  function formatWeekLabel(offset) {
+    const { from, to } = getWeekBounds(offset);
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    const fmt = (d) => `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+    return `${fmt(from)} – ${fmt(to)} ${to.getFullYear()}`;
+  }
+
+  function formatEventMeta(startsAt, location) {
+    if (!startsAt) return location || "";
+    const d = new Date(startsAt);
+    if (isNaN(d.getTime())) return location || "";
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    const dayName = days[d.getDay()];
+    const dayNum = d.getDate();
+    const monthName = months[d.getMonth()];
+    const hours = String(d.getHours()).padStart(2, "0");
+    const mins = String(d.getMinutes()).padStart(2, "0");
+    const datePart = `${dayName} ${dayNum} ${monthName} · ${hours}:${mins}`;
+    return location ? `${datePart} · ${location}` : datePart;
+  }
+
+  useEffect(() => {
+    if (selectedTemplate !== "weekly_happenings" || !user) return;
+
+    async function fetchWeeklyEvents() {
+      setWeeklyEventsLoading(true);
+      try {
+        const { from, to } = getWeekBounds(weekOffset);
+        const params = new URLSearchParams({
+          from: from.toISOString(),
+          to: to.toISOString(),
+        });
+        const res = await authenticatedFetch(
+          `/admin/newsletter/weekly-events?${params.toString()}`,
+        );
+        if (!res.ok) throw new Error("Failed to fetch weekly events");
+        const data = await res.json();
+        setWeeklyEvents(Array.isArray(data.events) ? data.events : []);
+      } catch (err) {
+        console.error("Weekly events fetch error:", err);
+        setWeeklyEvents([]);
+      } finally {
+        setWeeklyEventsLoading(false);
+      }
+    }
+
+    fetchWeeklyEvents();
+  }, [selectedTemplate, weekOffset, user]);
+
   async function handlePreview() {
     setPreviewLoading(true);
     setSendError("");
@@ -229,7 +306,17 @@ export function AdminPage() {
       return;
     }
 
-    if (!subject.trim()) {
+    // For weekly happenings, default subject to weeklyHeadline if empty
+    if (selectedTemplate === "weekly_happenings" && !subject.trim()) {
+      setSubject(weeklyHeadline);
+    }
+
+    const effectiveSubject =
+      selectedTemplate === "weekly_happenings" && !subject.trim()
+        ? weeklyHeadline
+        : subject.trim();
+
+    if (!effectiveSubject) {
       setSendError("Subject is required.");
       return;
     }
@@ -250,25 +337,40 @@ export function AdminPage() {
     setSendResult(null);
 
     try {
+      const isWeeklyHappenings = selectedTemplate === "weekly_happenings";
+
+      const sendBody = isWeeklyHappenings
+        ? {
+            subject: effectiveSubject,
+            templateType: "weekly_happenings",
+            templateContent: {
+              headline: weeklyHeadline,
+              body: weeklyIntroBody,
+              events: weeklyEvents,
+            },
+            excludeSubscriberIds,
+          }
+        : {
+            subject: effectiveSubject,
+            templateType,
+            templateName: "event",
+            templateContent: {
+              heroImageUrl: heroImageUrl || templateEvent?.imageUrl || "",
+              headline: headlineText || templateEvent?.title || "",
+              introQuote: introQuote || "",
+              introBody: (introBody || body || "").trim(),
+              introGreeting: introGreeting || "",
+              introNote: introNote || "",
+              signoffText: signoffText || "",
+              ctaLabel: ctaLabel || "TO EVENT",
+              ctaUrl: ctaUrl || undefined,
+            },
+            excludeSubscriberIds,
+          };
+
       const res = await authenticatedFetch("/admin/newsletter/send", {
         method: "POST",
-        body: JSON.stringify({
-          subject: subject.trim(),
-          templateType,
-          templateName: "event",
-          templateContent: {
-            heroImageUrl: heroImageUrl || templateEvent?.imageUrl || "",
-            headline: headlineText || templateEvent?.title || "",
-            introQuote: introQuote || "",
-            introBody: (introBody || body || "").trim(),
-            introGreeting: introGreeting || "",
-            introNote: introNote || "",
-            signoffText: signoffText || "",
-            ctaLabel: ctaLabel || "TO EVENT",
-            ctaUrl: ctaUrl || undefined,
-          },
-          excludeSubscriberIds,
-        }),
+        body: JSON.stringify(sendBody),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -365,10 +467,10 @@ export function AdminPage() {
       style={{
         minHeight: "100vh",
         padding: "80px 16px 40px",
-        background: colors.background,
         display: "flex",
         justifyContent: "center",
         boxSizing: "border-box",
+        background: colors.background,
       }}
     >
       <div
@@ -384,38 +486,26 @@ export function AdminPage() {
           color: "#fff",
         }}
       >
-        <div
-          style={{
-            fontSize: "11px",
-            textTransform: "uppercase",
-            letterSpacing: "0.18em",
-            opacity: 0.6,
-            marginBottom: 8,
-          }}
-        >
-          Admin
-        </div>
         <h1
           style={{
-            fontSize: "22px",
+            fontSize: "20px",
+            fontWeight: 600,
             margin: 0,
             marginBottom: 4,
           }}
         >
-          Newsletter sendout
+          Newsletter Sendout
         </h1>
         <p
           style={{
             fontSize: "13px",
             lineHeight: 1.6,
-            opacity: 0.8,
+            opacity: 0.6,
             margin: 0,
-            marginBottom: 16,
+            marginBottom: 20,
           }}
         >
-          Send a one-off newsletter to everyone in{" "}
-          <span style={{ fontWeight: 600 }}>newsletter_subscriptions</span> with
-          status <code>confirmed</code>.
+          Send a one-off newsletter to all confirmed subscribers.
         </p>
 
         <form
@@ -650,6 +740,7 @@ export function AdminPage() {
                 Choose template
               </option>
               <option value="event">Event</option>
+              <option value="weekly_happenings">Weekly Happenings</option>
             </select>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1187,6 +1278,299 @@ export function AdminPage() {
                       </span>
                     )}
                   </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {selectedTemplate === "weekly_happenings" && (
+            <div
+              style={{
+                marginTop: 8,
+                marginBottom: 12,
+                borderRadius: "16px",
+                background: "rgba(12,10,18,0.9)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                overflow: "hidden",
+                boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
+              }}
+            >
+              <div style={{ padding: "16px 20px 12px" }}>
+                {/* Week picker */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    marginBottom: 16,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setWeekOffset((o) => o - 1)}
+                    style={{
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRadius: "8px",
+                      color: "#fff",
+                      width: 32,
+                      height: 32,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      fontSize: "16px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    &#8592;
+                  </button>
+                  <span
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      color: "rgba(255,255,255,0.85)",
+                    }}
+                  >
+                    {formatWeekLabel(weekOffset)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setWeekOffset((o) => o + 1)}
+                    style={{
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRadius: "8px",
+                      color: "#fff",
+                      width: 32,
+                      height: 32,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      fontSize: "16px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    &#8594;
+                  </button>
+                </div>
+
+                {/* Editable headline */}
+                {editingField === "weekly_headline" ? (
+                  <input
+                    type="text"
+                    value={weeklyHeadline}
+                    onChange={(e) => setWeeklyHeadline(e.target.value)}
+                    onBlur={() => setEditingField(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.target.blur();
+                    }}
+                    autoFocus
+                    style={{
+                      width: "100%",
+                      margin: "0 0 10px 0",
+                      padding: "10px 12px",
+                      fontSize: "22px",
+                      fontWeight: 600,
+                      textAlign: "center",
+                      background: "transparent",
+                      border: "1px dashed rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      color: "#fff",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                ) : (
+                  <h2
+                    onClick={() => setEditingField("weekly_headline")}
+                    style={{
+                      margin: "0 0 10px 0",
+                      padding: "10px 12px",
+                      fontSize: "22px",
+                      fontWeight: 600,
+                      textAlign: "center",
+                      cursor: "pointer",
+                      borderRadius: "8px",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = colors.silverRgbaHover;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    {weeklyHeadline || "This Week in Stockholm"}
+                  </h2>
+                )}
+
+                {/* Editable intro body */}
+                {editingField === "weekly_body" ? (
+                  <textarea
+                    value={weeklyIntroBody}
+                    onChange={(e) => setWeeklyIntroBody(e.target.value)}
+                    onBlur={() => setEditingField(null)}
+                    autoFocus
+                    rows={3}
+                    placeholder="Add an intro message..."
+                    style={{
+                      width: "100%",
+                      margin: "0 0 14px 0",
+                      padding: "8px 12px",
+                      fontSize: "14px",
+                      textAlign: "center",
+                      background: "transparent",
+                      border: "1px dashed rgba(255,255,255,0.3)",
+                      borderRadius: "4px",
+                      color: "#fff",
+                      opacity: 0.85,
+                      outline: "none",
+                      resize: "vertical",
+                      fontFamily: "inherit",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                ) : (
+                  <p
+                    onClick={() => setEditingField("weekly_body")}
+                    style={{
+                      margin: "0 0 14px 0",
+                      padding: "8px 12px",
+                      fontSize: "14px",
+                      textAlign: "center",
+                      opacity: weeklyIntroBody ? 0.8 : 0.38,
+                      cursor: "pointer",
+                      borderRadius: "8px",
+                      minHeight: "24px",
+                      border: weeklyIntroBody
+                        ? "none"
+                        : "1px dashed rgba(255,255,255,0.15)",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = colors.silverRgbaHover;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    {weeklyIntroBody || (
+                      <span style={{ fontSize: "12px" }}>
+                        Click to add intro message
+                      </span>
+                    )}
+                  </p>
+                )}
+
+                {/* Events list */}
+                {weeklyEventsLoading ? (
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      opacity: 0.5,
+                      textAlign: "center",
+                      padding: "12px 0",
+                    }}
+                  >
+                    Loading events...
+                  </div>
+                ) : weeklyEvents.length === 0 ? (
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      opacity: 0.4,
+                      textAlign: "center",
+                      padding: "12px 0",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    No approved events for this week.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {weeklyEvents.map((ev) => (
+                      <div
+                        key={ev.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: "10px 12px",
+                          borderRadius: "10px",
+                          background: "rgba(255,255,255,0.04)",
+                          border: "1px solid rgba(255,255,255,0.07)",
+                        }}
+                      >
+                        {ev.image_url && (
+                          <img
+                            src={ev.image_url}
+                            alt={ev.title}
+                            style={{
+                              width: 60,
+                              height: 60,
+                              borderRadius: "8px",
+                              objectFit: "cover",
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              fontSize: "13px",
+                              color: "#fff",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {ev.title}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "rgba(255,255,255,0.45)",
+                              marginTop: 2,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {formatEventMeta(ev.starts_at, ev.location)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setWeeklyEvents((prev) =>
+                              prev.filter((e) => e.id !== ev.id),
+                            )
+                          }
+                          style={{
+                            borderRadius: "999px",
+                            border: "none",
+                            width: 24,
+                            height: 24,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "14px",
+                            cursor: "pointer",
+                            background: "linear-gradient(135deg, #1f1f2f, #3a3a5a)",
+                            color: "rgba(255,255,255,0.7)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          &#215;
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

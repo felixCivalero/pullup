@@ -303,7 +303,7 @@ export function EventGuestsTable({
                       opacity: 0.85,
                     }}
                   >
-                    {g.dinnerTimeSlot ? formatEventTime(g.dinnerTimeSlot) : "—"}
+                    {g.dinnerTimeSlot ? formatEventTime(g.dinnerTimeSlot, event?.timezone) : "—"}
                   </td>
                 </>
               )}

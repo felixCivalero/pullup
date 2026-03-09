@@ -80,9 +80,72 @@ export async function mapEventFromDb(dbEvent) {
     }
   }
 
+  // Generate cover image URL if path exists
+  let coverImageUrl = dbEvent.cover_image_url || null;
+  if (coverImageUrl && !coverImageUrl.startsWith("http")) {
+    try {
+      let coverPath = coverImageUrl;
+      if (coverImageUrl.includes("event-images/")) {
+        const urlMatch = coverImageUrl.match(/event-images\/([^?]+)/);
+        if (urlMatch) coverPath = urlMatch[1];
+      }
+      const { data: { publicUrl: coverPublicUrl } } = supabase.storage.from("event-images").getPublicUrl(coverPath);
+      if (coverPublicUrl) coverImageUrl = coverPublicUrl;
+    } catch (e) {
+      console.error("Error generating cover image URL:", e);
+    }
+  }
+
+  // Fetch event media items
+  let media = [];
+  try {
+    const { data: mediaRows, error: mediaError } = await supabase
+      .from("event_media")
+      .select("*")
+      .eq("event_id", dbEvent.id)
+      .order("position", { ascending: true });
+
+    if (!mediaError && mediaRows) {
+      media = mediaRows.map((m) => {
+        let url = m.storage_path;
+        if (url && !url.startsWith("http")) {
+          try {
+            let fp = url;
+            if (url.includes("event-images/")) {
+              const match = url.match(/event-images\/([^?]+)/);
+              if (match) fp = match[1];
+            }
+            const { data: { publicUrl: mUrl } } = supabase.storage.from("event-images").getPublicUrl(fp);
+            if (mUrl) url = mUrl;
+          } catch (_) {}
+        }
+
+        let thumbnailUrl = m.thumbnail_path || null;
+        if (thumbnailUrl && !thumbnailUrl.startsWith("http")) {
+          try {
+            const { data: { publicUrl: tUrl } } = supabase.storage.from("event-images").getPublicUrl(thumbnailUrl);
+            if (tUrl) thumbnailUrl = tUrl;
+          } catch (_) {}
+        }
+
+        return {
+          id: m.id,
+          mediaType: m.media_type,
+          url,
+          thumbnailUrl,
+          position: m.position,
+          isCover: m.is_cover,
+          mimeType: m.mime_type,
+        };
+      });
+    }
+  } catch (e) {
+    console.error("Error fetching event media:", e);
+  }
+
   return {
     id: dbEvent.id,
-    hostId: dbEvent.host_id, // Include host_id for ownership checks
+    hostId: dbEvent.host_id,
     slug: dbEvent.slug,
     title: dbEvent.title,
     description: dbEvent.description,
@@ -94,9 +157,11 @@ export async function mapEventFromDb(dbEvent) {
     timezone: dbEvent.timezone,
     isPaid: dbEvent.is_paid,
     ticketType: dbEvent.ticket_type,
-    maxAttendees: dbEvent.total_capacity, // Backward compatibility
+    maxAttendees: dbEvent.total_capacity,
     waitlistEnabled: dbEvent.waitlist_enabled,
     imageUrl: imageUrl,
+    coverImageUrl: coverImageUrl || imageUrl,
+    media,
     theme: dbEvent.theme,
     calendar: dbEvent.calendar_category,
     visibility: dbEvent.visibility,
@@ -111,6 +176,7 @@ export async function mapEventFromDb(dbEvent) {
     dinnerMaxSeatsPerSlot: dbEvent.dinner_max_seats_per_slot,
     dinnerSlots: dbEvent.dinner_slots || null,
     dinnerOverflowAction: dbEvent.dinner_overflow_action || "waitlist",
+    dinnerBookingEmail: dbEvent.dinner_booking_email || null,
     ticketPrice: dbEvent.ticket_price,
     ticketCurrency: dbEvent.ticket_currency || "usd",
     stripeProductId: dbEvent.stripe_product_id,
@@ -118,10 +184,13 @@ export async function mapEventFromDb(dbEvent) {
     cocktailCapacity: dbEvent.cocktail_capacity,
     foodCapacity: dbEvent.food_capacity,
     totalCapacity: dbEvent.total_capacity,
-    // New fields with backward compatibility
-    // Only include if column exists (handled by || fallback)
     createdVia: dbEvent.created_via || "legacy",
     status: dbEvent.status || "PUBLISHED",
+    instagram: dbEvent.instagram || null,
+    spotify: dbEvent.spotify || null,
+    tiktok: dbEvent.tiktok || null,
+    soundcloud: dbEvent.soundcloud || null,
+    mediaSettings: dbEvent.media_settings || {},
   };
 }
 
@@ -618,6 +687,8 @@ function mapEventToDb(eventData) {
     dbData.dinner_overflow_action = eventData.dinnerOverflowAction;
   if (eventData.dinnerSlots !== undefined)
     dbData.dinner_slots = eventData.dinnerSlots;
+  if (eventData.dinnerBookingEmail !== undefined)
+    dbData.dinner_booking_email = eventData.dinnerBookingEmail;
   if (eventData.ticketPrice !== undefined)
     dbData.ticket_price = eventData.ticketPrice;
   if (eventData.ticketCurrency !== undefined)
@@ -641,6 +712,11 @@ function mapEventToDb(eventData) {
   if (eventData.status !== undefined) {
     dbData.status = eventData.status;
   }
+  if (eventData.instagram !== undefined) dbData.instagram = eventData.instagram;
+  if (eventData.spotify !== undefined) dbData.spotify = eventData.spotify;
+  if (eventData.tiktok !== undefined) dbData.tiktok = eventData.tiktok;
+  if (eventData.soundcloud !== undefined) dbData.soundcloud = eventData.soundcloud;
+  if (eventData.mediaSettings !== undefined) dbData.media_settings = eventData.mediaSettings;
   return dbData;
 }
 
@@ -690,6 +766,15 @@ export async function createEvent({
   // Dual personality fields
   createdVia = "legacy",
   status = "PUBLISHED",
+
+  // Media settings
+  mediaSettings,
+
+  // Social links
+  instagram,
+  spotify,
+  tiktok,
+  soundcloud,
 }) {
   if (!hostId) {
     throw new Error("hostId is required to create an event");
@@ -760,6 +845,11 @@ export async function createEvent({
     totalCapacity: totalCapacity ? Number(totalCapacity) : null,
     createdVia,
     status,
+    mediaSettings,
+    instagram,
+    spotify,
+    tiktok,
+    soundcloud,
   };
 
   const dbData = mapEventToDb(eventData);

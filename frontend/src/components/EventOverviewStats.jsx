@@ -279,7 +279,7 @@ export function EventOverviewStats({
                         color: "rgba(255, 255, 255, 0.8)",
                       }}
                     >
-                      {formatEventTime(slotTime)}
+                      {formatEventTime(slotTime, event?.timezone)}
                     </div>
                     <div
                       style={{

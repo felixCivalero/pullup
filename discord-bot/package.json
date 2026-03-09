@@ -1,0 +1,14 @@
+{
+  "name": "pullup-discord-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Discord bot bridge to Claude Code CLI",
+  "main": "discord-bot.js",
+  "scripts": {
+    "start": "node discord-bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.18.0",
+    "dotenv": "^17.2.3"
+  }
+}

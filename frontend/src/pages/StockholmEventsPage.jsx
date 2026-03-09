@@ -95,6 +95,17 @@ function formatDate(iso) {
   });
 }
 
+function formatDateRange(starts, ends) {
+  if (!starts && !ends) return null;
+  const fmtShort = (iso) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" });
+  };
+  if (starts && ends) return `${fmtShort(starts)} – ${fmtShort(ends)}`;
+  if (starts) return `Från ${fmtShort(starts)}`;
+  return `Till ${fmtShort(ends)}`;
+}
+
 function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
   const [loading, setLoading] = useState(false);
   const [spotifyOpen, setSpotifyOpen] = useState(false);
@@ -146,6 +157,7 @@ function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
           <img
             src={event.image_url}
             alt={event.title}
+            referrerPolicy="no-referrer"
             style={{
               width: "100%",
               height: "100%",
@@ -232,7 +244,9 @@ function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
         >
           {event.starts_at && (
             <span style={{ fontSize: "12px", color: colors.silverMuted }}>
-              📅 {formatDate(event.starts_at)}
+              📅 {event.ends_at
+                ? formatDateRange(event.starts_at, event.ends_at)
+                : formatDate(event.starts_at)}
             </span>
           )}
           {event.location && (
@@ -668,8 +682,10 @@ export function StockholmEventsPage() {
     if (weekFilter !== "all") {
       const range = getWeekRange(weekFilter);
       if (range && event.starts_at) {
-        const eventDate = new Date(event.starts_at);
-        if (eventDate < range[0] || eventDate >= range[1]) return false;
+        const eventStart = new Date(event.starts_at);
+        const eventEnd = event.ends_at ? new Date(event.ends_at) : eventStart;
+        // Show if the event's date range overlaps with the filter range
+        if (eventEnd < range[0] || eventStart >= range[1]) return false;
       } else if (range && !event.starts_at) {
         return false;
       }

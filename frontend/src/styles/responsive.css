@@ -79,14 +79,58 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Responsive event creation grid */
+/* Responsive event creation layout */
+
+/* Desktop: sidebar + preview side by side, hide mobile toggle */
+@media (min-width: 969px) {
+  .create-event-page.page-with-header {
+    padding-top: 56px;
+    box-sizing: border-box;
+  }
+  .create-event-layout {
+    padding: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .create-event-mobile-toggle {
+    display: none !important;
+  }
+}
+
+/* Mobile: stack vertically, hide desktop preview, show toggle */
 @media (max-width: 968px) {
+  .create-event-page.page-with-header {
+    height: auto !important;
+    overflow: auto !important;
+    padding-top: 70px;
+  }
+  .create-event-layout {
+    padding: 16px;
+    padding-top: 0;
+    height: auto !important;
+  }
   .create-event-grid {
-    grid-template-columns: 1fr !important;
+    flex-direction: column !important;
+    height: auto !important;
+    padding-bottom: 80px;
   }
 
-  .create-event-grid > div:first-child {
-    position: static !important;
+  .create-event-sidebar {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    border-right: none !important;
+    background: transparent !important;
+    padding: 16px 0 !important;
+  }
+
+  .create-event-preview-desktop {
+    display: none !important;
+  }
+
+  .create-event-mobile-toggle {
+    display: flex !important;
   }
 }
 

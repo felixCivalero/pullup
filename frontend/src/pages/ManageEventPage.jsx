@@ -1292,13 +1292,21 @@ function formatRelativeTime(date) {
   }
 }
 
-function formatReadableDateTime(date) {
+function localeForTimezone(tz) {
+  if (!tz) return "en-US";
+  const twelve = ["America/", "Australia/", "Pacific/Auckland", "Pacific/Fiji"];
+  return twelve.some((p) => tz.startsWith(p)) ? "en-US" : "sv-SE";
+}
+
+function formatReadableDateTime(date, tz) {
+  const opts = tz ? { timeZone: tz } : {};
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   const isToday = date.toDateString() === today.toDateString();
   const isTomorrow = date.toDateString() === tomorrow.toDateString();
+  const locale = localeForTimezone(tz);
 
   let dateStr = "";
   if (isToday) {
@@ -1306,16 +1314,18 @@ function formatReadableDateTime(date) {
   } else if (isTomorrow) {
     dateStr = "Tomorrow";
   } else {
-    dateStr = date.toLocaleDateString("en-US", {
+    dateStr = date.toLocaleDateString(locale, {
       weekday: "long",
       month: "long",
       day: "numeric",
+      ...opts,
     });
   }
 
-  const timeStr = date.toLocaleTimeString("en-US", {
+  const timeStr = date.toLocaleTimeString(locale, {
     hour: "numeric",
     minute: "2-digit",
+    ...opts,
   });
 
   return `${dateStr} at ${timeStr}`;
@@ -1464,7 +1474,7 @@ export function ManageEventPage() {
       !location.pathname.endsWith("/edit") &&
       (tab === "edit" || tab === "hosts")
     ) {
-      navigate(`/app/events/${id}/manage/edit`, { replace: true });
+      navigate(`/app/events/${id}/edit`, { replace: true });
     }
   }, [location.pathname, location.search, id, navigate]);
 
@@ -2850,7 +2860,7 @@ export function ManageEventPage() {
                 </span>
               </button>
               <button
-                onClick={() => navigate(`/app/events/${id}/manage/edit`)}
+                onClick={() => navigate(`/app/events/${id}/edit`)}
                 style={{
                   padding: "14px 20px",
                   minHeight: "44px",
@@ -3386,6 +3396,7 @@ export function ManageEventPage() {
                                       new Date(
                                         event.startsAt || event.startsAtLocal,
                                       ),
+                                      event.timezone,
                                     )
                                   : "Event start"}
                               </div>
@@ -3530,6 +3541,7 @@ export function ManageEventPage() {
                                       new Date(
                                         event.endsAt || event.endsAtLocal,
                                       ),
+                                      event.timezone,
                                     )
                                   : "Event end"}
                               </div>
@@ -4460,6 +4472,7 @@ export function ManageEventPage() {
                                                 event.dinnerStartTime ||
                                                   event.dinnerStartTimeLocal,
                                               ),
+                                              event.timezone,
                                             )
                                           : "First slot start *"}
                                       </div>
@@ -4568,6 +4581,7 @@ export function ManageEventPage() {
                                                 event.dinnerEndTime ||
                                                   event.dinnerEndTimeLocal,
                                               ),
+                                              event.timezone,
                                             )
                                           : "Last slot start *"}
                                       </div>

@@ -157,21 +157,28 @@ function escapeHtml(s = "") {
     .replace(/'/g, "&#39;");
 }
 
-function formatOgDateTime(startsAt) {
+function formatOgDateTime(startsAt, tz) {
   if (!startsAt) return "";
   try {
     const d = new Date(startsAt);
+    const opts = tz ? { timeZone: tz } : {};
 
-    // Sunday, December 14 at 2:00 PM
-    const date = d.toLocaleDateString("en-US", {
+    // Derive locale from timezone — European timezones use 24h
+    const twelve = ["America/", "Australia/", "Pacific/Auckland", "Pacific/Fiji"];
+    const is12h = !tz || twelve.some((p) => tz.startsWith(p));
+    const locale = is12h ? "en-US" : "en-GB";
+
+    const date = d.toLocaleDateString(locale, {
       weekday: "long",
       month: "long",
       day: "numeric",
+      ...opts,
     });
 
-    const time = d.toLocaleTimeString("en-US", {
+    const time = d.toLocaleTimeString(is12h ? "en-US" : "sv-SE", {
       hour: "numeric",
       minute: "2-digit",
+      ...opts,
     });
 
     return `${date} at ${time}`;
@@ -257,7 +264,7 @@ async function generateOgHtmlForEvent(event, routeName = "Share") {
     imageUrl: event?.imageUrl || "none",
   });
 
-  const ogImageUrl = await toOgPublicImageUrl(event?.imageUrl, routeName);
+  const ogImageUrl = await toOgPublicImageUrl(event?.coverImageUrl || event?.imageUrl, routeName);
 
   logger.debug(`[${routeName}] Final OG image URL`, {
     imageUrl: ogImageUrl || "none (will use default)",
@@ -295,7 +302,7 @@ function generateOgHtml(event) {
   const titleRaw = event?.title || "Pull Up";
   const escapedTitle = escapeHtml(titleRaw);
 
-  const when = formatOgDateTime(event?.startsAt);
+  const when = formatOgDateTime(event?.startsAt, event?.timezone);
   const where = event?.location ? String(event.location).trim() : "";
 
   // Format date for OG title: "Event Title — Wednesday, December 17 at 12:00 PM"
@@ -1139,6 +1146,7 @@ app.post("/events", requireAuth, async (req, res) => {
     dinnerMaxSeatsPerSlot,
     dinnerOverflowAction,
     dinnerSlots,
+    dinnerBookingEmail,
 
     // Capacity fields
     cocktailCapacity,
@@ -1151,6 +1159,15 @@ app.post("/events", requireAuth, async (req, res) => {
     // Dual personality fields
     createdVia,
     status,
+
+    // Media settings
+    mediaSettings,
+
+    // Social links
+    instagram,
+    spotify,
+    tiktok,
+    soundcloud,
   } = req.body;
 
   if (!title || !startsAt) {
@@ -1184,6 +1201,7 @@ app.post("/events", requireAuth, async (req, res) => {
     dinnerMaxSeatsPerSlot,
     dinnerOverflowAction,
     dinnerSlots,
+    dinnerBookingEmail,
     ticketPrice,
     ticketCurrency: ticketCurrency || "USD",
     cocktailCapacity,
@@ -1191,6 +1209,11 @@ app.post("/events", requireAuth, async (req, res) => {
     totalCapacity,
     createdVia: createdVia || "legacy",
     status: status || "PUBLISHED",
+    mediaSettings,
+    instagram,
+    spotify,
+    tiktok,
+    soundcloud,
   });
 
   // If paid tickets, automatically create Stripe product and price (internal only)
@@ -2917,6 +2940,8 @@ app.put(
       title,
       description,
       location,
+      locationLat,
+      locationLng,
       startsAt,
       endsAt,
       timezone,
@@ -2935,6 +2960,8 @@ app.put(
       dinnerSeatingIntervalHours,
       dinnerMaxSeatsPerSlot,
       dinnerOverflowAction,
+      dinnerSlots,
+      dinnerBookingEmail,
 
       // Stripe fields
       ticketPrice,
@@ -2949,6 +2976,15 @@ app.put(
 
       // Dual personality fields
       status,
+
+      // Media settings
+      mediaSettings,
+
+      // Social links
+      instagram,
+      spotify,
+      tiktok,
+      soundcloud,
     } = req.body;
 
     // Get current event to check if price/currency changed
@@ -3037,6 +3073,8 @@ app.put(
       title,
       description,
       location,
+      locationLat,
+      locationLng,
       startsAt,
       endsAt,
       timezone,
@@ -3055,6 +3093,8 @@ app.put(
       dinnerSeatingIntervalHours,
       dinnerMaxSeatsPerSlot,
       dinnerOverflowAction,
+      dinnerSlots,
+      dinnerBookingEmail,
       ticketPrice,
       ticketCurrency: ticketCurrency
         ? String(ticketCurrency).toLowerCase()
@@ -3065,6 +3105,11 @@ app.put(
       foodCapacity,
       totalCapacity,
       status,
+      mediaSettings,
+      instagram,
+      spotify,
+      tiktok,
+      soundcloud,
     });
 
     if (!updated) return res.status(404).json({ error: "Event not found" });
@@ -5143,6 +5188,304 @@ app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
 });
 
 // ---------------------------
+// PROTECTED: Upload event media (image/video/gif) for carousel
+// ---------------------------
+app.post("/host/events/:eventId/media", requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { mediaData, mediaType, mimeType, position, thumbnailData } = req.body;
+
+    if (!mediaData) {
+      return res.status(400).json({ error: "mediaData is required" });
+    }
+
+    const event = await findEventById(eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const allowed = await canEditEvent(req.user.id, eventId);
+    if (!allowed) return res.status(403).json({ error: "Forbidden" });
+
+    const { supabase } = await import("./supabase.js");
+
+    // Determine type and extension
+    const type = mediaType || "image";
+    let extension = "jpg";
+    if (mimeType) {
+      const ext = mimeType.split("/")[1];
+      if (ext === "quicktime") extension = "mov";
+      else if (ext === "webm") extension = "webm";
+      else if (ext === "mp4") extension = "mp4";
+      else if (ext === "gif") extension = "gif";
+      else if (ext === "png") extension = "png";
+      else if (ext === "webp") extension = "webp";
+      else extension = ext || "jpg";
+    }
+
+    const pos = position ?? 0;
+    const fileName = `${eventId}/media_${pos}_${Date.now()}.${extension}`;
+
+    // Convert base64 to buffer
+    const base64Data = mediaData.replace(/^data:[^;]+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from("event-images")
+      .upload(fileName, buffer, {
+        contentType: mimeType || `image/${extension}`,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error("Media upload error:", uploadError);
+      return res.status(500).json({ error: "Failed to upload media" });
+    }
+
+    // Handle video thumbnail
+    let thumbnailPath = null;
+    if (thumbnailData && (type === "video" || type === "gif")) {
+      const thumbFileName = `${eventId}/thumb_${pos}_${Date.now()}.jpg`;
+      const thumbBase64 = thumbnailData.replace(/^data:[^;]+;base64,/, "");
+      const thumbBuffer = Buffer.from(thumbBase64, "base64");
+
+      const { error: thumbError } = await supabase.storage
+        .from("event-images")
+        .upload(thumbFileName, thumbBuffer, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+
+      if (!thumbError) {
+        thumbnailPath = thumbFileName;
+      }
+    }
+
+    // Check if this is the first media item (make it cover)
+    const { data: existingMedia } = await supabase
+      .from("event_media")
+      .select("id")
+      .eq("event_id", eventId);
+
+    const isCover = !existingMedia || existingMedia.length === 0;
+
+    // Insert into event_media table
+    const { data: mediaRow, error: insertError } = await supabase
+      .from("event_media")
+      .insert({
+        event_id: eventId,
+        media_type: type,
+        storage_path: fileName,
+        thumbnail_path: thumbnailPath,
+        position: pos,
+        is_cover: isCover,
+        mime_type: mimeType || null,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error("Media insert error:", insertError);
+      return res.status(500).json({ error: "Failed to save media record" });
+    }
+
+    // If this is the cover, update events.cover_image_url and image_url
+    if (isCover) {
+      const coverPath = (type === "video" || type === "gif") && thumbnailPath ? thumbnailPath : fileName;
+      await supabase.from("events").update({
+        cover_image_url: coverPath,
+        image_url: coverPath, // Always sync image_url so dashboard/emails/OG tags work
+      }).eq("id", eventId);
+    }
+
+    // Generate public URL for response
+    const { data: { publicUrl } } = supabase.storage.from("event-images").getPublicUrl(fileName);
+    let thumbnailUrl = null;
+    if (thumbnailPath) {
+      const { data: { publicUrl: tUrl } } = supabase.storage.from("event-images").getPublicUrl(thumbnailPath);
+      thumbnailUrl = tUrl;
+    }
+
+    res.json({
+      id: mediaRow.id,
+      mediaType: type,
+      url: publicUrl,
+      thumbnailUrl,
+      position: pos,
+      isCover,
+      mimeType: mimeType || null,
+    });
+  } catch (error) {
+    console.error("Error uploading event media:", error);
+    res.status(500).json({ error: "Failed to upload event media" });
+  }
+});
+
+// ---------------------------
+// PROTECTED: List event media
+// ---------------------------
+app.get("/host/events/:eventId/media", requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { supabase } = await import("./supabase.js");
+
+    const { data: mediaRows, error } = await supabase
+      .from("event_media")
+      .select("*")
+      .eq("event_id", eventId)
+      .order("position", { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ error: "Failed to fetch media" });
+    }
+
+    const media = (mediaRows || []).map((m) => {
+      const { data: { publicUrl } } = supabase.storage.from("event-images").getPublicUrl(m.storage_path);
+      let thumbnailUrl = null;
+      if (m.thumbnail_path) {
+        const { data: { publicUrl: tUrl } } = supabase.storage.from("event-images").getPublicUrl(m.thumbnail_path);
+        thumbnailUrl = tUrl;
+      }
+      return {
+        id: m.id,
+        mediaType: m.media_type,
+        url: publicUrl,
+        thumbnailUrl,
+        position: m.position,
+        isCover: m.is_cover,
+        mimeType: m.mime_type,
+      };
+    });
+
+    res.json(media);
+  } catch (error) {
+    console.error("Error fetching event media:", error);
+    res.status(500).json({ error: "Failed to fetch event media" });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Delete event media
+// ---------------------------
+app.delete("/host/events/:eventId/media/:mediaId", requireAuth, async (req, res) => {
+  try {
+    const { eventId, mediaId } = req.params;
+
+    const event = await findEventById(eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const allowed = await canEditEvent(req.user.id, eventId);
+    if (!allowed) return res.status(403).json({ error: "Forbidden" });
+
+    const { supabase } = await import("./supabase.js");
+
+    // Get the media row first
+    const { data: mediaRow } = await supabase
+      .from("event_media")
+      .select("*")
+      .eq("id", mediaId)
+      .eq("event_id", eventId)
+      .single();
+
+    if (!mediaRow) return res.status(404).json({ error: "Media not found" });
+
+    // Delete from storage
+    await supabase.storage.from("event-images").remove([mediaRow.storage_path]);
+    if (mediaRow.thumbnail_path) {
+      await supabase.storage.from("event-images").remove([mediaRow.thumbnail_path]);
+    }
+
+    // Delete from database
+    await supabase.from("event_media").delete().eq("id", mediaId);
+
+    // If this was the cover, assign cover to the next item
+    if (mediaRow.is_cover) {
+      const { data: remaining } = await supabase
+        .from("event_media")
+        .select("*")
+        .eq("event_id", eventId)
+        .order("position", { ascending: true })
+        .limit(1);
+
+      if (remaining && remaining.length > 0) {
+        await supabase.from("event_media").update({ is_cover: true }).eq("id", remaining[0].id);
+        const coverPath = (remaining[0].media_type === "video") && remaining[0].thumbnail_path
+          ? remaining[0].thumbnail_path : remaining[0].storage_path;
+        await supabase.from("events").update({ cover_image_url: coverPath, image_url: coverPath }).eq("id", eventId);
+      } else {
+        await supabase.from("events").update({ cover_image_url: null, image_url: null }).eq("id", eventId);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting event media:", error);
+    res.status(500).json({ error: "Failed to delete event media" });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Reorder event media
+// ---------------------------
+app.put("/host/events/:eventId/media/reorder", requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { ordering } = req.body; // [{id, position}]
+
+    const allowed = await canEditEvent(req.user.id, eventId);
+    if (!allowed) return res.status(403).json({ error: "Forbidden" });
+
+    const { supabase } = await import("./supabase.js");
+
+    for (const item of ordering) {
+      await supabase.from("event_media").update({ position: item.position }).eq("id", item.id).eq("event_id", eventId);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error reordering event media:", error);
+    res.status(500).json({ error: "Failed to reorder media" });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Set cover media
+// ---------------------------
+app.put("/host/events/:eventId/media/:mediaId/cover", requireAuth, async (req, res) => {
+  try {
+    const { eventId, mediaId } = req.params;
+
+    const allowed = await canEditEvent(req.user.id, eventId);
+    if (!allowed) return res.status(403).json({ error: "Forbidden" });
+
+    const { supabase } = await import("./supabase.js");
+
+    // Unset all covers for this event
+    await supabase.from("event_media").update({ is_cover: false }).eq("event_id", eventId);
+
+    // Set new cover
+    const { data: mediaRow } = await supabase
+      .from("event_media")
+      .update({ is_cover: true })
+      .eq("id", mediaId)
+      .eq("event_id", eventId)
+      .select()
+      .single();
+
+    if (!mediaRow) return res.status(404).json({ error: "Media not found" });
+
+    // Update events.cover_image_url and image_url
+    const coverPath = (mediaRow.media_type === "video" || mediaRow.media_type === "gif") && mediaRow.thumbnail_path
+      ? mediaRow.thumbnail_path : mediaRow.storage_path;
+    await supabase.from("events").update({ cover_image_url: coverPath, image_url: coverPath }).eq("id", eventId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error setting cover media:", error);
+    res.status(500).json({ error: "Failed to set cover" });
+  }
+});
+
+// ---------------------------
 // PROTECTED: Upload profile picture
 // ---------------------------
 app.post("/host/profile/picture", requireAuth, async (req, res) => {
@@ -5627,7 +5970,7 @@ app.post("/admin/newsletter/send", requireAdmin, async (req, res) => {
         // If we're using the event template and have an event, render HTML from it.
         if (templateType === "event" && event) {
           const content = {
-            heroImageUrl: templateContent.heroImageUrl || event.imageUrl || "",
+            heroImageUrl: templateContent.heroImageUrl || event.coverImageUrl || event.imageUrl || "",
             headline: templateContent.headline || event.title || "",
             introQuote: templateContent.introQuote || "",
             introBody:

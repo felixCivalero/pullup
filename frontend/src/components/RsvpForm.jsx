@@ -1,11 +1,9 @@
 // frontend/src/components/RsvpForm.jsx
-// Mobile-first RSVP form with improved dinner UX
+// Sleek, native-feeling RSVP form
 import { useState, useEffect } from "react";
-import { Input } from "./ui/Input";
-import { Stepper } from "./ui/Stepper";
-import { Button } from "./ui/Button";
 import { publicFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
+import { formatEventTime } from "../lib/dateUtils.js";
 
 function validateEmail(email) {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -19,18 +17,20 @@ export function RsvpForm({
   onClose,
   onPartySizeChange,
   // Waitlist upgrade props
-  waitlistOffer = null, // { valid, event, rsvpDetails, expiresAt }
-  waitlistToken = null, // JWT token
+  waitlistOffer = null,
+  waitlistToken = null,
   // VIP invite props
-  vipOffer = null, // { valid, event, invite, expiresAt }
-  vipToken = null, // JWT token
-  // Payment-related props (for paid events)
+  vipOffer = null,
+  vipToken = null,
+  // Payment-related props
   isPaidEvent = false,
   ticketPrice = null,
   ticketCurrency = "usd",
   currentPartySize = 1,
-  pendingPayment = null, // { clientSecret, amount, currency, paymentBreakdown, ... }
-  PaymentFormComponent = null, // Pass PaymentForm component from parent
+  pendingPayment = null,
+  PaymentFormComponent = null,
+  // Preview mode: pass pre-built slots to skip API call
+  previewSlots = null,
 }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -42,23 +42,18 @@ export function RsvpForm({
   const [dinnerSlots, setDinnerSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
-  // Ensure no auto-focus when form mounts (prevents mobile zoom)
   useEffect(() => {
-    // Blur any focused elements when form first renders
     if (document.activeElement && document.activeElement.blur) {
       document.activeElement.blur();
     }
   }, []);
 
-  // Base max plus-ones from event config
   const baseMaxPlusOnes =
     typeof event?.maxPlusOnesPerGuest === "number" &&
     event?.maxPlusOnesPerGuest > 0
       ? event?.maxPlusOnesPerGuest
       : 0;
 
-  // VIP override: allow a larger guest list for this booking
-  // We treat invite.maxGuests as total party size, so max plus-ones ≈ maxGuests - 1.
   const vipMaxGuests =
     vipOffer && vipOffer.invite && typeof vipOffer.invite.maxGuests === "number"
       ? vipOffer.invite.maxGuests
@@ -69,21 +64,28 @@ export function RsvpForm({
       ? Math.max(0, vipMaxGuests - 1)
       : baseMaxPlusOnes;
 
-  // Load dinner slots if dinner is enabled
   useEffect(() => {
-    if (event?.dinnerEnabled && event?.slug) {
+    if (!event?.dinnerEnabled) return;
+
+    // Preview mode: use pre-built slots directly
+    if (previewSlots && previewSlots.length > 0) {
+      setDinnerSlots(previewSlots);
+      const first = previewSlots.find((s) => s.available !== false) || previewSlots[0];
+      if (first) setDinnerTimeSlot(first.time);
+      return;
+    }
+
+    if (event?.slug) {
       setLoadingSlots(true);
       publicFetch(`/events/${event.slug}/dinner-slots`)
         .then((res) => res.json())
         .then((data) => {
           setDinnerSlots(data.slots || []);
           if (data.slots && data.slots.length > 0) {
-            // Prefer first available slot, but if all are full, select first slot anyway (for waitlist)
             const firstAvailable = data.slots.find((s) => s.available);
             if (firstAvailable) {
               setDinnerTimeSlot(firstAvailable.time);
             } else {
-              // All slots are full - select first one anyway so user can join waitlist
               setDinnerTimeSlot(data.slots[0].time);
             }
           }
@@ -95,23 +97,20 @@ export function RsvpForm({
           setLoadingSlots(false);
         });
     }
-  }, [event?.dinnerEnabled, event?.slug]);
+  }, [event?.dinnerEnabled, event?.slug, previewSlots]);
 
-  // Calculate live summary
   const totalPartySize = wantsDinner
     ? dinnerSeats + cocktailGuests
     : 1 + cocktailGuests;
   const dinnerCount = wantsDinner ? dinnerSeats : 0;
   const cocktailsOnlyCount = cocktailGuests;
 
-  // Notify parent of party size changes for price calculation
   useEffect(() => {
     if (onPartySizeChange) {
       onPartySizeChange(totalPartySize);
     }
   }, [totalPartySize, onPartySizeChange]);
 
-  // Check capacity
   const cocktailSpotsLeft = event?._attendance?.cocktailSpotsLeft ?? null;
   const selectedSlot =
     wantsDinner && dinnerTimeSlot
@@ -121,15 +120,10 @@ export function RsvpForm({
   const maxDinnerPerBooking =
     (selectedSlot && selectedSlot.maxGuestsPerBooking) || 8;
 
-  // Calculate cocktails-only spots needed for this booking
-  // For cocktails-only: partySize = 1 (booker) + cocktailGuests
-  // For dinner: cocktailsOnly = cocktailGuests (plus-ones only)
   const cocktailsOnlyForThisBooking = wantsDinner
-    ? cocktailGuests // If dinner, only plus-ones are cocktails-only
-    : 1 + cocktailGuests; // If no dinner, booker + plus-ones are cocktails-only
+    ? cocktailGuests
+    : 1 + cocktailGuests;
 
-  // ALL-OR-NOTHING WAITLIST LOGIC: Check BOTH cocktail AND dinner capacity
-  // If EITHER is insufficient, entire party goes to waitlist
   const willGoToWaitlist =
     event?.waitlistEnabled &&
     ((cocktailSpotsLeft !== null &&
@@ -143,49 +137,38 @@ export function RsvpForm({
     e.preventDefault();
     e.stopPropagation();
 
-    // Prevent viewport zoom and scrolling on mobile
     if (document.activeElement) {
       document.activeElement.blur();
     }
 
-    // Prevent double submission
-    if (loading) {
-      return;
-    }
-
+    if (loading) return;
     setError("");
 
-    // For waitlist upgrades, use locked values directly (no validation needed)
-    if (waitlistOffer && waitlistOffer.rsvpDetails) {
+    if (isWaitlistUpgrade) {
       if (onSubmit) {
         try {
+          const details = waitlistOffer.rsvpDetails;
           const result = await onSubmit({
-            email: waitlistOffer.rsvpDetails.email,
-            name: waitlistOffer.rsvpDetails.name || null,
-            plusOnes: waitlistOffer.rsvpDetails.plusOnes || 0,
-            wantsDinner: waitlistOffer.rsvpDetails.wantsDinner || false,
-            dinnerTimeSlot: waitlistOffer.rsvpDetails.dinnerTimeSlot || null,
-            dinnerPartySize: waitlistOffer.rsvpDetails.dinnerPartySize || null,
+            email: details.email,
+            name: details.name || null,
+            plusOnes: details.plusOnes || 0,
+            wantsDinner: details.wantsDinner || false,
+            dinnerTimeSlot: details.dinnerTimeSlot || null,
+            dinnerPartySize: details.dinnerPartySize || null,
           });
-
-          if (result !== false) {
-            // Success - form will be closed by parent
-          }
+          if (result !== false) { /* success */ }
         } catch (err) {
           console.error("RSVP submission error:", err);
-          // Error handling is done in parent component
         }
       }
       return;
     }
 
-    // Normal / VIP flow - validate inputs
     if (!isVipInvite) {
       if (!email.trim()) {
         setError("Email is required");
         return;
       }
-
       if (!validateEmail(email.trim())) {
         setError("Please enter a valid email address");
         return;
@@ -198,339 +181,93 @@ export function RsvpForm({
     }
 
     if (wantsDinner && dinnerSeats > maxDinnerPerBooking) {
-      setError(
-        "For parties larger than this slot allows, please contact the host directly",
-      );
+      setError("For parties larger than this slot allows, please contact the host directly");
       return;
     }
 
     if (onSubmit) {
       try {
         const result = await onSubmit({
-          email: isVipInvite
-            ? (vipOffer.invite?.email || "").trim()
-            : email.trim(),
+          email: isVipInvite ? (vipOffer.invite?.email || "").trim() : email.trim(),
           name: name.trim() || null,
           plusOnes: cocktailGuests,
           wantsDinner,
           dinnerTimeSlot: wantsDinner ? dinnerTimeSlot : null,
           dinnerPartySize: wantsDinner ? dinnerSeats : null,
         });
-
-        if (result !== false) {
-          // Success - form will be closed by parent
-        }
+        if (result !== false) { /* success */ }
       } catch (err) {
         console.error("RSVP submission error:", err);
-        // Error handling is done in parent component
       }
     }
   }
 
-  // If waitlist upgrade, show read-only booking summary instead of form
   const isWaitlistUpgrade = waitlistOffer && waitlistOffer.rsvpDetails;
   const isVipInvite = !!vipOffer && !!vipOffer.invite;
 
-  // If waitlist upgrade, show read-only booking summary
+  // ─── Waitlist Upgrade: read-only summary ───
   if (isWaitlistUpgrade) {
     const details = waitlistOffer.rsvpDetails;
-    // Use event data from waitlist offer if available, otherwise use props
     const waitlistEvent = waitlistOffer.event || event;
     const waitlistTicketPrice = waitlistEvent?.ticketPrice || ticketPrice;
-    const waitlistTicketCurrency = (
-      waitlistEvent?.ticketCurrency ||
-      ticketCurrency ||
-      "usd"
-    ).toLowerCase();
-    const waitlistIsPaidEvent =
-      waitlistEvent?.ticketType === "paid" || isPaidEvent;
+    const waitlistTicketCurrency = (waitlistEvent?.ticketCurrency || ticketCurrency || "usd").toLowerCase();
+    const waitlistIsPaidEvent = waitlistEvent?.ticketType === "paid" || isPaidEvent;
     return (
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          width: "100%",
-          touchAction: "manipulation",
-        }}
-      >
-        <div
-          style={{
-            padding: "20px",
-            background: "rgba(255, 255, 255, 0.05)",
-            borderRadius: "12px",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
-            marginBottom: "24px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "14px",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              opacity: 0.7,
-              marginBottom: "16px",
-            }}
-          >
-            Your Booking Details
+      <form onSubmit={handleSubmit} style={{ width: "100%", touchAction: "manipulation" }}>
+        <div style={{
+          padding: "16px",
+          background: "rgba(255, 255, 255, 0.04)",
+          borderRadius: "16px",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          marginBottom: "16px",
+        }}>
+          <div style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.5, marginBottom: "12px" }}>
+            Your Booking
           </div>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-          >
-            <div>
-              <div
-                style={{ fontSize: "12px", opacity: 0.7, marginBottom: "4px" }}
-              >
-                Name
-              </div>
-              <div style={{ fontSize: "16px", fontWeight: 500 }}>
-                {details.name || "Not provided"}
-              </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ opacity: 0.6 }}>Name</span>
+              <span style={{ fontWeight: 500 }}>{details.name || "—"}</span>
             </div>
-            <div>
-              <div
-                style={{ fontSize: "12px", opacity: 0.7, marginBottom: "4px" }}
-              >
-                Email
-              </div>
-              <div style={{ fontSize: "16px", fontWeight: 500 }}>
-                {details.email}
-              </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ opacity: 0.6 }}>Email</span>
+              <span style={{ fontWeight: 500 }}>{details.email}</span>
             </div>
-            <div>
-              <div
-                style={{ fontSize: "12px", opacity: 0.7, marginBottom: "4px" }}
-              >
-                Total Guests
-              </div>
-              <div style={{ fontSize: "16px", fontWeight: 500 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ opacity: 0.6 }}>Guests</span>
+              <span style={{ fontWeight: 500 }}>
                 {(() => {
-                  // Calculate display using DPCS logic
-                  const partySize = details.partySize || 1;
-                  const wantsDinner = details.wantsDinner || false;
-                  const dinnerPartySize = details.dinnerPartySize || 0;
-                  const plusOnes = details.plusOnes || 0;
-
-                  if (wantsDinner && dinnerPartySize > 0) {
-                    // With dinner: partySize = dinnerPartySize + plusOnes
-                    // Show: "5 guests (3 dinner + 2 cocktails-only)"
-                    return (
-                      <>
-                        {partySize} {partySize === 1 ? "guest" : "guests"}
-                        {` (${dinnerPartySize} dinner${
-                          plusOnes > 0 ? ` + ${plusOnes} cocktails-only` : ""
-                        })`}
-                      </>
-                    );
-                  } else {
-                    // No dinner: partySize = 1 + plusOnes
-                    // Show: "3 guests (1 + 2)" or just "1 guest" if no plusOnes
-                    if (plusOnes > 0) {
-                      return (
-                        <>
-                          {partySize} {partySize === 1 ? "guest" : "guests"}
-                          {` (1 + ${plusOnes})`}
-                        </>
-                      );
-                    } else {
-                      return (
-                        <>
-                          {partySize} {partySize === 1 ? "guest" : "guests"}
-                        </>
-                      );
-                    }
-                  }
+                  const ps = details.partySize || 1;
+                  const wd = details.wantsDinner || false;
+                  const dp = details.dinnerPartySize || 0;
+                  const po = details.plusOnes || 0;
+                  if (wd && dp > 0) return `${ps} (${dp} dinner${po > 0 ? ` + ${po} cocktails` : ""})`;
+                  if (po > 0) return `${ps} (you + ${po})`;
+                  return `${ps}`;
                 })()}
-              </div>
+              </span>
             </div>
-            {details.wantsDinner && (
-              <>
-                <div>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      opacity: 0.7,
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Dinner
-                  </div>
-                  <div style={{ fontSize: "16px", fontWeight: 500 }}>
-                    {details.dinnerPartySize || 1}{" "}
-                    {details.dinnerPartySize === 1 ? "seat" : "seats"}
-                  </div>
-                </div>
-                {details.dinnerTimeSlot && (
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        opacity: 0.7,
-                        marginBottom: "4px",
-                      }}
-                    >
-                      Dinner Time
-                    </div>
-                    <div style={{ fontSize: "16px", fontWeight: 500 }}>
-                      {new Date(details.dinnerTimeSlot).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
           </div>
-          <div
-            style={{
-              marginTop: "16px",
-              padding: "12px",
-              background: "rgba(59, 130, 246, 0.1)",
-              borderRadius: "8px",
-              fontSize: "13px",
-              opacity: 0.9,
-            }}
-          >
-            All details are locked - Based on your original waitlist request.
-            Complete payment below to confirm your spot.
+          <div style={{
+            marginTop: "12px",
+            padding: "10px 12px",
+            background: "rgba(59, 130, 246, 0.08)",
+            borderRadius: "10px",
+            fontSize: "12px",
+            opacity: 0.8,
+            lineHeight: "1.4",
+          }}>
+            Details locked from your original request. Complete payment to confirm.
           </div>
         </div>
 
-        {/* Payment Details Section for waitlist upgrade */}
         {waitlistIsPaidEvent && waitlistTicketPrice && details.partySize && (
-          <div
-            style={{
-              marginTop: "24px",
-              padding: "20px",
-              background: "rgba(20, 16, 30, 0.8)",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "16px",
-                fontWeight: 600,
-                marginBottom: "16px",
-                color: "#fff",
-              }}
-            >
-              Payment Details
-            </div>
-            {(() => {
-              const currencyCode =
-                pendingPayment?.currency ?? waitlistTicketCurrency;
-              const symbol = currencyCode === "sek" ? "kr" : "$";
-
-              // Calculate breakdown (use backend data if available, otherwise calculate client-side)
-              let breakdown;
-              if (pendingPayment?.paymentBreakdown) {
-                // Use backend-provided breakdown (after PaymentIntent is created)
-                breakdown = pendingPayment.paymentBreakdown;
-              } else if (waitlistTicketPrice && details.partySize) {
-                // Calculate client-side breakdown (before PaymentIntent is created)
-                // Platform fee percentage: 3% (should match backend)
-                const platformFeePercentage = 0.03; // 3%
-                const ticketAmount = waitlistTicketPrice * details.partySize;
-                const platformFeeAmount = Math.round(
-                  ticketAmount * platformFeePercentage
-                );
-                const customerTotalAmount = ticketAmount + platformFeeAmount;
-
-                breakdown = {
-                  ticketAmount,
-                  platformFeeAmount,
-                  customerTotalAmount,
-                  platformFeePercentage: platformFeePercentage * 100,
-                };
-              }
-
-              if (breakdown) {
-                // Show breakdown: ticket + service fee = total
-                const ticketAmount = (breakdown.ticketAmount / 100).toFixed(2);
-                const serviceFee = (breakdown.platformFeeAmount / 100).toFixed(
-                  2
-                );
-                const total = (breakdown.customerTotalAmount / 100).toFixed(2);
-
-                return (
-                  <div style={{ marginBottom: "16px" }}>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "rgba(255, 255, 255, 0.7)",
-                        marginBottom: "4px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span>
-                        Ticket
-                        {details.partySize > 1
-                          ? `s (${details.partySize}x)`
-                          : ""}
-                      </span>
-                      <span>
-                        {symbol}
-                        {ticketAmount}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "rgba(255, 255, 255, 0.7)",
-                        marginBottom: "8px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span>Service fee</span>
-                      <span>
-                        {symbol}
-                        {serviceFee}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        color: colors.silverText,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        paddingTop: "8px",
-                        borderTop: "1px solid rgba(255,255,255,0.1)",
-                      }}
-                    >
-                      <span>Total</span>
-                      <span>
-                        {symbol}
-                        {total}
-                      </span>
-                    </div>
-                  </div>
-                );
-              } else {
-                // Fallback: show simple total if breakdown not available
-                const total =
-                  pendingPayment?.amount ??
-                  waitlistTicketPrice * details.partySize;
-                const amount = (total / 100).toFixed(2);
-                return (
-                  <div
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: 700,
-                      marginBottom: "16px",
-                      color: colors.silverText,
-                    }}
-                  >
-                    Total: {symbol}
-                    {amount}
-                  </div>
-                );
-              }
-            })()}
-          </div>
+          <PaymentBreakdown
+            ticketPrice={waitlistTicketPrice}
+            partySize={details.partySize}
+            currency={pendingPayment?.currency ?? waitlistTicketCurrency}
+            pendingPayment={pendingPayment}
+          />
         )}
 
         {PaymentFormComponent && pendingPayment && (
@@ -538,153 +275,135 @@ export function RsvpForm({
             clientSecret={pendingPayment.clientSecret}
             amount={pendingPayment.amount}
             currency={pendingPayment.currency}
-            onSuccess={() => {
-              handleSubmit({
-                preventDefault: () => {},
-                stopPropagation: () => {},
-              });
-            }}
-            onError={(err) => {
-              setError(err.message || "Payment failed");
-            }}
+            onSuccess={() => handleSubmit({ preventDefault: () => {}, stopPropagation: () => {} })}
+            onError={(err) => setError(err.message || "Payment failed")}
             showButton={true}
           />
         )}
         {!pendingPayment && (
-          <Button type="submit" fullWidth size="lg" disabled={loading}>
+          <button type="submit" disabled={loading} style={submitButtonStyle(loading)}>
             {loading ? "Processing..." : "Proceed to Payment"}
-          </Button>
+          </button>
         )}
       </form>
     );
   }
 
+  // ─── Normal RSVP Form ───
   return (
     <form
       onSubmit={handleSubmit}
-      style={{
-        width: "100%",
-        // Prevent viewport zoom on mobile
-        touchAction: "manipulation",
-      }}
-      onTouchStart={(e) => {
-        // Prevent double-tap zoom
-        if (e.touches.length > 1) {
-          e.preventDefault();
-        }
-      }}
+      style={{ width: "100%", touchAction: "manipulation" }}
+      onTouchStart={(e) => { if (e.touches.length > 1) e.preventDefault(); }}
     >
-      <Input
-        label="Email"
-        type="email"
-        required
-        value={email}
-        onChange={(e) => {
-          setEmail(e.target.value);
-          setError("");
-        }}
-        placeholder="you@example.com"
-        disabled={loading}
-        error={error && error.includes("email") ? error : null}
-      />
-
-      <Input
-        label="Name"
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Your name (optional)"
-        disabled={loading}
-      />
-
-      {/* Dinner Toggle */}
-      {event?.dinnerEnabled && (
-        <div
-          style={{
-            marginBottom: "24px",
-            padding: "16px",
-            background: colors.silverRgbaHover,
-            borderRadius: "12px",
-            border: `1px solid ${colors.silverRgba}`,
-          }}
-        >
-          <label
+      {/* Email & Name — compact stacked inputs */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
+        <div style={{ position: "relative" }}>
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setError(""); }}
+            placeholder="Email"
+            disabled={loading}
+            autoComplete="email"
             style={{
+              ...inputStyle,
+              borderColor: error && error.includes("email") ? "rgba(239, 68, 68, 0.5)" : undefined,
+            }}
+          />
+          {error && error.includes("email") && (
+            <div style={{ fontSize: "12px", color: "#ef4444", marginTop: "4px", paddingLeft: "2px" }}>
+              {error}
+            </div>
+          )}
+        </div>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Name (optional)"
+          disabled={loading}
+          autoComplete="name"
+          style={inputStyle}
+        />
+      </div>
+
+      {/* Dinner toggle — sleek card */}
+      {event?.dinnerEnabled && (
+        <div style={{ marginBottom: "16px" }}>
+          <button
+            type="button"
+            onClick={() => !loading && !loadingSlots && setWantsDinner(!wantsDinner)}
+            style={{
+              width: "100%",
               display: "flex",
               alignItems: "center",
               gap: "12px",
-              marginBottom: wantsDinner ? "20px" : "0",
-              cursor: "pointer",
+              padding: "14px 16px",
+              borderRadius: "14px",
+              border: wantsDinner ? `1px solid ${colors.silverRgba}` : "1px solid rgba(255, 255, 255, 0.08)",
+              background: wantsDinner ? "rgba(192, 192, 192, 0.08)" : "rgba(255, 255, 255, 0.03)",
+              cursor: loading || loadingSlots ? "not-allowed" : "pointer",
+              transition: "all 0.2s ease",
+              WebkitTapHighlightColor: "transparent",
+              textAlign: "left",
+              color: "#fff",
             }}
           >
-            <input
-              type="checkbox"
-              checked={wantsDinner}
-              onChange={(e) => setWantsDinner(e.target.checked)}
-              disabled={loading || loadingSlots}
-              style={{
+            <span style={{ fontSize: "20px", lineHeight: 1 }}>🍽</span>
+            <span style={{ flex: 1, fontSize: "15px", fontWeight: 500 }}>
+              Add dinner
+            </span>
+            {/* Toggle pill */}
+            <div style={{
+              width: "44px",
+              height: "26px",
+              borderRadius: "13px",
+              background: wantsDinner
+                ? colors.gradientPrimary
+                : "rgba(255, 255, 255, 0.1)",
+              padding: "3px",
+              transition: "background 0.2s ease",
+              flexShrink: 0,
+              boxSizing: "border-box",
+            }}>
+              <div style={{
                 width: "20px",
                 height: "20px",
-                cursor: "pointer",
-                accentColor: colors.silver,
-              }}
-            />
-            <span style={{ fontSize: "16px", fontWeight: 600, color: "#fff" }}>
-              Dinner?
-            </span>
-          </label>
+                borderRadius: "50%",
+                background: wantsDinner ? "#05040a" : "rgba(255, 255, 255, 0.4)",
+                transform: wantsDinner ? "translateX(18px)" : "translateX(0)",
+                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+              }} />
+            </div>
+          </button>
 
+          {/* Dinner details — time + seats in one compact block */}
           {wantsDinner && (
-            <div style={{ marginTop: "20px" }}>
+            <div style={{
+              marginTop: "10px",
+              padding: "14px",
+              borderRadius: "14px",
+              background: "rgba(255, 255, 255, 0.03)",
+              border: "1px solid rgba(255, 255, 255, 0.06)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}>
               {loadingSlots ? (
-                <div
-                  style={{
-                    fontSize: "16px",
-                    opacity: 0.7,
-                    textAlign: "center",
-                    padding: "12px",
-                  }}
-                >
+                <div style={{ fontSize: "13px", opacity: 0.5, textAlign: "center", padding: "8px" }}>
                   Loading times...
                 </div>
               ) : dinnerSlots.length === 0 ? (
-                <div
-                  style={{
-                    fontSize: "16px",
-                    opacity: 0.7,
-                    textAlign: "center",
-                    padding: "12px",
-                  }}
-                >
+                <div style={{ fontSize: "13px", opacity: 0.5, textAlign: "center", padding: "8px" }}>
                   No dinner slots available
                 </div>
               ) : (
                 <>
-                  <div
-                    style={{
-                      fontSize: "16px",
-                      fontWeight: 600,
-                      marginBottom: "12px",
-                      opacity: 0.8,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      color: "#fff",
-                    }}
-                  >
-                    Select Time
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fill, minmax(90px, 1fr))",
-                      gap: "10px",
-                      marginBottom: "20px",
-                    }}
-                  >
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     {dinnerSlots.map((slot) => {
-                      const isFull =
-                        slot.remaining !== null && slot.remaining === 0;
+                      const isFull = slot.remaining !== null && slot.remaining === 0;
                       const isSelected = dinnerTimeSlot === slot.time;
                       return (
                         <button
@@ -693,68 +412,75 @@ export function RsvpForm({
                           onClick={() => setDinnerTimeSlot(slot.time)}
                           disabled={loading}
                           style={{
-                            padding: "14px 10px",
-                            borderRadius: "10px",
+                            width: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            padding: isSelected ? "10px 10px 10px 14px" : "10px 14px",
+                            borderRadius: "12px",
                             border: isSelected
-                              ? `2px solid ${colors.silver}`
+                              ? `1.5px solid ${colors.silver}`
                               : isFull
-                              ? "1px solid rgba(255, 165, 0, 0.5)"
-                              : "1px solid rgba(255,255,255,0.2)",
+                              ? "1px solid rgba(245, 158, 11, 0.2)"
+                              : "1px solid rgba(255, 255, 255, 0.06)",
                             background: isSelected
-                              ? colors.silverRgbaHover
-                              : isFull
-                              ? "rgba(255, 165, 0, 0.1)"
-                              : "rgba(20, 16, 30, 0.6)",
-                            color:
-                              isFull && !isSelected
-                                ? "rgba(255, 165, 0, 0.9)"
-                                : "#fff",
-                            fontSize: "16px",
-                            fontWeight: 600,
+                              ? "rgba(192, 192, 192, 0.1)"
+                              : "transparent",
+                            color: "#fff",
                             cursor: loading ? "not-allowed" : "pointer",
-                            opacity: loading ? 0.5 : 1,
-                            transition: "all 0.2s ease",
+                            transition: "all 0.15s ease",
                             WebkitTapHighlightColor: "transparent",
-                            touchAction: "manipulation",
+                            textAlign: "left",
                           }}
                         >
-                          <div style={{ fontWeight: 600, fontSize: "16px" }}>
-                            {new Date(slot.time).toLocaleTimeString("en-US", {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            })}
-                          </div>
-                          {slot.remaining !== null ? (
+                          <span style={{
+                            fontSize: "15px",
+                            fontWeight: isSelected ? 600 : 400,
+                            color: isFull && !isSelected ? "rgba(245, 158, 11, 0.8)" : "#fff",
+                          }}>
+                            {formatEventTime(slot.time, event?.timezone)}
+                          </span>
+                          {slot.remaining !== null && (
+                            <span style={{
+                              fontSize: "11px",
+                              opacity: 0.5,
+                              color: isFull ? "rgba(245, 158, 11, 0.7)" : undefined,
+                            }}>
+                              {isFull ? "waitlist" : `${slot.remaining} left`}
+                            </span>
+                          )}
+                          {/* Seats stepper — only on selected row */}
+                          {isSelected && (
                             <div
-                              style={{
-                                fontSize: "14px",
-                                marginTop: "4px",
-                                opacity: 0.8,
-                                color: isFull
-                                  ? "rgba(255, 165, 0, 0.9)"
-                                  : undefined,
-                              }}
+                              style={{ marginLeft: "auto" }}
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              {isFull ? "Waitlist" : `${slot.remaining} left`}
+                              <InlineStepper
+                                value={dinnerSeats}
+                                onChange={setDinnerSeats}
+                                min={1}
+                                max={maxDinnerPerBooking}
+                              />
                             </div>
-                          ) : null}
+                          )}
                         </button>
                       );
                     })}
                   </div>
-
-                  <Stepper
-                    label="Dinner seats"
-                    value={dinnerSeats}
-                    onChange={setDinnerSeats}
-                    min={1}
-                    max={maxDinnerPerBooking}
-                    helperText={
-                      selectedSlot && selectedSlot.maxGuestsPerBooking
-                        ? `Total number of people for dinner (including you). For larger parties, please email the host.`
-                        : "Total number of people for dinner (including you)"
-                    }
-                  />
+                  {event?.dinnerBookingEmail && (
+                    <div style={{
+                      fontSize: "12px", opacity: 0.5, lineHeight: "1.4", marginTop: "4px",
+                    }}>
+                      For large or specific bookings:{" "}
+                      <a
+                        href={`mailto:${event.dinnerBookingEmail}`}
+                        style={{ color: colors.silverText, textDecoration: "underline" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {event.dinnerBookingEmail}
+                      </a>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -762,449 +488,341 @@ export function RsvpForm({
         </div>
       )}
 
-      {/* Cocktails-only guests */}
+      {/* Bring friends — always same name, consistent UX */}
       {maxPlusOnes > 0 && (
-        <Stepper
-          label={
-            wantsDinner ? "Bring extra friends for cocktails" : "Add guests"
-          }
-          value={cocktailGuests}
-          onChange={setCocktailGuests}
-          min={0}
-          max={maxPlusOnes}
-          helperText={
-            wantsDinner
-              ? "Friends who'll join for cocktails only"
-              : `Up to ${maxPlusOnes} guests`
-          }
-        />
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          borderRadius: "14px",
+          background: "rgba(255, 255, 255, 0.03)",
+          border: "1px solid rgba(255, 255, 255, 0.06)",
+          marginBottom: "16px",
+        }}>
+          <div>
+            <div style={{ fontSize: "15px", fontWeight: 500, color: "#fff" }}>
+              Bring friends
+            </div>
+            <div style={{ fontSize: "12px", opacity: 0.4, marginTop: "2px" }}>
+              Up to {maxPlusOnes}{wantsDinner ? " · cocktails only" : ""}
+            </div>
+          </div>
+          <InlineStepper
+            value={cocktailGuests}
+            onChange={setCocktailGuests}
+            min={0}
+            max={maxPlusOnes}
+          />
+        </div>
       )}
 
-      {/* Combined Party Summary + Payment Details (for paid events) or just Party Summary (for free events) */}
-      {(wantsDinner || cocktailGuests > 0 || isPaidEvent) && (
-        <div
-          style={{
-            marginTop: "24px",
-            padding: "20px",
-            background: isPaidEvent
-              ? "rgba(20, 16, 30, 0.8)"
-              : colors.silverRgbaHover,
-            borderRadius: "12px",
-            border: isPaidEvent
-              ? "1px solid rgba(255,255,255,0.1)"
-              : `1px solid ${colors.silverRgba}`,
-          }}
-        >
-          {/* Party Summary Section */}
-          {(wantsDinner || cocktailGuests > 0 || isPaidEvent) && (
-            <div style={{ marginBottom: isPaidEvent ? "20px" : "0" }}>
-              <div
-                style={{
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  marginBottom: "8px",
-                  color: "#fff",
-                }}
-              >
-                Your party
-              </div>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 700,
-                  marginBottom: "8px",
-                  color: isPaidEvent ? "#fff" : colors.silverText,
-                }}
-              >
-                Total: {totalPartySize}{" "}
-                {totalPartySize === 1 ? "person" : "people"}
-              </div>
-              {(wantsDinner || cocktailGuests > 0) && (
-                <div
-                  style={{
-                    fontSize: "16px",
-                    color: "rgba(255, 255, 255, 0.7)",
-                    lineHeight: "1.6",
-                  }}
-                >
-                  {wantsDinner ? (
-                    <>
-                      Dinner: {dinnerCount} • Cocktails-only:{" "}
-                      {cocktailsOnlyCount}
-                    </>
-                  ) : (
-                    <>All {totalPartySize} for cocktails</>
-                  )}
-                </div>
-              )}
+      {/* Party summary — always visible */}
+      {!isPaidEvent && (
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "10px 16px",
+          borderRadius: "12px",
+          background: "rgba(255, 255, 255, 0.02)",
+          marginBottom: "16px",
+          fontSize: "13px",
+        }}>
+          <span style={{ opacity: 0.5 }}>Your party</span>
+          <span style={{ fontWeight: 600 }}>
+            {totalPartySize} {totalPartySize === 1 ? "person" : "people"}
+            {wantsDinner && dinnerCount > 0 && (
+              <span style={{ fontWeight: 400, opacity: 0.5, marginLeft: "6px" }}>
+                ({dinnerCount} dinner{cocktailsOnlyCount > 0 ? ` + ${cocktailsOnlyCount} cocktails` : ""})
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+
+      {/* Payment section for paid events */}
+      {isPaidEvent && ticketPrice && !willGoToWaitlist && (
+        <div style={{
+          padding: "16px",
+          borderRadius: "14px",
+          background: "rgba(255, 255, 255, 0.03)",
+          border: "1px solid rgba(255, 255, 255, 0.06)",
+          marginBottom: "16px",
+        }}>
+          {/* Party summary inside payment */}
+          {(wantsDinner || cocktailGuests > 0) && (
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "12px",
+              paddingBottom: "12px",
+              borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+              fontSize: "13px",
+            }}>
+              <span style={{ opacity: 0.6 }}>Your party</span>
+              <span style={{ fontWeight: 500 }}>
+                {totalPartySize} {totalPartySize === 1 ? "person" : "people"}
+              </span>
             </div>
           )}
-
-          {/* Payment Details Section (only for paid events, NOT for waitlist) */}
-          {isPaidEvent && ticketPrice && !willGoToWaitlist && (
-            <div
-              style={{
-                borderTop: "1px solid rgba(255,255,255,0.1)",
-                paddingTop: "20px",
-                marginTop: "20px",
+          <PaymentBreakdown
+            ticketPrice={ticketPrice}
+            partySize={currentPartySize}
+            currency={pendingPayment?.currency ?? ticketCurrency}
+            pendingPayment={pendingPayment}
+          />
+          {!pendingPayment && PaymentFormComponent && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const form = e.target.closest("form");
+                if (form) form.requestSubmit();
               }}
+              disabled={loading}
+              style={submitButtonStyle(loading)}
             >
-              <div
-                style={{
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  marginBottom: "16px",
-                  color: "#fff",
-                }}
-              >
-                Payment Details
-              </div>
-              {/* Show payment breakdown: ticket amount + service fee = total */}
-              {(() => {
-                const currencyCode = pendingPayment?.currency ?? ticketCurrency;
-                const symbol = currencyCode === "sek" ? "kr" : "$";
-
-                // Calculate breakdown (use backend data if available, otherwise calculate client-side)
-                let breakdown;
-                if (pendingPayment?.paymentBreakdown) {
-                  // Use backend-provided breakdown (after PaymentIntent is created)
-                  breakdown = pendingPayment.paymentBreakdown;
-                } else if (ticketPrice && currentPartySize) {
-                  // Calculate client-side breakdown (before PaymentIntent is created)
-                  // Platform fee percentage: 3% (should match backend)
-                  const platformFeePercentage = 0.03; // 3%
-                  const ticketAmount = ticketPrice * currentPartySize;
-                  const platformFeeAmount = Math.round(
-                    ticketAmount * platformFeePercentage
-                  );
-                  const customerTotalAmount = ticketAmount + platformFeeAmount;
-
-                  breakdown = {
-                    ticketAmount,
-                    platformFeeAmount,
-                    customerTotalAmount,
-                    platformFeePercentage: platformFeePercentage * 100,
-                  };
-                }
-
-                if (breakdown) {
-                  // Show breakdown: ticket + service fee = total
-                  const ticketAmount = (breakdown.ticketAmount / 100).toFixed(
-                    2
-                  );
-                  const serviceFee = (
-                    breakdown.platformFeeAmount / 100
-                  ).toFixed(2);
-                  const total = (breakdown.customerTotalAmount / 100).toFixed(
-                    2
-                  );
-
-                  return (
-                    <div style={{ marginBottom: "16px" }}>
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          color: "rgba(255, 255, 255, 0.7)",
-                          marginBottom: "4px",
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span>
-                          Ticket
-                          {currentPartySize > 1
-                            ? `s (${currentPartySize}x)`
-                            : ""}
-                        </span>
-                        <span>
-                          {symbol}
-                          {ticketAmount}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          color: "rgba(255, 255, 255, 0.7)",
-                          marginBottom: "8px",
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span>Service fee</span>
-                        <span>
-                          {symbol}
-                          {serviceFee}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "18px",
-                          fontWeight: 700,
-                          color: colors.silverText,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          paddingTop: "8px",
-                          borderTop: "1px solid rgba(255,255,255,0.1)",
-                        }}
-                      >
-                        <span>Total</span>
-                        <span>
-                          {symbol}
-                          {total}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                } else {
-                  // Fallback: show simple total if breakdown not available
-                  const total =
-                    pendingPayment?.amount ?? ticketPrice * currentPartySize;
-                  const amount = (total / 100).toFixed(2);
-                  return (
-                    <div
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        marginBottom: "16px",
-                        color: colors.silverText,
-                      }}
-                    >
-                      Total: {symbol}
-                      {amount}
-                    </div>
-                  );
-                }
-              })()}
-
-              {/* Show "Proceed to payment" button BEFORE PaymentIntent is created */}
-              {!pendingPayment && PaymentFormComponent && (
-                <Button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    // Trigger form submission to create PaymentIntent
-                    const form = e.target.closest("form");
-                    if (form) {
-                      form.requestSubmit();
-                    }
-                  }}
-                  disabled={loading}
-                  fullWidth
-                  style={{
-                    background:
-                      colors.gradientPrimary,
-                    marginBottom: "16px",
-                  }}
-                >
-                  Proceed to payment
-                </Button>
-              )}
-
-              {/* Show PaymentForm ONLY after PaymentIntent is created */}
-              {pendingPayment && PaymentFormComponent && (
-                <div key={`payment-form-${pendingPayment.clientSecret}`}>
-                  <PaymentFormComponent
-                    clientSecret={pendingPayment.clientSecret}
-                    amount={pendingPayment.amount}
-                    currency={pendingPayment.currency}
-                    onSuccess={() => {}} // Handled by EventPage
-                    onError={() => {}} // Handled by EventPage
-                    showButton={true} // Always show Stripe Pay button when payment is pending
-                  />
-                </div>
-              )}
+              Proceed to payment
+            </button>
+          )}
+          {pendingPayment && PaymentFormComponent && (
+            <div key={`payment-form-${pendingPayment.clientSecret}`}>
+              <PaymentFormComponent
+                clientSecret={pendingPayment.clientSecret}
+                amount={pendingPayment.amount}
+                currency={pendingPayment.currency}
+                onSuccess={() => {}}
+                onError={() => {}}
+                showButton={true}
+              />
             </div>
           )}
         </div>
       )}
 
-      {/* Waitlist Information (for paid events on waitlist) */}
-      {willGoToWaitlist && event?.waitlistEnabled && isPaidEvent && (
-        <div
-          style={{
-            marginTop: "16px",
-            padding: "16px",
-            background: "rgba(245, 158, 11, 0.15)",
-            borderRadius: "12px",
-            border: "1px solid rgba(245, 158, 11, 0.3)",
-            fontSize: "15px",
-            color: "#fbbf24",
-          }}
-        >
-          <div
-            style={{ fontWeight: 600, marginBottom: "8px", fontSize: "16px" }}
-          >
-            You'll join the waitlist
-          </div>
-          <div style={{ opacity: 0.9, fontSize: "15px", lineHeight: "1.5" }}>
-            <div style={{ marginBottom: "8px" }}>
-              No payment required now. If spots open up, you'll receive a link
-              via SMS or email to confirm and complete payment.
-            </div>
-            <div style={{ fontSize: "14px", opacity: 0.8 }}>
-              Once payment is completed, you'll be confirmed for the event.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Waitlist Information (for free events on waitlist) */}
-      {willGoToWaitlist && event?.waitlistEnabled && !isPaidEvent && (
-        <div
-          style={{
-            marginTop: "16px",
-            padding: "16px",
-            background: "rgba(245, 158, 11, 0.15)",
-            borderRadius: "12px",
-            border: "1px solid rgba(245, 158, 11, 0.3)",
-            fontSize: "15px",
-            color: "#fbbf24",
-          }}
-        >
-          <div
-            style={{ fontWeight: 600, marginBottom: "8px", fontSize: "16px" }}
-          >
-            You'll join the waitlist
-          </div>
-          <div style={{ opacity: 0.9, fontSize: "15px", lineHeight: "1.5" }}>
-            <div style={{ marginBottom: "8px" }}>
-              If spots open up, the host will contact you via email or SMS to
-              confirm your attendance.
-            </div>
-            <div style={{ fontSize: "14px", opacity: 0.8 }}>
-              You'll be automatically confirmed once a spot becomes available.
-            </div>
+      {/* Waitlist notice */}
+      {willGoToWaitlist && event?.waitlistEnabled && (
+        <div style={{
+          padding: "12px 14px",
+          borderRadius: "12px",
+          background: "rgba(245, 158, 11, 0.08)",
+          border: "1px solid rgba(245, 158, 11, 0.15)",
+          marginBottom: "16px",
+          fontSize: "13px",
+          color: "#fbbf24",
+          lineHeight: "1.5",
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: "4px" }}>You'll join the waitlist</div>
+          <div style={{ opacity: 0.8, fontSize: "12px" }}>
+            {isPaidEvent
+              ? "No payment now. You'll get a link to confirm if spots open."
+              : "The host will contact you if a spot becomes available."}
           </div>
         </div>
       )}
 
       {/* Error */}
       {error && !error.includes("email") && (
-        <div
-          style={{
-            marginTop: "16px",
-            padding: "14px",
-            background: "rgba(239, 68, 68, 0.15)",
-            borderRadius: "12px",
-            border: "1px solid rgba(239, 68, 68, 0.3)",
-            fontSize: "16px",
-            color: "#ef4444",
-          }}
-        >
+        <div style={{
+          padding: "10px 14px",
+          borderRadius: "10px",
+          background: "rgba(239, 68, 68, 0.1)",
+          border: "1px solid rgba(239, 68, 68, 0.2)",
+          fontSize: "13px",
+          color: "#ef4444",
+          marginBottom: "16px",
+        }}>
           {error}
         </div>
       )}
 
-      {/* Submit Button */}
-      {/* For paid events: Hide "Pull up" button entirely.
-          User clicks "Proceed to payment" in the payment section instead.
-          BUT: For waitlist, show "Join waitlist" button instead. */}
+      {/* Submit — single gorgeous button, no cancel */}
       {!isPaidEvent && (
-        <div
-          style={{
-            marginTop: "24px",
-            display: "flex",
-            gap: "12px",
-            // Prevent scroll/zoom issues on mobile
-            position: "relative",
-            zIndex: 1,
-          }}
+        <button
+          type="submit"
+          disabled={loading || (wantsDinner && !dinnerTimeSlot)}
+          style={submitButtonStyle(loading || (wantsDinner && !dinnerTimeSlot))}
+          onClick={(e) => e.stopPropagation()}
         >
-          {onClose && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (document.activeElement) {
-                  document.activeElement.blur();
-                }
-                onClose();
-              }}
-              disabled={loading}
-              style={{ flex: 1 }}
-            >
-              Cancel
-            </Button>
-          )}
-          <Button
-            type="submit"
-            loading={loading}
-            disabled={loading || (wantsDinner && !dinnerTimeSlot)}
-            fullWidth={!onClose}
-            style={{
-              ...(onClose ? { flex: 2 } : {}),
-              // Prevent mobile zoom/scroll issues
-              touchAction: "manipulation",
-              WebkitTapHighlightColor: "transparent",
-            }}
-            onClick={(e) => {
-              // Additional prevention of unwanted behavior
-              e.stopPropagation();
-            }}
-          >
-            {willGoToWaitlist && event?.waitlistEnabled
-              ? "Join waitlist"
-              : "Pull up"}
-          </Button>
-        </div>
+          {loading
+            ? "Processing..."
+            : willGoToWaitlist && event?.waitlistEnabled
+            ? "Join waitlist"
+            : "Pull up"}
+        </button>
       )}
 
-      {/* For paid events: Show Cancel button at bottom.
-          "Proceed to payment" button is in the payment section above.
-          Once payment is pending, Stripe's "Pay" button handles completion.
-          BUT: For waitlist, show "Join waitlist" button instead. */}
-      {isPaidEvent && (
-        <div
+      {/* For paid events: show waitlist button or cancel */}
+      {isPaidEvent && willGoToWaitlist && event?.waitlistEnabled && (
+        <button
+          type="submit"
+          disabled={loading || (wantsDinner && !dinnerTimeSlot)}
           style={{
-            marginTop: "24px",
-            display: "flex",
-            gap: "12px",
-            position: "relative",
-            zIndex: 1,
+            ...submitButtonStyle(loading || (wantsDinner && !dinnerTimeSlot)),
+            background: loading || (wantsDinner && !dinnerTimeSlot)
+              ? "rgba(255, 255, 255, 0.08)"
+              : "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
           }}
+          onClick={(e) => e.stopPropagation()}
         >
-          {onClose && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (document.activeElement) {
-                  document.activeElement.blur();
-                }
-                onClose();
-              }}
-              disabled={loading}
-              style={{ flex: 1 }}
-            >
-              Cancel
-            </Button>
-          )}
-          {/* Show "Join waitlist" button for paid events on waitlist */}
-          {willGoToWaitlist && event?.waitlistEnabled && (
-            <Button
-              type="submit"
-              loading={loading}
-              disabled={loading || (wantsDinner && !dinnerTimeSlot)}
-              style={{
-                flex: onClose ? 2 : 1,
-                background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
-                touchAction: "manipulation",
-                WebkitTapHighlightColor: "transparent",
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              {loading ? "Processing..." : "Join waitlist"}
-            </Button>
-          )}
-        </div>
+          {loading ? "Processing..." : "Join waitlist"}
+        </button>
       )}
     </form>
   );
+}
+
+// ─── Inline Stepper ───
+function InlineStepper({ value, onChange, min = 0, max = 10 }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "2px",
+      background: "rgba(255, 255, 255, 0.06)",
+      borderRadius: "10px",
+      padding: "3px",
+    }}>
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(min, value - 1))}
+        disabled={value <= min}
+        style={stepperBtnStyle(value <= min)}
+      >
+        −
+      </button>
+      <div style={{
+        minWidth: "32px",
+        textAlign: "center",
+        fontSize: "15px",
+        fontWeight: 600,
+        color: "#fff",
+        userSelect: "none",
+      }}>
+        {value}
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(max, value + 1))}
+        disabled={value >= max}
+        style={stepperBtnStyle(value >= max)}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function stepperBtnStyle(disabled) {
+  return {
+    width: "32px",
+    height: "32px",
+    borderRadius: "8px",
+    border: "none",
+    background: disabled ? "transparent" : "rgba(255, 255, 255, 0.08)",
+    color: disabled ? "rgba(255, 255, 255, 0.2)" : "#fff",
+    fontSize: "16px",
+    fontWeight: 500,
+    cursor: disabled ? "not-allowed" : "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.15s ease",
+    WebkitTapHighlightColor: "transparent",
+    padding: 0,
+  };
+}
+
+// ─── Payment Breakdown ───
+function PaymentBreakdown({ ticketPrice, partySize, currency, pendingPayment }) {
+  const symbol = currency === "sek" ? "kr" : currency === "eur" ? "€" : currency === "gbp" ? "£" : "$";
+
+  let breakdown;
+  if (pendingPayment?.paymentBreakdown) {
+    breakdown = pendingPayment.paymentBreakdown;
+  } else if (ticketPrice && partySize) {
+    const platformFeePercentage = 0.03;
+    const ticketAmount = ticketPrice * partySize;
+    const platformFeeAmount = Math.round(ticketAmount * platformFeePercentage);
+    breakdown = {
+      ticketAmount,
+      platformFeeAmount,
+      customerTotalAmount: ticketAmount + platformFeeAmount,
+    };
+  }
+
+  if (!breakdown) {
+    const total = pendingPayment?.amount ?? ticketPrice * partySize;
+    return (
+      <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "12px", color: colors.silverText }}>
+        Total: {symbol}{(total / 100).toFixed(2)}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: "14px", fontSize: "13px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", opacity: 0.6, marginBottom: "4px" }}>
+        <span>Ticket{partySize > 1 ? `s (${partySize}x)` : ""}</span>
+        <span>{symbol}{(breakdown.ticketAmount / 100).toFixed(2)}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", opacity: 0.6, marginBottom: "8px" }}>
+        <span>Service fee</span>
+        <span>{symbol}{(breakdown.platformFeeAmount / 100).toFixed(2)}</span>
+      </div>
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        fontWeight: 700,
+        fontSize: "15px",
+        color: colors.silverText,
+        paddingTop: "8px",
+        borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+      }}>
+        <span>Total</span>
+        <span>{symbol}{(breakdown.customerTotalAmount / 100).toFixed(2)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Shared Styles ───
+const inputStyle = {
+  width: "100%",
+  padding: "14px 16px",
+  borderRadius: "14px",
+  border: "1px solid rgba(255, 255, 255, 0.08)",
+  background: "rgba(255, 255, 255, 0.04)",
+  color: "#fff",
+  fontSize: "15px",
+  outline: "none",
+  boxSizing: "border-box",
+  transition: "border-color 0.15s ease",
+  WebkitAppearance: "none",
+  appearance: "none",
+};
+
+function submitButtonStyle(disabled) {
+  return {
+    width: "100%",
+    padding: "16px",
+    borderRadius: "14px",
+    border: "none",
+    background: disabled
+      ? "rgba(255, 255, 255, 0.08)"
+      : colors.gradientPrimary,
+    color: disabled ? "rgba(255, 255, 255, 0.4)" : "#05040a",
+    fontSize: "16px",
+    fontWeight: 700,
+    cursor: disabled ? "not-allowed" : "pointer",
+    transition: "all 0.2s ease",
+    WebkitTapHighlightColor: "transparent",
+    touchAction: "manipulation",
+    letterSpacing: "-0.01em",
+    boxShadow: disabled ? "none" : `0 4px 20px ${colors.silverShadow}`,
+    opacity: disabled ? 0.5 : 1,
+  };
 }

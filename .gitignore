@@ -20,3 +20,4 @@ frontend/.env.production
 # Build artifacts
 frontend/dist
 frontend/node_modules
+discord-bot/node_modules

@@ -4,7 +4,6 @@ import { NewsletterPage } from "./pages/NewsletterPage";
 import { HomePage } from "./pages/HomePage";
 import { CrmPage } from "./pages/CrmPage";
 import { CreateEventPage } from "./pages/CreateEventPage";
-import { PostEventPage } from "./pages/PostEventPage";
 import { EventPage } from "./pages/EventPage";
 import { RsvpSuccessPage } from "./pages/RsvpSuccessPage";
 import { EventSuccessPage } from "./pages/EventSuccessPage";
@@ -52,8 +51,8 @@ function App() {
           <Route path="/home" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/post" element={<PostEventPage />} />
-          <Route path="/create" element={<CreateEventPage />} />
+          <Route path="/create" element={<CreateEventPage key="create" />} />
+          <Route path="/app/events/:id/edit" element={<CreateEventPage key="edit" />} />
           <Route path="/events/:slug/success" element={<EventSuccessPage />} />
           <Route
             path="/app/events/:id/manage"
@@ -65,11 +64,7 @@ function App() {
           />
           <Route
             path="/app/events/:id/manage/edit"
-            element={
-              <ErrorBoundary>
-                <ManageEventPage />
-              </ErrorBoundary>
-            }
+            element={<CreateEventPage />}
           />
           <Route
             path="/app/events/:id/guests"

@@ -428,7 +428,7 @@ export function EventSuccessPage() {
                   }}
                 >
                   <SilverIcon as={Calendar} size={18} />
-                  <span>{formatReadableDateTime(event.startsAt)}</span>
+                  <span>{formatReadableDateTime(event.startsAt, event.timezone)}</span>
                 </div>
               )}
 

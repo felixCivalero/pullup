@@ -6,22 +6,25 @@ import { getEventUrl } from "../utils/urlUtils.js";
 
 /**
  * Format a Date for event cards: "Mon 10 Mar · 19:00"
+ * Uses event timezone when available for correct display.
  */
-function formatEventDate(isoString) {
+function formatEventDate(isoString, tz) {
   if (!isoString) return "";
   const d = new Date(isoString);
   if (isNaN(d.getTime())) return "";
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-  ];
-  const dayName = days[d.getDay()];
-  const dayNum = d.getDate();
-  const monthName = months[d.getMonth()];
-  const hours = String(d.getHours()).padStart(2, "0");
-  const minutes = String(d.getMinutes()).padStart(2, "0");
-  return `${dayName} ${dayNum} ${monthName} · ${hours}:${minutes}`;
+  const opts = tz ? { timeZone: tz } : {};
+  const datePart = d.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    ...opts,
+  });
+  const timePart = d.toLocaleTimeString("sv-SE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    ...opts,
+  });
+  return `${datePart} · ${timePart}`;
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -73,7 +76,7 @@ export function renderEventEmailTemplate({ event, templateContent, person }) {
   // Replace template variables
   const replacements = {
     // Hero image
-    "{{{hero_img_url}}}": templateContent.heroImageUrl || event?.imageUrl || "",
+    "{{{hero_img_url}}}": templateContent.heroImageUrl || event?.coverImageUrl || event?.imageUrl || "",
     "{{{hero_img_alt}}}":
       templateContent.heroImageAlt || event?.title || "Event",
 
@@ -177,7 +180,7 @@ export function renderWeeklyHappeningsTemplate({ events, templateContent }) {
     const ev = eventCards[i];
     const isLast = i === eventCards.length - 1;
 
-    const formattedDate = formatEventDate(ev.starts_at);
+    const formattedDate = formatEventDate(ev.starts_at, ev.timezone);
     const metaLine = [formattedDate, ev.location]
       .filter(Boolean)
       .join(" · ");

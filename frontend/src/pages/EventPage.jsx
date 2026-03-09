@@ -7,10 +7,13 @@ import {
   FaPaperPlane,
   FaInstagram,
   FaSpotify,
+  FaTiktok,
+  FaSoundcloud,
   FaCalendar,
   FaMapMarkerAlt,
 } from "react-icons/fa";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
+import { MediaCarousel, CarouselDots, useCarouselSwipe } from "../components/MediaCarousel";
 import { useToast } from "../components/Toast";
 import {
   getEventShareUrl,
@@ -35,6 +38,7 @@ export function EventPage() {
   const { showToast } = useToast();
 
   const [event, setEvent] = useState(null);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [rsvpLoading, setRsvpLoading] = useState(false);
@@ -583,8 +587,12 @@ export function EventPage() {
   const shareUrl = event && event.slug ? getEventShareUrl(event.slug) : "";
 
   // Format date/time (centralized helpers)
-  const eventDate = event?.startsAt ? formatEventDate(event.startsAt) : "";
-  const eventTime = event?.startsAt ? formatEventTime(event.startsAt) : "";
+  const eventDate = event?.startsAt ? formatEventDate(event.startsAt, event.timezone) : "";
+  const eventTime = event?.startsAt ? formatEventTime(event.startsAt, event.timezone) : "";
+
+  const mediaCount = event?.media?.length || 0;
+  const canSwipeEvent = mediaCount > 1 && !event?.mediaSettings?.autoscroll;
+  const swipeHandlers = useCarouselSwipe(mediaCount, setCarouselIndex);
 
   return (
     <>
@@ -613,7 +621,7 @@ export function EventPage() {
         /* Desktop-specific styles */
         @media (min-width: 768px) {
           .description-text {
-            max-width: 80%; /* Limit description width for better readability */
+            max-width: 60%;
           }
           /* On desktop, always make description scrollable when needed */
           .description-container {
@@ -621,7 +629,7 @@ export function EventPage() {
             min-height: 0 !important;
           }
           .description-container .description-text {
-            max-width: 80%;
+            max-width: 60%;
           }
           /* On desktop, content group always behaves as expanded */
           .content-group-desktop {
@@ -698,6 +706,7 @@ export function EventPage() {
       `}</style>
       <div
         className="event-page-container"
+        {...(canSwipeEvent ? swipeHandlers : {})}
         style={{
           position: "relative",
           width: "100%",
@@ -705,10 +714,11 @@ export function EventPage() {
           overflowX: "hidden",
           overflowY: "hidden",
           background: "#05040a",
+          cursor: canSwipeEvent ? "grab" : undefined,
         }}
       >
-        {/* Event Image as Full Background */}
-        {event?.imageUrl && (
+        {/* Event Media as Full Background (carousel or single image) */}
+        {(event?.media?.length > 0 || event?.imageUrl) && (
           <>
             <div
               style={{
@@ -722,16 +732,20 @@ export function EventPage() {
                 zIndex: 0,
               }}
             >
-              <img
-                src={event.imageUrl}
-                alt={event.title}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  display: "block",
-                }}
-              />
+              {event?.media?.length > 0 ? (
+                <MediaCarousel media={event.media} mediaSettings={event.mediaSettings} hideDots controlledIndex={canSwipeEvent ? carouselIndex : undefined} onIndexChange={setCarouselIndex} />
+              ) : (
+                <img
+                  src={event.imageUrl}
+                  alt={event.title}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
+              )}
             </div>
             {/* Gradient overlay - fades to black at bottom */}
             <div
@@ -760,6 +774,7 @@ export function EventPage() {
             flexDirection: "column",
             padding: "20px",
             overflow: "hidden",
+            pointerEvents: "none",
           }}
         >
           {/* Title at the top - always visible */}
@@ -789,6 +804,7 @@ export function EventPage() {
               marginTop: "auto",
               display: "flex",
               flexDirection: "column",
+              pointerEvents: "auto",
             }}
           >
             {/* Static info section - sticks to top of description */}
@@ -799,6 +815,15 @@ export function EventPage() {
                 paddingTop: "16px",
               }}
             >
+              {/* Carousel dots */}
+              {event?.media?.length > 1 && !event?.mediaSettings?.autoscroll && (
+                <CarouselDots
+                  count={event.media.length}
+                  currentIndex={carouselIndex}
+                  style={{ paddingTop: "12px", paddingBottom: "4px" }}
+                />
+              )}
+
               {/* Social Icons - Share, Instagram, Spotify */}
               <div
                 style={{
@@ -902,6 +927,58 @@ export function EventPage() {
                     }}
                   >
                     <FaSpotify size={20} />
+                  </a>
+                )}
+
+                {/* TikTok icon - conditional */}
+                {event?.tiktok && (
+                  <a
+                    href={event.tiktok}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: "rgba(255, 255, 255, 0.8)",
+                      textDecoration: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.transform = "scale(1.1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+                      e.currentTarget.style.transform = "scale(1)";
+                    }}
+                  >
+                    <FaTiktok size={20} />
+                  </a>
+                )}
+
+                {/* SoundCloud icon - conditional */}
+                {event?.soundcloud && (
+                  <a
+                    href={event.soundcloud}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: "rgba(255, 255, 255, 0.8)",
+                      textDecoration: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.transform = "scale(1.1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+                      e.currentTarget.style.transform = "scale(1)";
+                    }}
+                  >
+                    <FaSoundcloud size={20} />
                   </a>
                 )}
               </div>
@@ -1105,9 +1182,8 @@ export function EventPage() {
             setShowRsvpForm(false);
             setPendingPayment(null);
           }}
-          title="RSVP"
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* Waitlist offer banner */}
             {waitlistOffer && (
               <div

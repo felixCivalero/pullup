@@ -212,7 +212,7 @@ export function RsvpSuccessPage() {
     } else {
       // Event start is the anchor, add dinner info if applicable
       if (hasConfirmedDinner && booking?.dinnerTimeSlot) {
-        const dinnerTime = formatEventTime(booking.dinnerTimeSlot);
+        const dinnerTime = formatEventTime(booking.dinnerTimeSlot, event.timezone);
         calendarDescription += `\n\nDinner: ${dinnerTime}`;
         if (booking.dinnerPartySize > 1) {
           calendarDescription += ` (${booking.dinnerPartySize} people)`;
@@ -302,7 +302,7 @@ export function RsvpSuccessPage() {
   }
 
   const eventDate = event?.startsAt
-    ? formatReadableDateTime(event.startsAt)
+    ? formatReadableDateTime(event.startsAt, event.timezone)
     : "";
 
   return (

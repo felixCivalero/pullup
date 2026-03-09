@@ -27,6 +27,16 @@
  *   - Färgfabriken (art exhibitions)
  *   - Fallan (concerts, Slakthusområdet)
  *   - Lydmar Hotel (live music, Östermalm)
+ *   - Pet Sounds Bar (live music, Södermalm)
+ *   - Konstfrämjandet (art exhibitions, Södermalm)
+ *   - Konstkalendern (art galleries & vernissages aggregator)
+ *   - Stockholm-art.com (curated exhibitions)
+ *   - Konstguiden (exhibitions aggregator)
+ *   - Moderna Museet (contemporary art museum)
+ *   - ArkDes (architecture & design museum)
+ *   - Sven-Harrys Konstmuseum (art exhibitions)
+ *   - Waldemarsudde / Prins Eugens (art exhibitions)
+ *   - Thielska Galleriet (art gallery, Djurgården)
  *
  * Sources (free API key required — add keys to .env to activate):
  *   - Ticketmaster Discovery API  → TICKETMASTER_API_KEY
@@ -298,7 +308,9 @@ const CUSTOM_SOURCES = new Set([
   "luger", "nalen", "fotografiska", "sodra_teatern", "berns", "fasching",
   "riche", "luma", "bk_banankompaniet", "debaser", "stampen", "glenn_miller",
   "under_bron", "hosoi", "artilleriet", "winterviken", "fargfabriken",
-  "fallan", "lydmar", "ticketmaster", "eventbrite",
+  "fallan", "lydmar", "petsounds_bar", "konstframjandet", "konstkalendern", "stockholm_art",
+  "konstguiden", "moderna_museet", "arkdes", "sven_harrys", "waldemarsudde",
+  "thielska", "ticketmaster", "eventbrite",
 ]);
 
 async function scrapeDbSources() {
@@ -571,15 +583,23 @@ async function scrapeLuger() {
     $(".post-item").each((_, el) => {
       const $el = $(el);
       const title = $el.find(".post-item__title a").first().text().trim() || null;
-      const href = $el.find(".post-item__title a").first().attr("href") ||
-                   $el.find("a[href*='luger.se']").first().attr("href") || null;
-      const $img = $el.find(".post-image-holder img, .itc-image-holder img").first();
-      const img = $img.attr("data-lazy-src") || $img.attr("data-src") || $img.attr("srcset")?.split(" ")[0] || $img.attr("src") || null;
+      // Prefer the luger.se event page link (starts with /konserter/) over external ticket links
+      let href = null;
+      $el.find(".post-item__title a").each((_, a) => {
+        const h = $(a).attr("href");
+        if (h && h.startsWith("/konserter/")) { href = h; return false; }
+      });
+      if (!href) {
+        href = $el.find(".post-item__title a").first().attr("href") || null;
+      }
       const dateText = $el.find(".post-item__item-date").first().text().trim() || null;
       const venue = $el.find(".post-item__item-term-venue").first().text().trim() || "";
       const city = $el.find(".post-item__item-term-city").first().text().trim() || "";
 
       if (!title) return;
+
+      // Only include Stockholm events
+      if (city && !city.toLowerCase().includes("stockholm")) return;
 
       const location = [venue, city].filter(Boolean).join(", ") || "Stockholm";
       const url = href
@@ -589,7 +609,7 @@ async function scrapeLuger() {
       events.push({
         title,
         description: null,
-        image_url: img && !img.startsWith("data:") ? img : null,
+        image_url: null,
         starts_at: dateText ? (parseDate(dateText) || parseSwedishDate(dateText)) : null,
         ends_at: null,
         location,
@@ -598,6 +618,37 @@ async function scrapeLuger() {
         category: "music",
       });
     });
+
+    // Fetch artist image from each event page (list page has no images)
+    const BATCH = 5;
+    for (let i = 0; i < events.length; i += BATCH) {
+      const batch = events.slice(i, i + BATCH);
+      await Promise.allSettled(
+        batch.map(async (ev) => {
+          if (!ev.url) return;
+          try {
+            const pageHtml = await fetchHtml(ev.url);
+            const $p = cheerio.load(pageHtml);
+
+            // Try og:image first
+            const ogImage = $p('meta[property="og:image"]').attr("content");
+            if (ogImage && !ogImage.startsWith("data:")) {
+              ev.image_url = ogImage;
+              return;
+            }
+
+            // Fallback: construct URL from hero-image data-prefix + data-file
+            const $hero = $p("img.hero-image").first();
+            const prefix = $hero.attr("data-prefix");
+            const file = $hero.attr("data-file");
+            if (prefix && file) {
+              ev.image_url = `https://luger.se/wp-content/uploads/se${prefix}${file}`;
+            }
+          } catch {}
+        })
+      );
+    }
+
     console.log(`  ✅ Luger: ${events.length} events`);
   } catch (err) {
     console.error("  ❌ Luger error:", err.message);
@@ -1947,6 +1998,622 @@ async function scrapeLydmar() {
 }
 
 // ---------------------------------------------------------------------------
+// Source: Pet Sounds Bar — Live music, Södermalm (Stadsgården 6)
+// ---------------------------------------------------------------------------
+const PETSOUNDS_IMAGE =
+  "https://petsounds.se/assets/images/_1200xAUTO_crop_center-center_none/ps-bar-hires.jpg";
+
+async function scrapePetSoundsBar() {
+  console.log("🎵 Scraping Pet Sounds Bar...");
+  const events = [];
+  try {
+    const html = await fetchHtml("https://petsounds.se/bar");
+    const $ = cheerio.load(html);
+
+    // Events are inside a <modal> section under <h3>Kommande event</h3>
+    // Each event is a <p> like: 11/3 <strong>LARA</strong> Releasespelning 21:00
+    $("h3:contains('Kommande event')")
+      .nextAll("p")
+      .each((_, el) => {
+        const text = $(el).text().trim();
+        if (!text) return;
+
+        // Match pattern: DD/MM ARTIST_NAME optional_description optional_time
+        const match = text.match(
+          /^(\d{1,2}\/\d{1,2})\s+(.+?)(?:\s+(\d{1,2}:\d{2}))?$/
+        );
+        if (!match) return;
+
+        const dateStr = match[1];
+        const rawTitle = match[2].trim();
+        const timeStr = match[3] || null;
+
+        // Clean up title — remove trailing description words like "Releasespelning", "Live"
+        // The <strong> tag contains the artist name; the rest is description
+        const strongText = $(el).find("strong").text().trim();
+        const title = strongText || rawTitle;
+
+        const starts_at = parseSwedishDate(dateStr);
+        if (!starts_at) return;
+
+        // Attach time if present
+        let eventDate = starts_at;
+        if (timeStr) {
+          const d = new Date(starts_at);
+          const [h, m] = timeStr.split(":").map(Number);
+          d.setHours(h, m, 0, 0);
+          eventDate = d.toISOString();
+        }
+
+        events.push({
+          title,
+          url: `https://petsounds.se/bar#${dateStr.replace("/", "-")}-${encodeURIComponent(title.toLowerCase().replace(/\s+/g, "-"))}`,
+          starts_at: eventDate,
+          image_url: PETSOUNDS_IMAGE,
+          location: "Pet Sounds Bar, Stockholm",
+          source: "petsounds_bar",
+          category: "music",
+        });
+      });
+    console.log(`  ✅ Pet Sounds Bar: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ Pet Sounds Bar error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Source: Konstfrämjandet — Art exhibitions & events, Södermalm
+// Next.js + DatoCMS — scrape card listing, then fetch og:meta from each post
+// ---------------------------------------------------------------------------
+const SWEDISH_MONTH_NAMES = {
+  januari: 0, februari: 1, mars: 2, april: 3, maj: 4, juni: 5,
+  juli: 6, augusti: 7, september: 8, oktober: 9, november: 10, december: 11,
+};
+
+async function scrapeKonstframjandet() {
+  console.log("🎨 Scraping Konstfrämjandet...");
+  const events = [];
+  try {
+    const html = await fetchHtml("https://www.konstframjandet.se/aktuellt");
+    const $ = cheerio.load(html);
+
+    // Collect links + descriptions from the card listing
+    const posts = [];
+    $(".NewsCard_card___qKJJ").each((_, el) => {
+      const $el = $(el);
+      const href = $el.find("a[href^='/aktuellt/']").first().attr("href");
+      const desc = $el.find("p").first().text().trim();
+      const imgMatch = $el.html().match(/https:\/\/www\.datocms-assets\.com\/[^?"&]+/);
+      if (!href) return;
+      // Only take posts about actual exhibitions/events in Stockholm
+      const text = ($el.text() + " " + desc).toLowerCase();
+      const isEvent = text.includes("vernissage") || text.includes("utställning") ||
+                      text.includes("bokrelease") || text.includes("öppnar") ||
+                      text.includes("invigning") || text.includes("samtalskväll");
+      const isStockholm = text.includes("stockholm") || text.includes("swedenborgsgatan") ||
+                          text.includes("kansli");
+      if (!isEvent || !isStockholm) return;
+      posts.push({
+        href: `https://www.konstframjandet.se${href}`,
+        desc,
+        fallbackImg: imgMatch ? imgMatch[0] : null,
+      });
+    });
+
+    // Fetch og:meta from each post page (limit to 10 most recent)
+    const BATCH = 5;
+    for (let i = 0; i < Math.min(posts.length, 10); i += BATCH) {
+      const batch = posts.slice(i, i + BATCH);
+      await Promise.allSettled(
+        batch.map(async (post) => {
+          try {
+            const pageHtml = await fetchHtml(post.href);
+            const $p = cheerio.load(pageHtml);
+
+            const title = $p('meta[property="og:title"]').attr("content")?.trim();
+            if (!title) return;
+
+            let ogImg = $p('meta[property="og:image"]').attr("content");
+            if (ogImg) ogImg = ogImg.replace(/&amp;/g, "&");
+            const image_url = ogImg || post.fallbackImg || null;
+
+            const ogDesc = $p('meta[property="og:description"]').attr("content")?.trim() || post.desc;
+
+            // Extract date from description text (e.g. "21 mars 2026", "Fredag 23 januari")
+            let starts_at = null;
+            const dateMatch = ogDesc.match(
+              /(\d{1,2})\s+(januari|februari|mars|april|maj|juni|juli|augusti|september|oktober|november|december)(?:\s+(\d{4}))?/i
+            );
+            if (dateMatch) {
+              const day = parseInt(dateMatch[1]);
+              const month = SWEDISH_MONTH_NAMES[dateMatch[2].toLowerCase()];
+              const year = dateMatch[3] ? parseInt(dateMatch[3]) : new Date().getFullYear();
+              if (month !== undefined) {
+                starts_at = new Date(year, month, day).toISOString();
+              }
+            }
+
+            // Require a date and skip past events
+            if (!starts_at) return;
+            if (new Date(starts_at) < new Date(Date.now() - 7 * 86400000)) return;
+
+            events.push({
+              title,
+              description: ogDesc?.slice(0, 500) || null,
+              image_url,
+              starts_at,
+              ends_at: null,
+              location: "Konstfrämjandet, Swedenborgsgatan, Stockholm",
+              url: post.href,
+              source: "konstframjandet",
+              category: "exhibition",
+            });
+          } catch {}
+        })
+      );
+    }
+    console.log(`  ✅ Konstfrämjandet: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ Konstfrämjandet error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Source: Konstkalendern — Art exhibitions & vernissages across Stockholm
+// JSON-LD structured data on gallerier.php pages
+// ---------------------------------------------------------------------------
+async function scrapeKonstkalendern() {
+  console.log("🎨 Scraping Konstkalendern...");
+  const events = [];
+  try {
+    const regions = ["stockholm+city", "stockholm+söder"];
+    for (const region of regions) {
+      const html = await fetchHtml(`https://www.konstkalendern.se/gallerier.php?landskap=${region}`);
+      const $ = cheerio.load(html);
+
+      $('script[type="application/ld+json"]').each((_, el) => {
+        try {
+          const data = JSON.parse($(el).html());
+          if (data["@type"] !== "Event") return;
+
+          const venue = data.location?.[0]?.name?.trim() || data.organizer?.name?.trim() || "";
+          const city = data.location?.[0]?.address?.addressLocality || "Stockholm";
+          if (!city.toLowerCase().includes("stockholm")) return;
+
+          // Skip generic "Grupputställning" (group exhibition) entries —
+          // these are low-quality duplicates of exhibitions already scraped
+          // from venue-specific sources with proper titles
+          const performerName = data.performer?.name?.trim();
+          if (performerName && performerName.toLowerCase().includes("grupputställning")) return;
+
+          const title = performerName
+            ? `${performerName} – ${venue}`
+            : data.name || venue;
+
+          const imgPath = Array.isArray(data.image) ? data.image[0] : data.image;
+          const rawImg = imgPath && !imgPath.startsWith("http")
+            ? `https://www.konstkalendern.se/${imgPath}`
+            : imgPath || null;
+          // Skip placeholder "image missing" images
+          const image_url = rawImg && !rawImg.includes("bildsaknas") ? rawImg : null;
+
+          const galleryUrl = data.offers?.url?.trim() || null;
+          const lopnrMatch = $(el).prevAll("a[href*='lopnr=']").first().attr("href");
+          const url = lopnrMatch
+            ? `https://www.konstkalendern.se/${lopnrMatch}`
+            : galleryUrl || `https://www.konstkalendern.se/gallerier.php?landskap=${region}#${encodeURIComponent(title)}`;
+
+          events.push({
+            title,
+            description: data.description || null,
+            image_url,
+            starts_at: parseDate(data.startDate) || null,
+            ends_at: parseDate(data.endDate) || null,
+            location: `${venue}, Stockholm`.replace(/^\s*,\s*/, ""),
+            url,
+            source: "konstkalendern",
+            category: "exhibition",
+          });
+        } catch {}
+      });
+    }
+    console.log(`  ✅ Konstkalendern: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ Konstkalendern error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Source: Stockholm-art.com — Curated exhibitions across Stockholm venues
+// JSON-LD ItemList with full Event data
+// ---------------------------------------------------------------------------
+async function scrapeStockholmArt() {
+  console.log("🖼️  Scraping Stockholm-art.com...");
+  const events = [];
+  try {
+    const html = await fetchHtml("https://www.stockholm-art.com/upcoming");
+    const $ = cheerio.load(html);
+
+    $('script[type="application/ld+json"]').each((_, el) => {
+      try {
+        const data = JSON.parse($(el).html());
+        const items = data?.mainEntity?.itemListElement || [];
+        for (const item of items) {
+          if (item["@type"] !== "Event") continue;
+
+          const venue = item.location?.name || "";
+          const title = item.name || "";
+          if (!title) continue;
+
+          events.push({
+            title: `${title} – ${venue}`.replace(/\s*–\s*$/, ""),
+            description: item.description?.slice(0, 500) || null,
+            image_url: item.image?.url || null,
+            starts_at: parseDate(item.startDate) || null,
+            ends_at: parseDate(item.endDate) || null,
+            location: `${venue}, Stockholm`.replace(/^\s*,\s*/, ""),
+            url: item.url || "https://www.stockholm-art.com/upcoming",
+            source: "stockholm_art",
+            category: "exhibition",
+          });
+        }
+      } catch {}
+    });
+    console.log(`  ✅ Stockholm-art.com: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ Stockholm-art.com error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Source: Konstguiden — Art exhibitions aggregator
+// ---------------------------------------------------------------------------
+async function scrapeKonstguiden() {
+  console.log("🖌️  Scraping Konstguiden...");
+  const events = [];
+  try {
+    const html = await fetchHtml("https://konstguiden.com/aktuella-utstallningar-i-stockholm/");
+    const $ = cheerio.load(html);
+
+    $(".show_listing.grid_col").each((_, el) => {
+      const $el = $(el);
+      // Skip banner ads
+      if ($el.hasClass("color-shape")) return;
+
+      const title = $el.find(".listing_info h4 a").first().text().trim();
+      const href = $el.find(".listing_info h4 a").first().attr("href");
+      if (!title || !href) return;
+
+      const url = href.startsWith("http") ? href : `https://konstguiden.com${href}`;
+      const subtitle = $el.find(".listing_info h5").first().text().trim();
+      const dateText = $el.find(".review_score").first().text().trim();
+      const venueName = $el.find(".listing_map_m a").first().text().trim();
+      const img = $el.find(".listing_img a img").first().attr("src");
+      const image_url = img ? (img.startsWith("http") ? img : `https://konstguiden.com${img}`) : null;
+
+      // Parse date like "31 jan - 15 mar 2026"
+      const starts_at = dateText ? parseSwedishDate(dateText.split(/\s*[-–]\s*/)[0]) : null;
+      const endPart = dateText ? dateText.split(/\s*[-–]\s*/)[1] : null;
+      const ends_at = endPart ? parseSwedishDate(endPart) : null;
+
+      events.push({
+        title: subtitle ? `${title} – ${subtitle}` : title,
+        description: $el.find(".listing_info > p").first().text().trim().slice(0, 500) || null,
+        image_url,
+        starts_at,
+        ends_at,
+        location: venueName ? `${venueName}, Stockholm` : "Stockholm",
+        url,
+        source: "konstguiden",
+        category: "exhibition",
+      });
+    });
+    console.log(`  ✅ Konstguiden: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ Konstguiden error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Source: Moderna Museet — Major art museum exhibitions
+// ---------------------------------------------------------------------------
+async function scrapeModernaMuseet() {
+  console.log("🏛️  Scraping Moderna Museet...");
+  const events = [];
+  try {
+    const html = await fetchHtml("https://www.modernamuseet.se/stockholm/sv/utstallningar/");
+    const $ = cheerio.load(html);
+
+    $("article.main-feed__item").each((_, el) => {
+      const $el = $(el);
+      const title = $el.find("h2.main-feed__item__title").first().text().trim();
+      const href = $el.find("a").first().attr("href");
+      if (!title || !href) return;
+
+      const url = href.startsWith("http") ? href : `https://www.modernamuseet.se${href}`;
+      const img = $el.find("img.main-feed-image").first().attr("src");
+      const image_url = img ? (img.startsWith("http") ? img : `https://www.modernamuseet.se${img}`) : null;
+
+      // Date is inside <h3><span>11.10 2025 – 9.5 2027</span></h3>
+      const dateSpan = $el.find("h3.main-feed__item__subtitle span").first().text().trim();
+      let starts_at = null;
+      let ends_at = null;
+      if (dateSpan) {
+        // Format: "DD.MM YYYY – DD.MM YYYY" or "DD.MM – DD.MM YYYY"
+        const parts = dateSpan.split(/\s*[–-]\s*/);
+        if (parts.length === 2) {
+          const endMatch = parts[1].match(/(\d{1,2})\.(\d{1,2})\s+(\d{4})/);
+          const startMatch = parts[0].match(/(\d{1,2})\.(\d{1,2})(?:\s+(\d{4}))?/);
+          if (endMatch) {
+            ends_at = new Date(parseInt(endMatch[3]), parseInt(endMatch[2]) - 1, parseInt(endMatch[1])).toISOString();
+          }
+          if (startMatch) {
+            const year = startMatch[3] ? parseInt(startMatch[3]) : (endMatch ? parseInt(endMatch[3]) : new Date().getFullYear());
+            starts_at = new Date(year, parseInt(startMatch[2]) - 1, parseInt(startMatch[1])).toISOString();
+          }
+        }
+      }
+
+      events.push({
+        title,
+        description: null,
+        image_url,
+        starts_at,
+        ends_at,
+        location: "Moderna Museet, Stockholm",
+        url,
+        source: "moderna_museet",
+        category: "exhibition",
+      });
+    });
+    console.log(`  ✅ Moderna Museet: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ Moderna Museet error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Source: ArkDes — Architecture & Design Museum
+// ---------------------------------------------------------------------------
+async function scrapeArkDes() {
+  console.log("🏗️  Scraping ArkDes...");
+  const events = [];
+  try {
+    const html = await fetchHtml("https://arkdes.se/utstallningar/");
+    const $ = cheerio.load(html);
+
+    $("article.card").each((_, el) => {
+      const $el = $(el);
+      const title = $el.find("h2.card-title").first().text().trim() ||
+                    $el.attr("data-content-name") || "";
+      const href = $el.find("a.expanded-hit-area").first().attr("href");
+      if (!title || !href) return;
+
+      const url = href.startsWith("http") ? href : `https://arkdes.se${href}`;
+
+      // Dates from <time datetime="YYYY.MM.DD"> elements
+      const times = $el.find("div.card-date time");
+      const startDt = times.first().attr("datetime");
+      const endDt = times.last().attr("datetime");
+      const starts_at = startDt ? parseDate(startDt.replace(/\./g, "-")) : null;
+      const ends_at = endDt && endDt !== startDt ? parseDate(endDt.replace(/\./g, "-")) : null;
+
+      // Image from srcset (src is a blurred placeholder)
+      const srcset = $el.find("div.card-image img").first().attr("srcset") || "";
+      const firstSrcset = srcset.split(",")[0]?.trim().split(" ")[0] || null;
+      const image_url = firstSrcset || $el.find("div.card-image img").first().attr("src") || null;
+
+      const categories = [];
+      $el.find("div.card-categories a").each((_, a) => categories.push($(a).text().trim()));
+
+      events.push({
+        title,
+        description: categories.length > 0 ? categories.join(", ") : null,
+        image_url: image_url && !image_url.startsWith("data:") ? image_url : null,
+        starts_at,
+        ends_at,
+        location: "ArkDes, Stockholm",
+        url,
+        source: "arkdes",
+        category: "exhibition",
+      });
+    });
+    console.log(`  ✅ ArkDes: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ ArkDes error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Source: Sven-Harrys Konstmuseum — Art exhibitions
+// ---------------------------------------------------------------------------
+async function scrapeSvenHarrys() {
+  console.log("🎭 Scraping Sven-Harrys...");
+  const events = [];
+  try {
+    const html = await fetchHtml("https://sven-harrys.se/utstallningar/");
+    const $ = cheerio.load(html);
+
+    // Current exhibitions: a.text-banner
+    $("a.text-banner").each((_, el) => {
+      const $el = $(el);
+      const title = $el.find(".banner-text p").first().text().trim();
+      const href = $el.attr("href");
+      if (!title || !href) return;
+
+      const dateText = $el.find(".banner-title h4").first().text().trim();
+      const img = $el.find(".media img").first().attr("src");
+
+      const parts = dateText.split(/\s*[–-]\s*/);
+      const starts_at = parts[0] ? parseSwedishDate(parts[0]) : null;
+      const ends_at = parts[1] ? parseSwedishDate(parts[1]) : null;
+
+      events.push({
+        title,
+        description: null,
+        image_url: img || null,
+        starts_at,
+        ends_at,
+        location: "Sven-Harrys Konstmuseum, Stockholm",
+        url: href,
+        source: "sven_harrys",
+        category: "exhibition",
+      });
+    });
+
+    // Upcoming/past exhibitions: a.card
+    $("a.card").each((_, el) => {
+      const $el = $(el);
+      const title = $el.find(".card-title").first().text().trim();
+      const href = $el.attr("href");
+      if (!title || !href) return;
+
+      const dateText = $el.find(".card-content h3 span").first().text().trim();
+      const img = $el.find(".media img").first().attr("src");
+
+      const parts = dateText.split(/\s*[–—-]\s*/);
+      const starts_at = parts[0] ? parseSwedishDate(parts[0]) : null;
+      const ends_at = parts[1] ? parseSwedishDate(parts[1]) : null;
+
+      // Skip past exhibitions
+      if (ends_at && new Date(ends_at) < new Date()) return;
+
+      events.push({
+        title,
+        description: null,
+        image_url: img || null,
+        starts_at,
+        ends_at,
+        location: "Sven-Harrys Konstmuseum, Stockholm",
+        url: href,
+        source: "sven_harrys",
+        category: "exhibition",
+      });
+    });
+    console.log(`  ✅ Sven-Harrys: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ Sven-Harrys error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Source: Waldemarsudde (Prins Eugens) — Art exhibitions
+// ---------------------------------------------------------------------------
+async function scrapeWaldemarsudde() {
+  console.log("🏰 Scraping Waldemarsudde...");
+  const events = [];
+  try {
+    const html = await fetchHtml("https://waldemarsudde.se/utstallningar/");
+    const $ = cheerio.load(html);
+
+    $("a.group").each((_, el) => {
+      const $el = $(el);
+      const title = $el.find("div.text-primary.font-semibold").first().text().trim() ||
+                    $el.find("div.text-lg").first().text().trim();
+      const href = $el.attr("href");
+      if (!title || !href) return;
+
+      const url = href.startsWith("http") ? href : `https://waldemarsudde.se${href}`;
+      const img = $el.find("img").first().attr("src");
+      const image_url = img ? (img.startsWith("http") ? img : `https://waldemarsudde.se${img}`) : null;
+
+      // Date format: "Lördag 15/11 2025  –  Söndag 15/3 2026"
+      const dateText = $el.find("div.mt-4").first().text().trim();
+      let starts_at = null;
+      let ends_at = null;
+      if (dateText) {
+        const parts = dateText.split(/\s*[–-]\s*/);
+        // Extract DD/MM YYYY from each part
+        for (let i = 0; i < parts.length; i++) {
+          const m = parts[i].match(/(\d{1,2})\/(\d{1,2})\s+(\d{4})/);
+          if (m) {
+            const d = new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+            if (i === 0) starts_at = d.toISOString();
+            else ends_at = d.toISOString();
+          }
+        }
+      }
+
+      // Skip past exhibitions
+      if (ends_at && new Date(ends_at) < new Date()) return;
+
+      events.push({
+        title,
+        description: null,
+        image_url,
+        starts_at,
+        ends_at,
+        location: "Waldemarsudde, Stockholm",
+        url,
+        source: "waldemarsudde",
+        category: "exhibition",
+      });
+    });
+    console.log(`  ✅ Waldemarsudde: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ Waldemarsudde error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Source: Thielska Galleriet — Art exhibitions on Djurgården
+// ---------------------------------------------------------------------------
+async function scrapeThielska() {
+  console.log("🖼️  Scraping Thielska Galleriet...");
+  const events = [];
+  try {
+    const html = await fetchHtml("https://www.thielskagalleriet.se/utstallningar/aktuella-utstallningar/");
+    const $ = cheerio.load(html);
+
+    $(".exhibition-item").each((_, el) => {
+      const $el = $(el);
+      const title = $el.find(".exhibition-data h2").first().text().trim();
+      const href = $el.find("a").first().attr("href");
+      if (!title) return;
+
+      const url = href || "https://www.thielskagalleriet.se/utstallningar/aktuella-utstallningar/";
+      const img = $el.find("img.exhibition-featured-image").first().attr("src");
+      const dateText = $el.find(".exhibition-data .h4").first().text().trim();
+      const description = $el.find(".excerpt p").first().text().trim().slice(0, 500) || null;
+
+      // Date format: "14 februari–24 maj 2026"
+      let starts_at = null;
+      let ends_at = null;
+      if (dateText) {
+        const parts = dateText.split(/\s*[–-]\s*/);
+        starts_at = parts[0] ? parseSwedishDate(parts[0]) : null;
+        ends_at = parts[1] ? parseSwedishDate(parts[1]) : null;
+      }
+
+      events.push({
+        title,
+        description,
+        image_url: img || null,
+        starts_at,
+        ends_at,
+        location: "Thielska Galleriet, Stockholm",
+        url,
+        source: "thielska",
+        category: "exhibition",
+      });
+    });
+    console.log(`  ✅ Thielska: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ Thielska error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
 // Source: Ticketmaster Discovery API (requires TICKETMASTER_API_KEY in .env)
 // Sign up free at: https://developer.ticketmaster.com/
 // ---------------------------------------------------------------------------
@@ -2203,6 +2870,16 @@ async function main() {
     scrapeFargfabriken(),
     scrapeFallan(),
     scrapeLydmar(),
+    scrapePetSoundsBar(),
+    scrapeKonstframjandet(),
+    scrapeKonstkalendern(),
+    scrapeStockholmArt(),
+    scrapeKonstguiden(),
+    scrapeModernaMuseet(),
+    scrapeArkDes(),
+    scrapeSvenHarrys(),
+    scrapeWaldemarsudde(),
+    scrapeThielska(),
     scrapeTicketmaster(),
     scrapeEventbrite(),
   ]);

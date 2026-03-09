@@ -53,7 +53,7 @@ export function ProtectedLayout() {
   }
 
   const isCreatingEvent =
-    location.pathname === "/create" || location.pathname === "/post";
+    location.pathname === "/create";
 
   // Show loading state while checking auth
   if (loading) {

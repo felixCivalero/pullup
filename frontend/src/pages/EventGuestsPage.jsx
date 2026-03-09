@@ -1590,7 +1590,7 @@ export function EventGuestsPage() {
               </span>
             </div>
             <button
-              onClick={() => navigate(`/app/events/${id}/manage/edit`)}
+              onClick={() => navigate(`/app/events/${id}/edit`)}
               style={{
                 background: "transparent",
                 border: "none",
@@ -2084,7 +2084,7 @@ export function EventGuestsPage() {
                                     color: "#fff",
                                   }}
                                 >
-                                  {formatEventTime(g.dinnerTimeSlot)}
+                                  {formatEventTime(g.dinnerTimeSlot, event?.timezone)}
                                 </div>
                               ) : (
                                 <span
@@ -3517,7 +3517,7 @@ function EditGuestModal({
                         <option value="">Select time slot</option>
                         {dinnerSlots.map((slot) => (
                           <option key={slot} value={slot}>
-                            {formatEventTime(slot)}
+                            {formatEventTime(slot, event?.timezone)}
                           </option>
                         ))}
                       </select>

@@ -1462,7 +1462,7 @@ export function CrmTab() {
                   }}
                 >
                   {/* Hero image */}
-                  {selectedEvent.imageUrl && (
+                  {(selectedEvent.coverImageUrl || selectedEvent.imageUrl) && (
                     <div
                       style={{
                         width: "100%",
@@ -1471,7 +1471,7 @@ export function CrmTab() {
                       }}
                     >
                       <img
-                        src={selectedEvent.imageUrl}
+                        src={selectedEvent.coverImageUrl || selectedEvent.imageUrl}
                         alt={selectedEvent.title}
                         style={{
                           width: "100%",

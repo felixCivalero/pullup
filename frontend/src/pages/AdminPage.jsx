@@ -119,7 +119,7 @@ export function AdminPage() {
           setHeadlineText(data.title || "");
         }
         if (!heroImageUrl) {
-          setHeroImageUrl(data.imageUrl || "");
+          setHeroImageUrl(data.coverImageUrl || data.imageUrl || "");
         }
         if (!introBody) {
           setIntroBody(defaultBody);
@@ -173,21 +173,21 @@ export function AdminPage() {
     return `${fmt(from)} – ${fmt(to)} ${to.getFullYear()}`;
   }
 
-  function formatEventMeta(startsAt, location) {
+  function formatEventMeta(startsAt, location, tz) {
     if (!startsAt) return location || "";
     const d = new Date(startsAt);
     if (isNaN(d.getTime())) return location || "";
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const months = [
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    const dayName = days[d.getDay()];
-    const dayNum = d.getDate();
-    const monthName = months[d.getMonth()];
-    const hours = String(d.getHours()).padStart(2, "0");
-    const mins = String(d.getMinutes()).padStart(2, "0");
-    const datePart = `${dayName} ${dayNum} ${monthName} · ${hours}:${mins}`;
+    const opts = tz ? { timeZone: tz } : {};
+    const datePart = d.toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      ...opts,
+    }) + " · " + d.toLocaleTimeString("sv-SE", {
+      hour: "2-digit",
+      minute: "2-digit",
+      ...opts,
+    });
     return location ? `${datePart} · ${location}` : datePart;
   }
 
@@ -355,7 +355,7 @@ export function AdminPage() {
             templateType,
             templateName: "event",
             templateContent: {
-              heroImageUrl: heroImageUrl || templateEvent?.imageUrl || "",
+              heroImageUrl: heroImageUrl || templateEvent?.coverImageUrl || templateEvent?.imageUrl || "",
               headline: headlineText || templateEvent?.title || "",
               introQuote: introQuote || "",
               introBody: (introBody || body || "").trim(),
@@ -1541,7 +1541,7 @@ export function AdminPage() {
                               whiteSpace: "nowrap",
                             }}
                           >
-                            {formatEventMeta(ev.starts_at, ev.location)}
+                            {formatEventMeta(ev.starts_at, ev.location, ev.timezone)}
                           </div>
                         </div>
                         <button

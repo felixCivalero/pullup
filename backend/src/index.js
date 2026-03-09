@@ -305,28 +305,11 @@ function generateOgHtml(event) {
   const when = formatOgDateTime(event?.startsAt, event?.timezone);
   const where = event?.location ? String(event.location).trim() : "";
 
-  // Format date for OG title: "Event Title — Wednesday, December 17 at 12:00 PM"
-  // This matches the rich preview format shown in iMessage screenshots
+  // Format date for OG title: "Event Title — Wednesday, December 17 at 18:00"
+  // Uses the event's timezone so the preview shows the correct local time
   let ogTitle = titleRaw;
-  if (when && event?.startsAt) {
-    try {
-      const d = new Date(event.startsAt);
-      // Get day of week (e.g., "Wednesday")
-      const dayOfWeek = d.toLocaleDateString("en-US", { weekday: "long" });
-      // Get date and time (e.g., "December 17 at 12:00 PM")
-      const dateTime = d.toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-      });
-      const time = d.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      });
-      ogTitle = `${titleRaw} — ${dayOfWeek}, ${dateTime} at ${time}`;
-    } catch (e) {
-      // Fallback to simple format if date parsing fails
-      ogTitle = when ? `${titleRaw} — ${when}` : titleRaw;
-    }
+  if (when) {
+    ogTitle = `${titleRaw} — ${when}`;
   }
 
   // Escape HTML for OG title

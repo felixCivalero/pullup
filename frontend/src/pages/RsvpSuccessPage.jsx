@@ -231,6 +231,7 @@ export function RsvpSuccessPage() {
       slug: event.slug,
       startsAt: anchorStart,
       endsAt: anchorEnd,
+      timezone: event.timezone,
     });
   }
 

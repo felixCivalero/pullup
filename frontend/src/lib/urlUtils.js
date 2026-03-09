@@ -103,6 +103,7 @@ export function getOgImageUrl() {
  * @param {string} params.slug
  * @param {string|Date} params.startsAt
  * @param {string|Date} params.endsAt
+ * @param {string} [params.timezone] - IANA timezone (e.g. "Europe/Stockholm")
  */
 export function generateCalendarUrls({
   title,
@@ -111,12 +112,13 @@ export function generateCalendarUrls({
   slug,
   startsAt,
   endsAt,
+  timezone,
 }) {
-  const start = formatDateForCalendar(startsAt);
+  const start = formatDateForCalendar(startsAt, timezone);
   if (!start) return {};
 
   // If no explicit end time is provided, default to 3 hours after start
-  const end = formatDateForCalendar(endsAt || addHours(startsAt, 3));
+  const end = formatDateForCalendar(endsAt || addHours(startsAt, 3), timezone);
   const encodedTitle = encodeURIComponent(title || "Event");
   const encodedLocation = encodeURIComponent(location || "");
 
@@ -130,6 +132,14 @@ export function generateCalendarUrls({
     : `Event page: ${eventUrl}`;
   const encodedDescription = encodeURIComponent(fullDescription);
 
+  // ICS uses TZID when timezone is available, otherwise UTC with Z
+  const dtStartLine = timezone
+    ? `DTSTART;TZID=${timezone}:${start}`
+    : `DTSTART:${start}`;
+  const dtEndLine = timezone
+    ? `DTEND;TZID=${timezone}:${end}`
+    : `DTEND:${end}`;
+
   const icsContent = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -137,8 +147,8 @@ export function generateCalendarUrls({
     "BEGIN:VEVENT",
     `UID:${slug || title || "event"}@pullup.se`,
     `DTSTAMP:${formatDateForCalendar(new Date())}`,
-    `DTSTART:${start}`,
-    `DTEND:${end}`,
+    dtStartLine,
+    dtEndLine,
     `SUMMARY:${title || "Event"}`,
     `DESCRIPTION:${fullDescription.replace(/\n/g, "\\n").replace(/,/g, "\\,")}`,
     location ? `LOCATION:${location}` : "",
@@ -151,8 +161,11 @@ export function generateCalendarUrls({
     .filter(Boolean)
     .join("\r\n");
 
+  // Google Calendar: use ctz parameter to specify event timezone
+  const googleCtz = timezone ? `&ctz=${encodeURIComponent(timezone)}` : "";
+
   return {
-    google: `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&dates=${start}/${end}&details=${encodedDescription}&location=${encodedLocation}`,
+    google: `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&dates=${start}/${end}&details=${encodedDescription}&location=${encodedLocation}${googleCtz}`,
     outlook: `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodedTitle}&startdt=${start}&enddt=${end}&body=${encodedDescription}&location=${encodedLocation}`,
     yahoo: `https://calendar.yahoo.com/?v=60&view=d&type=20&title=${encodedTitle}&st=${start}&dur=${end}&desc=${encodedDescription}&in_loc=${encodedLocation}`,
     apple: `data:text/calendar;charset=utf8,${encodeURIComponent(icsContent)}`,

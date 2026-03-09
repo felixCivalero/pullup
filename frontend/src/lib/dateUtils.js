@@ -89,12 +89,33 @@ export function formatRelativeTime(value) {
 }
 
 /**
- * Format date for calendar services (YYYYMMDDTHHmmssZ)
- * Uses UTC — calendar apps understand the Z suffix.
+ * Format date for calendar services.
+ * When a timezone is provided, formats in that timezone (no Z suffix)
+ * so calendar links can pair it with a ctz/TZID parameter.
+ * Without timezone, falls back to UTC with Z suffix.
  */
-export function formatDateForCalendar(value) {
+export function formatDateForCalendar(value, tz) {
   const d = toDate(value);
   if (!d) return "";
+  if (tz) {
+    const parts = {};
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    for (const { type, value: v } of formatter.formatToParts(d)) {
+      parts[type] = v;
+    }
+    // Handle midnight edge case where hour12:false gives "24"
+    const hour = parts.hour === "24" ? "00" : parts.hour;
+    return `${parts.year}${parts.month}${parts.day}T${hour}${parts.minute}${parts.second}`;
+  }
   return d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 }
 

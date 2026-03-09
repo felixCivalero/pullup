@@ -202,6 +202,7 @@ export function EventSuccessPage() {
       slug: event.slug,
       startsAt: event.startsAt,
       endsAt: event.endsAt,
+      timezone: event.timezone,
     });
 
     const url = urls[provider];

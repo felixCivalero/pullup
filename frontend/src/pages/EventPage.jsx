@@ -51,7 +51,8 @@ export function EventPage() {
   const [vipOffer, setVipOffer] = useState(null); // VIP invite offer
   const [vipToken, setVipToken] = useState(null); // VIP token from URL
   const [canShareStory, setCanShareStory] = useState(false);
-  const [sharingStory, setSharingStory] = useState(false);
+  const [showSharePicker, setShowSharePicker] = useState(false);
+  const [selectedShareIndexes, setSelectedShareIndexes] = useState(new Set());
 
   // MUST be called before any early returns to follow Rules of Hooks
   const swipeHandlers = useCarouselSwipe(
@@ -610,30 +611,106 @@ export function EventPage() {
   // Use share URL for better link previews (returns HTML with OG tags)
   const shareUrl = event && event.slug ? getEventShareUrl(event.slug) : "";
 
-  // Get the best image URL for story sharing (cover image or first media item)
-  const storyImageUrl = event?.coverImageUrl || event?.imageUrl ||
-    (event?.media?.length > 0 ? event.media[0].url : null);
+  // Determine share mode based on media settings
+  const isAutoCarousel = event?.mediaSettings?.autoscroll && event?.media?.length > 1;
+  const isManualCarousel = !event?.mediaSettings?.autoscroll && event?.media?.length > 1;
+  const carouselInterval = event?.mediaSettings?.interval || 5;
 
-  async function handleShareToStory() {
-    if (!storyImageUrl || sharingStory) return;
-    setSharingStory(true);
-    try {
-      // Fetch the image and convert to a File object
-      const response = await fetch(storyImageUrl);
-      const blob = await response.blob();
-      const ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
-      const file = new File([blob], `${event?.title || "event"}.${ext}`, { type: blob.type });
+  // Generate a video from carousel images by drawing each on a canvas at the set interval
+  async function createCarouselVideo(mediaItems, intervalSec) {
+    const size = 1080; // Story-friendly square
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
 
-      await navigator.share({
-        files: [file],
-      });
-    } catch (err) {
-      if (err?.name === "AbortError") return; // User cancelled
-      console.error("Story share failed:", err);
-      showToast("Couldn't share to story", "error");
-    } finally {
-      setSharingStory(false);
+    // Pre-load all images
+    const images = await Promise.all(
+      mediaItems.map(
+        (m) =>
+          new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+            img.src = m.url;
+          })
+      )
+    );
+    const validImages = images.filter(Boolean);
+    if (validImages.length === 0) return null;
+
+    // Record the canvas as video
+    const stream = canvas.captureStream(30);
+    const recorder = new MediaRecorder(stream, {
+      mimeType: MediaRecorder.isTypeSupported("video/mp4")
+        ? "video/mp4"
+        : "video/webm",
+    });
+    const chunks = [];
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+    const done = new Promise((resolve) => {
+      recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType }));
+    });
+
+    recorder.start();
+
+    // Draw each image for intervalSec, looping once through all images
+    for (const img of validImages) {
+      // Cover-fit the image into the square canvas
+      const scale = Math.max(size / img.naturalWidth, size / img.naturalHeight);
+      const w = img.naturalWidth * scale;
+      const h = img.naturalHeight * scale;
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      await new Promise((r) => setTimeout(r, intervalSec * 1000));
     }
+
+    recorder.stop();
+    return done;
+  }
+
+  // Build file(s) to share based on media type
+  async function buildShareFiles() {
+    if (!event) return [];
+
+    // Single video → share the video directly
+    if (event.media?.length === 1 && event.media[0].mediaType === "video") {
+      const res = await fetch(event.media[0].url);
+      const blob = await res.blob();
+      return [new File([blob], `${event.title || "event"}.mp4`, { type: blob.type || "video/mp4" })];
+    }
+
+    // Auto-scroll carousel → generate a video from the images
+    if (isAutoCarousel) {
+      const blob = await createCarouselVideo(event.media, carouselInterval);
+      if (blob) {
+        const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+        return [new File([blob], `${event.title || "event"}.${ext}`, { type: blob.type })];
+      }
+    }
+
+    // Manual carousel with picker → share only selected images
+    if (isManualCarousel && selectedShareIndexes.size > 0) {
+      const selected = event.media.filter((_, i) => selectedShareIndexes.has(i));
+      return Promise.all(
+        selected.map(async (m, i) => {
+          const res = await fetch(m.url);
+          const blob = await res.blob();
+          const ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+          return new File([blob], `${event.title || "event"}-${i + 1}.${ext}`, { type: blob.type || "image/jpeg" });
+        })
+      );
+    }
+
+    // Single image or cover fallback
+    const url = event.coverImageUrl || event.imageUrl || event.media?.[0]?.url;
+    if (!url) return [];
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+    return [new File([blob], `${event.title || "event"}.${ext}`, { type: blob.type || "image/jpeg" })];
   }
 
   // Format date/time (centralized helpers)
@@ -902,13 +979,25 @@ export function EventPage() {
                   onClick={async () => {
                     if (!shareUrl) return;
 
-                    // Share URL only (no title, no text, no files)
+                    // Manual carousel on mobile → open picker first
+                    if (canShareStory && isManualCarousel) {
+                      setSelectedShareIndexes(new Set());
+                      setShowSharePicker(true);
+                      return;
+                    }
+
                     if (navigator.share) {
                       try {
+                        if (canShareStory) {
+                          const files = await buildShareFiles();
+                          if (files.length > 0) {
+                            await navigator.share({ files, url: shareUrl });
+                            return;
+                          }
+                        }
                         await navigator.share({ url: shareUrl });
                         return;
                       } catch (err) {
-                        // If user cancels, do nothing. Otherwise fall back to copy.
                         if (err?.name === "AbortError") return;
                         console.error("Error sharing:", err);
                       }
@@ -926,43 +1015,6 @@ export function EventPage() {
                 >
                   <FaPaperPlane size={20} />
                 </button>
-
-                {/* Add to Story - mobile only, requires file sharing support */}
-                {canShareStory && storyImageUrl && (
-                  <button
-                    style={{
-                      background: "transparent",
-                      border: "1px solid rgba(255, 255, 255, 0.3)",
-                      borderRadius: "20px",
-                      padding: "5px 12px",
-                      margin: 0,
-                      boxShadow: "none",
-                      appearance: "none",
-                      WebkitAppearance: "none",
-                      MozAppearance: "none",
-                      outline: "none",
-                      color: "rgba(255, 255, 255, 0.9)",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      letterSpacing: "0.02em",
-                      transition: "all 0.2s ease",
-                      opacity: sharingStory ? 0.5 : 1,
-                    }}
-                    onClick={handleShareToStory}
-                    disabled={sharingStory}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
-                      <line x1="12" y1="8" x2="12" y2="16" />
-                      <line x1="8" y1="12" x2="16" y2="12" />
-                    </svg>
-                    {sharingStory ? "Sharing..." : "Add to Story"}
-                  </button>
-                )}
 
                 {/* Instagram icon - conditional */}
                 {event?.instagram && (
@@ -1328,6 +1380,116 @@ export function EventPage() {
               pendingPayment={pendingPayment}
               PaymentFormComponent={PaymentFormComponent}
             />
+          </div>
+        </ModalOrDrawer>
+
+        {/* Share picker for manual carousels — select which images to share */}
+        <ModalOrDrawer
+          isOpen={showSharePicker}
+          onClose={() => setShowSharePicker(false)}
+          title="Share to Story"
+        >
+          <div style={{ padding: "16px" }}>
+            <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", marginBottom: "16px" }}>
+              Select the images you want to share
+            </p>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: "8px",
+              marginBottom: "20px",
+            }}>
+              {event?.media?.map((m, i) => (
+                <button
+                  key={m.id || i}
+                  type="button"
+                  onClick={() => {
+                    setSelectedShareIndexes((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(i)) next.delete(i);
+                      else next.add(i);
+                      return next;
+                    });
+                  }}
+                  style={{
+                    position: "relative",
+                    aspectRatio: "1",
+                    border: selectedShareIndexes.has(i)
+                      ? "3px solid #fff"
+                      : "3px solid transparent",
+                    borderRadius: "12px",
+                    overflow: "hidden",
+                    padding: 0,
+                    background: "#1a1a2e",
+                    cursor: "pointer",
+                    opacity: selectedShareIndexes.size > 0 && !selectedShareIndexes.has(i) ? 0.5 : 1,
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <img
+                    src={m.thumbnailUrl || m.url}
+                    alt=""
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                  />
+                  {selectedShareIndexes.has(i) && (
+                    <div style={{
+                      position: "absolute",
+                      top: "6px",
+                      right: "6px",
+                      width: "24px",
+                      height: "24px",
+                      borderRadius: "50%",
+                      background: "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+            <button
+              disabled={selectedShareIndexes.size === 0}
+              onClick={async () => {
+                setShowSharePicker(false);
+                try {
+                  const files = await buildShareFiles();
+                  if (files.length > 0 && navigator.share) {
+                    await navigator.share({ files, url: shareUrl });
+                  }
+                } catch (err) {
+                  if (err?.name === "AbortError") return;
+                  console.error("Error sharing:", err);
+                  showToast("Couldn't share", "error");
+                }
+              }}
+              style={{
+                width: "100%",
+                padding: "16px",
+                borderRadius: "14px",
+                border: "none",
+                background: selectedShareIndexes.size > 0
+                  ? "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)"
+                  : "#333",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: "16px",
+                cursor: selectedShareIndexes.size > 0 ? "pointer" : "not-allowed",
+                opacity: selectedShareIndexes.size > 0 ? 1 : 0.5,
+                transition: "all 0.2s ease",
+              }}
+            >
+              Share {selectedShareIndexes.size > 0 ? `${selectedShareIndexes.size} image${selectedShareIndexes.size > 1 ? "s" : ""}` : ""}
+            </button>
           </div>
         </ModalOrDrawer>
       </div>

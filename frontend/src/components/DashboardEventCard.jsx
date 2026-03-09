@@ -94,7 +94,7 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
             }}
           >
             <img
-              src={event.imageUrl}
+              src={event.coverImageUrl || event.imageUrl}
               alt={event.title}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />

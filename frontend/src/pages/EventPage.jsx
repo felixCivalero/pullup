@@ -1145,8 +1145,7 @@ export function EventPage() {
           style={{
             position: "fixed",
             bottom: 0,
-            left: "50%",
-            transform: "translateX(-50%)",
+            left: 0,
             padding: "16px 20px",
             paddingBottom: "max(16px, env(safe-area-inset-bottom))",
             background:

@@ -493,7 +493,7 @@ app.post(
 // Allow base64 images in body
 app.use(
   express.json({
-    limit: "50mb",
+    limit: "100mb",
     verify: (req, res, buf) => {
       // Preserve raw body for HMAC verification on webhooks.
       req.rawBody = buf;

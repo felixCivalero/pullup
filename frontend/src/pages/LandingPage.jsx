@@ -280,7 +280,7 @@ export function LandingPage() {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            padding: "32px 20px 96px",
+            padding: "clamp(16px, 3vh, 32px) 20px clamp(16px, 4vh, 96px)",
             boxSizing: "border-box",
             overflow: "hidden",
             overscrollBehavior: "none",
@@ -305,7 +305,7 @@ export function LandingPage() {
                 fontSize: "clamp(34px, 9vw, 60px)",
                 fontWeight: 800,
                 lineHeight: "1.1",
-                marginBottom: "18px",
+                marginBottom: "clamp(8px, 1.5vh, 18px)",
                 background:
                   "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.9) 100%)",
                 WebkitBackgroundClip: "text",
@@ -334,7 +334,7 @@ export function LandingPage() {
                 fontSize: "clamp(14px, 3.5vw, 18px)",
                 opacity: 0.85,
                 lineHeight: "1.5",
-                marginBottom: "20px",
+                marginBottom: "clamp(8px, 1.5vh, 20px)",
                 maxWidth: "320px",
                 textAlign: "center",
               }}
@@ -361,7 +361,7 @@ export function LandingPage() {
               style={{
                 width: "100%",
                 maxWidth: "320px",
-                padding: "20px 18px 18px",
+                padding: "clamp(12px, 2vh, 20px) 18px clamp(12px, 2vh, 18px)",
                 borderRadius: "22px",
                 background:
                   "linear-gradient(145deg, rgba(11,10,20,0.96), rgba(17,15,30,0.98))",
@@ -371,9 +371,9 @@ export function LandingPage() {
                 backdropFilter: "blur(18px)",
                 display: "flex",
                 flexDirection: "column",
-                gap: "14px",
+                gap: "clamp(8px, 1.2vh, 14px)",
                 alignItems: "stretch",
-                marginBottom: "18px",
+                marginBottom: "clamp(8px, 1.5vh, 18px)",
               }}
             >
               <form
@@ -381,7 +381,7 @@ export function LandingPage() {
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "10px",
+                  gap: "clamp(6px, 1vh, 10px)",
                 }}
               >
                 <div
@@ -408,7 +408,8 @@ export function LandingPage() {
                     placeholder="you@example.com"
                     style={{
                       width: "100%",
-                      padding: "12px 14px",
+                      boxSizing: "border-box",
+                      padding: "clamp(9px, 1.3vh, 12px) 14px",
                       borderRadius: "999px",
                       border: "1px solid rgba(255,255,255,0.14)",
                       background:
@@ -444,7 +445,8 @@ export function LandingPage() {
                     placeholder="Your password"
                     style={{
                       width: "100%",
-                      padding: "12px 14px",
+                      boxSizing: "border-box",
+                      padding: "clamp(9px, 1.3vh, 12px) 14px",
                       borderRadius: "999px",
                       border: "1px solid rgba(255,255,255,0.14)",
                       background:
@@ -471,7 +473,7 @@ export function LandingPage() {
                     disabled={signingIn}
                     style={{
                       width: "100%",
-                      padding: "13px 0",
+                      padding: "clamp(10px, 1.4vh, 13px) 0",
                       borderRadius: "999px",
                       border: "none",
                       background:
@@ -514,8 +516,8 @@ export function LandingPage() {
                     display: "flex",
                     alignItems: "center",
                     gap: "10px",
-                    marginTop: "10px",
-                    marginBottom: "4px",
+                    marginTop: "clamp(4px, 0.8vh, 10px)",
+                    marginBottom: "clamp(2px, 0.5vh, 4px)",
                   }}
                 >
                   <div
@@ -553,7 +555,7 @@ export function LandingPage() {
                     borderRadius: "999px",
                     border: "1px solid rgba(0,0,0,0.16)",
                     background: "#ffffff",
-                    padding: "10px 14px",
+                    padding: "clamp(8px, 1.2vh, 10px) 14px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -615,7 +617,7 @@ export function LandingPage() {
                 flexWrap: "wrap",
                 fontSize: "12px",
                 opacity: 0.55,
-                marginTop: "16px",
+                marginTop: "clamp(6px, 1vh, 16px)",
               }}
             >
               <div
@@ -640,7 +642,7 @@ export function LandingPage() {
               style={{
                 width: "100%",
                 maxWidth: "320px",
-                marginTop: "66px",
+                marginTop: "clamp(14px, 3vh, 66px)",
                 padding: "14px 14px 12px",
                 borderRadius: "18px",
                 background:

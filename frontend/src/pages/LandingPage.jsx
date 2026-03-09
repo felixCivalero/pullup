@@ -27,8 +27,13 @@ export function LandingPage() {
   const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
   const [newsletterPopup, setNewsletterPopup] = useState(null);
 
-  // Note: Removed auto-redirect to /home
-  // Users should explicitly choose their path, even if logged in
+  // Auto-redirect to /events if already logged in
+  // (handles OAuth callback landing back on "/" after session is established)
+  useEffect(() => {
+    if (user) {
+      navigate("/events", { replace: true });
+    }
+  }, [user, navigate]);
 
   // Prevent scrolling on landing page - enforce single frame
   useEffect(() => {

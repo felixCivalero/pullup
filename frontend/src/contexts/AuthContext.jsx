@@ -10,14 +10,28 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
 
   useEffect(() => {
+    // Detect if the URL contains OAuth callback tokens.
+    // If so, don't resolve loading from getSession() — wait for
+    // onAuthStateChange to fire with the real session, otherwise
+    // ProtectedLayout will see user=null and redirect to "/" too early.
+    const hash = window.location.hash || "";
+    const search = window.location.search || "";
+    const hasOAuthTokens =
+      hash.includes("access_token") ||
+      hash.includes("refresh_token") ||
+      search.includes("code=");
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
+      // Only resolve loading if there are no pending OAuth tokens to process
+      if (!hasOAuthTokens || session) {
+        setLoading(false);
+      }
     });
 
-    // Listen for auth changes
+    // Listen for auth changes (fires after OAuth tokens are processed)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -26,7 +40,17 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // Safety timeout: if OAuth tokens are present but nothing fires within 5s,
+    // stop loading to avoid an infinite spinner
+    let safetyTimeout;
+    if (hasOAuthTokens) {
+      safetyTimeout = setTimeout(() => setLoading(false), 5000);
+    }
+
+    return () => {
+      subscription.unsubscribe();
+      if (safetyTimeout) clearTimeout(safetyTimeout);
+    };
   }, []);
 
   const signInWithEmailPassword = async (email, password) => {

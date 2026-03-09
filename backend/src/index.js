@@ -3052,48 +3052,57 @@ app.put(
       }
     }
 
-    const updated = await updateEvent(id, {
-      title,
-      description,
-      location,
-      locationLat,
-      locationLng,
-      startsAt,
-      endsAt,
-      timezone,
-      maxAttendees,
-      waitlistEnabled,
-      imageUrl,
-      theme,
-      calendar,
-      visibility,
-      ticketType,
-      requireApproval,
-      maxPlusOnesPerGuest,
-      dinnerEnabled,
-      dinnerStartTime,
-      dinnerEndTime,
-      dinnerSeatingIntervalHours,
-      dinnerMaxSeatsPerSlot,
-      dinnerOverflowAction,
-      dinnerSlots,
-      dinnerBookingEmail,
-      ticketPrice,
-      ticketCurrency: ticketCurrency
-        ? String(ticketCurrency).toLowerCase()
-        : undefined,
-      stripeProductId: stripeProductId || currentEvent.stripeProductId,
-      stripePriceId: newStripePriceId || currentEvent.stripePriceId,
-      cocktailCapacity,
-      foodCapacity,
-      totalCapacity,
-      status,
-      mediaSettings,
-      instagram,
-      spotify,
-      tiktok,
-      soundcloud,
-    });
+    let updated;
+    try {
+      updated = await updateEvent(id, {
+        title,
+        description,
+        location,
+        locationLat,
+        locationLng,
+        startsAt,
+        endsAt,
+        timezone,
+        maxAttendees,
+        waitlistEnabled,
+        imageUrl,
+        theme,
+        calendar,
+        visibility,
+        ticketType,
+        requireApproval,
+        maxPlusOnesPerGuest,
+        dinnerEnabled,
+        dinnerStartTime,
+        dinnerEndTime,
+        dinnerSeatingIntervalHours,
+        dinnerMaxSeatsPerSlot,
+        dinnerOverflowAction,
+        dinnerSlots,
+        dinnerBookingEmail,
+        ticketPrice,
+        ticketCurrency: ticketCurrency
+          ? String(ticketCurrency).toLowerCase()
+          : undefined,
+        stripeProductId: stripeProductId || currentEvent.stripeProductId,
+        stripePriceId: newStripePriceId || currentEvent.stripePriceId,
+        cocktailCapacity,
+        foodCapacity,
+        totalCapacity,
+        status,
+        mediaSettings,
+        instagram,
+        spotify,
+        tiktok,
+        soundcloud,
+      });
+    } catch (err) {
+      console.error(`[PUT /host/events/${id}] Update failed:`, err.message);
+      return res.status(500).json({
+        error: "Failed to update event",
+        message: err.message,
+      });
+    }
 
     if (!updated) return res.status(404).json({ error: "Event not found" });
 

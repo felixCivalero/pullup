@@ -964,6 +964,18 @@ export async function findEventById(id) {
 export async function updateEvent(id, updates) {
   const dbUpdates = mapEventToDb(updates);
 
+  if (Object.keys(dbUpdates).length === 0) {
+    console.warn(`[updateEvent] No valid fields to update for event ${id}`);
+    // Still return the current event data so it's not treated as a failure
+    const { data: current, error: fetchError } = await supabase
+      .from("events")
+      .select()
+      .eq("id", id)
+      .single();
+    if (fetchError || !current) return null;
+    return await mapEventFromDb(current);
+  }
+
   const { data, error } = await supabase
     .from("events")
     .update(dbUpdates)
@@ -971,7 +983,14 @@ export async function updateEvent(id, updates) {
     .select()
     .single();
 
-  if (error || !data) {
+  if (error) {
+    console.error(`[updateEvent] Supabase error updating event ${id}:`, error);
+    console.error(`[updateEvent] Attempted update fields:`, Object.keys(dbUpdates));
+    throw new Error(error.message || "Database update failed");
+  }
+
+  if (!data) {
+    console.error(`[updateEvent] No data returned for event ${id}`);
     return null;
   }
 

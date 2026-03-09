@@ -6102,13 +6102,14 @@ app.get("/admin/newsletter/weekly-events", requireAdmin, async (req, res) => {
       });
     }
 
-    // Fetch approved events in date range that haven't been sent yet
+    // Fetch approved events whose date range overlaps with the selected week
+    // (starts before week ends AND ends after week starts), not yet sent
     const { data: dated, error: e1 } = await supabase
       .from("stockholm_events")
       .select("*")
       .eq("status", "approved")
-      .gte("starts_at", from)
       .lte("starts_at", to)
+      .or(`ends_at.gte.${from},ends_at.is.null`)
       .is("newsletter_sent_at", null)
       .order("starts_at", { ascending: true });
 

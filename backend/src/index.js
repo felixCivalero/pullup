@@ -5228,11 +5228,17 @@ app.post("/host/events/:eventId/media", requireAuth, async (req, res) => {
     const base64Data = mediaData.replace(/^data:[^;]+;base64,/, "");
     const buffer = Buffer.from(base64Data, "base64");
 
+    // Supabase Storage doesn't support video/quicktime — map to video/mp4
+    let uploadContentType = mimeType || `image/${extension}`;
+    if (uploadContentType === "video/quicktime") {
+      uploadContentType = "video/mp4";
+    }
+
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from("event-images")
       .upload(fileName, buffer, {
-        contentType: mimeType || `image/${extension}`,
+        contentType: uploadContentType,
         upsert: true,
       });
 

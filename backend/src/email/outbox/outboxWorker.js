@@ -76,6 +76,11 @@ export async function processBatch({
   let retrying = 0;
 
   for (const row of claimed) {
+    const category = row.category || "transactional";
+
+    let providerName = activeProvider?.name || null;
+    let sendEmailFn = activeProvider?.sendEmail;
+
     try {
       const suppression = await isSuppressed(row.to_email);
       if (suppression.suppressed) {
@@ -85,11 +90,6 @@ export async function processBatch({
       }
 
       await throttle(EMAIL_SEND_RATE_PER_SEC);
-
-      const category = row.category || "transactional";
-
-      let providerName = activeProvider?.name || null;
-      let sendEmailFn = activeProvider?.sendEmail;
 
       if (category === "newsletter") {
         providerName = "ses";

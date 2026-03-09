@@ -6137,6 +6137,40 @@ app.get("/admin/newsletter/weekly-events", requireAdmin, async (req, res) => {
 // Stockholm Events (admin)
 // ---------------------------
 
+// GET /admin/profiles/search — search profiles by name, brand or email
+app.get("/admin/profiles/search", requireAdmin, async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) {
+      return res.json([]);
+    }
+    const { supabase } = await import("./supabase.js");
+    const safe = q.trim().replace(/[%_]/g, "");
+    if (!safe) return res.json([]);
+    const term = `%${safe}%`;
+    const { data: byName } = await supabase
+      .from("profiles")
+      .select("id, name, brand, profile_picture_url")
+      .ilike("name", term)
+      .limit(10);
+    const { data: byBrand } = await supabase
+      .from("profiles")
+      .select("id, name, brand, profile_picture_url")
+      .ilike("brand", term)
+      .limit(10);
+    const seen = new Set();
+    const merged = [...(byName || []), ...(byBrand || [])].filter((p) => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return p.name || p.brand;
+    });
+    return res.json(merged.slice(0, 10));
+  } catch (err) {
+    console.error("[admin] profile search error:", err.message);
+    return res.status(500).json({ error: "Failed to search profiles" });
+  }
+});
+
 // GET /admin/stockholm-events — list events with optional filter
 app.get("/admin/stockholm-events", requireAdmin, async (req, res) => {
   try {
@@ -6144,7 +6178,7 @@ app.get("/admin/stockholm-events", requireAdmin, async (req, res) => {
     const { supabase } = await import('./supabase.js');
     let query = supabase
       .from("stockholm_events")
-      .select("*")
+      .select("*, host:profiles!stockholm_events_host_id_profiles_fkey(id, name, brand, profile_picture_url)")
       .order("starts_at", { ascending: true, nullsFirst: false });
 
     if (status) query = query.eq("status", status);
@@ -6180,21 +6214,22 @@ app.post("/admin/stockholm-events", requireAdmin, async (req, res) => {
   }
 });
 
-// PATCH /admin/stockholm-events/:id — update status or newsletter flag
+// PATCH /admin/stockholm-events/:id — update status, spotify, or host
 app.patch("/admin/stockholm-events/:id", requireAdmin, async (req, res) => {
   try {
     const { supabase } = await import("./supabase.js");
     const { id } = req.params;
-    const { status, spotify_url } = req.body;
+    const { status, spotify_url, host_id } = req.body;
     const updates = {};
     if (status !== undefined) updates.status = status;
     if (spotify_url !== undefined) updates.spotify_url = spotify_url;
+    if (host_id !== undefined) updates.host_id = host_id;
 
     const { data, error } = await supabase
       .from("stockholm_events")
       .update(updates)
       .eq("id", id)
-      .select()
+      .select("*, host:profiles!stockholm_events_host_id_profiles_fkey(id, name, brand, profile_picture_url)")
       .single();
 
     if (error) throw error;

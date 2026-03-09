@@ -2910,12 +2910,20 @@ export function ManageEventPage() {
             >
               {/* Overview content (route: /app/events/:id/manage) */}
               {!isEditPage && event && (
-                <OverviewTabContent
-                  event={event}
-                  guests={guests}
-                  dinnerSlots={dinnerSlots}
-                  isMobile={isMobile}
-                />
+                <>
+                  <OverviewTabContent
+                    event={event}
+                    guests={guests}
+                    dinnerSlots={dinnerSlots}
+                    isMobile={isMobile}
+                  />
+                  <EventHostsSection
+                    eventId={event.id}
+                    canManageHosts={
+                      event.myRole === "owner" || event.myRole === "admin"
+                    }
+                  />
+                </>
               )}
 
               {/* Edit content (route: /app/events/:id/manage/edit) */}

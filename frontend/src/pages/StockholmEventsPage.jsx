@@ -106,16 +106,11 @@ function formatDateRange(starts, ends) {
   return `Till ${fmtShort(ends)}`;
 }
 
-function EventCard({ event, onStatusChange, onDelete, onSpotifyChange, onHostChange }) {
+function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
   const [loading, setLoading] = useState(false);
   const [spotifyOpen, setSpotifyOpen] = useState(false);
   const [spotifyDraft, setSpotifyDraft] = useState(event.spotify_url || "");
   const [spotifySaving, setSpotifySaving] = useState(false);
-  const [hostOpen, setHostOpen] = useState(false);
-  const [hostQuery, setHostQuery] = useState("");
-  const [hostResults, setHostResults] = useState([]);
-  const [hostSearching, setHostSearching] = useState(false);
-  const [hostSaving, setHostSaving] = useState(false);
 
   // Keep draft in sync when parent state updates (e.g. after save)
   useEffect(() => {
@@ -133,45 +128,6 @@ function EventCard({ event, onStatusChange, onDelete, onSpotifyChange, onHostCha
     await onSpotifyChange(event.id, spotifyDraft.trim() || null);
     setSpotifySaving(false);
     if (!spotifyDraft.trim()) setSpotifyOpen(false);
-  }
-
-  useEffect(() => {
-    if (!hostOpen || hostQuery.trim().length < 2) {
-      setHostResults([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setHostSearching(true);
-      try {
-        const res = await authenticatedFetch(
-          `/admin/profiles/search?q=${encodeURIComponent(hostQuery.trim())}`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setHostResults(Array.isArray(data) ? data : []);
-        }
-      } catch (_) {
-        /* ignore */
-      } finally {
-        setHostSearching(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [hostQuery, hostOpen]);
-
-  async function handleAssignHost(profileId) {
-    setHostSaving(true);
-    await onHostChange(event.id, profileId);
-    setHostSaving(false);
-    setHostOpen(false);
-    setHostQuery("");
-    setHostResults([]);
-  }
-
-  async function handleRemoveHost() {
-    setHostSaving(true);
-    await onHostChange(event.id, null);
-    setHostSaving(false);
   }
 
   const isApproved = event.status === "approved";
@@ -496,221 +452,6 @@ function EventCard({ event, onStatusChange, onDelete, onSpotifyChange, onHostCha
           </div>
         )}
 
-        {/* Host section */}
-        <div
-          style={{
-            marginTop: "12px",
-            paddingTop: "12px",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          {event.host ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              {event.host.profile_picture_url ? (
-                <img
-                  src={event.host.profile_picture_url}
-                  alt=""
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: "50%",
-                    background: "rgba(255,255,255,0.08)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "12px",
-                    color: colors.textFaded,
-                    fontWeight: 600,
-                    border: "1px solid rgba(255,255,255,0.1)",
-                  }}
-                >
-                  {(event.host.name || event.host.brand || "?")[0].toUpperCase()}
-                </div>
-              )}
-              <span style={{ fontSize: "12px", color: colors.silverText, flex: 1 }}>
-                {event.host.name || event.host.brand}
-              </span>
-              <button
-                onClick={handleRemoveHost}
-                disabled={hostSaving}
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: "6px",
-                  border: "1px solid rgba(239,68,68,0.25)",
-                  background: "transparent",
-                  color: "#ef4444",
-                  fontSize: "11px",
-                  cursor: hostSaving ? "not-allowed" : "pointer",
-                }}
-              >
-                ✕
-              </button>
-              <button
-                onClick={() => setHostOpen((o) => !o)}
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: "6px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "transparent",
-                  color: colors.textFaded,
-                  fontSize: "11px",
-                  cursor: "pointer",
-                }}
-              >
-                Change
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setHostOpen((o) => !o)}
-              style={{
-                width: "100%",
-                padding: "8px",
-                borderRadius: "8px",
-                border: "1px dashed rgba(255,255,255,0.12)",
-                background: "transparent",
-                color: colors.textFaded,
-                fontSize: "12px",
-                cursor: "pointer",
-                transition: "border-color 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)";
-              }}
-            >
-              + Assign host
-            </button>
-          )}
-
-          {/* Host search dropdown */}
-          {hostOpen && (
-            <div style={{ marginTop: "8px" }}>
-              <input
-                type="text"
-                placeholder="Search by name or brand..."
-                value={hostQuery}
-                onChange={(e) => setHostQuery(e.target.value)}
-                autoFocus
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  background: "rgba(255,255,255,0.04)",
-                  color: "#fff",
-                  fontSize: "12px",
-                  outline: "none",
-                  fontFamily: "inherit",
-                  boxSizing: "border-box",
-                }}
-              />
-              {hostSearching && (
-                <div style={{ fontSize: "11px", color: colors.textFaded, padding: "8px 4px" }}>
-                  Searching...
-                </div>
-              )}
-              {hostResults.length > 0 && (
-                <div
-                  style={{
-                    marginTop: "4px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "rgba(10,8,18,0.95)",
-                    maxHeight: "160px",
-                    overflowY: "auto",
-                  }}
-                >
-                  {hostResults.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => handleAssignHost(p.id)}
-                      disabled={hostSaving}
-                      style={{
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        padding: "8px 10px",
-                        border: "none",
-                        borderBottom: "1px solid rgba(255,255,255,0.04)",
-                        background: "transparent",
-                        color: "#fff",
-                        fontSize: "12px",
-                        cursor: "pointer",
-                        textAlign: "left",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "transparent";
-                      }}
-                    >
-                      {p.profile_picture_url ? (
-                        <img
-                          src={p.profile_picture_url}
-                          alt=""
-                          style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: "50%",
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: "50%",
-                            background: "rgba(255,255,255,0.1)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "11px",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {(p.name || p.brand || "?")[0].toUpperCase()}
-                        </div>
-                      )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 500 }}>{p.name || p.brand}</div>
-                        {p.brand && p.name && (
-                          <div style={{ fontSize: "11px", color: colors.textFaded }}>{p.brand}</div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {!hostSearching && hostQuery.trim().length >= 2 && hostResults.length === 0 && (
-                <div style={{ fontSize: "11px", color: colors.textFaded, padding: "8px 4px", fontStyle: "italic" }}>
-                  No profiles found
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -797,23 +538,6 @@ export function StockholmEventsPage() {
       showToast(spotifyUrl ? "Spotify link saved!" : "Spotify link removed", "success");
     } catch {
       showToast("Failed to update Spotify link", "error");
-    }
-  }
-
-  async function handleHostChange(id, hostId) {
-    try {
-      const res = await authenticatedFetch(`/admin/stockholm-events/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ host_id: hostId }),
-      });
-      if (!res.ok) throw new Error();
-      const updated = await res.json();
-      setEvents((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, host_id: updated.host_id, host: updated.host } : e)),
-      );
-      showToast(hostId ? "Host assigned" : "Host removed", "success");
-    } catch {
-      showToast("Failed to update host", "error");
     }
   }
 
@@ -1797,7 +1521,6 @@ export function StockholmEventsPage() {
                 event={event}
                 onStatusChange={handleStatusChange}
                 onSpotifyChange={handleSpotifyChange}
-                onHostChange={handleHostChange}
               />
             ))}
           </div>

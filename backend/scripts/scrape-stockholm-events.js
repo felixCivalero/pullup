@@ -82,7 +82,11 @@ async function fetchJson(url, headers = {}) {
 function parseDate(str) {
   if (!str) return null;
   const d = new Date(str);
-  return isNaN(d.getTime()) ? null : d.toISOString();
+  if (isNaN(d.getTime())) return null;
+  // Reject dates with implausible years (e.g., "12 mar" parsed as year 2001)
+  const year = d.getFullYear();
+  if (year < 2020 || year > 2040) return null;
+  return d.toISOString();
 }
 
 // Swedish day/month names for parsing locale dates like "Tis 10 Mar" or "Fredag 13/03"
@@ -610,7 +614,7 @@ async function scrapeLuger() {
         title,
         description: null,
         image_url: null,
-        starts_at: dateText ? (parseDate(dateText) || parseSwedishDate(dateText)) : null,
+        starts_at: dateText ? (parseSwedishDate(dateText) || parseDate(dateText)) : null,
         ends_at: null,
         location,
         url,
@@ -952,7 +956,7 @@ async function scrapeBerns() {
         title: titleFromSlug,
         description: null,
         image_url: img && !img.startsWith("data:") ? img : null,
-        starts_at: dateText ? (parseDate(dateText) || parseSwedishDate(dateText)) : null,
+        starts_at: dateText ? (parseSwedishDate(dateText) || parseDate(dateText)) : null,
         ends_at: null,
         location: "Berns, Stockholm",
         url,

@@ -140,7 +140,7 @@ export function generateCalendarUrls({
     `DTSTART:${start}`,
     `DTEND:${end}`,
     `SUMMARY:${title || "Event"}`,
-    `DESCRIPTION:${fullDescription.replace(/\n/g, "\\n")}`,
+    `DESCRIPTION:${fullDescription.replace(/\n/g, "\\n").replace(/,/g, "\\,")}`,
     location ? `LOCATION:${location}` : "",
     `URL:${eventUrl}`,
     "STATUS:CONFIRMED",
@@ -149,7 +149,7 @@ export function generateCalendarUrls({
     "END:VCALENDAR",
   ]
     .filter(Boolean)
-    .join("\\n");
+    .join("\r\n");
 
   return {
     google: `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&dates=${start}/${end}&details=${encodedDescription}&location=${encodedLocation}`,

@@ -187,15 +187,9 @@ export function RsvpSuccessPage() {
       // Dinner is the anchor - use dinner time as the calendar event time
       calendarTitle = `${event.title} - Dinner`;
 
-      const dinnerTime = new Date(booking.dinnerTimeSlot).toLocaleTimeString(
-        "en-US",
-        { hour: "numeric", minute: "2-digit" }
-      );
+      const dinnerTime = formatEventTime(booking.dinnerTimeSlot, event.timezone);
       const eventStartTime = event.startsAt
-        ? new Date(event.startsAt).toLocaleTimeString("en-US", {
-            hour: "numeric",
-            minute: "2-digit",
-          })
+        ? formatEventTime(event.startsAt, event.timezone)
         : null;
 
       calendarDescription = `${event.description || ""}\n\n`;
@@ -353,7 +347,7 @@ export function RsvpSuccessPage() {
         }}
       >
         {/* Event Image as Full Background */}
-        {event?.imageUrl && (
+        {(event?.coverImageUrl || event?.imageUrl) && (
           <>
             <div
               style={{
@@ -368,7 +362,7 @@ export function RsvpSuccessPage() {
               }}
             >
               <img
-                src={event.imageUrl}
+                src={event.coverImageUrl || event.imageUrl}
                 alt={event.title}
                 style={{
                   width: "100%",
@@ -662,10 +656,7 @@ export function RsvpSuccessPage() {
                           color: "rgba(255, 255, 255, 0.9)",
                         }}
                       >
-                        {new Date(event.startsAt).toLocaleTimeString("en-US", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
+                        {formatEventTime(event.startsAt, event.timezone)}
                         {booking.partySize > 1 &&
                           ` • ${booking.partySize} people`}
                       </div>
@@ -823,13 +814,7 @@ export function RsvpSuccessPage() {
                             color: "rgba(255, 255, 255, 0.9)",
                           }}
                         >
-                          {new Date(booking.dinnerTimeSlot).toLocaleTimeString(
-                            "en-US",
-                            {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            }
-                          )}
+                          {formatEventTime(booking.dinnerTimeSlot, event.timezone)}
                           {booking.dinnerPartySize > 1 &&
                             ` • ${booking.dinnerPartySize} people`}
                         </div>

@@ -274,7 +274,7 @@ export function EventSuccessPage() {
     return null;
   }
 
-  const eventImageUrl = event.imageUrl || null;
+  const eventImageUrl = event.coverImageUrl || event.imageUrl || null;
 
   return (
     <div

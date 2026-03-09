@@ -50,6 +50,8 @@ export function EventPage() {
   const [waitlistToken, setWaitlistToken] = useState(null); // Waitlist token from URL
   const [vipOffer, setVipOffer] = useState(null); // VIP invite offer
   const [vipToken, setVipToken] = useState(null); // VIP token from URL
+  const [canShareStory, setCanShareStory] = useState(false);
+  const [sharingStory, setSharingStory] = useState(false);
 
   // MUST be called before any early returns to follow Rules of Hooks
   const swipeHandlers = useCarouselSwipe(
@@ -212,6 +214,22 @@ export function EventPage() {
     if (!eventEndTime) return false;
     return now > eventEndTime;
   }, [event]);
+
+  // Detect mobile file-sharing support (for "Add to Story" button)
+  useEffect(() => {
+    async function checkShareSupport() {
+      if (!navigator.canShare) return;
+      try {
+        const testFile = new File([new Uint8Array(1)], "test.png", { type: "image/png" });
+        if (navigator.canShare({ files: [testFile] })) {
+          setCanShareStory(true);
+        }
+      } catch {
+        // Not supported
+      }
+    }
+    checkShareSupport();
+  }, []);
 
   useEffect(() => {
     async function loadEvent() {
@@ -592,6 +610,32 @@ export function EventPage() {
   // Use share URL for better link previews (returns HTML with OG tags)
   const shareUrl = event && event.slug ? getEventShareUrl(event.slug) : "";
 
+  // Get the best image URL for story sharing (cover image or first media item)
+  const storyImageUrl = event?.coverImageUrl || event?.imageUrl ||
+    (event?.media?.length > 0 ? event.media[0].url : null);
+
+  async function handleShareToStory() {
+    if (!storyImageUrl || sharingStory) return;
+    setSharingStory(true);
+    try {
+      // Fetch the image and convert to a File object
+      const response = await fetch(storyImageUrl);
+      const blob = await response.blob();
+      const ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+      const file = new File([blob], `${event?.title || "event"}.${ext}`, { type: blob.type });
+
+      await navigator.share({
+        files: [file],
+      });
+    } catch (err) {
+      if (err?.name === "AbortError") return; // User cancelled
+      console.error("Story share failed:", err);
+      showToast("Couldn't share to story", "error");
+    } finally {
+      setSharingStory(false);
+    }
+  }
+
   // Format date/time (centralized helpers)
   const eventDate = event?.startsAt ? formatEventDate(event.startsAt, event.timezone) : "";
   const eventTime = event?.startsAt ? formatEventTime(event.startsAt, event.timezone) : "";
@@ -882,6 +926,43 @@ export function EventPage() {
                 >
                   <FaPaperPlane size={20} />
                 </button>
+
+                {/* Add to Story - mobile only, requires file sharing support */}
+                {canShareStory && storyImageUrl && (
+                  <button
+                    style={{
+                      background: "transparent",
+                      border: "1px solid rgba(255, 255, 255, 0.3)",
+                      borderRadius: "20px",
+                      padding: "5px 12px",
+                      margin: 0,
+                      boxShadow: "none",
+                      appearance: "none",
+                      WebkitAppearance: "none",
+                      MozAppearance: "none",
+                      outline: "none",
+                      color: "rgba(255, 255, 255, 0.9)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      letterSpacing: "0.02em",
+                      transition: "all 0.2s ease",
+                      opacity: sharingStory ? 0.5 : 1,
+                    }}
+                    onClick={handleShareToStory}
+                    disabled={sharingStory}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
+                      <line x1="12" y1="8" x2="12" y2="16" />
+                      <line x1="8" y1="12" x2="16" y2="12" />
+                    </svg>
+                    {sharingStory ? "Sharing..." : "Add to Story"}
+                  </button>
+                )}
 
                 {/* Instagram icon - conditional */}
                 {event?.instagram && (

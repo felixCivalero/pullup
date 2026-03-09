@@ -51,6 +51,12 @@ export function EventPage() {
   const [vipOffer, setVipOffer] = useState(null); // VIP invite offer
   const [vipToken, setVipToken] = useState(null); // VIP token from URL
 
+  // MUST be called before any early returns to follow Rules of Hooks
+  const swipeHandlers = useCarouselSwipe(
+    event?.media?.length || 0,
+    setCarouselIndex,
+  );
+
   // Memoize the payment success handler to prevent PaymentForm remounts
   // MUST be called before any early returns to follow Rules of Hooks
   const handlePaymentSuccess = useCallback(
@@ -592,7 +598,6 @@ export function EventPage() {
 
   const mediaCount = event?.media?.length || 0;
   const canSwipeEvent = mediaCount > 1 && !event?.mediaSettings?.autoscroll;
-  const swipeHandlers = useCarouselSwipe(mediaCount, setCarouselIndex);
 
   return (
     <>

@@ -14,6 +14,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
 import { DiscoverPage } from "./pages/DiscoverPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { SalesPage } from "./pages/SalesPage";
 import { EventAnalyticsPage } from "./pages/EventAnalyticsPage";
 import { HostAnalyticsPage } from "./pages/HostAnalyticsPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
@@ -52,6 +53,7 @@ function App() {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/discover" element={<DiscoverPage />} />
           <Route path="/admin/analytics" element={<AnalyticsPage />} />
+          <Route path="/admin/sales" element={<SalesPage />} />
           {/* Backwards-compat: /home currently points to events */}
           <Route path="/home" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />

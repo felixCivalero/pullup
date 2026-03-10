@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { label: "Discover", to: "/admin/discover", emoji: "🌆" },
   { label: "Newsletter", to: "/admin", emoji: "✉️", end: true },
   { label: "Analytics", to: "/admin/analytics", emoji: "📊" },
+  { label: "Sales", to: "/admin/sales", emoji: "💼" },
 ];
 
 export function AdminLayout() {

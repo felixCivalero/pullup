@@ -7394,6 +7394,183 @@ app.post("/admin/stockholm-events/scrape", requireAdmin, async (req, res) => {
 });
 
 // ---------------------------
+// Sales Leads (admin CRM)
+// ---------------------------
+
+// GET /admin/sales/leads — list all leads with linked profile + event counts
+app.get("/admin/sales/leads", requireAdmin, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { status } = req.query;
+
+    let query = supabase
+      .from("sales_leads")
+      .select("*")
+      .order("updated_at", { ascending: false });
+
+    if (status && status !== "all") query = query.eq("status", status);
+
+    const { data: leads, error } = await query;
+    if (error) throw error;
+
+    // Gather profile_ids and emails for matching
+    const profileIds = leads.filter((l) => l.profile_id).map((l) => l.profile_id);
+    const unlinkedLeads = leads.filter((l) => l.email && !l.profile_id);
+    const emails = [...new Set(unlinkedLeads.map((l) => l.email.toLowerCase()))];
+
+    // Fetch linked profiles
+    let profileMap = {};
+    if (profileIds.length) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, name, brand, created_at")
+        .in("id", profileIds);
+      if (profiles) profiles.forEach((p) => (profileMap[p.id] = p));
+    }
+
+    // Auto-match unlinked leads by email via auth.users
+    let emailToUserId = {};
+    if (emails.length) {
+      // Fetch all auth users in one call and match by email
+      const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+      const allUsers = authData?.users || [];
+      const usersByEmail = {};
+      allUsers.forEach((u) => {
+        if (u.email) usersByEmail[u.email.toLowerCase()] = u;
+      });
+
+      for (const email of emails) {
+        const user = usersByEmail[email];
+        if (user) {
+          emailToUserId[email] = user.id;
+          // Auto-link all leads with this email (case-insensitive)
+          const leadIds = unlinkedLeads
+            .filter((l) => l.email.toLowerCase() === email)
+            .map((l) => l.id);
+          if (leadIds.length) {
+            await supabase
+              .from("sales_leads")
+              .update({ profile_id: user.id, updated_at: new Date().toISOString() })
+              .in("id", leadIds);
+          }
+          // Fetch profile
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("id, name, brand, created_at")
+            .eq("id", user.id)
+            .single();
+          if (prof) profileMap[prof.id] = prof;
+        }
+      }
+    }
+
+    // Count events per profile
+    const allProfileIds = [...new Set([...profileIds, ...Object.values(emailToUserId)])];
+    let eventCounts = {};
+    if (allProfileIds.length) {
+      const { data: events } = await supabase
+        .from("events")
+        .select("host_id")
+        .in("host_id", allProfileIds);
+      if (events) {
+        events.forEach((e) => {
+          eventCounts[e.host_id] = (eventCounts[e.host_id] || 0) + 1;
+        });
+      }
+    }
+
+    // Enrich leads
+    const enriched = leads.map((lead) => {
+      const pid = lead.profile_id || emailToUserId[lead.email?.toLowerCase()];
+      return {
+        ...lead,
+        profile_id: pid || null,
+        profile: pid ? profileMap[pid] || null : null,
+        event_count: pid ? eventCounts[pid] || 0 : 0,
+      };
+    });
+
+    return res.json(enriched);
+  } catch (err) {
+    console.error("[sales] list error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch sales leads" });
+  }
+});
+
+// POST /admin/sales/leads — create a new lead
+app.post("/admin/sales/leads", requireAdmin, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { name, company, email, phone, status, notes, city, source } = req.body;
+    if (!name) return res.status(400).json({ error: "name is required" });
+
+    const { data, error } = await supabase
+      .from("sales_leads")
+      .insert({
+        name,
+        company: company || null,
+        email: email ? email.toLowerCase().trim() : null,
+        phone: phone || null,
+        status: status || "new",
+        notes: notes || null,
+        city: city || null,
+        source: source || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(201).json(data);
+  } catch (err) {
+    console.error("[sales] create error:", err.message);
+    return res.status(500).json({ error: "Failed to create lead" });
+  }
+});
+
+// PATCH /admin/sales/leads/:id — update a lead
+app.patch("/admin/sales/leads/:id", requireAdmin, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { id } = req.params;
+    const allowed = ["name", "company", "email", "phone", "status", "notes", "city", "source"];
+    const updates = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+    // Normalize email to lowercase
+    if (updates.email) updates.email = updates.email.toLowerCase().trim();
+    updates.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("sales_leads")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.json(data);
+  } catch (err) {
+    console.error("[sales] patch error:", err.message);
+    return res.status(500).json({ error: "Failed to update lead" });
+  }
+});
+
+// DELETE /admin/sales/leads/:id — remove a lead
+app.delete("/admin/sales/leads/:id", requireAdmin, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { id } = req.params;
+    const { error } = await supabase.from("sales_leads").delete().eq("id", id);
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[sales] delete error:", err.message);
+    return res.status(500).json({ error: "Failed to delete lead" });
+  }
+});
+
+// ---------------------------
 // Server
 // ---------------------------
 const PORT = process.env.PORT || 3001;

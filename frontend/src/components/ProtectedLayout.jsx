@@ -114,6 +114,7 @@ function ProtectedLayoutInner() {
     { label: "Discover", path: "/admin/discover" },
     { label: "Newsletter", path: "/admin" },
     { label: "Analytics", path: "/admin/analytics" },
+    { label: "Sales", path: "/admin/sales" },
   ];
 
   // Event tab items

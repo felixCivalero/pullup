@@ -5825,6 +5825,7 @@ app.post("/newsletter", optionalAuth, async (req, res) => {
   try {
     const rawEmail = req.body?.email;
     const source = req.body?.source || "landing_newsletter";
+    const interests = Array.isArray(req.body?.interests) ? req.body.interests.filter(i => typeof i === "string") : [];
 
     if (!rawEmail || typeof rawEmail !== "string") {
       return res.status(400).json({
@@ -5914,6 +5915,7 @@ app.post("/newsletter", optionalAuth, async (req, res) => {
           created_at: now,
           updated_at: now,
           unsubscribe_token: unsubscribeToken,
+          ...(interests.length > 0 ? { interests } : {}),
         });
 
       if (insertError) {
@@ -5936,6 +5938,7 @@ app.post("/newsletter", optionalAuth, async (req, res) => {
     const patch = {
       user_id: userId,
       updated_at: now,
+      ...(interests.length > 0 ? { interests } : {}),
     };
 
     if (existing.status === "unsubscribed") {
@@ -6131,18 +6134,23 @@ app.post("/auth/link-newsletter", requireAuth, async (req, res) => {
 
 app.post("/admin/newsletter/preview", requireAdmin, async (req, res) => {
   try {
+    const targetCategories = Array.isArray(req.body?.targetCategories) ? req.body.targetCategories : [];
     const { getNewsletterSubscribers } = await import("./data.js");
-    const { subscribers, total } = await getNewsletterSubscribers({
+    const { subscribers, total, unfilteredTotal } = await getNewsletterSubscribers({
       status: "confirmed",
+      targetCategories,
     });
 
     return res.json({
       totalRecipients: total,
+      unfilteredTotal,
+      targetCategories,
       subscribers: (subscribers || []).map((s) => ({
         id: s.id,
         email: s.email,
         userId: s.user_id || null,
         status: s.status,
+        interests: s.interests || [],
       })),
     });
   } catch (error) {
@@ -6164,6 +6172,7 @@ app.post("/admin/newsletter/send", requireAdmin, async (req, res) => {
       htmlBody,
       textBody,
       excludeSubscriberIds,
+      targetCategories,
     } = req.body || {};
 
     if (!subject || typeof subject !== "string") {
@@ -6180,6 +6189,7 @@ app.post("/admin/newsletter/send", requireAdmin, async (req, res) => {
     );
     const { subscribers, total } = await getNewsletterSubscribers({
       status: "confirmed",
+      targetCategories: Array.isArray(targetCategories) ? targetCategories : [],
     });
 
     if (!subscribers.length) {

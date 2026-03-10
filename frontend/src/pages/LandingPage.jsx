@@ -1,26 +1,81 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Sparkles } from "lucide-react";
+import {
+  Calendar,
+  Users,
+  Mail,
+  BarChart3,
+  Ticket,
+  UtensilsCrossed,
+  Crown,
+  UserPlus,
+  CheckCircle,
+  ArrowRight,
+  X,
+  Sparkles,
+} from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { logger } from "../lib/logger.js";
 import { colors } from "../theme/colors.js";
-import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
 
+/* ─── helpers ─── */
+function trackEvent(name, props) {
+  try {
+    if (window.gtag) window.gtag("event", name, props);
+  } catch {}
+}
+
+const INTEREST_OPTIONS = [
+  { id: "music", label: "Music" },
+  { id: "club", label: "Club & nightlife" },
+  { id: "exhibition", label: "Exhibitions" },
+  { id: "culture", label: "Culture" },
+  { id: "theatre", label: "Theatre" },
+  { id: "arts", label: "Arts" },
+];
+
+const FEATURES = [
+  { icon: Calendar, title: "Event pages", desc: "Beautiful, shareable pages with all the details your guests need." },
+  { icon: Ticket, title: "RSVP & tickets", desc: "Guest lists, paid tickets, capacity limits, and waitlists." },
+  { icon: UtensilsCrossed, title: "Dinner seatings", desc: "Drag-and-drop seating for intimate dinners and events." },
+  { icon: Users, title: "Guest CRM", desc: "Track attendance, manage contacts, build your community." },
+  { icon: Mail, title: "Email marketing", desc: "Newsletters, invitations, open & click tracking built in." },
+  { icon: BarChart3, title: "Analytics", desc: "RSVPs, attendance, revenue, and growth at a glance." },
+  { icon: Crown, title: "VIP invites", desc: "Exclusive, token-gated invitations for your inner circle." },
+  { icon: UserPlus, title: "Co-hosts", desc: "Collaborate with your crew. Shared access, shared events." },
+];
+
+const inputStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "13px 16px",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#fff",
+  fontSize: "14px",
+  outline: "none",
+};
+
+/* ─── component ─── */
 export function LandingPage() {
   const navigate = useNavigate();
   const { signInWithGoogle, signInWithEmailPassword, user } = useAuth();
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  const [showAuth, setShowAuth] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState("");
+
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterStatus, setNewsletterStatus] = useState(null);
   const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
+  const [selectedInterests, setSelectedInterests] = useState([]);
   const [newsletterPopup, setNewsletterPopup] = useState(null);
 
-  // Track page view
+  const [scrolled, setScrolled] = useState(false);
+
   useEffect(() => {
     publicFetch("/t/pageview", {
       method: "POST",
@@ -28,83 +83,35 @@ export function LandingPage() {
     }).catch(() => {});
   }, []);
 
-  // Auto-redirect to /events if already logged in
-  // (handles OAuth callback landing back on "/" after session is established)
   useEffect(() => {
-    if (user) {
-      navigate("/events", { replace: true });
-    }
+    if (user) navigate("/events", { replace: true });
   }, [user, navigate]);
 
-  // Prevent scrolling on landing page - enforce single frame
   useEffect(() => {
-    // Prevent all scrolling
-    document.body.style.overflow = "hidden";
-    document.body.style.height = "100vh";
-    document.body.style.width = "100vw";
-    document.documentElement.style.overflow = "hidden";
-    document.documentElement.style.height = "100vh";
-    document.documentElement.style.width = "100vw";
-
-    // Prevent touch scrolling on mobile
-    const preventDefault = (e) => {
-      if (e.touches.length > 1) return; // Allow pinch zoom
-      e.preventDefault();
-    };
-    document.addEventListener("touchmove", preventDefault, { passive: false });
-    document.addEventListener("wheel", preventDefault, { passive: false });
-    document.addEventListener("scroll", preventDefault, { passive: false });
-
-    return () => {
-      document.body.style.overflow = "";
-      document.body.style.height = "";
-      document.body.style.width = "";
-      document.documentElement.style.overflow = "";
-      document.documentElement.style.height = "";
-      document.documentElement.style.width = "";
-      document.removeEventListener("touchmove", preventDefault);
-      document.removeEventListener("wheel", preventDefault);
-      document.removeEventListener("scroll", preventDefault);
-    };
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const handleEmailPasswordSubmit = async (event) => {
-    event.preventDefault();
+  /* ─── auth ─── */
+  const handleEmailPasswordSubmit = async (e) => {
+    e.preventDefault();
     if (signingIn) return;
-
     setFormError("");
-    trackEvent("landing_email_login_submit", {
-      user_logged_in: !!user,
-    });
-
+    trackEvent("landing_email_login_submit", { user_logged_in: !!user });
     try {
       setSigningIn(true);
       await signInWithEmailPassword(email.trim(), password);
       navigate("/events");
     } catch (error) {
-      const raw = error?.message || "";
-      const msg = raw.toLowerCase();
-
-      let friendlyMessage = "Something went wrong signing you in. Please try again.";
-
-      if (msg.includes("email not confirmed")) {
-        friendlyMessage =
-          "Check your email to confirm your account, then come back here to enter pullup.";
-      } else if (msg.includes("email address") && msg.includes("invalid")) {
-        friendlyMessage = "Enter a valid email address to continue.";
-      } else if (msg.includes("rate limit") || msg.includes("too many requests")) {
-        friendlyMessage =
-          "Too many attempts for this email. Wait a moment, then try again.";
-      } else if (msg.includes("already registered")) {
-        friendlyMessage =
-          "This email already uses a sign-in method. Try \"Continue with Google\" for this address.";
-      } else if (msg.includes("password")) {
-        friendlyMessage = raw;
-      } else if (msg.includes("invalid login credentials")) {
-        friendlyMessage = "Incorrect email or password.";
-      }
-
-      setFormError(friendlyMessage);
+      const msg = (error?.message || "").toLowerCase();
+      let friendly = "Something went wrong. Please try again.";
+      if (msg.includes("email not confirmed")) friendly = "Check your email to confirm your account, then come back.";
+      else if (msg.includes("invalid login credentials")) friendly = "Incorrect email or password.";
+      else if (msg.includes("rate limit")) friendly = "Too many attempts. Wait a moment, then try again.";
+      else if (msg.includes("already registered")) friendly = 'This email uses another sign-in method. Try "Continue with Google".';
+      else if (msg.includes("password")) friendly = error.message;
+      setFormError(friendly);
     } finally {
       setSigningIn(false);
     }
@@ -112,753 +119,394 @@ export function LandingPage() {
 
   const handleGoogleContinue = async () => {
     if (signingIn) return;
-
-    trackEvent("landing_google_continue_click", {
-      user_logged_in: !!user,
-    });
-
-    if (user) {
-      navigate("/events");
-      return;
-    }
-
+    trackEvent("landing_google_continue_click", { user_logged_in: !!user });
+    if (user) { navigate("/events"); return; }
     try {
       setSigningIn(true);
       await signInWithGoogle("/events");
-    } catch (error) {
-      console.error("Sign in error:", error);
+    } catch {
       setFormError("Google sign-in failed. Please try again.");
       setSigningIn(false);
     }
   };
 
-  const handleNewsletterSubmit = async (event) => {
-    event.preventDefault();
+  /* ─── newsletter ─── */
+  const handleNewsletterSubmit = async (e) => {
+    e.preventDefault();
     if (!newsletterEmail || newsletterSubmitting) return;
-
     setNewsletterStatus(null);
     setNewsletterPopup(null);
-    trackEvent("landing_newsletter_submit", {
-      email_present: !!newsletterEmail,
-    });
-
+    trackEvent("landing_newsletter_submit", { email_present: !!newsletterEmail, interests: selectedInterests });
     try {
       setNewsletterSubmitting(true);
       const response = await authenticatedFetch("/newsletter", {
         method: "POST",
-        body: JSON.stringify({
-          email: newsletterEmail.trim(),
-          source: "landing_newsletter",
-        }),
+        body: JSON.stringify({ email: newsletterEmail.trim(), source: "landing_newsletter", interests: selectedInterests }),
       });
-
       let payload = null;
-      try {
-        payload = await response.json();
-      } catch {
-        payload = null;
-      }
-
+      try { payload = await response.json(); } catch { payload = null; }
       if (!response.ok) {
         const code = String(payload?.code || "").toLowerCase();
-
-        let message = "Couldn’t sign you up. Try again soon.";
-        if (code === "invalid_email") {
-          message = "Enter a valid email address to continue.";
-        } else if (code === "rate_limited") {
-          message =
-            "Too many attempts for this email. Wait a moment, then try again.";
-        } else if (code === "suppressed") {
-          message =
-            "We can't subscribe this address right now. Try a different email.";
-        } else if (code === "newsletter_not_configured") {
-          message = "Newsletter is not configured yet.";
-        }
-
+        let message = "Couldn't sign you up. Try again soon.";
+        if (code === "invalid_email") message = "Enter a valid email address.";
+        else if (code === "rate_limited") message = "Too many attempts. Wait a moment.";
+        else if (code === "suppressed") message = "We can't subscribe this address right now.";
         setNewsletterStatus(message);
-        setNewsletterPopup({
-          type: "error",
-          title: "Couldn’t sign you up",
-          message,
-        });
+        setNewsletterPopup({ type: "error", title: "Couldn't sign you up", message });
         return;
       }
-
       const status = payload?.status || "subscribed";
-      let message = "You’re in. Watch your inbox for upcoming underground events.";
+      let message = "You're in. Watch your inbox.";
       let title = "Subscribed";
-
-      if (status === "already_subscribed") {
-        title = "Already subscribed";
-        message = "You’re already in. We’ll keep you in the loop.";
-      } else if (status === "resubscribed") {
-        title = "Welcome back";
-        message = "Welcome back. You’ll start getting invites again.";
-      }
-
+      if (status === "already_subscribed") { title = "Already subscribed"; message = "You're already in."; }
+      else if (status === "resubscribed") { title = "Welcome back"; message = "Welcome back. Invites incoming."; }
       setNewsletterStatus(message);
-      setNewsletterPopup({
-        type: "success",
-        title,
-        message,
-      });
+      setNewsletterPopup({ type: "success", title, message });
       setNewsletterEmail("");
-    } catch (error) {
-      console.error("Newsletter signup error:", error);
-      const message = "Couldn’t sign you up. Try again soon.";
+      setSelectedInterests([]);
+    } catch {
+      const message = "Couldn't sign you up. Try again soon.";
       setNewsletterStatus(message);
-      setNewsletterPopup({
-        type: "error",
-        title: "Couldn’t sign you up",
-        message,
-      });
+      setNewsletterPopup({ type: "error", title: "Couldn't sign you up", message });
     } finally {
       setNewsletterSubmitting(false);
     }
   };
 
-  useEffect(() => {
-    function handleMouseMove(e) {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    }
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
+  const toggleInterest = (id) => {
+    setSelectedInterests((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
+  };
+
+  const GoogleIcon = (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style={{ width: 18, height: 18, display: "block" }}>
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.61l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.4 5.38 2.56 13.22l7.98 6.2C12.48 13.02 17.74 9.5 24 9.5z" />
+      <path fill="#34A853" d="M46.98 24.55c0-1.64-.15-3.21-.43-4.74H24v9.02h12.94c-.56 2.9-2.26 5.36-4.82 7.02l7.66 5.94C44.54 37.89 46.98 31.76 46.98 24.55z" />
+      <path fill="#4A90E2" d="M10.54 28.42a10.5 10.5 0 0 1-.55-3.17c0-1.1.2-2.16.55-3.17l-7.98-6.2A23.86 23.86 0 0 0 0 25.25c0 3.8.9 7.39 2.56 10.62l7.98-6.2z" />
+      <path fill="#FBBC05" d="M24 47.5c6.48 0 11.93-2.13 15.9-5.79l-7.66-5.94C30.62 37.48 27.61 38.5 24 38.5c-6.26 0-11.52-3.52-13.46-8.92l-7.98 6.2C6.4 42.62 14.62 47.5 24 47.5z" />
+    </svg>
+  );
+
+  const sp = { padding: "clamp(40px, 6vh, 72px) clamp(16px, 5vw, 40px)", maxWidth: 1100, margin: "0 auto", width: "100%", boxSizing: "border-box" };
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        width: "100vw",
-        maxHeight: "100vh",
-        maxWidth: "100vw",
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        overflow: "hidden",
-        overscrollBehavior: "none",
-        touchAction: "none",
-      }}
-      onWheel={(e) => e.preventDefault()}
-      onTouchMove={(e) => e.preventDefault()}
-    >
-      {/* Animated gradient background */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: `${colors.gradientGlow}, ${colors.background}`,
-          zIndex: 0,
-        }}
-      />
+    <div style={{ minHeight: "100vh", background: colors.background, color: "#fff", overflowX: "hidden" }}>
 
-      {/* Cursor-following glow effect */}
-      <div
+      {/* ─── NAV ─── */}
+      <nav
         style={{
-          position: "absolute",
-          width: "600px",
-          height: "600px",
-          borderRadius: "50%",
-          background: colors.gradientCursorGlow,
-          left: mousePosition.x - 300,
-          top: mousePosition.y - 300,
-          pointerEvents: "none",
-          transition: "all 0.3s ease-out",
-          zIndex: 1,
+          position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
+          padding: "0 clamp(16px, 4vw, 40px)", height: 56,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: scrolled ? "rgba(5,4,10,0.92)" : "transparent",
+          backdropFilter: scrolled ? "blur(16px)" : "none",
+          borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "none",
+          transition: "background 0.3s",
         }}
-      />
-
-      {/* Content */}
-      <div style={{ position: "relative", zIndex: 2 }}>
-        {/* Hero Section - Single Frame Only - No Scrolling */}
-        <section
+      >
+        <div
+          style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", cursor: "pointer" }}
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        >
+          <span style={{ color: "#fff" }}>pull</span>
+          <span style={{ background: colors.gradientPrimary, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>up</span>
+        </div>
+        <button
+          onClick={() => setShowAuth(true)}
           style={{
-            height: "100vh",
-            width: "100vw",
-            maxHeight: "100vh",
-            maxWidth: "100vw",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "clamp(16px, 3vh, 32px) 20px clamp(16px, 4vh, 96px)",
-            boxSizing: "border-box",
-            overflow: "hidden",
-            overscrollBehavior: "none",
-            position: "relative",
+            padding: "8px 22px", borderRadius: "999px", border: "1px solid rgba(255,255,255,0.15)",
+            background: "rgba(255,255,255,0.06)", color: "#fff", fontSize: 14, fontWeight: 600,
+            cursor: "pointer", backdropFilter: "blur(8px)",
           }}
         >
-          {/* Floating Module - Mobile First, Centered */}
-          <div
-            style={{
-              maxWidth: "420px",
-              width: "100%",
-              padding: "0 20px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              textAlign: "center",
-            }}
-          >
-            {/* Main Headline - Mobile Optimized */}
-            <h1
-              style={{
-                fontSize: "clamp(34px, 9vw, 60px)",
-                fontWeight: 800,
-                lineHeight: "1.1",
-                marginBottom: "clamp(8px, 1.5vh, 18px)",
-                background:
-                  "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.9) 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-                textAlign: "center",
-              }}
-            >
-              Make 'em{" "}
-              <span
-                style={{
-                  background: colors.gradientPrimary,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                  display: "inline-block",
-                }}
-              >
-                pull up
-              </span>
-            </h1>
+          Log in
+        </button>
+      </nav>
 
-            {/* Subheadline - Shorter for mobile */}
-            <p
-              style={{
-                fontSize: "clamp(14px, 3.5vw, 18px)",
-                opacity: 0.85,
-                lineHeight: "1.5",
-                marginBottom: "clamp(8px, 1.5vh, 20px)",
-                maxWidth: "320px",
-                textAlign: "center",
-              }}
-            >
-              Everything cultural hosts need -{" "}
-              <span
-                style={{
-                  background:
-                    "linear-gradient(90deg, #FFD700 0%, #FFB200 40%, #FFF7AA 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                  fontWeight: 800,
-                  letterSpacing: "0.01em",
-                  textShadow: "0 2px 8px rgba(255, 215, 0, 0.28)",
-                }}
-              >
-                always free
-              </span>
-            </p>
-
-            {/* Auth card - email/password + Google */}
-            <div
-              style={{
-                width: "100%",
-                maxWidth: "320px",
-                padding: "clamp(12px, 2vh, 20px) 18px clamp(12px, 2vh, 18px)",
-                borderRadius: "22px",
-                background:
-                  "linear-gradient(145deg, rgba(11,10,20,0.96), rgba(17,15,30,0.98))",
-                boxShadow:
-                  "0 22px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                backdropFilter: "blur(18px)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "clamp(8px, 1.2vh, 14px)",
-                alignItems: "stretch",
-                marginBottom: "clamp(8px, 1.5vh, 18px)",
-              }}
-            >
-              <form
-                onSubmit={handleEmailPasswordSubmit}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "clamp(6px, 1vh, 10px)",
-                }}
-              >
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 6 }}
-                >
-                  <label
-                    style={{
-                      fontSize: "12px",
-                      color: "rgba(255,255,255,0.72)",
-                      textAlign: "left",
-                    }}
-                    htmlFor="landing-email"
-                  >
-                    Email
-                  </label>
-                  <input
-                    id="landing-email"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    style={{
-                      width: "100%",
-                      boxSizing: "border-box",
-                      padding: "clamp(9px, 1.3vh, 12px) 14px",
-                      borderRadius: "999px",
-                      border: "1px solid rgba(255,255,255,0.14)",
-                      background:
-                        "radial-gradient(circle at 0 0, rgba(255,255,255,0.09), transparent 60%), rgba(8,7,15,0.92)",
-                      color: "#fff",
-                      fontSize: "13px",
-                      outline: "none",
-                      boxShadow: "0 0 0 1px rgba(0,0,0,0.4)",
-                    }}
-                  />
-                </div>
-
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 6 }}
-                >
-                  <label
-                    style={{
-                      fontSize: "12px",
-                      color: "rgba(255,255,255,0.72)",
-                      textAlign: "left",
-                    }}
-                    htmlFor="landing-password"
-                  >
-                    Password
-                  </label>
-                  <input
-                    id="landing-password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Your password"
-                    style={{
-                      width: "100%",
-                      boxSizing: "border-box",
-                      padding: "clamp(9px, 1.3vh, 12px) 14px",
-                      borderRadius: "999px",
-                      border: "1px solid rgba(255,255,255,0.14)",
-                      background:
-                        "radial-gradient(circle at 0 0, rgba(255,255,255,0.07), transparent 60%), rgba(8,7,15,0.92)",
-                      color: "#fff",
-                      fontSize: "13px",
-                      outline: "none",
-                      boxShadow: "0 0 0 1px rgba(0,0,0,0.4)",
-                    }}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "stretch",
-                    marginTop: "2px",
-                    marginBottom: "2px",
-                  }}
-                >
-                  <button
-                    type="submit"
-                    disabled={signingIn}
-                    style={{
-                      width: "100%",
-                      padding: "clamp(10px, 1.4vh, 13px) 0",
-                      borderRadius: "999px",
-                      border: "none",
-                      background:
-                        "linear-gradient(135deg, #A7A8AA 0%, #ECECEC 65%, #87898C 100%)", // PullUp original silver gradient
-                      color: "#232629",
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      minWidth: "0",
-                      cursor: signingIn ? "wait" : "pointer",
-                      boxShadow:
-                        "0 8px 20px rgba(170,170,175,0.12), 0 0 0 1px rgba(160,160,170,0.18)",
-                      opacity: signingIn ? 0.8 : 1,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      letterSpacing: "0.01em",
-                      transition: "background 0.18s, box-shadow 0.18s",
-                    }}
-                  >
-                    {signingIn ? "Entering..." : "Enter pullup"}
-                  </button>
-                </div>
-
-                {formError && (
-                  <div
-                    style={{
-                      marginTop: "4px",
-                      fontSize: "11px",
-                      color: "rgba(255, 119, 119, 0.96)",
-                      textAlign: "left",
-                    }}
-                  >
-                    {formError}
-                  </div>
-                )}
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    marginTop: "clamp(4px, 0.8vh, 10px)",
-                    marginBottom: "clamp(2px, 0.5vh, 4px)",
-                  }}
-                >
-                  <div
-                    style={{
-                      flex: 1,
-                      height: 1,
-                      background: "rgba(255,255,255,0.06)",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.16em",
-                      color: "rgba(255,255,255,0.5)",
-                    }}
-                  >
-                    or
-                  </span>
-                  <div
-                    style={{
-                      flex: 1,
-                      height: 1,
-                      background: "rgba(255,255,255,0.06)",
-                    }}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleGoogleContinue}
-                  disabled={signingIn}
-                  style={{
-                    width: "100%",
-                    borderRadius: "999px",
-                    border: "1px solid rgba(0,0,0,0.16)",
-                    background: "#ffffff",
-                    padding: "clamp(8px, 1.2vh, 10px) 14px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 10,
-                    cursor: signingIn ? "wait" : "pointer",
-                    boxShadow:
-                      "0 1px 2px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.1)",
-                    color: "#3c4043",
-                    fontSize: "13px",
-                    fontWeight: 500,
-                  }}
-                >
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 2,
-                      overflow: "hidden",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 48 48"
-                      style={{ width: 18, height: 18, display: "block" }}
-                    >
-                      <path
-                        fill="#EA4335"
-                        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.61l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.4 5.38 2.56 13.22l7.98 6.2C12.48 13.02 17.74 9.5 24 9.5z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M46.98 24.55c0-1.64-.15-3.21-.43-4.74H24v9.02h12.94c-.56 2.9-2.26 5.36-4.82 7.02l7.66 5.94C44.54 37.89 46.98 31.76 46.98 24.55z"
-                      />
-                      <path
-                        fill="#4A90E2"
-                        d="M10.54 28.42a10.5 10.5 0 0 1-.55-3.17c0-1.1.2-2.16.55-3.17l-7.98-6.2A23.86 23.86 0 0 0 0 25.25c0 3.8.9 7.39 2.56 10.62l7.98-6.2z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M24 47.5c6.48 0 11.93-2.13 15.9-5.79l-7.66-5.94C30.62 37.48 27.61 38.5 24 38.5c-6.26 0-11.52-3.52-13.46-8.92l-7.98 6.2C6.4 42.62 14.62 47.5 24 47.5z"
-                      />
-                      <path fill="none" d="M0 0h48v48H0z" />
-                    </svg>
-                  </span>
-                  <span>Continue with Google</span>
-                </button>
-              </form>
-            </div>
-            {/* Stats/Trust indicators - Mobile Optimized */}
-            <div
-              style={{
-                display: "flex",
-                gap: "20px",
-                justifyContent: "center",
-                flexWrap: "wrap",
-                fontSize: "12px",
-                opacity: 0.55,
-                marginTop: "clamp(6px, 1vh, 16px)",
-              }}
-            >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "6px" }}
-              >
-                <SilverIcon as={Sparkles} size={14} /> Custom events
-              </div>
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "6px" }}
-              >
-                <SilverIcon as={Sparkles} size={14} /> Email marketing
-              </div>
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "6px" }}
-              >
-                <SilverIcon as={Sparkles} size={14} /> Free
-              </div>
-            </div>
-
-            {/* Newsletter block - integrated with content */}
-            <div
-              style={{
-                width: "100%",
-                maxWidth: "320px",
-                marginTop: "clamp(14px, 3vh, 66px)",
-                padding: "14px 14px 12px",
-                borderRadius: "18px",
-                background:
-                  "linear-gradient(135deg, rgba(56,40,6,0.92) 0%, rgba(102,76,14,0.9) 45%, rgba(150,112,24,0.9) 100%)",
-                border: "1px solid rgba(255,230,160,0.18)",
-                boxShadow:
-                  "0 18px 38px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.75)",
-                backdropFilter: "blur(12px)",
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-              }}
-            >
-              <form
-                onSubmit={handleNewsletterSubmit}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                }}
-              >
-                <div
-                  style={{
-                    textAlign: "left",
-                    width: "100%",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      letterSpacing: "0.02em",
-                      color: "rgba(255,255,255,0.9)",
-                      marginBottom: 2,
-                    }}
-                  >
-                    Stay in the loop, fomo is real.
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      lineHeight: 1.6,
-                      color: "rgba(255,255,255,0.68)",
-                      maxWidth: "320px",
-                    }}
-                  >
-                    Get invites to special underground events, private dinners
-                    and deep cultural experiences.
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    width: "100%",
-                  }}
-                >
-                  <input
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    required
-                    value={newsletterEmail}
-                    onChange={(e) => setNewsletterEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    style={{
-                      flex: 1,
-                      padding: "9px 12px",
-                      borderRadius: "999px",
-                      border: "1px solid rgba(255,255,255,0.18)",
-                      background:
-                        "radial-gradient(circle at 0 0, rgba(255,255,255,0.09), transparent 60%), rgba(7,6,14,0.92)",
-                      color: "#fff",
-                      fontSize: "12px",
-                      outline: "none",
-                    }}
-                  />
-                  <button
-                    type="submit"
-                    disabled={newsletterSubmitting}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: "999px",
-                      border: "none",
-                      background:
-                        "linear-gradient(135deg, #f5f5f5 0%, #c7c7c7 60%, #a1a1a1 100%)",
-                      color: "#121212",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                      cursor: newsletterSubmitting ? "wait" : "pointer",
-                      whiteSpace: "nowrap",
-                      boxShadow:
-                        "0 4px 10px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.4)",
-                      opacity: newsletterSubmitting ? 0.8 : 1,
-                    }}
-                  >
-                    {newsletterSubmitting ? "Joining..." : "Join"}
-                  </button>
-                </div>
-
-                {newsletterStatus && (
-                  <div
-                    style={{
-                      marginTop: 2,
-                      fontSize: "11px",
-                      color: "rgba(255,255,255,0.7)",
-                      textAlign: "left",
-                    }}
-                  >
-                    {newsletterStatus}
-                  </div>
-                )}
-              </form>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      {/* Animations & Global Scroll Prevention */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.8;
-          }
-        }
-        
-        /* Prevent all scrolling on landing page */
-        html, body {
-          overflow: hidden !important;
-          height: 100vh !important;
-          width: 100vw !important;
-          position: fixed !important;
-          overscroll-behavior: none !important;
-          touch-action: none !important;
-        }
-      `}</style>
-      {newsletterPopup && (
+      {/* ─── HERO ─── */}
+      <section
+        style={{
+          minHeight: "100dvh", display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", textAlign: "center",
+          padding: "100px clamp(20px, 5vw, 40px) 60px", position: "relative",
+        }}
+      >
         <div
           style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 40,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0, 0, 0, 0.6)",
-            padding: "24px",
+            position: "absolute", top: "15%", left: "50%", transform: "translateX(-50%)",
+            width: "min(700px, 90vw)", height: 400, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(192,192,192,0.07) 0%, transparent 70%)", pointerEvents: "none",
           }}
+        />
+
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 640 }}>
+          <div
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              padding: "5px 14px", borderRadius: "999px",
+              background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+              fontSize: 12, color: "rgba(255,255,255,0.65)", marginBottom: 24,
+            }}
+          >
+            <Sparkles size={13} style={{ color: colors.silver }} />
+            The platform for cultural hosts
+          </div>
+
+          <h1 style={{ fontSize: "clamp(42px, 10vw, 80px)", fontWeight: 800, lineHeight: 1.05, marginBottom: 20, letterSpacing: "-0.03em" }}>
+            Make 'em{" "}
+            <span style={{ background: colors.gradientPrimary, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+              pull up
+            </span>
+          </h1>
+
+          <p style={{ fontSize: "clamp(15px, 3vw, 19px)", lineHeight: 1.55, color: "rgba(255,255,255,0.65)", maxWidth: 460, margin: "0 auto 32px" }}>
+            Create events, manage guests, send invites, track everything.
+            One platform, zero cost.
+          </p>
+
+          <button
+            onClick={() => setShowAuth(true)}
+            style={{
+              padding: "14px 36px", borderRadius: "999px", border: "none",
+              background: colors.gradientPrimary, color: "#111", fontSize: 16, fontWeight: 700,
+              cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8,
+              boxShadow: "0 8px 32px rgba(192,192,192,0.18)",
+            }}
+          >
+            Start hosting <ArrowRight size={18} />
+          </button>
+        </div>
+      </section>
+
+      {/* ─── FEATURES ─── */}
+      <section id="features" style={sp}>
+        <h2 style={{ fontSize: "clamp(26px, 5vw, 40px)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 12, textAlign: "center" }}>
+          Everything you need to{" "}
+          <span style={{ background: colors.gradientPrimary, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>host</span>
+        </h2>
+        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", textAlign: "center", marginBottom: "clamp(28px, 4vh, 48px)", maxWidth: 420, margin: "0 auto clamp(28px, 4vh, 48px)" }}>
+          From intimate dinners to large-scale cultural events.
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: "clamp(12px, 2vw, 20px)" }}>
+          {FEATURES.map((f, i) => (
+            <div
+              key={i}
+              style={{
+                padding: "clamp(20px, 2.5vw, 28px)", borderRadius: 16,
+                background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
+                transition: "border-color 0.2s, background 0.2s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+            >
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(192,192,192,0.08)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                <f.icon size={20} style={{ color: colors.silverLight }} />
+              </div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{f.title}</h3>
+              <p style={{ fontSize: 13, lineHeight: 1.55, color: "rgba(255,255,255,0.5)", margin: 0 }}>{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── HOW IT WORKS ─── */}
+      <section style={sp}>
+        <h2 style={{ fontSize: "clamp(26px, 5vw, 40px)", fontWeight: 800, letterSpacing: "-0.02em", textAlign: "center", marginBottom: "clamp(24px, 4vh, 40px)" }}>
+          Live in 2 minutes
+        </h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: "clamp(20px, 3vw, 36px)", maxWidth: 720, margin: "0 auto" }}>
+          {[
+            { n: "1", title: "Create", desc: "Add details, set tickets, customize your page." },
+            { n: "2", title: "Share", desc: "Send your link or invite guests directly." },
+            { n: "3", title: "Grow", desc: "Track RSVPs, send updates, build your scene." },
+          ].map((s, i) => (
+            <div key={i} style={{ textAlign: "center" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: colors.gradientPrimary, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 20, fontWeight: 800, color: "#111" }}>
+                {s.n}
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{s.title}</h3>
+              <p style={{ fontSize: 13, lineHeight: 1.5, color: "rgba(255,255,255,0.5)", margin: 0 }}>{s.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── NEWSLETTER ─── */}
+      <section id="newsletter" style={sp}>
+        <div
+          style={{
+            maxWidth: 520, margin: "0 auto", padding: "clamp(24px, 4vw, 40px)",
+            borderRadius: 20,
+            background: "linear-gradient(145deg, rgba(56,40,6,0.7) 0%, rgba(102,76,14,0.6) 45%, rgba(80,60,10,0.6) 100%)",
+            border: "1px solid rgba(255,230,160,0.15)", boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
+          }}
+        >
+          <h2 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 800, marginBottom: 6, textAlign: "center" }}>
+            Don't miss out
+          </h2>
+          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: 20, lineHeight: 1.5 }}>
+            Get invites to underground events, private dinners, and cultural experiences.
+          </p>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginBottom: 8, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              What are you into?
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
+              {INTEREST_OPTIONS.map((opt) => {
+                const active = selectedInterests.includes(opt.id);
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => toggleInterest(opt.id)}
+                    style={{
+                      padding: "6px 12px", borderRadius: "999px",
+                      border: active ? "1px solid rgba(255,230,160,0.4)" : "1px solid rgba(255,255,255,0.12)",
+                      background: active ? "rgba(255,200,60,0.15)" : "rgba(255,255,255,0.04)",
+                      color: active ? "rgba(255,240,180,0.95)" : "rgba(255,255,255,0.55)",
+                      fontSize: 12, cursor: "pointer", transition: "all 0.15s", fontWeight: active ? 600 : 400,
+                    }}
+                  >
+                    {active && <CheckCircle size={12} style={{ marginRight: 4, verticalAlign: -2 }} />}
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <form onSubmit={handleNewsletterSubmit} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              type="email" inputMode="email" autoComplete="email" required
+              value={newsletterEmail} onChange={(e) => setNewsletterEmail(e.target.value)}
+              placeholder="you@example.com"
+              style={{ ...inputStyle, flex: "1 1 200px", background: "rgba(7,6,14,0.8)", border: "1px solid rgba(255,255,255,0.15)", padding: "11px 14px", fontSize: 13 }}
+            />
+            <button
+              type="submit" disabled={newsletterSubmitting}
+              style={{
+                padding: "11px 20px", borderRadius: "12px", border: "none",
+                background: "linear-gradient(135deg, #f5f5f5 0%, #c7c7c7 60%, #a1a1a1 100%)",
+                color: "#121212", fontSize: 13, fontWeight: 700,
+                cursor: newsletterSubmitting ? "wait" : "pointer", whiteSpace: "nowrap",
+                opacity: newsletterSubmitting ? 0.7 : 1,
+              }}
+            >
+              {newsletterSubmitting ? "Joining..." : "Subscribe"}
+            </button>
+          </form>
+
+          {newsletterStatus && (
+            <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,0.6)", textAlign: "center" }}>{newsletterStatus}</div>
+          )}
+        </div>
+      </section>
+
+      {/* ─── FINAL CTA ─── */}
+      <section style={{ ...sp, textAlign: "center", paddingBottom: "clamp(48px, 8vh, 80px)" }}>
+        <h2 style={{ fontSize: "clamp(24px, 5vw, 38px)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 12 }}>
+          Ready to make 'em{" "}
+          <span style={{ background: colors.gradientPrimary, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>pull up</span>?
+        </h2>
+        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", maxWidth: 380, margin: "0 auto 24px" }}>
+          Join the hosts building unforgettable experiences.
+        </p>
+        <button
+          onClick={() => setShowAuth(true)}
+          style={{
+            padding: "14px 36px", borderRadius: "999px", border: "none",
+            background: colors.gradientPrimary, color: "#111", fontSize: 16, fontWeight: 700,
+            cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8,
+            boxShadow: "0 8px 32px rgba(192,192,192,0.18)",
+          }}
+        >
+          Start hosting <ArrowRight size={18} />
+        </button>
+      </section>
+
+      {/* ─── FOOTER ─── */}
+      <footer style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "24px clamp(16px, 5vw, 40px)", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.3)" }}>
+        pullup &copy; {new Date().getFullYear()}
+      </footer>
+
+      {/* ─── AUTH MODAL ─── */}
+      {showAuth && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", padding: 20 }}
+          onClick={() => setShowAuth(false)}
+        >
+          <div
+            style={{ maxWidth: 380, width: "100%", borderRadius: 24, background: "linear-gradient(145deg, rgba(11,10,20,0.98), rgba(17,15,30,0.99))", boxShadow: "0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08)", padding: "clamp(24px, 4vw, 36px)", position: "relative" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowAuth(false)}
+              style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", padding: 4 }}
+            >
+              <X size={20} />
+            </button>
+
+            <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, textAlign: "center" }}>
+              Enter{" "}
+              <span style={{ background: colors.gradientPrimary, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>pullup</span>
+            </h2>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", textAlign: "center", marginBottom: 24 }}>
+              Sign in or create your account
+            </p>
+
+            <form onSubmit={handleEmailPasswordSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }} htmlFor="auth-email">Email</label>
+                <input id="auth-email" type="email" inputMode="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={inputStyle} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }} htmlFor="auth-password">Password</label>
+                <input id="auth-password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" style={inputStyle} />
+              </div>
+              <button
+                type="submit" disabled={signingIn}
+                style={{ width: "100%", padding: "14px 0", borderRadius: "999px", border: "none", background: colors.gradientPrimary, color: "#111", fontSize: 14, fontWeight: 700, cursor: signingIn ? "wait" : "pointer", opacity: signingIn ? 0.7 : 1, marginTop: 4 }}
+              >
+                {signingIn ? "Entering..." : "Enter pullup"}
+              </button>
+              {formError && <div style={{ fontSize: 12, color: "rgba(255,119,119,0.95)", textAlign: "center" }}>{formError}</div>}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 0" }}>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
+                <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.16em", color: "rgba(255,255,255,0.35)" }}>or</span>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
+              </div>
+              <button
+                type="button" onClick={handleGoogleContinue} disabled={signingIn}
+                style={{ width: "100%", borderRadius: "999px", border: "1px solid rgba(0,0,0,0.16)", background: "#fff", padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, cursor: signingIn ? "wait" : "pointer", color: "#3c4043", fontSize: 14, fontWeight: 500 }}
+              >
+                {GoogleIcon}
+                <span>Continue with Google</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── NEWSLETTER POPUP ─── */}
+      {newsletterPopup && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", padding: 24 }}
           onClick={() => setNewsletterPopup(null)}
         >
           <div
-            style={{
-              maxWidth: "340px",
-              width: "100%",
-              borderRadius: "20px",
-              background:
-                "linear-gradient(145deg, rgba(11,10,20,0.98), rgba(17,15,30,0.98))",
-              boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
-              border: "1px solid rgba(255,255,255,0.16)",
-              padding: "18px 18px 14px",
-            }}
+            style={{ maxWidth: 340, width: "100%", borderRadius: 20, background: "linear-gradient(145deg, rgba(11,10,20,0.98), rgba(17,15,30,0.98))", boxShadow: "0 24px 60px rgba(0,0,0,0.85)", border: "1px solid rgba(255,255,255,0.12)", padding: 24 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                fontSize: "13px",
-                fontWeight: 600,
-                marginBottom: 6,
-                color:
-                  newsletterPopup.type === "success"
-                    ? "rgba(255,255,255,0.96)"
-                    : "rgba(255,180,180,0.96)",
-              }}
-            >
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8, color: newsletterPopup.type === "success" ? "#fff" : "rgba(255,180,180,0.96)" }}>
               {newsletterPopup.title}
             </div>
-            <div
-              style={{
-                fontSize: "12px",
-                color: "rgba(255,255,255,0.8)",
-                marginBottom: 14,
-              }}
-            >
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 20, lineHeight: 1.5 }}>
               {newsletterPopup.message}
             </div>
             <button
-              type="button"
-              onClick={() => setNewsletterPopup(null)}
-              style={{
-                width: "100%",
-                padding: "10px 0",
-                borderRadius: "999px",
-                border: "none",
-                background:
-                  "linear-gradient(135deg, #f5f5f5 0%, #c7c7c7 60%, #a1a1a1 100%)",
-                color: "#121212",
-                fontSize: "12px",
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                cursor: "pointer",
-              }}
+              type="button" onClick={() => setNewsletterPopup(null)}
+              style={{ width: "100%", padding: "12px 0", borderRadius: "999px", border: "none", background: colors.gradientPrimary, color: "#111", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
             >
               Close
             </button>

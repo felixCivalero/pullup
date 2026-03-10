@@ -3904,10 +3904,11 @@ export async function getUserStripeConnectedAccountId(userId) {
 export async function getNewsletterSubscribers({
   status = "confirmed",
   limit = 10000,
+  targetCategories = [],
 } = {}) {
   const { data, error, count } = await supabase
     .from("newsletter_subscriptions")
-    .select("id, email, user_id, status", { count: "exact" })
+    .select("id, email, user_id, status, interests", { count: "exact" })
     .eq("status", status)
     .limit(limit);
 
@@ -3916,9 +3917,24 @@ export async function getNewsletterSubscribers({
     throw error;
   }
 
+  let subscribers = data || [];
+
+  // If targeting specific categories, include subscribers who:
+  // 1. Have at least one matching interest, OR
+  // 2. Have no interests set (they get everything)
+  if (Array.isArray(targetCategories) && targetCategories.length > 0) {
+    const targets = new Set(targetCategories.map((c) => c.toLowerCase()));
+    subscribers = subscribers.filter((s) => {
+      const interests = Array.isArray(s.interests) ? s.interests : [];
+      if (interests.length === 0) return true;
+      return interests.some((i) => targets.has(i.toLowerCase()));
+    });
+  }
+
   return {
-    subscribers: data || [],
-    total: typeof count === "number" ? count : (data || []).length,
+    subscribers,
+    total: subscribers.length,
+    unfilteredTotal: typeof count === "number" ? count : (data || []).length,
   };
 }
 

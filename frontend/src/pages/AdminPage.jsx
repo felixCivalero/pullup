@@ -53,6 +53,8 @@ export function AdminPage() {
   const [subscribers, setSubscribers] = useState([]);
   const [excludedIds, setExcludedIds] = useState(new Set());
   const [recipientSource, setRecipientSource] = useState("");
+  const [targetCategories, setTargetCategories] = useState([]);
+  const [unfilteredTotal, setUnfilteredTotal] = useState(null);
 
   const [templateEvent, setTemplateEvent] = useState(null);
   const [templateEventLoading, setTemplateEventLoading] = useState(false);
@@ -273,7 +275,8 @@ export function AdminPage() {
     return true;
   });
 
-  async function handlePreview() {
+  async function handlePreview(categories) {
+    const cats = categories !== undefined ? categories : targetCategories;
     setPreviewLoading(true);
     setSendError("");
     setSendResult(null);
@@ -282,6 +285,7 @@ export function AdminPage() {
     try {
       const res = await authenticatedFetch("/admin/newsletter/preview", {
         method: "POST",
+        body: JSON.stringify({ targetCategories: cats }),
       });
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
@@ -293,6 +297,7 @@ export function AdminPage() {
       const list = Array.isArray(data.subscribers) ? data.subscribers : [];
       setSubscribers(list);
       setRecipientCount(data.totalRecipients ?? list.length ?? 0);
+      setUnfilteredTotal(data.unfilteredTotal ?? null);
     } catch (error) {
       console.error("Admin preview error:", error);
       setSendError(error.message || "Failed to load preview.");
@@ -403,6 +408,7 @@ export function AdminPage() {
               events: filteredWeeklyEvents,
             },
             excludeSubscriberIds,
+            targetCategories,
           }
         : {
             subject: effectiveSubject,
@@ -420,6 +426,7 @@ export function AdminPage() {
               ctaUrl: ctaUrl || undefined,
             },
             excludeSubscriberIds,
+            targetCategories,
           };
 
       const res = await authenticatedFetch("/admin/newsletter/send", {
@@ -619,6 +626,70 @@ export function AdminPage() {
             </select>
           </div>
 
+          {/* Category targeting */}
+          {recipientSource === "newsletter" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: "12px", opacity: 0.85 }}>
+                Target by interest {targetCategories.length > 0 && <span style={{ opacity: 0.6 }}>(filtering)</span>}
+              </label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {WEEKLY_CATEGORIES.filter((c) => c.key !== "all").map((cat) => {
+                  const active = targetCategories.includes(cat.key);
+                  return (
+                    <button
+                      key={cat.key}
+                      type="button"
+                      onClick={async () => {
+                        const next = active
+                          ? targetCategories.filter((c) => c !== cat.key)
+                          : [...targetCategories, cat.key];
+                        setTargetCategories(next);
+                        if (recipientSource === "newsletter") {
+                          await handlePreview(next);
+                        }
+                      }}
+                      style={{
+                        padding: "5px 12px",
+                        borderRadius: "999px",
+                        border: active ? "1px solid rgba(251,191,36,0.5)" : "1px solid rgba(255,255,255,0.12)",
+                        background: active ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.04)",
+                        color: active ? "rgba(251,191,36,0.95)" : "rgba(255,255,255,0.6)",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        fontWeight: active ? 600 : 400,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+                {targetCategories.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setTargetCategories([]);
+                      if (recipientSource === "newsletter") {
+                        await handlePreview([]);
+                      }
+                    }}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "rgba(255,255,255,0.04)",
+                      color: "rgba(255,255,255,0.45)",
+                      fontSize: "11px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div
             style={{
               display: "flex",
@@ -639,6 +710,9 @@ export function AdminPage() {
                 : recipientCount === null
                   ? "unknown"
                   : `${recipientCount} confirmed subscribers`}
+              {unfilteredTotal != null && targetCategories.length > 0 && (
+                <span style={{ opacity: 0.5 }}> (of {unfilteredTotal} total)</span>
+              )}
             </span>
           </div>
 

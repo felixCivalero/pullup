@@ -806,16 +806,25 @@ app.post("/events/:slug/view", async (req, res) => {
 
     const { supabase: sb } = await import("./supabase.js");
 
-    // Deduplicate: skip if same visitor viewed this event in the last 30 minutes
+    // Deduplicate: skip if same visitor viewed this event from the same source in the last 30 minutes
+    // Different UTM sources are always recorded (so switching from instagram to linkedin link counts)
     if (visitorId) {
       const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      const { data: recent } = await sb
+      let query = sb
         .from("event_page_views")
         .select("id")
         .eq("event_id", event.id)
         .eq("visitor_id", visitorId)
-        .gte("created_at", thirtyMinAgo)
-        .limit(1);
+        .gte("created_at", thirtyMinAgo);
+
+      // If this view has a UTM source, only dedup against same source
+      if (utm_source) {
+        query = query.eq("utm_source", utm_source);
+      } else {
+        query = query.is("utm_source", null);
+      }
+
+      const { data: recent } = await query.limit(1);
 
       if (recent && recent.length > 0) {
         return res.json({ ok: true, deduplicated: true });

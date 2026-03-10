@@ -255,7 +255,7 @@ async function toOgPublicImageUrl(imageUrl, routeName = "Share") {
 // ---------------------------
 // Helper: Generate OG HTML for an event (uses permanent public image URL)
 // ---------------------------
-async function generateOgHtmlForEvent(event, routeName = "Share") {
+async function generateOgHtmlForEvent(event, routeName = "Share", queryString = "") {
   logger.debug(`[${routeName}] Found event`, {
     title: event?.title,
     slug: event?.slug,
@@ -274,7 +274,7 @@ async function generateOgHtmlForEvent(event, routeName = "Share") {
   return generateOgHtml({
     ...event,
     imageUrl: ogImageUrl,
-  });
+  }, queryString);
 }
 
 // ---------------------------
@@ -284,11 +284,13 @@ async function generateOgHtmlForEvent(event, routeName = "Share") {
 // - Canonical og:url points to /e/:slug (not /share/:slug).
 // - Humans get redirected immediately.
 // ---------------------------
-function generateOgHtml(event) {
+function generateOgHtml(event, queryString = "") {
   const baseUrl = getFrontendUrl();
 
-  // Canonical URL for the event page (clean for OG)
+  // Canonical URL for the event page (clean for OG tags)
   const eventUrl = `${baseUrl}/e/${event.slug}`;
+  // Redirect URL preserves UTM params so tracking works end-to-end
+  const redirectUrl = queryString ? `${eventUrl}?${queryString}` : eventUrl;
 
   // Use event image if available, otherwise fallback to default OG image
   let imageUrl = event.imageUrl || `${baseUrl}/og-image.jpg`;
@@ -353,11 +355,11 @@ function generateOgHtml(event) {
   <meta name="twitter:image" content="${imageUrl}">
 
   <!-- Redirect humans immediately -->
-  <meta http-equiv="refresh" content="0;url=${eventUrl}">
-  <script>window.location.href = "${eventUrl}";</script>
+  <meta http-equiv="refresh" content="0;url=${redirectUrl}">
+  <script>window.location.href = "${redirectUrl}";</script>
 </head>
 <body>
-  <p>Redirecting to <a href="${eventUrl}">${escapedTitle}</a>...</p>
+  <p>Redirecting to <a href="${redirectUrl}">${escapedTitle}</a>...</p>
 </body>
 </html>`;
 }
@@ -746,7 +748,9 @@ app.get("/share/:slug", async (req, res) => {
       return res.status(404).send("Event not found");
     }
 
-    const ogHtml = await generateOgHtmlForEvent(event, "Share");
+    // Forward UTM params through the redirect so tracking works
+    const qs = new URLSearchParams(req.query).toString();
+    const ogHtml = await generateOgHtmlForEvent(event, "Share", qs);
     res.setHeader("Content-Type", "text/html");
     res.send(ogHtml);
   } catch (error) {
@@ -778,7 +782,8 @@ app.get("/e/:slug", async (req, res) => {
     }
 
     // Always return OG HTML (crawlers get OG tags, browsers get redirected via meta refresh)
-    const ogHtml = await generateOgHtmlForEvent(event, "EventPage");
+    const qs = new URLSearchParams(req.query).toString();
+    const ogHtml = await generateOgHtmlForEvent(event, "EventPage", qs);
     res.setHeader("Content-Type", "text/html");
     res.send(ogHtml);
   } catch (error) {

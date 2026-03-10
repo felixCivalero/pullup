@@ -342,10 +342,12 @@ function SourceIcon({ source }) {
     direct: "🔗",
     pullup_newsletter: "✉️",
     instagram: "📸",
+    tiktok: "🎵",
     facebook: "👤",
     twitter: "🐦",
     linkedin: "💼",
     pullup: "✨",
+    social: "📱",
   };
   return (
     <span style={{ fontSize: "14px", width: 20, textAlign: "center" }}>

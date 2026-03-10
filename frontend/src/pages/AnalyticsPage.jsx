@@ -180,6 +180,11 @@ export function AnalyticsPage() {
           </div>
         )}
 
+        {/* Email Marketing section */}
+        <h2 style={{ margin: "0 0 14px", fontSize: "17px", fontWeight: 600, color: colors.text }}>
+          Email Marketing
+        </h2>
+
         {/* Overview stats */}
         {overview && (
           <>
@@ -646,7 +651,7 @@ function PageviewChart({ current, previous }) {
         background: "rgba(255,255,255,0.02)",
         border: "1px solid rgba(255,255,255,0.06)",
         padding: "14px 12px 8px",
-        overflow: "hidden",
+        position: "relative",
       }}
     >
       <svg
@@ -725,34 +730,42 @@ function PageviewChart({ current, previous }) {
           );
         })}
 
-        {/* Tooltip */}
-        {hover && (
-          <foreignObject x={Math.min(hover.x + 8, W - 130)} y={Math.max(hover.y - 48, 0)} width="120" height="48">
-            <div style={{
-              background: "rgba(15,12,25,0.95)",
-              border: "1px solid rgba(255,255,255,0.15)",
-              borderRadius: 8,
-              padding: "6px 10px",
-              fontSize: "11px",
-              color: "#fff",
-              lineHeight: 1.5,
-              backdropFilter: "blur(8px)",
-            }}>
-              <div style={{ fontWeight: 600 }}>
-                {new Date(hover.d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-              </div>
-              <div style={{ color: "rgba(59,130,246,0.9)" }}>
-                {hover.d.views} views / {hover.d.unique_visitors} unique
-              </div>
-              {hover.prev && (
-                <div style={{ color: "rgba(255,255,255,0.35)" }}>
-                  prev: {hover.prev.views}
-                </div>
-              )}
-            </div>
-          </foreignObject>
-        )}
       </svg>
+
+      {/* Tooltip - positioned as DOM element outside SVG */}
+      {hover && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${(hover.x / W) * 100}%`,
+            top: `${(hover.y / H) * 100}%`,
+            transform: `translate(${hover.x > W * 0.75 ? "calc(-100% - 12px)" : "12px"}, -50%)`,
+            background: "rgba(15,12,25,0.95)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 8,
+            padding: "8px 12px",
+            fontSize: "12px",
+            color: "#fff",
+            lineHeight: 1.6,
+            backdropFilter: "blur(12px)",
+            pointerEvents: "none",
+            zIndex: 10,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>
+            {new Date(hover.d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          </div>
+          <div style={{ color: "rgba(59,130,246,0.9)" }}>
+            {hover.d.views} views / {hover.d.unique_visitors} unique
+          </div>
+          {hover.prev && (
+            <div style={{ color: "rgba(255,255,255,0.4)" }}>
+              prev: {hover.prev.views} views
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

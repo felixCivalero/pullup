@@ -88,6 +88,7 @@ import {
 } from "./utils/waitlistTokens.js";
 import { processSesEvent } from "./email/events/processSesEvent.js";
 import { handleProviderEvent, enqueueOutbox } from "./email/index.js";
+import trackingRoutes from "./email/tracking/trackingRoutes.js";
 
 // Load environment variables once. NODE_ENV can come from the process
 // (PM2, npm scripts) or from .env.
@@ -619,6 +620,11 @@ app.post("/internal/webhooks/ses-eventbridge", async (req, res) => {
 });
 
 // ---------------------------
+// EMAIL TRACKING: open pixel + click redirect
+// ---------------------------
+app.use(trackingRoutes);
+
+// ---------------------------
 // PROTECTED: List user's events (requires auth)
 // ---------------------------
 app.get("/events", requireAuth, async (req, res) => {
@@ -654,16 +660,41 @@ app.get("/events", requireAuth, async (req, res) => {
       (events || []).map((dbEvent) => mapEventFromDb(dbEvent))
     );
 
-    // Add stats to each event
+    // Add stats and role to each event
     const { getEventCounts } = await import("./data.js");
+
+    // Batch-fetch page view counts for all events in one query
+    let viewCountMap = {};
+    try {
+      const allIds = mappedEvents.map((e) => e.id);
+      if (allIds.length > 0) {
+        const { data: viewRows } = await supabase
+          .from("event_page_views")
+          .select("event_id")
+          .in("event_id", allIds);
+        if (viewRows) {
+          for (const row of viewRows) {
+            viewCountMap[row.event_id] = (viewCountMap[row.event_id] || 0) + 1;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to batch-fetch view counts:", err.message);
+    }
+
     const eventsWithStats = await Promise.all(
       mappedEvents.map(async (event) => {
-        const { confirmed } = await getEventCounts(event.id);
+        const [{ confirmed }, myRole] = await Promise.all([
+          getEventCounts(event.id),
+          getEventHostRole(req.user.id, event.id),
+        ]);
         return {
           ...event,
+          myRole,
           _stats: {
             confirmed,
             totalCapacity: event.totalCapacity ?? null,
+            views: viewCountMap[event.id] || 0,
           },
         };
       })
@@ -753,6 +784,55 @@ app.get("/e/:slug", async (req, res) => {
   } catch (error) {
     console.error("Error generating event page OG:", error);
     res.status(500).send("Error generating event page");
+  }
+});
+
+// ---------------------------
+// PUBLIC: Track event page view
+// ---------------------------
+app.post("/events/:slug/view", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { visitorId, referrer, utm_source, utm_medium, utm_campaign, utm_content, deviceType } = req.body || {};
+
+    // Resolve event ID from slug
+    const event = await findEventBySlug(slug);
+    if (!event) return res.status(404).json({ error: "not_found" });
+
+    const { supabase: sb } = await import("./supabase.js");
+
+    // Deduplicate: skip if same visitor viewed this event in the last 30 minutes
+    if (visitorId) {
+      const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const { data: recent } = await sb
+        .from("event_page_views")
+        .select("id")
+        .eq("event_id", event.id)
+        .eq("visitor_id", visitorId)
+        .gte("created_at", thirtyMinAgo)
+        .limit(1);
+
+      if (recent && recent.length > 0) {
+        return res.json({ ok: true, deduplicated: true });
+      }
+    }
+
+    await sb.from("event_page_views").insert({
+      event_id: event.id,
+      visitor_id: visitorId || null,
+      referrer: (referrer || "").slice(0, 2000) || null,
+      utm_source: utm_source || null,
+      utm_medium: utm_medium || null,
+      utm_campaign: utm_campaign || null,
+      utm_content: utm_content || null,
+      device_type: deviceType || null,
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    // Page view tracking should never break the user experience
+    console.error("[page-view] Error:", err.message);
+    return res.json({ ok: false });
   }
 });
 
@@ -2744,49 +2824,146 @@ app.post(
           timeStyle: "short",
         });
 
-        const subject = `VIP invite for "${event.title}"`;
+        // Format event date nicely
+        const eventDate = event.startsAt ? (() => {
+          const d = new Date(event.startsAt);
+          if (isNaN(d.getTime())) return "";
+          const opts = event.timezone ? { timeZone: event.timezone } : {};
+          const datePart = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", ...opts });
+          const timePart = d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit", ...opts });
+          return `${datePart} · ${timePart}`;
+        })() : "";
 
-        const textBody = `You've received a VIP invite for "${event.title}".
+        const subject = `You're on the VIP list`;
 
-Use this link to RSVP with your guest list:
+        // Plaintext version
+        const textParts = [`You've been invited as a VIP to "${event.title}".`];
+        if (eventDate) textParts.push(`When: ${eventDate}`);
+        if (event.location) textParts.push(`Where: ${event.location}`);
+        if (maxGuestsInt > 1) textParts.push(`You can bring up to ${maxGuestsInt - 1} guest${maxGuestsInt > 2 ? "s" : ""}.`);
+        if (effectiveFreeEntry) textParts.push("Your entry is complimentary.");
+        if (event.description) textParts.push("", event.description.slice(0, 300));
+        textParts.push("", `RSVP here: ${link}`, "", `Valid until ${niceDate}.`);
+        const textBody = textParts.join("\n");
 
-${link}
+        // Build rich HTML email
+        const imageUrl = event.coverImageUrl || event.imageUrl || "";
+        const desc = event.description
+          ? event.description.length > 200
+            ? event.description.slice(0, 200).trimEnd() + "…"
+            : event.description
+          : "";
+        const spotifyUrl = event.spotify || "";
+        const plusOnesText = maxGuestsInt > 1
+          ? `You + ${maxGuestsInt - 1} guest${maxGuestsInt > 2 ? "s" : ""}`
+          : "You";
+        const freeEntryBadge = effectiveFreeEntry
+          ? `<span style="display:inline-block;padding:4px 12px;border-radius:999px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);color:#fbbf24;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-left:8px;">COMP</span>`
+          : "";
 
-This VIP link is valid until the event starts (${niceDate}).`;
+        const htmlBody = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"></head>
+<body style="margin:0;padding:0;background:#05040a;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#05040a;">
+<tr><td align="center" style="padding:20px 16px;">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;background:#05040a;">
 
-        const htmlBody = `
-          <p>You've received a <strong>VIP invite</strong> for "<strong>${event.title}</strong>".</p>
-          <p style="margin: 16px 0;">
-            <a
-              href="${link}"
-              style="
-                display: inline-block;
-                padding: 10px 18px;
-                border-radius: 999px;
-                background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 45%, #d97706 100%);
-                color: #05040a;
-                font-weight: 600;
-                font-size: 14px;
-                text-decoration: none;
-                letter-spacing: 0.08em;
-                text-transform: uppercase;
-                box-shadow: 0 0 14px rgba(245, 158, 11, 0.75);
-              "
-            >
-              VIP SIGNUP LINK
-            </a>
-          </p>
-          <p style="font-size: 13px; color: #4b5563;">
-            This VIP link is valid until the event starts (${niceDate}).
-          </p>
-        `;
+<!-- VIP Badge -->
+<tr><td align="center" style="padding:24px 0 16px;">
+  <span style="display:inline-block;padding:6px 20px;border-radius:999px;background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 45%,#d97706 100%);color:#05040a;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">VIP INVITE</span>
+</td></tr>
 
-        await sendEmail({
+${imageUrl ? `<!-- Event Image -->
+<tr><td style="padding:0 0 0;">
+  <img src="${imageUrl}" alt="${event.title.replace(/"/g, "&quot;")}" width="520" style="display:block;width:100%;max-width:520px;border-radius:12px;object-fit:cover;max-height:280px;border:0;outline:none;" />
+</td></tr>` : ""}
+
+<!-- Event Title -->
+<tr><td style="padding:20px 0 4px;text-align:center;">
+  <h1 style="margin:0;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">${event.title}</h1>
+</td></tr>
+
+<!-- Date & Location -->
+<tr><td align="center" style="padding:8px 0;">
+  <table border="0" cellpadding="0" cellspacing="0" role="presentation">
+  ${eventDate ? `<tr><td style="padding:3px 0;font-size:14px;color:rgba(255,255,255,0.6);text-align:center;">${eventDate}</td></tr>` : ""}
+  ${event.location ? `<tr><td style="padding:3px 0;font-size:14px;color:rgba(255,255,255,0.6);text-align:center;">${event.location}</td></tr>` : ""}
+  </table>
+</td></tr>
+
+${desc ? `<!-- Description -->
+<tr><td style="padding:12px 20px;text-align:center;">
+  <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.7);line-height:1.6;">${desc.replace(/\n/g, "<br>")}</p>
+</td></tr>` : ""}
+
+<!-- Guest info -->
+<tr><td align="center" style="padding:16px 0 4px;">
+  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;">
+    <tr>
+      <td style="padding:12px 20px;font-size:13px;color:rgba(255,255,255,0.8);text-align:center;">
+        <strong>${plusOnesText}</strong>${freeEntryBadge}
+      </td>
+    </tr>
+  </table>
+</td></tr>
+
+${spotifyUrl ? `<!-- Spotify -->
+<tr><td align="center" style="padding:12px 0;">
+  <a href="${spotifyUrl}" target="_blank" style="display:inline-flex;align-items:center;text-decoration:none;padding:8px 16px;border-radius:999px;background:rgba(30,215,96,0.12);border:1px solid rgba(30,215,96,0.3);color:#1ed760;font-size:13px;font-weight:600;">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Spotify_icon.svg/232px-Spotify_icon.svg.png" alt="" width="16" height="16" style="border:0;margin-right:6px;vertical-align:middle;" />Listen on Spotify
+  </a>
+</td></tr>` : ""}
+
+<!-- CTA Button -->
+<tr><td align="center" style="padding:24px 0;">
+  <a href="${link}" target="_blank" style="display:inline-block;text-decoration:none;padding:14px 36px;border-radius:999px;background-color:#f59e0b;background-image:linear-gradient(135deg,#fbbf24 0%,#f59e0b 45%,#d97706 100%);color:#05040a;font-size:16px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:1px solid rgba(245,158,11,0.9);">GET VIP ACCESS</a>
+</td></tr>
+
+<!-- Footer -->
+<tr><td style="padding:20px 0 8px;border-top:1px solid rgba(255,255,255,0.06);">
+  <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);text-align:center;line-height:1.6;">
+    This invite is valid until ${niceDate}.<br>
+    <a href="${getFrontendUrl()}" target="_blank" style="color:rgba(255,255,255,0.4);text-decoration:none;">pullup.se</a>
+  </p>
+</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+
+        const senderName = event.title.replace(/"/g, "");
+        const outboxRow = await sendEmail({
           to: normalizedEmail,
           subject,
           text: textBody,
           html: htmlBody,
+          from: `"${senderName} VIP" <no-reply@pullup.se>`,
         });
+
+        // Apply email tracking (open pixel + click redirect links)
+        if (outboxRow?.tracking_id) {
+          try {
+            const { addTracking } = await import("./email/tracking/linkRewriter.js");
+            const backendBaseUrl = isDevelopment
+              ? "http://localhost:3001"
+              : `${process.env.FRONTEND_URL || "https://pullup.se"}/api`;
+            const campaignTag = `vip_invite_${event.slug}`;
+
+            const trackedHtml = addTracking(htmlBody, {
+              trackingId: outboxRow.tracking_id,
+              baseUrl: backendBaseUrl,
+              campaignTag,
+            });
+
+            const { supabase: sb } = await import("./supabase.js");
+            await sb
+              .from("email_outbox")
+              .update({ html_body: trackedHtml, campaign_tag: campaignTag })
+              .eq("id", outboxRow.id);
+          } catch (trackErr) {
+            console.error("[VIP] Tracking injection failed:", trackErr.message);
+          }
+        }
       } catch (emailError) {
         console.error("Error sending VIP invite email:", emailError);
         // Don't fail the API if email sending fails
@@ -2838,20 +3015,83 @@ app.get(
       const invites = await getVipInvitesForEvent(event.id);
       const frontendUrl = getFrontendUrl();
 
-      const mappedInvites = (invites || []).map((inv) => ({
-        id: inv.id,
-        email: inv.email,
-        maxGuests: inv.max_guests,
-        freeEntry: inv.free_entry,
-        createdAt: inv.created_at,
-        expiresAt: inv.expires_at,
-        link:
-          inv.token && event.slug
-            ? `${frontendUrl}/e/${event.slug}?vip=${inv.token}`
-            : null,
-      }));
+      // Fetch per-invite email tracking stats
+      const { supabase: sb } = await import("./supabase.js");
+      const campaignTag = `vip_invite_${event.slug}`;
 
-      return res.json({ invites: mappedInvites });
+      // Get all outbox rows for this VIP campaign to map email→tracking stats
+      const { data: outboxRows } = await sb
+        .from("email_outbox")
+        .select("id, tracking_id, to_email, status")
+        .eq("campaign_tag", campaignTag);
+
+      let opensMap = {};
+      let clicksMap = {};
+      if (outboxRows && outboxRows.length > 0) {
+        const trackingIds = outboxRows.map((r) => r.tracking_id).filter(Boolean);
+
+        const [opensResult, clicksResult] = await Promise.all([
+          trackingIds.length > 0
+            ? sb.from("email_opens").select("tracking_id").in("tracking_id", trackingIds)
+            : { data: [] },
+          trackingIds.length > 0
+            ? sb.from("email_clicks").select("tracking_id, link_label").in("tracking_id", trackingIds)
+            : { data: [] },
+        ]);
+
+        // Build email → stats mapping
+        const trackingToEmail = {};
+        for (const row of outboxRows) {
+          if (row.tracking_id) trackingToEmail[row.tracking_id] = row.to_email?.toLowerCase();
+        }
+
+        for (const o of (opensResult.data || [])) {
+          const email = trackingToEmail[o.tracking_id];
+          if (email) opensMap[email] = true;
+        }
+        for (const c of (clicksResult.data || [])) {
+          const email = trackingToEmail[c.tracking_id];
+          if (email) {
+            if (!clicksMap[email]) clicksMap[email] = { total: 0, cta: false };
+            clicksMap[email].total++;
+            if (c.link_label === "cta") clicksMap[email].cta = true;
+          }
+        }
+      }
+
+      // Aggregate stats
+      const totalSent = outboxRows?.length || 0;
+      const totalOpened = Object.keys(opensMap).length;
+      const totalClicked = Object.keys(clicksMap).length;
+
+      const mappedInvites = (invites || []).map((inv) => {
+        const email = inv.email?.toLowerCase();
+        return {
+          id: inv.id,
+          email: inv.email,
+          maxGuests: inv.max_guests,
+          freeEntry: inv.free_entry,
+          createdAt: inv.created_at,
+          expiresAt: inv.expires_at,
+          link:
+            inv.token && event.slug
+              ? `${frontendUrl}/e/${event.slug}?vip=${inv.token}`
+              : null,
+          opened: !!opensMap[email],
+          clicked: !!clicksMap[email],
+        };
+      });
+
+      return res.json({
+        invites: mappedInvites,
+        stats: {
+          totalSent,
+          totalOpened,
+          totalClicked,
+          openRate: totalSent > 0 ? Math.round((totalOpened / totalSent) * 1000) / 10 : 0,
+          clickRate: totalSent > 0 ? Math.round((totalClicked / totalSent) * 1000) / 10 : 0,
+        },
+      });
     } catch (error) {
       console.error("Error listing VIP invites:", error);
       return res.status(500).json({
@@ -5940,6 +6180,12 @@ app.post("/admin/newsletter/send", requireAdmin, async (req, res) => {
       Array.isArray(excludeSubscriberIds) ? excludeSubscriberIds : []
     );
 
+    // Generate a human-readable campaign tag for tracking
+    const now = new Date();
+    const weekNum = Math.ceil(((now - new Date(now.getFullYear(), 0, 1)) / 86400000 + new Date(now.getFullYear(), 0, 1).getDay() + 1) / 7);
+    const campaignTag = templateType === "weekly_happenings"
+      ? `weekly_happenings_${now.getFullYear()}_w${weekNum}`
+      : `newsletter_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, "0")}_${String(now.getDate()).padStart(2, "0")}`;
     const campaignId = `admin-${Date.now()}`;
     let enqueued = 0;
     let failed = 0;
@@ -5956,58 +6202,101 @@ app.post("/admin/newsletter/send", requireAdmin, async (req, res) => {
       }
     }
 
+    // Render template HTML once (same content for all subscribers)
+    let baseHtmlBody = htmlBody || null;
+    let finalTextBody = textBody || null;
+
+    if (templateType === "event" && event) {
+      const content = {
+        heroImageUrl: templateContent.heroImageUrl || event.coverImageUrl || event.imageUrl || "",
+        headline: templateContent.headline || event.title || "",
+        introQuote: templateContent.introQuote || "",
+        introBody:
+          templateContent.introBody ||
+          "Skriv om du vill komma så får du länk till gästlistan!",
+        introGreeting: templateContent.introGreeting || "",
+        introNote: templateContent.introNote || "",
+        signoffText: templateContent.signoffText || "",
+        ctaLabel: templateContent.ctaLabel || "TO EVENT",
+        ctaUrl: templateContent.ctaUrl || undefined,
+      };
+
+      baseHtmlBody = renderEventEmailTemplate({
+        event,
+        templateContent: content,
+        person: null,
+      });
+    }
+
+    if (templateType === "weekly_happenings") {
+      baseHtmlBody = renderWeeklyHappeningsTemplate({
+        events: Array.isArray(templateContent.events) ? templateContent.events : [],
+        templateContent: {
+          headline: templateContent.headline || "This Week in Stockholm",
+          body: templateContent.body || "",
+        },
+      });
+    }
+
+    // Import tracking link rewriter (additive — wraps links + injects open pixel)
+    let addTracking = null;
+    try {
+      const trackingModule = await import("./email/tracking/linkRewriter.js");
+      addTracking = trackingModule.addTracking;
+    } catch (trackingErr) {
+      console.warn("[admin] Email tracking module not available, sending without tracking:", trackingErr.message);
+    }
+
+    // Backend base URL for tracking endpoints
+    // In production, backend is proxied behind /api on the frontend domain
+    const backendBaseUrl = isDevelopment
+      ? "http://localhost:3001"
+      : `${process.env.FRONTEND_URL || "https://pullup.se"}/api`;
+
     for (const subscriber of subscribers) {
       try {
         if (excludedIdSet.has(subscriber.id)) {
           continue;
         }
 
-        let finalHtmlBody = htmlBody || null;
-        let finalTextBody = textBody || null;
-
-        // If we're using the event template and have an event, render HTML from it.
-        if (templateType === "event" && event) {
-          const content = {
-            heroImageUrl: templateContent.heroImageUrl || event.coverImageUrl || event.imageUrl || "",
-            headline: templateContent.headline || event.title || "",
-            introQuote: templateContent.introQuote || "",
-            introBody:
-              templateContent.introBody ||
-              "Skriv om du vill komma så får du länk till gästlistan!",
-            introGreeting: templateContent.introGreeting || "",
-            introNote: templateContent.introNote || "",
-            signoffText: templateContent.signoffText || "",
-            ctaLabel: templateContent.ctaLabel || "TO EVENT",
-            ctaUrl: templateContent.ctaUrl || undefined,
-          };
-
-          finalHtmlBody = renderEventEmailTemplate({
-            event,
-            templateContent: content,
-            person: null,
-          });
-        }
-
-        // Weekly happenings template
-        if (templateType === "weekly_happenings") {
-          finalHtmlBody = renderWeeklyHappeningsTemplate({
-            events: Array.isArray(templateContent.events) ? templateContent.events : [],
-            templateContent: {
-              headline: templateContent.headline || "This Week in Stockholm",
-              body: templateContent.body || "",
-            },
-          });
-        }
-
-        await enqueueOutbox({
+        // Enqueue first to get the tracking_id from the outbox row
+        const outboxRow = await enqueueOutbox({
           toEmail: subscriber.email,
           subject,
-          htmlBody: finalHtmlBody,
+          htmlBody: baseHtmlBody,
           textBody: finalTextBody,
           campaignSendId: null,
           idempotencyKey: `${campaignId}:${subscriber.id}`,
           category: "newsletter",
         });
+
+        // Add per-subscriber tracking (unique open pixel + click redirects)
+        if (addTracking && outboxRow?.tracking_id && baseHtmlBody) {
+          try {
+            const trackedHtml = addTracking(baseHtmlBody, {
+              trackingId: outboxRow.tracking_id,
+              baseUrl: backendBaseUrl,
+              campaignTag,
+            });
+
+            // Update outbox row with tracked HTML + campaign tag
+            const { supabase: sb } = await import("./supabase.js");
+            await sb
+              .from("email_outbox")
+              .update({ html_body: trackedHtml, campaign_tag: campaignTag })
+              .eq("id", outboxRow.id);
+          } catch (trackErr) {
+            // Tracking failure should never block email sending
+            console.error("[admin] Tracking injection failed for", subscriber.email, trackErr.message);
+          }
+        } else if (outboxRow?.id) {
+          // Still tag the campaign even without tracking
+          try {
+            const { supabase: sb } = await import("./supabase.js");
+            await sb.from("email_outbox").update({ campaign_tag: campaignTag }).eq("id", outboxRow.id);
+          } catch {}
+        }
+
         enqueued += 1;
       } catch (error) {
         failed += 1;
@@ -6130,6 +6419,547 @@ app.get("/admin/newsletter/weekly-events", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("[admin] weekly-events fetch error:", err.message);
     return res.status(500).json({ error: "Failed to fetch weekly events" });
+  }
+});
+
+// ---------------------------
+// Newsletter Analytics (admin)
+// ---------------------------
+
+// GET /admin/analytics/overview — aggregate stats via SQL aggregation
+app.get("/admin/analytics/overview", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+
+    // Use SQL for aggregation instead of loading full tables
+    const [outboxAgg, opensAgg, clicksAgg, topLinksRes] = await Promise.all([
+      // Outbox summary
+      sb.rpc("exec_sql", { query: `
+        SELECT
+          COUNT(DISTINCT campaign_tag) AS total_campaigns,
+          COUNT(*) AS total_sent
+        FROM email_outbox WHERE campaign_tag IS NOT NULL
+      ` }).then(r => r.data).catch(() => null),
+
+      // Unique opens (distinct tracking_ids that have at least one open)
+      sb.rpc("exec_sql", { query: `
+        SELECT COUNT(DISTINCT eo.tracking_id) AS unique_opens
+        FROM email_opens eo
+        JOIN email_outbox ob ON ob.tracking_id = eo.tracking_id
+        WHERE ob.campaign_tag IS NOT NULL
+      ` }).then(r => r.data).catch(() => null),
+
+      // Unique clicks
+      sb.rpc("exec_sql", { query: `
+        SELECT COUNT(DISTINCT ec.tracking_id) AS unique_clicks
+        FROM email_clicks ec
+        JOIN email_outbox ob ON ob.tracking_id = ec.tracking_id
+        WHERE ob.campaign_tag IS NOT NULL
+      ` }).then(r => r.data).catch(() => null),
+
+      // Top clicked links
+      sb.from("email_clicks")
+        .select("link_url, link_label")
+        .limit(5000),
+    ]);
+
+    // Fallback: if RPC not available, use simpler queries
+    let totalCampaigns = 0, totalSent = 0, uniqueOpens = 0, uniqueClicks = 0;
+
+    if (outboxAgg && outboxAgg.length > 0) {
+      totalCampaigns = parseInt(outboxAgg[0].total_campaigns) || 0;
+      totalSent = parseInt(outboxAgg[0].total_sent) || 0;
+    } else {
+      // Fallback: count from outbox
+      const { count } = await sb.from("email_outbox").select("id", { count: "exact", head: true }).not("campaign_tag", "is", null);
+      totalSent = count || 0;
+      const { data: tags } = await sb.from("email_outbox").select("campaign_tag").not("campaign_tag", "is", null);
+      totalCampaigns = new Set((tags || []).map(t => t.campaign_tag)).size;
+    }
+
+    if (opensAgg && opensAgg.length > 0) {
+      uniqueOpens = parseInt(opensAgg[0].unique_opens) || 0;
+    } else {
+      // Fallback: get distinct opened tracking_ids
+      const { data: openTids } = await sb.from("email_opens").select("tracking_id");
+      uniqueOpens = new Set((openTids || []).map(o => o.tracking_id)).size;
+    }
+
+    if (clicksAgg && clicksAgg.length > 0) {
+      uniqueClicks = parseInt(clicksAgg[0].unique_clicks) || 0;
+    } else {
+      const { data: clickTids } = await sb.from("email_clicks").select("tracking_id");
+      uniqueClicks = new Set((clickTids || []).map(c => c.tracking_id)).size;
+    }
+
+    // Top clicked links — aggregate in JS from limited result set
+    const linkClickMap = {};
+    for (const c of (topLinksRes.data || [])) {
+      const key = c.link_url;
+      if (!linkClickMap[key]) {
+        linkClickMap[key] = { link_url: c.link_url, link_label: c.link_label, clicks: 0 };
+      }
+      linkClickMap[key].clicks++;
+    }
+    const topClickedLinks = Object.values(linkClickMap)
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 10);
+
+    return res.json({
+      total_campaigns: totalCampaigns,
+      total_sent: totalSent,
+      total_opens: uniqueOpens,
+      total_clicks: uniqueClicks,
+      avg_open_rate: totalSent > 0 ? Math.round((uniqueOpens / totalSent) * 1000) / 10 : 0,
+      avg_click_rate: totalSent > 0 ? Math.round((uniqueClicks / totalSent) * 1000) / 10 : 0,
+      top_clicked_links: topClickedLinks,
+    });
+  } catch (err) {
+    console.error("[admin] analytics overview error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch analytics overview" });
+  }
+});
+
+// GET /admin/analytics/campaigns — list all campaigns with open/click stats
+app.get("/admin/analytics/campaigns", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+
+    // Get all distinct campaign_tags with their send counts
+    const { data: campaigns, error } = await sb
+      .from("email_outbox")
+      .select("campaign_tag, id, tracking_id, status, created_at")
+      .not("campaign_tag", "is", null)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    // Group by campaign_tag
+    const campaignMap = {};
+    for (const row of (campaigns || [])) {
+      if (!row.campaign_tag) continue;
+      if (!campaignMap[row.campaign_tag]) {
+        campaignMap[row.campaign_tag] = {
+          campaign_tag: row.campaign_tag,
+          sent_at: row.created_at,
+          total_sent: 0,
+          delivered: 0,
+          outbox_ids: [],
+          tracking_ids: [],
+        };
+      }
+      const c = campaignMap[row.campaign_tag];
+      c.total_sent++;
+      if (["sent", "delivered"].includes(row.status)) c.delivered++;
+      c.outbox_ids.push(row.id);
+      c.tracking_ids.push(row.tracking_id);
+    }
+
+    const tags = Object.keys(campaignMap);
+    if (tags.length === 0) {
+      return res.json({ campaigns: [] });
+    }
+
+    // Get all tracking_ids across all campaigns for scoped queries
+    const allTrackingIds = Object.values(campaignMap).flatMap((c) => c.tracking_ids);
+
+    // Fetch only opens/clicks for these tracking_ids (scoped, not full table)
+    const [opensRes, clicksRes] = await Promise.all([
+      sb.from("email_opens").select("tracking_id").in("tracking_id", allTrackingIds),
+      sb.from("email_clicks").select("tracking_id").in("tracking_id", allTrackingIds),
+    ]);
+
+    const opensByTracking = new Set((opensRes.data || []).map((o) => o.tracking_id));
+    const clicksByTracking = new Set((clicksRes.data || []).map((c) => c.tracking_id));
+
+    // Build response
+    const result = tags.map((tag) => {
+      const c = campaignMap[tag];
+      const uniqueOpens = c.tracking_ids.filter((t) => opensByTracking.has(t)).length;
+      const uniqueClicks = c.tracking_ids.filter((t) => clicksByTracking.has(t)).length;
+      return {
+        campaign_tag: tag,
+        sent_at: c.sent_at,
+        total_sent: c.total_sent,
+        delivered: c.delivered,
+        unique_opens: uniqueOpens,
+        unique_clicks: uniqueClicks,
+        open_rate: c.total_sent > 0 ? Math.round((uniqueOpens / c.total_sent) * 1000) / 10 : 0,
+        click_rate: c.total_sent > 0 ? Math.round((uniqueClicks / c.total_sent) * 1000) / 10 : 0,
+      };
+    });
+
+    // Sort by sent_at descending
+    result.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+
+    return res.json({ campaigns: result });
+  } catch (err) {
+    console.error("[admin] analytics campaigns error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+
+// GET /admin/analytics/campaigns/:tag — detail for a single campaign (per-link breakdown)
+app.get("/admin/analytics/campaigns/:tag", requireAdmin, async (req, res) => {
+  try {
+    const { tag } = req.params;
+    const { supabase: sb } = await import("./supabase.js");
+
+    // Get outbox rows for this campaign
+    const { data: outboxRows, error: e1 } = await sb
+      .from("email_outbox")
+      .select("id, tracking_id, status, created_at")
+      .eq("campaign_tag", tag);
+
+    if (e1) throw e1;
+    if (!outboxRows || outboxRows.length === 0) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    const outboxIds = outboxRows.map((r) => r.id);
+    const trackingIds = outboxRows.map((r) => r.tracking_id);
+
+    // Get opens
+    const { data: opens } = await sb
+      .from("email_opens")
+      .select("tracking_id, opened_at")
+      .in("tracking_id", trackingIds);
+
+    const uniqueOpenTrackingIds = new Set((opens || []).map((o) => o.tracking_id));
+
+    // Get clicks with link details
+    const { data: clicks } = await sb
+      .from("email_clicks")
+      .select("tracking_id, link_url, link_label, link_index, clicked_at")
+      .in("tracking_id", trackingIds);
+
+    // Per-link breakdown
+    const linkMap = {};
+    const uniqueClickTrackingIds = new Set();
+    for (const click of (clicks || [])) {
+      uniqueClickTrackingIds.add(click.tracking_id);
+      const key = `${click.link_label}::${click.link_url}`;
+      if (!linkMap[key]) {
+        linkMap[key] = {
+          link_url: click.link_url,
+          link_label: click.link_label,
+          total_clicks: 0,
+          unique_clicks: new Set(),
+        };
+      }
+      linkMap[key].total_clicks++;
+      linkMap[key].unique_clicks.add(click.tracking_id);
+    }
+
+    const linksRaw = Object.values(linkMap)
+      .map((l) => ({
+        link_url: l.link_url,
+        link_label: l.link_label,
+        total_clicks: l.total_clicks,
+        unique_clicks: l.unique_clicks.size,
+      }))
+      .sort((a, b) => b.total_clicks - a.total_clicks);
+
+    // Resolve event titles from click URLs (match /e/{slug} pattern)
+    const slugSet = new Set();
+    for (const l of linksRaw) {
+      try {
+        const u = new URL(l.link_url);
+        const m = u.pathname.match(/^\/e\/([^/?]+)/);
+        if (m) slugSet.add(m[1]);
+      } catch {}
+    }
+
+    const slugToTitle = {};
+    if (slugSet.size > 0) {
+      try {
+        const slugArr = [...slugSet];
+        const { data: events } = await sb
+          .from("events")
+          .select("slug, title")
+          .in("slug", slugArr);
+        for (const ev of (events || [])) {
+          if (ev.slug && ev.title) slugToTitle[ev.slug] = ev.title;
+        }
+      } catch {}
+    }
+
+    const links = linksRaw.map((l) => {
+      let eventTitle = null;
+      try {
+        const u = new URL(l.link_url);
+        const m = u.pathname.match(/^\/e\/([^/?]+)/);
+        if (m && slugToTitle[m[1]]) eventTitle = slugToTitle[m[1]];
+      } catch {}
+      return { ...l, event_title: eventTitle };
+    });
+
+    // Per-event breakdown: aggregate all clicks pointing to the same event
+    const eventMap = {};
+    for (const l of links) {
+      if (!l.event_title) continue;
+      let slug = null;
+      try {
+        const u = new URL(l.link_url);
+        const m = u.pathname.match(/^\/e\/([^/?]+)/);
+        if (m) slug = m[1];
+      } catch {}
+      if (!slug) continue;
+      if (!eventMap[slug]) {
+        eventMap[slug] = { slug, title: l.event_title, total_clicks: 0, unique_clicks: 0, links: [] };
+      }
+      eventMap[slug].total_clicks += l.total_clicks;
+      eventMap[slug].unique_clicks += l.unique_clicks;
+      eventMap[slug].links.push({ label: l.link_label, total_clicks: l.total_clicks, unique_clicks: l.unique_clicks });
+    }
+    const events_breakdown = Object.values(eventMap).sort((a, b) => b.total_clicks - a.total_clicks);
+
+    const totalSent = outboxRows.length;
+    const delivered = outboxRows.filter((r) => ["sent", "delivered"].includes(r.status)).length;
+
+    return res.json({
+      campaign_tag: tag,
+      sent_at: outboxRows[0].created_at,
+      total_sent: totalSent,
+      delivered,
+      unique_opens: uniqueOpenTrackingIds.size,
+      unique_clicks: uniqueClickTrackingIds.size,
+      open_rate: totalSent > 0 ? Math.round((uniqueOpenTrackingIds.size / totalSent) * 1000) / 10 : 0,
+      click_rate: totalSent > 0 ? Math.round((uniqueClickTrackingIds.size / totalSent) * 1000) / 10 : 0,
+      links,
+      events_breakdown,
+      total_opens: (opens || []).length,
+      total_clicks: (clicks || []).length,
+    });
+  } catch (err) {
+    console.error("[admin] analytics campaign detail error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch campaign analytics" });
+  }
+});
+
+// GET /host/analytics — aggregate analytics across all host's events
+app.get("/host/analytics", requireAuth, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+
+    // Get all event IDs where user is a host
+    const eventIds = await getUserEventIds(req.user.id);
+    if (!eventIds || eventIds.length === 0) {
+      return res.json({ events: [], total_views: 0, total_unique_visitors: 0, total_rsvps: 0 });
+    }
+
+    // Get page views for all host events
+    const { data: views } = await sb
+      .from("event_page_views")
+      .select("event_id, visitor_id, utm_source, created_at")
+      .in("event_id", eventIds);
+
+    // Aggregate per event
+    const eventViewMap = {};
+    const allVisitors = new Set();
+    let newsletterViews = 0;
+    for (const v of (views || [])) {
+      if (!eventViewMap[v.event_id]) {
+        eventViewMap[v.event_id] = { views: 0, visitors: new Set() };
+      }
+      eventViewMap[v.event_id].views++;
+      eventViewMap[v.event_id].visitors.add(v.visitor_id);
+      allVisitors.add(v.visitor_id);
+      if (v.utm_source === "pullup_newsletter") newsletterViews++;
+    }
+
+    // Get event details + RSVP counts
+    const { data: events } = await sb
+      .from("events")
+      .select("id, title, slug, starts_at, cover_image_url, image_url")
+      .in("id", eventIds)
+      .order("starts_at", { ascending: false });
+
+    // Batch-fetch RSVP counts for all events in one query instead of N+1
+    const { data: rsvpRows } = await sb
+      .from("rsvps")
+      .select("event_id, party_size, total_guests, booking_status, status")
+      .in("event_id", eventIds);
+
+    const rsvpCountMap = {};
+    for (const r of (rsvpRows || [])) {
+      if (r.booking_status === "CONFIRMED" || r.status === "attending") {
+        rsvpCountMap[r.event_id] = (rsvpCountMap[r.event_id] || 0) + (r.total_guests ?? r.party_size ?? 1);
+      }
+    }
+
+    let totalRsvps = 0;
+    const eventsWithAnalytics = (events || []).map((e) => {
+      const rsvps = rsvpCountMap[e.id] || 0;
+      totalRsvps += rsvps;
+      const ev = eventViewMap[e.id] || { views: 0, visitors: new Set() };
+      return {
+        id: e.id,
+        title: e.title,
+        slug: e.slug,
+        starts_at: e.starts_at,
+        cover_image_url: e.cover_image_url || e.image_url,
+        views: ev.views,
+        unique_visitors: ev.visitors.size,
+        rsvps,
+        conversion_rate: ev.views > 0
+          ? Math.round((rsvps / ev.views) * 1000) / 10
+          : 0,
+      };
+    });
+
+    // Sort by views descending
+    eventsWithAnalytics.sort((a, b) => b.views - a.views);
+
+    // Daily views across all events (last 30 days)
+    const dailyViews = {};
+    for (const v of (views || [])) {
+      const day = v.created_at.slice(0, 10);
+      dailyViews[day] = (dailyViews[day] || 0) + 1;
+    }
+
+    return res.json({
+      events: eventsWithAnalytics,
+      total_views: (views || []).length,
+      total_unique_visitors: allVisitors.size,
+      total_rsvps: totalRsvps,
+      newsletter_views: newsletterViews,
+      daily_views: dailyViews,
+      avg_conversion: (views || []).length > 0
+        ? Math.round((totalRsvps / (views || []).length) * 1000) / 10
+        : 0,
+    });
+  } catch (err) {
+    console.error("[host] aggregate analytics error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+
+// GET /host/events/:id/analytics — page view analytics for hosts
+app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify the user has access to this event
+    const hasAccess = await isUserEventHost(req.user.id, id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "forbidden" });
+    }
+
+    const { supabase: sb } = await import("./supabase.js");
+
+    // Get page views
+    const { data: views, error: viewsErr } = await sb
+      .from("event_page_views")
+      .select("id, visitor_id, referrer, utm_source, utm_medium, utm_campaign, utm_content, device_type, created_at")
+      .eq("event_id", id)
+      .order("created_at", { ascending: false });
+
+    if (viewsErr) throw viewsErr;
+
+    const totalViews = (views || []).length;
+    const uniqueVisitors = new Set((views || []).map((v) => v.visitor_id).filter(Boolean)).size;
+
+    // Traffic sources breakdown
+    const sourceMap = {};
+    for (const v of (views || [])) {
+      let source = "direct";
+      if (v.utm_source) {
+        source = v.utm_source;
+      } else if (v.referrer) {
+        try {
+          const host = new URL(v.referrer).hostname.replace("www.", "");
+          if (host.includes("instagram")) source = "instagram";
+          else if (host.includes("facebook") || host.includes("fb.")) source = "facebook";
+          else if (host.includes("twitter") || host.includes("x.com")) source = "twitter";
+          else if (host.includes("linkedin")) source = "linkedin";
+          else if (host.includes("pullup")) source = "pullup";
+          else source = host;
+        } catch {
+          source = "other";
+        }
+      }
+      sourceMap[source] = (sourceMap[source] || 0) + 1;
+    }
+
+    const sources = Object.entries(sourceMap)
+      .map(([source, count]) => ({ source, count, percentage: Math.round((count / totalViews) * 1000) / 10 }))
+      .sort((a, b) => b.count - a.count);
+
+    // Get RSVP count for conversion funnel
+    const counts = await getEventCounts(id);
+
+    // Views per day (last 30 days)
+    const dailyViews = {};
+    for (const v of (views || [])) {
+      const day = v.created_at.slice(0, 10);
+      dailyViews[day] = (dailyViews[day] || 0) + 1;
+    }
+
+    // Newsletter impact: how many views came from newsletters
+    const newsletterViews = (views || []).filter((v) => v.utm_source === "pullup_newsletter").length;
+    const newsletterCampaigns = [...new Set(
+      (views || []).filter((v) => v.utm_campaign).map((v) => v.utm_campaign)
+    )];
+
+    // VIP invite email impact
+    const event = await findEventById(id);
+    let vipStats = null;
+    if (event?.slug) {
+      try {
+        const campaignTag = `vip_invite_${event.slug}`;
+        const { data: vipOutbox } = await sb
+          .from("email_outbox")
+          .select("id, tracking_id")
+          .eq("campaign_tag", campaignTag);
+
+        if (vipOutbox && vipOutbox.length > 0) {
+          const trackingIds = vipOutbox.map((r) => r.tracking_id).filter(Boolean);
+          const [opensRes, clicksRes] = await Promise.all([
+            trackingIds.length > 0
+              ? sb.from("email_opens").select("tracking_id").in("tracking_id", trackingIds)
+              : { data: [] },
+            trackingIds.length > 0
+              ? sb.from("email_clicks").select("tracking_id").in("tracking_id", trackingIds)
+              : { data: [] },
+          ]);
+          const uniqueOpens = new Set((opensRes.data || []).map((o) => o.tracking_id)).size;
+          const uniqueClicks = new Set((clicksRes.data || []).map((c) => c.tracking_id)).size;
+          vipStats = {
+            totalSent: vipOutbox.length,
+            uniqueOpens,
+            uniqueClicks,
+            openRate: vipOutbox.length > 0 ? Math.round((uniqueOpens / vipOutbox.length) * 1000) / 10 : 0,
+            clickRate: vipOutbox.length > 0 ? Math.round((uniqueClicks / vipOutbox.length) * 1000) / 10 : 0,
+          };
+        }
+      } catch (vipErr) {
+        console.error("[host] vip analytics error:", vipErr.message);
+      }
+    }
+
+    // VIP email views on event page
+    const vipViews = (views || []).filter((v) =>
+      v.utm_campaign && v.utm_campaign.startsWith("vip_invite_")
+    ).length;
+
+    return res.json({
+      total_views: totalViews,
+      unique_visitors: uniqueVisitors,
+      sources,
+      daily_views: dailyViews,
+      newsletter_views: newsletterViews,
+      newsletter_campaigns: newsletterCampaigns,
+      vip_stats: vipStats,
+      vip_views: vipViews,
+      rsvp_count: (counts?.confirmed || 0) + (counts?.waitlist || 0),
+      conversion_rate: totalViews > 0
+        ? Math.round((((counts?.confirmed || 0) + (counts?.waitlist || 0)) / totalViews) * 1000) / 10
+        : 0,
+    });
+  } catch (err) {
+    console.error("[host] event analytics error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
 

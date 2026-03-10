@@ -1,9 +1,9 @@
 import { sendEmail as infraSendEmail } from "../email/index.js";
 import { renderEventEmailTemplate } from "./emailTemplateService.js";
 
-export async function sendEmail({ to, subject, html, text }) {
+export async function sendEmail({ to, subject, html, text, from }) {
   return infraSendEmail({
-    from: '"PullUp RSVP" <no-reply@pullup.se>',
+    from: from || '"PullUp RSVP" <no-reply@pullup.se>',
     to,
     subject,
     html,

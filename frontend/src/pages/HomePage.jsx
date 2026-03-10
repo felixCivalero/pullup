@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../contexts/AuthContext";
 
-import { TabButton } from "../components/HomeTabs";
 import { EventsTab } from "../components/HomeEventsTab";
 
 import { authenticatedFetch } from "../lib/api.js";
@@ -289,43 +288,6 @@ export function HomePage() {
             }
           }
         `}</style>
-
-        {/* Main app mode tabs (Events / CRM) */}
-        <div
-          style={{
-            position: "sticky",
-            top: 56,
-            zIndex: 5,
-            marginBottom: "clamp(12px, 3vw, 20px)",
-          }}
-        >
-          <div
-            className="main-tabs-rail"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "4px",
-              background: "rgba(5, 4, 10, 0.96)",
-              borderRadius: "999px",
-              padding: "4px",
-              border: "1px solid rgba(255,255,255,0.06)",
-              boxShadow: "0 18px 40px rgba(0,0,0,0.65)",
-              maxWidth: "420px",
-              margin: "0 auto",
-            }}
-          >
-            <TabButton
-              label="Events"
-              count={(upcomingEvents || []).length}
-                active={true}
-            />
-            <TabButton
-              label="CRM"
-                active={false}
-                onClick={() => navigate("/crm")}
-            />
-          </div>
-        </div>
 
         <div
           className="responsive-card"

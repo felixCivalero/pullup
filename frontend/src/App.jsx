@@ -12,7 +12,10 @@ import { EventGuestsPage } from "./pages/EventGuestsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
-import { StockholmEventsPage } from "./pages/StockholmEventsPage";
+import { DiscoverPage } from "./pages/DiscoverPage";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { EventAnalyticsPage } from "./pages/EventAnalyticsPage";
+import { HostAnalyticsPage } from "./pages/HostAnalyticsPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -44,9 +47,11 @@ function App() {
         <Route element={<ProtectedLayout />}>
           {/* Events / CRM dashboard */}
           <Route path="/events" element={<HomePage />} />
+          <Route path="/analytics" element={<HostAnalyticsPage />} />
           <Route path="/crm" element={<CrmPage />} />
           <Route path="/admin" element={<AdminPage />} />
-          <Route path="/admin/stockholm-events" element={<StockholmEventsPage />} />
+          <Route path="/admin/discover" element={<DiscoverPage />} />
+          <Route path="/admin/analytics" element={<AnalyticsPage />} />
           {/* Backwards-compat: /home currently points to events */}
           <Route path="/home" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />
@@ -65,6 +70,14 @@ function App() {
           <Route
             path="/app/events/:id/manage/edit"
             element={<CreateEventPage />}
+          />
+          <Route
+            path="/app/events/:id/analytics"
+            element={
+              <ErrorBoundary>
+                <EventAnalyticsPage />
+              </ErrorBoundary>
+            }
           />
           <Route
             path="/app/events/:id/guests"

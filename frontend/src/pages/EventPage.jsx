@@ -287,6 +287,7 @@ export function EventPage() {
               setEvent(offerData.event);
               setVipOffer(offerData);
               setVipToken(initialToken);
+              setShowRsvpForm(true);
               setSearchParams({}, { replace: true });
               setLoading(false);
               return;
@@ -353,6 +354,7 @@ export function EventPage() {
               const offerData = await offerRes.json();
               setVipOffer(offerData);
               setVipToken(vipQueryToken);
+              setShowRsvpForm(true);
               setSearchParams({}, { replace: true });
             } else {
               const error = await offerRes.json().catch(() => ({}));
@@ -376,6 +378,39 @@ export function EventPage() {
 
     if (slug) loadEvent();
   }, [slug, searchParams, setSearchParams, showToast]);
+
+  // Track page view (fire-and-forget, never blocks rendering)
+  useEffect(() => {
+    if (!event?.id || !slug) return;
+    try {
+      // Get or create a persistent visitor ID
+      let visitorId = localStorage.getItem("pullup_visitor_id");
+      if (!visitorId) {
+        visitorId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        localStorage.setItem("pullup_visitor_id", visitorId);
+      }
+
+      // Parse UTM params from the current URL
+      const params = new URLSearchParams(window.location.search);
+      const isMobile = window.innerWidth < 768;
+
+      publicFetch(`/events/${slug}/view`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitorId,
+          referrer: document.referrer || null,
+          utm_source: params.get("utm_source") || null,
+          utm_medium: params.get("utm_medium") || null,
+          utm_campaign: params.get("utm_campaign") || null,
+          utm_content: params.get("utm_content") || null,
+          deviceType: isMobile ? "mobile" : "desktop",
+        }),
+      }).catch(() => {}); // Silently ignore tracking failures
+    } catch {
+      // Never let tracking break the page
+    }
+  }, [event?.id, slug]);
 
   if (loading) {
     return (

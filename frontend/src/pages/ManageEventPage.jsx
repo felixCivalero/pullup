@@ -24,10 +24,12 @@ import { getEventUrl, getEventShareUrl } from "../lib/urlUtils";
 import { FaPaperPlane, FaCalendar } from "react-icons/fa";
 import { logger } from "../lib/logger.js";
 import { EventOverviewStats } from "../components/EventOverviewStats.jsx";
-import { useAuth } from "../contexts/AuthContext.jsx";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
+import { EventHostsSection } from "../components/EventHostsSection.jsx";
+import { useEventNav } from "../contexts/EventNavContext.jsx";
 
 import { authenticatedFetch, publicFetch, API_BASE } from "../lib/api.js";
+import { colors } from "../theme/colors.js";
 import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
 import { fetchTimezoneForLocation } from "../lib/timezone.js";
 
@@ -130,6 +132,136 @@ function calculateCuisineTimeslots(startTime, endTime, intervalHours) {
 }
 
 // Overview Tab Component - shows event statistics
+function OverviewAnalyticsSummary({ eventId, attending, isMobile }) {
+  const [analytics, setAnalytics] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await authenticatedFetch(`/host/events/${eventId}/analytics`);
+        if (res.ok) setAnalytics(await res.json());
+      } catch {}
+    }
+    load();
+  }, [eventId]);
+
+  if (!analytics || analytics.total_views === 0) return null;
+
+  const convRate = analytics.total_views > 0
+    ? Math.round((attending / analytics.total_views) * 1000) / 10
+    : 0;
+
+  return (
+    <>
+      <div
+        style={{
+          fontSize: "11px",
+          textTransform: "uppercase",
+          letterSpacing: "0.12em",
+          fontWeight: 600,
+          opacity: 0.6,
+          marginBottom: "10px",
+          marginTop: "24px",
+          color: "#fff",
+        }}
+      >
+        Page Analytics
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(140px, 1fr))",
+          gap: isMobile ? "10px" : "16px",
+          marginBottom: "16px",
+        }}
+      >
+        <div style={miniStatStyle}>
+          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: 2 }}>Views</div>
+          <div style={{ fontSize: "20px", fontWeight: 700, color: "#fff" }}>
+            {analytics.total_views}
+          </div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
+            {analytics.unique_visitors} unique
+          </div>
+        </div>
+        <div style={miniStatStyle}>
+          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: 2 }}>Conversion</div>
+          <div style={{ fontSize: "20px", fontWeight: 700, color: convRate > 20 ? "#10b981" : "#c0c0c0" }}>
+            {convRate}%
+          </div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
+            views to RSVP
+          </div>
+        </div>
+        {analytics.newsletter_views > 0 && (
+          <div style={miniStatStyle}>
+            <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: 2 }}>Newsletter</div>
+            <div style={{ fontSize: "20px", fontWeight: 700, color: colors.gold }}>
+              {analytics.newsletter_views}
+            </div>
+            <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
+              views from email
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Top sources */}
+      {analytics.sources.length > 0 && (
+        <div style={{
+          padding: "12px 14px",
+          borderRadius: "12px",
+          background: "rgb(12 10 18 / 10%)",
+          border: "1px solid rgba(255,255,255,0.05)",
+          marginBottom: "16px",
+        }}>
+          <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>
+            Traffic sources
+          </div>
+          {analytics.sources.slice(0, 5).map((s) => (
+            <div key={s.source} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <div style={{ flex: 1, fontSize: "12px", color: "rgba(255,255,255,0.7)", textTransform: "capitalize" }}>
+                {s.source}
+              </div>
+              <div style={{ width: 60, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)" }}>
+                <div style={{ height: "100%", borderRadius: 2, background: "rgba(192,192,192,0.5)", width: `${s.percentage}%` }} />
+              </div>
+              <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", minWidth: 32, textAlign: "right" }}>
+                {s.count}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={() => navigate(`/app/events/${eventId}/analytics`)}
+        style={{
+          width: "100%",
+          padding: "10px",
+          borderRadius: "10px",
+          border: "1px solid rgba(255,255,255,0.08)",
+          background: "transparent",
+          color: "rgba(255,255,255,0.5)",
+          fontSize: "12px",
+          cursor: "pointer",
+          marginBottom: "8px",
+        }}
+      >
+        View full analytics
+      </button>
+    </>
+  );
+}
+
+const miniStatStyle = {
+  padding: "12px",
+  background: "rgb(12 10 18 / 10%)",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.05)",
+};
+
 function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
   // Calculate stats from guests
   const stats = guests.reduce(
@@ -637,575 +769,18 @@ function OverviewTabContent({ event, guests, dinnerSlots, isMobile = false }) {
             </div>
           </div>
         )}
+
+      {/* Inline analytics summary */}
+      <OverviewAnalyticsSummary
+        eventId={event.id}
+        attending={attending}
+        isMobile={isMobile}
+      />
     </>
   );
 }
 
-// Simple hosts list component. canManageHosts = owner or admin can add/remove hosts.
-function EventHostsSection({ eventId, canManageHosts = false }) {
-  const { showToast } = useToast();
-  const { user } = useAuth();
-  const [hosts, setHosts] = useState([]);
-  const [pendingInvitations, setPendingInvitations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [newHostEmail, setNewHostEmail] = useState("");
-  const [newHostRole, setNewHostRole] = useState("editor");
-  const [adding, setAdding] = useState(false);
-
-  const applyHostsResponse = (data) => {
-    const list = (data.hosts || []).sort((a, b) =>
-      a.role === "owner" ? -1 : b.role === "owner" ? 1 : 0,
-    );
-    setHosts(list);
-    setPendingInvitations(data.pendingInvitations || []);
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-    async function loadHosts() {
-      setLoading(true);
-      try {
-        const res = await authenticatedFetch(`/host/events/${eventId}/hosts`);
-        if (!res.ok) throw new Error("Failed to load hosts");
-        const data = await res.json();
-        if (isMounted) applyHostsResponse(data);
-      } catch (err) {
-        console.error("Failed to load hosts:", err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    }
-    if (eventId) {
-      loadHosts();
-    }
-    return () => {
-      isMounted = false;
-    };
-  }, [eventId]);
-
-  const currentUserId = user?.id;
-
-  const handleAddHost = async () => {
-    if (!newHostEmail.trim()) return;
-    if (!canManageHosts) {
-      showToast("Only the event owner or admin can add hosts", "error");
-      return;
-    }
-    setAdding(true);
-    try {
-      const res = await authenticatedFetch(`/host/events/${eventId}/hosts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: newHostEmail.trim(),
-          role: newHostRole,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || data.error || "Failed to add host");
-      }
-      applyHostsResponse(data);
-      setNewHostEmail("");
-      const wasInvitation = (data.pendingInvitations || []).some(
-        (p) => p.email === newHostEmail.trim().toLowerCase(),
-      );
-      showToast(
-        wasInvitation
-          ? "Invitation sent. They'll receive an email to sign up."
-          : "Arranger added. They'll receive an email.",
-        "success",
-      );
-    } catch (err) {
-      console.error("Failed to add host:", err);
-      showToast(err.message || "Failed to add host", "error");
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  const handleRemoveHost = async (hostToRemove) => {
-    if (!canManageHosts) {
-      showToast("Only the event owner or admin can remove hosts", "error");
-      return;
-    }
-    if (hostToRemove.role === "owner") {
-      return;
-    }
-    const confirmed = window.confirm(
-      "Are you sure you want to remove this arranger?",
-    );
-    if (!confirmed) return;
-    try {
-      const res = await authenticatedFetch(
-        `/host/events/${eventId}/hosts/${hostToRemove.userId}`,
-        {
-          method: "DELETE",
-        },
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Failed to remove host");
-      }
-
-      setHosts((prev) =>
-        prev.filter(
-          (h) =>
-            !(h.userId === hostToRemove.userId && h.role === hostToRemove.role),
-        ),
-      );
-      showToast("Host removed", "success");
-      const refetch = await authenticatedFetch(`/host/events/${eventId}/hosts`);
-      if (refetch.ok) {
-        const data = await refetch.json();
-        applyHostsResponse(data);
-      }
-    } catch (err) {
-      console.error("Failed to remove host:", err);
-      showToast(err.message || "Failed to remove host", "error");
-    }
-  };
-
-  const handleRevokeInvitation = async (email) => {
-    if (!canManageHosts) {
-      showToast(
-        "Only the event owner or admin can revoke invitations",
-        "error",
-      );
-      return;
-    }
-    try {
-      const res = await authenticatedFetch(
-        `/host/events/${eventId}/invitations/${encodeURIComponent(email)}`,
-        { method: "DELETE" },
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || body.error || "Failed to revoke");
-      }
-      const data = await res.json();
-      applyHostsResponse(data);
-      showToast("Invitation revoked", "success");
-    } catch (err) {
-      console.error("Failed to revoke invitation:", err);
-      showToast(err.message || "Failed to revoke invitation", "error");
-    }
-  };
-
-  const [updatingRoleFor, setUpdatingRoleFor] = useState(null);
-  const [editingRoleFor, setEditingRoleFor] = useState(null);
-  const handleUpdateRole = async (host, newRole) => {
-    if (!canManageHosts || host.role === "owner") return;
-    if (host.role === newRole) return;
-    setUpdatingRoleFor(host.userId);
-    try {
-      const res = await authenticatedFetch(
-        `/host/events/${eventId}/hosts/${host.userId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ role: newRole }),
-        },
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || body.message || "Failed to update role");
-      }
-      const data = await res.json();
-      const list = data.hosts || [];
-      setHosts(
-        list.sort((a, b) =>
-          a.role === "owner" ? -1 : b.role === "owner" ? 1 : 0,
-        ),
-      );
-      showToast(`Role updated to ${newRole}`, "success");
-    } catch (err) {
-      console.error("Failed to update host role:", err);
-      showToast(err.message || "Failed to update role", "error");
-    } finally {
-      setUpdatingRoleFor(null);
-      setEditingRoleFor(null);
-    }
-  };
-
-  if (!eventId) return null;
-
-  return (
-    <div
-      style={{
-        padding: "16px 20px",
-        borderRadius: "12px",
-        border: "1px solid rgba(255,255,255,0.08)",
-        background: "rgba(12, 10, 18, 0.8)",
-      }}
-    >
-      {loading ? (
-        <div style={{ fontSize: "13px", opacity: 0.7 }}>Loading hosts...</div>
-      ) : hosts.length === 0 && pendingInvitations.length === 0 ? (
-        <div style={{ fontSize: "13px", opacity: 0.7 }}>No arrangers yet.</div>
-      ) : (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-            marginBottom: "12px",
-          }}
-        >
-          {hosts.map((host) => (
-            <div
-              key={`${host.userId}-${host.role}`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 12px",
-                borderRadius: "8px",
-                background: "rgba(20, 16, 30, 0.6)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                fontSize: "13px",
-                gap: "12px",
-                flexWrap: "wrap",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2,
-                  minWidth: 0,
-                }}
-              >
-                <span style={{ fontWeight: 600, color: "#fff" }}>
-                  {host.profile?.name || "Unknown user"}
-                </span>
-                <span
-                  style={{ opacity: 0.6, color: "#9ca3af", fontSize: "12px" }}
-                >
-                  {host.email ? host.email : `ID: ${host.userId}`}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  flexShrink: 0,
-                }}
-              >
-                {host.role === "owner" ? (
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      padding: "4px 10px",
-                      borderRadius: "999px",
-                      border: "1px solid rgba(139,92,246,0.6)",
-                      color: "#fff",
-                      background: "rgba(139,92,246,0.3)",
-                    }}
-                  >
-                    Owner
-                  </span>
-                ) : editingRoleFor === host.userId ? (
-                  <select
-                    value={host.role}
-                    onChange={(e) => handleUpdateRole(host, e.target.value)}
-                    disabled={updatingRoleFor === host.userId}
-                    style={{
-                      ...inputStyle,
-                      minHeight: "32px",
-                      fontSize: "12px",
-                      padding: "4px 8px",
-                      minWidth: "110px",
-                    }}
-                    aria-label={`Change role for ${host.profile?.name || host.email}`}
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="editor">Editor</option>
-                    <option value="reception">Reception</option>
-                    <option value="viewer">Viewer</option>
-                  </select>
-                ) : (
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      padding: "4px 8px",
-                      borderRadius: "999px",
-                      border: "1px solid rgba(139,92,246,0.6)",
-                      color: "#fff",
-                      background: "rgba(139,92,246,0.3)",
-                    }}
-                  >
-                    {host.role}
-                  </span>
-                )}
-                {canManageHosts && host.role !== "owner" && (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEditingRoleFor(
-                          editingRoleFor === host.userId ? null : host.userId,
-                        )
-                      }
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: "999px",
-                        border: "1px solid rgba(148,163,184,0.5)",
-                        background: "rgba(15,23,42,0.8)",
-                        color: "#e5e7eb",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "13px",
-                        cursor: "pointer",
-                      }}
-                      aria-label={`Edit role for ${
-                        host.profile?.name || host.email || "arranger"
-                      }`}
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveHost(host)}
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: "999px",
-                        border: "1px solid rgba(248,113,113,0.7)",
-                        background: "rgba(127,29,29,0.5)",
-                        color: "#fecaca",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "13px",
-                        cursor: "pointer",
-                      }}
-                      aria-label={`Remove ${
-                        host.profile?.name || host.email || "arranger"
-                      }`}
-                    >
-                      🗑
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-          {pendingInvitations.map((inv) => (
-            <div
-              key={inv.id || inv.email}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 12px",
-                borderRadius: "8px",
-                background: "rgba(20, 16, 30, 0.5)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                fontSize: "13px",
-                gap: "12px",
-                flexWrap: "wrap",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2,
-                  minWidth: 0,
-                }}
-              >
-                <span
-                  style={{ fontWeight: 600, color: "rgba(255,255,255,0.9)" }}
-                >
-                  {inv.email}
-                </span>
-                <span
-                  style={{ opacity: 0.6, color: "#9ca3af", fontSize: "12px" }}
-                >
-                  Invitation sent – awaiting sign up
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  flexShrink: 0,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    padding: "4px 10px",
-                    borderRadius: "999px",
-                    border: "1px solid rgba(234,179,8,0.6)",
-                    color: "#fef08a",
-                    background: "rgba(234,179,8,0.2)",
-                  }}
-                >
-                  Pending
-                </span>
-                <span
-                  style={{
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    color: "rgba(255,255,255,0.6)",
-                  }}
-                >
-                  {inv.role}
-                </span>
-                {canManageHosts && (
-                  <button
-                    type="button"
-                    onClick={() => handleRevokeInvitation(inv.email)}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(239,68,68,0.5)",
-                      background: "rgba(239,68,68,0.1)",
-                      color: "#fecaca",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Revoke
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {canManageHosts && (
-        <>
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              alignItems: "center",
-              flexWrap: "wrap",
-              marginTop: "4px",
-            }}
-          >
-            <input
-              type="text"
-              placeholder="Email address..."
-              value={newHostEmail}
-              onChange={(e) => setNewHostEmail(e.target.value)}
-              style={{
-                ...inputStyle,
-                minHeight: "36px",
-                fontSize: "13px",
-                flex: "1 1 200px",
-              }}
-              aria-label="Email of person to add as arranger"
-            />
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <select
-                id="new-host-role"
-                value={newHostRole}
-                onChange={(e) => setNewHostRole(e.target.value)}
-                style={{
-                  ...inputStyle,
-                  minHeight: "36px",
-                  fontSize: "13px",
-                  width: "auto",
-                  minWidth: "110px",
-                }}
-                aria-label="Role for new arranger"
-              >
-                <option value="admin">Admin</option>
-                <option value="editor">Editor</option>
-                <option value="reception">Reception</option>
-                <option value="viewer">Viewer</option>
-              </select>
-            </div>
-            <button
-              type="button"
-              onClick={handleAddHost}
-              disabled={adding || !newHostEmail.trim()}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: "none",
-                background:
-                  !newHostEmail.trim() || adding
-                    ? "rgba(139,92,246,0.3)"
-                    : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                color: "#fff",
-                fontSize: "13px",
-                fontWeight: 600,
-                cursor:
-                  !newHostEmail.trim() || adding ? "not-allowed" : "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {adding ? "Adding…" : "Add"}
-            </button>
-          </div>
-          <div style={{ fontSize: "11px", opacity: 0.6, marginTop: "6px" }}>
-            {(() => {
-              switch (newHostRole) {
-                case "admin":
-                  return (
-                    <span>
-                      <strong>Admin:</strong> Full control. Can add/remove
-                      hosts, edit event details, and manage all aspects of the
-                      event.
-                    </span>
-                  );
-                case "editor":
-                  return (
-                    <span>
-                      <strong>Editor:</strong> Can edit event details and assist
-                      with managing the event, but cannot add or remove other
-                      hosts.
-                    </span>
-                  );
-                case "reception":
-                  return (
-                    <span>
-                      <strong>Reception:</strong> Can help greet/check in guests
-                      and manage attendee information but cannot edit event
-                      details or hosts.
-                    </span>
-                  );
-                case "viewer":
-                  return (
-                    <span>
-                      <strong>Viewer:</strong> Can see event details and the
-                      guest list but cannot make changes.
-                    </span>
-                  );
-                default:
-                  return null;
-              }
-            })()}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
+// EventHostsSection is now imported from ../components/EventHostsSection.jsx
 
 // StatCard component for Overview tab
 function StatCard({ icon, label, value, color, compact = false }) {
@@ -1422,6 +997,7 @@ export function ManageEventPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { setEventNav } = useEventNav();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1628,6 +1204,13 @@ export function ManageEventPage() {
             const guestsData = await guestsRes.json();
             setGuests(guestsData.guests || []);
             setGuestsCount(guestsData.guests?.length || 0);
+
+            // Update navbar with event context
+            setEventNav({
+              title: data.title,
+              slug: data.slug,
+              guestsCount: guestsData.guests?.length || 0,
+            });
 
             // Load dinner slots if dinner is enabled
             if (data.dinnerEnabled && data.slug) {
@@ -2246,382 +1829,17 @@ export function ManageEventPage() {
         paddingBottom: "40px",
       }}
     >
-      {/* Cursor glow effect */}
-      <div
-        style={{
-          position: "fixed",
-          width: "600px",
-          height: "600px",
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, rgba(192, 192, 192, 0.08) 0%, transparent 70%)",
-          left: mousePosition.x - 300,
-          top: mousePosition.y - 300,
-          pointerEvents: "none",
-          transition: "all 0.3s ease-out",
-          zIndex: 1,
-        }}
-      />
-
-      {/* Hero Image Background - Full Screen */}
-      {(imagePreview !== undefined ? imagePreview : event.imageUrl) && (
-        <>
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              width: "100%",
-              height: "100%",
-              zIndex: 0,
-            }}
-            onClick={() => {
-              // Click on image to change it
-              fileInputRef.current?.click();
-            }}
-            onContextMenu={(e) => {
-              // Right-click to remove image
-              e.preventDefault();
-              if (
-                window.confirm(
-                  "Are you sure you want to remove this image? You can add a new one by clicking on the image.",
-                )
-              ) {
-                async function deleteImage() {
-                  try {
-                    const updateRes = await authenticatedFetch(
-                      `/host/events/${id}`,
-                      {
-                        method: "PUT",
-                        body: JSON.stringify({ imageUrl: null }),
-                      },
-                    );
-
-                    if (updateRes.ok) {
-                      const updated = await updateRes.json();
-                      setEvent((prev) => ({
-                        ...prev,
-                        imageUrl: null,
-                      }));
-                      setImagePreview(null);
-                      setHasUnsavedImage(false);
-                      showToast("Image removed", "success");
-                    } else {
-                      throw new Error("Failed to remove image");
-                    }
-                  } catch (error) {
-                    console.error("Error removing image:", error);
-                    showToast("Failed to remove image", "error");
-                  }
-                }
-                deleteImage();
-                if (fileInputRef.current) {
-                  fileInputRef.current.value = "";
-                }
-              }
-            }}
-          >
-            <img
-              src={imagePreview !== undefined ? imagePreview : event.imageUrl}
-              alt={event.title || "Event"}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-                cursor: "pointer",
-              }}
-            />
-          </div>
-          {/* Gradient overlay - fades to dark at bottom where menu is */}
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background:
-                "linear-gradient(to bottom, transparent 0%, transparent 30%, rgba(5, 4, 10, 0.2) 50%, rgba(5, 4, 10, 0.5) 65%, rgba(12, 10, 18, 0.8) 80%, rgba(12, 10, 18, 0.95) 90%, #0c0a12 100%)",
-              pointerEvents: "none",
-              zIndex: 1,
-            }}
-          />
-        </>
-      )}
-
-      {/* Content - Overlaid on background */}
+      {/* Content */}
       <div
         style={{
           position: "relative",
-          zIndex: 2,
           width: "100%",
           maxWidth: "100%",
           padding: "0",
           margin: "0",
         }}
       >
-        {/* Share and Calendar Icons - Above Title */}
-        {event && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "16px",
-              padding: "20px 20px 12px 20px",
-            }}
-          >
-            {/* Share button */}
-            <button
-              onClick={handleShare}
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                margin: 0,
-                boxShadow: "none",
-                appearance: "none",
-                WebkitAppearance: "none",
-                MozAppearance: "none",
-                cursor: "pointer",
-                color: "rgba(255, 255, 255, 0.8)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.color = "#fff";
-                e.target.style.transform = "scale(1.1)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.color = "rgba(255, 255, 255, 0.8)";
-                e.target.style.transform = "scale(1)";
-              }}
-            >
-              <FaPaperPlane size={20} />
-            </button>
-
-            {/* Calendar dropdown */}
-            <div
-              ref={calendarDropdownRef}
-              style={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowCalendarDropdown(!showCalendarDropdown);
-                }}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  padding: 0,
-                  margin: 0,
-                  boxShadow: "none",
-                  appearance: "none",
-                  WebkitAppearance: "none",
-                  MozAppearance: "none",
-                  cursor: "pointer",
-                  color: "rgba(255, 255, 255, 0.7)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.color = "rgba(255, 255, 255, 0.9)";
-                  e.target.style.transform = "scale(1.1)";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.color = "rgba(255, 255, 255, 0.7)";
-                  e.target.style.transform = "scale(1)";
-                }}
-              >
-                <FaCalendar size={18} />
-              </button>
-
-              {showCalendarDropdown && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    marginTop: "8px",
-                    background: "rgba(20, 16, 30, 0.95)",
-                    backdropFilter: "blur(10px)",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    overflow: "hidden",
-                    zIndex: 10,
-                    minWidth: "180px",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                  }}
-                >
-                  <button
-                    onClick={() => handleAddToCalendar("google")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Google Calendar
-                  </button>
-                  <button
-                    onClick={() => handleAddToCalendar("outlook")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Outlook
-                  </button>
-                  <button
-                    onClick={() => handleAddToCalendar("yahoo")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Yahoo Calendar
-                  </button>
-                  <button
-                    onClick={() => handleAddToCalendar("apple")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Apple Calendar
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Go to live link */}
-            <div
-              style={{
-                fontSize: "16px",
-                opacity: 0.8,
-                color: "rgba(255, 255, 255, 0.8)",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                flex: 1,
-              }}
-            >
-              <a
-                href={`/e/${event.slug}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  color: "#c0c0c0",
-                  textDecoration: "none",
-                  fontWeight: 600,
-                  fontSize: "16px",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.color = "#e5e5e5";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.color = "#c0c0c0";
-                }}
-              >
-                go to live
-              </a>
-            </div>
-          </div>
-        )}
-
-        {/* Title - Above Menu */}
-        <h1
-          style={{
-            marginBottom: "20px",
-            padding: "0 20px",
-            fontSize: "clamp(28px, 8vw, 40px)",
-            fontWeight: 800,
-            lineHeight: "1.2",
-            color: "#fff",
-            letterSpacing: "-0.02em",
-            maxWidth: "100%",
-          }}
-        >
-          {event.title || "Untitled event"}
-        </h1>
-
-        {/* Content Card - Contains tabs and tab content */}
-        <div
-          style={{
-            background: "rgba(12, 10, 18, 0.6)",
-            backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255,255,255,0.05)",
-            marginTop: "0",
-            width: "100%",
-            maxWidth: "100%",
-            borderRadius: "0",
-            padding: "0",
-            boxSizing: "border-box",
-          }}
-        >
-          {/* Hidden file input - shared by both banner and upload section */}
+          {/* Hidden file input for image upload */}
           <input
             ref={fileInputRef}
             type="file"
@@ -2630,277 +1848,7 @@ export function ManageEventPage() {
             style={{ display: "none" }}
           />
 
-          {/* Image Upload Section - Only shown when no image exists */}
-          {!(imagePreview !== undefined ? imagePreview : event.imageUrl) && (
-            <>
-              <div
-                style={{
-                  marginBottom: "20px",
-                }}
-              >
-                <div
-                  style={{
-                    width: "100%",
-                    height: "200px",
-                    borderRadius: "16px",
-                    overflow: "hidden",
-                    background: isDragging
-                      ? "rgba(192, 192, 192, 0.2)"
-                      : "rgba(20, 16, 30, 0.3)",
-                    border: isDragging
-                      ? "2px dashed rgba(192, 192, 192, 0.5)"
-                      : "1px solid rgba(255,255,255,0.06)",
-                    position: "relative",
-                    cursor: "pointer",
-                    transition: "all 0.3s ease",
-                    transform: isDragging ? "scale(1.01)" : "scale(1)",
-                  }}
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDragging(true);
-                  }}
-                  onDragLeave={() => setIsDragging(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setIsDragging(false);
-                    const file = e.dataTransfer.files[0];
-                    if (file) {
-                      handleImageUpload({ target: { files: [file] } });
-                    }
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "16px",
-                      background:
-                        "linear-gradient(135deg, rgba(192, 192, 192, 0.12) 0%, rgba(232, 232, 232, 0.08) 100%)",
-                      color: "#fff",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "48px",
-                        opacity: 0.9,
-                      }}
-                    >
-                      <SilverIcon as={ImageIcon} size={20} />
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 600,
-                        opacity: 0.9,
-                        textAlign: "center",
-                        padding: "0 16px",
-                      }}
-                    >
-                      {isDragging
-                        ? "Drop image here"
-                        : "Click or drag to upload"}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        opacity: 0.6,
-                        textAlign: "center",
-                        padding: "0 16px",
-                      }}
-                    >
-                      JPG, PNG, or GIF (max 5MB)
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Title and Card - Normal layout when no image */}
-              <div
-                className="responsive-card"
-                style={{
-                  background: "rgba(12, 10, 18, 0.6)",
-                  backdropFilter: "blur(10px)",
-                  border: "1px solid rgba(255,255,255,0.05)",
-                  marginBottom: "20px",
-                }}
-              >
-                {/* Title */}
-                <h1
-                  style={{
-                    marginBottom: "16px",
-                    fontSize: "clamp(28px, 8vw, 40px)",
-                    fontWeight: 800,
-                    lineHeight: "1.2",
-                    color: "#fff",
-                    letterSpacing: "-0.02em",
-                  }}
-                >
-                  {event.title || "Untitled event"}
-                </h1>
-              </div>
-            </>
-          )}
-
-          {/* Content Card - Contains tabs and tab content */}
-          <div
-            className="responsive-card"
-            style={{
-              background: "#0c0a12",
-              border: "1px solid rgba(255,255,255,0.05)",
-              marginTop: (
-                imagePreview !== undefined ? imagePreview : event.imageUrl
-              )
-                ? "0"
-                : "0",
-              maxWidth: "100%",
-              borderRadius: "0",
-              marginLeft: "0",
-              marginRight: "0",
-              padding: "20px",
-            }}
-          >
-            {/* Tabs */}
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                marginBottom: "0",
-                padding: "20px 20px 0 20px",
-                fontSize: "16px",
-                borderBottom: "2px solid rgba(255,255,255,0.08)",
-                paddingBottom: "0",
-                overflowX: "auto",
-                WebkitOverflowScrolling: "touch",
-                width: "100%",
-                boxSizing: "border-box",
-              }}
-            >
-              <button
-                onClick={() => navigate(`/app/events/${id}/manage`)}
-                style={{
-                  padding: "14px 20px",
-                  minHeight: "44px",
-                  fontWeight: !isEditPage ? 700 : 500,
-                  color: !isEditPage ? "#fff" : "#9ca3af",
-                  borderBottom: !isEditPage
-                    ? "2px solid #c0c0c0"
-                    : "2px solid transparent",
-                  marginBottom: "-2px",
-                  background: !isEditPage
-                    ? "rgba(192, 192, 192, 0.1)"
-                    : "transparent",
-                  borderRadius: "8px 8px 0 0",
-                  borderTop: "none",
-                  borderLeft: "none",
-                  borderRight: "none",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  fontSize: "16px",
-                  touchAction: "manipulation",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-                onMouseEnter={(e) => {
-                  if (isEditPage) {
-                    e.target.style.color = "#fff";
-                    e.target.style.background = "rgba(255,255,255,0.05)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (isEditPage) {
-                    e.target.style.color = "#9ca3af";
-                    e.target.style.background = "transparent";
-                  }
-                }}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => navigate(`/app/events/${id}/guests`)}
-                style={{
-                  background: "transparent",
-                  borderTop: "none",
-                  borderLeft: "none",
-                  borderRight: "none",
-                  color: "#9ca3af",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  padding: "14px 20px",
-                  minHeight: "44px",
-                  borderRadius: "8px 8px 0 0",
-                  fontWeight: 500,
-                  borderBottom: "2px solid transparent",
-                  marginBottom: "-2px",
-                  fontSize: "16px",
-                  touchAction: "manipulation",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.color = "#fff";
-                  e.target.style.background = "rgba(255,255,255,0.05)";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.color = "#9ca3af";
-                  e.target.style.background = "transparent";
-                }}
-              >
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <SilverIcon as={Users} size={18} />
-                  Guests ({guestsCount})
-                </span>
-              </button>
-              <button
-                onClick={() => navigate(`/app/events/${id}/edit`)}
-                style={{
-                  padding: "14px 20px",
-                  minHeight: "44px",
-                  fontWeight: isEditPage ? 700 : 500,
-                  color: isEditPage ? "#fff" : "#9ca3af",
-                  borderBottom: isEditPage
-                    ? "2px solid #c0c0c0"
-                    : "2px solid transparent",
-                  marginBottom: "-2px",
-                  background: isEditPage
-                    ? "rgba(192, 192, 192, 0.1)"
-                    : "transparent",
-                  borderRadius: "8px 8px 0 0",
-                  borderTop: "none",
-                  borderLeft: "none",
-                  borderRight: "none",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  fontSize: "16px",
-                  touchAction: "manipulation",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isEditPage) {
-                    e.target.style.color = "#fff";
-                    e.target.style.background = "rgba(255,255,255,0.05)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isEditPage) {
-                    e.target.style.color = "#9ca3af";
-                    e.target.style.background = "transparent";
-                  }
-                }}
-              >
-                Edit
-              </button>
-            </div>
-
-            {/* Tab Content Container */}
+          {/* Content */}
             <div
               style={{
                 padding: "24px 20px",
@@ -2910,20 +1858,12 @@ export function ManageEventPage() {
             >
               {/* Overview content (route: /app/events/:id/manage) */}
               {!isEditPage && event && (
-                <>
-                  <OverviewTabContent
-                    event={event}
-                    guests={guests}
-                    dinnerSlots={dinnerSlots}
-                    isMobile={isMobile}
-                  />
-                  <EventHostsSection
-                    eventId={event.id}
-                    canManageHosts={
-                      event.myRole === "owner" || event.myRole === "admin"
-                    }
-                  />
-                </>
+                <OverviewTabContent
+                  event={event}
+                  guests={guests}
+                  dinnerSlots={dinnerSlots}
+                  isMobile={isMobile}
+                />
               )}
 
               {/* Edit content (route: /app/events/:id/manage/edit) */}
@@ -5287,12 +4227,11 @@ export function ManageEventPage() {
                 </>
               )}
             </div>
-          </div>
-        </div>
       </div>
     </div>
   );
 }
+// EventHostsSection is now imported from ../components/EventHostsSection.jsx
 
 // Helper components - matching CreateEventPage
 function OptionRow({ icon, label, description, right }) {

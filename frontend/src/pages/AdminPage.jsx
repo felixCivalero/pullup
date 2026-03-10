@@ -6,6 +6,32 @@ import { colors } from "../theme/colors.js";
 import { useToast } from "../components/Toast";
 import { uploadEventImage, validateImageFile } from "../lib/imageUtils.js";
 
+const KNOWN_CITIES = [
+  "Stockholm", "Göteborg", "Gothenburg", "Malmö", "Uppsala",
+  "Linköping", "Örebro", "Norrköping", "Lund", "Umeå",
+  "Västerås", "Helsingborg", "Jönköping", "Sundsvall",
+];
+
+function extractCity(location) {
+  if (!location) return null;
+  const lower = location.toLowerCase();
+  for (const city of KNOWN_CITIES) {
+    if (lower.includes(city.toLowerCase())) return city;
+  }
+  return null;
+}
+
+const WEEKLY_CATEGORIES = [
+  { key: "all", label: "All categories" },
+  { key: "music", label: "Music" },
+  { key: "club", label: "Club" },
+  { key: "exhibition", label: "Exhibition" },
+  { key: "culture", label: "Culture" },
+  { key: "theatre", label: "Theatre" },
+  { key: "arts", label: "Arts" },
+  { key: "other", label: "Other" },
+];
+
 export function AdminPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -50,6 +76,8 @@ export function AdminPage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [weeklyHeadline, setWeeklyHeadline] = useState("This Week in Stockholm");
   const [weeklyIntroBody, setWeeklyIntroBody] = useState("");
+  const [weeklyCategoryFilter, setWeeklyCategoryFilter] = useState("all");
+  const [weeklyCityFilter, setWeeklyCityFilter] = useState("all");
 
   // Fixed template: we’re using the event-style Resend template
   // backed by Supabase event data, same as CRM.
@@ -207,7 +235,13 @@ export function AdminPage() {
         );
         if (!res.ok) throw new Error("Failed to fetch weekly events");
         const data = await res.json();
-        setWeeklyEvents(Array.isArray(data.events) ? data.events : []);
+        const sorted = (Array.isArray(data.events) ? data.events : []).sort((a, b) => {
+          if (!a.starts_at && !b.starts_at) return 0;
+          if (!a.starts_at) return 1;
+          if (!b.starts_at) return -1;
+          return new Date(a.starts_at) - new Date(b.starts_at);
+        });
+        setWeeklyEvents(sorted);
       } catch (err) {
         console.error("Weekly events fetch error:", err);
         setWeeklyEvents([]);
@@ -218,6 +252,26 @@ export function AdminPage() {
 
     fetchWeeklyEvents();
   }, [selectedTemplate, weekOffset, user]);
+
+  // Derive unique cities from weekly events
+  const weeklyCities = [...new Set(weeklyEvents.map((e) => extractCity(e.location)).filter(Boolean))].sort();
+
+  // Apply category + city filters to weekly events
+  const filteredWeeklyEvents = weeklyEvents.filter((ev) => {
+    if (weeklyCategoryFilter !== "all") {
+      if (weeklyCategoryFilter === "other") {
+        const knownCats = ["music", "club", "exhibition", "culture", "theatre", "arts"];
+        if (ev.category && knownCats.includes(ev.category)) return false;
+      } else if (ev.category !== weeklyCategoryFilter) {
+        return false;
+      }
+    }
+    if (weeklyCityFilter !== "all") {
+      const eventCity = extractCity(ev.location);
+      if (eventCity && eventCity !== weeklyCityFilter) return false;
+    }
+    return true;
+  });
 
   async function handlePreview() {
     setPreviewLoading(true);
@@ -346,7 +400,7 @@ export function AdminPage() {
             templateContent: {
               headline: weeklyHeadline,
               body: weeklyIntroBody,
-              events: weeklyEvents,
+              events: filteredWeeklyEvents,
             },
             excludeSubscriberIds,
           }
@@ -1358,6 +1412,76 @@ export function AdminPage() {
                   </button>
                 </div>
 
+                {/* Category + City filters */}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 12,
+                    marginBottom: 14,
+                    alignItems: "flex-end",
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4, paddingLeft: 2 }}>
+                      Category
+                    </div>
+                    <select
+                      value={weeklyCategoryFilter}
+                      onChange={(e) => setWeeklyCategoryFilter(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "7px 28px 7px 10px",
+                        borderRadius: "8px",
+                        border: `1px solid ${weeklyCategoryFilter !== "all" ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.1)"}`,
+                        background: weeklyCategoryFilter !== "all" ? "rgba(192,192,192,0.08)" : "rgba(255,255,255,0.04)",
+                        color: weeklyCategoryFilter !== "all" ? colors.silverText : "rgba(255,255,255,0.5)",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        outline: "none",
+                        WebkitAppearance: "none",
+                        appearance: "none",
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.4)' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                        backgroundRepeat: "no-repeat",
+                        backgroundPosition: "right 10px center",
+                      }}
+                    >
+                      {WEEKLY_CATEGORIES.map((c) => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4, paddingLeft: 2 }}>
+                      City
+                    </div>
+                    <select
+                      value={weeklyCityFilter}
+                      onChange={(e) => setWeeklyCityFilter(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "7px 28px 7px 10px",
+                        borderRadius: "8px",
+                        border: `1px solid ${weeklyCityFilter !== "all" ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.1)"}`,
+                        background: weeklyCityFilter !== "all" ? "rgba(192,192,192,0.08)" : "rgba(255,255,255,0.04)",
+                        color: weeklyCityFilter !== "all" ? colors.silverText : "rgba(255,255,255,0.5)",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        outline: "none",
+                        WebkitAppearance: "none",
+                        appearance: "none",
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.4)' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                        backgroundRepeat: "no-repeat",
+                        backgroundPosition: "right 10px center",
+                      }}
+                    >
+                      <option value="all">All cities</option>
+                      {weeklyCities.map((city) => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 {/* Editable headline */}
                 {editingField === "weekly_headline" ? (
                   <input
@@ -1478,7 +1602,7 @@ export function AdminPage() {
                   >
                     Loading events...
                   </div>
-                ) : weeklyEvents.length === 0 ? (
+                ) : filteredWeeklyEvents.length === 0 ? (
                   <div
                     style={{
                       fontSize: "13px",
@@ -1488,11 +1612,19 @@ export function AdminPage() {
                       fontStyle: "italic",
                     }}
                   >
-                    No approved events for this week.
+                    {weeklyEvents.length === 0
+                      ? "No approved events for this week."
+                      : "No events match the selected filters."}
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {weeklyEvents.map((ev) => (
+                    <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", textAlign: "center", marginBottom: 2 }}>
+                      {filteredWeeklyEvents.length} event{filteredWeeklyEvents.length !== 1 ? "s" : ""}
+                      {(weeklyCategoryFilter !== "all" || weeklyCityFilter !== "all") && weeklyEvents.length !== filteredWeeklyEvents.length
+                        ? ` of ${weeklyEvents.length}`
+                        : ""}
+                    </div>
+                    {filteredWeeklyEvents.map((ev) => (
                       <div
                         key={ev.id}
                         style={{

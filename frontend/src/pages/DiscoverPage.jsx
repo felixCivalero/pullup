@@ -4,11 +4,12 @@ import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
 import { useToast } from "../components/Toast";
+import { DateRangePicker } from "../components/DateRangePicker";
 
 const TABS = [
   { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "approved", label: "Approved" },
+  { key: "pending", label: "Inbox" },
+  { key: "approved", label: "Queued" },
   { key: "newsletter", label: "Sent" },
 ];
 
@@ -21,14 +22,6 @@ const CATEGORY_EMOJI = {
   arts: "🎨",
 };
 
-const WEEK_FILTERS = [
-  { key: "all", label: "All dates" },
-  { key: "this_week", label: "This week" },
-  { key: "next_week", label: "Next week" },
-  { key: "2_weeks", label: "Next 2 weeks" },
-  { key: "this_month", label: "This month" },
-];
-
 const CATEGORY_FILTERS = [
   { key: "all", label: "All categories" },
   { key: "music", label: "Music" },
@@ -40,47 +33,20 @@ const CATEGORY_FILTERS = [
   { key: "other", label: "Other" },
 ];
 
-function getWeekRange(key) {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dayOfWeek = startOfToday.getDay(); // 0=Sun
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const thisMonday = new Date(startOfToday);
-  thisMonday.setDate(startOfToday.getDate() + mondayOffset);
-
-  switch (key) {
-    case "this_week": {
-      const end = new Date(thisMonday);
-      end.setDate(thisMonday.getDate() + 7);
-      return [startOfToday, end];
-    }
-    case "next_week": {
-      const start = new Date(thisMonday);
-      start.setDate(thisMonday.getDate() + 7);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 7);
-      return [start, end];
-    }
-    case "2_weeks": {
-      const end = new Date(thisMonday);
-      end.setDate(thisMonday.getDate() + 21);
-      return [startOfToday, end];
-    }
-    case "this_month": {
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      return [startOfToday, end];
-    }
-    default:
-      return null;
-  }
-}
+// Known Swedish cities to match against in location strings
+const KNOWN_CITIES = [
+  "Stockholm", "Göteborg", "Gothenburg", "Malmö", "Uppsala",
+  "Linköping", "Örebro", "Norrköping", "Lund", "Umeå",
+  "Västerås", "Helsingborg", "Jönköping", "Sundsvall",
+];
 
 function extractCity(location) {
   if (!location) return null;
-  // Try to get city from "Venue, City" or "Venue, City, Country" patterns
-  const parts = location.split(",").map((s) => s.trim());
-  if (parts.length >= 2) return parts[parts.length - 1];
-  return location.trim();
+  const lower = location.toLowerCase();
+  for (const city of KNOWN_CITIES) {
+    if (lower.includes(city.toLowerCase())) return city;
+  }
+  return null;
 }
 
 function formatDate(iso) {
@@ -106,7 +72,7 @@ function formatDateRange(starts, ends) {
   return `Till ${fmtShort(ends)}`;
 }
 
-function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
+function EventCard({ event, onStatusChange, onSpotifyChange }) {
   const [loading, setLoading] = useState(false);
   const [spotifyOpen, setSpotifyOpen] = useState(false);
   const [spotifyDraft, setSpotifyDraft] = useState(event.spotify_url || "");
@@ -130,9 +96,8 @@ function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
     if (!spotifyDraft.trim()) setSpotifyOpen(false);
   }
 
-  const isApproved = event.status === "approved";
-  const isRejected = event.status === "rejected";
-  const isPending = event.status === "pending";
+  const isQueued = event.status === "approved";
+  const isSent = !!event.newsletter_sent_at;
 
   return (
     <div
@@ -140,15 +105,14 @@ function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
         borderRadius: "16px",
         background: "linear-gradient(145deg, rgba(14,12,24,0.97), rgba(20,17,34,0.98))",
         border: `1px solid ${
-          isApproved
-            ? "rgba(34,197,94,0.3)"
-            : isRejected
-            ? "rgba(239,68,68,0.2)"
-            : "rgba(255,255,255,0.1)"
+          isSent
+            ? "rgba(251, 191, 36, 0.2)"
+            : isQueued
+              ? "rgba(34,197,94,0.3)"
+              : "rgba(255,255,255,0.1)"
         }`,
         overflow: "hidden",
-        opacity: isRejected ? 0.5 : 1,
-        transition: "opacity 0.2s, border-color 0.2s",
+        transition: "border-color 0.2s",
       }}
     >
       {/* Image */}
@@ -257,9 +221,9 @@ function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
         </div>
 
         {/* Action buttons */}
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {/* Approve / Reject */}
-          {!isApproved && (
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          {/* Add to newsletter / Undo */}
+          {!isQueued && !isSent && (
             <button
               onClick={() => handleStatus("approved")}
               disabled={loading}
@@ -275,33 +239,10 @@ function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
                 transition: "background 0.15s",
               }}
             >
-              ✓ Approve
+              + Newsletter
             </button>
           )}
-          {!isRejected && (
-            <button
-              onClick={() => handleStatus("rejected")}
-              disabled={loading}
-              style={{
-                padding: "7px 14px",
-                borderRadius: "8px",
-                border: "1px solid rgba(239,68,68,0.3)",
-                background: "rgba(239,68,68,0.08)",
-                color: "#ef4444",
-                fontSize: "12px",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              ✕ Reject
-            </button>
-          )}
-          {isPending && (
-            <span style={{ fontSize: "11px", color: colors.textFaded, alignSelf: "center" }}>
-              pending
-            </span>
-          )}
-          {isApproved && (
+          {isQueued && !isSent && (
             <button
               onClick={() => handleStatus("pending")}
               disabled={loading}
@@ -315,22 +256,19 @@ function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
                 cursor: "pointer",
               }}
             >
-              ↩ Undo
+              ↩ Remove
             </button>
           )}
 
-          {/* Sent indicator */}
-          {event.newsletter_sent_at && (
-            <span
-              style={{
-                marginLeft: "auto",
-                padding: "7px 14px",
-                fontSize: "12px",
-                fontWeight: 600,
-                color: colors.gold,
-              }}
-            >
+          {/* Status badge */}
+          {isSent && (
+            <span style={{ fontSize: "12px", fontWeight: 600, color: colors.gold }}>
               ★ Sent
+            </span>
+          )}
+          {isQueued && !isSent && (
+            <span style={{ fontSize: "11px", color: colors.success, fontWeight: 600 }}>
+              Queued
             </span>
           )}
 
@@ -457,29 +395,56 @@ function EventCard({ event, onStatusChange, onDelete, onSpotifyChange }) {
   );
 }
 
-export function StockholmEventsPage() {
+// Module-level cache so state survives navigation away and back
+const _cache = {
+  events: null,       // { tab, data, ts }
+  filters: null,      // { activeTab, dateStart, dateEnd, categoryFilter, cityFilter }
+  sources: [],
+  scrollY: 0,
+};
+
+export function DiscoverPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  const [events, setEvents] = useState([]);
-  const [eventsLoading, setEventsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("pending");
+  const cached = _cache.filters;
+  const [events, setEvents] = useState(_cache.events?.data || []);
+  const [eventsLoading, setEventsLoading] = useState(!_cache.events);
+  const [activeTab, setActiveTab] = useState(cached?.activeTab || "pending");
   const [scraping, setScraping] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
-  const [weekFilter, setWeekFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [cityFilter, setCityFilter] = useState("all");
+  const [dateStart, setDateStart] = useState(cached?.dateStart ?? null);
+  const [dateEnd, setDateEnd] = useState(cached?.dateEnd ?? null);
+  const [categoryFilter, setCategoryFilter] = useState(cached?.categoryFilter || "all");
+  const [cityFilter, setCityFilter] = useState(cached?.cityFilter || "all");
   const EMPTY_FORM = { title: "", description: "", image_url: "", starts_at: "", ends_at: "", location: "", url: "", category: "culture", spotify_url: "" };
   const [manualForm, setManualForm] = useState(EMPTY_FORM);
   const [sourcesOpen, setSourcesOpen] = useState(false);
-  const [sources, setSources] = useState([]);
+  const [sources, setSources] = useState(_cache.sources || []);
   const [sourcesLoading, setSourcesLoading] = useState(false);
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const EMPTY_SOURCE = { name: "", source_key: "", scrape_url: "", location: "Stockholm", category: "culture", strategy: "auto", link_selector: "", image_attr: "" };
   const [sourceForm, setSourceForm] = useState(EMPTY_SOURCE);
   const [sourceFormLoading, setSourceFormLoading] = useState(false);
+
+  // Persist filter state to module cache
+  useEffect(() => {
+    _cache.filters = { activeTab, dateStart, dateEnd, categoryFilter, cityFilter };
+  }, [activeTab, dateStart, dateEnd, categoryFilter, cityFilter]);
+
+  // Keep sources cache in sync
+  useEffect(() => { _cache.sources = sources; }, [sources]);
+
+  // Save scroll position on unmount, restore on mount
+  useEffect(() => {
+    if (_cache.scrollY > 0) {
+      // Small delay to let the DOM render before restoring scroll
+      requestAnimationFrame(() => window.scrollTo(0, _cache.scrollY));
+    }
+    return () => { _cache.scrollY = window.scrollY; };
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) navigate("/");
@@ -498,7 +463,9 @@ export function StockholmEventsPage() {
         `/admin/stockholm-events?${params.toString()}`
       );
       if (!res.ok) throw new Error("Failed to fetch");
-      setEvents(await res.json());
+      const data = await res.json();
+      setEvents(data);
+      _cache.events = { tab: activeTab, data, ts: Date.now() };
     } catch (err) {
       showToast("Failed to load events", "error");
     } finally {
@@ -507,8 +474,26 @@ export function StockholmEventsPage() {
   }, [activeTab, showToast]);
 
   useEffect(() => {
-    if (!loading && user) fetchEvents();
+    if (!loading && user) {
+      // Use cache if same tab and less than 2 minutes old
+      const c = _cache.events;
+      if (c && c.tab === activeTab && Date.now() - c.ts < 120_000) {
+        setEvents(c.data);
+        setEventsLoading(false);
+        return;
+      }
+      fetchEvents();
+    }
   }, [loading, user, fetchEvents]);
+
+  // Helper: update events state + keep cache in sync
+  function updateEvents(updater) {
+    setEvents((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (_cache.events) _cache.events.data = next;
+      return next;
+    });
+  }
 
   async function handleStatusChange(id, status) {
     try {
@@ -517,7 +502,7 @@ export function StockholmEventsPage() {
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error();
-      setEvents((prev) =>
+      updateEvents((prev) =>
         prev.map((e) => (e.id === id ? { ...e, status } : e))
       );
     } catch {
@@ -532,7 +517,7 @@ export function StockholmEventsPage() {
         body: JSON.stringify({ spotify_url: spotifyUrl }),
       });
       if (!res.ok) throw new Error();
-      setEvents((prev) =>
+      updateEvents((prev) =>
         prev.map((e) => (e.id === id ? { ...e, spotify_url: spotifyUrl } : e))
       );
       showToast(spotifyUrl ? "Spotify link saved!" : "Spotify link removed", "success");
@@ -677,24 +662,30 @@ export function StockholmEventsPage() {
   // Derive unique cities from events
   const cities = [...new Set(events.map((e) => extractCity(e.location)).filter(Boolean))].sort();
 
+  const hasDateFilter = dateStart !== null;
+
   // Apply filters
   const filteredEvents = events.filter((event) => {
-    // Week filter
-    if (weekFilter !== "all") {
-      const range = getWeekRange(weekFilter);
-      if (range && event.starts_at) {
-        const eventStart = new Date(event.starts_at);
-        const eventEnd = event.ends_at ? new Date(event.ends_at) : eventStart;
-        // Show if the event's date range overlaps with the filter range
-        if (eventEnd < range[0] || eventStart >= range[1]) return false;
-      } else if (range && !event.starts_at) {
-        return false;
-      }
+    // Date range filter
+    if (hasDateFilter) {
+      if (!event.starts_at) return false;
+      const eventStart = new Date(event.starts_at);
+      const eventEnd = event.ends_at ? new Date(event.ends_at) : eventStart;
+      const rangeStart = dateStart;
+      const rangeEnd = dateEnd || dateStart;
+      // Next day boundary for inclusive end
+      const rangeEndInclusive = new Date(rangeEnd);
+      rangeEndInclusive.setDate(rangeEndInclusive.getDate() + 1);
+      // Show if event overlaps with filter range
+      if (eventEnd < rangeStart || eventStart >= rangeEndInclusive) return false;
     }
     // Category filter
     if (categoryFilter !== "all" && event.category !== categoryFilter) return false;
-    // City filter
-    if (cityFilter !== "all" && extractCity(event.location) !== cityFilter) return false;
+    // City filter — events with no recognized city are assumed local, so include them
+    if (cityFilter !== "all") {
+      const eventCity = extractCity(event.location);
+      if (eventCity && eventCity !== cityFilter) return false;
+    }
     return true;
   });
 
@@ -720,137 +711,173 @@ export function StockholmEventsPage() {
     letterSpacing: "0.08em",
   };
 
+  function filterSelectStyle(isActive) {
+    return {
+      padding: "7px 12px",
+      borderRadius: "999px",
+      border: "none",
+      background: isActive ? "rgba(192,192,192,0.12)" : "rgba(255,255,255,0.04)",
+      color: isActive ? colors.silverText : colors.textFaded,
+      fontSize: "12px",
+      cursor: "pointer",
+      outline: "none",
+      flexShrink: 0,
+      WebkitAppearance: "none",
+      appearance: "none",
+      paddingRight: "24px",
+      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.4)' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`,
+      backgroundRepeat: "no-repeat",
+      backgroundPosition: "right 10px center",
+    };
+  }
+
+  const filterLabelStyle = {
+    fontSize: "10px",
+    color: colors.textFaded,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    marginBottom: "4px",
+    paddingLeft: "2px",
+  };
+
   if (loading) return null;
 
   return (
     <div
+      className="page-with-header"
       style={{
         minHeight: "100vh",
-        padding: "80px 16px 60px",
+        padding: "0 clamp(12px, 3vw, 24px) 60px",
         background: colors.background,
         boxSizing: "border-box",
       }}
     >
+      <style>{`
+        .admin-tabs-row::-webkit-scrollbar { display: none; }
+      `}</style>
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
         {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: "24px",
-            flexWrap: "wrap",
-            gap: "16px",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: "11px",
-                textTransform: "uppercase",
-                letterSpacing: "0.18em",
-                opacity: 0.5,
-                marginBottom: "6px",
-                color: colors.silverText,
-              }}
-            >
-              Admin · Stockholm
-            </div>
+        <div style={{ marginBottom: "clamp(16px, 3vw, 24px)" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "4px",
+            }}
+          >
             <h1
               style={{
                 margin: 0,
-                fontSize: "26px",
+                fontSize: "clamp(20px, 5vw, 26px)",
                 fontWeight: 700,
                 color: colors.text,
               }}
             >
-              Cultural Events
+              Discover
             </h1>
-            <p
-              style={{
-                margin: "6px 0 0",
-                fontSize: "13px",
-                color: colors.textSubtle,
-              }}
-            >
-              Curate Stockholm events for the newsletter.
-              {readyToSendCount > 0 && (
-                <span
-                  style={{
-                    marginLeft: "8px",
-                    color: colors.gold,
-                    fontWeight: 600,
-                  }}
-                >
-                  ★ {readyToSendCount} ready to send
-                </span>
-              )}
-            </p>
-          </div>
-
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-            <button
-              onClick={() => navigate("/admin")}
-              style={{
-                padding: "9px 16px",
-                borderRadius: "10px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "transparent",
-                color: colors.textMuted,
-                fontSize: "13px",
-                cursor: "pointer",
-              }}
-            >
-              ← Newsletter
-            </button>
             <button
               onClick={handleScrape}
               disabled={scraping}
               style={{
-                padding: "9px 18px",
-                borderRadius: "10px",
-                border: "1px solid rgba(192,192,192,0.3)",
+                padding: "8px 14px",
+                borderRadius: "999px",
+                border: "1px solid rgba(192,192,192,0.25)",
                 background: scraping
                   ? "rgba(192,192,192,0.05)"
-                  : "rgba(192,192,192,0.1)",
+                  : "rgba(192,192,192,0.08)",
                 color: colors.silverText,
-                fontSize: "13px",
+                fontSize: "12px",
                 fontWeight: 600,
                 cursor: scraping ? "not-allowed" : "pointer",
                 transition: "background 0.15s",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
-              {scraping ? "Scraping..." : "↻ Fetch new events"}
+              {scraping ? "Scraping..." : "↻ Fetch"}
             </button>
           </div>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "13px",
+              color: colors.textSubtle,
+            }}
+          >
+            Find and curate events for the newsletter.
+            {readyToSendCount > 0 && (
+              <span
+                style={{
+                  marginLeft: "8px",
+                  color: colors.gold,
+                  fontWeight: 600,
+                }}
+              >
+                ★ {readyToSendCount} queued
+              </span>
+            )}
+          </p>
         </div>
 
-        {/* Manual Add */}
-        <div style={{ marginBottom: "24px" }}>
-          {/* Toggle button */}
+        {/* Quick actions row */}
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            marginBottom: "clamp(12px, 2vw, 16px)",
+          }}
+        >
           <button
             onClick={() => { setManualOpen((o) => !o); setManualForm(EMPTY_FORM); }}
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "8px",
-              padding: "10px 18px",
-              borderRadius: "12px",
-              border: `1px solid ${manualOpen ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.1)"}`,
+              gap: "6px",
+              padding: "8px 14px",
+              borderRadius: "999px",
+              border: `1px solid ${manualOpen ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.08)"}`,
               background: manualOpen ? "rgba(192,192,192,0.08)" : "transparent",
               color: manualOpen ? colors.silverText : colors.textFaded,
-              fontSize: "13px",
+              fontSize: "12px",
               fontWeight: 600,
               cursor: "pointer",
               transition: "all 0.15s",
+              whiteSpace: "nowrap",
             }}
           >
-            <span style={{ fontSize: "16px" }}>{manualOpen ? "✕" : "＋"}</span>
-            Add event manually
+            {manualOpen ? "✕" : "＋"} Add event
           </button>
 
-          {/* Expandable form */}
-          {manualOpen && (
+          <button
+            onClick={() => setSourcesOpen((o) => !o)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "8px 14px",
+              borderRadius: "999px",
+              border: `1px solid ${sourcesOpen ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.08)"}`,
+              background: sourcesOpen ? "rgba(192,192,192,0.08)" : "transparent",
+              color: sourcesOpen ? colors.silverText : colors.textFaded,
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.15s",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {sourcesOpen ? "✕" : "⚙"} Sources
+            {sources.length > 0 && (
+              <span style={{ opacity: 0.6 }}>
+                ({sources.filter((s) => s.enabled).length})
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Expandable manual add form */}
+        {manualOpen && (
             <div
               style={{
                 marginTop: "12px",
@@ -1051,44 +1078,17 @@ export function StockholmEventsPage() {
               </div>
             </div>
           )}
-        </div>
 
         {/* Scrape Sources Manager */}
-        <div style={{ marginBottom: "24px" }}>
-          <button
-            onClick={() => setSourcesOpen((o) => !o)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "10px 18px",
-              borderRadius: "12px",
-              border: `1px solid ${sourcesOpen ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.1)"}`,
-              background: sourcesOpen ? "rgba(192,192,192,0.08)" : "transparent",
-              color: sourcesOpen ? colors.silverText : colors.textFaded,
-              fontSize: "13px",
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "all 0.15s",
-            }}
-          >
-            <span style={{ fontSize: "16px" }}>{sourcesOpen ? "✕" : "⚙"}</span>
-            Scrape sources
-            {sources.length > 0 && (
-              <span style={{ fontSize: "11px", opacity: 0.6 }}>
-                ({sources.filter((s) => s.enabled).length} active)
-              </span>
-            )}
-          </button>
+        {sourcesOpen && (
+        <div style={{ marginBottom: "clamp(16px, 3vw, 24px)" }}>
 
-          {sourcesOpen && (
             <div
               style={{
-                marginTop: "12px",
                 borderRadius: "16px",
                 border: "1px solid rgba(255,255,255,0.1)",
                 background: "linear-gradient(145deg, rgba(14,12,24,0.97), rgba(20,17,34,0.98))",
-                padding: "20px",
+                padding: "clamp(14px, 3vw, 20px)",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -1343,137 +1343,105 @@ export function StockholmEventsPage() {
                 </div>
               )}
             </div>
-          )}
         </div>
-
-        {/* Tabs */}
-        <div
-          style={{
-            display: "flex",
-            gap: "4px",
-            marginBottom: "24px",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            paddingBottom: "1px",
-          }}
-        >
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "8px 8px 0 0",
-                border: "none",
-                background: "transparent",
-                color:
-                  activeTab === tab.key ? colors.silverText : colors.textFaded,
-                fontSize: "13px",
-                fontWeight: activeTab === tab.key ? 600 : 400,
-                cursor: "pointer",
-                borderBottom:
-                  activeTab === tab.key
-                    ? "2px solid rgba(192,192,192,0.6)"
-                    : "2px solid transparent",
-                transition: "color 0.15s",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        )}
 
         {/* Filters */}
         <div
+          className="admin-tabs-row"
           style={{
             display: "flex",
-            gap: "10px",
-            marginBottom: "20px",
-            flexWrap: "wrap",
-            alignItems: "center",
+            alignItems: "flex-end",
+            gap: "clamp(8px, 2vw, 12px)",
+            marginBottom: "clamp(12px, 3vw, 16px)",
+            overflowX: "auto",
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+            paddingBottom: "2px",
           }}
         >
-          <select
-            value={weekFilter}
-            onChange={(e) => setWeekFilter(e.target.value)}
-            style={{
-              padding: "7px 12px",
-              borderRadius: "8px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: weekFilter !== "all" ? "rgba(192,192,192,0.1)" : "rgba(255,255,255,0.04)",
-              color: weekFilter !== "all" ? colors.silverText : colors.textFaded,
-              fontSize: "12px",
-              cursor: "pointer",
-              outline: "none",
-            }}
-          >
-            {WEEK_FILTERS.map((f) => (
-              <option key={f.key} value={f.key}>{f.label}</option>
-            ))}
-          </select>
+          {/* Status */}
+          <div style={{ flexShrink: 0 }}>
+            <div style={filterLabelStyle}>Status</div>
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value)}
+              style={filterSelectStyle(activeTab !== "all")}
+            >
+              {TABS.map((tab) => (
+                <option key={tab.key} value={tab.key}>{tab.label}</option>
+              ))}
+            </select>
+          </div>
 
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            style={{
-              padding: "7px 12px",
-              borderRadius: "8px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: categoryFilter !== "all" ? "rgba(192,192,192,0.1)" : "rgba(255,255,255,0.04)",
-              color: categoryFilter !== "all" ? colors.silverText : colors.textFaded,
-              fontSize: "12px",
-              cursor: "pointer",
-              outline: "none",
-            }}
-          >
-            {CATEGORY_FILTERS.map((f) => (
-              <option key={f.key} value={f.key}>
-                {f.key !== "all" && CATEGORY_EMOJI[f.key] ? `${CATEGORY_EMOJI[f.key]} ` : ""}{f.label}
-              </option>
-            ))}
-          </select>
+          {/* Dates */}
+          <div style={{ flexShrink: 0 }}>
+            <div style={filterLabelStyle}>Dates</div>
+            <DateRangePicker
+              startDate={dateStart}
+              endDate={dateEnd}
+              onChange={(s, e) => { setDateStart(s); setDateEnd(e); }}
+              onClear={() => { setDateStart(null); setDateEnd(null); }}
+            />
+          </div>
 
-          {cities.length > 1 && (
+          {/* Category */}
+          <div style={{ flexShrink: 0 }}>
+            <div style={filterLabelStyle}>Category</div>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              style={filterSelectStyle(categoryFilter !== "all")}
+            >
+              {CATEGORY_FILTERS.map((f) => (
+                <option key={f.key} value={f.key}>
+                  {f.key !== "all" && CATEGORY_EMOJI[f.key] ? `${CATEGORY_EMOJI[f.key]} ` : ""}{f.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* City */}
+          <div style={{ flexShrink: 0 }}>
+            <div style={filterLabelStyle}>City</div>
             <select
               value={cityFilter}
               onChange={(e) => setCityFilter(e.target.value)}
-              style={{
-                padding: "7px 12px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: cityFilter !== "all" ? "rgba(192,192,192,0.1)" : "rgba(255,255,255,0.04)",
-                color: cityFilter !== "all" ? colors.silverText : colors.textFaded,
-                fontSize: "12px",
-                cursor: "pointer",
-                outline: "none",
-              }}
+              style={filterSelectStyle(cityFilter !== "all")}
             >
-              <option value="all">All cities</option>
+              <option value="all">All</option>
               {cities.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
-          )}
+          </div>
 
-          {(weekFilter !== "all" || categoryFilter !== "all" || cityFilter !== "all") && (
-            <button
-              onClick={() => { setWeekFilter("all"); setCategoryFilter("all"); setCityFilter("all"); }}
-              style={{
-                padding: "7px 12px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "transparent",
-                color: colors.textFaded,
-                fontSize: "12px",
-                cursor: "pointer",
-              }}
-            >
-              Clear filters
-            </button>
+          {/* Clear */}
+          {(hasDateFilter || categoryFilter !== "all" || cityFilter !== "all" || activeTab !== "pending") && (
+            <div style={{ flexShrink: 0, alignSelf: "flex-end", paddingBottom: "2px" }}>
+              <button
+                onClick={() => { setActiveTab("pending"); setDateStart(null); setDateEnd(null); setCategoryFilter("all"); setCityFilter("all"); }}
+                style={{
+                  padding: "7px 12px",
+                  borderRadius: "999px",
+                  border: "none",
+                  background: "rgba(255,255,255,0.04)",
+                  color: colors.textFaded,
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Reset
+              </button>
+            </div>
           )}
+        </div>
 
-          <span style={{ fontSize: "11px", color: colors.textFaded, marginLeft: "auto" }}>
-            {filteredEvents.length} of {events.length} events
-          </span>
+        {/* Event count */}
+        <div style={{ fontSize: "11px", color: colors.textFaded, marginBottom: "12px" }}>
+          {filteredEvents.length} of {events.length} events
         </div>
 
         {/* Grid */}
@@ -1511,8 +1479,8 @@ export function StockholmEventsPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-              gap: "16px",
+              gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))",
+              gap: "12px",
             }}
           >
             {filteredEvents.map((event) => (

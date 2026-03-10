@@ -19,6 +19,7 @@ import { logger } from "../lib/logger.js";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 
 import { authenticatedFetch, API_BASE } from "../lib/api.js";
+import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { formatEventTime, formatEventDate } from "../lib/dateUtils.js";
 import { colors } from "../theme/colors.js";
 
@@ -138,358 +139,6 @@ function sortGuests(guests, sortColumn, sortDirection) {
 }
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
-function VipInviteSection({ event, showToast }) {
-  const [email, setEmail] = useState("");
-  // Number of friends they can bring on top of themselves
-  const [maxPlusOnes, setMaxPlusOnes] = useState("3");
-  const [freeEntry, setFreeEntry] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [lastLink, setLastLink] = useState(null);
-  const [invites, setInvites] = useState([]);
-
-  if (!event) return null;
-
-  const isPaidEvent =
-    event.ticketType === "paid" &&
-    typeof event.ticketPrice === "number" &&
-    event.ticketPrice > 0;
-
-  // Load existing VIP invites for this event (unused only)
-  useEffect(() => {
-    let isMounted = true;
-    if (!event?.id) return;
-
-    (async () => {
-      try {
-        const res = await authenticatedFetch(
-          `/host/events/${event.id}/vip-invites`,
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        if (isMounted) {
-          setInvites(data.invites || []);
-        }
-      } catch (err) {
-        console.error("Failed to load VIP invites", err);
-      }
-    })();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [event?.id]);
-
-  async function handleGenerateVipInvite(e) {
-    e?.preventDefault();
-    if (!email.trim()) {
-      showToast("Enter an email for the VIP invite.", "warning");
-      return;
-    }
-
-    const maxPlusOnesInt = parseInt(maxPlusOnes || "0", 10);
-    if (!Number.isFinite(maxPlusOnesInt) || maxPlusOnesInt < 0) {
-      showToast("Max plus-ones must be 0 or more.", "warning");
-      return;
-    }
-
-    // Backend expects total guests (VIP + their plus-ones)
-    const maxGuestsInt = maxPlusOnesInt + 1;
-
-    setGenerating(true);
-    try {
-      const payload = {
-        email: email.trim(),
-        maxGuests: maxGuestsInt,
-      };
-      if (isPaidEvent) {
-        payload.freeEntry = freeEntry;
-      }
-
-      const res = await authenticatedFetch(
-        `/host/events/${event.id}/vip-invites`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to create VIP invite");
-      }
-
-      const data = await res.json();
-      showToast(
-        `VIP link created and emailed to ${email.trim()}.`,
-        "success",
-      );
-
-      // Expose the link for quick copy in the UI.
-      if (data.link) {
-        setLastLink(data.link);
-        // Best-effort preload clipboard for convenience (non-blocking)
-        if (navigator.clipboard) {
-          try {
-            await navigator.clipboard.writeText(data.link);
-          } catch {
-            // Ignore clipboard errors
-          }
-        }
-      } else {
-        setLastLink(null);
-      }
-
-      // Clear form inputs
-      setEmail("");
-      setMaxPlusOnes("3");
-      setFreeEntry(false);
-
-      // Reload invites from backend for a fresh, end-to-end view
-      try {
-        const resInv = await authenticatedFetch(
-          `/host/events/${event.id}/vip-invites`,
-        );
-        if (resInv.ok) {
-          const dataInv = await resInv.json();
-          setInvites(dataInv.invites || []);
-        }
-      } catch (reloadErr) {
-        console.error("Failed to reload VIP invites after creation", reloadErr);
-      }
-    } catch (err) {
-      console.error("Failed to create VIP invite", err);
-      showToast(
-        err.message || "Failed to create VIP invite. Please try again.",
-        "error",
-      );
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  return (
-    <div
-      style={{
-        padding: "0 20px 16px",
-        marginTop: "8px",
-        marginBottom: "8px",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px",
-          background: "rgba(12,10,18,0.6)",
-          borderRadius: "16px",
-          border: "1px solid rgba(255,255,255,0.06)",
-          padding: "14px 16px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "8px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              fontSize: "13px",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              opacity: 0.85,
-            }}
-          >
-            <SilverIcon as={Link2} size={16} />
-            VIP Invites
-          </div>
-        </div>
-
-        <form
-          onSubmit={handleGenerateVipInvite}
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "8px",
-            alignItems: "center",
-          }}
-        >
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="VIP guest email"
-            style={{
-              flex: "1 1 180px",
-              minWidth: "0",
-              padding: "8px 10px",
-              borderRadius: "999px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(15,23,42,0.9)",
-              color: "#fff",
-              fontSize: "13px",
-              outline: "none",
-            }}
-          />
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "4px",
-              minWidth: "0",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "11px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                opacity: 0.8,
-              }}
-            >
-              Plus-ones on their list
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                background: "rgb(12 10 18 / 10%)",
-                borderRadius: "999px",
-                padding: "4px 6px",
-                border: "1px solid rgba(255,255,255,0.06)",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  const current =
-                    parseInt(maxPlusOnes || "0", 10) || 0;
-                  const next = Math.max(0, current - 1);
-                  setMaxPlusOnes(String(next));
-                }}
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "10px",
-                  border: "none",
-                  background:
-                    (parseInt(maxPlusOnes || "0", 10) || 0) <= 0
-                      ? "rgba(255,255,255,0.05)"
-                      : "rgba(192,192,192,0.2)",
-                  color:
-                    (parseInt(maxPlusOnes || "0", 10) || 0) <= 0
-                      ? "rgba(255,255,255,0.3)"
-                      : "#fff",
-                  fontSize: "18px",
-                  fontWeight: 600,
-                  cursor:
-                    (parseInt(maxPlusOnes || "0", 10) || 0) <= 0
-                      ? "not-allowed"
-                      : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "all 0.2s ease",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                −
-              </button>
-              <div
-                style={{
-                  minWidth: "32px",
-                  textAlign: "center",
-                  fontSize: "18px",
-                  fontWeight: 700,
-                  color: "#fff",
-                }}
-              >
-                {parseInt(maxPlusOnes || "0", 10) || 0}
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const current =
-                    parseInt(maxPlusOnes || "0", 10) || 0;
-                  const next = Math.min(50, current + 1);
-                  setMaxPlusOnes(String(next));
-                }}
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "10px",
-                  border: "none",
-                  background: "rgba(192,192,192,0.2)",
-                  color: "#fff",
-                  fontSize: "18px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "all 0.2s ease",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                +
-              </button>
-            </div>
-          </div>
-          {isPaidEvent && (
-            <label
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                fontSize: "12px",
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={freeEntry}
-                onChange={(e) => setFreeEntry(e.target.checked)}
-                style={{ accentColor: "#e5e5e5" }}
-              />
-              <span>Free entry (comp)</span>
-            </label>
-          )}
-          <button
-            type="submit"
-            disabled={generating}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "8px 12px",
-              borderRadius: "999px",
-              border: "1px solid " + colors.goldRgba,
-              backgroundImage: colors.gradientGold,
-              boxShadow: colors.goldShadow,
-              color: "#05040a",
-              fontSize: "12px",
-              fontWeight: 600,
-              cursor: generating ? "not-allowed" : "pointer",
-              opacity: generating ? 0.6 : 1,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {generating ? "Creating..." : "Email link"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 function generateDinnerTimeSlots(event) {
   if (!event.dinnerEnabled || !event.dinnerStartTime || !event.dinnerEndTime) {
@@ -514,6 +163,7 @@ export function EventGuestsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { setEventNav } = useEventNav();
   const [event, setEvent] = useState(null);
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -551,6 +201,13 @@ export function EventGuestsPage() {
         const data = await res.json();
         setEvent(data.event);
         setGuests(data.guests || []);
+
+        // Update navbar with event context
+        setEventNav({
+          title: data.event?.title,
+          slug: data.event?.slug,
+          guestsCount: data.guests?.length || 0,
+        });
 
         // Load dinner slots if dinner is enabled
         if (data.event?.dinnerEnabled) {
@@ -608,6 +265,17 @@ export function EventGuestsPage() {
       debounceTimers.current = {};
     };
   }, [id, showToast]);
+
+  // Keep navbar guest count in sync
+  useEffect(() => {
+    if (event) {
+      setEventNav({
+        title: event.title,
+        slug: event.slug,
+        guestsCount: guests.length,
+      });
+    }
+  }, [guests.length, event, setEventNav]);
 
   // Handle click outside calendar dropdown
   useEffect(() => {
@@ -1177,66 +845,6 @@ export function EventGuestsPage() {
         paddingBottom: "40px",
       }}
     >
-      {/* Hero Image Background - Full Screen */}
-      {event?.imageUrl && (
-        <>
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              width: "100%",
-              height: "100%",
-              zIndex: 0,
-            }}
-          >
-            <img
-              src={event.imageUrl}
-              alt={event.title || "Event"}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-              }}
-            />
-          </div>
-          {/* Gradient overlay - fades to dark at bottom where menu is */}
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background:
-                "linear-gradient(to bottom, transparent 0%, transparent 30%, rgba(5, 4, 10, 0.2) 50%, rgba(5, 4, 10, 0.5) 65%, rgba(12, 10, 18, 0.8) 80%, rgba(12, 10, 18, 0.95) 90%, #0c0a12 100%)",
-              pointerEvents: "none",
-              zIndex: 1,
-            }}
-          />
-        </>
-      )}
-
-      {/* Cursor glow effect */}
-      <div
-        style={{
-          position: "fixed",
-          width: "600px",
-          height: "600px",
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, rgba(192, 192, 192, 0.08) 0%, transparent 70%)",
-          left: mousePosition.x - 300,
-          top: mousePosition.y - 300,
-          pointerEvents: "none",
-          transition: "all 0.3s ease-out",
-          zIndex: 1,
-        }}
-      />
-
       <style>{`
         @media (max-width: 767px) {
           .export-csv-button-container {
@@ -1245,382 +853,17 @@ export function EventGuestsPage() {
         }
       `}</style>
 
-      {/* Content - Overlaid on background */}
+      {/* Content */}
       <div
         style={{
           position: "relative",
-          zIndex: 2,
           width: "100%",
           maxWidth: "100%",
           padding: "0",
           margin: "0",
         }}
       >
-        {/* Share and Calendar Icons - Above Title */}
-        {event && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "16px",
-              padding: "20px 20px 12px 20px",
-            }}
-          >
-            {/* Share button */}
-            <button
-              onClick={handleShare}
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                margin: 0,
-                boxShadow: "none",
-                appearance: "none",
-                WebkitAppearance: "none",
-                MozAppearance: "none",
-                cursor: "pointer",
-                color: "rgba(255, 255, 255, 0.8)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.color = "#fff";
-                e.target.style.transform = "scale(1.1)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.color = "rgba(255, 255, 255, 0.8)";
-                e.target.style.transform = "scale(1)";
-              }}
-            >
-              <FaPaperPlane size={20} />
-            </button>
-
-            {/* Calendar dropdown */}
-            <div
-              ref={calendarDropdownRef}
-              style={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowCalendarDropdown(!showCalendarDropdown);
-                }}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  padding: 0,
-                  margin: 0,
-                  boxShadow: "none",
-                  appearance: "none",
-                  WebkitAppearance: "none",
-                  MozAppearance: "none",
-                  cursor: "pointer",
-                  color: "rgba(255, 255, 255, 0.7)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.color = "rgba(255, 255, 255, 0.9)";
-                  e.target.style.transform = "scale(1.1)";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.color = "rgba(255, 255, 255, 0.7)";
-                  e.target.style.transform = "scale(1)";
-                }}
-              >
-                <FaCalendar size={18} />
-              </button>
-
-              {showCalendarDropdown && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    marginTop: "8px",
-                    background: "rgba(20, 16, 30, 0.95)",
-                    backdropFilter: "blur(10px)",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    overflow: "hidden",
-                    zIndex: 10,
-                    minWidth: "180px",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                  }}
-                >
-                  <button
-                    onClick={() => handleAddToCalendar("google")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Google Calendar
-                  </button>
-                  <button
-                    onClick={() => handleAddToCalendar("outlook")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Outlook
-                  </button>
-                  <button
-                    onClick={() => handleAddToCalendar("yahoo")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Yahoo Calendar
-                  </button>
-                  <button
-                    onClick={() => handleAddToCalendar("apple")}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "none",
-                      background: "transparent",
-                      color: "#fff",
-                      fontSize: "15px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = "transparent";
-                    }}
-                  >
-                    Apple Calendar
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Go to live link */}
-            <div
-              style={{
-                fontSize: "16px",
-                opacity: 0.8,
-                color: "rgba(255, 255, 255, 0.8)",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                flex: 1,
-              }}
-            >
-              <a
-                href={`/e/${event.slug}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  color: "#c0c0c0",
-                  textDecoration: "none",
-                  fontWeight: 600,
-                  fontSize: "16px",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.color = "#e5e5e5";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.color = "#c0c0c0";
-                }}
-              >
-                go to live
-              </a>
-            </div>
-          </div>
-        )}
-
-        {/* Title - Above Menu (same as ManageEventPage) */}
-        {event && (
-          <h1
-            style={{
-              marginBottom: "20px",
-              padding: "0 20px",
-              fontSize: "clamp(28px, 8vw, 40px)",
-              fontWeight: 800,
-              lineHeight: "1.2",
-              color: "#fff",
-              letterSpacing: "-0.02em",
-              maxWidth: "100%",
-            }}
-          >
-            {event.title || "Untitled event"}
-          </h1>
-        )}
-
-        {/* Content Card - same layout/design as Overview and Edit on ManageEventPage */}
-        <div
-          className="responsive-card"
-          style={{
-            background: "#0c0a12",
-            border: "1px solid rgba(255,255,255,0.05)",
-            marginTop: event?.imageUrl ? "0" : "0",
-            maxWidth: "100%",
-            borderRadius: "0",
-            marginLeft: "0",
-            marginRight: "0",
-            padding: "20px",
-            boxSizing: "border-box",
-          }}
-        >
-          {/* Tabs */}
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              marginBottom: "0",
-              padding: "20px 20px 0 20px",
-              fontSize: "16px",
-              borderBottom: "2px solid rgba(255,255,255,0.08)",
-              paddingBottom: "0",
-              overflowX: "auto",
-              WebkitOverflowScrolling: "touch",
-              width: "100%",
-              boxSizing: "border-box",
-            }}
-          >
-            <button
-              onClick={() => navigate(`/app/events/${id}/manage`)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#9ca3af",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-                padding: "14px 20px",
-                minHeight: "44px",
-                borderRadius: "8px 8px 0 0",
-                fontWeight: 500,
-                borderBottom: "2px solid transparent",
-                marginBottom: "-2px",
-                fontSize: "16px",
-                touchAction: "manipulation",
-                WebkitTapHighlightColor: "transparent",
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.color = "#fff";
-                e.target.style.background = "rgba(255,255,255,0.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.color = "#9ca3af";
-                e.target.style.background = "transparent";
-              }}
-            >
-              Overview
-            </button>
-            <div
-              style={{
-                padding: "14px 20px",
-                minHeight: "44px",
-                fontWeight: 700,
-                color: "#fff",
-                borderBottom: "2px solid #c0c0c0",
-                marginBottom: "-2px",
-                background: "rgba(192, 192, 192, 0.1)",
-                borderRadius: "8px 8px 0 0",
-                fontSize: "16px",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <SilverIcon as={Users} size={18} />
-                Guests ({guests.length})
-              </span>
-            </div>
-            <button
-              onClick={() => navigate(`/app/events/${id}/edit`)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#9ca3af",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-                padding: "14px 20px",
-                minHeight: "44px",
-                borderRadius: "8px 8px 0 0",
-                fontWeight: 500,
-                borderBottom: "2px solid transparent",
-                marginBottom: "-2px",
-                fontSize: "16px",
-                touchAction: "manipulation",
-                WebkitTapHighlightColor: "transparent",
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.color = "#fff";
-                e.target.style.background = "rgba(255,255,255,0.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.color = "#9ca3af";
-                e.target.style.background = "transparent";
-              }}
-            >
-              Edit
-            </button>
-          </div>
-
-          {/* Tab Content Container */}
+          {/* Tab Content */}
           <div
             style={{
               padding: "24px 20px",
@@ -1690,9 +933,6 @@ export function EventGuestsPage() {
                 Export CSV
               </button>
             </div>
-
-            {/* VIP Invites - host/admin controls */}
-            <VipInviteSection event={event} showToast={showToast} />
 
             {/* Search Bar - Smartphone Friendly */}
             <div
@@ -2306,7 +1546,6 @@ export function EventGuestsPage() {
             )}
           </div>
         </div>
-      </div>
 
       {/* Edit Guest Modal */}
       {editingGuest && (

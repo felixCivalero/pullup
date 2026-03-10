@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useEventNav } from "../contexts/EventNavContext.jsx";
 import {
   Camera,
   Image as ImageIcon,
@@ -268,6 +269,7 @@ export function CreateEventPage() {
   const { id: editEventId } = useParams(); // present when editing
   const isEditMode = !!editEventId;
   const { showToast } = useToast();
+  const { setEventNav } = useEventNav();
   const [editLoading, setEditLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [showStartDateTimePicker, setShowStartDateTimePicker] = useState(false);
@@ -518,6 +520,13 @@ export function CreateEventPage() {
         } else if (ev.imageUrl) {
           setImagePreview(ev.imageUrl);
         }
+
+        // Update navbar with event context
+        setEventNav({
+          title: ev.title,
+          slug: ev.slug,
+          guestsCount: null,
+        });
       } catch (err) {
         console.error("Error loading event for edit:", err);
         showToast("Failed to load event", "error");

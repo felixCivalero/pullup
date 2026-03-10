@@ -2,8 +2,9 @@ import { NavLink, Outlet } from "react-router-dom";
 import { colors } from "../theme/colors.js";
 
 const NAV_ITEMS = [
-  { label: "Cultural Events", to: "/admin/stockholm-events", emoji: "🌆" },
+  { label: "Discover", to: "/admin/discover", emoji: "🌆" },
   { label: "Newsletter", to: "/admin", emoji: "✉️", end: true },
+  { label: "Analytics", to: "/admin/analytics", emoji: "📊" },
 ];
 
 export function AdminLayout() {
@@ -19,8 +20,8 @@ export function AdminLayout() {
       <div
         style={{
           position: "sticky",
-          top: 0,
-          zIndex: 50,
+          top: 58,
+          zIndex: 10,
           borderBottom: "1px solid rgba(255,255,255,0.07)",
           background: "rgba(5,4,10,0.92)",
           backdropFilter: "blur(16px)",

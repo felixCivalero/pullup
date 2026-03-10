@@ -32,7 +32,7 @@ export function RsvpForm({
   // Preview mode: pass pre-built slots to skip API call
   previewSlots = null,
 }) {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(vipOffer?.invite?.email || "");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [wantsDinner, setWantsDinner] = useState(false);
@@ -303,13 +303,15 @@ export function RsvpForm({
             type="email"
             required
             value={email}
-            onChange={(e) => { setEmail(e.target.value); setError(""); }}
+            onChange={(e) => { if (!isVipInvite) { setEmail(e.target.value); setError(""); } }}
             placeholder="Email"
             disabled={loading}
+            readOnly={isVipInvite}
             autoComplete="email"
             style={{
               ...inputStyle,
               borderColor: error && error.includes("email") ? "rgba(239, 68, 68, 0.5)" : undefined,
+              ...(isVipInvite ? { opacity: 0.7, cursor: "default" } : {}),
             }}
           />
           {error && error.includes("email") && (

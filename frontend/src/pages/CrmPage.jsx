@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { TabButton } from "../components/HomeTabs";
 import { CrmTab } from "../components/HomeCrmTab";
 
 export function CrmPage() {
@@ -58,39 +57,6 @@ export function CrmPage() {
             }
           }
         `}</style>
-
-        {/* Main app mode tabs (Events / CRM) */}
-        <div
-          style={{
-            position: "sticky",
-            top: 56,
-            zIndex: 5,
-            marginBottom: "clamp(12px, 3vw, 20px)",
-          }}
-        >
-          <div
-            className="main-tabs-rail"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "4px",
-              background: "rgba(5, 4, 10, 0.96)",
-              borderRadius: "999px",
-              padding: "4px",
-              border: "1px solid rgba(255,255,255,0.06)",
-              boxShadow: "0 18px 40px rgba(0,0,0,0.65)",
-              maxWidth: "420px",
-              margin: "0 auto",
-            }}
-          >
-            <TabButton
-              label="Events"
-              active={false}
-              onClick={() => navigate("/events")}
-            />
-            <TabButton label="CRM" active={true} />
-          </div>
-        </div>
 
         <div
           className="responsive-card"

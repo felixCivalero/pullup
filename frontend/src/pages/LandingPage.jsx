@@ -35,14 +35,14 @@ const INTEREST_OPTIONS = [
 ];
 
 const FEATURES = [
-  { icon: Calendar, title: "Event pages", desc: "Beautiful, shareable pages with all the details your guests need." },
-  { icon: Ticket, title: "RSVP & tickets", desc: "Guest lists, paid tickets, capacity limits, and waitlists." },
-  { icon: UtensilsCrossed, title: "Dinner seatings", desc: "Drag-and-drop seating for intimate dinners and events." },
-  { icon: Users, title: "Guest CRM", desc: "Track attendance, manage contacts, build your community." },
-  { icon: Mail, title: "Email marketing", desc: "Newsletters, invitations, open & click tracking built in." },
-  { icon: BarChart3, title: "Analytics", desc: "RSVPs, attendance, revenue, and growth at a glance." },
-  { icon: Crown, title: "VIP invites", desc: "Exclusive, token-gated invitations for your inner circle." },
-  { icon: UserPlus, title: "Co-hosts", desc: "Collaborate with your crew. Shared access, shared events." },
+  { icon: Calendar, title: "Event pages", desc: "Your event deserves more than a group chat. Create a real page in seconds." },
+  { icon: Ticket, title: "RSVP & tickets", desc: "Free or paid. Capacity limits, waitlists, guest lists — handled." },
+  { icon: UtensilsCrossed, title: "Dinner seatings", desc: "Drag-and-drop seating for intimate dinners and gatherings." },
+  { icon: Users, title: "Guest CRM", desc: "Know your people. Track who shows up, build real community." },
+  { icon: Mail, title: "Email marketing", desc: "Send invites and newsletters. Track opens and clicks." },
+  { icon: BarChart3, title: "Analytics", desc: "See what's working. RSVPs, attendance, growth — all in one view." },
+  { icon: Crown, title: "VIP invites", desc: "Private, token-gated invitations for your inner circle." },
+  { icon: UserPlus, title: "Co-hosts", desc: "Run events with your crew. Shared access, shared vision." },
 ];
 
 const inputStyle = {
@@ -248,7 +248,7 @@ export function LandingPage() {
             }}
           >
             <Sparkles size={13} style={{ color: colors.silver }} />
-            The platform for cultural hosts
+            More events. More culture.
           </div>
 
           <h1 style={{ fontSize: "clamp(42px, 10vw, 80px)", fontWeight: 800, lineHeight: 1.05, marginBottom: 20, letterSpacing: "-0.03em" }}>
@@ -258,9 +258,9 @@ export function LandingPage() {
             </span>
           </h1>
 
-          <p style={{ fontSize: "clamp(15px, 3vw, 19px)", lineHeight: 1.55, color: "rgba(255,255,255,0.65)", maxWidth: 460, margin: "0 auto 32px" }}>
-            Create events, manage guests, send invites, track everything.
-            One platform, zero cost.
+          <p style={{ fontSize: "clamp(15px, 3vw, 19px)", lineHeight: 1.55, color: "rgba(255,255,255,0.65)", maxWidth: 480, margin: "0 auto 32px" }}>
+            The free event platform built for the cultural underground.
+            For the creators, curators, and hosts who make cities worth living in.
           </p>
 
           <button
@@ -280,11 +280,11 @@ export function LandingPage() {
       {/* ─── FEATURES ─── */}
       <section id="features" style={sp}>
         <h2 style={{ fontSize: "clamp(26px, 5vw, 40px)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 12, textAlign: "center" }}>
-          Everything you need to{" "}
-          <span style={{ background: colors.gradientPrimary, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>host</span>
+          Pro tools,{" "}
+          <span style={{ background: colors.gradientPrimary, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>zero budget</span>{" "}required
         </h2>
-        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", textAlign: "center", marginBottom: "clamp(28px, 4vh, 48px)", maxWidth: 420, margin: "0 auto clamp(28px, 4vh, 48px)" }}>
-          From intimate dinners to large-scale cultural events.
+        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", textAlign: "center", maxWidth: 440, margin: "0 auto clamp(28px, 4vh, 48px)" }}>
+          You shouldn't need a marketing team to throw a great event. Everything you need, nothing you don't.
         </p>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: "clamp(12px, 2vw, 20px)" }}>
@@ -312,13 +312,13 @@ export function LandingPage() {
       {/* ─── HOW IT WORKS ─── */}
       <section style={sp}>
         <h2 style={{ fontSize: "clamp(26px, 5vw, 40px)", fontWeight: 800, letterSpacing: "-0.02em", textAlign: "center", marginBottom: "clamp(24px, 4vh, 40px)" }}>
-          Live in 2 minutes
+          From idea to event in minutes
         </h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: "clamp(20px, 3vw, 36px)", maxWidth: 720, margin: "0 auto" }}>
           {[
-            { n: "1", title: "Create", desc: "Add details, set tickets, customize your page." },
-            { n: "2", title: "Share", desc: "Send your link or invite guests directly." },
-            { n: "3", title: "Grow", desc: "Track RSVPs, send updates, build your scene." },
+            { n: "1", title: "Create", desc: "Set up your event page, add the vibe, open sign-ups." },
+            { n: "2", title: "Share", desc: "Drop the link or send invites straight from PullUp." },
+            { n: "3", title: "Grow", desc: "See who's coming, build your audience, do it again." },
           ].map((s, i) => (
             <div key={i} style={{ textAlign: "center" }}>
               <div style={{ width: 48, height: 48, borderRadius: "50%", background: colors.gradientPrimary, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 20, fontWeight: 800, color: "#111" }}>
@@ -342,10 +342,10 @@ export function LandingPage() {
           }}
         >
           <h2 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 800, marginBottom: 6, textAlign: "center" }}>
-            Don't miss out
+            Stay in the loop
           </h2>
           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: 20, lineHeight: 1.5 }}>
-            Get invites to underground events, private dinners, and cultural experiences.
+            Get early invites to underground events, private dinners, and things you won't find on Instagram.
           </p>
 
           <div style={{ marginBottom: 16 }}>
@@ -406,11 +406,11 @@ export function LandingPage() {
       {/* ─── FINAL CTA ─── */}
       <section style={{ ...sp, textAlign: "center", paddingBottom: "clamp(48px, 8vh, 80px)" }}>
         <h2 style={{ fontSize: "clamp(24px, 5vw, 38px)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 12 }}>
-          Ready to make 'em{" "}
-          <span style={{ background: colors.gradientPrimary, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>pull up</span>?
+          Your city needs more{" "}
+          <span style={{ background: colors.gradientPrimary, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>culture</span>
         </h2>
-        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", maxWidth: 380, margin: "0 auto 24px" }}>
-          Join the hosts building unforgettable experiences.
+        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", maxWidth: 400, margin: "0 auto 24px" }}>
+          We keep PullUp free because we believe the next wave of culture comes from independent hosts like you.
         </p>
         <button
           onClick={() => setShowAuth(true)}
@@ -426,8 +426,12 @@ export function LandingPage() {
       </section>
 
       {/* ─── FOOTER ─── */}
-      <footer style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "24px clamp(16px, 5vw, 40px)", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.3)" }}>
-        pullup &copy; {new Date().getFullYear()}
+      <footer style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "24px clamp(16px, 5vw, 40px)", display: "flex", alignItems: "center", justifyContent: "center", gap: "clamp(12px, 3vw, 24px)", flexWrap: "wrap", fontSize: 12, color: "rgba(255,255,255,0.3)" }}>
+        <span>pullup &copy; {new Date().getFullYear()}</span>
+        <span style={{ opacity: 0.3 }}>&middot;</span>
+        <a href="/privacy" style={{ color: "rgba(255,255,255,0.35)", textDecoration: "none" }}>Privacy</a>
+        <a href="/terms" style={{ color: "rgba(255,255,255,0.35)", textDecoration: "none" }}>Terms</a>
+        <a href="/cookies" style={{ color: "rgba(255,255,255,0.35)", textDecoration: "none" }}>Cookies</a>
       </footer>
 
       {/* ─── AUTH MODAL ─── */}

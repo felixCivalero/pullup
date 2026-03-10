@@ -16,6 +16,9 @@ import { DiscoverPage } from "./pages/DiscoverPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { SalesPage } from "./pages/SalesPage";
 import { EventAnalyticsPage } from "./pages/EventAnalyticsPage";
+import { PrivacyPage } from "./pages/PrivacyPage";
+import { TermsPage } from "./pages/TermsPage";
+import { CookiesPage } from "./pages/CookiesPage";
 import { HostAnalyticsPage } from "./pages/HostAnalyticsPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -27,6 +30,9 @@ function App() {
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/newsletter" element={<NewsletterPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/cookies" element={<CookiesPage />} />
         <Route
           path="/e/:slug"
           element={

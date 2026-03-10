@@ -1,7 +1,7 @@
 // Host-side event card (Home dashboard)
 import { useState } from "react";
-import { FaShare } from "react-icons/fa";
-import { Users, Link2 } from "lucide-react";
+import { FaInstagram, FaTiktok, FaFacebookF, FaXTwitter, FaLinkedinIn } from "react-icons/fa6";
+import { Users, Link2, Check, Link as LinkIcon, Share } from "lucide-react";
 import { getEventShareUrl } from "../lib/urlUtils";
 import { formatReadableDateTime } from "../lib/dateUtils.js";
 import { useToast } from "./Toast";
@@ -19,6 +19,15 @@ export function getEventStatus(event) {
   return "upcoming";
 }
 
+const shareChannels = [
+  { key: "instagram", icon: FaInstagram, color: "rgba(225,48,108,0.8)" },
+  { key: "tiktok", icon: FaTiktok, color: "rgba(255,255,255,0.7)" },
+  { key: "facebook", icon: FaFacebookF, color: "rgba(66,103,178,0.8)" },
+  { key: "twitter", icon: FaXTwitter, color: "rgba(255,255,255,0.7)" },
+  { key: "linkedin", icon: FaLinkedinIn, color: "rgba(10,102,194,0.8)" },
+  { key: "direct", icon: LinkIcon, color: "rgba(255,255,255,0.4)" },
+];
+
 export function DashboardEventCard({ event, onPreview, onManage }) {
   const status = getEventStatus(event);
   const isLive = status === "ongoing";
@@ -28,20 +37,24 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
 
   const canManageHosts = event.myRole === "owner" || event.myRole === "admin";
 
-  const handleShare = async () => {
-    const shareUrl = getEventShareUrl(event.slug);
-    if (navigator.share) {
-      try {
-        await navigator.share({ url: shareUrl });
-      } catch (err) {
-        if (err.name !== "AbortError") {
-          navigator.clipboard.writeText(shareUrl);
-        }
-      }
-    } else {
-      navigator.clipboard.writeText(shareUrl);
+  const [copiedSource, setCopiedSource] = useState(null);
+
+  const baseShareUrl = getEventShareUrl(event.slug);
+
+  function copyLink(source) {
+    let url = baseShareUrl;
+    if (source !== "direct") {
+      const u = new URL(baseShareUrl);
+      u.searchParams.set("utm_source", source);
+      u.searchParams.set("utm_medium", "social");
+      u.searchParams.set("utm_campaign", event.slug);
+      url = u.toString();
     }
-  };
+    navigator.clipboard.writeText(url);
+    setCopiedSource(source);
+    showToast("Link copied!");
+    setTimeout(() => setCopiedSource(null), 2000);
+  }
 
   return (
     <>
@@ -277,7 +290,13 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleShare();
+                  const shareUrl = getEventShareUrl(event.slug);
+                  if (navigator.share) {
+                    navigator.share({ url: shareUrl, title: event.title }).catch(() => {});
+                  } else {
+                    navigator.clipboard.writeText(shareUrl);
+                    showToast("Link copied!");
+                  }
                 }}
                 style={{
                   padding: "6px 10px", borderRadius: "999px",
@@ -287,15 +306,63 @@ export function DashboardEventCard({ event, onPreview, onManage }) {
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.background = "rgba(255,255,255,0.1)";
+                  e.currentTarget.style.background = "rgba(255,255,255,0.1)";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.background = "rgba(255,255,255,0.05)";
+                  e.currentTarget.style.background = "rgba(255,255,255,0.05)";
                 }}
                 title="Share event"
               >
-                <FaShare size={12} />
+                <Share size={12} />
               </button>
+            </div>
+
+            {/* Tracking links — always visible */}
+            <div onClick={(e) => e.stopPropagation()}>
+              <div style={{
+                fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.08em",
+                fontWeight: 600, opacity: 0.3, marginBottom: 6,
+              }}>
+                Tracking links
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {shareChannels.map((ch) => {
+                  const Icon = ch.icon;
+                  const isCopied = copiedSource === ch.key;
+                  return (
+                    <button
+                      key={ch.key}
+                      onClick={() => copyLink(ch.key)}
+                      title={`Copy ${ch.key === "direct" ? "plain" : ch.key} link`}
+                      style={{
+                        width: 32, height: 32,
+                        borderRadius: "8px",
+                        border: "1px solid " + (isCopied ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.08)"),
+                        background: isCopied ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.03)",
+                        color: isCopied ? colors.success : ch.color,
+                        cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "all 0.15s",
+                        padding: 0,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isCopied) {
+                          e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                          e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isCopied) {
+                          e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                          e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                        }
+                      }}
+                    >
+                      {isCopied ? <Check size={14} /> : <Icon size={14} />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

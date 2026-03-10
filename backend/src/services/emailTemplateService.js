@@ -194,11 +194,13 @@ export function renderWeeklyHappeningsTemplate({ events, templateContent }) {
     const eventUrl = ev.url || "#";
 
     const imageHtml = ev.image_url
-      ? `<img
-          src="${ev.image_url}"
-          alt="${(ev.title || "").replace(/"/g, "&quot;")}"
-          width="100%"
-          style="display:block;outline:none;border:none;text-decoration:none;width:100%;max-width:100%;border-radius:10px 10px 0 0;object-fit:cover;max-height:280px;" />`
+      ? `<a href="${eventUrl}" target="_blank" style="display:block;text-decoration:none;">
+          <img
+            src="${ev.image_url}"
+            alt="${(ev.title || "").replace(/"/g, "&quot;")}"
+            width="100%"
+            style="display:block;outline:none;border:none;text-decoration:none;width:100%;max-width:100%;border-radius:10px 10px 0 0;object-fit:cover;max-height:280px;" />
+         </a>`
       : "";
 
     const dividerHtml = isLast

@@ -142,6 +142,25 @@ router.get("/t/c/:trackingId", async (req, res) => {
     // Record click asynchronously (don't block redirect)
     const ua = req.headers["user-agent"] || "";
     if (!isBot(ua) && outbox) {
+      // A click implies an open — record open if not already recorded
+      // (many email clients block tracking pixels, so this ensures opens are counted)
+      supabase
+        .from("email_opens")
+        .select("id")
+        .eq("tracking_id", trackingId)
+        .limit(1)
+        .then(({ data: existingOpen }) => {
+          if (!existingOpen || existingOpen.length === 0) {
+            return supabase.from("email_opens").insert({
+              outbox_id: outbox.id,
+              tracking_id: trackingId,
+              user_agent: ua.slice(0, 500),
+              ip_address: req.ip || req.headers["x-forwarded-for"] || null,
+            });
+          }
+        })
+        .catch(() => {});
+
       // Try to extract event slug from PullUp event links
       const eventSlug = extractEventSlug(destinationUrl);
       let eventId = null;

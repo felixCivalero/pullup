@@ -137,7 +137,9 @@ export function addTracking(html, { trackingId, baseUrl, campaignTag }) {
       const contentLower = (content || "").toLowerCase();
       const hrefLower = href.toLowerCase();
 
-      if (/view\s*event/i.test(contentLower)) {
+      if (/<img\s/i.test(content)) {
+        label = "image";
+      } else if (/view\s*event/i.test(contentLower)) {
         label = "view_event";
       } else if (hrefLower.includes("spotify.com") || /listen/i.test(contentLower) || /spotify/i.test(contentLower)) {
         label = "spotify";

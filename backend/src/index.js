@@ -6426,73 +6426,37 @@ app.get("/admin/newsletter/weekly-events", requireAdmin, async (req, res) => {
 // Newsletter Analytics (admin)
 // ---------------------------
 
-// GET /admin/analytics/overview — aggregate stats via SQL aggregation
+// GET /admin/analytics/overview — aggregate stats
 app.get("/admin/analytics/overview", requireAdmin, async (req, res) => {
   try {
     const { supabase: sb } = await import("./supabase.js");
 
-    // Use SQL for aggregation instead of loading full tables
-    const [outboxAgg, opensAgg, clicksAgg, topLinksRes] = await Promise.all([
-      // Outbox summary
-      sb.rpc("exec_sql", { query: `
-        SELECT
-          COUNT(DISTINCT campaign_tag) AS total_campaigns,
-          COUNT(*) AS total_sent
-        FROM email_outbox WHERE campaign_tag IS NOT NULL
-      ` }).then(r => r.data).catch(() => null),
+    // Get all campaign outbox rows (scoped to campaign emails only)
+    const { data: outboxRows } = await sb
+      .from("email_outbox")
+      .select("id, tracking_id, campaign_tag")
+      .not("campaign_tag", "is", null);
 
-      // Unique opens (distinct tracking_ids that have at least one open)
-      sb.rpc("exec_sql", { query: `
-        SELECT COUNT(DISTINCT eo.tracking_id) AS unique_opens
-        FROM email_opens eo
-        JOIN email_outbox ob ON ob.tracking_id = eo.tracking_id
-        WHERE ob.campaign_tag IS NOT NULL
-      ` }).then(r => r.data).catch(() => null),
+    const allOutbox = outboxRows || [];
+    const totalSent = allOutbox.length;
+    const totalCampaigns = new Set(allOutbox.map(r => r.campaign_tag)).size;
+    const campaignTrackingIds = allOutbox.map(r => r.tracking_id);
 
-      // Unique clicks
-      sb.rpc("exec_sql", { query: `
-        SELECT COUNT(DISTINCT ec.tracking_id) AS unique_clicks
-        FROM email_clicks ec
-        JOIN email_outbox ob ON ob.tracking_id = ec.tracking_id
-        WHERE ob.campaign_tag IS NOT NULL
-      ` }).then(r => r.data).catch(() => null),
-
-      // Top clicked links
-      sb.from("email_clicks")
-        .select("link_url, link_label")
-        .limit(5000),
+    // Fetch opens and clicks scoped to campaign tracking_ids
+    const [opensRes, clicksRes, topLinksRes] = await Promise.all([
+      campaignTrackingIds.length > 0
+        ? sb.from("email_opens").select("tracking_id").in("tracking_id", campaignTrackingIds)
+        : Promise.resolve({ data: [] }),
+      campaignTrackingIds.length > 0
+        ? sb.from("email_clicks").select("tracking_id").in("tracking_id", campaignTrackingIds)
+        : Promise.resolve({ data: [] }),
+      sb.from("email_clicks").select("link_url, link_label").limit(5000),
     ]);
 
-    // Fallback: if RPC not available, use simpler queries
-    let totalCampaigns = 0, totalSent = 0, uniqueOpens = 0, uniqueClicks = 0;
+    const uniqueOpens = new Set((opensRes.data || []).map(o => o.tracking_id)).size;
+    const uniqueClicks = new Set((clicksRes.data || []).map(c => c.tracking_id)).size;
 
-    if (outboxAgg && outboxAgg.length > 0) {
-      totalCampaigns = parseInt(outboxAgg[0].total_campaigns) || 0;
-      totalSent = parseInt(outboxAgg[0].total_sent) || 0;
-    } else {
-      // Fallback: count from outbox
-      const { count } = await sb.from("email_outbox").select("id", { count: "exact", head: true }).not("campaign_tag", "is", null);
-      totalSent = count || 0;
-      const { data: tags } = await sb.from("email_outbox").select("campaign_tag").not("campaign_tag", "is", null);
-      totalCampaigns = new Set((tags || []).map(t => t.campaign_tag)).size;
-    }
-
-    if (opensAgg && opensAgg.length > 0) {
-      uniqueOpens = parseInt(opensAgg[0].unique_opens) || 0;
-    } else {
-      // Fallback: get distinct opened tracking_ids
-      const { data: openTids } = await sb.from("email_opens").select("tracking_id");
-      uniqueOpens = new Set((openTids || []).map(o => o.tracking_id)).size;
-    }
-
-    if (clicksAgg && clicksAgg.length > 0) {
-      uniqueClicks = parseInt(clicksAgg[0].unique_clicks) || 0;
-    } else {
-      const { data: clickTids } = await sb.from("email_clicks").select("tracking_id");
-      uniqueClicks = new Set((clickTids || []).map(c => c.tracking_id)).size;
-    }
-
-    // Top clicked links — aggregate in JS from limited result set
+    // Aggregate clicks per URL
     const linkClickMap = {};
     for (const c of (topLinksRes.data || [])) {
       const key = c.link_url;
@@ -6501,9 +6465,73 @@ app.get("/admin/analytics/overview", requireAdmin, async (req, res) => {
       }
       linkClickMap[key].clicks++;
     }
-    const topClickedLinks = Object.values(linkClickMap)
+    const allLinks = Object.values(linkClickMap);
+
+    // Collect slugs and external URLs for title resolution
+    const ovSlugSet = new Set();
+    const ovExternalUrls = [];
+    for (const l of allLinks) {
+      try {
+        const u = new URL(l.link_url);
+        const m = u.pathname.match(/^\/e\/([^/?]+)/);
+        if (m) {
+          ovSlugSet.add(m[1]);
+        } else if (l.link_label === "view_event" || l.link_label === "link") {
+          ovExternalUrls.push(l.link_url);
+        }
+      } catch {}
+    }
+
+    const ovUrlToTitle = {};
+    if (ovSlugSet.size > 0) {
+      try {
+        const { data: evs } = await sb.from("events").select("slug, title").in("slug", [...ovSlugSet]);
+        for (const ev of (evs || [])) {
+          if (ev.slug && ev.title) ovUrlToTitle[`slug:${ev.slug}`] = ev.title;
+        }
+      } catch {}
+    }
+    if (ovExternalUrls.length > 0) {
+      try {
+        const { data: sthlmEvs } = await sb.from("stockholm_events").select("title, url").in("url", ovExternalUrls);
+        for (const ev of (sthlmEvs || [])) {
+          if (ev.url && ev.title) ovUrlToTitle[`url:${ev.url}`] = ev.title;
+        }
+      } catch {}
+    }
+
+    // Resolve title for each link and group by event
+    function resolveTitle(l) {
+      try {
+        const u = new URL(l.link_url);
+        const m = u.pathname.match(/^\/e\/([^/?]+)/);
+        if (m && ovUrlToTitle[`slug:${m[1]}`]) return ovUrlToTitle[`slug:${m[1]}`];
+        if (ovUrlToTitle[`url:${l.link_url}`]) return ovUrlToTitle[`url:${l.link_url}`];
+      } catch {}
+      return null;
+    }
+
+    // Group by event title for event views (view_event, link, cta labels)
+    const eventViewMap = {};
+    const spotifyMap = {};
+    for (const l of allLinks) {
+      const title = resolveTitle(l);
+      const displayTitle = title || l.link_url;
+      if (l.link_label === "spotify") {
+        if (!spotifyMap[displayTitle]) spotifyMap[displayTitle] = { title: displayTitle, clicks: 0 };
+        spotifyMap[displayTitle].clicks += l.clicks;
+      } else if (["view_event", "link", "cta"].includes(l.link_label)) {
+        if (!eventViewMap[displayTitle]) eventViewMap[displayTitle] = { title: displayTitle, clicks: 0 };
+        eventViewMap[displayTitle].clicks += l.clicks;
+      }
+    }
+
+    const topEventViews = Object.values(eventViewMap)
       .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 10);
+      .slice(0, 5);
+    const topSpotifyClicks = Object.values(spotifyMap)
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 5);
 
     return res.json({
       total_campaigns: totalCampaigns,
@@ -6512,7 +6540,8 @@ app.get("/admin/analytics/overview", requireAdmin, async (req, res) => {
       total_clicks: uniqueClicks,
       avg_open_rate: totalSent > 0 ? Math.round((uniqueOpens / totalSent) * 1000) / 10 : 0,
       avg_click_rate: totalSent > 0 ? Math.round((uniqueClicks / totalSent) * 1000) / 10 : 0,
-      top_clicked_links: topClickedLinks,
+      top_event_views: topEventViews,
+      top_spotify_clicks: topSpotifyClicks,
     });
   } catch (err) {
     console.error("[admin] analytics overview error:", err.message);
@@ -6608,7 +6637,7 @@ app.get("/admin/analytics/campaigns/:tag", requireAdmin, async (req, res) => {
     // Get outbox rows for this campaign
     const { data: outboxRows, error: e1 } = await sb
       .from("email_outbox")
-      .select("id, tracking_id, status, created_at")
+      .select("id, tracking_id, status, created_at, to_email")
       .eq("campaign_tag", tag);
 
     if (e1) throw e1;
@@ -6660,26 +6689,45 @@ app.get("/admin/analytics/campaigns/:tag", requireAdmin, async (req, res) => {
       }))
       .sort((a, b) => b.total_clicks - a.total_clicks);
 
-    // Resolve event titles from click URLs (match /e/{slug} pattern)
+    // Resolve event/page titles from click URLs
+    const urlToTitle = {};
     const slugSet = new Set();
+    const externalUrls = [];
+
     for (const l of linksRaw) {
       try {
         const u = new URL(l.link_url);
         const m = u.pathname.match(/^\/e\/([^/?]+)/);
-        if (m) slugSet.add(m[1]);
+        if (m) {
+          slugSet.add(m[1]);
+        } else if (l.link_label === "view_event" || l.link_label === "link") {
+          externalUrls.push(l.link_url);
+        }
       } catch {}
     }
 
-    const slugToTitle = {};
+    // Resolve PullUp event slugs
     if (slugSet.size > 0) {
       try {
-        const slugArr = [...slugSet];
         const { data: events } = await sb
           .from("events")
           .select("slug, title")
-          .in("slug", slugArr);
+          .in("slug", [...slugSet]);
         for (const ev of (events || [])) {
-          if (ev.slug && ev.title) slugToTitle[ev.slug] = ev.title;
+          if (ev.slug && ev.title) urlToTitle[`slug:${ev.slug}`] = ev.title;
+        }
+      } catch {}
+    }
+
+    // Resolve external URLs from stockholm_events
+    if (externalUrls.length > 0) {
+      try {
+        const { data: sthlmEvents } = await sb
+          .from("stockholm_events")
+          .select("title, url")
+          .in("url", externalUrls);
+        for (const ev of (sthlmEvents || [])) {
+          if (ev.url && ev.title) urlToTitle[`url:${ev.url}`] = ev.title;
         }
       } catch {}
     }
@@ -6689,33 +6737,103 @@ app.get("/admin/analytics/campaigns/:tag", requireAdmin, async (req, res) => {
       try {
         const u = new URL(l.link_url);
         const m = u.pathname.match(/^\/e\/([^/?]+)/);
-        if (m && slugToTitle[m[1]]) eventTitle = slugToTitle[m[1]];
+        if (m && urlToTitle[`slug:${m[1]}`]) {
+          eventTitle = urlToTitle[`slug:${m[1]}`];
+        } else if (urlToTitle[`url:${l.link_url}`]) {
+          eventTitle = urlToTitle[`url:${l.link_url}`];
+        }
       } catch {}
       return { ...l, event_title: eventTitle };
     });
 
-    // Per-event breakdown: aggregate all clicks pointing to the same event
-    const eventMap = {};
-    for (const l of links) {
-      if (!l.event_title) continue;
-      let slug = null;
+    // Per-event breakdown: build from raw clicks for accurate unique counting
+    // Helper to resolve a click URL to an event title
+    function resolveClickTitle(clickUrl) {
       try {
-        const u = new URL(l.link_url);
+        const u = new URL(clickUrl);
         const m = u.pathname.match(/^\/e\/([^/?]+)/);
-        if (m) slug = m[1];
+        if (m && urlToTitle[`slug:${m[1]}`]) return { key: m[1], title: urlToTitle[`slug:${m[1]}`] };
+        if (urlToTitle[`url:${clickUrl}`]) return { key: clickUrl, title: urlToTitle[`url:${clickUrl}`] };
       } catch {}
-      if (!slug) continue;
-      if (!eventMap[slug]) {
-        eventMap[slug] = { slug, title: l.event_title, total_clicks: 0, unique_clicks: 0, links: [] };
-      }
-      eventMap[slug].total_clicks += l.total_clicks;
-      eventMap[slug].unique_clicks += l.unique_clicks;
-      eventMap[slug].links.push({ label: l.link_label, total_clicks: l.total_clicks, unique_clicks: l.unique_clicks });
+      return null;
     }
-    const events_breakdown = Object.values(eventMap).sort((a, b) => b.total_clicks - a.total_clicks);
+
+    const eventMap = {};
+    for (const click of (clicks || [])) {
+      const resolved = resolveClickTitle(click.link_url);
+      if (!resolved) continue;
+      const { key, title } = resolved;
+      if (!eventMap[key]) {
+        eventMap[key] = { slug: key, title, total_clicks: 0, unique_clickers: new Set(), linkMap: {} };
+      }
+      eventMap[key].total_clicks++;
+      eventMap[key].unique_clickers.add(click.tracking_id);
+      // Per-link-type within event
+      const label = click.link_label || "link";
+      if (!eventMap[key].linkMap[label]) {
+        eventMap[key].linkMap[label] = { label, total_clicks: 0, unique_clickers: new Set() };
+      }
+      eventMap[key].linkMap[label].total_clicks++;
+      eventMap[key].linkMap[label].unique_clickers.add(click.tracking_id);
+    }
+    const events_breakdown = Object.values(eventMap)
+      .map((ev) => ({
+        slug: ev.slug,
+        title: ev.title,
+        total_clicks: ev.total_clicks,
+        unique_clicks: ev.unique_clickers.size,
+        links: Object.values(ev.linkMap).map((l) => ({
+          label: l.label,
+          total_clicks: l.total_clicks,
+          unique_clicks: l.unique_clickers.size,
+        })).sort((a, b) => b.total_clicks - a.total_clicks),
+      }))
+      .sort((a, b) => b.total_clicks - a.total_clicks);
 
     const totalSent = outboxRows.length;
     const delivered = outboxRows.filter((r) => ["sent", "delivered"].includes(r.status)).length;
+
+    // Per-recipient activity
+    const trackingToEmail = {};
+    for (const row of outboxRows) {
+      trackingToEmail[row.tracking_id] = row.to_email;
+    }
+
+    // Build click list per tracking_id with resolved titles
+    const clicksByTracking = {};
+    for (const click of (clicks || [])) {
+      if (!clicksByTracking[click.tracking_id]) clicksByTracking[click.tracking_id] = [];
+      const resolved = resolveClickTitle(click.link_url);
+      clicksByTracking[click.tracking_id].push({
+        event_title: resolved ? resolved.title : null,
+        link_label: click.link_label,
+        link_url: click.link_url,
+      });
+    }
+
+    // Build recipients: only those who opened or clicked (active recipients)
+    const activeTrackingIds = new Set([...uniqueOpenTrackingIds, ...uniqueClickTrackingIds]);
+    const recipients = [...activeTrackingIds].map((tid) => {
+      const email = trackingToEmail[tid] || "unknown";
+      const opened = uniqueOpenTrackingIds.has(tid);
+      const clickList = clicksByTracking[tid] || [];
+      // Deduplicate clicks by event_title + link_label
+      const seen = new Set();
+      const uniqueClicks = [];
+      for (const c of clickList) {
+        const key = `${c.event_title || c.link_url}::${c.link_label}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueClicks.push(c);
+        }
+      }
+      return {
+        email,
+        opened,
+        clicked: clickList.length > 0,
+        clicks: uniqueClicks,
+      };
+    }).sort((a, b) => b.clicks.length - a.clicks.length);
 
     return res.json({
       campaign_tag: tag,
@@ -6728,6 +6846,7 @@ app.get("/admin/analytics/campaigns/:tag", requireAdmin, async (req, res) => {
       click_rate: totalSent > 0 ? Math.round((uniqueClickTrackingIds.size / totalSent) * 1000) / 10 : 0,
       links,
       events_breakdown,
+      recipients,
       total_opens: (opens || []).length,
       total_clicks: (clicks || []).length,
     });

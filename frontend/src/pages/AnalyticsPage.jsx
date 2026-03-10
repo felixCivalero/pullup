@@ -107,69 +107,19 @@ export function AnalyticsPage() {
               <OverviewCard label="Avg Click Rate" value={`${overview.avg_click_rate}%`} color={colors.success} />
             </div>
 
-            {/* Top clicked events in newsletters */}
-            {overview.top_clicked_links.length > 0 && (
+            {/* Top event views */}
+            {overview.top_event_views && overview.top_event_views.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <SectionLabel>Top Event Views</SectionLabel>
+                <TopList items={overview.top_event_views} color={colors.success} />
+              </div>
+            )}
+
+            {/* Top spotify clicks */}
+            {overview.top_spotify_clicks && overview.top_spotify_clicks.length > 0 && (
               <div style={{ marginBottom: 24 }}>
-                <SectionLabel>Most Clicked in Newsletters</SectionLabel>
-                <div style={{
-                  borderRadius: 14,
-                  background: "rgba(255,255,255,0.02)",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  overflow: "hidden",
-                }}>
-                  {overview.top_clicked_links.map((link, i) => {
-                    const maxClicks = overview.top_clicked_links[0].clicks;
-                    return (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: "10px 14px",
-                          borderBottom: i < overview.top_clicked_links.length - 1
-                            ? "1px solid rgba(255,255,255,0.04)"
-                            : "none",
-                        }}
-                      >
-                        <span style={{
-                          width: 22, height: 22, borderRadius: 6,
-                          background: i === 0 ? colors.gold : i === 1 ? "rgba(192,192,192,0.3)" : i === 2 ? "rgba(205,127,50,0.3)" : "rgba(255,255,255,0.06)",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: "11px", fontWeight: 700,
-                          color: i === 0 ? "#000" : "#fff",
-                          flexShrink: 0,
-                        }}>
-                          {i + 1}
-                        </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{
-                            fontSize: "12px", fontWeight: 500, color: "#fff",
-                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          }}>
-                            {formatLinkLabel(link.link_label)}
-                          </div>
-                          <div style={{
-                            fontSize: "11px", color: colors.textFaded,
-                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          }}>
-                            {truncateUrl(link.link_url)}
-                          </div>
-                        </div>
-                        <div style={{ width: 60, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", flexShrink: 0 }}>
-                          <div style={{
-                            height: "100%", borderRadius: 2,
-                            background: colors.success,
-                            width: `${Math.round((link.clicks / maxClicks) * 100)}%`,
-                          }} />
-                        </div>
-                        <div style={{ fontSize: "13px", fontWeight: 600, color: colors.success, minWidth: 32, textAlign: "right" }}>
-                          {link.clicks}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <SectionLabel>Top Spotify Clicks</SectionLabel>
+                <TopList items={overview.top_spotify_clicks} color="rgba(30,215,96,0.8)" />
               </div>
             )}
 
@@ -258,9 +208,9 @@ export function AnalyticsPage() {
                           <RateBar label="Click rate" rate={detail.click_rate} color={colors.success} />
                         </div>
 
-                        {/* Per-event breakdown */}
-                        {detail.events_breakdown && detail.events_breakdown.length > 0 && (
-                          <div style={{ marginBottom: 16 }}>
+                        {/* Per-event breakdown with link type details */}
+                        {detail.events_breakdown && detail.events_breakdown.length > 0 ? (
+                          <div>
                             <div style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em", color: colors.textFaded, marginBottom: 8 }}>
                               Events in this campaign
                             </div>
@@ -271,122 +221,132 @@ export function AnalyticsPage() {
                                   <div
                                     key={ev.slug}
                                     style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: 10,
                                       padding: "10px 12px",
                                       borderRadius: "10px",
                                       background: "rgba(255,255,255,0.03)",
                                       border: "1px solid rgba(255,255,255,0.05)",
                                     }}
                                   >
-                                    <span style={{
-                                      width: 24, height: 24, borderRadius: 7,
-                                      background: i === 0 ? colors.gold : i === 1 ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.08)",
-                                      display: "flex", alignItems: "center", justifyContent: "center",
-                                      fontSize: "11px", fontWeight: 700,
-                                      color: i === 0 ? "#000" : "#fff",
-                                      flexShrink: 0,
-                                    }}>
-                                      {i + 1}
-                                    </span>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <div style={{
-                                        fontSize: "13px", fontWeight: 600, color: "#fff",
-                                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                      <span style={{
+                                        width: 24, height: 24, borderRadius: 7,
+                                        background: i === 0 ? colors.gold : i === 1 ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.08)",
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        fontSize: "11px", fontWeight: 700,
+                                        color: i === 0 ? "#000" : "#fff",
+                                        flexShrink: 0,
                                       }}>
-                                        {ev.title}
+                                        {i + 1}
+                                      </span>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{
+                                          fontSize: "13px", fontWeight: 600, color: "#fff",
+                                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                        }}>
+                                          {ev.title}
+                                        </div>
                                       </div>
-                                      <div style={{ fontSize: "11px", color: colors.textFaded, marginTop: 2 }}>
-                                        {ev.links.map((l) => formatLinkLabel(l.label)).join(" · ")}
+                                      <div style={{ width: 60, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", flexShrink: 0 }}>
+                                        <div style={{
+                                          height: "100%", borderRadius: 3,
+                                          background: i === 0 ? colors.gold : colors.success,
+                                          width: `${Math.round((ev.total_clicks / maxClicks) * 100)}%`,
+                                        }} />
+                                      </div>
+                                      <div style={{ textAlign: "right", flexShrink: 0, minWidth: 50 }}>
+                                        <div style={{ fontSize: "14px", fontWeight: 700, color: i === 0 ? colors.gold : "#fff" }}>
+                                          {ev.unique_clicks} <span style={{ fontSize: "10px", fontWeight: 400, color: colors.textFaded }}>/ {ev.total_clicks}</span>
+                                        </div>
+                                        <div style={{ fontSize: "10px", color: colors.textFaded }}>
+                                          unique / total
+                                        </div>
                                       </div>
                                     </div>
-                                    <div style={{ width: 60, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", flexShrink: 0 }}>
-                                      <div style={{
-                                        height: "100%", borderRadius: 3,
-                                        background: i === 0 ? colors.gold : colors.success,
-                                        width: `${Math.round((ev.total_clicks / maxClicks) * 100)}%`,
-                                      }} />
-                                    </div>
-                                    <div style={{ textAlign: "right", flexShrink: 0, minWidth: 40 }}>
-                                      <div style={{ fontSize: "14px", fontWeight: 700, color: i === 0 ? colors.gold : "#fff" }}>
-                                        {ev.total_clicks}
-                                      </div>
-                                      <div style={{ fontSize: "10px", color: colors.textFaded }}>
-                                        clicks
-                                      </div>
+                                    {/* Per-link-type breakdown */}
+                                    <div style={{ display: "flex", gap: 12, marginTop: 6, marginLeft: 34 }}>
+                                      {ev.links.map((l, li) => (
+                                        <div key={li} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                          <span style={{
+                                            width: 6, height: 6, borderRadius: "50%",
+                                            background: l.label === "spotify" ? "rgba(30,215,96,0.8)" : colors.success,
+                                            flexShrink: 0,
+                                          }} />
+                                          <span style={{ fontSize: "11px", color: colors.textFaded }}>
+                                            {formatLinkLabel(l.label)}
+                                          </span>
+                                          <span style={{ fontSize: "11px", fontWeight: 600, color: l.label === "spotify" ? "rgba(30,215,96,0.8)" : "rgba(255,255,255,0.6)" }}>
+                                            {l.total_clicks}
+                                          </span>
+                                        </div>
+                                      ))}
                                     </div>
                                   </div>
                                 );
                               })}
                             </div>
                           </div>
+                        ) : (
+                          <div style={{ fontSize: "12px", color: colors.textFaded, textAlign: "center", padding: "8px 0" }}>
+                            No clicks recorded yet.
+                          </div>
                         )}
 
-                        {/* Top clicked links */}
-                        {detail.links && detail.links.length > 0 && (
-                          <div>
+                        {/* Recipient activity */}
+                        {detail.recipients && detail.recipients.length > 0 && (
+                          <div style={{ marginTop: 16 }}>
                             <div style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em", color: colors.textFaded, marginBottom: 8 }}>
-                              Top clicked links
+                              Recipient Activity
                             </div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                              {detail.links.slice(0, 10).map((link, i) => (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              {detail.recipients.map((r, i) => (
                                 <div
                                   key={i}
                                   style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 10,
-                                    padding: "8px 10px",
+                                    padding: "8px 12px",
                                     borderRadius: "8px",
                                     background: "rgba(255,255,255,0.03)",
                                     border: "1px solid rgba(255,255,255,0.05)",
                                   }}
                                 >
-                                  <span style={{
-                                    width: 22, height: 22,
-                                    borderRadius: "6px",
-                                    background: i === 0 ? colors.gold : i === 1 ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.08)",
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                    fontSize: "11px", fontWeight: 700,
-                                    color: i === 0 ? "#000" : "#fff",
-                                    flexShrink: 0,
-                                  }}>
-                                    {i + 1}
-                                  </span>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                     <div style={{
-                                      fontSize: "12px", fontWeight: 500, color: "#fff",
-                                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                                    }}>
-                                      {link.event_title || formatLinkLabel(link.link_label)}
+                                      width: 6, height: 6, borderRadius: "50%",
+                                      background: r.clicked ? colors.success : r.opened ? "rgba(59,130,246,0.7)" : "rgba(255,255,255,0.15)",
+                                      flexShrink: 0,
+                                    }} />
+                                    <div style={{ flex: 1, fontSize: "12px", color: "#fff", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {r.email}
                                     </div>
-                                    <div style={{
-                                      fontSize: "11px", color: colors.textFaded,
-                                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                                    }}>
-                                      {link.event_title
-                                        ? formatLinkLabel(link.link_label)
-                                        : truncateUrl(link.link_url)}
+                                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                                      {r.opened && (
+                                        <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: 4, background: "rgba(59,130,246,0.15)", color: "rgba(59,130,246,0.8)" }}>
+                                          opened
+                                        </span>
+                                      )}
+                                      {r.clicked && (
+                                        <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: 4, background: "rgba(74,222,128,0.12)", color: colors.success }}>
+                                          clicked
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
-                                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                    <div style={{ fontSize: "13px", fontWeight: 600, color: colors.success }}>
-                                      {link.total_clicks}
+                                  {r.clicks.length > 0 && (
+                                    <div style={{ marginTop: 4, marginLeft: 14, display: "flex", flexDirection: "column", gap: 2 }}>
+                                      {r.clicks.map((c, ci) => (
+                                        <div key={ci} style={{ fontSize: "11px", color: colors.textFaded, display: "flex", gap: 6 }}>
+                                          <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                                            {c.event_title || truncateUrl(c.link_url)}
+                                          </span>
+                                          <span style={{ color: c.link_label === "spotify" ? "rgba(30,215,96,0.7)" : "rgba(255,255,255,0.25)" }}>
+                                            {formatLinkLabel(c.link_label)}
+                                          </span>
+                                        </div>
+                                      ))}
                                     </div>
-                                    <div style={{ fontSize: "10px", color: colors.textFaded }}>
-                                      {link.unique_clicks} unique
-                                    </div>
-                                  </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
-                          </div>
-                        )}
-
-                        {detail.links && detail.links.length === 0 && (
-                          <div style={{ fontSize: "12px", color: colors.textFaded, textAlign: "center", padding: "8px 0" }}>
-                            No clicks recorded yet.
                           </div>
                         )}
                       </>
@@ -464,13 +424,6 @@ function RateBar({ label, rate, color }) {
   );
 }
 
-function formatLinkLabel(label) {
-  if (!label) return "Link";
-  return label
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 function truncateUrl(url) {
   if (!url) return "";
   try {
@@ -480,4 +433,62 @@ function truncateUrl(url) {
   } catch {
     return url.slice(0, 50);
   }
+}
+
+function formatLinkLabel(label) {
+  if (!label) return "Link";
+  return label
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function TopList({ items, color }) {
+  const max = items[0]?.clicks || 1;
+  return (
+    <div style={{
+      borderRadius: 14,
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      overflow: "hidden",
+    }}>
+      {items.map((item, i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 14px",
+            borderBottom: i < items.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+          }}
+        >
+          <span style={{
+            width: 22, height: 22, borderRadius: 6,
+            background: i === 0 ? colors.gold : i === 1 ? "rgba(192,192,192,0.3)" : i === 2 ? "rgba(205,127,50,0.3)" : "rgba(255,255,255,0.06)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "11px", fontWeight: 700,
+            color: i === 0 ? "#000" : "#fff",
+            flexShrink: 0,
+          }}>
+            {i + 1}
+          </span>
+          <div style={{
+            flex: 1, minWidth: 0, fontSize: "12px", fontWeight: 500, color: "#fff",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {item.title}
+          </div>
+          <div style={{ width: 60, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", flexShrink: 0 }}>
+            <div style={{
+              height: "100%", borderRadius: 2, background: color,
+              width: `${Math.round((item.clicks / max) * 100)}%`,
+            }} />
+          </div>
+          <div style={{ fontSize: "13px", fontWeight: 600, color, minWidth: 32, textAlign: "right" }}>
+            {item.clicks}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }

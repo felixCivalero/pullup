@@ -7479,6 +7479,46 @@ app.get("/admin/sales/leads", requireAdmin, async (req, res) => {
       }
     }
 
+    // Fetch login activity for linked profiles
+    let loginActivity = {};
+    if (allProfileIds.length) {
+      // last_sign_in_at from auth.users
+      const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+      const allUsers = authData?.users || [];
+      // Session counts via RPC (auth.sessions not directly queryable)
+      const { data: sessionRows } = await supabase.rpc("get_session_counts", {
+        user_ids: allProfileIds,
+      });
+      const sessionCounts = {};
+      if (sessionRows) {
+        sessionRows.forEach((r) => {
+          sessionCounts[r.user_id] = Number(r.session_count) || 0;
+        });
+      }
+
+      allUsers.forEach((u) => {
+        if (allProfileIds.includes(u.id)) {
+          loginActivity[u.id] = {
+            last_sign_in_at: u.last_sign_in_at || null,
+            sign_in_count: sessionCounts[u.id] || 0,
+          };
+        }
+      });
+    }
+
+    // Fetch admin names for created_by / updated_by attribution
+    const adminIds = [...new Set(
+      leads.flatMap((l) => [l.created_by, l.updated_by]).filter(Boolean)
+    )];
+    let adminMap = {};
+    if (adminIds.length) {
+      const { data: adminProfiles } = await supabase
+        .from("profiles")
+        .select("id, name")
+        .in("id", adminIds);
+      if (adminProfiles) adminProfiles.forEach((p) => (adminMap[p.id] = p.name));
+    }
+
     // Enrich leads
     const enriched = leads.map((lead) => {
       const pid = lead.profile_id || emailToUserId[lead.email?.toLowerCase()];
@@ -7487,6 +7527,10 @@ app.get("/admin/sales/leads", requireAdmin, async (req, res) => {
         profile_id: pid || null,
         profile: pid ? profileMap[pid] || null : null,
         event_count: pid ? eventCounts[pid] || 0 : 0,
+        last_sign_in_at: pid ? loginActivity[pid]?.last_sign_in_at || null : null,
+        sign_in_count: pid ? loginActivity[pid]?.sign_in_count || 0 : 0,
+        created_by_name: adminMap[lead.created_by] || null,
+        updated_by_name: adminMap[lead.updated_by] || null,
       };
     });
 
@@ -7515,6 +7559,8 @@ app.post("/admin/sales/leads", requireAdmin, async (req, res) => {
         notes: notes || null,
         city: city || null,
         source: source || null,
+        created_by: req.user.id,
+        updated_by: req.user.id,
       })
       .select()
       .single();
@@ -7540,6 +7586,7 @@ app.patch("/admin/sales/leads/:id", requireAdmin, async (req, res) => {
     // Normalize email to lowercase
     if (updates.email) updates.email = updates.email.toLowerCase().trim();
     updates.updated_at = new Date().toISOString();
+    updates.updated_by = req.user.id;
 
     const { data, error } = await supabase
       .from("sales_leads")

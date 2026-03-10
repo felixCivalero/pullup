@@ -68,6 +68,19 @@ function StatusBadge({ status, onClick }) {
   );
 }
 
+function timeAgo(dateStr) {
+  if (!dateStr) return "Never";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
 function AccountBadge({ profile, eventCount }) {
   if (!profile) {
     return (
@@ -607,7 +620,7 @@ export function SalesPage() {
                       }}
                     >
                       {/* Account link status - always visible when expanded */}
-                      <div style={{ padding: "12px 0 8px" }}>
+                      <div style={{ padding: "12px 0 8px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
                         <AccountBadge
                           profile={lead.profile}
                           eventCount={lead.event_count}
@@ -615,13 +628,42 @@ export function SalesPage() {
                         {lead.profile?.brand && (
                           <span
                             style={{
-                              marginLeft: 8,
                               fontSize: "12px",
                               color: "rgba(255,255,255,0.4)",
                             }}
                           >
                             Brand: {lead.profile.brand}
                           </span>
+                        )}
+                        {lead.profile && (
+                          <>
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                color: lead.last_sign_in_at ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.25)",
+                                padding: "3px 8px",
+                                borderRadius: "999px",
+                                background: "rgba(255,255,255,0.04)",
+                                border: "1px solid rgba(255,255,255,0.06)",
+                              }}
+                            >
+                              Last login: {timeAgo(lead.last_sign_in_at)}
+                            </span>
+                            {lead.sign_in_count > 0 && (
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  color: lead.sign_in_count >= 3 ? "#60a5fa" : "rgba(255,255,255,0.4)",
+                                  padding: "3px 8px",
+                                  borderRadius: "999px",
+                                  background: lead.sign_in_count >= 3 ? "rgba(59,130,246,0.1)" : "rgba(255,255,255,0.04)",
+                                  border: `1px solid ${lead.sign_in_count >= 3 ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)"}`,
+                                }}
+                              >
+                                {lead.sign_in_count} session{lead.sign_in_count !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
 
@@ -848,7 +890,14 @@ export function SalesPage() {
                             <span>
                               Added:{" "}
                               {new Date(lead.created_at).toLocaleDateString()}
+                              {lead.created_by_name &&
+                                ` by ${lead.created_by_name.split(" ")[0]}`}
                             </span>
+                            {lead.updated_by_name && lead.updated_by !== lead.created_by && (
+                              <span>
+                                Updated by {lead.updated_by_name.split(" ")[0]}
+                              </span>
+                            )}
                           </div>
 
                           {/* Notes */}

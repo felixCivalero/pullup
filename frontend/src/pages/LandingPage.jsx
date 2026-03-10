@@ -5,14 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { logger } from "../lib/logger.js";
 import { colors } from "../theme/colors.js";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
-import { authenticatedFetch } from "../lib/api.js";
-
-// Simple analytics tracking function
-function trackEvent(eventName, properties = {}) {
-  // For now, send via logger (can be wired to real analytics later)
-  logger.info(`[Analytics] ${eventName}`, properties);
-  // TODO: Integrate with analytics service (e.g., PostHog, Mixpanel, etc.)
-}
+import { authenticatedFetch, publicFetch } from "../lib/api.js";
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -26,6 +19,14 @@ export function LandingPage() {
   const [newsletterStatus, setNewsletterStatus] = useState(null);
   const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
   const [newsletterPopup, setNewsletterPopup] = useState(null);
+
+  // Track page view
+  useEffect(() => {
+    publicFetch("/t/pageview", {
+      method: "POST",
+      body: JSON.stringify({ page: "landing" }),
+    }).catch(() => {});
+  }, []);
 
   // Auto-redirect to /events if already logged in
   // (handles OAuth callback landing back on "/" after session is established)

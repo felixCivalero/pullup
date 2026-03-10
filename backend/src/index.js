@@ -7394,6 +7394,117 @@ app.post("/admin/stockholm-events/scrape", requireAdmin, async (req, res) => {
 });
 
 // ---------------------------
+// Page View Tracking
+// ---------------------------
+
+// POST /t/pageview — public, no auth, records a page view
+app.post("/t/pageview", async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { page } = req.body;
+    if (!page) return res.status(400).json({ error: "page is required" });
+
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // Simple fingerprint from IP + user-agent for unique visitor approximation
+    const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || "unknown";
+    const ua = req.headers["user-agent"] || "unknown";
+    const { createHash } = await import("crypto");
+    const visitorHash = createHash("sha256").update(`${ip}:${ua}:${today}`).digest("hex").slice(0, 16);
+
+    // Upsert the daily row
+    const { error } = await supabase.rpc("increment_page_view", {
+      p_page: page,
+      p_date: today,
+      p_visitor_hash: visitorHash,
+    });
+
+    if (error) throw error;
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[pageview] error:", err.message);
+    return res.status(500).json({ error: "Failed to record pageview" });
+  }
+});
+
+// GET /admin/analytics/pageviews — daily page views for a date range
+app.get("/admin/analytics/pageviews", requireAdmin, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { page = "landing", days = "30" } = req.query;
+    const numDays = Math.min(parseInt(days) || 30, 365);
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - numDays + 1);
+    const startStr = startDate.toISOString().slice(0, 10);
+
+    // Previous period for comparison
+    const prevStart = new Date(startDate);
+    prevStart.setDate(prevStart.getDate() - numDays);
+    const prevStartStr = prevStart.toISOString().slice(0, 10);
+
+    const { data, error } = await supabase
+      .from("page_views_daily")
+      .select("date, views, unique_visitors")
+      .eq("page", page)
+      .gte("date", prevStartStr)
+      .order("date", { ascending: true });
+
+    if (error) throw error;
+
+    // Split into current and previous periods
+    const current = [];
+    const previous = [];
+    const rows = data || [];
+
+    // Build a full date range for current period (fill gaps with 0)
+    for (let i = 0; i < numDays; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().slice(0, 10);
+      const row = rows.find((r) => r.date === dateStr);
+      current.push({
+        date: dateStr,
+        views: row?.views || 0,
+        unique_visitors: row?.unique_visitors || 0,
+      });
+    }
+
+    // Build previous period
+    for (let i = 0; i < numDays; i++) {
+      const d = new Date(prevStart);
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().slice(0, 10);
+      const row = rows.find((r) => r.date === dateStr);
+      previous.push({
+        date: dateStr,
+        views: row?.views || 0,
+        unique_visitors: row?.unique_visitors || 0,
+      });
+    }
+
+    const totalViews = current.reduce((s, r) => s + r.views, 0);
+    const totalUnique = current.reduce((s, r) => s + r.unique_visitors, 0);
+    const prevViews = previous.reduce((s, r) => s + r.views, 0);
+    const prevUnique = previous.reduce((s, r) => s + r.unique_visitors, 0);
+
+    return res.json({
+      current,
+      previous,
+      totalViews,
+      totalUnique,
+      prevViews,
+      prevUnique,
+      viewsChange: prevViews ? Math.round(((totalViews - prevViews) / prevViews) * 100) : null,
+      uniqueChange: prevUnique ? Math.round(((totalUnique - prevUnique) / prevUnique) * 100) : null,
+    });
+  } catch (err) {
+    console.error("[pageviews] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch pageviews" });
+  }
+});
+
+// ---------------------------
 // Sales Leads (admin CRM)
 // ---------------------------
 
@@ -7418,12 +7529,12 @@ app.get("/admin/sales/leads", requireAdmin, async (req, res) => {
     const unlinkedLeads = leads.filter((l) => l.email && !l.profile_id);
     const emails = [...new Set(unlinkedLeads.map((l) => l.email.toLowerCase()))];
 
-    // Fetch linked profiles
+    // Fetch linked profiles (includes login tracking)
     let profileMap = {};
     if (profileIds.length) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, name, brand, created_at")
+        .select("id, name, brand, created_at, last_login_at, login_count")
         .in("id", profileIds);
       if (profiles) profiles.forEach((p) => (profileMap[p.id] = p));
     }
@@ -7456,7 +7567,7 @@ app.get("/admin/sales/leads", requireAdmin, async (req, res) => {
           // Fetch profile
           const { data: prof } = await supabase
             .from("profiles")
-            .select("id, name, brand, created_at")
+            .select("id, name, brand, created_at, last_login_at, login_count")
             .eq("id", user.id)
             .single();
           if (prof) profileMap[prof.id] = prof;
@@ -7477,33 +7588,6 @@ app.get("/admin/sales/leads", requireAdmin, async (req, res) => {
           eventCounts[e.host_id] = (eventCounts[e.host_id] || 0) + 1;
         });
       }
-    }
-
-    // Fetch login activity for linked profiles
-    let loginActivity = {};
-    if (allProfileIds.length) {
-      // last_sign_in_at from auth.users
-      const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-      const allUsers = authData?.users || [];
-      // Session counts via RPC (auth.sessions not directly queryable)
-      const { data: sessionRows } = await supabase.rpc("get_session_counts", {
-        user_ids: allProfileIds,
-      });
-      const sessionCounts = {};
-      if (sessionRows) {
-        sessionRows.forEach((r) => {
-          sessionCounts[r.user_id] = Number(r.session_count) || 0;
-        });
-      }
-
-      allUsers.forEach((u) => {
-        if (allProfileIds.includes(u.id)) {
-          loginActivity[u.id] = {
-            last_sign_in_at: u.last_sign_in_at || null,
-            sign_in_count: sessionCounts[u.id] || 0,
-          };
-        }
-      });
     }
 
     // Fetch admin names for created_by / updated_by attribution
@@ -7527,8 +7611,8 @@ app.get("/admin/sales/leads", requireAdmin, async (req, res) => {
         profile_id: pid || null,
         profile: pid ? profileMap[pid] || null : null,
         event_count: pid ? eventCounts[pid] || 0 : 0,
-        last_sign_in_at: pid ? loginActivity[pid]?.last_sign_in_at || null : null,
-        sign_in_count: pid ? loginActivity[pid]?.sign_in_count || 0 : 0,
+        last_sign_in_at: pid ? profileMap[pid]?.last_login_at || null : null,
+        sign_in_count: pid ? profileMap[pid]?.login_count || 0 : 0,
         created_by_name: adminMap[lead.created_by] || null,
         updated_by_name: adminMap[lead.updated_by] || null,
       };

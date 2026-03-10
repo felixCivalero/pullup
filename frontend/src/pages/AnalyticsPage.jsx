@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 export function AnalyticsPage() {
   const { user, loading } = useAuth();
@@ -14,6 +15,9 @@ export function AnalyticsPage() {
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [pageviews, setPageviews] = useState(null);
+  const [pvDays, setPvDays] = useState(30);
+  const [pvShowPrevious, setPvShowPrevious] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) navigate("/");
@@ -41,6 +45,17 @@ export function AnalyticsPage() {
     }
     fetchAll();
   }, [user]);
+
+  const fetchPageviews = useCallback(async () => {
+    try {
+      const res = await authenticatedFetch(`/admin/analytics/pageviews?page=landing&days=${pvDays}`);
+      if (res.ok) setPageviews(await res.json());
+    } catch {}
+  }, [pvDays]);
+
+  useEffect(() => {
+    if (user) fetchPageviews();
+  }, [user, fetchPageviews]);
 
   async function loadDetail(tag) {
     if (selectedCampaign === tag) {
@@ -96,6 +111,74 @@ export function AnalyticsPage() {
             Newsletter campaign performance and engagement.
           </p>
         </div>
+
+        {/* Landing Page Views */}
+        {pageviews && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <SectionLabel>Landing Page Views</SectionLabel>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[7, 14, 30, 90].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setPvDays(d)}
+                    style={{
+                      padding: "3px 10px",
+                      borderRadius: "999px",
+                      border: pvDays === d ? "1px solid rgba(255,255,255,0.2)" : "1px solid transparent",
+                      background: pvDays === d ? "rgba(255,255,255,0.1)" : "transparent",
+                      color: pvDays === d ? "#fff" : "rgba(255,255,255,0.35)",
+                      fontSize: "11px",
+                      fontWeight: pvDays === d ? 600 : 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {d}d
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div style={{ display: "flex", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <span style={{ fontSize: "24px", fontWeight: 700, color: "#fff" }}>
+                  {pageviews.totalViews.toLocaleString()}
+                </span>
+                <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>views</span>
+                <ChangeIndicator value={pageviews.viewsChange} />
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <span style={{ fontSize: "24px", fontWeight: 700, color: "rgba(59,130,246,0.9)" }}>
+                  {pageviews.totalUnique.toLocaleString()}
+                </span>
+                <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>unique</span>
+                <ChangeIndicator value={pageviews.uniqueChange} />
+              </div>
+              <button
+                onClick={() => setPvShowPrevious(!pvShowPrevious)}
+                style={{
+                  marginLeft: "auto",
+                  padding: "3px 10px",
+                  borderRadius: "999px",
+                  border: pvShowPrevious ? "1px solid rgba(255,255,255,0.15)" : "1px solid transparent",
+                  background: pvShowPrevious ? "rgba(255,255,255,0.06)" : "transparent",
+                  color: "rgba(255,255,255,0.4)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                {pvShowPrevious ? "Hide" : "Show"} previous
+              </button>
+            </div>
+
+            {/* Chart */}
+            <PageviewChart
+              current={pageviews.current}
+              previous={pvShowPrevious ? pageviews.previous : null}
+            />
+          </div>
+        )}
 
         {/* Overview stats */}
         {overview && (
@@ -489,6 +572,187 @@ function TopList({ items, color }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ChangeIndicator({ value }) {
+  if (value === null || value === undefined) return null;
+  const isUp = value > 0;
+  const isDown = value < 0;
+  const Icon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;
+  const color = isUp ? "#4ade80" : isDown ? "#f87171" : "rgba(255,255,255,0.3)";
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: "11px", fontWeight: 600, color }}>
+      <Icon size={12} />
+      {Math.abs(value)}%
+    </span>
+  );
+}
+
+function PageviewChart({ current, previous }) {
+  if (!current || current.length === 0) return null;
+
+  const W = 720;
+  const H = 160;
+  const PAD = { top: 10, right: 8, bottom: 24, left: 36 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+
+  const allValues = [
+    ...current.map((d) => d.views),
+    ...(previous || []).map((d) => d.views),
+  ];
+  const maxVal = Math.max(...allValues, 1);
+  // Round up to nice number
+  const niceMax = Math.ceil(maxVal / (maxVal > 20 ? 10 : maxVal > 5 ? 5 : 1)) * (maxVal > 20 ? 10 : maxVal > 5 ? 5 : 1);
+
+  function toPath(data) {
+    if (!data.length) return "";
+    return data
+      .map((d, i) => {
+        const x = PAD.left + (i / (data.length - 1 || 1)) * chartW;
+        const y = PAD.top + chartH - (d.views / niceMax) * chartH;
+        return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+  }
+
+  function toArea(data) {
+    if (!data.length) return "";
+    const line = data.map((d, i) => {
+      const x = PAD.left + (i / (data.length - 1 || 1)) * chartW;
+      const y = PAD.top + chartH - (d.views / niceMax) * chartH;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const bottom = `${(PAD.left + chartW).toFixed(1)},${(PAD.top + chartH).toFixed(1)} ${PAD.left.toFixed(1)},${(PAD.top + chartH).toFixed(1)}`;
+    return `M${line.join(" L")} L${bottom} Z`;
+  }
+
+  // Y-axis labels
+  const yTicks = [0, Math.round(niceMax / 2), niceMax];
+
+  // X-axis labels (show ~5-7 dates)
+  const step = Math.max(1, Math.floor(current.length / 6));
+  const xLabels = current.filter((_, i) => i % step === 0 || i === current.length - 1);
+
+  // Tooltip state
+  const [hover, setHover] = useState(null);
+
+  return (
+    <div
+      style={{
+        borderRadius: 14,
+        background: "rgba(255,255,255,0.02)",
+        border: "1px solid rgba(255,255,255,0.06)",
+        padding: "14px 12px 8px",
+        overflow: "hidden",
+      }}
+    >
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: "100%", height: "auto", display: "block" }}
+        onMouseLeave={() => setHover(null)}
+      >
+        {/* Grid lines */}
+        {yTicks.map((v) => {
+          const y = PAD.top + chartH - (v / niceMax) * chartH;
+          return (
+            <g key={v}>
+              <line
+                x1={PAD.left} y1={y} x2={PAD.left + chartW} y2={y}
+                stroke="rgba(255,255,255,0.06)" strokeDasharray="4,4"
+              />
+              <text
+                x={PAD.left - 6} y={y + 3}
+                textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize="10"
+              >
+                {v}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* X-axis labels */}
+        {xLabels.map((d) => {
+          const i = current.indexOf(d);
+          const x = PAD.left + (i / (current.length - 1 || 1)) * chartW;
+          const label = new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+          return (
+            <text
+              key={d.date} x={x} y={H - 4}
+              textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="10"
+            >
+              {label}
+            </text>
+          );
+        })}
+
+        {/* Previous period area + line */}
+        {previous && (
+          <>
+            <path d={toArea(previous)} fill="rgba(255,255,255,0.03)" />
+            <path d={toPath(previous)} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" strokeDasharray="4,3" />
+          </>
+        )}
+
+        {/* Current period area + line */}
+        <path d={toArea(current)} fill="rgba(59,130,246,0.08)" />
+        <path d={toPath(current)} fill="none" stroke="rgba(59,130,246,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Hover detection zones */}
+        {current.map((d, i) => {
+          const x = PAD.left + (i / (current.length - 1 || 1)) * chartW;
+          const y = PAD.top + chartH - (d.views / niceMax) * chartH;
+          const prevY = previous ? PAD.top + chartH - (previous[i]?.views / niceMax) * chartH : null;
+          return (
+            <g key={i} onMouseEnter={() => setHover({ i, x, y, d, prev: previous?.[i] })}>
+              <rect
+                x={x - chartW / current.length / 2} y={PAD.top}
+                width={chartW / current.length} height={chartH}
+                fill="transparent" style={{ cursor: "crosshair" }}
+              />
+              {hover?.i === i && (
+                <>
+                  <line x1={x} y1={PAD.top} x2={x} y2={PAD.top + chartH} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                  <circle cx={x} cy={y} r="4" fill="rgba(59,130,246,0.9)" stroke="#fff" strokeWidth="1.5" />
+                  {previous && prevY != null && (
+                    <circle cx={x} cy={prevY} r="3" fill="rgba(255,255,255,0.4)" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+                  )}
+                </>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Tooltip */}
+        {hover && (
+          <foreignObject x={Math.min(hover.x + 8, W - 130)} y={Math.max(hover.y - 48, 0)} width="120" height="48">
+            <div style={{
+              background: "rgba(15,12,25,0.95)",
+              border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: 8,
+              padding: "6px 10px",
+              fontSize: "11px",
+              color: "#fff",
+              lineHeight: 1.5,
+              backdropFilter: "blur(8px)",
+            }}>
+              <div style={{ fontWeight: 600 }}>
+                {new Date(hover.d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+              </div>
+              <div style={{ color: "rgba(59,130,246,0.9)" }}>
+                {hover.d.views} views / {hover.d.unique_visitors} unique
+              </div>
+              {hover.prev && (
+                <div style={{ color: "rgba(255,255,255,0.35)" }}>
+                  prev: {hover.prev.views}
+                </div>
+              )}
+            </div>
+          </foreignObject>
+        )}
+      </svg>
     </div>
   );
 }

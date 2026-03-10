@@ -187,6 +187,7 @@ function EventCard({ event, onStatusChange, onSpotifyChange }) {
               fontSize: "13px",
               color: colors.textSubtle,
               lineHeight: 1.5,
+              whiteSpace: "pre-line",
               display: "-webkit-box",
               WebkitLineClamp: 3,
               WebkitBoxOrient: "vertical",

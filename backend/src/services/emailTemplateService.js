@@ -81,16 +81,16 @@ export function renderEventEmailTemplate({ event, templateContent, person }) {
       templateContent.heroImageAlt || event?.title || "Event",
 
     // Headline
-    "{{{headline_text}}}": templateContent.headline || event?.title || "",
+    "{{{headline_text}}}": (templateContent.headline || event?.title || "").replace(/\n/g, "<br>"),
 
     // Intro sections
-    "{{{intro_quote}}}": templateContent.introQuote || "",
-    "{{{intro_body}}}": templateContent.introBody || "",
-    "{{{intro_greeting}}}": templateContent.introGreeting || "",
-    "{{{intro_note}}}": templateContent.introNote || "",
+    "{{{intro_quote}}}": (templateContent.introQuote || "").replace(/\n/g, "<br>"),
+    "{{{intro_body}}}": (templateContent.introBody || "").replace(/\n/g, "<br>"),
+    "{{{intro_greeting}}}": (templateContent.introGreeting || "").replace(/\n/g, "<br>"),
+    "{{{intro_note}}}": (templateContent.introNote || "").replace(/\n/g, "<br>"),
 
     // Signoff
-    "{{{signoff_text}}}": templateContent.signoffText || "",
+    "{{{signoff_text}}}": (templateContent.signoffText || "").replace(/\n/g, "<br>"),
 
     // CTA - Use pre-generated URL
     "{{{cta_url}}}": ctaUrl,
@@ -242,7 +242,7 @@ export function renderWeeklyHappeningsTemplate({ events, templateContent }) {
                       </td>
                     </tr>
                     ${metaLine ? `<tr><td style="padding:2px 16px 6px 16px;font-size:0.82em;color:rgba(255,255,255,0.5);">${metaLine}</td></tr>` : ""}
-                    ${description ? `<tr><td style="padding:4px 16px 10px 16px;font-size:0.9em;color:rgba(255,255,255,0.75);line-height:1.5;">${description}</td></tr>` : ""}
+                    ${description ? `<tr><td style="padding:4px 16px 10px 16px;font-size:0.9em;color:rgba(255,255,255,0.75);line-height:1.5;">${description.replace(/\n/g, "<br>")}</td></tr>` : ""}
                     <tr>
                       <td style="padding:8px 16px 16px 16px;">
                         <a
@@ -271,8 +271,8 @@ export function renderWeeklyHappeningsTemplate({ events, templateContent }) {
 
   // Perform replacements
   const replacements = {
-    "{{{headline_text}}}": headlineText,
-    "{{{intro_body}}}": introBody,
+    "{{{headline_text}}}": (headlineText || "").replace(/\n/g, "<br>"),
+    "{{{intro_body}}}": (introBody || "").replace(/\n/g, "<br>"),
     "{{{events_html}}}": eventsHtml,
     // Keep Resend unsubscribe placeholder as-is (Resend replaces it)
     "{{{RESEND_UNSUBSCRIBE_URL}}}": "{{{RESEND_UNSUBSCRIBE_URL}}}",

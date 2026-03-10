@@ -1263,6 +1263,7 @@ export function EventPage() {
                       color: "rgba(255, 255, 255, 0.85)",
                       margin: 0,
                       marginBottom: showDescription ? "4px" : "0",
+                      whiteSpace: "pre-line",
                       wordWrap: "break-word",
                       overflowWrap: "break-word",
                       display: showDescription ? "block" : "-webkit-box",

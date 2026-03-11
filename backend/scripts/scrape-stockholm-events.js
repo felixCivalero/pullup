@@ -37,6 +37,7 @@
  *   - Sven-Harrys Konstmuseum (art exhibitions)
  *   - Waldemarsudde / Prins Eugens (art exhibitions)
  *   - Thielska Galleriet (art gallery, Djurgården)
+ *   - Stadsgårdsterminalen / Kollektivet Livet (live music, Södermalm)
  *
  * Sources (free API key required — add keys to .env to activate):
  *   - Ticketmaster Discovery API  → TICKETMASTER_API_KEY
@@ -2844,6 +2845,94 @@ async function upsertEvents(events) {
 }
 
 // ---------------------------------------------------------------------------
+// Stadsgårdsterminalen / Kollektivet Livet
+// ---------------------------------------------------------------------------
+async function scrapeStadsgardsterminalen() {
+  console.log("🎤 Scraping Stadsgårdsterminalen...");
+  const events = [];
+  const seen = new Set();
+  try {
+    // Page shows 12 events at a time with ?offset= pagination
+    const PAGE_SIZE = 12;
+    const MAX_PAGES = 15; // safety cap
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const offset = page * PAGE_SIZE;
+      const url = `https://stadsgardsterminalen.com/program/${offset ? `?offset=${offset}` : ""}`;
+      const html = await fetchHtml(url);
+      const $ = cheerio.load(html);
+      let countOnPage = 0;
+
+      $("div.event").each((_, el) => {
+        const $el = $(el);
+
+        // Title from h3 > a
+        const title = $el.find("h3 a").first().text().trim();
+        if (!title) return;
+
+        // URL
+        const href = $el.find("h3 a").first().attr("href") || $el.find("a").first().attr("href");
+        const eventUrl = href && href.startsWith("http") ? href : href ? `https://stadsgardsterminalen.com${href}` : null;
+        if (!eventUrl || seen.has(eventUrl)) return;
+        seen.add(eventUrl);
+
+        // Image — prefer 1200x675 from srcset, fallback to src
+        let image_url = null;
+        const $img = $el.find("img").first();
+        const srcset = $img.attr("srcset") || "";
+        const match1200 = srcset.match(/(https?:\/\/[^\s]+1200x675[^\s]+)/);
+        if (match1200) {
+          image_url = match1200[1];
+        } else {
+          image_url = $img.attr("src") || null;
+        }
+
+        // Date + time from <time datetime="2026-03-12 19:00:00" data-endtime="2026-03-12 23:00:00">
+        const $time = $el.find("time").first();
+        const datetime = $time.attr("datetime");
+        const endtime = $time.attr("data-endtime");
+
+        let starts_at = null;
+        let ends_at = null;
+        if (datetime) {
+          const d = new Date(datetime.replace(" ", "T") + "+02:00"); // CET/CEST
+          if (!isNaN(d.getTime())) starts_at = d.toISOString();
+        }
+        if (endtime) {
+          const d = new Date(endtime.replace(" ", "T") + "+02:00");
+          if (!isNaN(d.getTime())) ends_at = d.toISOString();
+        }
+
+        // Location from .location div
+        const location = $el.find(".location").text().trim() || "Kollektivet Livet, Stadsgårdsterminalen";
+
+        events.push({
+          title,
+          description: null,
+          image_url,
+          starts_at,
+          ends_at,
+          location: `${location}, Stockholm`,
+          url: eventUrl,
+          source: "stadsgardsterminalen",
+          category: "music",
+        });
+        countOnPage++;
+      });
+
+      // Stop if no events found on this page (past the last page)
+      if (countOnPage === 0) break;
+      // Stop if fewer than a full page (last page)
+      if (countOnPage < PAGE_SIZE) break;
+    }
+
+    console.log(`  ✅ Stadsgårdsterminalen: ${events.length} events`);
+  } catch (err) {
+    console.error("  ❌ Stadsgårdsterminalen error:", err.message);
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
@@ -2886,6 +2975,7 @@ async function main() {
     scrapeThielska(),
     scrapeTicketmaster(),
     scrapeEventbrite(),
+    scrapeStadsgardsterminalen(),
   ]);
 
   const hardcodedEvents = results.flatMap((r) => r.value || []);

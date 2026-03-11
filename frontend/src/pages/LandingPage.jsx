@@ -100,7 +100,7 @@ const inputStyle = {
   outline: "none",
 };
 
-const ROTATING_WORDS = ["culture", "cities", "people", "music"];
+const ROTATING_WORDS = ["people", "life", "culture", "art"];
 
 /* ─── component ─── */
 export function LandingPage() {
@@ -302,9 +302,13 @@ export function LandingPage() {
       }}
     >
       <style>{`
+        @-webkit-keyframes spinCube {
+          from { -webkit-transform: translateZ(-0.625em) rotateX(0deg); transform: translateZ(-0.625em) rotateX(0deg); }
+          to { -webkit-transform: translateZ(-0.625em) rotateX(-360deg); transform: translateZ(-0.625em) rotateX(-360deg); }
+        }
         @keyframes spinCube {
-          from { transform: translateZ(-0.625em) rotateX(0deg); }
-          to { transform: translateZ(-0.625em) rotateX(-360deg); }
+          from { -webkit-transform: translateZ(-0.625em) rotateX(0deg); transform: translateZ(-0.625em) rotateX(0deg); }
+          to { -webkit-transform: translateZ(-0.625em) rotateX(-360deg); transform: translateZ(-0.625em) rotateX(-360deg); }
         }
       `}</style>
       {/* ─── NAV ─── */}
@@ -341,6 +345,8 @@ export function LandingPage() {
               background: colors.gradientPrimary,
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              color: "transparent",
             }}
           >
             up
@@ -441,10 +447,11 @@ export function LandingPage() {
               letterSpacing: "-0.03em",
             }}
           >
-            Pullup for the{" "}
+            Pullup for{" "}
             <span
               style={{
                 display: "inline-block",
+                WebkitPerspective: "400px",
                 perspective: "400px",
                 verticalAlign: "middle",
                 height: "1.25em",
@@ -457,48 +464,56 @@ export function LandingPage() {
                   display: "inline-block",
                   height: "1.25em",
                   position: "relative",
+                  WebkitTransformStyle: "preserve-3d",
                   transformStyle: "preserve-3d",
+                  WebkitAnimation: "spinCube 10s linear infinite",
                   animation: "spinCube 10s linear infinite",
+                  willChange: "transform",
                 }}
               >
-                {ROTATING_WORDS.map((word, i) => (
-                  <span
-                    key={word}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      position: i === 0 ? "relative" : "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      height: "1.25em",
-                      boxSizing: "border-box",
-                      backfaceVisibility: "hidden",
-                      background: "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(/camo.png) center/cover",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: "0.12em",
-                      padding: "0 0.35em",
-                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.5)",
-                      transform:
-                        i === 0 ? "rotateY(0deg) translateZ(0.625em)" :
-                        i === 1 ? "rotateX(90deg) translateZ(0.625em)" :
-                        i === 2 ? "rotateX(180deg) translateZ(0.625em)" :
-                                  "rotateX(-90deg) translateZ(0.625em)",
-                    }}
-                  >
+                {ROTATING_WORDS.map((word, i) => {
+                  const faceTransform =
+                    i === 0 ? "rotateY(0deg) translateZ(0.625em)" :
+                    i === 1 ? "rotateX(90deg) translateZ(0.625em)" :
+                    i === 2 ? "rotateX(180deg) translateZ(0.625em)" :
+                              "rotateX(-90deg) translateZ(0.625em)";
+                  return (
                     <span
+                      key={word}
                       style={{
-                        background: colors.gradientPrimary,
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        position: i === 0 ? "relative" : "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        height: "1.25em",
+                        boxSizing: "border-box",
+                        WebkitBackfaceVisibility: "hidden",
+                        backfaceVisibility: "hidden",
+                        background: "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(/camo.png) center/cover",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: "0.12em",
+                        padding: "0 0.35em",
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.5)",
+                        WebkitTransform: faceTransform,
+                        transform: faceTransform,
                       }}
                     >
-                      {word}
+                      <span
+                        style={{
+                          background: colors.gradientPrimary,
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          backgroundClip: "text",
+                        }}
+                      >
+                        {word}
+                      </span>
                     </span>
-                  </span>
-                ))}
+                  );
+                })}
               </span>
             </span>
           </h1>
@@ -519,6 +534,7 @@ export function LandingPage() {
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
+                color: "transparent",
               }}
             >
               free event platform
@@ -565,6 +581,8 @@ export function LandingPage() {
               background: colors.gradientPrimary,
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              color: "transparent",
             }}
           >
             top class
@@ -661,6 +679,8 @@ export function LandingPage() {
               background: colors.gradientPrimary,
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              color: "transparent",
             }}
           >
             you

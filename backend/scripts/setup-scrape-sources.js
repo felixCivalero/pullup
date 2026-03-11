@@ -59,6 +59,7 @@ const SEEDS = [
   { name: "Färgfabriken", source_key: "fargfabriken", scrape_url: "https://fargfabriken.se/en/exhibitions", location: "Färgfabriken, Liljeholmen, Stockholm", category: "exhibition", strategy: "css" },
   { name: "Fallan", source_key: "fallan", scrape_url: "https://fallan.nu/whats-on", location: "Fallan, Slakthusområdet, Stockholm", category: "music", strategy: "css", link_selector: "a[href*='/whats-on/']" },
   { name: "Lydmar Hotel", source_key: "lydmar", scrape_url: "https://lydmar.com/events/", location: "Lydmar Hotel, Östermalm, Stockholm", category: "music", strategy: "css" },
+  { name: "Stadsgårdsterminalen", source_key: "stadsgardsterminalen", scrape_url: "https://stadsgardsterminalen.com/program/", location: "Kollektivet Livet, Stadsgårdsterminalen, Stockholm", category: "music", strategy: "custom" },
 ];
 
 async function run() {

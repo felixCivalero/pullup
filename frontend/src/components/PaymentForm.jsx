@@ -17,8 +17,13 @@ import { publicFetch } from "../lib/api.js";
 // Get Stripe publishable key from environment
 // In development: prefer TEST_ prefixed, fallback to regular
 // In production: use regular variable name
-const getStripePublishableKey = () =>
-  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const getStripePublishableKey = () => {
+  const isDev = import.meta.env.DEV;
+  if (isDev && import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY) {
+    return import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY;
+  }
+  return import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+};
 
 const stripePromise = (() => {
   const key = getStripePublishableKey();
@@ -269,11 +274,6 @@ function PaymentFormInner({
           key={clientSecret} // Stable key prevents remounting
           options={{
             layout: "tabs", // Show payment methods as tabs
-            // Disable wallets to prevent additional mounting triggers
-            wallets: {
-              applePay: "never",
-              googlePay: "never",
-            },
             // Disable Stripe Link autofill to prevent double mounting
             // Link is the "secure checkout" feature that can cause remounts
             // Note: This doesn't completely disable Link, but reduces its impact

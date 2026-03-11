@@ -280,16 +280,31 @@ export function CreateEventPage() {
   const dinnerStartTimeInputRef = useRef(null);
   const dinnerEndTimeInputRef = useRef(null);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
-  const [locationLat, setLocationLat] = useState(null);
-  const [locationLng, setLocationLng] = useState(null);
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
-  const [timezone, setTimezone] = useState(getUserTimezone());
-  const [maxAttendees, setMaxAttendees] = useState("");
-  const [waitlistEnabled, setWaitlistEnabled] = useState(false);
+  // Restore draft from localStorage (create mode only, expires after 24h)
+  const draft = !isEditMode ? (() => {
+    try {
+      const raw = localStorage.getItem("pullup_event_draft");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed._savedAt && Date.now() - parsed._savedAt > 24 * 60 * 60 * 1000) {
+        localStorage.removeItem("pullup_event_draft");
+        return null;
+      }
+      return parsed;
+    } catch { return null; }
+  })() : null;
+  const [showDraftBanner, setShowDraftBanner] = useState(!!draft);
+
+  const [title, setTitle] = useState(draft?.title || "");
+  const [description, setDescription] = useState(draft?.description || "");
+  const [location, setLocation] = useState(draft?.location || "");
+  const [locationLat, setLocationLat] = useState(draft?.locationLat || null);
+  const [locationLng, setLocationLng] = useState(draft?.locationLng || null);
+  const [startsAt, setStartsAt] = useState(draft?.startsAt || "");
+  const [endsAt, setEndsAt] = useState(draft?.endsAt || "");
+  const [timezone, setTimezone] = useState(draft?.timezone || getUserTimezone());
+  const [maxAttendees, setMaxAttendees] = useState(draft?.maxAttendees || "");
+  const [waitlistEnabled, setWaitlistEnabled] = useState(draft?.waitlistEnabled || false);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [mediaFiles, setMediaFiles] = useState([]); // [{file, preview, mediaType, id}]
@@ -307,37 +322,37 @@ export function CreateEventPage() {
   const [theme] = useState("minimal");
   const [calendar] = useState("personal");
   const [visibility] = useState("public");
-  const [sellTicketsEnabled, setSellTicketsEnabled] = useState(false);
-  const [ticketPrice, setTicketPrice] = useState("");
-  const [ticketCurrency, setTicketCurrency] = useState("USD");
+  const [sellTicketsEnabled, setSellTicketsEnabled] = useState(draft?.sellTicketsEnabled || false);
+  const [ticketPrice, setTicketPrice] = useState(draft?.ticketPrice || "");
+  const [ticketCurrency, setTicketCurrency] = useState(draft?.ticketCurrency || "USD");
 
   // NEW: plus-ones
-  const [allowPlusOnes, setAllowPlusOnes] = useState(false);
-  const [maxPlusOnesPerGuest, setMaxPlusOnesPerGuest] = useState("3");
+  const [allowPlusOnes, setAllowPlusOnes] = useState(draft?.allowPlusOnes || false);
+  const [maxPlusOnesPerGuest, setMaxPlusOnesPerGuest] = useState(draft?.maxPlusOnesPerGuest || "3");
 
   // NEW: dinner
-  const [dinnerEnabled, setDinnerEnabled] = useState(false);
-  const [dinnerStartTime, setDinnerStartTime] = useState("");
-  const [dinnerEndTime, setDinnerEndTime] = useState("");
+  const [dinnerEnabled, setDinnerEnabled] = useState(draft?.dinnerEnabled || false);
+  const [dinnerStartTime, setDinnerStartTime] = useState(draft?.dinnerStartTime || "");
+  const [dinnerEndTime, setDinnerEndTime] = useState(draft?.dinnerEndTime || "");
   const [dinnerSeatingIntervalHours] = useState("1.5");
-  const [dinnerMaxSeatsPerSlot, setDinnerMaxSeatsPerSlot] = useState("");
+  const [dinnerMaxSeatsPerSlot, setDinnerMaxSeatsPerSlot] = useState(draft?.dinnerMaxSeatsPerSlot || "");
   const [dinnerMaxGuestsPerBooking, setDinnerMaxGuestsPerBooking] =
-    useState("");
-  const [dinnerOverflowAction, setDinnerOverflowAction] = useState("waitlist");
-  const [dinnerBookingEmail, setDinnerBookingEmail] = useState("");
+    useState(draft?.dinnerMaxGuestsPerBooking || "");
+  const [dinnerOverflowAction, setDinnerOverflowAction] = useState(draft?.dinnerOverflowAction || "waitlist");
+  const [dinnerBookingEmail, setDinnerBookingEmail] = useState(draft?.dinnerBookingEmail || "");
   const [dinnerSlotsConfig, setDinnerSlotsConfig] = useState([]);
 
   // Social links
-  const [instagram, setInstagram] = useState("");
-  const [spotify, setSpotify] = useState("");
-  const [tiktok, setTiktok] = useState("");
-  const [soundcloud, setSoundcloud] = useState("");
+  const [instagram, setInstagram] = useState(draft?.instagram || "");
+  const [spotify, setSpotify] = useState(draft?.spotify || "");
+  const [tiktok, setTiktok] = useState(draft?.tiktok || "");
+  const [soundcloud, setSoundcloud] = useState(draft?.soundcloud || "");
 
   const [loading, setLoading] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMounted, setIsMounted] = useState(false);
   const [mobileView, setMobileView] = useState("edit"); // "edit" or "preview"
-  const [desktopPreviewMode, setDesktopPreviewMode] = useState("desktop"); // "desktop" or "phone"
+  const [desktopPreviewMode, setDesktopPreviewMode] = useState("phone"); // "desktop" or "phone"
 
   // Build preview dinner slots from config for the RSVP preview
   const previewDinnerSlots = useMemo(() => {
@@ -362,37 +377,119 @@ export function CreateEventPage() {
   // Stripe connection status - load from backend
   const [stripeConnected, setStripeConnected] = useState(false);
   const [stripeAccountEmail, setStripeAccountEmail] = useState("");
+  const [stripeBusinessName, setStripeBusinessName] = useState("");
+  const [stripeConnecting, setStripeConnecting] = useState(false);
 
   // Load Stripe connection status from backend
   useEffect(() => {
-    async function loadStripeStatus() {
-      try {
-        const { authenticatedFetch } = await import("../lib/api.js");
-        const response = await authenticatedFetch(
-          "/host/stripe/connect/status",
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setStripeConnected(data.connected);
-          if (data.accountDetails?.email) {
-            setStripeAccountEmail(data.accountDetails.email);
-          } else {
-            setStripeAccountEmail("");
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load Stripe status:", error);
-        setStripeConnected(false);
-        setStripeAccountEmail("");
-      }
-    }
     loadStripeStatus();
   }, []);
+
+  async function loadStripeStatus() {
+    try {
+      const { authenticatedFetch } = await import("../lib/api.js");
+      const response = await authenticatedFetch(
+        "/host/stripe/connect/status",
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setStripeConnected(data.connected && data.accountDetails?.charges_enabled);
+        setStripeAccountEmail(data.accountDetails?.email || "");
+        setStripeBusinessName(data.accountDetails?.businessName || "");
+      }
+    } catch (error) {
+      console.error("Failed to load Stripe status:", error);
+      setStripeConnected(false);
+      setStripeAccountEmail("");
+      setStripeBusinessName("");
+    }
+  }
+
+  async function handleConnectStripeInline() {
+    try {
+      setStripeConnecting(true);
+      const { authenticatedFetch } = await import("../lib/api.js");
+      const response = await authenticatedFetch(
+        "/host/stripe/connect/initiate",
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to initiate connection");
+      }
+      const data = await response.json();
+      if (data.alreadyComplete) {
+        loadStripeStatus();
+        setStripeConnecting(false);
+        return;
+      }
+      window.location.href = data.authorizationUrl;
+    } catch (error) {
+      console.error("Failed to initiate Stripe Connect:", error);
+      setStripeConnecting(false);
+    }
+  }
   const [isDragging, setIsDragging] = useState(false);
+
+  // Save draft to localStorage (create mode only, debounced)
+  useEffect(() => {
+    if (isEditMode) return;
+    const timeout = setTimeout(() => {
+      try {
+        const draftData = {
+          title, description, location, locationLat, locationLng,
+          startsAt, endsAt, timezone, maxAttendees, waitlistEnabled,
+          sellTicketsEnabled, ticketPrice, ticketCurrency,
+          allowPlusOnes, maxPlusOnesPerGuest,
+          dinnerEnabled, dinnerStartTime, dinnerEndTime,
+          dinnerMaxSeatsPerSlot, dinnerMaxGuestsPerBooking,
+          dinnerOverflowAction, dinnerBookingEmail,
+          instagram, spotify, tiktok, soundcloud,
+          _savedAt: Date.now(),
+        };
+        localStorage.setItem("pullup_event_draft", JSON.stringify(draftData));
+      } catch { /* storage full or unavailable */ }
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [
+    isEditMode, title, description, location, locationLat, locationLng,
+    startsAt, endsAt, timezone, maxAttendees, waitlistEnabled,
+    sellTicketsEnabled, ticketPrice, ticketCurrency,
+    allowPlusOnes, maxPlusOnesPerGuest,
+    dinnerEnabled, dinnerStartTime, dinnerEndTime,
+    dinnerMaxSeatsPerSlot, dinnerMaxGuestsPerBooking,
+    dinnerOverflowAction, dinnerBookingEmail,
+    instagram, spotify, tiktok, soundcloud,
+  ]);
+
+  function clearDraft() {
+    try { localStorage.removeItem("pullup_event_draft"); } catch {}
+  }
+
+  function discardDraft() {
+    clearDraft();
+    setShowDraftBanner(false);
+    setTitle(""); setDescription(""); setLocation("");
+    setLocationLat(null); setLocationLng(null);
+    setStartsAt(""); setEndsAt(""); setTimezone(getUserTimezone());
+    setMaxAttendees(""); setWaitlistEnabled(false);
+    setImageFile(null); setImagePreview(null);
+    setMediaFiles([]); setMediaMode(null);
+    setVideoLoop(true); setVideoAutoplay(true); setVideoAudio(false);
+    setCarouselAutoscroll(false); setCarouselInterval(5); setCarouselLoop(true);
+    setSellTicketsEnabled(false); setTicketPrice(""); setTicketCurrency("USD");
+    setAllowPlusOnes(false); setMaxPlusOnesPerGuest("3");
+    setDinnerEnabled(false); setDinnerStartTime(""); setDinnerEndTime("");
+    setDinnerMaxSeatsPerSlot(""); setDinnerOverflowAction("waitlist");
+    setDinnerBookingEmail(""); setDinnerSlotsConfig([]);
+    setInstagram(""); setSpotify(""); setTiktok(""); setSoundcloud("");
+  }
 
   // Reset form when switching between create/edit modes
   useEffect(() => {
     if (editEventId) return; // edit mode handles its own loading
+    // Don't reset if we have a draft (page reload scenario)
+    if (draft) return;
     setTitle(""); setDescription(""); setLocation("");
     setLocationLat(null); setLocationLng(null);
     setStartsAt(""); setEndsAt(""); setTimezone(getUserTimezone());
@@ -1004,6 +1101,7 @@ export function CreateEventPage() {
           }
         }
 
+        clearDraft();
         showToast("Event created successfully!", "success");
         navigate(`/events/${finalEvent.slug}/success`, {
           state: { event: finalEvent },
@@ -1773,6 +1871,51 @@ export function CreateEventPage() {
             >
               {isEditMode ? "PULLUP · EDIT EVENT" : "PULLUP · CREATE EVENT"}
             </div>
+
+            {/* Draft restored banner */}
+            {showDraftBanner && !isEditMode && (
+              <div
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "10px",
+                  background: "rgba(99, 102, 241, 0.1)",
+                  border: "1px solid rgba(99, 102, 241, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "12px",
+                  marginBottom: "8px",
+                }}
+              >
+                <span style={{ fontSize: "13px", opacity: 0.8 }}>
+                  Draft restored from your last session
+                </span>
+                <button
+                  type="button"
+                  onClick={discardDraft}
+                  style={{
+                    padding: "4px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "transparent",
+                    color: "rgba(255,255,255,0.7)",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = "rgba(255,255,255,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = "transparent";
+                  }}
+                >
+                  Discard
+                </button>
+              </div>
+            )}
 
             {/* Title input - Enhanced visibility with subtle background */}
             <input
@@ -2807,52 +2950,34 @@ export function CreateEventPage() {
                             lineHeight: "1.5",
                           }}
                         >
-                          You need to connect your Stripe account to accept
-                          payments for this event.
+                          Connect your Stripe account to accept payments for
+                          this event.
                         </div>
-                        <div
+                        <button
+                          type="button"
+                          onClick={handleConnectStripeInline}
+                          disabled={stripeConnecting}
                           style={{
-                            display: "flex",
-                            gap: "8px",
-                            flexWrap: "wrap",
+                            padding: "8px 16px",
+                            borderRadius: "8px",
+                            border: "none",
+                            background:
+                              "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+                            color: "#fff",
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            cursor: stripeConnecting ? "default" : "pointer",
+                            opacity: stripeConnecting ? 0.6 : 1,
+                            transition: "all 0.2s ease",
                           }}
                         >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // Save current state and navigate to integrations
-                              navigate("/events?tab=integrations");
-                            }}
-                            style={{
-                              padding: "8px 16px",
-                              borderRadius: "8px",
-                              border: "none",
-                              background:
-                                "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                              color: "#fff",
-                              fontSize: "13px",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              transition: "all 0.2s ease",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.target.style.transform = "scale(1.02)";
-                              e.target.style.boxShadow =
-                                "0 4px 12px rgba(192, 192, 192, 0.4)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.target.style.transform = "scale(1)";
-                              e.target.style.boxShadow = "none";
-                            }}
-                          >
-                            Connect Stripe
-                          </button>
-                        </div>
+                          {stripeConnecting ? "Connecting..." : "Connect Stripe"}
+                        </button>
                       </div>
                     </div>
                   )}
 
-                  {stripeConnected && stripeAccountEmail && (
+                  {stripeConnected && (
                     <div
                       style={{
                         padding: "12px 16px",
@@ -2865,9 +2990,11 @@ export function CreateEventPage() {
                         fontSize: "12px",
                       }}
                     >
-                      <span>✓</span>
+                      <span style={{ color: "#22c55e" }}>✓</span>
                       <span style={{ opacity: 0.9 }}>
-                        Connected as {stripeAccountEmail}
+                        {stripeBusinessName && <strong>{stripeBusinessName}</strong>}
+                        {stripeBusinessName && stripeAccountEmail && " · "}
+                        {stripeAccountEmail || "Stripe connected"}
                       </span>
                     </div>
                   )}

@@ -1,27 +1,165 @@
 // src/components/HomeSettingsTab.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Camera,
-  Music,
-  Briefcase,
   Globe,
-  Lock,
-  Shield,
-  Key,
-  Monitor,
+  Mail,
   LogOut,
   AlertTriangle,
   RefreshCw,
-  Apple,
-  Video,
+  Tag,
+  CreditCard,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { authenticatedFetch } from "../lib/api.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 export function SettingsTab({ user, setUser, onSave, showToast }) {
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const [saving, setSaving] = useState(false);
+
+  // Stripe state
+  const [stripeConnected, setStripeConnected] = useState(false);
+  const [stripeAccountEmail, setStripeAccountEmail] = useState("");
+  const [stripeBusinessName, setStripeBusinessName] = useState("");
+  const [stripeDetailsSubmitted, setStripeDetailsSubmitted] = useState(false);
+  const [stripeChargesEnabled, setStripeChargesEnabled] = useState(false);
+  const [stripeLoading, setStripeLoading] = useState(true);
+  const [stripeConnecting, setStripeConnecting] = useState(false);
+
+  useEffect(() => {
+    loadStripeStatus();
+    checkStripeCallback();
+  }, []);
+
+  async function loadStripeStatus() {
+    try {
+      setStripeLoading(true);
+      const response = await authenticatedFetch("/host/stripe/connect/status");
+      if (!response.ok) throw new Error("Failed to load Stripe status");
+      const data = await response.json();
+      setStripeConnected(data.connected);
+      setStripeAccountEmail(data.accountDetails?.email || "");
+      setStripeBusinessName(data.accountDetails?.businessName || "");
+      setStripeDetailsSubmitted(data.accountDetails?.details_submitted || false);
+      setStripeChargesEnabled(data.accountDetails?.charges_enabled || false);
+    } catch (error) {
+      console.error("Failed to load Stripe status:", error);
+      setStripeConnected(false);
+      setStripeAccountEmail("");
+      setStripeBusinessName("");
+      setStripeDetailsSubmitted(false);
+      setStripeChargesEnabled(false);
+    } finally {
+      setStripeLoading(false);
+    }
+  }
+
+  function checkStripeCallback() {
+    const params = new URLSearchParams(window.location.search);
+    const stripeConnect = params.get("stripe_connect");
+    const accountId = params.get("account_id");
+    const errorMessage = params.get("message");
+
+    if (stripeConnect === "success" && accountId) {
+      showToast("Stripe connected successfully!", "success");
+      loadStripeStatus();
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (stripeConnect === "refresh") {
+      // User left onboarding early — prompt them to try again
+      showToast("Stripe onboarding incomplete. Click Connect to resume.", "error");
+      loadStripeStatus();
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (stripeConnect === "error" && errorMessage) {
+      showToast(
+        `Stripe connection failed: ${decodeURIComponent(errorMessage)}`,
+        "error"
+      );
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }
+
+  async function handleConnectStripe() {
+    // If connected but onboarding incomplete, re-initiate onboarding
+    if (stripeConnected && !stripeDetailsSubmitted) {
+      try {
+        setStripeConnecting(true);
+        const response = await authenticatedFetch(
+          "/host/stripe/connect/initiate",
+          { method: "POST" }
+        );
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to resume onboarding");
+        }
+        const data = await response.json();
+        if (data.alreadyComplete) {
+          showToast("Stripe is already connected!", "success");
+          loadStripeStatus();
+          setStripeConnecting(false);
+          return;
+        }
+        window.location.href = data.authorizationUrl;
+      } catch (error) {
+        console.error("Failed to resume Stripe onboarding:", error);
+        showToast(error.message || "Failed to resume Stripe setup", "error");
+        setStripeConnecting(false);
+      }
+      return;
+    }
+
+    if (stripeConnected) {
+      try {
+        setStripeConnecting(true);
+        const response = await authenticatedFetch(
+          "/host/stripe/connect/disconnect",
+          { method: "POST" }
+        );
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to disconnect");
+        }
+        setStripeConnected(false);
+        setStripeAccountEmail("");
+        setStripeDetailsSubmitted(false);
+        setStripeChargesEnabled(false);
+        showToast("Stripe disconnected", "success");
+      } catch (error) {
+        console.error("Failed to disconnect Stripe:", error);
+        showToast(
+          error.message || "Failed to disconnect Stripe account",
+          "error"
+        );
+      } finally {
+        setStripeConnecting(false);
+      }
+    } else {
+      try {
+        setStripeConnecting(true);
+        const response = await authenticatedFetch(
+          "/host/stripe/connect/initiate",
+          { method: "POST" }
+        );
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to initiate connection");
+        }
+        const data = await response.json();
+        if (data.alreadyComplete) {
+          showToast("Stripe is already connected!", "success");
+          loadStripeStatus();
+          setStripeConnecting(false);
+          return;
+        }
+        window.location.href = data.authorizationUrl;
+      } catch (error) {
+        console.error("Failed to initiate Stripe Connect:", error);
+        showToast(error.message || "Failed to connect Stripe account", "error");
+        setStripeConnecting(false);
+      }
+    }
+  }
 
   const handleSignOut = async () => {
     try {
@@ -32,71 +170,18 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
       showToast("Failed to sign out", "error");
     }
   };
-  // Initialize from user state with defaults
-  const brandingLinks = user.brandingLinks || {
-    instagram: "",
-    x: "",
-    youtube: "",
-    tiktok: "",
-    linkedin: "",
-    website: "",
-  };
-  const emails = user.emails || [
-    { email: user.email || "hello@pullup.se", primary: true },
-  ];
-  const mobileNumber = user.mobileNumber || "";
-  const thirdPartyAccounts = user.thirdPartyAccounts || [
-    {
-      id: "google",
-      name: "Google",
-      email: user.email || "hello@pullup.se",
-      linked: false,
-    },
-    { id: "apple", name: "Apple", linked: false },
-    { id: "zoom", name: "Zoom", linked: false },
-    { id: "solana", name: "Solana", linked: false },
-    { id: "ethereum", name: "Ethereum", linked: false },
-  ];
-  const [activeDevices] = useState([
-    {
-      id: "1",
-      name: "Chrome on macOS",
-      location: "Stockholm, SE",
-      current: true,
-    },
-  ]);
 
   async function handleSave() {
     try {
+      setSaving(true);
       await onSave(user);
-      showToast("Settings saved successfully! ✨", "success");
+      showToast("Settings saved", "success");
     } catch (error) {
       console.error("Failed to save settings:", error);
       showToast("Failed to save settings", "error");
+    } finally {
+      setSaving(false);
     }
-  }
-
-  function handleAddEmail() {
-    setUser({
-      ...user,
-      emails: [...emails, { email: "", primary: false }],
-    });
-  }
-
-  function handleRemoveBrandingLink(platform) {
-    setUser({
-      ...user,
-      brandingLinks: { ...brandingLinks, [platform]: "" },
-    });
-  }
-
-  function handleLinkThirdParty(id) {
-    setUser({
-      ...user,
-      thirdPartyAccounts: thirdPartyAccounts.map((acc) =>
-        acc.id === id ? { ...acc, linked: !acc.linked } : acc
-      ),
-    });
   }
 
   return (
@@ -112,792 +197,103 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
           color: #fff;
           font-size: 15px;
           outline: none;
+          transition: border-color 0.2s;
         }
-        .settings-input-container {
-          width: 100%;
+        .settings-input:focus {
+          border-color: rgba(255,255,255,0.25);
         }
-        .branding-link-input {
-          flex: 1;
-          min-width: 0;
-          box-sizing: border-box;
-          padding: 12px 16px;
-          border-radius: 12px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(20, 16, 30, 0.6);
-          color: #fff;
-          font-size: 15px;
-          outline: none;
+        .settings-input::placeholder {
+          color: rgba(255,255,255,0.3);
         }
       `}</style>
-      {/* PROFILE */}
+
+      {/* BRAND SETTINGS */}
       <SettingsSection
-        title="Your Profile"
-        description="Choose how you are displayed as a host or guest."
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            gap: "32px",
-            alignItems: "start",
-          }}
-        >
-          {/* Left side: fields */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "20px",
-              width: "100%",
-            }}
-          >
-            {/* Brand */}
-            <label style={{ display: "block", width: "100%" }}>
-              <div
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                }}
-              >
-                Brand
-              </div>
-              <div style={{ position: "relative", width: "100%" }}>
-                <input
-                  type="text"
-                  value={user.brand || ""}
-                  onChange={(e) => setUser({ ...user, brand: e.target.value })}
-                  placeholder="Brand"
-                  className="settings-input"
-                />
-              </div>
-            </label>
-
-            {/* Host Name */}
-            <label style={{ display: "block", width: "100%" }}>
-              <div
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                }}
-              >
-                Host Name
-              </div>
-              <input
-                type="text"
-                value={user.name}
-                onChange={(e) => setUser({ ...user, name: e.target.value })}
-                className="settings-input"
-              />
-            </label>
-
-            {/* Bio */}
-            <label style={{ display: "block", width: "100%" }}>
-              <div
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                }}
-              >
-                Bio
-              </div>
-              <textarea
-                value={user.bio}
-                onChange={(e) => setUser({ ...user, bio: e.target.value })}
-                placeholder="Share a little about your background and interests."
-                className="settings-input"
-                style={{
-                  minHeight: "100px",
-                  resize: "vertical",
-                  fontFamily: "inherit",
-                }}
-              />
-            </label>
-
-            {/* Branding Links */}
-            <div style={{ marginTop: "8px", width: "100%" }}>
-              <div
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  opacity: 0.9,
-                }}
-              >
-                Branding Links
-              </div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  opacity: 0.6,
-                  marginBottom: "16px",
-                  fontStyle: "italic",
-                }}
-              >
-                Visual data will be automatically fetched from these links
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                  width: "100%",
-                }}
-              >
-                {/* Instagram */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    width: "100%",
-                  }}
-                >
-                  <SilverIcon as={Camera} size={18} />
-                  <span
-                    style={{
-                      fontSize: "14px",
-                      opacity: 0.8,
-                      whiteSpace: "nowrap",
-                      flexShrink: 0,
-                    }}
-                  >
-                    instagram.com/
-                  </span>
-                  <input
-                    type="text"
-                    value={brandingLinks.instagram}
-                    onChange={(e) =>
-                      setUser({
-                        ...user,
-                        brandingLinks: {
-                          ...brandingLinks,
-                          instagram: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="username"
-                    className="branding-link-input"
-                  />
-                </div>
-
-                {/* X / Twitter */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    width: "100%",
-                  }}
-                >
-                  <span style={{ fontSize: "18px", flexShrink: 0 }}>𝕏</span>
-                  <span
-                    style={{
-                      fontSize: "14px",
-                      opacity: 0.8,
-                      whiteSpace: "nowrap",
-                      flexShrink: 0,
-                    }}
-                  >
-                    x.com/
-                  </span>
-                  <input
-                    type="text"
-                    value={brandingLinks.x}
-                    onChange={(e) =>
-                      setUser({
-                        ...user,
-                        brandingLinks: { ...brandingLinks, x: e.target.value },
-                      })
-                    }
-                    placeholder="username"
-                    className="branding-link-input"
-                  />
-                  {brandingLinks.x && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveBrandingLink("x")}
-                      style={{
-                        padding: "4px 8px",
-                        borderRadius: "6px",
-                        border: "none",
-                        background: "rgba(239, 68, 68, 0.2)",
-                        color: "#fff",
-                        cursor: "pointer",
-                        fontSize: "12px",
-                        flexShrink: 0,
-                      }}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-
-                {/* YouTube */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    width: "100%",
-                  }}
-                >
-                  <span style={{ fontSize: "18px", flexShrink: 0 }}>▶️</span>
-                  <span
-                    style={{
-                      fontSize: "14px",
-                      opacity: 0.8,
-                      whiteSpace: "nowrap",
-                      flexShrink: 0,
-                    }}
-                  >
-                    youtube.com/@
-                  </span>
-                  <input
-                    type="text"
-                    value={brandingLinks.youtube}
-                    onChange={(e) =>
-                      setUser({
-                        ...user,
-                        brandingLinks: {
-                          ...brandingLinks,
-                          youtube: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="username"
-                    className="branding-link-input"
-                  />
-                </div>
-
-                {/* TikTok */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    width: "100%",
-                  }}
-                >
-                  <SilverIcon as={Music} size={18} />
-                  <span
-                    style={{
-                      fontSize: "14px",
-                      opacity: 0.8,
-                      whiteSpace: "nowrap",
-                      flexShrink: 0,
-                    }}
-                  >
-                    tiktok.com/@
-                  </span>
-                  <input
-                    type="text"
-                    value={brandingLinks.tiktok}
-                    onChange={(e) =>
-                      setUser({
-                        ...user,
-                        brandingLinks: {
-                          ...brandingLinks,
-                          tiktok: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="username"
-                    className="branding-link-input"
-                  />
-                </div>
-
-                {/* LinkedIn */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    width: "100%",
-                  }}
-                >
-                  <SilverIcon as={Briefcase} size={18} />
-                  <span
-                    style={{
-                      fontSize: "14px",
-                      opacity: 0.8,
-                      whiteSpace: "nowrap",
-                      flexShrink: 0,
-                    }}
-                  >
-                    linkedin.com
-                  </span>
-                  <input
-                    type="text"
-                    value={brandingLinks.linkedin}
-                    onChange={(e) =>
-                      setUser({
-                        ...user,
-                        brandingLinks: {
-                          ...brandingLinks,
-                          linkedin: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="/in/handle"
-                    className="branding-link-input"
-                  />
-                </div>
-
-                {/* Website */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    width: "100%",
-                  }}
-                >
-                  <SilverIcon as={Globe} size={18} />
-                  <input
-                    type="text"
-                    value={brandingLinks.website}
-                    onChange={(e) =>
-                      setUser({
-                        ...user,
-                        brandingLinks: {
-                          ...brandingLinks,
-                          website: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="Your website"
-                    className="branding-link-input"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </SettingsSection>
-
-      {/* EMAILS */}
-      <SettingsSection
-        title="Emails"
-        description="Add additional emails to receive event invitations sent to those addresses."
-        actionButton={
-          <button
-            type="button"
-            onClick={handleAddEmail}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(192, 192, 192, 0.2)",
-              color: "#fff",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            <span>+</span>
-            <span>Add Email</span>
-          </button>
-        }
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {emails.map((email, idx) => (
-            <div
-              key={idx}
-              style={{
-                padding: "16px",
-                background: "rgba(20, 16, 30, 0.6)",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.05)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: 500,
-                    marginBottom: "4px",
-                  }}
-                >
-                  {email.email}
-                </div>
-                {email.primary && (
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      opacity: 0.7,
-                    }}
-                  >
-                    This email will be shared with hosts when you register for
-                    their events.
-                  </div>
-                )}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                }}
-              >
-                {email.primary && (
-                  <span
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: "12px",
-                      background: "rgba(192, 192, 192, 0.2)",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Primary
-                  </span>
-                )}
-                <button
-                  type="button"
-                  style={{
-                    padding: "6px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "transparent",
-                    color: "rgba(255,255,255,0.6)",
-                    cursor: "pointer",
-                    fontSize: "18px",
-                  }}
-                >
-                  ⋮
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </SettingsSection>
-
-      {/* MOBILE NUMBER */}
-      <SettingsSection
-        title="Mobile Number"
-        description="Manage the mobile number you use to sign in to PullUp and receive SMS updates."
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: "12px",
-            alignItems: "flex-start",
-            width: "100%",
-          }}
-        >
-          <input
-            type="tel"
-            value={mobileNumber}
-            onChange={(e) => setUser({ ...user, mobileNumber: e.target.value })}
-            className="settings-input"
-            style={{ flex: 1 }}
-          />
-          <button
-            type="button"
-            style={{
-              padding: "12px 20px",
-              borderRadius: "12px",
-              border: "none",
-              background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-              color: "#fff",
-              fontWeight: 600,
-              fontSize: "14px",
-              cursor: "pointer",
-            }}
-          >
-            Update
-          </button>
-        </div>
-        <div
-          style={{
-            marginTop: "12px",
-            fontSize: "13px",
-            opacity: 0.6,
-          }}
-        >
-          For your security, we will send you a code to verify any change to
-          your mobile number.
-        </div>
-      </SettingsSection>
-
-      {/* PASSWORD & SECURITY */}
-      <SettingsSection
-        title="Password & Security"
-        description="Secure your account with password and two-factor authentication."
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <SecurityItem
-            icon={<SilverIcon as={Lock} size={18} />}
-            title="Account Password"
-            description="Please follow the instructions in the email to finish setting your password."
-            buttonText="Set Password"
-          />
-          <SecurityItem
-            icon={<SilverIcon as={Shield} size={18} />}
-            title="Two-Factor Authentication"
-            description="Please set a password before enabling two-factor authentication."
-            buttonText="Enable 2FA"
-          />
-          <SecurityItem
-            icon={<SilverIcon as={Key} size={18} />}
-            title="Passkeys"
-            description="Passkeys are a secure and convenient way to sign in."
-            buttonText="Add Passkey"
-          />
-        </div>
-      </SettingsSection>
-
-      {/* THIRD PARTY ACCOUNTS */}
-      <SettingsSection
-        title="Third Party Accounts"
-        description="Link your accounts to sign in to PullUp and automate your workflows."
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-            gap: "16px",
-          }}
-        >
-          {thirdPartyAccounts.map((account) => (
-            <div
-              key={account.id}
-              style={{
-                padding: "16px",
-                background: "rgba(20, 16, 30, 0.6)",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.05)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  marginBottom: "4px",
-                }}
-              >
-                <span style={{ fontSize: "20px" }}>
-                  {account.id === "google" && "G"}
-                  {account.id === "apple" && <SilverIcon as={Apple} size={18} />}
-                  {account.id === "zoom" && <SilverIcon as={Video} size={18} />}
-                  {account.id === "solana" && "S"}
-                  {account.id === "ethereum" && "Ξ"}
-                </span>
-                <span style={{ fontSize: "14px", fontWeight: 600 }}>
-                  {account.name}
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  opacity: 0.7,
-                  marginBottom: "8px",
-                }}
-              >
-                {account.linked ? account.email || "Linked" : "Not Linked"}
-              </div>
-              <button
-                type="button"
-                onClick={() => handleLinkThirdParty(account.id)}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  border: account.linked
-                    ? "1px solid rgba(255,255,255,0.1)"
-                    : "none",
-                  background: account.linked
-                    ? "transparent"
-                    : "rgba(192, 192, 192, 0.2)",
-                  color: "#fff",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
-                {account.linked ? (
-                  <>
-                    <span>✓</span>
-                    <span>Linked</span>
-                  </>
-                ) : (
-                  <>
-                    <span>+</span>
-                    <span>Link</span>
-                  </>
-                )}
-              </button>
-            </div>
-          ))}
-        </div>
-      </SettingsSection>
-
-      {/* ACTIVE DEVICES */}
-      <SettingsSection
-        title="Active Devices"
-        description="See the list of devices you are currently signed into PullUp from."
+        title="Your Brand"
+        description="Set up your brand details. Your website and contact email will appear in outgoing event emails so guests can reach you directly."
       >
         <div
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: "12px",
+            gap: "20px",
+            width: "100%",
           }}
         >
-          {activeDevices.map((device) => (
-            <div
-              key={device.id}
-              style={{
-                padding: "16px",
-                background: "rgba(20, 16, 30, 0.6)",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.05)",
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-              }}
-            >
-              <SilverIcon as={Monitor} size={20} />
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: 500,
-                    marginBottom: "4px",
-                  }}
-                >
-                  {device.name}
-                </div>
-                <div style={{ fontSize: "12px", opacity: 0.7 }}>
-                  {device.location}
-                </div>
-              </div>
-              {device.current && (
-                <span
-                  style={{
-                    padding: "4px 10px",
-                    borderRadius: "12px",
-                    background: "rgba(34, 197, 94, 0.2)",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    color: "#22c55e",
-                  }}
-                >
-                  This Device
-                </span>
-              )}
+          {/* Brand Name */}
+          <label style={{ display: "block", width: "100%" }}>
+            <div style={labelStyle}>
+              <SilverIcon as={Tag} size={14} style={{ marginRight: "6px" }} />
+              Brand Name
             </div>
-          ))}
+            <input
+              type="text"
+              value={user.brand || ""}
+              onChange={(e) => setUser({ ...user, brand: e.target.value })}
+              placeholder="Your brand or company name"
+              className="settings-input"
+            />
+          </label>
+
+          {/* Brand Website */}
+          <label style={{ display: "block", width: "100%" }}>
+            <div style={labelStyle}>
+              <SilverIcon as={Globe} size={14} style={{ marginRight: "6px" }} />
+              Website
+            </div>
+            <input
+              type="url"
+              value={user.brandWebsite || ""}
+              onChange={(e) =>
+                setUser({ ...user, brandWebsite: e.target.value })
+              }
+              placeholder="https://yourbrand.com"
+              className="settings-input"
+            />
+            <div style={hintStyle}>
+              Linked in email footers so guests can learn more about you.
+            </div>
+          </label>
+
+          {/* Contact Email */}
+          <label style={{ display: "block", width: "100%" }}>
+            <div style={labelStyle}>
+              <SilverIcon as={Mail} size={14} style={{ marginRight: "6px" }} />
+              Contact Email
+            </div>
+            <input
+              type="email"
+              value={user.contactEmail || ""}
+              onChange={(e) =>
+                setUser({ ...user, contactEmail: e.target.value })
+              }
+              placeholder="hello@yourbrand.com"
+              className="settings-input"
+            />
+            <div style={hintStyle}>
+              Guest replies and inquiries will be directed here instead of
+              PullUp.
+            </div>
+          </label>
         </div>
-      </SettingsSection>
-
-      {/* SIGN OUT */}
-      <SettingsSection
-        title="Sign Out"
-        description="Sign out of your PullUp account. You can sign back in at any time."
-      >
-        <button
-          type="button"
-          onClick={handleSignOut}
-          style={{
-            padding: "12px 24px",
-            borderRadius: "12px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(255,255,255,0.05)",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: "14px",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            transition: "all 0.3s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.target.style.background = "rgba(255,255,255,0.1)";
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.background = "rgba(255,255,255,0.05)";
-          }}
-        >
-          <SilverIcon as={LogOut} size={18} />
-          <span>Sign Out</span>
-        </button>
-      </SettingsSection>
-
-      {/* DELETE ACCOUNT */}
-      <SettingsSection
-        title="Delete Account"
-        description="If you no longer wish to use PullUp, you can permanently delete your account."
-      >
-        <button
-          type="button"
-          style={{
-            padding: "12px 24px",
-            borderRadius: "12px",
-            border: "none",
-            background: "rgba(239, 68, 68, 0.2)",
-            color: "#ef4444",
-            fontWeight: 600,
-            fontSize: "14px",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            transition: "all 0.3s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.target.style.background = "rgba(239, 68, 68, 0.3)";
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.background = "rgba(239, 68, 68, 0.2)";
-          }}
-        >
-          <SilverIcon as={AlertTriangle} size={18} style={{ color: "#f59e0b" }} />
-          <span>Delete My Account</span>
-        </button>
       </SettingsSection>
 
       {/* SAVE BUTTON */}
       <button
         type="button"
         onClick={handleSave}
+        disabled={saving}
         style={{
-          marginTop: "32px",
           padding: "14px 28px",
           borderRadius: "999px",
           border: "none",
-          background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+          background:
+            "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
           color: "#fff",
           fontWeight: 700,
           fontSize: "15px",
-          cursor: "pointer",
+          cursor: saving ? "default" : "pointer",
+          opacity: saving ? 0.6 : 1,
           boxShadow: "0 10px 30px rgba(192, 192, 192, 0.4)",
           transition: "all 0.3s ease",
           textTransform: "uppercase",
@@ -905,46 +301,302 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
           display: "flex",
           alignItems: "center",
           gap: "8px",
+          alignSelf: "flex-start",
         }}
       >
         <SilverIcon as={RefreshCw} size={18} />
-        <span>Save Changes</span>
+        <span>{saving ? "Saving..." : "Save Changes"}</span>
       </button>
+
+      {/* INTEGRATIONS */}
+      <SettingsSection
+        title="Integrations"
+        description="Connect external services to power your events."
+      >
+        <div
+          style={{
+            padding: "20px",
+            background: "rgba(20, 16, 30, 0.6)",
+            borderRadius: "12px",
+            border: `1px solid ${
+              stripeConnected && stripeChargesEnabled
+                ? "rgba(34, 197, 94, 0.15)"
+                : stripeConnected && !stripeDetailsSubmitted
+                ? "rgba(245, 158, 11, 0.15)"
+                : "rgba(255,255,255,0.05)"
+            }`,
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: "16px",
+          }}
+        >
+          <div style={{ display: "flex", gap: "16px", flex: 1 }}>
+            <div
+              style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "12px",
+                background: stripeConnected && stripeChargesEnabled
+                  ? "rgba(34, 197, 94, 0.15)"
+                  : stripeConnected && !stripeDetailsSubmitted
+                  ? "rgba(245, 158, 11, 0.15)"
+                  : "rgba(99, 102, 241, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <SilverIcon as={CreditCard} size={20} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  marginBottom: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                Stripe
+                {stripeConnected && stripeChargesEnabled && (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      background: "rgba(34, 197, 94, 0.15)",
+                      color: "#22c55e",
+                    }}
+                  >
+                    Connected
+                  </span>
+                )}
+                {stripeConnected && !stripeDetailsSubmitted && (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      background: "rgba(245, 158, 11, 0.15)",
+                      color: "#f59e0b",
+                    }}
+                  >
+                    Setup incomplete
+                  </span>
+                )}
+                {stripeConnected && stripeDetailsSubmitted && !stripeChargesEnabled && (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      background: "rgba(245, 158, 11, 0.15)",
+                      color: "#f59e0b",
+                    }}
+                  >
+                    Pending verification
+                  </span>
+                )}
+              </div>
+              <div
+                style={{ fontSize: "13px", opacity: 0.7, lineHeight: 1.5 }}
+              >
+                Accept payments for paid events, process refunds, and manage
+                payouts.
+              </div>
+              {stripeConnected && (stripeBusinessName || stripeAccountEmail) && (
+                <div
+                  style={{
+                    fontSize: "12px",
+                    opacity: 0.5,
+                    marginTop: "6px",
+                  }}
+                >
+                  {stripeBusinessName && <span style={{ fontWeight: 500 }}>{stripeBusinessName}</span>}
+                  {stripeBusinessName && stripeAccountEmail && " · "}
+                  {stripeAccountEmail}
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleConnectStripe}
+            disabled={stripeLoading || stripeConnecting}
+            style={{
+              padding: "10px 20px",
+              borderRadius: "8px",
+              border: stripeConnected && stripeDetailsSubmitted
+                ? "1px solid rgba(255,255,255,0.1)"
+                : "none",
+              background:
+                stripeLoading || stripeConnecting
+                  ? "rgba(255,255,255,0.1)"
+                  : stripeConnected && stripeDetailsSubmitted
+                  ? "transparent"
+                  : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+              color: "#fff",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor:
+                stripeLoading || stripeConnecting ? "not-allowed" : "pointer",
+              whiteSpace: "nowrap",
+              transition: "all 0.3s ease",
+              opacity: stripeLoading || stripeConnecting ? 0.6 : 1,
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              if (stripeConnected && stripeDetailsSubmitted && !stripeLoading && !stripeConnecting) {
+                e.target.style.background = "rgba(239, 68, 68, 0.2)";
+                e.target.style.borderColor = "rgba(239, 68, 68, 0.5)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (stripeConnected && stripeDetailsSubmitted && !stripeLoading && !stripeConnecting) {
+                e.target.style.background = "transparent";
+                e.target.style.borderColor = "rgba(255,255,255,0.1)";
+              }
+            }}
+          >
+            {stripeLoading
+              ? "Loading..."
+              : stripeConnecting
+              ? "Connecting..."
+              : stripeConnected && !stripeDetailsSubmitted
+              ? "Complete Setup"
+              : stripeConnected
+              ? "Disconnect"
+              : "Connect Stripe"}
+          </button>
+        </div>
+      </SettingsSection>
+
+      <div
+        style={{
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          paddingTop: "48px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "48px",
+        }}
+      >
+        {/* SIGN OUT */}
+        <SettingsSection
+          title="Sign Out"
+          description="Sign out of your PullUp account. You can sign back in at any time."
+        >
+          <button
+            type="button"
+            onClick={handleSignOut}
+            style={{
+              padding: "12px 24px",
+              borderRadius: "12px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.05)",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: "14px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              transition: "all 0.3s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "rgba(255,255,255,0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "rgba(255,255,255,0.05)";
+            }}
+          >
+            <SilverIcon as={LogOut} size={18} />
+            <span>Sign Out</span>
+          </button>
+        </SettingsSection>
+
+        {/* DELETE ACCOUNT */}
+        <SettingsSection
+          title="Delete Account"
+          description="If you no longer wish to use PullUp, you can permanently delete your account."
+        >
+          <button
+            type="button"
+            style={{
+              padding: "12px 24px",
+              borderRadius: "12px",
+              border: "none",
+              background: "rgba(239, 68, 68, 0.2)",
+              color: "#ef4444",
+              fontWeight: 600,
+              fontSize: "14px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              transition: "all 0.3s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "rgba(239, 68, 68, 0.3)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "rgba(239, 68, 68, 0.2)";
+            }}
+          >
+            <SilverIcon as={AlertTriangle} size={18} style={{ color: "#f59e0b" }} />
+            <span>Delete My Account</span>
+          </button>
+        </SettingsSection>
+      </div>
     </div>
   );
 }
 
-function SettingsSection({ title, description, children, actionButton }) {
+const labelStyle = {
+  fontSize: "13px",
+  fontWeight: 600,
+  marginBottom: "8px",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  opacity: 0.9,
+  display: "flex",
+  alignItems: "center",
+};
+
+const hintStyle = {
+  marginTop: "8px",
+  fontSize: "12px",
+  opacity: 0.5,
+  lineHeight: 1.4,
+};
+
+function SettingsSection({ title, description, children }) {
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          marginBottom: "16px",
-        }}
-      >
-        <div>
-          <h2
-            style={{
-              fontSize: "18px",
-              fontWeight: 600,
-              marginBottom: "4px",
-            }}
-          >
-            {title}
-          </h2>
-          <p
-            style={{
-              fontSize: "14px",
-              opacity: 0.7,
-            }}
-          >
-            {description}
-          </p>
-        </div>
-        {actionButton && actionButton}
+      <div style={{ marginBottom: "16px" }}>
+        <h2
+          style={{
+            fontSize: "18px",
+            fontWeight: 600,
+            marginBottom: "4px",
+          }}
+        >
+          {title}
+        </h2>
+        <p
+          style={{
+            fontSize: "14px",
+            opacity: 0.7,
+          }}
+        >
+          {description}
+        </p>
       </div>
       {children}
     </div>

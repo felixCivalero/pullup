@@ -178,6 +178,15 @@ export function EventGuestsPage() {
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
   const [searchQuery, setSearchQuery] = useState(""); // Search query for guest name/email
+  const [showCancelled, setShowCancelled] = useState(false); // Toggle to show/hide cancelled guests
+  const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
   const calendarDropdownRef = useRef(null);
 
@@ -506,6 +515,58 @@ export function EventGuestsPage() {
     }
   }
 
+  async function handlePromoteGuest(guestId, sendEmail = false) {
+    try {
+      const res = await authenticatedFetch(
+        `/host/events/${id}/rsvps/${guestId}/promote`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sendEmail }),
+        },
+      );
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to promote guest");
+      }
+      showToast(sendEmail ? "Guest confirmed and notified!" : "Guest confirmed!", "success");
+      // Reload guests
+      const guestsRes = await authenticatedFetch(`/host/events/${id}/guests`);
+      if (guestsRes.ok) {
+        const data = await guestsRes.json();
+        setGuests(data.guests || []);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not promote guest", "error");
+    }
+  }
+
+  async function handleCancelGuest(guestId) {
+    try {
+      const res = await authenticatedFetch(
+        `/host/events/${id}/rsvps/${guestId}/cancel`,
+        {
+          method: "POST",
+        },
+      );
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to cancel guest");
+      }
+      showToast("Guest cancelled", "success");
+      // Reload guests
+      const guestsRes = await authenticatedFetch(`/host/events/${id}/guests`);
+      if (guestsRes.ok) {
+        const data = await guestsRes.json();
+        setGuests(data.guests || []);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not cancel guest", "error");
+    }
+  }
+
   async function handleRefundGuest(guest, moveToWaitlist = true) {
     if (!guest.paymentId) {
       showToast("No payment found for this guest", "error");
@@ -671,6 +732,10 @@ export function EventGuestsPage() {
     ) {
       return;
     }
+    // Only allow check-in for confirmed guests
+    if (guest.bookingStatus !== "CONFIRMED" && guest.status !== "attending") {
+      return;
+    }
     setPulledUpModalGuest(guest);
   }
 
@@ -830,8 +895,18 @@ export function EventGuestsPage() {
     }
   };
 
-  // Filter + sort guests via helpers
-  const filteredGuests = filterGuests(guests, searchQuery);
+  // Count cancelled guests
+  const cancelledCount = guests.filter(
+    (g) => g.bookingStatus === "CANCELLED" || g.status === "cancelled",
+  ).length;
+
+  // Filter + sort guests via helpers (exclude cancelled unless toggled)
+  const filteredGuests = filterGuests(guests, searchQuery).filter((g) => {
+    if (!showCancelled && (g.bookingStatus === "CANCELLED" || g.status === "cancelled")) {
+      return false;
+    }
+    return true;
+  });
   const sortedGuests = sortGuests(filteredGuests, sortColumn, sortDirection);
 
   return (
@@ -850,6 +925,29 @@ export function EventGuestsPage() {
           .export-csv-button-container {
             display: none !important;
           }
+          .guests-desktop-table {
+            display: none !important;
+          }
+          .guests-mobile-list {
+            display: block !important;
+          }
+          .guests-search-sticky {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 50 !important;
+            background: #05040a !important;
+            padding-top: 12px !important;
+            padding-bottom: 4px !important;
+            margin-bottom: 12px !important;
+          }
+          .guests-page-content {
+            padding: 8px 12px !important;
+          }
+        }
+        @media (min-width: 768px) {
+          .guests-mobile-list {
+            display: none !important;
+          }
         }
       `}</style>
 
@@ -865,6 +963,7 @@ export function EventGuestsPage() {
       >
           {/* Tab Content */}
           <div
+            className="guests-page-content"
             style={{
               padding: "24px 20px",
               width: "100%",
@@ -936,6 +1035,7 @@ export function EventGuestsPage() {
 
             {/* Search Bar - Smartphone Friendly */}
             <div
+              className="guests-search-sticky"
               style={{
                 marginBottom: "24px",
                 padding: "0 20px",
@@ -970,6 +1070,44 @@ export function EventGuestsPage() {
               />
             </div>
 
+            {/* Show Cancelled Toggle */}
+            {cancelledCount > 0 && (
+              <div
+                style={{
+                  marginBottom: "16px",
+                  padding: "0 20px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    color: "rgba(255,255,255,0.6)",
+                    userSelect: "none",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={showCancelled}
+                    onChange={(e) => setShowCancelled(e.target.checked)}
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      cursor: "pointer",
+                      accentColor: "#9ca3af",
+                    }}
+                  />
+                  Show cancelled ({cancelledCount})
+                </label>
+              </div>
+            )}
+
             {/* Guests Table */}
             {sortedGuests.length === 0 ? (
               <div
@@ -998,7 +1136,175 @@ export function EventGuestsPage() {
                 </div>
               </div>
             ) : (
+              <>
+              {/* Mobile Card Layout */}
+              <div className="guests-mobile-list" style={{ display: "none", flexDirection: "column", gap: "8px" }}>
+                {sortedGuests.map((g) => {
+                  const isConfirmed = g.bookingStatus === "CONFIRMED" || g.status === "attending";
+                  const isWaitlist = g.bookingStatus === "WAITLIST" || g.status === "waitlist";
+                  const isCancelled = g.bookingStatus === "CANCELLED" || g.status === "cancelled";
+                  const cocktailsPulledUp = g.cocktailOnlyPullUpCount ?? g.pulledUpForCocktails ?? 0;
+                  const dinnerPulledUp = g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0;
+                  const hasAnyPulledUp = cocktailsPulledUp > 0 || dinnerPulledUp > 0;
+                  const partySize = g.partySize || 1;
+                  const wantsDinner = g.wantsDinner || g.dinner?.enabled || false;
+                  const dinnerPartySize = g.dinnerPartySize || g.dinner?.partySize || 0;
+                  const plusOnes = g.plusOnes ?? 0;
+
+                  // DPCS pull-up totals
+                  const cocktailOnlyMax = wantsDinner ? plusOnes : partySize;
+                  const totalExpected = (wantsDinner ? dinnerPartySize : 0) + cocktailOnlyMax;
+                  const totalArrived = dinnerPulledUp + cocktailsPulledUp;
+                  const allPulledUp = totalArrived > 0 && totalArrived >= totalExpected;
+
+                  return (
+                    <div
+                      key={g.id}
+                      onClick={(e) => {
+                        if (e.target.closest("button")) return;
+                        handleRowClick(g, e);
+                      }}
+                      style={{
+                        background: allPulledUp
+                          ? "rgba(16, 185, 129, 0.06)"
+                          : "rgba(20, 16, 30, 0.5)",
+                        borderRadius: "16px",
+                        border: allPulledUp
+                          ? "1px solid rgba(16, 185, 129, 0.2)"
+                          : "1px solid rgba(255,255,255,0.08)",
+                        padding: "14px 16px",
+                        cursor: isConfirmed ? "pointer" : "default",
+                        WebkitTapHighlightColor: "transparent",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {/* Top row: Name + Status */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", marginBottom: "8px" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: "15px", color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {g.name || "Guest"}
+                          </div>
+                          <div style={{ fontSize: "12px", opacity: 0.5, color: "#e5e7eb", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {g.email}
+                          </div>
+                        </div>
+                        <div style={{ flexShrink: 0 }}>
+                          <span style={{
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            padding: "4px 10px",
+                            borderRadius: "999px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                            lineHeight: "1.3",
+                            display: "inline-block",
+                            ...(isConfirmed
+                              ? { background: "rgba(16, 185, 129, 0.2)", border: "1px solid rgba(16, 185, 129, 0.5)", color: "#10b981" }
+                              : isWaitlist
+                              ? { background: "rgba(244, 114, 182, 0.2)", border: "1px solid rgba(244, 114, 182, 0.5)", color: "#f472b6" }
+                              : { background: "rgba(107, 114, 128, 0.2)", border: "1px solid rgba(107, 114, 128, 0.5)", color: "#9ca3af" }),
+                          }}>
+                            {isConfirmed ? "CONFIRMED" : isWaitlist ? "WAITLIST" : "CANCELLED"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Bottom row: Party info + Check-in status + Actions */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                        {/* Party info */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+                            {partySize} {partySize === 1 ? "guest" : "guests"}
+                          </span>
+                          {event.dinnerEnabled && wantsDinner && dinnerPartySize > 0 && (
+                            <span style={{
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              padding: "2px 8px",
+                              borderRadius: "6px",
+                              background: "rgba(16, 185, 129, 0.12)",
+                              border: "1px solid rgba(16, 185, 129, 0.25)",
+                              color: "#10b981",
+                            }}>
+                              {dinnerPartySize} dinner
+                            </span>
+                          )}
+                          {plusOnes > 0 && event.dinnerEnabled && (
+                            <span style={{
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              padding: "2px 8px",
+                              borderRadius: "6px",
+                              background: "rgba(245, 158, 11, 0.12)",
+                              border: "1px solid rgba(245, 158, 11, 0.25)",
+                              color: "#f59e0b",
+                            }}>
+                              +{plusOnes} cocktails
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Check-in badges + actions */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                          {isConfirmed && hasAnyPulledUp && (
+                            <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                              {cocktailsPulledUp > 0 && (
+                                <span style={{
+                                  fontSize: "11px", fontWeight: 700, color: "#f59e0b",
+                                  padding: "3px 7px", borderRadius: "6px",
+                                  background: "rgba(245, 158, 11, 0.15)",
+                                  border: "1px solid rgba(245, 158, 11, 0.3)",
+                                }}>
+                                  {cocktailsPulledUp}
+                                </span>
+                              )}
+                              {dinnerPulledUp > 0 && (
+                                <span style={{
+                                  fontSize: "11px", fontWeight: 700, color: "#10b981",
+                                  padding: "3px 7px", borderRadius: "6px",
+                                  background: "rgba(16, 185, 129, 0.15)",
+                                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                                }}>
+                                  {dinnerPulledUp}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {isConfirmed && allPulledUp && (
+                            <Check size={16} style={{ color: "#10b981" }} />
+                          )}
+                          {isConfirmed && !hasAnyPulledUp && (
+                            <span style={{ fontSize: "11px", opacity: 0.4, fontStyle: "italic", color: "rgba(255,255,255,0.4)" }}>
+                              tap to check in
+                            </span>
+                          )}
+                          {canEditGuests && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditGuest(g);
+                              }}
+                              style={{
+                                padding: "5px 10px", borderRadius: "8px",
+                                border: "1px solid rgba(192, 192, 192, 0.3)",
+                                background: "rgba(192, 192, 192, 0.08)",
+                                color: "#e5e5e5", fontSize: "11px", fontWeight: 600,
+                                cursor: "pointer", marginLeft: "4px",
+                              }}
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table */}
               <div
+                className="guests-desktop-table"
                 style={{
                   background: "rgba(20, 16, 30, 0.5)",
                   borderRadius: "20px",
@@ -1182,6 +1488,7 @@ export function EventGuestsPage() {
                             guest={g}
                             event={event}
                             eventId={id}
+                            onPromote={handlePromoteGuest}
                             onLinkGenerated={async () => {
                               // Refresh guests list after link generation
                               try {
@@ -1543,6 +1850,7 @@ export function EventGuestsPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         </div>
@@ -1555,6 +1863,8 @@ export function EventGuestsPage() {
           allGuests={guests}
           onClose={() => setEditingGuest(null)}
           onSave={(updates) => handleUpdateGuest(editingGuest.id, updates)}
+          onPromote={handlePromoteGuest}
+          onCancel={handleCancelGuest}
           onRefund={
             canEditGuests ? (guest) => setShowRefundConfirm(guest) : undefined
           }
@@ -1786,8 +2096,9 @@ function SortableHeader({
   );
 }
 
-function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
+function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote }) {
   const [generatingLink, setGeneratingLink] = useState(false);
+  const [promoting, setPromoting] = useState(false);
   const { showToast } = useToast();
 
   // Use new model fields with backward compatibility
@@ -1856,7 +2167,13 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
   let border = "";
   let color = "";
 
-  if (bookingStatus === "CONFIRMED") {
+  if (bookingStatus === "PENDING_PAYMENT") {
+    // Awaiting payment - RSVP created but not yet paid
+    label = "AWAITING PAYMENT";
+    bg = "rgba(245, 158, 11, 0.2)";
+    border = "rgba(245, 158, 11, 0.5)";
+    color = "#f59e0b";
+  } else if (bookingStatus === "CONFIRMED") {
     // For paid events, check payment status
     if (isPaidEvent) {
       if (paymentStatus === "paid") {
@@ -1866,14 +2183,14 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
         border = "rgba(16, 185, 129, 0.5)";
         color = "#10b981";
       } else if (paymentStatus === "pending") {
-        // Confirmed but payment pending
-        label = "CONFIRMED - PENDING";
+        // Payment initiated but not yet confirmed
+        label = "AWAITING PAYMENT";
         bg = "rgba(245, 158, 11, 0.2)";
         border = "rgba(245, 158, 11, 0.5)";
         color = "#f59e0b";
       } else {
         // Confirmed but unpaid (unpaid or null)
-        label = "CONFIRMED - UNPAID";
+        label = "UNPAID";
         bg = "rgba(239, 68, 68, 0.2)";
         border = "rgba(239, 68, 68, 0.5)";
         color = "#ef4444";
@@ -1913,10 +2230,10 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
     color = status === "attending" ? "#e5e5e5" : "#f472b6";
   }
 
-  // Add arrival status indicator (only for CONFIRMED bookings)
+  // Add arrival status indicator (only for truly CONFIRMED bookings, not PENDING_PAYMENT)
   let arrivalIndicator = "";
   if (
-    (guest.bookingStatus === "CONFIRMED" || status === "attending") &&
+    guest.bookingStatus === "CONFIRMED" &&
     totalExpected > 0
   ) {
     if (pullUpStatus === "FULL") {
@@ -2094,6 +2411,57 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated }) {
             )}
           </button>
         )}
+      {/* Confirm buttons for all waitlist guests */}
+      {bookingStatus === "WAITLIST" && onPromote && (
+        <div style={{ display: "flex", gap: "4px", marginTop: "4px", alignSelf: "flex-start" }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setPromoting(true);
+              onPromote(guest.id, false).finally(() => setPromoting(false));
+            }}
+            disabled={promoting}
+            style={{
+              padding: "3px 8px",
+              fontSize: "10px",
+              fontWeight: 600,
+              background: "rgba(16, 185, 129, 0.15)",
+              border: "1px solid rgba(16, 185, 129, 0.4)",
+              borderRadius: "6px",
+              color: "#10b981",
+              cursor: promoting ? "not-allowed" : "pointer",
+              opacity: promoting ? 0.6 : 1,
+              transition: "all 0.2s ease",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {promoting ? "..." : "Confirm"}
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setPromoting(true);
+              onPromote(guest.id, true).finally(() => setPromoting(false));
+            }}
+            disabled={promoting}
+            style={{
+              padding: "3px 8px",
+              fontSize: "10px",
+              fontWeight: 600,
+              background: "rgba(59, 130, 246, 0.15)",
+              border: "1px solid rgba(59, 130, 246, 0.4)",
+              borderRadius: "6px",
+              color: "#3b82f6",
+              cursor: promoting ? "not-allowed" : "pointer",
+              opacity: promoting ? 0.6 : 1,
+              transition: "all 0.2s ease",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {promoting ? "..." : "Confirm & Notify"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -2196,6 +2564,8 @@ function EditGuestModal({
   onClose,
   onSave,
   allGuests,
+  onPromote,
+  onCancel,
   onRefund,
 }) {
   const [name, setName] = useState(guest.name || "");
@@ -2221,8 +2591,12 @@ function EditGuestModal({
       ? "attending"
       : guest.bookingStatus === "WAITLIST"
         ? "waitlist"
-        : guest.status || "attending",
+        : guest.bookingStatus === "CANCELLED"
+          ? "cancelled"
+          : guest.status || "attending",
   );
+  const [promoteSendEmail, setPromoteSendEmail] = useState(false);
+  const [promotingFromModal, setPromotingFromModal] = useState(false);
   const [wantsDinner, setWantsDinner] = useState(guestWantsDinner);
   const [dinnerTimeSlot, setDinnerTimeSlot] = useState(guestDinnerTimeSlot);
   const [dinnerPartySize, setDinnerPartySize] = useState(
@@ -2353,12 +2727,34 @@ function EditGuestModal({
     setLoading(true);
 
     // Map status to bookingStatus for backend
-    const bookingStatus = status === "attending" ? "CONFIRMED" : "WAITLIST";
+    const bookingStatus =
+      status === "attending"
+        ? "CONFIRMED"
+        : status === "cancelled"
+          ? "CANCELLED"
+          : "WAITLIST";
+
+    const newPlusOnes = Math.max(0, Math.min(maxPlusOnes, parseInt(plusOnes) || 0));
+    const newPartySize = 1 + newPlusOnes;
+    const newDinnerPartySize = wantsDinner
+      ? Math.max(1, parseInt(dinnerPartySize) || 1)
+      : 0;
+    const newCocktailsOnlyCount = wantsDinner ? newPlusOnes : newPartySize;
+
+    // Clamp pull-up counts to not exceed new party sizes
+    const clampedDinnerPullUp = Math.min(
+      pulledUpForDinner || 0,
+      newDinnerPartySize,
+    );
+    const clampedCocktailPullUp = Math.min(
+      pulledUpForCocktails || 0,
+      newCocktailsOnlyCount,
+    );
 
     const updates = {
       name: name.trim() || null,
       email: email.trim(),
-      plusOnes: Math.max(0, Math.min(maxPlusOnes, parseInt(plusOnes) || 0)),
+      plusOnes: newPlusOnes,
       status, // Backward compatibility
       bookingStatus, // New model field
       wantsDinner: event.dinnerEnabled ? wantsDinner : false,
@@ -2366,12 +2762,12 @@ function EditGuestModal({
       dinnerPartySize: wantsDinner
         ? Math.max(1, parseInt(dinnerPartySize) || 1)
         : null,
-      // Use new model field names
-      dinnerPullUpCount: pulledUpForDinner || 0,
-      cocktailOnlyPullUpCount: pulledUpForCocktails || 0,
+      // Use new model field names (clamped)
+      dinnerPullUpCount: clampedDinnerPullUp,
+      cocktailOnlyPullUpCount: clampedCocktailPullUp,
       // Backward compatibility
-      pulledUpForDinner: pulledUpForDinner || null,
-      pulledUpForCocktails: pulledUpForCocktails || null,
+      pulledUpForDinner: clampedDinnerPullUp || null,
+      pulledUpForCocktails: clampedCocktailPullUp || null,
       // Admin override: include forceConfirm if capacity would be exceeded
       forceConfirm:
         capacityCheck.willExceedCocktail || capacityCheck.willExceedDinner,
@@ -2381,36 +2777,36 @@ function EditGuestModal({
     setLoading(false);
   }
 
+  const editIsMobile = typeof window !== "undefined" && window.innerWidth < 768;
+
   return (
     <div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: "rgba(0, 0, 0, 0.8)",
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: "rgba(0, 0, 0, 0.85)",
         backdropFilter: "blur(4px)",
         zIndex: 1000,
         display: "flex",
-        alignItems: "center",
+        alignItems: editIsMobile ? "stretch" : "center",
         justifyContent: "center",
-        padding: "20px",
+        padding: editIsMobile ? "0" : "20px",
       }}
       onClick={onClose}
     >
       <div
         style={{
-          background: "rgba(12, 10, 18, 0.95)",
-          backdropFilter: "blur(20px)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: "24px",
-          padding: "32px",
-          maxWidth: "600px",
+          background: editIsMobile ? "#0c0a12" : "rgba(12, 10, 18, 0.95)",
+          backdropFilter: editIsMobile ? "none" : "blur(20px)",
+          border: editIsMobile ? "none" : "1px solid rgba(255,255,255,0.1)",
+          borderRadius: editIsMobile ? "0" : "24px",
+          padding: editIsMobile ? "20px 16px 32px" : "32px",
+          maxWidth: editIsMobile ? "100%" : "600px",
           width: "100%",
-          maxHeight: "90vh",
+          maxHeight: editIsMobile ? "100vh" : "90vh",
           overflowY: "auto",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          boxShadow: editIsMobile ? "none" : "0 20px 60px rgba(0,0,0,0.5)",
+          WebkitOverflowScrolling: "touch",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -2419,12 +2815,12 @@ function EditGuestModal({
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: "24px",
+            marginBottom: editIsMobile ? "16px" : "24px",
           }}
         >
           <h2
             style={{
-              fontSize: "24px",
+              fontSize: editIsMobile ? "20px" : "24px",
               fontWeight: 700,
               margin: 0,
             }}
@@ -2460,6 +2856,85 @@ function EditGuestModal({
             ×
           </button>
         </div>
+
+        {/* Promote to Confirmed button for waitlisted guests */}
+        {(guest.bookingStatus === "WAITLIST" || guest.status === "waitlist") &&
+          guest.bookingStatus !== "CONFIRMED" &&
+          onPromote && (
+            <div
+              style={{
+                marginBottom: "20px",
+                padding: "16px",
+                background: "rgba(16, 185, 129, 0.08)",
+                border: "1px solid rgba(16, 185, 129, 0.2)",
+                borderRadius: "14px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#10b981",
+                  marginBottom: "12px",
+                }}
+              >
+                This guest is on the waitlist
+              </div>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  color: "rgba(255,255,255,0.7)",
+                  marginBottom: "12px",
+                  userSelect: "none",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={promoteSendEmail}
+                  onChange={(e) => setPromoteSendEmail(e.target.checked)}
+                  style={{
+                    width: "16px",
+                    height: "16px",
+                    cursor: "pointer",
+                    accentColor: "#10b981",
+                  }}
+                />
+                Send confirmation email
+              </label>
+              <button
+                type="button"
+                disabled={promotingFromModal}
+                onClick={async () => {
+                  setPromotingFromModal(true);
+                  try {
+                    await onPromote(guest.id, promoteSendEmail);
+                    onClose();
+                  } finally {
+                    setPromotingFromModal(false);
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px 16px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                  color: "#fff",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  cursor: promotingFromModal ? "not-allowed" : "pointer",
+                  opacity: promotingFromModal ? 0.6 : 1,
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {promotingFromModal ? "Promoting..." : "Promote to Confirmed"}
+              </button>
+            </div>
+          )}
 
         <form onSubmit={handleSubmit}>
           <div
@@ -2669,6 +3144,9 @@ function EditGuestModal({
               >
                 <option value="attending">Attending</option>
                 <option value="waitlist">Waitlist</option>
+                {canChangeStatus && (
+                  <option value="cancelled">Cancelled</option>
+                )}
               </select>
               {!canChangeStatus && (
                 <div
@@ -2913,16 +3391,11 @@ function EditGuestModal({
                     type="checkbox"
                     checked={pulledUpForCocktails !== null}
                     onChange={(e) => {
-                      const totalGuests =
-                        guest.totalGuests ?? guest.partySize ?? 1;
-                      const guestDinnerPartySize =
-                        wantsDinner && dinnerStatus === "confirmed"
-                          ? dinnerPartySize || 0
-                          : 0;
-                      const cocktailsMax =
-                        wantsDinner && dinnerStatus === "confirmed"
-                          ? Math.max(0, totalGuests - guestDinnerPartySize)
-                          : totalGuests;
+                      // Use current form values for max calculation (DPCS model)
+                      const currentPlusOnes = parseInt(plusOnes) || 0;
+                      const cocktailsMax = wantsDinner
+                        ? currentPlusOnes
+                        : 1 + currentPlusOnes;
 
                       if (e.target.checked) {
                         setPulledUpForCocktails(0); // Start at 0, user can increase with buttons
@@ -2950,16 +3423,11 @@ function EditGuestModal({
                 {pulledUpForCocktails !== null && (
                   <div style={{ marginLeft: "30px", marginTop: "8px" }}>
                     {(() => {
-                      const totalGuests =
-                        guest.totalGuests ?? guest.partySize ?? 1;
-                      const guestDinnerPartySize =
-                        wantsDinner && dinnerStatus === "confirmed"
-                          ? dinnerPartySize || 0
-                          : 0;
-                      const cocktailsMax =
-                        wantsDinner && dinnerStatus === "confirmed"
-                          ? Math.max(0, totalGuests - guestDinnerPartySize)
-                          : totalGuests;
+                      // Use current form values for max calculation (DPCS model)
+                      const currentPlusOnes = parseInt(plusOnes) || 0;
+                      const cocktailsMax = wantsDinner
+                        ? currentPlusOnes
+                        : 1 + currentPlusOnes;
                       const currentValue = pulledUpForCocktails || 0;
                       return (
                         <div
@@ -3327,7 +3795,8 @@ function EditGuestModal({
             style={{
               display: "flex",
               gap: "12px",
-              marginTop: "32px",
+              marginTop: editIsMobile ? "20px" : "32px",
+              paddingBottom: editIsMobile ? "env(safe-area-inset-bottom, 0px)" : "0",
             }}
           >
             <button
@@ -3335,21 +3804,15 @@ function EditGuestModal({
               onClick={onClose}
               style={{
                 flex: 1,
-                padding: "14px 24px",
+                padding: editIsMobile ? "16px 24px" : "14px 24px",
                 borderRadius: "12px",
                 border: "1px solid rgba(255,255,255,0.2)",
                 background: "rgba(255,255,255,0.05)",
                 color: "#fff",
-                fontSize: "15px",
+                fontSize: editIsMobile ? "16px" : "15px",
                 fontWeight: 600,
                 cursor: "pointer",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = "rgba(255,255,255,0.1)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = "rgba(255,255,255,0.05)";
+                WebkitTapHighlightColor: "transparent",
               }}
             >
               Cancel
@@ -3359,7 +3822,7 @@ function EditGuestModal({
               disabled={loading}
               style={{
                 flex: 1,
-                padding: "14px 24px",
+                padding: editIsMobile ? "16px 24px" : "14px 24px",
                 borderRadius: "12px",
                 border: "none",
                 background:
@@ -3368,11 +3831,11 @@ function EditGuestModal({
                     ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
                     : "linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 100%)",
                 color: "#fff",
-                fontSize: "15px",
+                fontSize: editIsMobile ? "16px" : "15px",
                 fontWeight: 600,
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.6 : 1,
-                transition: "all 0.2s ease",
+                WebkitTapHighlightColor: "transparent",
               }}
             >
               {loading
@@ -3445,6 +3908,7 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
   );
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [isMobileView] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
 
   const totalGuests = guest.totalGuests ?? guest.partySize ?? 1;
   const dinnerPartySize = guest.dinner?.partySize ?? guest.dinnerPartySize ?? 0;
@@ -3456,6 +3920,18 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
     wantsDinner && dinnerConfirmed
       ? Math.max(0, totalGuests - dinnerPartySize)
       : totalGuests;
+
+  // Quick check-in: set all counters to max
+  const isAllMaxed =
+    (cocktailOnlyPullUpCount || 0) >= cocktailsMax &&
+    (!wantsDinner || !dinnerConfirmed || (dinnerPullUpCount || 0) >= dinnerPartySize);
+
+  function handleCheckInAll() {
+    setCocktailOnlyPullUpCount(cocktailsMax);
+    if (wantsDinner && dinnerConfirmed) {
+      setDinnerPullUpCount(dinnerPartySize);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -3472,7 +3948,7 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
         setSaved(true);
         setTimeout(() => {
           onClose();
-        }, 1000);
+        }, 600);
       }
     } catch (err) {
       console.error(err);
@@ -3481,387 +3957,222 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
     }
   }
 
+  // Shared counter component for both mobile and desktop
+  function CounterRow({ value, max, onChange, color, bgColor, borderColor, label }) {
+    const btnSize = isMobileView ? "56px" : "44px";
+    const fontSize = isMobileView ? "28px" : "24px";
+    const btnFontSize = isMobileView ? "26px" : "22px";
+    return (
+      <div style={{ marginBottom: isMobileView ? "20px" : "24px" }}>
+        <label
+          style={{
+            display: "block",
+            fontSize: isMobileView ? "14px" : "13px",
+            fontWeight: 600,
+            marginBottom: isMobileView ? "10px" : "12px",
+            opacity: 0.9,
+            textTransform: "uppercase",
+            letterSpacing: "0.1em",
+            color,
+          }}
+        >
+          {label}
+        </label>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            background: bgColor,
+            borderRadius: "12px",
+            padding: isMobileView ? "10px" : "8px",
+            border: `1px solid ${borderColor}`,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => onChange(Math.max(0, value - 1))}
+            disabled={value <= 0}
+            style={{
+              width: btnSize, height: btnSize, borderRadius: "10px", border: "none",
+              background: value <= 0 ? "rgba(255, 255, 255, 0.05)" : bgColor.replace("0.1", "0.25"),
+              color: value <= 0 ? "rgba(255, 255, 255, 0.3)" : color,
+              fontSize: btnFontSize, fontWeight: 600,
+              cursor: value <= 0 ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.15s ease", WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            −
+          </button>
+          <div style={{ flex: 1, textAlign: "center", fontSize, fontWeight: 700, color }}>
+            {value}
+          </div>
+          <button
+            type="button"
+            onClick={() => onChange(Math.min(max, value + 1))}
+            disabled={value >= max}
+            style={{
+              width: btnSize, height: btnSize, borderRadius: "10px", border: "none",
+              background: value >= max ? "rgba(255, 255, 255, 0.05)" : bgColor.replace("0.1", "0.25"),
+              color: value >= max ? "rgba(255, 255, 255, 0.3)" : color,
+              fontSize: btnFontSize, fontWeight: 600,
+              cursor: value >= max ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.15s ease", WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            +
+          </button>
+        </div>
+        <div style={{ fontSize: "11px", opacity: 0.6, marginTop: "6px", textAlign: "center", color }}>
+          Max: {max} {max === 1 ? "person" : "people"}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: "rgba(0, 0, 0, 0.8)",
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: "rgba(0, 0, 0, 0.85)",
         backdropFilter: "blur(4px)",
         zIndex: 1000,
         display: "flex",
-        alignItems: "center",
+        alignItems: isMobileView ? "flex-end" : "center",
         justifyContent: "center",
-        padding: "20px",
+        padding: isMobileView ? "0" : "20px",
       }}
       onClick={onClose}
     >
       <div
         style={{
-          background: "rgba(12, 10, 18, 0.95)",
+          background: "rgba(12, 10, 18, 0.98)",
           backdropFilter: "blur(20px)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: "24px",
-          padding: "32px",
-          maxWidth: "500px",
+          border: isMobileView ? "none" : "1px solid rgba(255,255,255,0.1)",
+          borderRadius: isMobileView ? "24px 24px 0 0" : "24px",
+          padding: isMobileView ? "24px 20px 32px" : "32px",
+          maxWidth: isMobileView ? "100%" : "500px",
           width: "100%",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          boxShadow: "0 -10px 40px rgba(0,0,0,0.5)",
+          maxHeight: isMobileView ? "85vh" : "auto",
+          overflowY: "auto",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "24px",
-          }}
-        >
-          <h2
-            style={{
-              fontSize: "24px",
-              fontWeight: 700,
-              color: "#fff",
-            }}
-          >
-            Check-In Status
+        {/* Drag indicator for mobile */}
+        {isMobileView && (
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
+            <div style={{ width: "40px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)" }} />
+          </div>
+        )}
+
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+          <h2 style={{ fontSize: isMobileView ? "20px" : "24px", fontWeight: 700, color: "#fff", margin: 0 }}>
+            Check-In
           </h2>
           <button
             onClick={onClose}
             style={{
-              background: "transparent",
-              border: "none",
-              color: "rgba(255,255,255,0.6)",
-              fontSize: "24px",
-              cursor: "pointer",
-              padding: "0",
-              width: "32px",
-              height: "32px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "8px",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background = "rgba(255,255,255,0.1)";
-              e.target.style.color = "#fff";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = "transparent";
-              e.target.style.color = "rgba(255,255,255,0.6)";
+              background: "transparent", border: "none",
+              color: "rgba(255,255,255,0.6)", fontSize: "24px",
+              cursor: "pointer", padding: "0",
+              width: "40px", height: "40px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              borderRadius: "10px", WebkitTapHighlightColor: "transparent",
             }}
           >
             ×
           </button>
         </div>
 
-        <div
-          style={{
-            marginBottom: "20px",
-            padding: "16px",
-            background: "rgba(192, 192, 192, 0.1)",
-            borderRadius: "12px",
-            border: "1px solid rgba(192, 192, 192, 0.2)",
-          }}
-        >
-          <div style={{ fontSize: "14px", opacity: 0.8, marginBottom: "8px" }}>
-            {guest.name || "Guest"}
+        {/* Guest info */}
+        <div style={{
+          marginBottom: "16px", padding: isMobileView ? "12px 14px" : "16px",
+          background: "rgba(192, 192, 192, 0.08)", borderRadius: "12px",
+          border: "1px solid rgba(192, 192, 192, 0.15)",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: isMobileView ? "16px" : "14px", fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {guest.name || "Guest"}
+            </div>
+            <div style={{ fontSize: "12px", opacity: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {guest.email}
+            </div>
           </div>
-          <div style={{ fontSize: "12px", opacity: 0.6 }}>{guest.email}</div>
+          <div style={{ fontSize: isMobileView ? "14px" : "13px", fontWeight: 600, color: "rgba(255,255,255,0.6)", flexShrink: 0, marginLeft: "12px" }}>
+            {totalGuests} {totalGuests === 1 ? "guest" : "guests"}
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {/* Cocktails Check-in */}
-          <div style={{ marginBottom: "24px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 600,
-                marginBottom: "12px",
-                opacity: 0.9,
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                color: "#f59e0b",
-              }}
-            >
-              🥂 Cocktails
-            </label>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                background: "rgba(245, 158, 11, 0.1)",
-                borderRadius: "12px",
-                padding: "8px",
-                border: "1px solid rgba(245, 158, 11, 0.3)",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  const newValue = Math.max(
-                    0,
-                    (cocktailOnlyPullUpCount || 0) - 1,
-                  );
-                  setCocktailOnlyPullUpCount(newValue);
-                }}
-                disabled={(cocktailOnlyPullUpCount || 0) <= 0}
-                style={{
-                  width: "44px",
-                  height: "44px",
-                  borderRadius: "10px",
-                  border: "none",
-                  background:
-                    (cocktailOnlyPullUpCount || 0) <= 0
-                      ? "rgba(255, 255, 255, 0.05)"
-                      : "rgba(245, 158, 11, 0.2)",
-                  color:
-                    (cocktailOnlyPullUpCount || 0) <= 0
-                      ? "rgba(255, 255, 255, 0.3)"
-                      : "#f59e0b",
-                  fontSize: "22px",
-                  fontWeight: 600,
-                  cursor:
-                    (cocktailOnlyPullUpCount || 0) <= 0
-                      ? "not-allowed"
-                      : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "all 0.2s ease",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                −
-              </button>
-              <div
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  fontSize: "24px",
-                  fontWeight: 700,
-                  color: "#f59e0b",
-                }}
-              >
-                {cocktailOnlyPullUpCount || 0}
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const newValue = Math.min(
-                    cocktailsMax,
-                    (cocktailOnlyPullUpCount || 0) + 1,
-                  );
-                  setCocktailOnlyPullUpCount(newValue);
-                }}
-                disabled={(cocktailOnlyPullUpCount || 0) >= cocktailsMax}
-                style={{
-                  width: "44px",
-                  height: "44px",
-                  borderRadius: "10px",
-                  border: "none",
-                  background:
-                    (cocktailOnlyPullUpCount || 0) >= cocktailsMax
-                      ? "rgba(255, 255, 255, 0.05)"
-                      : "rgba(245, 158, 11, 0.2)",
-                  color:
-                    (cocktailOnlyPullUpCount || 0) >= cocktailsMax
-                      ? "rgba(255, 255, 255, 0.3)"
-                      : "#f59e0b",
-                  fontSize: "22px",
-                  fontWeight: 600,
-                  cursor:
-                    (cocktailOnlyPullUpCount || 0) >= cocktailsMax
-                      ? "not-allowed"
-                      : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "all 0.2s ease",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                +
-              </button>
-            </div>
-            <div
-              style={{
-                fontSize: "11px",
-                opacity: 0.6,
-                marginTop: "6px",
-                textAlign: "center",
-                color: "#f59e0b",
-              }}
-            >
-              Max: {cocktailsMax} {cocktailsMax === 1 ? "person" : "people"}
-            </div>
-          </div>
-
-          {/* Dinner Check-in */}
-          {wantsDinner && dinnerConfirmed && (
-            <div style={{ marginBottom: "24px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  marginBottom: "12px",
-                  opacity: 0.9,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  color: "#10b981",
-                }}
-              >
-                <SilverIcon as={UtensilsCrossed} size={18} /> Dinner
-              </label>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  background: "rgba(16, 185, 129, 0.1)",
-                  borderRadius: "12px",
-                  padding: "8px",
-                  border: "1px solid rgba(16, 185, 129, 0.3)",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newValue = Math.max(0, (dinnerPullUpCount || 0) - 1);
-                    setDinnerPullUpCount(newValue);
-                  }}
-                  disabled={(dinnerPullUpCount || 0) <= 0}
-                  style={{
-                    width: "44px",
-                    height: "44px",
-                    borderRadius: "10px",
-                    border: "none",
-                    background:
-                      (dinnerPullUpCount || 0) <= 0
-                        ? "rgba(255, 255, 255, 0.05)"
-                        : "rgba(16, 185, 129, 0.2)",
-                    color:
-                      (dinnerPullUpCount || 0) <= 0
-                        ? "rgba(255, 255, 255, 0.3)"
-                        : "#10b981",
-                    fontSize: "22px",
-                    fontWeight: 600,
-                    cursor:
-                      (dinnerPullUpCount || 0) <= 0 ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "all 0.2s ease",
-                    WebkitTapHighlightColor: "transparent",
-                  }}
-                >
-                  −
-                </button>
-                <div
-                  style={{
-                    flex: 1,
-                    textAlign: "center",
-                    fontSize: "24px",
-                    fontWeight: 700,
-                    color: "#10b981",
-                  }}
-                >
-                  {dinnerPullUpCount || 0}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newValue = Math.min(
-                      dinnerPartySize,
-                      (dinnerPullUpCount || 0) + 1,
-                    );
-                    setDinnerPullUpCount(newValue);
-                  }}
-                  disabled={(dinnerPullUpCount || 0) >= dinnerPartySize}
-                  style={{
-                    width: "44px",
-                    height: "44px",
-                    borderRadius: "10px",
-                    border: "none",
-                    background:
-                      (dinnerPullUpCount || 0) >= dinnerPartySize
-                        ? "rgba(255, 255, 255, 0.05)"
-                        : "rgba(16, 185, 129, 0.2)",
-                    color:
-                      (dinnerPullUpCount || 0) >= dinnerPartySize
-                        ? "rgba(255, 255, 255, 0.3)"
-                        : "#10b981",
-                    fontSize: "22px",
-                    fontWeight: 600,
-                    cursor:
-                      (dinnerPullUpCount || 0) >= dinnerPartySize
-                        ? "not-allowed"
-                        : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "all 0.2s ease",
-                    WebkitTapHighlightColor: "transparent",
-                  }}
-                >
-                  +
-                </button>
-              </div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  opacity: 0.6,
-                  marginTop: "6px",
-                  textAlign: "center",
-                  color: "#10b981",
-                }}
-              >
-                Max: {dinnerPartySize}{" "}
-                {dinnerPartySize === 1 ? "person" : "people"}
-              </div>
-            </div>
-          )}
-
-          <div
+        {/* Quick check-in all button */}
+        {!isAllMaxed && (
+          <button
+            type="button"
+            onClick={handleCheckInAll}
             style={{
-              display: "flex",
-              gap: "12px",
-              marginTop: "32px",
+              width: "100%",
+              padding: isMobileView ? "14px" : "12px",
+              marginBottom: "16px",
+              borderRadius: "12px",
+              border: "1px solid rgba(16, 185, 129, 0.4)",
+              background: "rgba(16, 185, 129, 0.1)",
+              color: "#10b981",
+              fontSize: isMobileView ? "15px" : "14px",
+              fontWeight: 600,
+              cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
+              transition: "all 0.15s ease",
             }}
           >
+            Check in all ({totalGuests})
+          </button>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <CounterRow
+            value={cocktailOnlyPullUpCount || 0}
+            max={cocktailsMax}
+            onChange={setCocktailOnlyPullUpCount}
+            color="#f59e0b"
+            bgColor="rgba(245, 158, 11, 0.1)"
+            borderColor="rgba(245, 158, 11, 0.3)"
+            label="Cocktails"
+          />
+
+          {wantsDinner && dinnerConfirmed && (
+            <CounterRow
+              value={dinnerPullUpCount || 0}
+              max={dinnerPartySize}
+              onChange={setDinnerPullUpCount}
+              color="#10b981"
+              bgColor="rgba(16, 185, 129, 0.1)"
+              borderColor="rgba(16, 185, 129, 0.3)"
+              label="Dinner"
+            />
+          )}
+
+          <div style={{ display: "flex", gap: "12px", marginTop: isMobileView ? "8px" : "32px" }}>
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
               style={{
                 flex: 1,
-                padding: "14px 24px",
+                padding: isMobileView ? "16px 24px" : "14px 24px",
                 borderRadius: "12px",
                 border: "1px solid rgba(255,255,255,0.2)",
                 background: "rgba(255,255,255,0.05)",
                 color: "#fff",
-                fontSize: "15px",
+                fontSize: isMobileView ? "16px" : "15px",
                 fontWeight: 600,
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.5 : 1,
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) {
-                  e.target.style.background = "rgba(255,255,255,0.1)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!loading) {
-                  e.target.style.background = "rgba(255,255,255,0.05)";
-                }
+                WebkitTapHighlightColor: "transparent",
               }}
             >
               Cancel
@@ -3871,22 +4182,19 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
               disabled={loading || saved}
               style={{
                 flex: 1,
-                padding: "14px 24px",
+                padding: isMobileView ? "16px 24px" : "14px 24px",
                 borderRadius: "12px",
                 border: "none",
                 background: saved
                   ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
                   : "linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 100%)",
                 color: "#fff",
-                fontSize: "15px",
+                fontSize: isMobileView ? "16px" : "15px",
                 fontWeight: 600,
                 cursor: loading || saved ? "not-allowed" : "pointer",
                 opacity: loading ? 0.6 : 1,
-                transition: "all 0.2s ease",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                WebkitTapHighlightColor: "transparent",
               }}
             >
               {loading ? (

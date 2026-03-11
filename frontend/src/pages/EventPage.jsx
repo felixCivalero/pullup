@@ -145,10 +145,9 @@ export function EventPage() {
               name: currentPayment.booking?.name || rsvpData?.name || null,
               email: currentPayment.booking?.email || rsvpData?.email || null,
               bookingStatus:
-                statusDetails?.bookingStatus ||
-                rsvpData?.bookingStatus ||
+                // Payment succeeded → always CONFIRMED regardless of initial PENDING_PAYMENT status
                 "CONFIRMED",
-              dinnerBookingStatus: dinnerBookingStatus,
+              dinnerBookingStatus: wantsDinner ? "CONFIRMED" : dinnerBookingStatus,
               wantsDinner: wantsDinner,
               partySize:
                 rsvpData?.partySize || currentPayment.booking?.partySize || 1,

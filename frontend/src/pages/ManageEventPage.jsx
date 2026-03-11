@@ -1024,6 +1024,8 @@ export function ManageEventPage() {
   // Stripe connection status - load from backend
   const [stripeConnected, setStripeConnected] = useState(false);
   const [stripeAccountEmail, setStripeAccountEmail] = useState("");
+  const [stripeBusinessName, setStripeBusinessName] = useState("");
+  const [stripeConnecting, setStripeConnecting] = useState(false);
 
   useEffect(() => {
     function handleMouseMove(e) {
@@ -1071,27 +1073,50 @@ export function ManageEventPage() {
   }, []);
 
   // Load Stripe connection status
-  useEffect(() => {
-    async function loadStripeStatus() {
-      try {
-        const response = await authenticatedFetch(
-          "/host/stripe/connect/status",
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setStripeConnected(data.connected);
-          if (data.accountDetails?.email) {
-            setStripeAccountEmail(data.accountDetails.email);
-          } else {
-            setStripeAccountEmail("");
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load Stripe status:", error);
-        setStripeConnected(false);
-        setStripeAccountEmail("");
+  async function loadStripeStatus() {
+    try {
+      const response = await authenticatedFetch(
+        "/host/stripe/connect/status",
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setStripeConnected(data.connected && data.accountDetails?.charges_enabled);
+        setStripeAccountEmail(data.accountDetails?.email || "");
+        setStripeBusinessName(data.accountDetails?.businessName || "");
       }
+    } catch (error) {
+      console.error("Failed to load Stripe status:", error);
+      setStripeConnected(false);
+      setStripeAccountEmail("");
+      setStripeBusinessName("");
     }
+  }
+
+  async function handleConnectStripeInline() {
+    try {
+      setStripeConnecting(true);
+      const response = await authenticatedFetch(
+        "/host/stripe/connect/initiate",
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to initiate connection");
+      }
+      const data = await response.json();
+      if (data.alreadyComplete) {
+        loadStripeStatus();
+        setStripeConnecting(false);
+        return;
+      }
+      window.location.href = data.authorizationUrl;
+    } catch (error) {
+      console.error("Failed to initiate Stripe Connect:", error);
+      setStripeConnecting(false);
+    }
+  }
+
+  useEffect(() => {
     loadStripeStatus();
   }, []);
 
@@ -3021,12 +3046,7 @@ export function ManageEventPage() {
                                       gap: "12px",
                                     }}
                                   >
-                                    <div
-                                      style={{
-                                        fontSize: "20px",
-                                        flexShrink: 0,
-                                      }}
-                                    >
+                                    <div style={{ flexShrink: 0 }}>
                                       <SilverIcon
                                         as={AlertTriangle}
                                         size={20}
@@ -3038,7 +3058,7 @@ export function ManageEventPage() {
                                         style={{
                                           fontSize: "14px",
                                           fontWeight: 600,
-                                          marginBottom: "8px",
+                                          marginBottom: "6px",
                                         }}
                                       >
                                         Stripe Account Required
@@ -3051,55 +3071,34 @@ export function ManageEventPage() {
                                           lineHeight: "1.5",
                                         }}
                                       >
-                                        You need to connect your Stripe account
-                                        to accept payments for this event.
+                                        Connect your Stripe account to accept
+                                        payments for this event.
                                       </div>
-                                      <div
+                                      <button
+                                        type="button"
+                                        onClick={handleConnectStripeInline}
+                                        disabled={stripeConnecting}
                                         style={{
-                                          display: "flex",
-                                          gap: "8px",
-                                          flexWrap: "wrap",
+                                          padding: "8px 16px",
+                                          borderRadius: "8px",
+                                          border: "none",
+                                          background:
+                                            "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+                                          color: "#fff",
+                                          fontSize: "13px",
+                                          fontWeight: 600,
+                                          cursor: stripeConnecting ? "default" : "pointer",
+                                          opacity: stripeConnecting ? 0.6 : 1,
+                                          transition: "all 0.2s ease",
                                         }}
                                       >
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            navigate(
-                                              "/events?tab=integrations",
-                                            );
-                                          }}
-                                          style={{
-                                            padding: "8px 16px",
-                                            borderRadius: "8px",
-                                            border: "none",
-                                            background:
-                                              "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                                            color: "#fff",
-                                            fontSize: "13px",
-                                            fontWeight: 600,
-                                            cursor: "pointer",
-                                            transition: "all 0.2s ease",
-                                          }}
-                                          onMouseEnter={(e) => {
-                                            e.target.style.transform =
-                                              "scale(1.02)";
-                                            e.target.style.boxShadow =
-                                              "0 4px 12px rgba(192, 192, 192, 0.4)";
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            e.target.style.transform =
-                                              "scale(1)";
-                                            e.target.style.boxShadow = "none";
-                                          }}
-                                        >
-                                          Connect Stripe
-                                        </button>
-                                      </div>
+                                        {stripeConnecting ? "Connecting..." : "Connect Stripe"}
+                                      </button>
                                     </div>
                                   </div>
                                 )}
 
-                                {stripeConnected && stripeAccountEmail && (
+                                {stripeConnected && (
                                   <div
                                     style={{
                                       padding: "12px 16px",
@@ -3113,9 +3112,11 @@ export function ManageEventPage() {
                                       fontSize: "12px",
                                     }}
                                   >
-                                    <span>✓</span>
+                                    <span style={{ color: "#22c55e" }}>✓</span>
                                     <span style={{ opacity: 0.9 }}>
-                                      Connected as {stripeAccountEmail}
+                                      {stripeBusinessName && <strong>{stripeBusinessName}</strong>}
+                                      {stripeBusinessName && stripeAccountEmail && " · "}
+                                      {stripeAccountEmail || "Stripe connected"}
                                     </span>
                                   </div>
                                 )}

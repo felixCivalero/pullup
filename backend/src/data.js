@@ -1015,8 +1015,9 @@ export async function getEventCounts(eventId) {
   }
 
   // Use totalGuests for accurate capacity counting (accounts for dinner overlaps)
+  // PENDING_PAYMENT RSVPs also count toward capacity to hold the spot while user pays
   const confirmed = eventRsvps
-    .filter((r) => r.booking_status === "CONFIRMED" || r.status === "attending")
+    .filter((r) => r.booking_status === "CONFIRMED" || r.booking_status === "PENDING_PAYMENT" || r.status === "attending")
     .reduce((sum, r) => sum + (r.total_guests ?? r.party_size ?? 1), 0);
 
   const waitlist = eventRsvps
@@ -1035,7 +1036,7 @@ export async function getCocktailsOnlyCount(eventId) {
       "dinner, wants_dinner, plus_ones, party_size, booking_status, status"
     )
     .eq("event_id", eventId)
-    .in("booking_status", ["CONFIRMED"])
+    .in("booking_status", ["CONFIRMED", "PENDING_PAYMENT"])
     .or("status.eq.attending");
 
   if (error) {
@@ -1125,10 +1126,11 @@ export async function getDinnerSlotCounts(eventId) {
         const slotMatches =
           (dinner && dinner.slotTime === slotTime) ||
           r.dinner_time_slot === slotTime;
-        const isConfirmed =
-          (dinner && dinner.bookingStatus === "CONFIRMED") ||
-          r.dinner_status === "confirmed";
-        return hasDinner && slotMatches && isConfirmed;
+        const isConfirmedOrPending =
+          (dinner && (dinner.bookingStatus === "CONFIRMED" || dinner.bookingStatus === "PENDING_PAYMENT")) ||
+          r.dinner_status === "confirmed" ||
+          r.dinner_status === "pending";
+        return hasDinner && slotMatches && isConfirmedOrPending;
       })
       .reduce((sum, r) => {
         const dinner = r.dinner || {};
@@ -2383,6 +2385,8 @@ function mapRsvpToDb(rsvpData) {
           ? "confirmed"
           : rsvpData.dinner.bookingStatus === "WAITLIST"
           ? "waitlist"
+          : rsvpData.dinner.bookingStatus === "PENDING_PAYMENT"
+          ? "pending"
           : null;
     } else {
       dbData.wants_dinner = false;
@@ -2689,10 +2693,19 @@ export async function addRsvp({
     }
   }
 
+  // For paid events: hold the spot but don't confirm until payment succeeds
+  // PENDING_PAYMENT counts toward capacity (holds the spot) but is not truly confirmed
+  const isPaidEvent = event.ticketType === "paid" && event.ticketPrice > 0;
+  if (isPaidEvent && bookingStatus === "CONFIRMED") {
+    bookingStatus = "PENDING_PAYMENT";
+  }
+
   // Set dinner status based on capacity check and booking status
   if (finalWantsDinner) {
     if (!dinnerCapacityOk || bookingStatus === "WAITLIST") {
       dinnerStatus = "WAITLIST";
+    } else if (bookingStatus === "PENDING_PAYMENT") {
+      dinnerStatus = "PENDING_PAYMENT";
     } else {
       dinnerStatus = "CONFIRMED";
     }
@@ -2708,9 +2721,9 @@ export async function addRsvp({
     personId: person.id,
     eventId: event.id,
     slug,
-    bookingStatus, // "CONFIRMED" | "WAITLIST" | "CANCELLED"
+    bookingStatus, // "CONFIRMED" | "PENDING_PAYMENT" | "WAITLIST" | "CANCELLED"
     status:
-      bookingStatus === "CONFIRMED"
+      bookingStatus === "CONFIRMED" || bookingStatus === "PENDING_PAYMENT"
         ? "attending"
         : bookingStatus === "WAITLIST"
         ? "waitlist"
@@ -3009,6 +3022,27 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
     updates.paymentId === undefined &&
     updates.paymentStatus === undefined;
 
+  // Check if we're only updating pull-up/check-in counts (preserve booking status)
+  // This is critical for door check-in — changing pull-up counts should never change booking status
+  const isOnlyPullUpUpdate =
+    (updates.dinnerPullUpCount !== undefined ||
+      updates.cocktailOnlyPullUpCount !== undefined ||
+      updates.pulledUpForDinner !== undefined ||
+      updates.pulledUpForCocktails !== undefined ||
+      updates.pulledUp !== undefined ||
+      updates.pulledUpCount !== undefined) &&
+    updates.bookingStatus === undefined &&
+    updates.status === undefined &&
+    updates.email === undefined &&
+    updates.name === undefined &&
+    updates.plusOnes === undefined &&
+    updates.wantsDinner === undefined &&
+    updates.dinnerTimeSlot === undefined &&
+    updates.dinnerPartySize === undefined &&
+    updates.paymentId === undefined &&
+    updates.paymentStatus === undefined &&
+    !isOnlyWaitlistLinkUpdate;
+
   let bookingStatus =
     rsvp.bookingStatus ||
     (rsvp.status === "attending"
@@ -3026,10 +3060,13 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
         : updates.status === "waitlist"
         ? "WAITLIST"
         : "CANCELLED";
-  } else if (isOnlyLinkFields || isOnlyPaymentUpdate) {
-    // Preserve existing booking status when only updating waitlist link fields or payment fields
-    // Waitlist RSVPs should stay WAITLIST until payment succeeds (handled in webhook)
+  } else if (isOnlyLinkFields || isOnlyPaymentUpdate || isOnlyPullUpUpdate) {
+    // Preserve existing booking status when only updating waitlist link fields, payment fields,
+    // or pull-up/check-in counts. Door check-in should never change booking status.
     bookingStatus = rsvp.bookingStatus || bookingStatus;
+  } else if (bookingStatus === "CANCELLED") {
+    // Preserve CANCELLED status — don't auto-recalculate to CONFIRMED/WAITLIST
+    // A cancelled guest stays cancelled unless explicitly changed
   } else {
     // ALL-OR-NOTHING WAITLIST LOGIC: Check BOTH cocktail AND dinner capacity
     // If EITHER is insufficient, entire party goes to waitlist
@@ -3395,6 +3432,24 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
     }
   }
 
+  // Re-clamp pull-up counts to current party size (e.g. if plus-ones were reduced)
+  if (bookingStatus === "CONFIRMED") {
+    const cocktailsOnlyMax = wantsDinner && dinnerBookingStatus === "CONFIRMED"
+      ? Math.max(0, totalGuests - (dinnerPartySize || 0))
+      : totalGuests;
+    const dinnerMax = wantsDinner && dinnerBookingStatus === "CONFIRMED"
+      ? Math.min(dinnerPartySize || 0, totalGuests)
+      : 0;
+    if (cocktailOnlyPullUpCount > cocktailsOnlyMax) {
+      cocktailOnlyPullUpCount = cocktailsOnlyMax;
+      pulledUpForCocktails = cocktailOnlyPullUpCount > 0 ? cocktailOnlyPullUpCount : null;
+    }
+    if (dinnerPullUpCount > dinnerMax) {
+      dinnerPullUpCount = dinnerMax;
+      pulledUpForDinner = dinnerPullUpCount > 0 ? dinnerPullUpCount : null;
+    }
+  }
+
   // Derive pulledUp and pulledUpCount for backward compatibility
   const pulledUp = dinnerPullUpCount > 0 || cocktailOnlyPullUpCount > 0;
   const pulledUpCount = pulledUp
@@ -3406,9 +3461,10 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
   const wasAlreadyOverCapacity = rsvp.capacityOverridden === true;
   let capacityOverridden = wasAlreadyOverCapacity;
 
-  if (forceConfirm || wasAlreadyOverCapacity) {
+  if ((forceConfirm || wasAlreadyOverCapacity) && bookingStatus !== "CANCELLED") {
     // Admin override: force booking to confirmed, even if capacity exceeded
     // Preserve CONFIRMED status for guests who were already over capacity
+    // But never override an explicit CANCELLED status
     bookingStatus = "CONFIRMED";
     // Recalculate status after override
     status =
@@ -3432,6 +3488,11 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
 
     // Mark override for UI (preserve if already set, or set if new override)
     capacityOverridden = true;
+  }
+
+  // Clear capacityOverridden when explicitly cancelled
+  if (bookingStatus === "CANCELLED") {
+    capacityOverridden = false;
   }
 
   // Prepare RSVP update data
@@ -3852,6 +3913,8 @@ export async function createDefaultProfile(userId) {
       linkedin: "",
       website: "",
     },
+    brand_website: null,
+    contact_email: null,
     additional_emails: [],
     third_party_accounts: [],
     is_admin: false,
@@ -3961,6 +4024,8 @@ function mapProfileFromDb(dbProfile) {
     },
     emails: dbProfile.additional_emails || [],
     thirdPartyAccounts: dbProfile.third_party_accounts || [],
+    brandWebsite: dbProfile.brand_website || "",
+    contactEmail: dbProfile.contact_email || "",
     stripeConnectedAccountId: dbProfile.stripe_connected_account_id || null,
     isAdmin: dbProfile.is_admin || false,
     createdAt: dbProfile.created_at,
@@ -3984,6 +4049,10 @@ function mapProfileToDb(profile) {
     dbProfile.additional_emails = profile.emails;
   if (profile.thirdPartyAccounts !== undefined)
     dbProfile.third_party_accounts = profile.thirdPartyAccounts;
+  if (profile.brandWebsite !== undefined)
+    dbProfile.brand_website = profile.brandWebsite;
+  if (profile.contactEmail !== undefined)
+    dbProfile.contact_email = profile.contactEmail;
   if (profile.stripeConnectedAccountId !== undefined)
     dbProfile.stripe_connected_account_id = profile.stripeConnectedAccountId;
   if (profile.isAdmin !== undefined) dbProfile.is_admin = profile.isAdmin;

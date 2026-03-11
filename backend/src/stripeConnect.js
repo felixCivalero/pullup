@@ -1,5 +1,5 @@
 // backend/src/stripeConnect.js
-// Stripe Connect OAuth flow implementation
+// Stripe Connect using Account Links (modern onboarding flow)
 
 import Stripe from "stripe";
 import { getStripeSecretKey } from "./stripe.js";
@@ -7,7 +7,6 @@ import {
   updateUserStripeConnectedAccountId,
   getUserStripeConnectedAccountId,
 } from "./data.js";
-import crypto from "crypto";
 
 // Determine environment mode
 const isDevelopment = process.env.NODE_ENV === "development";
@@ -24,175 +23,82 @@ function getFrontendBaseUrl() {
 
   if (!process.env.FRONTEND_URL) {
     throw new Error(
-      "FRONTEND_URL environment variable is required in production for Stripe Connect redirects.",
+      "FRONTEND_URL environment variable is required in production for Stripe Connect redirects."
     );
   }
 
   return process.env.FRONTEND_URL;
 }
 
-// Get Stripe Connect Client ID
-function getStripeConnectClientId() {
-  let clientId;
-
-  if (isDevelopment) {
-    // Development mode: prefer TEST_ variables, fallback to regular
-    clientId =
-      process.env.TEST_STRIPE_CONNECT_CLIENT_ID ||
-      process.env.STRIPE_CONNECT_CLIENT_ID;
-
-    if (process.env.TEST_STRIPE_CONNECT_CLIENT_ID) {
-      console.log("🔧 [DEV] Using TEST Stripe Connect Client ID");
-    } else if (process.env.STRIPE_CONNECT_CLIENT_ID) {
-      console.warn(
-        "⚠️  [DEV] TEST_STRIPE_CONNECT_CLIENT_ID not found, using production Client ID"
-      );
-    }
-  } else {
-    // Production mode: always use regular variable names
-    clientId = process.env.STRIPE_CONNECT_CLIENT_ID;
-  }
-
-  if (!clientId) {
-    const missingVar = isDevelopment
-      ? "TEST_STRIPE_CONNECT_CLIENT_ID or STRIPE_CONNECT_CLIENT_ID"
-      : "STRIPE_CONNECT_CLIENT_ID";
-    throw new Error(
-      `${missingVar} environment variable is not set. Stripe Connect functionality is disabled.`
-    );
-  }
-
-  return clientId;
-}
-
-// Get Stripe Connect redirect URI
-function getStripeConnectRedirectUri() {
-  let redirectUri;
-
-  if (isDevelopment) {
-    // Development mode: prefer TEST_ variables, fallback to regular, then localhost backend
-    redirectUri =
-      process.env.TEST_STRIPE_CONNECT_REDIRECT_URI ||
-      process.env.STRIPE_CONNECT_REDIRECT_URI ||
-      "http://localhost:3001/host/stripe/connect/callback";
-  } else {
-    // Production mode: use regular variable or derive from FRONTEND_URL + /api
-    const frontendBase = getFrontendBaseUrl().replace(/\/$/, "");
-    redirectUri =
-      process.env.STRIPE_CONNECT_REDIRECT_URI ||
-      `${frontendBase}/api/host/stripe/connect/callback`;
-  }
-
-  return redirectUri;
-}
-
-// Generate a secure state token for OAuth flow
-function generateStateToken(userId) {
-  const randomBytes = crypto.randomBytes(32).toString("hex");
-  const timestamp = Date.now();
-  const state = `${userId}:${timestamp}:${randomBytes}`;
-  return Buffer.from(state).toString("base64url");
-}
-
-// Verify and extract userId from state token
-export function verifyStateToken(state) {
-  try {
-    const decoded = Buffer.from(state, "base64url").toString("utf-8");
-    const [userId, timestamp, randomBytes] = decoded.split(":");
-
-    // Verify timestamp is recent (within 10 minutes)
-    const age = Date.now() - parseInt(timestamp, 10);
-    if (age > 10 * 60 * 1000) {
-      throw new Error("State token expired");
-    }
-
-    return userId;
-  } catch (error) {
-    throw new Error("Invalid state token");
-  }
-}
-
 /**
- * Initiate Stripe Connect OAuth flow
- * @param {string} userId - User ID
- * @returns {Promise<Object>} Object with authorization URL
+ * Initiate Stripe Connect onboarding via Account Links.
+ * Creates a Connect Express account and returns a Stripe-hosted onboarding URL.
  */
-export async function initiateConnectOAuth(userId) {
+export async function initiateConnectOnboarding(userId) {
   const stripe = new Stripe(getStripeSecretKey());
-  const clientId = getStripeConnectClientId();
-  const redirectUri = getStripeConnectRedirectUri();
-  const state = generateStateToken(userId);
+  const frontendBase = getFrontendBaseUrl().replace(/\/$/, "");
 
-  // Create OAuth authorization URL
-  const authorizeUrl = `https://connect.stripe.com/oauth/authorize?${new URLSearchParams(
-    {
-      response_type: "code",
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      scope: "read_write", // Request read_write access to connected account
-      state: state,
+  // Check if user already has a connected account that needs to finish onboarding
+  const existingAccountId = await getUserStripeConnectedAccountId(userId);
+
+  let accountId = existingAccountId;
+
+  if (existingAccountId) {
+    // Verify the account still exists on Stripe
+    try {
+      const existing = await stripe.accounts.retrieve(existingAccountId);
+      // If onboarding is already complete, no need to re-onboard
+      if (existing.details_submitted && existing.charges_enabled) {
+        return {
+          alreadyComplete: true,
+          accountId: existingAccountId,
+        };
+      }
+      // Account exists but onboarding incomplete — generate a new link
+      accountId = existingAccountId;
+    } catch (err) {
+      // Account was deleted or invalid — create a new one
+      accountId = null;
     }
-  ).toString()}`;
+  }
 
-  return {
-    authorizationUrl: authorizeUrl,
-    state: state,
-  };
-}
-
-/**
- * Handle Stripe Connect OAuth callback
- * @param {string} code - Authorization code from Stripe
- * @param {string} state - State token for verification
- * @returns {Promise<Object>} Object with connected account ID and details
- */
-export async function handleConnectCallback(code, state) {
-  // Verify state token and extract userId
-  const userId = verifyStateToken(state);
-
-  const stripe = new Stripe(getStripeSecretKey());
-
-  // Exchange authorization code for access token
-  let response;
-  try {
-    response = await stripe.oauth.token({
-      grant_type: "authorization_code",
-      code: code,
+  if (!accountId) {
+    // Create a new Express connected account
+    const account = await stripe.accounts.create({
+      type: "express",
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+        klarna_payments: { requested: true },
+        link_payments: { requested: true },
+      },
     });
-  } catch (error) {
-    throw new Error(`Failed to exchange authorization code: ${error.message}`);
+    accountId = account.id;
+
+    // Store the account ID immediately so we can resume onboarding later
+    await updateUserStripeConnectedAccountId(userId, accountId);
   }
 
-  const connectedAccountId = response.stripe_user_id;
+  // Stripe requires HTTPS for livemode redirect URLs.
+  // Test mode works fine with HTTP localhost.
+  let redirectBase = frontendBase;
 
-  if (!connectedAccountId) {
-    throw new Error("No connected account ID returned from Stripe");
-  }
-
-  // Store connected account ID in user profile
-  await updateUserStripeConnectedAccountId(userId, connectedAccountId);
-
-  // Get connected account details
-  const account = await stripe.accounts.retrieve(connectedAccountId);
+  // Create an Account Link for onboarding
+  const accountLink = await stripe.accountLinks.create({
+    account: accountId,
+    refresh_url: `${redirectBase}/settings?stripe_connect=refresh`,
+    return_url: `${redirectBase}/settings?stripe_connect=success&account_id=${accountId}`,
+    type: "account_onboarding",
+  });
 
   return {
-    connectedAccountId: connectedAccountId,
-    accountDetails: {
-      id: account.id,
-      email: account.email,
-      country: account.country,
-      default_currency: account.default_currency,
-      charges_enabled: account.charges_enabled,
-      payouts_enabled: account.payouts_enabled,
-      details_submitted: account.details_submitted,
-    },
+    onboardingUrl: accountLink.url,
+    accountId,
   };
 }
 
 /**
- * Get connected account status for a user
- * @param {string} userId - User ID
- * @returns {Promise<Object>} Object with connection status and account details
+ * Get connected account status for a user.
  */
 export async function getConnectedAccountStatus(userId) {
   const connectedAccountId = await getUserStripeConnectedAccountId(userId);
@@ -215,6 +121,7 @@ export async function getConnectedAccountStatus(userId) {
       accountDetails: {
         id: account.id,
         email: account.email,
+        businessName: account.business_profile?.name || account.settings?.dashboard?.display_name || null,
         country: account.country,
         default_currency: account.default_currency,
         charges_enabled: account.charges_enabled,
@@ -223,7 +130,10 @@ export async function getConnectedAccountStatus(userId) {
       },
     };
   } catch (error) {
-    // If account retrieval fails, the account might have been disconnected
+    // Account may have been deleted on Stripe's side
+    if (error.code === "account_invalid") {
+      await updateUserStripeConnectedAccountId(userId, null);
+    }
     return {
       connected: false,
       accountId: connectedAccountId,
@@ -234,9 +144,8 @@ export async function getConnectedAccountStatus(userId) {
 }
 
 /**
- * Disconnect Stripe account for a user
- * @param {string} userId - User ID
- * @returns {Promise<Object>} Result of disconnection
+ * Disconnect Stripe account for a user.
+ * With Express accounts we can't deauthorize via OAuth — we just remove the reference.
  */
 export async function disconnectStripeAccount(userId) {
   const connectedAccountId = await getUserStripeConnectedAccountId(userId);
@@ -248,29 +157,11 @@ export async function disconnectStripeAccount(userId) {
     };
   }
 
-  try {
-    const stripe = new Stripe(getStripeSecretKey());
-    // Deauthorize the connected account
-    await stripe.oauth.deauthorize({
-      client_id: getStripeConnectClientId(),
-      stripe_user_id: connectedAccountId,
-    });
+  // Remove connected account ID from user profile
+  await updateUserStripeConnectedAccountId(userId, null);
 
-    // Remove connected account ID from user profile
-    await updateUserStripeConnectedAccountId(userId, null);
-
-    return {
-      success: true,
-      message: "Stripe account disconnected successfully",
-    };
-  } catch (error) {
-    // Even if deauthorization fails, remove the local reference
-    await updateUserStripeConnectedAccountId(userId, null);
-
-    return {
-      success: true,
-      message: "Stripe account disconnected (local reference removed)",
-      warning: error.message,
-    };
-  }
+  return {
+    success: true,
+    message: "Stripe account disconnected successfully",
+  };
 }

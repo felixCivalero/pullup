@@ -583,19 +583,30 @@ export function RsvpForm({
             pendingPayment={pendingPayment}
           />
           {!pendingPayment && PaymentFormComponent && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const form = e.target.closest("form");
-                if (form) form.requestSubmit();
-              }}
-              disabled={loading}
-              style={submitButtonStyle(loading)}
-            >
-              Proceed to payment
-            </button>
+            <>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.5)", cursor: "pointer", textAlign: "left", margin: "12px 0", padding: "0 2px" }}>
+                <input
+                  type="checkbox"
+                  checked={marketingOptIn}
+                  onChange={(e) => setMarketingOptIn(e.target.checked)}
+                  style={{ accentColor: "#fbbf24", flexShrink: 0, width: 16, height: 16 }}
+                />
+                <span>I agree to the <a href="/terms" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>privacy policy</a></span>
+              </label>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const form = e.target.closest("form");
+                  if (form) form.requestSubmit();
+                }}
+                disabled={loading}
+                style={submitButtonStyle(loading)}
+              >
+                Proceed to payment
+              </button>
+            </>
           )}
           {pendingPayment && PaymentFormComponent && (
             <div key={`payment-form-${pendingPayment.clientSecret}`}>
@@ -648,16 +659,18 @@ export function RsvpForm({
         </div>
       )}
 
-      {/* Marketing opt-in */}
-      <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.5)", cursor: "pointer", textAlign: "left", margin: "16px 0 12px", padding: "0 2px" }}>
-        <input
-          type="checkbox"
-          checked={marketingOptIn}
-          onChange={(e) => setMarketingOptIn(e.target.checked)}
-          style={{ accentColor: "#fbbf24", flexShrink: 0, width: 16, height: 16 }}
-        />
-        <span>I agree to the <a href="/terms" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>privacy policy</a></span>
-      </label>
+      {/* Marketing opt-in (shown here for free events, inside payment section for paid) */}
+      {!(isPaidEvent && ticketPrice && !willGoToWaitlist) && (
+        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.5)", cursor: "pointer", textAlign: "left", margin: "16px 0 12px", padding: "0 2px" }}>
+          <input
+            type="checkbox"
+            checked={marketingOptIn}
+            onChange={(e) => setMarketingOptIn(e.target.checked)}
+            style={{ accentColor: "#fbbf24", flexShrink: 0, width: 16, height: 16 }}
+          />
+          <span>I agree to the <a href="/terms" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>privacy policy</a></span>
+        </label>
+      )}
 
       {/* Submit — single gorgeous button, no cancel */}
       {!isPaidEvent && (

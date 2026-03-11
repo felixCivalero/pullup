@@ -127,8 +127,6 @@ export async function createPaymentIntent({
     amount,
     currency,
     customer: customerId,
-    confirmation_method: "automatic", // Use automatic for client-side confirmation with publishable key
-    // Important: When using Stripe Connect, we must use on_behalf_of for proper confirmation
     metadata: {
       event_id: eventId,
       event_title: eventTitle,
@@ -141,7 +139,6 @@ export async function createPaymentIntent({
   console.log("[Stripe] Creating PaymentIntent with params:", {
     amount,
     currency,
-    confirmation_method: paymentIntentParams.confirmation_method,
     has_connected_account: !!connectedAccountId,
     application_fee_amount: applicationFeeAmount || null,
   });
@@ -153,9 +150,11 @@ export async function createPaymentIntent({
       destination: connectedAccountId,
     };
 
-    // CRITICAL for Stripe Connect: on_behalf_of must match transfer_data.destination
-    // This ensures proper attribution and allows client-side confirmation
-    paymentIntentParams.on_behalf_of = connectedAccountId;
+    // NOTE: Do NOT set on_behalf_of — it forces Stripe to use the connected
+    // account's payment method settings (Express accounts only have card).
+    // Without it, destination charges still route funds correctly via
+    // transfer_data.destination, and the platform's payment method config
+    // (Klarna, Swish, Apple Pay, Google Pay, etc.) is used instead.
 
     // Add application fee if specified (platform fee)
     if (applicationFeeAmount && applicationFeeAmount > 0) {
@@ -166,17 +165,10 @@ export async function createPaymentIntent({
     paymentIntentParams.metadata.connected_account_id = connectedAccountId;
   }
 
-  // CRITICAL: Ensure confirmation_method is explicitly set to "automatic"
-  // (must be set after all other params to prevent override)
-  // For Stripe Connect, "automatic" allows client-side confirmation with publishable key
-  // "manual" would require server-side confirmation, which we don't want
-  paymentIntentParams.confirmation_method = "automatic";
-
-  // Only specify "card" as a required payment method type
-  // PaymentElement will automatically show other available methods (Klarna, Swish, etc.)
-  // if they are activated for the connected account, without needing to specify them here
-  // This prevents errors when payment methods aren't activated yet
-  paymentIntentParams.payment_method_types = ["card"];
+  // Let Stripe automatically determine available payment methods based on
+  // what's enabled in the platform dashboard (card, Klarna, Swish, Apple Pay, Google Pay, etc.)
+  // Note: automatic_payment_methods is mutually exclusive with confirmation_method
+  paymentIntentParams.automatic_payment_methods = { enabled: true };
 
   const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
 
@@ -399,15 +391,16 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
       isWaitlistUpgrade,
     });
 
-    // Determine if this is a waitlist upgrade:
-    // 1. RSVP status is WAITLIST, OR
-    // 2. Payment description indicates waitlist upgrade
+    // Determine if this RSVP needs to be confirmed on payment:
+    // 1. PENDING_PAYMENT: normal paid RSVP awaiting payment
+    // 2. WAITLIST: waitlist upgrade payment
+    const isPendingPayment = rsvp.bookingStatus === "PENDING_PAYMENT";
     const isWaitlistPayment =
       rsvp.bookingStatus === "WAITLIST" || isWaitlistUpgrade;
+    const needsConfirmation = isPendingPayment || isWaitlistPayment;
 
-    if (isWaitlistPayment) {
-      // Waitlist RSVP: Update to CONFIRMED when payment succeeds
-      // This is an UPDATE to existing RSVP, not a new RSVP creation
+    if (needsConfirmation) {
+      // RSVP needs to be confirmed now that payment succeeded
       const updateData = {
         bookingStatus: "CONFIRMED",
         status: "attending", // Backward compatibility
@@ -420,19 +413,21 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
         updateData.waitlistLinkUsedAt = new Date().toISOString();
       }
 
-      console.log("[Webhook] Updating waitlist RSVP to CONFIRMED:", {
+      console.log("[Webhook] Confirming RSVP after payment:", {
         rsvpId: payment.rsvpId,
         updateData,
         originalStatus: rsvp.bookingStatus,
+        isPendingPayment,
+        isWaitlistPayment,
       });
 
       try {
-        // Use forceConfirm option to bypass capacity checks when confirming waitlist RSVP
-        // This ensures the RSVP is confirmed regardless of current capacity
+        // Only use forceConfirm for waitlist upgrades (where capacity may be exceeded).
+        // For normal PENDING_PAYMENT RSVPs, capacity was already reserved — no override needed.
         const updateResult = await updateRsvp(
           payment.rsvpId,
           updateData,
-          { forceConfirm: true } // CRITICAL: Force confirm to bypass capacity checks
+          { forceConfirm: isWaitlistPayment } // Only force for waitlist upgrades
         );
 
         console.log("[Webhook] Successfully updated waitlist RSVP:", {
@@ -556,6 +551,53 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
         };
       }
     }
+    // Send confirmation email now that payment succeeded and RSVP is confirmed
+    if (isPendingPayment || isWaitlistPayment) {
+      try {
+        const { findEventById } = await import("./data.js");
+        const { sendEmail } = await import("./services/emailService.js");
+        const { signupConfirmationEmail } = await import(
+          "./emails/signupConfirmation.js"
+        );
+        const event = await findEventById(payment.eventId);
+        if (event && rsvp) {
+          const frontendUrl =
+            process.env.FRONTEND_URL || "https://pullup.party";
+          await sendEmail({
+            to: rsvp.email,
+            subject: "Your spot is confirmed",
+            html: signupConfirmationEmail({
+              name: rsvp.name || "",
+              eventTitle: event.title,
+              date: new Date(event.startsAt).toLocaleString(),
+              isWaitlist: false,
+              imageUrl: event.coverImageUrl || event.imageUrl || "",
+              location: event.location || "",
+              startsAt: event.startsAt || "",
+              endsAt: event.endsAt || "",
+              timezone: event.timezone || "",
+              plusOnes: Number(rsvp.plusOnes) || 0,
+              slug: event.slug || "",
+              frontendUrl,
+              spotifyUrl: event.spotify || "",
+              ticketPrice: payment.amount ? (payment.amount / 100).toFixed(2) : 0,
+              ticketCurrency: payment.currency || event.ticketCurrency || "",
+              receiptUrl: receiptUrl || "",
+            }),
+          });
+          console.log(
+            "[Webhook] ✅ Confirmation email sent after payment:",
+            rsvp.email
+          );
+        }
+      } catch (emailErr) {
+        console.error(
+          "[Webhook] Failed to send confirmation email:",
+          emailErr.message
+        );
+        // Don't fail the webhook on email error
+      }
+    }
   } else {
     console.log("[Webhook] Payment has no RSVP ID, skipping RSVP update:", {
       paymentId: payment.id,
@@ -579,6 +621,23 @@ async function handlePaymentIntentFailed(paymentIntent) {
   await updatePayment(payment.id, {
     status: "failed",
   });
+
+  // If RSVP was PENDING_PAYMENT, delete it so the spot is freed up
+  if (payment.rsvpId) {
+    try {
+      const { findRsvpById, deleteRsvp } = await import("./data.js");
+      const rsvp = await findRsvpById(payment.rsvpId);
+      if (rsvp && rsvp.bookingStatus === "PENDING_PAYMENT") {
+        console.log("[Webhook] Deleting PENDING_PAYMENT RSVP after payment failure:", {
+          rsvpId: payment.rsvpId,
+          paymentId: payment.id,
+        });
+        await deleteRsvp(payment.rsvpId);
+      }
+    } catch (error) {
+      console.error("[Webhook] Error cleaning up RSVP after payment failure:", error.message);
+    }
+  }
 
   return { processed: true, paymentId: payment.id };
 }

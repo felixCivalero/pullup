@@ -96,6 +96,7 @@ export function signupConfirmationEmail({
   spotifyUrl = "",
   ticketPrice = 0,
   ticketCurrency = "",
+  receiptUrl = "",
 }) {
   const dateFormatted = startsAt ? niceDate(startsAt, timezone) : (date || "");
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
@@ -159,8 +160,10 @@ ${imageUrl ? `<!-- Event Image -->
     </td></tr>
     ${ticketPrice ? `<tr><td style="padding:10px 20px 14px;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
-        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Ticket</td>
-        <td style="font-size:14px;color:${WHITE};font-weight:600;">${ticketPrice} ${(ticketCurrency || "").toUpperCase()}</td>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Receipt</td>
+        <td style="font-size:14px;color:${WHITE};font-weight:600;">${receiptUrl
+          ? `<a href="${receiptUrl}" target="_blank" style="color:${WHITE};text-decoration:underline;text-decoration-color:rgba(255,255,255,0.3);">${ticketPrice} ${(ticketCurrency || "").toUpperCase()}</a>`
+          : `${ticketPrice} ${(ticketCurrency || "").toUpperCase()}`}</td>
       </tr></table>
     </td></tr>` : ""}
   </table>

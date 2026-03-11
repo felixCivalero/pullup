@@ -66,8 +66,7 @@ import {
   createRefund,
 } from "./stripe.js";
 import {
-  initiateConnectOAuth,
-  handleConnectCallback,
+  initiateConnectOnboarding,
   getConnectedAccountStatus,
   disconnectStripeAccount,
 } from "./stripeConnect.js";
@@ -1626,11 +1625,16 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         waitlistToken &&
         result.rsvp?.bookingStatus === "WAITLIST";
 
+      // Also handle PENDING_PAYMENT RSVPs (user started payment flow but didn't complete)
+      const isPendingPaymentRsvp =
+        result.rsvp?.bookingStatus === "PENDING_PAYMENT";
+
       if (
         !isVipFreeEntry &&
         result.event?.ticketType === "paid" &&
         result.event?.ticketPrice &&
         (isWaitlistUpgrade || // Waitlist upgrade - always allow if RSVP is WAITLIST
+          isPendingPaymentRsvp || // User returning to complete payment
           (result.rsvp?.paymentStatus &&
             (result.rsvp.paymentStatus === "unpaid" ||
               result.rsvp.paymentStatus === "pending")))
@@ -1645,7 +1649,49 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           }
         }
 
-        // If no payment exists or payment is unpaid/pending, create/update payment
+        // If existing payment is still pending, try to reuse its PaymentIntent
+        if (existingPayment && existingPayment.status === "pending" && existingPayment.stripePaymentIntentId) {
+          try {
+            const Stripe = (await import("stripe")).default;
+            const stripe = new Stripe(getStripeSecretKey());
+            const existingPI = await stripe.paymentIntents.retrieve(existingPayment.stripePaymentIntentId);
+
+            // If the PaymentIntent is still usable, return it directly
+            if (existingPI.status === "requires_payment_method" || existingPI.status === "requires_confirmation") {
+              console.log("[Payment] Reusing existing PaymentIntent:", {
+                paymentIntentId: existingPI.id,
+                status: existingPI.status,
+                rsvpId: result.rsvp.id,
+              });
+
+              return res.json({
+                event: result.event,
+                rsvp: result.rsvp,
+                payment: existingPayment,
+                stripe: {
+                  clientSecret: existingPI.client_secret,
+                  paymentId: existingPayment.id,
+                },
+                paymentBreakdown: {
+                  ticketAmount: existingPayment.amount - Math.round(existingPayment.amount * (parseFloat(process.env.TEST_PLATFORM_FEE_PERCENTAGE || process.env.PLATFORM_FEE_PERCENTAGE || "3") / 100 / (1 + parseFloat(process.env.TEST_PLATFORM_FEE_PERCENTAGE || process.env.PLATFORM_FEE_PERCENTAGE || "3") / 100))),
+                  platformFeeAmount: Math.round(existingPayment.amount * (parseFloat(process.env.TEST_PLATFORM_FEE_PERCENTAGE || process.env.PLATFORM_FEE_PERCENTAGE || "3") / 100 / (1 + parseFloat(process.env.TEST_PLATFORM_FEE_PERCENTAGE || process.env.PLATFORM_FEE_PERCENTAGE || "3") / 100))),
+                  customerTotalAmount: existingPayment.amount,
+                  platformFeePercentage: parseFloat(process.env.TEST_PLATFORM_FEE_PERCENTAGE || process.env.PLATFORM_FEE_PERCENTAGE || "3"),
+                },
+                statusDetails: {
+                  bookingStatus: result.rsvp.bookingStatus,
+                },
+              });
+            }
+            // PaymentIntent is no longer usable (cancelled, succeeded, etc.) - create a new one
+            console.log("[Payment] Existing PaymentIntent not reusable:", existingPI.status);
+          } catch (piError) {
+            console.warn("[Payment] Could not retrieve existing PaymentIntent:", piError.message);
+            // Fall through to create a new one
+          }
+        }
+
+        // If no payment exists or payment is failed/unusable, create new payment
         if (
           !existingPayment ||
           existingPayment.status === "pending" ||
@@ -2129,41 +2175,49 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       // (This shouldn't happen for free events, but just in case)
     }
 
-    // After all result.error checks and before res.status(201)...
-    try {
-      const isWaitlistEmail =
-        result.rsvp.bookingStatus === "WAITLIST" ||
-        result.rsvp.status === "waitlist";
+    // Send confirmation email — but NOT for paid events with pending payment.
+    // For paid events, the confirmation email is sent from the webhook
+    // handler once payment_intent.succeeded fires.
+    const isPendingPayment =
+      result.rsvp.bookingStatus === "PENDING_PAYMENT" ||
+      (stripeClientSecret && stripePayment);
 
-      await sendEmail({
-        to: result.rsvp.email,
-        subject: isWaitlistEmail
-          ? "You're on the waitlist"
-          : "Your spot is confirmed",
-        html: signupConfirmationEmail({
-          name: result.rsvp.name || name,
-          eventTitle: result.event.title,
-          date: new Date(result.event.startsAt).toLocaleString(),
-          isWaitlist: isWaitlistEmail,
-          imageUrl: result.event.coverImageUrl || result.event.imageUrl || "",
-          location: result.event.location || "",
-          startsAt: result.event.startsAt || "",
-          endsAt: result.event.endsAt || "",
-          timezone: result.event.timezone || "",
-          plusOnes: Number(result.rsvp.plusOnes) || 0,
-          slug: result.event.slug || "",
-          frontendUrl: getFrontendUrl(),
-          spotifyUrl: result.event.spotify || "",
-          ticketPrice: Number(result.event.ticketPrice) || 0,
-          ticketCurrency: result.event.ticketCurrency || "",
-        }),
-      });
-    } catch (emailErr) {
-      logger?.error?.("Failed to send signup confirmation email", {
-        error: emailErr?.message,
-        rsvpId: result.rsvp.id,
-      });
-      // Don’t block the RSVP on email failure
+    if (!isPendingPayment) {
+      try {
+        const isWaitlistEmail =
+          result.rsvp.bookingStatus === "WAITLIST" ||
+          result.rsvp.status === "waitlist";
+
+        await sendEmail({
+          to: result.rsvp.email,
+          subject: isWaitlistEmail
+            ? "You’re on the waitlist"
+            : "Your spot is confirmed",
+          html: signupConfirmationEmail({
+            name: result.rsvp.name || name,
+            eventTitle: result.event.title,
+            date: new Date(result.event.startsAt).toLocaleString(),
+            isWaitlist: isWaitlistEmail,
+            imageUrl: result.event.coverImageUrl || result.event.imageUrl || "",
+            location: result.event.location || "",
+            startsAt: result.event.startsAt || "",
+            endsAt: result.event.endsAt || "",
+            timezone: result.event.timezone || "",
+            plusOnes: Number(result.rsvp.plusOnes) || 0,
+            slug: result.event.slug || "",
+            frontendUrl: getFrontendUrl(),
+            spotifyUrl: result.event.spotify || "",
+            ticketPrice: result.event.ticketPrice ? (Number(result.event.ticketPrice) / 100).toFixed(2) : 0,
+            ticketCurrency: result.event.ticketCurrency || "",
+          }),
+        });
+      } catch (emailErr) {
+        logger?.error?.("Failed to send signup confirmation email", {
+          error: emailErr?.message,
+          rsvpId: result.rsvp.id,
+        });
+        // Don’t block the RSVP on email failure
+      }
     }
 
     // If user opted in to marketing, upsert into newsletter_subscriptions
@@ -2725,17 +2779,11 @@ app.post(
       if (rsvp.bookingStatus !== "WAITLIST") {
         return res.status(400).json({
           error: "RSVP is not on waitlist",
-          message: "Only waitlisted RSVPs can have payment links generated",
+          message: "Only waitlisted RSVPs can have links generated",
         });
       }
 
-      // Check if event is paid
-      if (event.ticketType !== "paid" || !event.ticketPrice) {
-        return res.status(400).json({
-          error: "Event is not a paid event",
-          message: "Payment links can only be generated for paid events",
-        });
-      }
+      const isFreeEvent = event.ticketType !== "paid" || !event.ticketPrice;
 
       // Verify RSVP belongs to this event
       if (rsvp.eventId !== eventId) {
@@ -2789,6 +2837,7 @@ app.post(
         token,
         expiresAt: expiresAt.toISOString(),
         email: person.email,
+        isFreeEvent,
       });
     } catch (error) {
       console.error("Error generating waitlist link:", error);
@@ -2889,6 +2938,15 @@ app.post(
       const frontendUrl = getFrontendUrl();
       const link = `${frontendUrl}/e/${event.slug}?vip=${token}`;
 
+      // Load host profile for contact info
+      let hostProfile = null;
+      try {
+        hostProfile = await getUserProfile(req.user.id);
+      } catch (e) { /* ignore */ }
+      const hostContactEmail = hostProfile?.contactEmail || null;
+      const hostBrandWebsite = hostProfile?.brandWebsite || null;
+      const hostBrandName = hostProfile?.brand || null;
+
       // Send VIP link via email to the guest
       try {
         const niceDate = expiresAt.toLocaleString("en-US", {
@@ -2916,6 +2974,8 @@ app.post(
         if (effectiveFreeEntry) textParts.push("Your entry is complimentary.");
         if (event.description) textParts.push("", event.description.slice(0, 300));
         textParts.push("", `RSVP here: ${link}`, "", `Valid until ${niceDate}.`);
+        if (hostContactEmail) textParts.push(`Questions? ${hostContactEmail}`);
+        if (hostBrandWebsite) textParts.push(hostBrandWebsite);
         const textBody = textParts.join("\n");
 
         // Build rich HTML email
@@ -2994,7 +3054,8 @@ ${spotifyUrl ? `<!-- Spotify -->
 <tr><td style="padding:20px 0 8px;border-top:1px solid rgba(255,255,255,0.06);">
   <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);text-align:center;line-height:1.6;">
     This invite is valid until ${niceDate}.<br>
-    <a href="${getFrontendUrl()}" target="_blank" style="color:rgba(255,255,255,0.4);text-decoration:none;">pullup.se</a>
+    ${hostContactEmail ? `Questions? <a href="mailto:${hostContactEmail}" style="color:rgba(255,255,255,0.4);text-decoration:none;">${hostContactEmail}</a><br>` : ""}
+    ${hostBrandWebsite ? `<a href="${hostBrandWebsite}" target="_blank" style="color:rgba(255,255,255,0.4);text-decoration:none;">${hostBrandWebsite.replace(/^https?:\/\//, "")}</a>` : `<a href="${getFrontendUrl()}" target="_blank" style="color:rgba(255,255,255,0.4);text-decoration:none;">pullup.se</a>`}
   </p>
 </td></tr>
 
@@ -3974,6 +4035,249 @@ app.delete(
     } catch (error) {
       console.error("Error deleting RSVP:", error);
       res.status(500).json({ error: "Failed to delete RSVP" });
+    }
+  }
+);
+
+// ---------------------------
+// PROTECTED: Promote waitlisted RSVP to confirmed (requires auth, verifies ownership)
+// ---------------------------
+app.post(
+  "/host/events/:eventId/rsvps/:rsvpId/promote",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId, rsvpId } = req.params;
+      const { sendEmail: shouldSendEmail } = req.body || {};
+
+      const event = await findEventById(eventId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+
+      const canEdit = await canEditGuests(req.user.id, event.id);
+      if (!canEdit) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You don't have permission to edit guests for this event.",
+        });
+      }
+
+      const rsvp = await findRsvpById(rsvpId);
+      if (!rsvp || rsvp.eventId !== eventId) {
+        return res.status(404).json({ error: "RSVP not found" });
+      }
+
+      if (rsvp.bookingStatus !== "WAITLIST") {
+        return res.status(400).json({
+          error: "not_waitlisted",
+          message: "Only waitlisted RSVPs can be promoted.",
+        });
+      }
+
+      const result = await updateRsvp(
+        rsvpId,
+        { bookingStatus: "CONFIRMED", status: "attending" },
+        { forceConfirm: true }
+      );
+
+      if (result.error) {
+        return res.status(500).json({
+          error: result.error,
+          message: result.message || "Failed to promote RSVP",
+        });
+      }
+
+      // Optionally send confirmation email
+      if (shouldSendEmail) {
+        try {
+          const person = await findPersonById(rsvp.personId);
+          const email = person?.email || rsvp.email;
+          if (email) {
+            await sendEmail({
+              to: email,
+              subject: "Your spot is confirmed",
+              html: signupConfirmationEmail({
+                name: rsvp.name || person?.name || "",
+                eventTitle: event.title,
+                date: new Date(event.startsAt).toLocaleString(),
+                isWaitlist: false,
+                imageUrl: event.coverImageUrl || event.imageUrl || "",
+                location: event.location || "",
+                startsAt: event.startsAt || "",
+                endsAt: event.endsAt || "",
+                timezone: event.timezone || "",
+                plusOnes: Number(rsvp.plusOnes) || 0,
+                slug: event.slug || "",
+                frontendUrl: getFrontendUrl(),
+                spotifyUrl: event.spotify || "",
+                ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
+                ticketCurrency: event.ticketCurrency || "",
+              }),
+            });
+          }
+        } catch (emailErr) {
+          console.error("Failed to send promotion confirmation email:", emailErr);
+          // Don't block the promotion on email failure
+        }
+      }
+
+      res.json(result.rsvp);
+    } catch (error) {
+      console.error("Error promoting RSVP:", error);
+      res.status(500).json({ error: "Failed to promote RSVP" });
+    }
+  }
+);
+
+// ---------------------------
+// PROTECTED: Bulk promote waitlisted RSVPs (requires auth, verifies ownership)
+// ---------------------------
+app.post(
+  "/host/events/:eventId/rsvps/promote-bulk",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const { rsvpIds, sendEmail: shouldSendEmail } = req.body || {};
+
+      if (!Array.isArray(rsvpIds) || rsvpIds.length === 0) {
+        return res.status(400).json({
+          error: "invalid_input",
+          message: "rsvpIds must be a non-empty array.",
+        });
+      }
+
+      const event = await findEventById(eventId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+
+      const canEdit = await canEditGuests(req.user.id, event.id);
+      if (!canEdit) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You don't have permission to edit guests for this event.",
+        });
+      }
+
+      // Fetch all RSVPs and filter to valid waitlisted ones for this event
+      const rsvps = [];
+      for (const id of rsvpIds) {
+        const rsvp = await findRsvpById(id);
+        if (rsvp && rsvp.eventId === eventId && rsvp.bookingStatus === "WAITLIST") {
+          rsvps.push(rsvp);
+        }
+      }
+
+      // Sort FIFO by RSVP creation date
+      rsvps.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+      let promoted = 0;
+      for (const rsvp of rsvps) {
+        const result = await updateRsvp(
+          rsvp.id,
+          { bookingStatus: "CONFIRMED", status: "attending" },
+          { forceConfirm: true }
+        );
+
+        if (!result.error) {
+          promoted++;
+
+          if (shouldSendEmail) {
+            try {
+              const person = await findPersonById(rsvp.personId);
+              const email = person?.email || rsvp.email;
+              if (email) {
+                await sendEmail({
+                  to: email,
+                  subject: "Your spot is confirmed",
+                  html: signupConfirmationEmail({
+                    name: rsvp.name || person?.name || "",
+                    eventTitle: event.title,
+                    date: new Date(event.startsAt).toLocaleString(),
+                    isWaitlist: false,
+                    imageUrl: event.coverImageUrl || event.imageUrl || "",
+                    location: event.location || "",
+                    startsAt: event.startsAt || "",
+                    endsAt: event.endsAt || "",
+                    timezone: event.timezone || "",
+                    plusOnes: Number(rsvp.plusOnes) || 0,
+                    slug: event.slug || "",
+                    frontendUrl: getFrontendUrl(),
+                    spotifyUrl: event.spotify || "",
+                    ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
+                    ticketCurrency: event.ticketCurrency || "",
+                  }),
+                });
+              }
+            } catch (emailErr) {
+              console.error("Failed to send bulk promotion email:", emailErr);
+            }
+          }
+        }
+      }
+
+      res.json({ promoted, total: rsvpIds.length });
+    } catch (error) {
+      console.error("Error bulk promoting RSVPs:", error);
+      res.status(500).json({ error: "Failed to bulk promote RSVPs" });
+    }
+  }
+);
+
+// ---------------------------
+// PROTECTED: Cancel RSVP (requires auth, verifies ownership)
+// ---------------------------
+app.post(
+  "/host/events/:eventId/rsvps/:rsvpId/cancel",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { eventId, rsvpId } = req.params;
+
+      const event = await findEventById(eventId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+
+      const canEdit = await canEditGuests(req.user.id, event.id);
+      if (!canEdit) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You don't have permission to edit guests for this event.",
+        });
+      }
+
+      const rsvp = await findRsvpById(rsvpId);
+      if (!rsvp || rsvp.eventId !== eventId) {
+        return res.status(404).json({ error: "RSVP not found" });
+      }
+
+      // For paid + confirmed guests, require refund first
+      const isPaid = event.ticketType === "paid" && event.ticketPrice > 0;
+      if (
+        isPaid &&
+        rsvp.bookingStatus === "CONFIRMED" &&
+        rsvp.paymentStatus === "paid"
+      ) {
+        return res.status(400).json({
+          error: "refund_required",
+          message:
+            "This guest has a confirmed payment. Please process a refund before cancelling.",
+        });
+      }
+
+      const result = await updateRsvp(rsvpId, {
+        bookingStatus: "CANCELLED",
+        status: "cancelled",
+      });
+
+      if (result.error) {
+        return res.status(500).json({
+          error: result.error,
+          message: result.message || "Failed to cancel RSVP",
+        });
+      }
+
+      res.json(result.rsvp);
+    } catch (error) {
+      console.error("Error cancelling RSVP:", error);
+      res.status(500).json({ error: "Failed to cancel RSVP" });
     }
   }
 );
@@ -5331,48 +5635,23 @@ app.put("/host/profile", requireAuth, async (req, res) => {
 });
 
 // ---------------------------
-// STRIPE CONNECT: Initiate OAuth flow
+// STRIPE CONNECT: Initiate onboarding via Account Links
 // ---------------------------
 app.post("/host/stripe/connect/initiate", requireAuth, async (req, res) => {
   try {
-    const { authorizationUrl } = await initiateConnectOAuth(req.user.id);
-    res.json({ authorizationUrl });
-  } catch (error) {
-    console.error("Error initiating Stripe Connect:", error);
-    res.status(500).json({ error: "Failed to initiate Stripe Connect" });
-  }
-});
+    const result = await initiateConnectOnboarding(req.user.id);
 
-// ---------------------------
-// STRIPE CONNECT: OAuth callback handler
-// Note: No auth middleware here; we trust the signed state token instead.
-// ---------------------------
-app.get("/host/stripe/connect/callback", async (req, res) => {
-  try {
-    const { code, state } = req.query;
-
-    if (!code || !state) {
-      return res.status(400).json({
-        error: "Missing required parameters",
-        message: "Authorization code and state are required",
+    if (result.alreadyComplete) {
+      return res.json({
+        alreadyComplete: true,
+        accountId: result.accountId,
       });
     }
 
-    const result = await handleConnectCallback(code, state);
-
-    // Redirect to frontend with success status
-    const redirectUrl = `${getFrontendUrl()}/events?stripe_connect=success&account_id=${result.connectedAccountId}`;
-
-    res.redirect(redirectUrl);
+    res.json({ authorizationUrl: result.onboardingUrl });
   } catch (error) {
-    console.error("Error handling Stripe Connect callback:", error);
-
-    // Redirect to frontend with error status
-    const redirectUrl = `${getFrontendUrl()}/events?stripe_connect=error&message=${encodeURIComponent(
-      error.message
-    )}`;
-
-    res.redirect(redirectUrl);
+    console.error("Error initiating Stripe Connect onboarding:", error);
+    res.status(500).json({ error: "Failed to initiate Stripe Connect" });
   }
 });
 
@@ -7035,7 +7314,7 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
 
     const rsvpCountMap = {};
     for (const r of (rsvpRows || [])) {
-      if (r.booking_status === "CONFIRMED" || r.status === "attending") {
+      if (r.booking_status === "CONFIRMED" || r.booking_status === "PENDING_PAYMENT" || r.status === "attending") {
         rsvpCountMap[r.event_id] = (rsvpCountMap[r.event_id] || 0) + (r.total_guests ?? r.party_size ?? 1);
       }
     }
@@ -7833,4 +8112,43 @@ app.listen(PORT, async () => {
   } catch (e) {
     console.log("Migration note:", e.message);
   }
+
+  // Cleanup abandoned PENDING_PAYMENT RSVPs every 10 minutes
+  // Frees spots held by users who started but never completed payment
+  const CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+  const PENDING_PAYMENT_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+  setInterval(async () => {
+    try {
+      const { supabase } = await import("./supabase.js");
+      const cutoff = new Date(Date.now() - PENDING_PAYMENT_TTL_MS).toISOString();
+
+      const { data: staleRsvps, error } = await supabase
+        .from("rsvps")
+        .select("id, person_id, event_id, created_at")
+        .eq("booking_status", "PENDING_PAYMENT")
+        .lt("created_at", cutoff);
+
+      if (error) {
+        console.error("[Cleanup] Error fetching stale PENDING_PAYMENT RSVPs:", error.message);
+        return;
+      }
+
+      if (staleRsvps && staleRsvps.length > 0) {
+        const ids = staleRsvps.map((r) => r.id);
+        const { error: deleteError } = await supabase
+          .from("rsvps")
+          .delete()
+          .in("id", ids);
+
+        if (deleteError) {
+          console.error("[Cleanup] Error deleting stale RSVPs:", deleteError.message);
+        } else {
+          console.log(`[Cleanup] Deleted ${ids.length} abandoned PENDING_PAYMENT RSVP(s)`);
+        }
+      }
+    } catch (err) {
+      console.error("[Cleanup] Unexpected error:", err.message);
+    }
+  }, CLEANUP_INTERVAL_MS);
 });

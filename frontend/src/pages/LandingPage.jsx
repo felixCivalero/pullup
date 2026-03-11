@@ -155,9 +155,8 @@ export function LandingPage() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (user) navigate("/events", { replace: true });
-  }, [user, navigate]);
+  // Don't auto-redirect logged-in users — let them browse the landing page.
+  // They'll go to the dashboard when they click "Login" or "Get Started".
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -430,7 +429,7 @@ export function LandingPage() {
           </span>
         </div>
         <button
-          onClick={() => setShowAuth(true)}
+          onClick={() => user ? navigate("/events") : setShowAuth(true)}
           style={{
             padding: "8px 22px",
             borderRadius: "999px",
@@ -620,7 +619,7 @@ export function LandingPage() {
           </p>
 
           <button
-            onClick={() => setShowAuth(true)}
+            onClick={() => user ? navigate("/events") : setShowAuth(true)}
             style={{
               padding: "14px 36px",
               borderRadius: "999px",
@@ -777,7 +776,7 @@ export function LandingPage() {
           do best
         </p>
         <button
-          onClick={() => setShowAuth(true)}
+          onClick={() => user ? navigate("/events") : setShowAuth(true)}
           style={{
             padding: "14px 36px",
             borderRadius: "999px",

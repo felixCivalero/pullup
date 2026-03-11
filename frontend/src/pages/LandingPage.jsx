@@ -530,7 +530,7 @@ export function LandingPage() {
             A{" "}
             <span
               style={{
-                background: colors.gradientPrimary,
+                background: colors.gradientGold,
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",

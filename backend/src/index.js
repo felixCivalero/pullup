@@ -8136,6 +8136,38 @@ app.listen(PORT, async () => {
 
       if (staleRsvps && staleRsvps.length > 0) {
         const ids = staleRsvps.map((r) => r.id);
+
+        // Cancel associated Stripe PaymentIntents to prevent late payments
+        try {
+          const { data: payments } = await supabase
+            .from("payments")
+            .select("id, stripe_payment_intent_id")
+            .in("rsvp_id", ids)
+            .eq("status", "pending");
+
+          if (payments && payments.length > 0) {
+            const { getStripeSecretKey } = await import("./stripe.js");
+            const Stripe = (await import("stripe")).default;
+            const stripe = new Stripe(getStripeSecretKey());
+
+            for (const p of payments) {
+              try {
+                await stripe.paymentIntents.cancel(p.stripe_payment_intent_id);
+                console.log(`[Cleanup] Cancelled PaymentIntent ${p.stripe_payment_intent_id}`);
+              } catch (cancelErr) {
+                // PaymentIntent may already be cancelled/succeeded — that's fine
+                console.warn(`[Cleanup] Could not cancel PI ${p.stripe_payment_intent_id}: ${cancelErr.message}`);
+              }
+            }
+
+            // Delete payment records
+            await supabase.from("payments").delete().in("id", payments.map((p) => p.id));
+          }
+        } catch (paymentErr) {
+          console.error("[Cleanup] Error cancelling payments:", paymentErr.message);
+          // Continue with RSVP deletion even if payment cleanup fails
+        }
+
         const { error: deleteError } = await supabase
           .from("rsvps")
           .delete()

@@ -300,6 +300,12 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     return { processed: false, error: "Payment not found" };
   }
 
+  // Idempotency: if payment is already succeeded, skip to avoid duplicate emails
+  if (payment.status === "succeeded") {
+    console.log("[Webhook] Payment already processed (idempotent skip):", payment.id);
+    return { processed: true, paymentId: payment.id, alreadyProcessed: true };
+  }
+
   // Extract receipt URL from charge
   // Try multiple ways to get receipt URL since Stripe generates it asynchronously
   let receiptUrl = paymentIntent.charges?.data?.[0]?.receipt_url || null;
@@ -307,9 +313,7 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
   // If receipt URL not in PaymentIntent, try to retrieve it from the charge directly
   if (!receiptUrl && paymentIntent.latest_charge) {
     try {
-      const { getStripeSecretKey } = await import("./stripe.js");
-      const Stripe = (await import("stripe")).default;
-      const stripe = new Stripe(getStripeSecretKey());
+      const stripe = getStripeClient();
       const charge = await stripe.charges.retrieve(paymentIntent.latest_charge);
       receiptUrl = charge.receipt_url || null;
       if (receiptUrl) {
@@ -678,7 +682,7 @@ async function handleChargeRefunded(charge) {
 
       // If full refund, move guest to waitlist (even if refund was initiated outside our system)
       // This ensures consistency regardless of where the refund was initiated
-      if (isFullRefund && rsvp.booking_status === "confirmed") {
+      if (isFullRefund && rsvp.bookingStatus === "CONFIRMED") {
         console.log("[Webhook] Moving RSVP to waitlist after full refund:", {
           rsvpId: payment.rsvpId,
           paymentId: payment.id,
@@ -686,7 +690,7 @@ async function handleChargeRefunded(charge) {
         await updateRsvp(
           payment.rsvpId,
           {
-            booking_status: "waitlist",
+            bookingStatus: "WAITLIST",
             status: "waitlist",
           },
           { forceConfirm: false }

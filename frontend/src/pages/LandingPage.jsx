@@ -225,9 +225,10 @@ export function LandingPage() {
       {/* ─── HERO ─── */}
       <section
         style={{
-          minHeight: "100dvh", display: "flex", flexDirection: "column",
+          height: "calc(100dvh - 80px)", maxHeight: 720, minHeight: 400,
+          display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center", textAlign: "center",
-          padding: "100px clamp(20px, 5vw, 40px) 60px", position: "relative",
+          padding: "72px clamp(20px, 5vw, 40px) 48px", position: "relative",
         }}
       >
         <div
@@ -309,100 +310,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ─── HOW IT WORKS ─── */}
-      <section style={sp}>
-        <h2 style={{ fontSize: "clamp(26px, 5vw, 40px)", fontWeight: 800, letterSpacing: "-0.02em", textAlign: "center", marginBottom: "clamp(24px, 4vh, 40px)" }}>
-          From idea to event in minutes
-        </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: "clamp(20px, 3vw, 36px)", maxWidth: 720, margin: "0 auto" }}>
-          {[
-            { n: "1", title: "Create", desc: "Set up your event page, add the vibe, open sign-ups." },
-            { n: "2", title: "Share", desc: "Drop the link or send invites straight from PullUp." },
-            { n: "3", title: "Grow", desc: "See who's coming, build your audience, do it again." },
-          ].map((s, i) => (
-            <div key={i} style={{ textAlign: "center" }}>
-              <div style={{ width: 48, height: 48, borderRadius: "50%", background: colors.gradientPrimary, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 20, fontWeight: 800, color: "#111" }}>
-                {s.n}
-              </div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{s.title}</h3>
-              <p style={{ fontSize: 13, lineHeight: 1.5, color: "rgba(255,255,255,0.5)", margin: 0 }}>{s.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ─── NEWSLETTER ─── */}
-      <section id="newsletter" style={sp}>
-        <div
-          style={{
-            maxWidth: 520, margin: "0 auto", padding: "clamp(24px, 4vw, 40px)",
-            borderRadius: 20,
-            background: "linear-gradient(145deg, rgba(56,40,6,0.7) 0%, rgba(102,76,14,0.6) 45%, rgba(80,60,10,0.6) 100%)",
-            border: "1px solid rgba(255,230,160,0.15)", boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
-          }}
-        >
-          <h2 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 800, marginBottom: 6, textAlign: "center" }}>
-            Stay in the loop
-          </h2>
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: 20, lineHeight: 1.5 }}>
-            Get early invites to underground events, private dinners, and things you won't find on Instagram.
-          </p>
-
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginBottom: 8, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              What are you into?
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
-              {INTEREST_OPTIONS.map((opt) => {
-                const active = selectedInterests.includes(opt.id);
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => toggleInterest(opt.id)}
-                    style={{
-                      padding: "6px 12px", borderRadius: "999px",
-                      border: active ? "1px solid rgba(255,230,160,0.4)" : "1px solid rgba(255,255,255,0.12)",
-                      background: active ? "rgba(255,200,60,0.15)" : "rgba(255,255,255,0.04)",
-                      color: active ? "rgba(255,240,180,0.95)" : "rgba(255,255,255,0.55)",
-                      fontSize: 12, cursor: "pointer", transition: "all 0.15s", fontWeight: active ? 600 : 400,
-                    }}
-                  >
-                    {active && <CheckCircle size={12} style={{ marginRight: 4, verticalAlign: -2 }} />}
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <form onSubmit={handleNewsletterSubmit} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input
-              type="email" inputMode="email" autoComplete="email" required
-              value={newsletterEmail} onChange={(e) => setNewsletterEmail(e.target.value)}
-              placeholder="you@example.com"
-              style={{ ...inputStyle, flex: "1 1 200px", background: "rgba(7,6,14,0.8)", border: "1px solid rgba(255,255,255,0.15)", padding: "11px 14px", fontSize: 13 }}
-            />
-            <button
-              type="submit" disabled={newsletterSubmitting}
-              style={{
-                padding: "11px 20px", borderRadius: "12px", border: "none",
-                background: "linear-gradient(135deg, #f5f5f5 0%, #c7c7c7 60%, #a1a1a1 100%)",
-                color: "#121212", fontSize: 13, fontWeight: 700,
-                cursor: newsletterSubmitting ? "wait" : "pointer", whiteSpace: "nowrap",
-                opacity: newsletterSubmitting ? 0.7 : 1,
-              }}
-            >
-              {newsletterSubmitting ? "Joining..." : "Subscribe"}
-            </button>
-          </form>
-
-          {newsletterStatus && (
-            <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,0.6)", textAlign: "center" }}>{newsletterStatus}</div>
-          )}
-        </div>
-      </section>
-
       {/* ─── FINAL CTA ─── */}
       <section style={{ ...sp, textAlign: "center", paddingBottom: "clamp(48px, 8vh, 80px)" }}>
         <h2 style={{ fontSize: "clamp(24px, 5vw, 38px)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 12 }}>
@@ -426,12 +333,105 @@ export function LandingPage() {
       </section>
 
       {/* ─── FOOTER ─── */}
-      <footer style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "24px clamp(16px, 5vw, 40px)", display: "flex", alignItems: "center", justifyContent: "center", gap: "clamp(12px, 3vw, 24px)", flexWrap: "wrap", fontSize: 12, color: "rgba(255,255,255,0.3)" }}>
-        <span>pullup &copy; {new Date().getFullYear()}</span>
-        <span style={{ opacity: 0.3 }}>&middot;</span>
-        <a href="/privacy" style={{ color: "rgba(255,255,255,0.35)", textDecoration: "none" }}>Privacy</a>
-        <a href="/terms" style={{ color: "rgba(255,255,255,0.35)", textDecoration: "none" }}>Terms</a>
-        <a href="/cookies" style={{ color: "rgba(255,255,255,0.35)", textDecoration: "none" }}>Cookies</a>
+      <footer
+        style={{
+          position: "relative", overflow: "hidden",
+          borderTop: "1px solid rgba(251,191,36,0.12)",
+          background: "linear-gradient(180deg, rgba(251,191,36,0.03) 0%, rgba(251,191,36,0.06) 50%, rgba(217,119,6,0.04) 100%)",
+          padding: "clamp(36px, 6vh, 56px) clamp(16px, 5vw, 40px) clamp(20px, 3vh, 32px)",
+        }}
+      >
+        {/* Ambient gold glow */}
+        <div
+          style={{
+            position: "absolute", top: "-40%", left: "50%", transform: "translateX(-50%)",
+            width: "min(600px, 90vw)", height: 300, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(251,191,36,0.08) 0%, rgba(245,158,11,0.04) 40%, transparent 70%)",
+            pointerEvents: "none",
+          }}
+        />
+
+        <div id="newsletter" style={{ position: "relative", zIndex: 1, maxWidth: 440, margin: "0 auto 28px", textAlign: "center" }}>
+          <h3
+            style={{
+              fontSize: 16, fontWeight: 800, marginBottom: 5, letterSpacing: "-0.01em",
+              background: colors.gradientGold, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            }}
+          >
+            Stay in the loop
+          </h3>
+          <p style={{ fontSize: 12, color: "rgba(255,230,160,0.5)", marginBottom: 16, lineHeight: 1.5 }}>
+            Get early invites to underground events, private dinners, and things you won't find on Instagram.
+          </p>
+
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, justifyContent: "center" }}>
+              {INTEREST_OPTIONS.map((opt) => {
+                const active = selectedInterests.includes(opt.id);
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => toggleInterest(opt.id)}
+                    style={{
+                      padding: "5px 11px", borderRadius: "999px",
+                      border: active ? "1px solid rgba(251,191,36,0.35)" : "1px solid rgba(251,191,36,0.12)",
+                      background: active ? "rgba(251,191,36,0.12)" : "rgba(251,191,36,0.04)",
+                      color: active ? "rgba(255,230,160,0.9)" : "rgba(255,230,160,0.4)",
+                      fontSize: 11, cursor: "pointer", transition: "all 0.15s", fontWeight: active ? 600 : 400,
+                    }}
+                  >
+                    {active && <CheckCircle size={10} style={{ marginRight: 3, verticalAlign: -1.5 }} />}
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <form onSubmit={handleNewsletterSubmit} style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+            <input
+              type="email" inputMode="email" autoComplete="email" required
+              value={newsletterEmail} onChange={(e) => setNewsletterEmail(e.target.value)}
+              placeholder="you@example.com"
+              style={{ ...inputStyle, flex: "1 1 180px", maxWidth: 260, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(251,191,36,0.15)", padding: "10px 13px", fontSize: 12, borderRadius: 10 }}
+            />
+            <button
+              type="submit" disabled={newsletterSubmitting}
+              style={{
+                padding: "10px 18px", borderRadius: 10, border: "none",
+                background: colors.gradientGold, color: "#111",
+                fontSize: 12, fontWeight: 700,
+                cursor: newsletterSubmitting ? "wait" : "pointer", whiteSpace: "nowrap",
+                opacity: newsletterSubmitting ? 0.6 : 1, transition: "opacity 0.15s",
+                boxShadow: "0 4px 16px rgba(245,158,11,0.2)",
+              }}
+            >
+              {newsletterSubmitting ? "Joining..." : "Subscribe"}
+            </button>
+          </form>
+
+          {newsletterStatus && (
+            <div style={{ marginTop: 8, fontSize: 11, color: "rgba(255,230,160,0.5)", textAlign: "center" }}>{newsletterStatus}</div>
+          )}
+        </div>
+
+        <div
+          style={{
+            position: "relative", zIndex: 1,
+            borderTop: "1px solid rgba(251,191,36,0.08)", paddingTop: 16,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            gap: "clamp(12px, 3vw, 24px)", flexWrap: "wrap", fontSize: 11, color: "rgba(255,230,160,0.25)",
+          }}
+        >
+          <span>pullup &copy; {new Date().getFullYear()}</span>
+          <span style={{ opacity: 0.3 }}>&middot;</span>
+          <a href="/privacy" style={{ color: "rgba(255,230,160,0.3)", textDecoration: "none" }}>Privacy</a>
+          <a href="/terms" style={{ color: "rgba(255,230,160,0.3)", textDecoration: "none" }}>Terms</a>
+          <a href="/cookies" style={{ color: "rgba(255,230,160,0.3)", textDecoration: "none" }}>Cookies</a>
+          <span style={{ opacity: 0.3 }}>&middot;</span>
+          <a href="mailto:hello@pullup.se" style={{ color: "rgba(255,230,160,0.3)", textDecoration: "none" }}>hello@pullup.se</a>
+        </div>
       </footer>
 
       {/* ─── AUTH MODAL ─── */}

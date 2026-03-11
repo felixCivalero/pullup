@@ -77,6 +77,8 @@ import {
   sendEmail,
   coHostAddedEmailBody,
   coHostInvitedEmailBody,
+  coHostAddedEmailHtml,
+  coHostInvitedEmailHtml,
 } from "./services/emailService.js";
 import {
   signupConfirmationEmail,
@@ -2140,6 +2142,17 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           eventTitle: result.event.title,
           date: new Date(result.event.startsAt).toLocaleString(),
           isWaitlist: isWaitlistEmail,
+          imageUrl: result.event.coverImageUrl || result.event.imageUrl || "",
+          location: result.event.location || "",
+          startsAt: result.event.startsAt || "",
+          endsAt: result.event.endsAt || "",
+          timezone: result.event.timezone || "",
+          plusOnes: Number(result.rsvp.plusOnes) || 0,
+          slug: result.event.slug || "",
+          frontendUrl: getFrontendUrl(),
+          spotifyUrl: result.event.spotify || "",
+          ticketPrice: Number(result.event.ticketPrice) || 0,
+          ticketCurrency: result.event.ticketCurrency || "",
         }),
       });
     } catch (emailErr) {
@@ -2423,6 +2436,12 @@ app.post("/host/events/:id/hosts", requireAuth, async (req, res) => {
           await sendEmail({
             to: toEmail,
             subject: `You've been added as ${roleToInsert} to "${event.title}"`,
+            html: coHostAddedEmailHtml({
+              eventTitle: event.title,
+              role: roleToInsert,
+              imageUrl: event.coverImageUrl || event.imageUrl || "",
+              slug: event.slug || "",
+            }),
             text: coHostAddedEmailBody({
               eventTitle: event.title,
               role: roleToInsert,
@@ -2469,6 +2488,12 @@ app.post("/host/events/:id/hosts", requireAuth, async (req, res) => {
       await sendEmail({
         to: normalizedEmail,
         subject: `You're invited to co-host "${event.title}"`,
+        html: coHostInvitedEmailHtml({
+          eventTitle: event.title,
+          role: roleToInsert,
+          imageUrl: event.coverImageUrl || event.imageUrl || "",
+          slug: event.slug || "",
+        }),
         text: coHostInvitedEmailBody({
           eventTitle: event.title,
           role: roleToInsert,

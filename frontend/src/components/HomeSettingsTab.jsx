@@ -42,14 +42,14 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
     website: "",
   };
   const emails = user.emails || [
-    { email: user.email || "felix.civalero@gmail.com", primary: true },
+    { email: user.email || "hello@pullup.se", primary: true },
   ];
   const mobileNumber = user.mobileNumber || "";
   const thirdPartyAccounts = user.thirdPartyAccounts || [
     {
       id: "google",
       name: "Google",
-      email: user.email || "felix.civalero@gmail.com",
+      email: user.email || "hello@pullup.se",
       linked: false,
     },
     { id: "apple", name: "Apple", linked: false },

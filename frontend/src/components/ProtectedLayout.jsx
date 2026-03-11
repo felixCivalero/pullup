@@ -14,6 +14,7 @@ function ProtectedLayoutInner() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [profilePic, setProfilePic] = useState(null);
   const drawerRef = useRef(null);
 
   // Detect event routes
@@ -37,6 +38,19 @@ function ProtectedLayoutInner() {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  // Fetch host profile picture
+  useEffect(() => {
+    if (!user) return;
+    authenticatedFetch("/host/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p) => {
+        if (p?.profilePicture) setProfilePic(p.profilePicture);
+      })
+      .catch(() => {});
+  }, [user]);
+
+  const avatarSrc = profilePic || null;
 
   // Close menu on route change
   useEffect(() => {
@@ -472,18 +486,17 @@ function ProtectedLayoutInner() {
                 padding: 0,
               }}
             >
-              {user?.user_metadata?.picture ||
-              user?.user_metadata?.avatar_url ? (
+              {avatarSrc ? (
                 <img
-                  src={
-                    user.user_metadata.picture || user.user_metadata.avatar_url
-                  }
+                  src={avatarSrc}
                   alt="Profile"
+                  referrerPolicy="no-referrer"
                   style={{
                     width: "100%",
                     height: "100%",
                     objectFit: "cover",
                   }}
+                  onError={(e) => { e.target.style.display = "none"; }}
                 />
               ) : (
                 <span
@@ -639,19 +652,17 @@ function ProtectedLayoutInner() {
                     flexShrink: 0,
                   }}
                 >
-                  {user?.user_metadata?.picture ||
-                  user?.user_metadata?.avatar_url ? (
+                  {avatarSrc ? (
                     <img
-                      src={
-                        user.user_metadata.picture ||
-                        user.user_metadata.avatar_url
-                      }
+                      src={avatarSrc}
                       alt="Profile"
+                      referrerPolicy="no-referrer"
                       style={{
                         width: "100%",
                         height: "100%",
                         objectFit: "cover",
                       }}
+                      onError={(e) => { e.target.style.display = "none"; }}
                     />
                   ) : (
                     <span

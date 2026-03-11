@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Calendar,
   Users,
@@ -13,6 +13,8 @@ import {
   ArrowRight,
   X,
   Sparkles,
+  Search,
+  MapPin,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { colors } from "../theme/colors.js";
@@ -102,6 +104,24 @@ const inputStyle = {
 
 const ROTATING_WORDS = ["people", "life", "culture", "art"];
 
+const CAPITAL_CITIES = [
+  "Abu Dhabi","Abuja","Accra","Addis Ababa","Algiers","Amman","Amsterdam","Ankara","Antananarivo",
+  "Ashgabat","Astana","Asunción","Athens","Baghdad","Baku","Bamako","Bangkok","Beijing","Beirut",
+  "Belgrade","Berlin","Bern","Bishkek","Bogotá","Brasília","Bratislava","Brussels","Bucharest",
+  "Budapest","Buenos Aires","Cairo","Canberra","Caracas","Chisinau","Copenhagen","Dakar","Damascus",
+  "Dhaka","Doha","Dublin","Dushanbe","Freetown","Georgetown","Guatemala City","Hanoi","Harare",
+  "Havana","Helsinki","Islamabad","Jakarta","Jerusalem","Kabul","Kampala","Kathmandu","Khartoum",
+  "Kigali","Kingston","Kinshasa","Kuala Lumpur","Kuwait City","Kyiv","La Paz","Lima","Lisbon",
+  "Ljubljana","London","Luanda","Lusaka","Luxembourg","Madrid","Managua","Manila","Maputo",
+  "Mexico City","Minsk","Mogadishu","Monaco","Montevideo","Moscow","Muscat","Nairobi","Nassau",
+  "New Delhi","Niamey","Nicosia","Oslo","Ottawa","Panama City","Paris","Phnom Penh","Podgorica",
+  "Port-au-Prince","Prague","Pretoria","Pyongyang","Quito","Rabat","Reykjavik","Riga","Riyadh",
+  "Rome","San José","San Salvador","Santiago","Santo Domingo","São Tomé","Sarajevo","Seoul",
+  "Singapore","Skopje","Sofia","Stockholm","Tallinn","Tashkent","Tbilisi","Tegucigalpa","Tehran",
+  "Tirana","Tokyo","Tripoli","Tunis","Ulaanbaatar","Valletta","Vienna","Vientiane","Vilnius",
+  "Warsaw","Washington D.C.","Wellington","Windhoek","Yaoundé","Zagreb","Zürich",
+];
+
 /* ─── component ─── */
 export function LandingPage() {
   const navigate = useNavigate();
@@ -121,6 +141,11 @@ export function LandingPage() {
 
   const [scrolled, setScrolled] = useState(false);
 
+  const [selectedCities, setSelectedCities] = useState([]);
+  const [citySearch, setCitySearch] = useState("");
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const cityDropdownRef = useRef(null);
+
   useEffect(() => {
     publicFetch("/t/pageview", {
       method: "POST",
@@ -138,6 +163,26 @@ export function LandingPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (cityDropdownRef.current && !cityDropdownRef.current.contains(e.target)) {
+        setShowCityDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleCity = (city) => {
+    setSelectedCities((prev) =>
+      prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city],
+    );
+  };
+
+  const filteredCities = CAPITAL_CITIES.filter(
+    (c) => c.toLowerCase().includes(citySearch.toLowerCase()) && !selectedCities.includes(c),
+  );
 
   /* ─── auth ─── */
   const handleEmailPasswordSubmit = async (e) => {
@@ -187,9 +232,22 @@ export function LandingPage() {
   /* ─── newsletter ─── */
   const handleNewsletterSubmit = async (e) => {
     e.preventDefault();
-    if (!newsletterEmail || newsletterSubmitting) return;
+    if (newsletterSubmitting) return;
     setNewsletterStatus(null);
     setNewsletterPopup(null);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newsletterEmail.trim())) {
+      setNewsletterStatus("Enter a valid email address.");
+      return;
+    }
+    if (selectedCities.length === 0) {
+      setNewsletterStatus("Pick at least one city.");
+      return;
+    }
+    if (selectedInterests.length === 0) {
+      setNewsletterStatus("Select at least one interest.");
+      return;
+    }
     trackEvent("landing_newsletter_submit", {
       email_present: !!newsletterEmail,
       interests: selectedInterests,
@@ -202,6 +260,7 @@ export function LandingPage() {
           email: newsletterEmail.trim(),
           source: "landing_newsletter",
           interests: selectedInterests,
+          cities: selectedCities,
         }),
       });
       let payload = null;
@@ -240,6 +299,7 @@ export function LandingPage() {
       setNewsletterPopup({ type: "success", title, message });
       setNewsletterEmail("");
       setSelectedInterests([]);
+      setSelectedCities([]);
     } catch {
       const message = "Couldn't sign you up. Try again soon.";
       setNewsletterStatus(message);
@@ -605,7 +665,9 @@ export function LandingPage() {
           style={{
             display: "grid",
             gridTemplateColumns:
-              "repeat(auto-fit, minmax(min(240px, 100%), 1fr))",
+              "repeat(auto-fit, minmax(min(140px, 45%), 1fr))",
+            maxWidth: 720,
+            margin: "0 auto",
             gap: "clamp(12px, 2vw, 20px)",
           }}
         >
@@ -673,7 +735,7 @@ export function LandingPage() {
             marginBottom: 12,
           }}
         >
-          Our cities needs{" "}
+          You create the{" "}
           <span
             style={{
               background: colors.gradientPrimary,
@@ -683,7 +745,7 @@ export function LandingPage() {
               color: "transparent",
             }}
           >
-            you
+            culture
           </span>
         </h2>
         <p
@@ -723,9 +785,9 @@ export function LandingPage() {
         style={{
           position: "relative",
           overflow: "hidden",
-          borderTop: "1px solid rgba(251,191,36,0.12)",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
           background:
-            "linear-gradient(180deg, rgba(251,191,36,0.03) 0%, rgba(251,191,36,0.06) 50%, rgba(217,119,6,0.04) 100%)",
+            "linear-gradient(180deg, rgba(255,255,255,0.01) 0%, rgba(255,255,255,0.03) 100%)",
           padding:
             "clamp(36px, 6vh, 56px) clamp(16px, 5vw, 40px) clamp(20px, 3vh, 32px)",
         }}
@@ -741,7 +803,7 @@ export function LandingPage() {
             height: 300,
             borderRadius: "50%",
             background:
-              "radial-gradient(circle, rgba(251,191,36,0.08) 0%, rgba(245,158,11,0.04) 40%, transparent 70%)",
+              "radial-gradient(circle, rgba(192,192,192,0.06) 0%, rgba(192,192,192,0.02) 40%, transparent 70%)",
             pointerEvents: "none",
           }}
         />
@@ -756,35 +818,290 @@ export function LandingPage() {
             textAlign: "center",
           }}
         >
-          {/* Statement */}
-          <p
+          {/* Mini rotating headline */}
+          <div
             style={{
-              fontSize: "clamp(22px, 3.5vw, 36px)",
+              fontSize: "clamp(22px, 3.5vw, 32px)",
               fontWeight: 800,
-              fontStyle: "italic",
               letterSpacing: "-0.02em",
-              lineHeight: 1.15,
-              margin: "0 0 24px",
-              backgroundImage: "url(/camo.png)",
-              backgroundSize: "cover",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              color: "transparent",
+              lineHeight: 1.3,
+              margin: "0 0 10px",
+              whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.15em",
             }}
           >
-            Pullup for the culture.
-          </p>
+            <span
+              style={{
+                background: colors.gradientPrimary,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              Newsletter for
+            </span>
+            <span
+              style={{
+                display: "inline-block",
+                WebkitPerspective: "400px",
+                perspective: "400px",
+                height: "1.25em",
+                width: "3.6em",
+                position: "relative",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  height: "1.25em",
+                  width: "100%",
+                  position: "relative",
+                  WebkitTransformStyle: "preserve-3d",
+                  transformStyle: "preserve-3d",
+                  WebkitAnimation: "spinCube 10s linear infinite",
+                  animation: "spinCube 10s linear infinite",
+                  willChange: "transform",
+                }}
+              >
+                {ROTATING_WORDS.map((word, i) => {
+                  const faceTransform =
+                    i === 0
+                      ? "rotateY(0deg) translateZ(0.625em)"
+                      : i === 1
+                        ? "rotateX(90deg) translateZ(0.625em)"
+                        : i === 2
+                          ? "rotateX(180deg) translateZ(0.625em)"
+                          : "rotateX(-90deg) translateZ(0.625em)";
+                  return (
+                    <span
+                      key={word}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        height: "1.25em",
+                        padding: "0 0.3em",
+                        boxSizing: "border-box",
+                        WebkitBackfaceVisibility: "hidden",
+                        backfaceVisibility: "hidden",
+                        background:
+                          "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(/camo.png) center/cover",
+                        boxShadow:
+                          "inset 0 0 0 1px rgba(255,255,255,0.08), 0 2px 8px rgba(0,0,0,0.4)",
+                        borderRadius: "0.12em",
+                        WebkitTransform: faceTransform,
+                        transform: faceTransform,
+                      }}
+                    >
+                      <span
+                        style={{
+                          background: colors.gradientPrimary,
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          backgroundClip: "text",
+                          color: "transparent",
+                        }}
+                      >
+                        {word}
+                      </span>
+                    </span>
+                  );
+                })}
+              </span>
+            </span>
+          </div>
 
           {/* Newsletter heading */}
           <p
             style={{
-              fontSize: 13,
-              color: "rgba(255,230,160,0.55)",
-              margin: "0 0 12px",
+              fontSize: 14,
+              color: "rgba(255,255,255,0.45)",
+              margin: "0 0 20px",
               lineHeight: 1.4,
             }}
           >
-            Get weekly updates with all culture in your city
+            Get <span style={{ background: colors.gradientGold, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", color: "transparent" }}>weekly updates</span> with all <span style={{ background: colors.gradientGold, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", color: "transparent" }}>culture in your city</span>
+          </p>
+
+          {/* ─── Form card ─── */}
+          <div
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              borderRadius: 16,
+              padding: "20px 20px 18px",
+              textAlign: "center",
+            }}
+          >
+
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, textAlign: "left" }}>
+            Your cities
+          </p>
+
+          {/* City picker */}
+          <div ref={cityDropdownRef} style={{ position: "relative", marginBottom: 16 }}>
+            {/* Selected city tags */}
+            {selectedCities.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  marginBottom: 8,
+                }}
+              >
+                {selectedCities.map((city) => (
+                  <span
+                    key={city}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "4px 10px",
+                      borderRadius: "999px",
+                      background: "rgba(255,255,255,0.1)",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      color: "rgba(255,255,255,0.85)",
+                      fontSize: 12,
+                      fontWeight: 500,
+                    }}
+                  >
+                    <MapPin size={10} style={{ opacity: 0.7 }} />
+                    {city}
+                    <button
+                      type="button"
+                      onClick={() => toggleCity(city)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "rgba(255,255,255,0.4)",
+                        cursor: "pointer",
+                        padding: 0,
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      <X size={10} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Search input */}
+            <div style={{ position: "relative" }}>
+              <Search
+                size={14}
+                style={{
+                  position: "absolute",
+                  left: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "rgba(255,255,255,0.3)",
+                  pointerEvents: "none",
+                }}
+              />
+              <input
+                type="text"
+                value={citySearch}
+                onChange={(e) => {
+                  setCitySearch(e.target.value);
+                  setShowCityDropdown(true);
+                }}
+                onFocus={() => setShowCityDropdown(true)}
+                placeholder="Add your city..."
+                style={{
+                  ...inputStyle,
+                  paddingLeft: 32,
+                  background: "rgba(0,0,0,0.3)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  padding: "10px 14px 10px 32px",
+                  fontSize: 13,
+                  borderRadius: 12,
+                  width: "100%",
+                }}
+              />
+            </div>
+
+            {/* Dropdown */}
+            {showCityDropdown && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  maxHeight: 200,
+                  overflowY: "auto",
+                  marginTop: 4,
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(10,8,18,0.97)",
+                  backdropFilter: "blur(16px)",
+                  boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+                  zIndex: 10,
+                }}
+              >
+                {filteredCities.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      fontSize: 12,
+                      color: "rgba(255,255,255,0.3)",
+                      textAlign: "center",
+                    }}
+                  >
+                    {citySearch ? "No cities found" : "All cities selected"}
+                  </div>
+                ) : (
+                  filteredCities.slice(0, 50).map((city) => (
+                    <button
+                      key={city}
+                      type="button"
+                      onClick={() => {
+                        toggleCity(city);
+                        setCitySearch("");
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        width: "100%",
+                        padding: "9px 14px",
+                        background: "none",
+                        border: "none",
+                        borderBottom: "1px solid rgba(255,255,255,0.04)",
+                        color: "rgba(255,255,255,0.7)",
+                        fontSize: 13,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "none";
+                      }}
+                    >
+                      <MapPin size={12} style={{ opacity: 0.5, flexShrink: 0 }} />
+                      {city}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, textAlign: "left" }}>
+            Interests
           </p>
 
           {/* Interest pills */}
@@ -793,7 +1110,6 @@ export function LandingPage() {
               display: "flex",
               flexWrap: "wrap",
               gap: 6,
-              justifyContent: "center",
               marginBottom: 16,
             }}
           >
@@ -805,39 +1121,42 @@ export function LandingPage() {
                   type="button"
                   onClick={() => toggleInterest(opt.id)}
                   style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
                     padding: "5px 12px",
                     borderRadius: "999px",
                     border: active
-                      ? "1px solid rgba(251,191,36,0.35)"
-                      : "1px solid rgba(251,191,36,0.12)",
+                      ? "1px solid rgba(255,255,255,0.25)"
+                      : "1px solid rgba(255,255,255,0.08)",
                     background: active
-                      ? "rgba(251,191,36,0.12)"
-                      : "rgba(251,191,36,0.04)",
+                      ? "rgba(255,255,255,0.1)"
+                      : "rgba(255,255,255,0.03)",
                     color: active
-                      ? "rgba(255,230,160,0.9)"
-                      : "rgba(255,230,160,0.4)",
+                      ? "rgba(255,255,255,0.9)"
+                      : "rgba(255,255,255,0.4)",
                     fontSize: 12,
                     cursor: "pointer",
                     transition: "all 0.15s",
-                    fontWeight: active ? 600 : 400,
+                    fontWeight: 500,
                   }}
                 >
-                  {active && (
-                    <CheckCircle
-                      size={10}
-                      style={{ marginRight: 3, verticalAlign: -1.5 }}
-                    />
-                  )}
+                  <CheckCircle
+                    size={10}
+                    style={{ opacity: active ? 1 : 0, flexShrink: 0 }}
+                  />
                   {opt.label}
                 </button>
               );
             })}
           </div>
 
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", margin: "0 0 14px" }} />
+
           {/* Email form */}
           <form
             onSubmit={handleNewsletterSubmit}
-            style={{ display: "flex", gap: 8, justifyContent: "center" }}
+            style={{ display: "flex", gap: 8 }}
           >
             <input
               type="email"
@@ -849,10 +1168,9 @@ export function LandingPage() {
               placeholder="you@example.com"
               style={{
                 ...inputStyle,
-                flex: "1 1 200px",
-                maxWidth: 300,
-                background: "rgba(0,0,0,0.35)",
-                border: "1px solid rgba(251,191,36,0.15)",
+                flex: 1,
+                background: "rgba(0,0,0,0.3)",
+                border: "1px solid rgba(255,255,255,0.1)",
                 padding: "12px 14px",
                 fontSize: 13,
                 borderRadius: 12,
@@ -885,19 +1203,21 @@ export function LandingPage() {
               style={{
                 marginTop: 10,
                 fontSize: 12,
-                color: "rgba(255,230,160,0.5)",
+                color: "rgba(255,255,255,0.45)",
               }}
             >
               {newsletterStatus}
             </div>
           )}
+
+          </div>{/* end form card */}
         </div>
 
         <div
           style={{
             position: "relative",
             zIndex: 1,
-            borderTop: "1px solid rgba(251,191,36,0.08)",
+            borderTop: "1px solid rgba(255,255,255,0.06)",
             paddingTop: 16,
             display: "flex",
             alignItems: "center",
@@ -905,33 +1225,33 @@ export function LandingPage() {
             gap: "clamp(12px, 3vw, 24px)",
             flexWrap: "wrap",
             fontSize: 11,
-            color: "rgba(255,230,160,0.25)",
+            color: "rgba(255,255,255,0.2)",
           }}
         >
           <span>pullup &copy; {new Date().getFullYear()}</span>
           <span style={{ opacity: 0.3 }}>&middot;</span>
           <a
             href="/privacy"
-            style={{ color: "rgba(255,230,160,0.3)", textDecoration: "none" }}
+            style={{ color: "rgba(255,255,255,0.25)", textDecoration: "none" }}
           >
             Privacy
           </a>
           <a
             href="/terms"
-            style={{ color: "rgba(255,230,160,0.3)", textDecoration: "none" }}
+            style={{ color: "rgba(255,255,255,0.25)", textDecoration: "none" }}
           >
             Terms
           </a>
           <a
             href="/cookies"
-            style={{ color: "rgba(255,230,160,0.3)", textDecoration: "none" }}
+            style={{ color: "rgba(255,255,255,0.25)", textDecoration: "none" }}
           >
             Cookies
           </a>
           <span style={{ opacity: 0.3 }}>&middot;</span>
           <a
             href="mailto:hello@pullup.se"
-            style={{ color: "rgba(255,230,160,0.3)", textDecoration: "none" }}
+            style={{ color: "rgba(255,255,255,0.25)", textDecoration: "none" }}
           >
             hello@pullup.se
           </a>

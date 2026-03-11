@@ -22,7 +22,7 @@ export function PrivacyPage() {
       <div style={s.wrap}>
         <a href="/" style={s.back}>&larr; Back to PullUp</a>
         <h1 style={s.h1}>Privacy Policy</h1>
-        <p style={s.updated}>Last updated: March 10, 2026</p>
+        <p style={s.updated}>Last updated: March 11, 2026</p>
 
         <p style={s.p}>
           PullUp ("we", "us", "our") operates the pullup.se platform. This policy describes what personal data we collect, why we collect it, and how we handle it. We are committed to protecting your privacy and complying with the EU General Data Protection Regulation (GDPR).
@@ -61,7 +61,7 @@ export function PrivacyPage() {
         </p>
 
         <h3 style={s.h3}>Newsletter data</h3>
-        <p style={s.p}>If you subscribe to our newsletter, we collect your email address and your selected interest categories (e.g. music, culture, arts).</p>
+        <p style={s.p}>If you subscribe to our newsletter, we collect your email address, selected cities, and interest categories (e.g. music, culture, arts). We only send marketing emails after you give explicit consent by checking the consent box on the signup form.</p>
 
         <h3 style={s.h3}>Automatically collected data</h3>
         <ul style={s.ul}>
@@ -124,18 +124,30 @@ export function PrivacyPage() {
         </ul>
         <p style={s.p}>To exercise any of these rights, email us at <strong>hello@pullup.se</strong>. We will respond within 30 days.</p>
 
-        <h2 style={s.h2}>8. Newsletter and email communications</h2>
+        <h2 style={s.h2}>8. Consent</h2>
         <p style={s.p}>
-          You can unsubscribe from newsletters at any time using the unsubscribe link in any email. Transactional emails (booking confirmations, event reminders) are sent based on your use of the platform and cannot be opted out of while you have an active account.
+          We collect explicit consent before sending you marketing emails. When you subscribe to our newsletter or opt in to event updates, we record what you agreed to, the timestamp, and your selections. You can withdraw consent at any time by:
+        </p>
+        <ul style={s.ul}>
+          <li style={s.li}>Clicking the unsubscribe link in any email</li>
+          <li style={s.li}>Emailing us at <strong>hello@pullup.se</strong></li>
+        </ul>
+        <p style={s.p}>
+          Transactional emails (RSVP confirmations, payment receipts, event reminders) are sent as part of the service you use and do not require separate consent. These cannot be opted out of while you have an active booking or account.
         </p>
 
-        <h2 style={s.h2}>9. Children</h2>
+        <h2 style={s.h2}>9. Email tracking</h2>
+        <p style={s.p}>
+          Our emails may contain a small tracking pixel and redirected links to measure whether emails are opened and which links are clicked. We also record IP address and browser information with these events. This data is used to improve our communications and is processed under legitimate interest. You can opt out of all marketing emails at any time, which stops all tracking.
+        </p>
+
+        <h2 style={s.h2}>10. Children</h2>
         <p style={s.p}>PullUp is not intended for children under 16. We do not knowingly collect data from children.</p>
 
-        <h2 style={s.h2}>10. Changes to this policy</h2>
+        <h2 style={s.h2}>11. Changes to this policy</h2>
         <p style={s.p}>We may update this policy from time to time. Significant changes will be communicated via email or a notice on the platform.</p>
 
-        <h2 style={s.h2}>11. Contact</h2>
+        <h2 style={s.h2}>12. Contact</h2>
         <p style={s.p}>
           PullUp<br />
           Stockholm, Sweden<br />

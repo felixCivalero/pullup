@@ -132,12 +132,14 @@ export function LandingPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState("");
+  const [authConsent, setAuthConsent] = useState(false);
 
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterStatus, setNewsletterStatus] = useState(null);
   const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [newsletterPopup, setNewsletterPopup] = useState(null);
+  const [consentChecked, setConsentChecked] = useState(false);
 
   const [scrolled, setScrolled] = useState(false);
 
@@ -189,10 +191,15 @@ export function LandingPage() {
     e.preventDefault();
     if (signingIn) return;
     setFormError("");
+    if (!authConsent) {
+      setFormError("You must agree to the terms and privacy policy.");
+      return;
+    }
     trackEvent("landing_email_login_submit", { user_logged_in: !!user });
     try {
       setSigningIn(true);
       await signInWithEmailPassword(email.trim(), password);
+      authenticatedFetch("/auth/record-consent", { method: "POST" }).catch(() => {});
       navigate("/events");
     } catch (error) {
       const msg = (error?.message || "").toLowerCase();
@@ -215,6 +222,10 @@ export function LandingPage() {
 
   const handleGoogleContinue = async () => {
     if (signingIn) return;
+    if (!authConsent) {
+      setFormError("You must agree to the terms and privacy policy.");
+      return;
+    }
     trackEvent("landing_google_continue_click", { user_logged_in: !!user });
     if (user) {
       navigate("/events");
@@ -248,6 +259,10 @@ export function LandingPage() {
       setNewsletterStatus("Select at least one interest.");
       return;
     }
+    if (!consentChecked) {
+      setNewsletterStatus("You must agree to the terms.");
+      return;
+    }
     trackEvent("landing_newsletter_submit", {
       email_present: !!newsletterEmail,
       interests: selectedInterests,
@@ -261,6 +276,7 @@ export function LandingPage() {
           source: "landing_newsletter",
           interests: selectedInterests,
           cities: selectedCities,
+          consent: consentChecked,
         }),
       });
       let payload = null;
@@ -300,6 +316,7 @@ export function LandingPage() {
       setNewsletterEmail("");
       setSelectedInterests([]);
       setSelectedCities([]);
+      setConsentChecked(false);
     } catch {
       const message = "Couldn't sign you up. Try again soon.";
       setNewsletterStatus(message);
@@ -1153,6 +1170,16 @@ export function LandingPage() {
 
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", margin: "0 0 14px" }} />
 
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "rgba(255,255,255,0.4)", margin: "0 0 12px", cursor: "pointer", textAlign: "left" }}>
+            <input
+              type="checkbox"
+              checked={consentChecked}
+              onChange={(e) => setConsentChecked(e.target.checked)}
+              style={{ marginTop: 2, accentColor: "#fbbf24", flexShrink: 0 }}
+            />
+            <span>I agree to the <a href="/terms" target="_blank" style={{ color: "rgba(255,255,255,0.6)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" style={{ color: "rgba(255,255,255,0.6)", textDecoration: "underline" }}>privacy policy</a></span>
+          </label>
+
           {/* Email form */}
           <form
             onSubmit={handleNewsletterSubmit}
@@ -1375,6 +1402,15 @@ export function LandingPage() {
                   style={inputStyle}
                 />
               </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "rgba(255,255,255,0.45)", cursor: "pointer", marginTop: 2 }}>
+                <input
+                  type="checkbox"
+                  checked={authConsent}
+                  onChange={(e) => setAuthConsent(e.target.checked)}
+                  style={{ accentColor: "#fbbf24", flexShrink: 0, width: 15, height: 15 }}
+                />
+                <span>I agree to the <a href="/terms" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}>privacy policy</a></span>
+              </label>
               <button
                 type="submit"
                 disabled={signingIn}

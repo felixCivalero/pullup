@@ -18,7 +18,7 @@ export function TermsPage() {
       <div style={s.wrap}>
         <a href="/" style={s.back}>&larr; Back to PullUp</a>
         <h1 style={s.h1}>Terms of Service</h1>
-        <p style={s.updated}>Last updated: March 10, 2026</p>
+        <p style={s.updated}>Last updated: March 11, 2026</p>
 
         <p style={s.p}>
           These terms govern your use of the PullUp platform at pullup.se. By creating an account or using the platform, you agree to these terms.
@@ -62,12 +62,18 @@ export function TermsPage() {
           Event hosts are responsible for their own refund policies. PullUp provides tools for hosts to issue full or partial refunds. If a host fails to fulfill an event, guests may contact us at hello@pullup.se for assistance.
         </p>
 
-        <h2 style={s.h2}>7. Email communications</h2>
+        <h2 style={s.h2}>7. Email communications and consent</h2>
         <p style={s.p}>
-          By using PullUp, you agree to receive transactional emails related to your account and events (confirmations, reminders, updates). Newsletter communications are optional and require separate consent.
+          By using PullUp, you agree to receive transactional emails related to your account and events (RSVP confirmations, payment receipts, event reminders). These are necessary for the service to function.
         </p>
         <p style={s.p}>
-          As a host, when you send emails through PullUp's email tools, you must comply with anti-spam laws. You may only email guests who have a legitimate relationship with your events.
+          Marketing emails (newsletters, event recommendations, culture updates) are only sent with your explicit consent. When you subscribe to our newsletter or check "Keep me updated about future events" on an RSVP form, you consent to receiving marketing emails from PullUp. You can withdraw this consent at any time via the unsubscribe link in any email.
+        </p>
+        <p style={s.p}>
+          We track email opens and link clicks to improve our communications. Details about email tracking are described in our <a href="/privacy" style={{ color: "rgba(255,255,255,0.85)" }}>privacy policy</a>.
+        </p>
+        <p style={s.p}>
+          As a host, when you send emails through PullUp's email tools, you must comply with anti-spam laws (GDPR, CAN-SPAM). You may only email guests who have a legitimate relationship with your events or who have given consent to receive communications.
         </p>
 
         <h2 style={s.h2}>8. Free platform</h2>

@@ -84,6 +84,9 @@ function ProtectedLayoutInner() {
       }).catch(() => {
         // Fire-and-forget; linking failure shouldn't block the app
       });
+      authenticatedFetch("/auth/record-consent", {
+        method: "POST",
+      }).catch(() => {});
     }
   }, [loading, user]);
 

@@ -2408,6 +2408,8 @@ function mapRsvpToDb(rsvpData) {
   if (rsvpData.pulledUp !== undefined) dbData.pulled_up = rsvpData.pulledUp;
   if (rsvpData.pulledUpCount !== undefined)
     dbData.pulled_up_count = rsvpData.pulledUpCount;
+  if (rsvpData.marketingOptIn !== undefined)
+    dbData.marketing_opt_in = rsvpData.marketingOptIn;
   if (rsvpData.pulledUpForDinner !== undefined)
     // Backward-compat boolean flag: true when any dinner guests are pulled up
     dbData.pulled_up_for_dinner = !!rsvpData.pulledUpForDinner;
@@ -2490,6 +2492,7 @@ export async function addRsvp({
   wantsDinner = false,
   dinnerTimeSlot = null,
   dinnerPartySize = null,
+  marketingOptIn = false,
 }) {
   const event = await findEventBySlug(slug);
   if (!event) return { error: "not_found" };
@@ -2740,6 +2743,7 @@ export async function addRsvp({
     pulledUpCount: null,
     pulledUpForDinner: null,
     pulledUpForCocktails: null,
+    marketingOptIn: marketingOptIn || false,
   };
 
   const dbRsvpData = mapRsvpToDb(rsvpData);

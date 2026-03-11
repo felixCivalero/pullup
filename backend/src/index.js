@@ -1352,6 +1352,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       waitlistRsvpId = null, // NEW: RSVP ID for waitlist upgrade
       waitlistToken = null, // NEW: JWT token for waitlist upgrade
       vipToken = null, // NEW: JWT token for VIP invite
+      marketingOptIn = false, // NEW: opt-in to newsletter from RSVP form
     } = req.body;
 
     if (!email && !vipToken) {
@@ -1526,6 +1527,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           wantsDinner: existingWaitlistRsvp.wantsDinner || false,
           dinnerTimeSlot: existingWaitlistRsvp.dinnerTimeSlot || null,
           dinnerPartySize: existingWaitlistRsvp.dinnerPartySize || null,
+          marketingOptIn: marketingOptIn || false,
         }
       : {
           slug,
@@ -1535,6 +1537,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           wantsDinner,
           dinnerTimeSlot,
           dinnerPartySize,
+          marketingOptIn: marketingOptIn || false,
         };
 
     const result = await addRsvp(rsvpData);
@@ -2161,6 +2164,36 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         rsvpId: result.rsvp.id,
       });
       // Don’t block the RSVP on email failure
+    }
+
+    // If user opted in to marketing, upsert into newsletter_subscriptions
+    if (marketingOptIn === true && result.rsvp?.email) {
+      try {
+        const { supabase } = await import("./supabase.js");
+        const rsvpEmail = result.rsvp.email.trim().toLowerCase();
+        const rsvpNow = new Date().toISOString();
+        const unsubToken = generateUnsubscribeToken();
+
+        await supabase
+          .from("newsletter_subscriptions")
+          .upsert(
+            {
+              email: rsvpEmail,
+              status: "confirmed",
+              source: "rsvp_opt_in",
+              confirmed_at: rsvpNow,
+              created_at: rsvpNow,
+              updated_at: rsvpNow,
+              unsubscribe_token: unsubToken,
+              consent_given: true,
+              consent_at: rsvpNow,
+            },
+            { onConflict: "email" }
+          );
+      } catch (nlErr) {
+        console.error("[rsvp] Failed to upsert newsletter subscription:", nlErr);
+        // Don't block the RSVP on newsletter failure
+      }
     }
 
     // Return detailed RSVP information including status details
@@ -5851,6 +5884,7 @@ app.post("/newsletter", optionalAuth, async (req, res) => {
     const rawEmail = req.body?.email;
     const source = req.body?.source || "landing_newsletter";
     const interests = Array.isArray(req.body?.interests) ? req.body.interests.filter(i => typeof i === "string") : [];
+    const consent = req.body?.consent;
 
     if (!rawEmail || typeof rawEmail !== "string") {
       return res.status(400).json({
@@ -5941,6 +5975,8 @@ app.post("/newsletter", optionalAuth, async (req, res) => {
           updated_at: now,
           unsubscribe_token: unsubscribeToken,
           ...(interests.length > 0 ? { interests } : {}),
+          consent_given: consent === true,
+          consent_at: consent === true ? now : null,
         });
 
       if (insertError) {
@@ -5964,6 +6000,8 @@ app.post("/newsletter", optionalAuth, async (req, res) => {
       user_id: userId,
       updated_at: now,
       ...(interests.length > 0 ? { interests } : {}),
+      consent_given: consent === true,
+      consent_at: consent === true ? now : null,
     };
 
     if (existing.status === "unsubscribed") {
@@ -6104,6 +6142,52 @@ app.post("/newsletter/unsubscribe-token", async (req, res) => {
       code: "newsletter_error",
       message: "Failed to update subscription.",
     });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Record auth consent (sign-up / sign-in)
+// ---------------------------
+
+app.post("/auth/record-consent", requireAuth, async (req, res) => {
+  try {
+    const rawEmail = req.user?.email;
+    if (!rawEmail) return res.json({ ok: false });
+
+    const email = String(rawEmail).trim().toLowerCase();
+    if (!email) return res.json({ ok: false });
+
+    const { supabase } = await import("./supabase.js");
+    const now = new Date().toISOString();
+
+    // Upsert into newsletter_subscriptions
+    await supabase
+      .from("newsletter_subscriptions")
+      .upsert(
+        {
+          email,
+          user_id: req.user.id,
+          consent_given: true,
+          consent_at: now,
+          source: "account_signup",
+          updated_at: now,
+        },
+        { onConflict: "email" }
+      );
+
+    // Update people table if record exists
+    await supabase
+      .from("people")
+      .update({
+        marketing_consent: true,
+        marketing_consent_at: now,
+      })
+      .eq("email", email);
+
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[consent] Unexpected record-consent error:", error);
+    return res.status(500).json({ ok: false, code: "consent_error" });
   }
 });
 

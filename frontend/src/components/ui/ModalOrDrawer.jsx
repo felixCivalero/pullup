@@ -70,6 +70,8 @@ export function ModalOrDrawer({ isOpen, onClose, children, title }) {
             paddingTop: "32px",
           }}
           onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
         >
           {/* Handle */}
           <div
@@ -167,6 +169,8 @@ export function ModalOrDrawer({ isOpen, onClose, children, title }) {
           padding: "32px",
         }}
         onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}

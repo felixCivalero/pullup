@@ -307,6 +307,7 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                     <option value="admin">Admin</option>
                     <option value="editor">Editor</option>
                     <option value="reception">Reception</option>
+                    <option value="analytics">Analytics</option>
                     <option value="viewer">Viewer</option>
                   </select>
                 ) : (
@@ -524,6 +525,7 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                 <option value="admin">Admin</option>
                 <option value="editor">Editor</option>
                 <option value="reception">Reception</option>
+                <option value="analytics">Analytics</option>
                 <option value="viewer">Viewer</option>
               </select>
             </div>
@@ -559,6 +561,8 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                   return "Editor: Can edit event details and assist with managing the event, but cannot add or remove other hosts.";
                 case "reception":
                   return "Reception: Can help greet/check in guests and manage attendee information but cannot edit event details or hosts.";
+                case "analytics":
+                  return "Analytics: Can view event analytics and export reports. Cannot see guest lists, edit events, or manage hosts.";
                 case "viewer":
                   return "Viewer: Can see event details and the guest list but cannot make changes.";
                 default:

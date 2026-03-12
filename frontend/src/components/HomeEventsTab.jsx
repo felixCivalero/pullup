@@ -516,7 +516,7 @@ export function EventsTab({
               event={ev}
               index={index}
               onPreview={`/e/${ev.slug}`}
-              onManage={() => navigate(`/app/events/${ev.id}/manage`)}
+              onManage={() => navigate(ev.myRole === "analytics" ? `/app/events/${ev.id}/analytics` : `/app/events/${ev.id}/manage`)}
             />
           ))}
 

@@ -203,7 +203,7 @@ export function DashboardEventCard({ event, onPreview, onManage, index = 0 }) {
                     <div
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/app/events/${event.id}/guests`);
+                        navigate(event.myRole === "analytics" ? `/app/events/${event.id}/analytics` : `/app/events/${event.id}/guests`);
                       }}
                       style={{
                         textAlign: "center", cursor: "pointer",
@@ -252,9 +252,11 @@ export function DashboardEventCard({ event, onPreview, onManage, index = 0 }) {
                   e.target.style.boxShadow = "none";
                 }}
               >
-                Manage
+                {event.myRole === "analytics" ? "Analytics" : "Manage"}
               </button>
 
+              {event.myRole !== "analytics" && (
+              <>
               {/* Subtle separator */}
               <div style={{ width: "1px", height: "16px", background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
 
@@ -292,6 +294,8 @@ export function DashboardEventCard({ event, onPreview, onManage, index = 0 }) {
                   <span>{btn.label}</span>
                 </button>
               ))}
+              </>
+              )}
             </div>
 
             {/* Empty state nudge - only for upcoming events with no traction */}

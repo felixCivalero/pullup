@@ -292,6 +292,7 @@ export const HOST_ROLES = Object.freeze({
   ADMIN: "admin",
   EDITOR: "editor",
   RECEPTION: "reception",
+  ANALYTICS: "analytics",
   VIEWER: "viewer",
 });
 const MANAGER_ROLES = [HOST_ROLES.OWNER, HOST_ROLES.ADMIN];

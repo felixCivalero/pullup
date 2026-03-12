@@ -216,7 +216,14 @@ export function EventGuestsPage() {
           title: data.event?.title,
           slug: data.event?.slug,
           guestsCount: data.guests?.length || 0,
+          myRole: data.event?.myRole,
         });
+
+        // Redirect analytics-only users to the analytics page
+        if (data.event?.myRole === "analytics") {
+          navigate(`/app/events/${id}/analytics`, { replace: true });
+          return;
+        }
 
         // Load dinner slots if dinner is enabled
         if (data.event?.dinnerEnabled) {
@@ -282,6 +289,7 @@ export function EventGuestsPage() {
         title: event.title,
         slug: event.slug,
         guestsCount: guests.length,
+        myRole: event.myRole,
       });
     }
   }, [guests.length, event, setEventNav]);

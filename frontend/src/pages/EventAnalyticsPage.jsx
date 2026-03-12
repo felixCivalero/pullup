@@ -98,7 +98,7 @@ export function EventAnalyticsPage() {
       if (eventRes.ok) {
         const eventData = await eventRes.json();
         setEvent(eventData);
-        setEventNav({ title: eventData.title, slug: eventData.slug });
+        setEventNav({ title: eventData.title, slug: eventData.slug, myRole: eventData.myRole });
       }
       if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
     } catch {}

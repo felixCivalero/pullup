@@ -2492,6 +2492,7 @@ app.post("/host/events/:id/hosts", requireAuth, async (req, res) => {
       HOST_ROLES.ADMIN,
       HOST_ROLES.EDITOR,
       HOST_ROLES.RECEPTION,
+      HOST_ROLES.ANALYTICS,
       HOST_ROLES.VIEWER,
     ];
     const roleToInsert =
@@ -2758,12 +2759,13 @@ app.patch(
         HOST_ROLES.ADMIN,
         HOST_ROLES.EDITOR,
         HOST_ROLES.RECEPTION,
+        HOST_ROLES.ANALYTICS,
         HOST_ROLES.VIEWER,
       ];
       if (!role || !allowedRoles.includes(role)) {
         return res.status(400).json({
           error: "Invalid role",
-          message: "Role must be one of: admin, editor, reception, viewer",
+          message: "Role must be one of: admin, editor, reception, analytics, viewer",
         });
       }
 
@@ -3844,9 +3846,15 @@ app.get("/host/events/:id/guests", requireAuth, async (req, res) => {
       });
     }
 
-    const guests = await getRsvpsForEvent(event.id);
-
     const myRole = await getEventHostRole(req.user.id, event.id);
+    if (myRole === "analytics" || myRole === "viewer") {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Your role does not have access to guest data",
+      });
+    }
+
+    const guests = await getRsvpsForEvent(event.id);
     res.json({ event: { ...event, myRole }, guests });
   } catch (error) {
     console.error("Error fetching guests:", error);
@@ -3868,6 +3876,14 @@ app.get("/host/events/:id/guests/export", requireAuth, async (req, res) => {
       return res.status(403).json({
         error: "Forbidden",
         message: "You don't have access to this event",
+      });
+    }
+
+    const myRole = await getEventHostRole(req.user.id, event.id);
+    if (myRole === "analytics" || myRole === "viewer") {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Your role does not have access to guest data",
       });
     }
 

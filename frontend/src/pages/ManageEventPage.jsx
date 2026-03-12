@@ -1235,7 +1235,14 @@ export function ManageEventPage() {
               title: data.title,
               slug: data.slug,
               guestsCount: guestsData.guests?.length || 0,
+              myRole: data.myRole,
             });
+
+            // Redirect analytics-only users to the analytics page
+            if (data.myRole === "analytics") {
+              navigate(`/app/events/${id}/analytics`, { replace: true });
+              return;
+            }
 
             // Load dinner slots if dinner is enabled
             if (data.dinnerEnabled && data.slug) {

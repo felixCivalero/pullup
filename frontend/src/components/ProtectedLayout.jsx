@@ -132,18 +132,23 @@ function ProtectedLayoutInner() {
     { label: "Sales", path: "/admin/sales" },
   ];
 
-  // Event tab items
+  // Event tab items — analytics-only users see just the Analytics tab
+  const isAnalyticsOnly = eventNav?.myRole === "analytics";
   const eventTabItems = eventId
-    ? [
-        { label: "Overview", path: `/app/events/${eventId}/manage`, tab: "manage" },
-        {
-          label: `Guests${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
-          path: `/app/events/${eventId}/guests`,
-          tab: "guests",
-        },
-        { label: "Analytics", path: `/app/events/${eventId}/analytics`, tab: "analytics" },
-        { label: "Edit", path: `/app/events/${eventId}/edit`, tab: "edit" },
-      ]
+    ? isAnalyticsOnly
+      ? [
+          { label: "Analytics", path: `/app/events/${eventId}/analytics`, tab: "analytics" },
+        ]
+      : [
+          { label: "Overview", path: `/app/events/${eventId}/manage`, tab: "manage" },
+          {
+            label: `Guests${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
+            path: `/app/events/${eventId}/guests`,
+            tab: "guests",
+          },
+          { label: "Analytics", path: `/app/events/${eventId}/analytics`, tab: "analytics" },
+          { label: "Edit", path: `/app/events/${eventId}/edit`, tab: "edit" },
+        ]
     : [];
 
   function isActive(path) {

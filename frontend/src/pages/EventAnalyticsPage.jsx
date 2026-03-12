@@ -1,9 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { colors } from "../theme/colors.js";
+import { Download, Smartphone, Monitor, HelpCircle, Crown, Users, Mail } from "lucide-react";
+import { generateEventReport } from "../lib/reportGenerator.js";
+import { DateRangePicker } from "../components/DateRangePicker.jsx";
+
+const SOURCE_COLORS = {
+  direct: "rgba(255,255,255,0.35)",
+  instagram: "rgba(225,48,108,0.75)",
+  facebook: "rgba(66,103,178,0.75)",
+  twitter: "rgba(29,155,240,0.75)",
+  linkedin: "rgba(10,102,194,0.75)",
+  tiktok: "rgba(0,0,0,0.7)",
+  pullup: "rgba(192,192,192,0.6)",
+  pullup_newsletter: "rgba(251,191,36,0.7)",
+  other: "rgba(168,85,247,0.5)",
+};
+
+function getSourceColor(name) {
+  return SOURCE_COLORS[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.6)`;
+}
 
 export function EventAnalyticsPage() {
   const { id } = useParams();
@@ -15,33 +34,78 @@ export function EventAnalyticsPage() {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Date range state (default last 30 days)
+  const [dateStart, setDateStart] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 29); d.setHours(0, 0, 0, 0); return d;
+  });
+  const [dateEnd, setDateEnd] = useState(() => {
+    const d = new Date(); d.setHours(23, 59, 59, 999); return d;
+  });
+
+  const analyticsQuickRanges = [
+    { label: "Last 7 days", getRange: () => {
+      const end = new Date(); end.setHours(23, 59, 59, 999);
+      const start = new Date(); start.setDate(start.getDate() - 6); start.setHours(0, 0, 0, 0);
+      return [start, end];
+    }},
+    { label: "Last 14 days", getRange: () => {
+      const end = new Date(); end.setHours(23, 59, 59, 999);
+      const start = new Date(); start.setDate(start.getDate() - 13); start.setHours(0, 0, 0, 0);
+      return [start, end];
+    }},
+    { label: "Last 30 days", getRange: () => {
+      const end = new Date(); end.setHours(23, 59, 59, 999);
+      const start = new Date(); start.setDate(start.getDate() - 29); start.setHours(0, 0, 0, 0);
+      return [start, end];
+    }},
+    { label: "Last 90 days", getRange: () => {
+      const end = new Date(); end.setHours(23, 59, 59, 999);
+      const start = new Date(); start.setDate(start.getDate() - 89); start.setHours(0, 0, 0, 0);
+      return [start, end];
+    }},
+    { label: "This month", getRange: () => {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(); end.setHours(23, 59, 59, 999);
+      return [start, end];
+    }},
+    { label: "Last month", getRange: () => {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0); end.setHours(23, 59, 59, 999);
+      return [start, end];
+    }},
+  ];
+
+  const days = Math.round((dateEnd - dateStart) / 86400000) + 1;
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/");
   }, [authLoading, user, navigate]);
 
-  useEffect(() => {
+  const loadAnalytics = useCallback(async () => {
     if (!user || !id) return;
-    async function load() {
-      setLoading(true);
-      try {
-        const [eventRes, analyticsRes] = await Promise.all([
-          authenticatedFetch(`/host/events/${id}`),
-          authenticatedFetch(`/host/events/${id}/analytics`),
-        ]);
-        if (eventRes.ok) {
-          const eventData = await eventRes.json();
-          setEvent(eventData);
-          setEventNav({
-            title: eventData.title,
-            slug: eventData.slug,
-          });
-        }
-        if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
-      } catch {}
-      setLoading(false);
-    }
-    load();
-  }, [user, id]);
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        startDate: dateStart.toISOString(),
+        endDate: dateEnd.toISOString(),
+      });
+      const [eventRes, analyticsRes] = await Promise.all([
+        authenticatedFetch(`/host/events/${id}`),
+        authenticatedFetch(`/host/events/${id}/analytics?${params}`),
+      ]);
+      if (eventRes.ok) {
+        const eventData = await eventRes.json();
+        setEvent(eventData);
+        setEventNav({ title: eventData.title, slug: eventData.slug });
+      }
+      if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
+    } catch {}
+    setLoading(false);
+  }, [user, id, dateStart, dateEnd]);
+
+  useEffect(() => { loadAnalytics(); }, [loadAnalytics]);
 
   if (authLoading || loading) {
     return (
@@ -61,21 +125,14 @@ export function EventAnalyticsPage() {
 
   const data = analytics || {
     total_views: 0, unique_visitors: 0, sources: [],
-    daily_views: {}, newsletter_views: 0, newsletter_campaigns: [],
-    vip_stats: null, vip_views: 0,
-    rsvp_count: 0, conversion_rate: 0,
+    daily: [], device_split: null, vipInvites: [], hosts: [],
+    vip_stats: null, vip_views: 0, campaigns: [],
+    rsvp_count: 0, conversion_rate: 0, period: null,
   };
 
-  // Build daily views chart data (last 30 days)
-  const days = [];
-  const today = new Date();
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
-    days.push({ date: key, views: data.daily_views[key] || 0 });
-  }
-  const maxViews = Math.max(...days.map((d) => d.views), 1);
+  const daily = data.daily || [];
+  const sources = data.sources || [];
+  const allSources = [...new Set(sources.map(s => s.source))];
 
   return (
     <div
@@ -83,37 +140,81 @@ export function EventAnalyticsPage() {
       style={{
         minHeight: "100vh",
         background: colors.background,
-        padding: "0 clamp(12px, 3vw, 24px) 60px",
+        paddingLeft: "clamp(12px, 3vw, 24px)",
+        paddingRight: "clamp(12px, 3vw, 24px)",
+        paddingBottom: 60,
         boxSizing: "border-box",
       }}
     >
       <div style={{ maxWidth: 640, margin: "0 auto" }}>
         {/* Header */}
         <div style={{ marginBottom: "clamp(16px, 3vw, 24px)" }}>
-          <h1 style={{ margin: 0, fontSize: "clamp(18px, 4vw, 24px)", fontWeight: 700, color: colors.text }}>
-            Analytics
-          </h1>
-          <p style={{
-            margin: "2px 0 0", fontSize: "13px", color: colors.textSubtle,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            {event.title}
-          </p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <h1 style={{ margin: 0, fontSize: "clamp(18px, 4vw, 24px)", fontWeight: 700, color: colors.text }}>
+              Analytics
+            </h1>
+            <DateRangePicker
+              startDate={dateStart}
+              endDate={dateEnd}
+              allowPast
+              blockFuture
+              quickRanges={analyticsQuickRanges}
+              onChange={(s, e) => { setDateStart(s); setDateEnd(e); }}
+              onClear={() => {
+                const end = new Date(); end.setHours(23, 59, 59, 999);
+                const start = new Date(); start.setDate(start.getDate() - 29); start.setHours(0, 0, 0, 0);
+                setDateStart(start);
+                setDateEnd(end);
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+            <p style={{
+              margin: 0, fontSize: "13px", color: colors.textSubtle,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: 8,
+            }}>
+              {event.title}
+            </p>
+            {data.total_views > 0 && (
+              <button
+                onClick={() => generateEventReport({
+                  event,
+                  data,
+                  days,
+                  startDate: dateStart,
+                  endDate: dateEnd,
+                })}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 14px", borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "#fff", fontSize: "12px", fontWeight: 500,
+                  cursor: "pointer", flexShrink: 0,
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+              >
+                <Download size={13} />
+                Export Report
+              </button>
+            )}
+          </div>
         </div>
 
         {data.total_views === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 0" }}>
-            <div style={{ fontSize: "32px", marginBottom: 12 }}>📊</div>
             <div style={{ fontSize: "14px", color: colors.textSubtle }}>
-              No page views yet. Analytics will appear once people visit your event page.
+              No page views in this period. Analytics will appear once people visit your event page.
             </div>
           </div>
         ) : (
           <>
             {/* Key metrics */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 24 }}>
-              <MetricCard label="Total Views" value={data.total_views} />
-              <MetricCard label="Unique Visitors" value={data.unique_visitors} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
+              <MetricCard label="Total Views" value={data.total_views} change={data.period?.viewsChange} />
+              <MetricCard label="Unique Visitors" value={data.unique_visitors} change={data.period?.uniqueChange} />
               <MetricCard label="RSVPs" value={data.rsvp_count} />
               <MetricCard
                 label="Conversion"
@@ -122,173 +223,147 @@ export function EventAnalyticsPage() {
               />
             </div>
 
-            {/* Conversion funnel */}
-            <SectionLabel>Funnel</SectionLabel>
-            <div style={{
-              padding: "16px",
-              borderRadius: "14px",
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              marginBottom: 24,
-            }}>
-              <FunnelBar label="Page views" value={data.total_views} max={data.total_views} color="rgba(59,130,246,0.7)" />
-              <FunnelBar label="RSVPs" value={data.rsvp_count} max={data.total_views} color={colors.success} />
-            </div>
+            {/* Device split */}
+            {data.device_split && (data.device_split.mobile + data.device_split.desktop + data.device_split.unknown) > 0 && (
+              <DeviceSplitDonut split={data.device_split} />
+            )}
 
-            {/* Views chart (last 30 days) */}
-            <SectionLabel>Views — Last 30 days</SectionLabel>
-            <div style={{
-              padding: "16px",
-              borderRadius: "14px",
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              marginBottom: 24,
-            }}>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 80 }}>
-                {days.map((d) => (
-                  <div
-                    key={d.date}
-                    title={`${d.date}: ${d.views} views`}
-                    style={{
-                      flex: 1,
-                      background: d.views > 0
-                        ? "linear-gradient(to top, rgba(59,130,246,0.3), rgba(59,130,246,0.7))"
-                        : "rgba(255,255,255,0.03)",
-                      borderRadius: "3px 3px 0 0",
-                      height: `${Math.max((d.views / maxViews) * 100, d.views > 0 ? 8 : 2)}%`,
-                      minHeight: 2,
-                      transition: "height 0.3s ease",
-                    }}
-                  />
-                ))}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)" }}>
-                  {formatShortDate(days[0].date)}
-                </span>
-                <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)" }}>
-                  Today
-                </span>
-              </div>
-            </div>
+            {/* Daily chart with source breakdown + RSVPs + VIP dots */}
+            {daily.length > 0 && <DailyChart daily={daily} allSources={allSources} />}
 
             {/* Traffic sources */}
-            {data.sources.length > 0 && (
-              <>
+            {sources.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
                 <SectionLabel>Traffic Sources</SectionLabel>
                 <div style={{
-                  borderRadius: "14px",
+                  borderRadius: 14,
                   background: "rgba(255,255,255,0.02)",
                   border: "1px solid rgba(255,255,255,0.06)",
                   overflow: "hidden",
-                  marginBottom: 24,
                 }}>
-                  {data.sources.map((s, i) => (
-                    <div
-                      key={s.source}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        padding: "12px 16px",
-                        borderBottom: i < data.sources.length - 1
-                          ? "1px solid rgba(255,255,255,0.04)"
-                          : "none",
-                      }}
-                    >
-                      <SourceIcon source={s.source} />
-                      <div style={{ flex: 1, fontSize: "13px", color: "#fff", textTransform: "capitalize" }}>
-                        {s.source}
-                      </div>
+                  {sources.map((s, i) => (
+                    <div key={s.source} style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 14px",
+                      borderBottom: i < sources.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                    }}>
+                      <div style={{ width: 6, height: 6, borderRadius: 2, background: getSourceColor(s.source), flexShrink: 0 }} />
+                      <div style={{ flex: 1, fontSize: "13px", color: "#fff", textTransform: "capitalize" }}>{s.source}</div>
                       <div style={{ width: 80, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)" }}>
-                        <div style={{
-                          height: "100%", borderRadius: 2,
-                          background: s.source === "pullup_newsletter"
-                            ? colors.gold
-                            : "rgba(192,192,192,0.5)",
-                          width: `${s.percentage}%`,
-                        }} />
+                        <div style={{ height: "100%", borderRadius: 2, background: getSourceColor(s.source), width: `${s.percentage}%` }} />
                       </div>
-                      <div style={{ fontSize: "13px", fontWeight: 600, color: "#fff", minWidth: 28, textAlign: "right" }}>
-                        {s.count}
-                      </div>
-                      <div style={{ fontSize: "11px", color: colors.textFaded, minWidth: 36, textAlign: "right" }}>
-                        {s.percentage}%
-                      </div>
+                      <div style={{ fontSize: "13px", fontWeight: 600, color: "#fff", minWidth: 28, textAlign: "right" }}>{s.count}</div>
+                      <div style={{ fontSize: "11px", color: colors.textFaded, minWidth: 36, textAlign: "right" }}>{s.percentage}%</div>
                     </div>
                   ))}
                 </div>
-              </>
+              </div>
             )}
 
-            {/* Newsletter impact */}
-            {data.newsletter_views > 0 && (
-              <>
-                <SectionLabel>Newsletter Impact</SectionLabel>
-                <div style={{
-                  padding: "16px",
-                  borderRadius: "14px",
-                  background: `linear-gradient(135deg, rgba(251,191,36,0.04), rgba(251,191,36,0.01))`,
-                  border: `1px solid rgba(251,191,36,0.15)`,
-                  marginBottom: 24,
-                }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: "24px", fontWeight: 700, color: colors.gold }}>
-                      {data.newsletter_views}
-                    </span>
-                    <span style={{ fontSize: "13px", color: colors.textSubtle }}>
-                      views from newsletters
-                    </span>
-                  </div>
-                  {data.newsletter_campaigns.length > 0 && (
-                    <div style={{ fontSize: "11px", color: colors.textFaded }}>
-                      Featured in: {data.newsletter_campaigns.map((c) =>
-                        c.replace(/_/g, " ").replace(/\bw(\d+)/, "W$1")
-                      ).join(", ")}
-                    </div>
-                  )}
+            {/* Campaigns section */}
+            <div style={{ marginBottom: 20 }}>
+              <SectionLabel>Campaigns</SectionLabel>
+              {(data.campaigns || []).length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {data.campaigns.map(c => <CampaignCard key={c.tag} campaign={c} />)}
                 </div>
-              </>
-            )}
+              ) : (
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", margin: 0 }}>No campaigns sent in this period</p>
+              )}
+            </div>
 
-            {/* VIP Invites impact */}
+            {/* VIP Invites */}
             {data.vip_stats && data.vip_stats.totalSent > 0 && (
-              <>
+              <div style={{ marginBottom: 20 }}>
                 <SectionLabel>VIP Invites</SectionLabel>
                 <div style={{
-                  padding: "16px",
-                  borderRadius: "14px",
-                  background: `linear-gradient(135deg, rgba(251,191,36,0.06), rgba(251,191,36,0.02))`,
-                  border: `1px solid rgba(251,191,36,0.15)`,
-                  marginBottom: 24,
+                  padding: 14, borderRadius: 14,
+                  background: "linear-gradient(135deg, rgba(251,191,36,0.06), rgba(251,191,36,0.02))",
+                  border: "1px solid rgba(251,191,36,0.15)",
                 }}>
-                  <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", marginBottom: data.vip_views > 0 ? 10 : 0 }}>
-                    <div>
-                      <div style={{ fontSize: "22px", fontWeight: 700, color: colors.gold }}>
-                        {data.vip_stats.totalSent}
-                      </div>
-                      <div style={{ fontSize: "11px", color: colors.textFaded }}>sent</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "22px", fontWeight: 700, color: "#fff" }}>
-                        {data.vip_stats.openRate}%
-                      </div>
-                      <div style={{ fontSize: "11px", color: colors.textFaded }}>open rate</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "22px", fontWeight: 700, color: "#fff" }}>
-                        {data.vip_stats.clickRate}%
-                      </div>
-                      <div style={{ fontSize: "11px", color: colors.textFaded }}>click rate</div>
-                    </div>
+                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: (data.vipInvites || []).length > 0 ? 12 : 0 }}>
+                    <MiniStat label="Sent" value={data.vip_stats.totalSent} color={colors.gold} />
+                    <MiniStat label="Open Rate" value={`${data.vip_stats.openRate}%`} />
+                    <MiniStat label="Click Rate" value={`${data.vip_stats.clickRate}%`} />
+                    {data.vip_views > 0 && <MiniStat label="Page Views" value={data.vip_views} />}
                   </div>
-                  {data.vip_views > 0 && (
-                    <div style={{ fontSize: "12px", color: colors.textSubtle }}>
-                      {data.vip_views} page view{data.vip_views !== 1 ? "s" : ""} from VIP links
+                  {(data.vipInvites || []).length > 0 && (
+                    <div style={{ borderRadius: 8, background: "rgba(0,0,0,0.15)", border: "1px solid rgba(251,191,36,0.08)", overflow: "hidden" }}>
+                      {data.vipInvites.slice(0, 10).map((inv, i) => (
+                        <div key={i} style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "8px 10px",
+                          borderBottom: i < Math.min(data.vipInvites.length, 10) - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                          fontSize: "12px",
+                        }}>
+                          <Crown size={11} style={{ color: colors.gold, flexShrink: 0 }} />
+                          <div style={{ flex: 1, color: "rgba(255,255,255,0.6)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {inv.email}
+                          </div>
+                          <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.25)", flexShrink: 0 }}>+{inv.maxGuests}</span>
+                          {inv.freeEntry && (
+                            <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: 4, background: "rgba(74,222,128,0.15)", color: "rgba(74,222,128,0.7)" }}>FREE</span>
+                          )}
+                          <span style={{
+                            fontSize: "9px", padding: "1px 5px", borderRadius: 4,
+                            background: inv.redeemed ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
+                            color: inv.redeemed ? "rgba(59,130,246,0.7)" : "rgba(255,255,255,0.25)",
+                          }}>
+                            {inv.redeemed ? "Redeemed" : "Pending"}
+                          </span>
+                        </div>
+                      ))}
+                      {data.vipInvites.length > 10 && (
+                        <div style={{ padding: "6px 10px", fontSize: "10px", color: "rgba(255,255,255,0.2)", textAlign: "center" }}>
+                          + {data.vipInvites.length - 10} more
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              </>
+              </div>
+            )}
+
+            {/* Team / Hosts */}
+            {(data.hosts || []).length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <SectionLabel>Team ({data.hosts.length})</SectionLabel>
+                <div style={{
+                  borderRadius: 14,
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  overflow: "hidden",
+                }}>
+                  {data.hosts.map((h, i) => (
+                    <div key={i} style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "10px 14px",
+                      borderBottom: i < data.hosts.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                    }}>
+                      {h.role === "owner" && <Crown size={12} style={{ color: colors.gold, flexShrink: 0 }} />}
+                      {h.role !== "owner" && <Users size={12} style={{ color: "rgba(255,255,255,0.25)", flexShrink: 0 }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {h.name || h.email || "Unknown"}
+                        </div>
+                        {h.name && h.email && (
+                          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {h.email}
+                          </div>
+                        )}
+                      </div>
+                      <span style={{
+                        fontSize: "10px", padding: "2px 8px", borderRadius: 6, textTransform: "capitalize",
+                        background: h.role === "owner" ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.04)",
+                        color: h.role === "owner" ? "rgba(251,191,36,0.6)" : "rgba(255,255,255,0.3)",
+                        flexShrink: 0,
+                      }}>
+                        {h.role}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </>
         )}
@@ -297,16 +372,34 @@ export function EventAnalyticsPage() {
   );
 }
 
-function MetricCard({ label, value, color }) {
+// ─── Helper components ────────────────────────────────
+
+function MetricCard({ label, value, color, change }) {
   return (
     <div style={{
-      padding: "14px",
-      borderRadius: "12px",
+      padding: 14, borderRadius: 12,
       background: "rgba(255,255,255,0.02)",
       border: "1px solid rgba(255,255,255,0.06)",
     }}>
       <div style={{ fontSize: "11px", color: colors.textFaded, marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: "22px", fontWeight: 700, color: color || "#fff" }}>{value}</div>
+      {change !== undefined && change !== null && (
+        <div style={{
+          fontSize: "10px", fontWeight: 600, marginTop: 2,
+          color: change > 0 ? "#4ade80" : change < 0 ? "#f87171" : "rgba(255,255,255,0.3)",
+        }}>
+          {change > 0 ? "↑" : change < 0 ? "↓" : "→"} {Math.abs(change)}% vs prev
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MiniStat({ label, value, color }) {
+  return (
+    <div>
+      <div style={{ fontSize: "20px", fontWeight: 700, color: color || "#fff" }}>{value}</div>
+      <div style={{ fontSize: "10px", color: colors.textFaded }}>{label}</div>
     </div>
   );
 }
@@ -322,41 +415,286 @@ function SectionLabel({ children }) {
   );
 }
 
-function FunnelBar({ label, value, max, color }) {
-  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+function DeviceSplitDonut({ split }) {
+  const total = split.mobile + split.desktop + split.unknown;
+  if (total === 0) return null;
+
+  const segments = [
+    { key: "mobile", label: "Mobile", count: split.mobile, color: "rgba(59,130,246,0.7)", icon: Smartphone },
+    { key: "desktop", label: "Desktop", count: split.desktop, color: "rgba(139,92,246,0.7)", icon: Monitor },
+    { key: "unknown", label: "Unknown", count: split.unknown, color: "rgba(255,255,255,0.15)", icon: HelpCircle },
+  ].filter(s => s.count > 0);
+
+  const R = 32, STROKE = 8, CX = 40, CY = 40;
+  const circumference = 2 * Math.PI * R;
+  let offset = 0;
+
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.7)" }}>{label}</span>
-        <span style={{ fontSize: "12px", fontWeight: 600, color }}>{value} ({pct}%)</span>
-      </div>
-      <div style={{ height: 8, borderRadius: 4, background: "rgba(255,255,255,0.06)" }}>
-        <div style={{ height: "100%", borderRadius: 4, background: color, width: `${pct}%`, transition: "width 0.3s" }} />
+    <div style={{
+      padding: "14px 16px", borderRadius: 12,
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      marginBottom: 20, display: "flex", alignItems: "center", gap: 16,
+    }}>
+      <svg width={80} height={80} viewBox="0 0 80 80" style={{ flexShrink: 0 }}>
+        {segments.map(seg => {
+          const pct = seg.count / total;
+          const dash = pct * circumference;
+          const gap = circumference - dash;
+          const currentOffset = offset;
+          offset += dash;
+          return (
+            <circle key={seg.key} cx={CX} cy={CY} r={R} fill="none"
+              stroke={seg.color} strokeWidth={STROKE}
+              strokeDasharray={`${dash} ${gap}`} strokeDashoffset={-currentOffset}
+              strokeLinecap="round" transform={`rotate(-90 ${CX} ${CY})`}
+              style={{ transition: "all 0.3s ease" }}
+            />
+          );
+        })}
+        <text x={CX} y={CY - 4} textAnchor="middle" fill="#fff" fontSize="14" fontWeight="700">{total}</text>
+        <text x={CX} y={CY + 8} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="7">views</text>
+      </svg>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+        {segments.map(seg => {
+          const pct = Math.round((seg.count / total) * 1000) / 10;
+          const Icon = seg.icon;
+          return (
+            <div key={seg.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon size={12} style={{ color: seg.color, flexShrink: 0 }} />
+              <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)", minWidth: 56 }}>{seg.label}</span>
+              <div style={{ flex: 1, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.04)" }}>
+                <div style={{ height: "100%", borderRadius: 2, background: seg.color, width: `${pct}%` }} />
+              </div>
+              <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.5)", minWidth: 28, textAlign: "right" }}>{seg.count}</span>
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.25)", minWidth: 36, textAlign: "right" }}>{pct}%</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function SourceIcon({ source }) {
-  const icons = {
-    direct: "🔗",
-    pullup_newsletter: "✉️",
-    instagram: "📸",
-    tiktok: "🎵",
-    facebook: "👤",
-    twitter: "🐦",
-    linkedin: "💼",
-    pullup: "✨",
-    social: "📱",
-  };
+function DailyChart({ daily, allSources }) {
+  const [hoverDay, setHoverDay] = useState(null);
+  const maxDailyViews = Math.max(...daily.map(d => d.views), 1);
+  const maxDailyRsvps = Math.max(...daily.map(d => d.rsvps), 1);
+  const maxDailyVipRsvps = Math.max(...daily.map(d => d.vipRsvps || 0), 0);
+  const hasVipRsvps = maxDailyVipRsvps > 0;
+
+  const step = Math.max(1, Math.floor(daily.length / 7));
+  const xLabels = daily.map((_, i) => i).filter(i => i % step === 0 || i === daily.length - 1);
+
+  const W = 480, H = 120;
+  const PAD = { top: 6, right: 6, bottom: 18, left: 28 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+  const niceMax = Math.ceil(maxDailyViews / (maxDailyViews > 20 ? 10 : maxDailyViews > 5 ? 5 : 1)) * (maxDailyViews > 20 ? 10 : maxDailyViews > 5 ? 5 : 1) || 1;
+  const rsvpScale = maxDailyRsvps > 0 ? chartH / maxDailyRsvps : 0;
+  const barWidth = Math.max(2, (chartW / daily.length) * 0.7);
+
+  const rsvpPoints = daily.map((d, i) => {
+    const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
+    const y = PAD.top + chartH - (d.rsvps * rsvpScale);
+    return `${i === 0 ? "M" : "L"}${x},${y}`;
+  }).join(" ");
+
   return (
-    <span style={{ fontSize: "14px", width: 20, textAlign: "center" }}>
-      {icons[source] || "🌐"}
-    </span>
+    <div style={{ marginBottom: 20 }}>
+      <SectionLabel>Daily Views by Source & RSVPs</SectionLabel>
+      <div style={{
+        borderRadius: 14, background: "rgba(255,255,255,0.02)",
+        border: "1px solid rgba(255,255,255,0.06)",
+        padding: "10px 8px 6px", position: "relative",
+      }}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}
+          onMouseLeave={() => setHoverDay(null)}
+        >
+          {[0, 0.5, 1].map(f => {
+            const y = PAD.top + chartH - f * chartH;
+            const val = Math.round(f * niceMax);
+            return (
+              <g key={f}>
+                <line x1={PAD.left} y1={y} x2={PAD.left + chartW} y2={y}
+                  stroke="rgba(255,255,255,0.04)" strokeDasharray="3,3" />
+                <text x={PAD.left - 4} y={y + 3} textAnchor="end" fill="rgba(255,255,255,0.2)" fontSize="8">{val}</text>
+              </g>
+            );
+          })}
+
+          {daily.map((d, i) => {
+            const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW - barWidth / 2;
+            let yOffset = 0;
+            const bySource = d.bySource || {};
+            const segments = [];
+            for (let si = allSources.length - 1; si >= 0; si--) {
+              const src = allSources[si];
+              const val = bySource[src] || 0;
+              if (val === 0) continue;
+              const segH = (val / niceMax) * chartH;
+              const y = PAD.top + chartH - yOffset - segH;
+              segments.push(
+                <rect key={`${i}-${src}`} x={x} y={y} width={barWidth} height={segH}
+                  rx={yOffset === 0 ? 1.5 : 0} fill={getSourceColor(src)} />
+              );
+              yOffset += segH;
+            }
+            return (
+              <g key={i} onMouseEnter={() => setHoverDay(i)}>
+                <rect x={PAD.left + (i / (daily.length - 1 || 1)) * chartW - chartW / daily.length / 2}
+                  y={PAD.top} width={chartW / daily.length} height={chartH}
+                  fill="transparent" style={{ cursor: "crosshair" }} />
+                {segments}
+              </g>
+            );
+          })}
+
+          {maxDailyRsvps > 0 && (
+            <path d={rsvpPoints} fill="none" stroke="rgba(74,222,128,0.7)" strokeWidth="1.5"
+              strokeLinejoin="round" strokeLinecap="round" />
+          )}
+
+          {daily.map((d, i) => {
+            if (d.rsvps === 0) return null;
+            const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
+            const y = PAD.top + chartH - (d.rsvps * rsvpScale);
+            return <circle key={`rd-${i}`} cx={x} cy={y} r={2.5} fill="rgba(74,222,128,0.9)" />;
+          })}
+
+          {daily.map((d, i) => {
+            if (!d.vipRsvps || d.vipRsvps === 0) return null;
+            const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
+            const y = PAD.top + chartH - (d.vipRsvps / niceMax) * chartH;
+            return (
+              <g key={`vip-${i}`}>
+                <circle cx={x} cy={y} r={5} fill="rgba(251,191,36,0.15)" />
+                <circle cx={x} cy={y} r={3} fill="rgba(251,191,36,0.9)" stroke="rgba(251,191,36,0.4)" strokeWidth="1" />
+              </g>
+            );
+          })}
+
+          {hoverDay !== null && (
+            <line
+              x1={PAD.left + (hoverDay / (daily.length - 1 || 1)) * chartW}
+              y1={PAD.top}
+              x2={PAD.left + (hoverDay / (daily.length - 1 || 1)) * chartW}
+              y2={PAD.top + chartH}
+              stroke="rgba(255,255,255,0.15)" strokeWidth="1"
+            />
+          )}
+
+          {xLabels.map(i => {
+            const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
+            const label = new Date(daily[i].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+            return <text key={i} x={x} y={H - 2} textAnchor="middle" fill="rgba(255,255,255,0.2)" fontSize="7.5">{label}</text>;
+          })}
+        </svg>
+
+        {hoverDay !== null && daily[hoverDay] && (
+          <div style={{
+            position: "absolute",
+            left: `${((PAD.left + (hoverDay / (daily.length - 1 || 1)) * chartW) / W) * 100}%`,
+            top: 8,
+            transform: `translateX(${hoverDay > daily.length * 0.65 ? "calc(-100% - 8px)" : "8px"})`,
+            background: "rgba(15,12,25,0.95)", border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 6, padding: "6px 10px", fontSize: "11px", color: "#fff",
+            lineHeight: 1.5, backdropFilter: "blur(12px)", pointerEvents: "none", zIndex: 10, whiteSpace: "nowrap",
+          }}>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>
+              {new Date(daily[hoverDay].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.5)" }}>{daily[hoverDay].views} views</div>
+            {Object.entries(daily[hoverDay].bySource || {}).sort((a, b) => b[1] - a[1]).map(([src, count]) => (
+              <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+                <div style={{ width: 5, height: 5, borderRadius: 1, background: getSourceColor(src), flexShrink: 0 }} />
+                <span style={{ color: "rgba(255,255,255,0.4)" }}>{src}: {count}</span>
+              </div>
+            ))}
+            {daily[hoverDay].rsvps > 0 && (
+              <div style={{ color: "rgba(74,222,128,0.7)", marginTop: 2 }}>{daily[hoverDay].rsvps} RSVPs</div>
+            )}
+            {(daily[hoverDay].vipRsvps || 0) > 0 && (
+              <div style={{ color: "rgba(251,191,36,0.85)", marginTop: 1, display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(251,191,36,0.9)", flexShrink: 0 }} />
+                {daily[hoverDay].vipRsvps} VIP RSVPs
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+        {allSources.map(src => (
+          <div key={src} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ width: 7, height: 7, borderRadius: 1.5, background: getSourceColor(src) }} />
+            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>{src}</span>
+          </div>
+        ))}
+        {maxDailyRsvps > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ width: 10, height: 2, borderRadius: 1, background: "rgba(74,222,128,0.7)" }} />
+            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>RSVPs</span>
+          </div>
+        )}
+        {hasVipRsvps && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(251,191,36,0.9)" }} />
+            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>VIP RSVPs</span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-function formatShortDate(iso) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+function CampaignCard({ campaign: c }) {
+  const steps = [
+    { label: "Sent", value: c.sent, color: "rgba(255,255,255,0.3)" },
+    { label: "Opened", value: c.opened, rate: c.openRate, color: "rgba(59,130,246,0.7)" },
+    { label: "Clicked", value: c.clicked, rate: c.clickRate, color: "rgba(139,92,246,0.7)" },
+    { label: "Visited", value: c.visited, rate: c.visitRate, color: "rgba(74,222,128,0.7)" },
+    { label: "RSVP'd", value: c.rsvps, rate: c.conversionRate, color: "rgba(251,191,36,0.8)" },
+  ];
+
+  return (
+    <div style={{
+      padding: "12px 14px", borderRadius: 12,
+      background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ fontSize: "13px", fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {c.name}
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, marginBottom: 8 }}>
+        {steps.map((step) => {
+          const maxVal = steps[0].value || 1;
+          const h = Math.max(4, (step.value / maxVal) * 36);
+          return (
+            <div key={step.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <div style={{
+                width: "100%", height: h, borderRadius: 3,
+                background: step.value > 0 ? step.color : "rgba(255,255,255,0.04)",
+              }} />
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 2 }}>
+        {steps.map((step) => (
+          <div key={step.label} style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: step.value > 0 ? step.color : "rgba(255,255,255,0.15)" }}>
+              {step.value}
+            </div>
+            <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.3)", marginTop: 1 }}>{step.label}</div>
+            {step.rate !== undefined && step.rate > 0 && (
+              <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.2)", marginTop: 1 }}>{step.rate}%</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

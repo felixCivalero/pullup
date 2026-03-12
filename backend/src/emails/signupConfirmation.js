@@ -66,6 +66,27 @@ function badge(text, { bg = "rgba(245,158,11,0.15)", border = "rgba(245,158,11,0
   return `<span style="display:inline-block;padding:6px 20px;border-radius:999px;background:${bg};border:1px solid ${border};color:${color};font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">${text}</span>`;
 }
 
+/* ── Footer with host branding ── */
+function emailFooter({ message = "", brandName = "", brandWebsite = "", contactEmail = "", frontendUrl = "" } = {}) {
+  // Build footer links: prefer host branding, fall back to just the event link (no PullUp branding)
+  const parts = [];
+  if (message) parts.push(message);
+  if (contactEmail) parts.push(`<br>Questions? <a href="mailto:${contactEmail}" style="color:rgba(255,255,255,0.4);text-decoration:none;">${contactEmail}</a>`);
+  if (brandWebsite) {
+    const displayUrl = brandWebsite.replace(/^https?:\/\//, "");
+    parts.push(`<br><a href="${brandWebsite}" target="_blank" style="color:rgba(255,255,255,0.4);text-decoration:none;">${displayUrl}</a>`);
+  } else if (brandName) {
+    parts.push(`<br>${brandName}`);
+  }
+
+  return `<!-- Footer -->
+<tr><td style="padding:24px 0 8px;border-top:1px solid rgba(255,255,255,0.06);">
+  <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);text-align:center;line-height:1.6;">
+    ${parts.join("")}
+  </p>
+</td></tr>`;
+}
+
 /* ── CTA button ── */
 function ctaButton(href, label) {
   return `<a href="${href}" target="_blank" style="display:inline-block;text-decoration:none;padding:14px 36px;border-radius:999px;background-color:${GOLD};background-image:linear-gradient(135deg,${GOLD_LIGHT} 0%,${GOLD} 45%,#d97706 100%);color:${PULLUP_BG};font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:1px solid rgba(245,158,11,0.9);">${label}</a>`;
@@ -97,6 +118,10 @@ export function signupConfirmationEmail({
   ticketPrice = 0,
   ticketCurrency = "",
   receiptUrl = "",
+  // host branding
+  brandName = "",
+  brandWebsite = "",
+  contactEmail = "",
 }) {
   const dateFormatted = startsAt ? niceDate(startsAt, timezone) : (date || "");
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
@@ -190,14 +215,7 @@ ${(googleCal || outlookCal) ? `<!-- Add to Calendar -->
   </tr></table>
 </td></tr>` : ""}
 
-<!-- Footer -->
-<tr><td style="padding:24px 0 8px;border-top:1px solid rgba(255,255,255,0.06);">
-  <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);text-align:center;line-height:1.6;">
-    ${isWaitlist ? "If spots open up, you'll receive a notification to confirm your spot." : "See you there!"}
-    <br>
-    <a href="${frontendUrl}" target="_blank" style="color:rgba(255,255,255,0.4);text-decoration:none;">pullup.se</a>
-  </p>
-</td></tr>`;
+${emailFooter({ message: isWaitlist ? "If spots open up, you'll receive a notification to confirm your spot." : "See you there!", brandName, brandWebsite, contactEmail, frontendUrl })}`;
 
   return emailShell(content);
 }
@@ -213,6 +231,9 @@ export function reminder8hEmail({
   location = "",
   slug = "",
   frontendUrl = "https://pullup.se",
+  brandName = "",
+  brandWebsite = "",
+  contactEmail = "",
 }) {
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
 
@@ -256,13 +277,301 @@ ${imageUrl ? `<!-- Event Image -->
   ${ctaButton(eventUrl, "VIEW EVENT")}
 </td></tr>
 
-<!-- Footer -->
-<tr><td style="padding:20px 0 8px;border-top:1px solid rgba(255,255,255,0.06);">
-  <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);text-align:center;line-height:1.6;">
-    See you soon!<br>
-    <a href="${frontendUrl}" target="_blank" style="color:rgba(255,255,255,0.4);text-decoration:none;">pullup.se</a>
+${emailFooter({ message: "See you soon!", brandName, brandWebsite, contactEmail, frontendUrl })}`;
+
+  return emailShell(content);
+}
+
+/* ══════════════════════════════════════════
+   RESERVATION EMAIL (payment pending)
+   ══════════════════════════════════════════ */
+export function reservationEmail({
+  name,
+  eventTitle,
+  imageUrl = "",
+  location = "",
+  startsAt = "",
+  endsAt = "",
+  timezone = "",
+  plusOnes = 0,
+  slug = "",
+  frontendUrl = "https://pullup.se",
+  holdMinutes = 30,
+  brandName = "",
+  brandWebsite = "",
+  contactEmail = "",
+}) {
+  const dateFormatted = startsAt ? niceDate(startsAt, timezone) : "";
+  const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
+
+  const partyText = plusOnes > 0
+    ? `You + ${plusOnes} guest${plusOnes > 1 ? "s" : ""}`
+    : "1 guest";
+
+  const content = `
+<!-- Status Badge -->
+<tr><td align="center" style="padding:24px 0 16px;">
+  ${badge("RESERVED", { bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.3)", color: "#60a5fa" })}
+</td></tr>
+
+${imageUrl ? `<!-- Event Image -->
+<tr><td style="padding:0;">
+  <img src="${imageUrl}" alt="${eventTitle.replace(/"/g, "&quot;")}" width="520" style="display:block;width:100%;max-width:520px;border-radius:12px;object-fit:cover;max-height:280px;border:0;outline:none;" />
+</td></tr>` : ""}
+
+<!-- Event Title -->
+<tr><td style="padding:20px 0 4px;text-align:center;">
+  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+</td></tr>
+
+<!-- Greeting -->
+<tr><td style="padding:8px 20px 0;text-align:center;">
+  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+    Hi ${name}, your spot is reserved for ${holdMinutes} minutes. Complete your payment to confirm.
   </p>
-</td></tr>`;
+</td></tr>
+
+<!-- Event Details Card -->
+<tr><td align="center" style="padding:20px 0 8px;">
+  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:rgba(255,255,255,0.04);border:1px solid ${SUBTLE};border-radius:12px;width:100%;max-width:440px;">
+    ${dateFormatted ? `<tr><td style="padding:14px 20px 0;">
+      <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">When</td>
+        <td style="font-size:14px;color:${WHITE};font-weight:600;">${dateFormatted}</td>
+      </tr></table>
+    </td></tr>` : ""}
+    ${location ? `<tr><td style="padding:10px 20px 0;">
+      <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Where</td>
+        <td style="font-size:14px;color:${WHITE};font-weight:600;">${location}</td>
+      </tr></table>
+    </td></tr>` : ""}
+    <tr><td style="padding:10px 20px 14px;">
+      <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Guests</td>
+        <td style="font-size:14px;color:${WHITE};font-weight:600;">${partyText}</td>
+      </tr></table>
+    </td></tr>
+  </table>
+</td></tr>
+
+<!-- CTA Button -->
+<tr><td align="center" style="padding:20px 0 8px;">
+  ${ctaButton(eventUrl, "COMPLETE PAYMENT")}
+</td></tr>
+
+${emailFooter({ message: `Your spot will be released if payment is not completed within ${holdMinutes} minutes.`, brandName, brandWebsite, contactEmail, frontendUrl })}`;
+
+  return emailShell(content);
+}
+
+/* ══════════════════════════════════════════
+   WAITLIST OFFER EMAIL (spot opened up)
+   ══════════════════════════════════════════ */
+export function waitlistOfferEmail({
+  name,
+  eventTitle,
+  imageUrl = "",
+  location = "",
+  startsAt = "",
+  endsAt = "",
+  timezone = "",
+  plusOnes = 0,
+  slug = "",
+  frontendUrl = "https://pullup.se",
+  offerLink = "",
+  isPaidEvent = false,
+  expiresInHours = 6,
+  expiresInMinutes = null,
+  brandName = "",
+  brandWebsite = "",
+  contactEmail = "",
+}) {
+  const dateFormatted = startsAt ? niceDate(startsAt, timezone) : "";
+  const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
+  const ctaHref = offerLink || eventUrl;
+
+  // Format expiry text smartly
+  const totalMinutes = expiresInMinutes || (expiresInHours * 60);
+  const expiryText = totalMinutes < 60
+    ? `${totalMinutes} minutes`
+    : totalMinutes < 120
+    ? "1 hour"
+    : `${Math.round(totalMinutes / 60)} hours`;
+
+  const partyText = plusOnes > 0
+    ? `You + ${plusOnes} guest${plusOnes > 1 ? "s" : ""}`
+    : "1 guest";
+
+  const content = `
+<!-- Status Badge -->
+<tr><td align="center" style="padding:24px 0 16px;">
+  ${badge("SPOT AVAILABLE", { bg: "rgba(34,197,94,0.15)", border: "rgba(34,197,94,0.3)", color: "#4ade80" })}
+</td></tr>
+
+${imageUrl ? `<!-- Event Image -->
+<tr><td style="padding:0;">
+  <img src="${imageUrl}" alt="${eventTitle.replace(/"/g, "&quot;")}" width="520" style="display:block;width:100%;max-width:520px;border-radius:12px;object-fit:cover;max-height:280px;border:0;outline:none;" />
+</td></tr>` : ""}
+
+<!-- Event Title -->
+<tr><td style="padding:20px 0 4px;text-align:center;">
+  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+</td></tr>
+
+<!-- Greeting -->
+<tr><td style="padding:8px 20px 0;text-align:center;">
+  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+    Hi ${name}, a spot has opened up for ${eventTitle}!
+    ${isPaidEvent ? " Complete your payment to secure your spot." : " Confirm your booking below."}
+  </p>
+</td></tr>
+
+<!-- Event Details Card -->
+<tr><td align="center" style="padding:20px 0 8px;">
+  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:rgba(255,255,255,0.04);border:1px solid ${SUBTLE};border-radius:12px;width:100%;max-width:440px;">
+    ${dateFormatted ? `<tr><td style="padding:14px 20px 0;">
+      <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">When</td>
+        <td style="font-size:14px;color:${WHITE};font-weight:600;">${dateFormatted}</td>
+      </tr></table>
+    </td></tr>` : ""}
+    ${location ? `<tr><td style="padding:10px 20px 0;">
+      <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Where</td>
+        <td style="font-size:14px;color:${WHITE};font-weight:600;">${location}</td>
+      </tr></table>
+    </td></tr>` : ""}
+    <tr><td style="padding:10px 20px 14px;">
+      <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Guests</td>
+        <td style="font-size:14px;color:${WHITE};font-weight:600;">${partyText}</td>
+      </tr></table>
+    </td></tr>
+  </table>
+</td></tr>
+
+<!-- CTA Button -->
+<tr><td align="center" style="padding:20px 0 8px;">
+  ${ctaButton(ctaHref, "CONFIRM YOUR SPOT")}
+</td></tr>
+
+${emailFooter({ message: `This offer expires in ${expiryText}. After that, your spot may be offered to someone else.`, brandName, brandWebsite, contactEmail, frontendUrl })}`;
+
+  return emailShell(content);
+}
+
+/* ══════════════════════════════════════════
+   REFUND EMAIL
+   ══════════════════════════════════════════ */
+export function refundEmail({
+  name,
+  eventTitle,
+  imageUrl = "",
+  slug = "",
+  frontendUrl = "https://pullup.se",
+  refundAmount = "",
+  currency = "",
+  isFullRefund = true,
+  brandName = "",
+  brandWebsite = "",
+  contactEmail = "",
+}) {
+  const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
+
+  const content = `
+<!-- Status Badge -->
+<tr><td align="center" style="padding:24px 0 16px;">
+  ${badge("REFUND PROCESSED", { bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.12)", color: MUTED })}
+</td></tr>
+
+${imageUrl ? `<!-- Event Image -->
+<tr><td style="padding:0;">
+  <img src="${imageUrl}" alt="${eventTitle.replace(/"/g, "&quot;")}" width="520" style="display:block;width:100%;max-width:520px;border-radius:12px;object-fit:cover;max-height:280px;border:0;outline:none;" />
+</td></tr>` : ""}
+
+<!-- Event Title -->
+<tr><td style="padding:20px 0 4px;text-align:center;">
+  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+</td></tr>
+
+<!-- Greeting -->
+<tr><td style="padding:8px 20px 0;text-align:center;">
+  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+    ${isFullRefund
+      ? `Hi ${name}, your payment for ${eventTitle} has been fully refunded.`
+      : `Hi ${name}, a partial refund of ${refundAmount} ${currency.toUpperCase()} has been processed for ${eventTitle}.`}
+  </p>
+</td></tr>
+
+${isFullRefund ? `<!-- Waitlist note -->
+<tr><td style="padding:8px 20px 0;text-align:center;">
+  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+    Your booking has been moved to the waitlist. The host will contact you if a spot opens up again.
+  </p>
+</td></tr>` : ""}
+
+<!-- CTA Button -->
+<tr><td align="center" style="padding:20px 0 8px;">
+  ${ctaButton(eventUrl, "VIEW EVENT")}
+</td></tr>
+
+${emailFooter({ brandName, brandWebsite, contactEmail, frontendUrl })}`;
+
+  return emailShell(content);
+}
+
+/* ══════════════════════════════════════════
+   CANCELLATION EMAIL
+   ══════════════════════════════════════════ */
+export function cancellationEmail({
+  name,
+  eventTitle,
+  imageUrl = "",
+  slug = "",
+  frontendUrl = "https://pullup.se",
+  brandName = "",
+  brandWebsite = "",
+  contactEmail = "",
+}) {
+  const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
+
+  const content = `
+<!-- Status Badge -->
+<tr><td align="center" style="padding:24px 0 16px;">
+  ${badge("BOOKING CANCELLED", { bg: "rgba(239,68,68,0.15)", border: "rgba(239,68,68,0.3)", color: "#f87171" })}
+</td></tr>
+
+${imageUrl ? `<!-- Event Image -->
+<tr><td style="padding:0;">
+  <img src="${imageUrl}" alt="${eventTitle.replace(/"/g, "&quot;")}" width="520" style="display:block;width:100%;max-width:520px;border-radius:12px;object-fit:cover;max-height:280px;border:0;outline:none;" />
+</td></tr>` : ""}
+
+<!-- Event Title -->
+<tr><td style="padding:20px 0 4px;text-align:center;">
+  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+</td></tr>
+
+<!-- Greeting -->
+<tr><td style="padding:8px 20px 0;text-align:center;">
+  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+    Hi ${name}, your booking for ${eventTitle} has been cancelled by the host.
+  </p>
+</td></tr>
+
+<!-- Additional info -->
+<tr><td style="padding:8px 20px 0;text-align:center;">
+  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+    If you believe this was a mistake, please ${contactEmail ? `contact the organizer at <a href="mailto:${contactEmail}" style="color:rgba(255,255,255,0.7);">${contactEmail}</a>` : "contact the event organizer"}.
+  </p>
+</td></tr>
+
+<!-- CTA Button -->
+<tr><td align="center" style="padding:20px 0 8px;">
+  ${ctaButton(eventUrl, "VIEW EVENT")}
+</td></tr>
+
+${emailFooter({ brandName, brandWebsite, contactEmail, frontendUrl })}`;
 
   return emailShell(content);
 }

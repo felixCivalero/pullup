@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link2, Trash2, Copy, Check, Eye, MousePointerClick } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
-import { colors } from "../theme/colors.js";
+
 
 export function VipInviteSection({ event, showToast, compact = false }) {
   const [email, setEmail] = useState("");
@@ -219,32 +219,32 @@ export function VipInviteSection({ event, showToast, compact = false }) {
             flex: "1 1 180px",
             minWidth: "0",
             padding: compact ? "6px 10px" : "8px 10px",
-            borderRadius: "999px",
+            borderRadius: "12px",
             border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(15,23,42,0.9)",
+            background: "rgba(20, 16, 30, 0.6)",
             color: "#fff",
             fontSize: compact ? "12px" : "13px",
             outline: "none",
+            boxSizing: "border-box",
+            transition: "all 0.3s ease",
           }}
         />
         <div
           style={{
             display: "flex",
-            flexDirection: "column",
-            gap: "4px",
+            alignItems: "center",
+            gap: "8px",
             minWidth: "0",
           }}
         >
           <div
             style={{
-              fontSize: compact ? "10px" : "11px",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              opacity: 0.8,
+              fontSize: compact ? "11px" : "12px",
+              opacity: 0.5,
+              whiteSpace: "nowrap",
             }}
           >
-            Plus-ones on their list
+            Plus-ones
           </div>
           <div
             style={{
@@ -352,25 +352,23 @@ export function VipInviteSection({ event, showToast, compact = false }) {
         )}
         <button
           type="submit"
-          disabled={generating}
+          disabled={generating || !email.trim()}
           style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: compact ? "6px 10px" : "8px 12px",
-            borderRadius: "999px",
-            border: "1px solid " + colors.goldRgba,
-            backgroundImage: colors.gradientGold,
-            boxShadow: colors.goldShadow,
-            color: "#05040a",
-            fontSize: compact ? "11px" : "12px",
+            padding: "8px 16px",
+            borderRadius: "8px",
+            border: "none",
+            background:
+              !email.trim() || generating
+                ? "rgba(255,255,255,0.08)"
+                : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+            color: "#fff",
+            fontSize: "13px",
             fontWeight: 600,
-            cursor: generating ? "not-allowed" : "pointer",
-            opacity: generating ? 0.6 : 1,
+            cursor: !email.trim() || generating ? "not-allowed" : "pointer",
             whiteSpace: "nowrap",
           }}
         >
-          {generating ? "Creating..." : "Email link"}
+          {generating ? "Sending..." : "Send invite"}
         </button>
       </form>
 
@@ -383,12 +381,12 @@ export function VipInviteSection({ event, showToast, compact = false }) {
             gap: "8px",
             padding: compact ? "6px 8px" : "8px 12px",
             borderRadius: "10px",
-            background: "rgba(245, 158, 11, 0.08)",
-            border: "1px solid rgba(245, 158, 11, 0.2)",
+            background: "rgba(74, 222, 128, 0.08)",
+            border: "1px solid rgba(74, 222, 128, 0.2)",
             fontSize: compact ? "11px" : "12px",
           }}
         >
-          <Check size={14} style={{ color: colors.gold, flexShrink: 0 }} />
+          <Check size={14} style={{ color: "rgba(74, 222, 128, 0.8)", flexShrink: 0 }} />
           <span style={{ opacity: 0.7, flexShrink: 0 }}>Copied!</span>
           <span
             style={{
@@ -478,7 +476,7 @@ export function VipInviteSection({ event, showToast, compact = false }) {
               </span>
               {/* Tracking indicators */}
               {inv.clicked ? (
-                <MousePointerClick size={12} style={{ color: colors.gold, flexShrink: 0 }} title="Clicked VIP link" />
+                <MousePointerClick size={12} style={{ color: "rgba(255,255,255,0.6)", flexShrink: 0 }} title="Clicked VIP link" />
               ) : inv.opened ? (
                 <Eye size={12} style={{ color: "rgba(255,255,255,0.5)", flexShrink: 0 }} title="Opened email" />
               ) : null}
@@ -495,7 +493,7 @@ export function VipInviteSection({ event, showToast, compact = false }) {
                     padding: "2px",
                     display: "flex",
                     alignItems: "center",
-                    color: copiedId === inv.id ? colors.gold : "rgba(255,255,255,0.4)",
+                    color: copiedId === inv.id ? "rgba(74, 222, 128, 0.8)" : "rgba(255,255,255,0.4)",
                     transition: "color 0.2s ease",
                   }}
                   title="Copy VIP link"

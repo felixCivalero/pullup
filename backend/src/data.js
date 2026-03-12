@@ -2433,6 +2433,8 @@ function mapRsvpToDb(rsvpData) {
     dbData.waitlist_link_used_at = rsvpData.waitlistLinkUsedAt;
   if (rsvpData.waitlistLinkToken !== undefined)
     dbData.waitlist_link_token = rsvpData.waitlistLinkToken;
+  if (rsvpData.isVip !== undefined) dbData.is_vip = rsvpData.isVip;
+  if (rsvpData.visitorId !== undefined) dbData.visitor_id = rsvpData.visitorId;
   return dbData;
 }
 
@@ -2497,6 +2499,8 @@ export async function addRsvp({
   dinnerTimeSlot = null,
   dinnerPartySize = null,
   marketingOptIn = false,
+  isVip = false,
+  visitorId = null,
 }) {
   const event = await findEventBySlug(slug);
   if (!event) return { error: "not_found" };
@@ -2757,6 +2761,8 @@ export async function addRsvp({
     pulledUpForDinner: null,
     pulledUpForCocktails: null,
     marketingOptIn: marketingOptIn || false,
+    isVip: !!isVip,
+    visitorId: visitorId || null,
   };
 
   const dbRsvpData = mapRsvpToDb(rsvpData);
@@ -3890,6 +3896,28 @@ export async function getUserProfile(userId) {
     }
   }
 
+  // Generate URL for brand logo if path exists
+  if (profile.brandLogo) {
+    try {
+      let filePath = profile.brandLogo;
+      if (profile.brandLogo.includes("profile-pictures/")) {
+        const urlMatch = profile.brandLogo.match(/profile-pictures\/([^?]+)/);
+        if (urlMatch) filePath = urlMatch[1];
+      }
+      const { data: signedUrlData, error: urlError } = await supabase.storage
+        .from("profile-pictures")
+        .createSignedUrl(filePath, 3600);
+      if (!urlError && signedUrlData?.signedUrl) {
+        profile.brandLogo = signedUrlData.signedUrl;
+      } else {
+        const { data: { publicUrl } } = supabase.storage.from("profile-pictures").getPublicUrl(filePath);
+        profile.brandLogo = publicUrl;
+      }
+    } catch (urlError) {
+      console.error("Error generating brand logo URL:", urlError);
+    }
+  }
+
   return profile;
 }
 
@@ -3914,6 +3942,7 @@ export async function createDefaultProfile(userId) {
       website: "",
     },
     brand_website: null,
+    brand_logo_url: null,
     contact_email: null,
     additional_emails: [],
     third_party_accounts: [],
@@ -4025,6 +4054,7 @@ function mapProfileFromDb(dbProfile) {
     emails: dbProfile.additional_emails || [],
     thirdPartyAccounts: dbProfile.third_party_accounts || [],
     brandWebsite: dbProfile.brand_website || "",
+    brandLogo: dbProfile.brand_logo_url || null,
     contactEmail: dbProfile.contact_email || "",
     stripeConnectedAccountId: dbProfile.stripe_connected_account_id || null,
     isAdmin: dbProfile.is_admin || false,
@@ -4051,6 +4081,8 @@ function mapProfileToDb(profile) {
     dbProfile.third_party_accounts = profile.thirdPartyAccounts;
   if (profile.brandWebsite !== undefined)
     dbProfile.brand_website = profile.brandWebsite;
+  if (profile.brandLogo !== undefined)
+    dbProfile.brand_logo_url = profile.brandLogo;
   if (profile.contactEmail !== undefined)
     dbProfile.contact_email = profile.contactEmail;
   if (profile.stripeConnectedAccountId !== undefined)

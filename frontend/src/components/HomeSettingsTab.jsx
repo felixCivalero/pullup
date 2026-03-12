@@ -2,12 +2,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Globe,
-  Mail,
   LogOut,
   AlertTriangle,
-  RefreshCw,
-  Tag,
   CreditCard,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -17,8 +13,6 @@ import { SilverIcon } from "./ui/SilverIcon.jsx";
 export function SettingsTab({ user, setUser, onSave, showToast }) {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const [saving, setSaving] = useState(false);
-
   // Stripe state
   const [stripeConnected, setStripeConnected] = useState(false);
   const [stripeAccountEmail, setStripeAccountEmail] = useState("");
@@ -171,19 +165,6 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
     }
   };
 
-  async function handleSave() {
-    try {
-      setSaving(true);
-      await onSave(user);
-      showToast("Settings saved", "success");
-    } catch (error) {
-      console.error("Failed to save settings:", error);
-      showToast("Failed to save settings", "error");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "48px" }}>
       <style>{`
@@ -206,107 +187,6 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
           color: rgba(255,255,255,0.3);
         }
       `}</style>
-
-      {/* BRAND SETTINGS */}
-      <SettingsSection
-        title="Your Brand"
-        description="Set up your brand details. Your website and contact email will appear in outgoing event emails so guests can reach you directly."
-      >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "20px",
-            width: "100%",
-          }}
-        >
-          {/* Brand Name */}
-          <label style={{ display: "block", width: "100%" }}>
-            <div style={labelStyle}>
-              <SilverIcon as={Tag} size={14} style={{ marginRight: "6px" }} />
-              Brand Name
-            </div>
-            <input
-              type="text"
-              value={user.brand || ""}
-              onChange={(e) => setUser({ ...user, brand: e.target.value })}
-              placeholder="Your brand or company name"
-              className="settings-input"
-            />
-          </label>
-
-          {/* Brand Website */}
-          <label style={{ display: "block", width: "100%" }}>
-            <div style={labelStyle}>
-              <SilverIcon as={Globe} size={14} style={{ marginRight: "6px" }} />
-              Website
-            </div>
-            <input
-              type="url"
-              value={user.brandWebsite || ""}
-              onChange={(e) =>
-                setUser({ ...user, brandWebsite: e.target.value })
-              }
-              placeholder="https://yourbrand.com"
-              className="settings-input"
-            />
-            <div style={hintStyle}>
-              Linked in email footers so guests can learn more about you.
-            </div>
-          </label>
-
-          {/* Contact Email */}
-          <label style={{ display: "block", width: "100%" }}>
-            <div style={labelStyle}>
-              <SilverIcon as={Mail} size={14} style={{ marginRight: "6px" }} />
-              Contact Email
-            </div>
-            <input
-              type="email"
-              value={user.contactEmail || ""}
-              onChange={(e) =>
-                setUser({ ...user, contactEmail: e.target.value })
-              }
-              placeholder="hello@yourbrand.com"
-              className="settings-input"
-            />
-            <div style={hintStyle}>
-              Guest replies and inquiries will be directed here instead of
-              PullUp.
-            </div>
-          </label>
-        </div>
-      </SettingsSection>
-
-      {/* SAVE BUTTON */}
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={saving}
-        style={{
-          padding: "14px 28px",
-          borderRadius: "999px",
-          border: "none",
-          background:
-            "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-          color: "#fff",
-          fontWeight: 700,
-          fontSize: "15px",
-          cursor: saving ? "default" : "pointer",
-          opacity: saving ? 0.6 : 1,
-          boxShadow: "0 10px 30px rgba(192, 192, 192, 0.4)",
-          transition: "all 0.3s ease",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          alignSelf: "flex-start",
-        }}
-      >
-        <SilverIcon as={RefreshCw} size={18} />
-        <span>{saving ? "Saving..." : "Save Changes"}</span>
-      </button>
 
       {/* INTEGRATIONS */}
       <SettingsSection

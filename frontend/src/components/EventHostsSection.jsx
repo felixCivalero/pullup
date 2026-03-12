@@ -256,7 +256,7 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                 }}
               >
                 <span style={{ fontWeight: 600, color: "#fff", fontSize: compact ? "12px" : "13px" }}>
-                  {host.profile?.name || "Unknown user"}
+                  {host.email || host.profile?.name || "Unknown user"}
                 </span>
                 {!compact && (
                   <span
@@ -282,9 +282,9 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                       letterSpacing: "0.08em",
                       padding: compact ? "2px 8px" : "4px 10px",
                       borderRadius: "999px",
-                      border: "1px solid rgba(139,92,246,0.6)",
+                      border: "1px solid rgba(255,255,255,0.2)",
                       color: "#fff",
-                      background: "rgba(139,92,246,0.3)",
+                      background: "rgba(255,255,255,0.08)",
                     }}
                   >
                     Owner
@@ -317,9 +317,9 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                       letterSpacing: "0.08em",
                       padding: compact ? "2px 8px" : "4px 8px",
                       borderRadius: "999px",
-                      border: "1px solid rgba(139,92,246,0.6)",
+                      border: "1px solid rgba(255,255,255,0.2)",
                       color: "#fff",
-                      background: "rgba(139,92,246,0.3)",
+                      background: "rgba(255,255,255,0.08)",
                     }}
                   >
                     {host.role}
@@ -537,7 +537,7 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                 border: "none",
                 background:
                   !newHostEmail.trim() || adding
-                    ? "rgba(139,92,246,0.3)"
+                    ? "rgba(255,255,255,0.08)"
                     : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
                 color: "#fff",
                 fontSize: "13px",
@@ -550,40 +550,17 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
               {adding ? "Adding..." : "Add"}
             </button>
           </div>
-          <div style={{ fontSize: "11px", opacity: 0.6, marginTop: "6px" }}>
+          <div style={{ fontSize: "11px", opacity: 0.4, marginTop: "6px", padding: compact ? "0 10px" : "0 12px" }}>
             {(() => {
               switch (newHostRole) {
                 case "admin":
-                  return (
-                    <span>
-                      <strong>Admin:</strong> Full control. Can add/remove
-                      hosts, edit event details, and manage all aspects of the
-                      event.
-                    </span>
-                  );
+                  return "Admin: Full control. Can add/remove hosts, edit event details, and manage all aspects of the event.";
                 case "editor":
-                  return (
-                    <span>
-                      <strong>Editor:</strong> Can edit event details and assist
-                      with managing the event, but cannot add or remove other
-                      hosts.
-                    </span>
-                  );
+                  return "Editor: Can edit event details and assist with managing the event, but cannot add or remove other hosts.";
                 case "reception":
-                  return (
-                    <span>
-                      <strong>Reception:</strong> Can help greet/check in guests
-                      and manage attendee information but cannot edit event
-                      details or hosts.
-                    </span>
-                  );
+                  return "Reception: Can help greet/check in guests and manage attendee information but cannot edit event details or hosts.";
                 case "viewer":
-                  return (
-                    <span>
-                      <strong>Viewer:</strong> Can see event details and the
-                      guest list but cannot make changes.
-                    </span>
-                  );
+                  return "Viewer: Can see event details and the guest list but cannot make changes.";
                 default:
                   return null;
               }

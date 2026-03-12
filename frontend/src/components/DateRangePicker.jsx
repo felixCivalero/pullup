@@ -95,7 +95,7 @@ const QUICK_RANGES = [
   }},
 ];
 
-export function DateRangePicker({ startDate, endDate, onChange, onClear }) {
+export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPast = false, blockFuture = false, quickRanges: customQuickRanges }) {
   const [open, setOpen] = useState(false);
   // Draft state — only committed on Apply
   const [draftStart, setDraftStart] = useState(startDate);
@@ -146,8 +146,11 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear }) {
     };
   }, [open]);
 
+  const activeQuickRanges = customQuickRanges || QUICK_RANGES;
+
   function handleDayClick(date) {
-    if (date < startOfDay(new Date())) return; // Can't select past dates
+    if (!allowPast && date < startOfDay(new Date())) return; // Can't select past dates
+    if (blockFuture && date > startOfDay(new Date())) return; // Can't select future dates
 
     if (!selecting || selecting === "start" || (draftStart && draftEnd)) {
       // Starting a new selection
@@ -268,7 +271,8 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear }) {
           }}
         >
           {days.map(({ date, outside }, i) => {
-            const isPast = date < today && !isSameDay(date, today);
+            const isPast = !allowPast && date < today && !isSameDay(date, today);
+            const isFuture = blockFuture && date > today && !isSameDay(date, today);
             const isStart = isSameDay(date, draftStart);
             const isEnd = isSameDay(date, visualEnd);
             const inRange = isInRange(
@@ -281,9 +285,9 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear }) {
             return (
               <button
                 key={i}
-                onClick={() => !outside && !isPast && handleDayClick(date)}
+                onClick={() => !outside && !isPast && !isFuture && handleDayClick(date)}
                 onMouseEnter={() => {
-                  if (selecting === "end" && !outside && !isPast) {
+                  if (selecting === "end" && !outside && !isPast && !isFuture) {
                     setHoveredDate(date);
                   }
                 }}
@@ -295,7 +299,7 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear }) {
                   alignItems: "center",
                   justifyContent: "center",
                   border: "none",
-                  cursor: outside || isPast ? "default" : "pointer",
+                  cursor: outside || isPast || isFuture ? "default" : "pointer",
                   padding: 0,
                   fontSize: "13px",
                   fontWeight: isStart || isEnd ? 700 : 400,
@@ -317,7 +321,7 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear }) {
                   color:
                     isStart || isEnd
                       ? "#05040a"
-                      : outside || isPast
+                      : outside || isPast || isFuture
                         ? "rgba(255,255,255,0.15)"
                         : inRange
                           ? "#fff"
@@ -468,7 +472,7 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear }) {
                 borderTop: "1px solid rgba(255,255,255,0.06)",
               }}
             >
-              {QUICK_RANGES.map((qr) => (
+              {activeQuickRanges.map((qr) => (
                 <button
                   key={qr.label}
                   onClick={() => handleQuickRange(qr.getRange)}

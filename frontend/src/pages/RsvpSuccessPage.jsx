@@ -73,13 +73,112 @@ export function RsvpSuccessPage() {
   const [showCocktailsCalendarMenu, setShowCocktailsCalendarMenu] =
     useState(false);
 
-  // Get booking and payment details from navigation state
-  const booking = location.state?.booking || null;
-  const paymentFromState = location.state?.payment || null; // Payment info for paid events
+  // Get booking and payment details from navigation state or localStorage
+  const stateBooking = location.state?.booking || null;
+  const statePayment = location.state?.payment || null;
+
+  const [booking, setBooking] = useState(stateBooking);
+  const [storedPayment, setStoredPayment] = useState(statePayment);
+  const [verifyError, setVerifyError] = useState(null);
+  const [verifying, setVerifying] = useState(false);
+
+  // Persist to / restore from localStorage
+  useEffect(() => {
+    const storageKey = `pullup_booking_${slug}`;
+    if (stateBooking) {
+      // Save fresh state to localStorage
+      try {
+        localStorage.setItem(storageKey, JSON.stringify({
+          booking: stateBooking,
+          payment: statePayment,
+        }));
+      } catch {}
+    } else if (!booking) {
+      // No state from navigation — try localStorage
+      try {
+        const stored = JSON.parse(localStorage.getItem(storageKey));
+        if (stored?.booking) {
+          setBooking(stored.booking);
+          setStoredPayment(stored.payment || null);
+        }
+      } catch {}
+    }
+  }, [slug, stateBooking]);
+
+  // Handle redirect-based payment methods (Klarna, bank transfer etc.)
+  // Stripe appends ?payment_intent=pi_xxx&payment_intent_client_secret=pi_xxx_secret_yyy
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentIntentId = params.get('payment_intent');
+    if (paymentIntentId && !booking) {
+      // User returned from redirect-based payment — fetch booking from backend
+      async function fetchBookingFromPayment() {
+        setVerifying(true);
+        setVerifyError(null);
+        try {
+          const res = await publicFetch(`/payments/verify/${paymentIntentId}`, {
+            method: 'POST',
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success === false) {
+              setVerifyError("Your payment is still being processed. Please check back in a moment or contact the event organizer.");
+              return;
+            }
+            if (data.rsvp && data.event) {
+              const redirectBooking = {
+                name: data.rsvp.name || null,
+                email: data.rsvp.email || null,
+                bookingStatus: data.rsvp.bookingStatus || 'CONFIRMED',
+                dinnerBookingStatus: data.rsvp.dinnerBookingStatus || null,
+                wantsDinner: data.rsvp.wantsDinner || false,
+                partySize: data.rsvp.partySize || 1,
+                plusOnes: data.rsvp.plusOnes || 0,
+                dinnerPartySize: data.rsvp.dinnerPartySize || null,
+                dinnerTimeSlot: data.rsvp.dinnerTimeSlot || null,
+              };
+              const redirectPayment = data.payment ? {
+                id: data.payment.id,
+                status: data.payment.status,
+                amount: data.payment.amount,
+                currency: data.payment.currency,
+              } : null;
+              setBooking(redirectBooking);
+              setStoredPayment(redirectPayment);
+              // Save to localStorage
+              try {
+                localStorage.setItem(`pullup_booking_${slug}`, JSON.stringify({
+                  booking: redirectBooking,
+                  payment: redirectPayment,
+                }));
+              } catch {}
+            }
+          } else {
+            setVerifyError("We couldn't verify your payment. Please check your email for a confirmation, or contact the event organizer.");
+          }
+        } catch (err) {
+          console.error('Error fetching booking from redirect payment:', err);
+          setVerifyError("Something went wrong verifying your payment. Please check your email for a confirmation, or contact the event organizer.");
+        } finally {
+          setVerifying(false);
+        }
+      }
+      fetchBookingFromPayment();
+      // Clean up URL params
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [slug]);
 
   // State for payment data (fetched from database if needed)
-  const [payment, setPayment] = useState(paymentFromState);
+  const [payment, setPayment] = useState(storedPayment);
   const [loadingPayment, setLoadingPayment] = useState(false);
+
+  // Sync payment state when storedPayment updates (e.g. from localStorage restore or redirect)
+  useEffect(() => {
+    if (storedPayment && !payment) {
+      setPayment(storedPayment);
+    }
+  }, [storedPayment]);
 
   useEffect(() => {
     async function loadEvent() {
@@ -93,7 +192,7 @@ export function RsvpSuccessPage() {
         // This ensures we have receipt URL, paid_at timestamp, etc. from Stripe
         if (data.ticketType === "paid") {
           // Try to get payment ID from state first
-          const paymentId = paymentFromState?.id;
+          const paymentId = storedPayment?.id;
 
           if (paymentId) {
             // We have payment ID from navigation state, fetch full details
@@ -125,9 +224,9 @@ export function RsvpSuccessPage() {
         const paymentData = await res.json();
         // Merge with existing payment data to preserve paymentBreakdown if available
         setPayment({
-          ...paymentFromState,
+          ...storedPayment,
           ...paymentData,
-          paymentBreakdown: paymentFromState?.paymentBreakdown || null,
+          paymentBreakdown: storedPayment?.paymentBreakdown || null,
         });
       } else {
         console.warn("Failed to load payment details:", await res.text());
@@ -292,6 +391,58 @@ export function RsvpSuccessPage() {
         }}
       >
         <div style={{ fontSize: "18px", opacity: 0.8 }}>Event not found</div>
+      </div>
+    );
+  }
+
+  if (verifying) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background:
+            `${colors.gradientGlow}, ${colors.background}`,
+        }}
+      >
+        <div style={{ fontSize: "18px", opacity: 0.8 }}>Verifying your payment...</div>
+      </div>
+    );
+  }
+
+  if (verifyError && !booking) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background:
+            `${colors.gradientGlow}, ${colors.background}`,
+          padding: "20px",
+        }}
+      >
+        <div style={{ textAlign: "center", maxWidth: "400px" }}>
+          <div style={{ fontSize: "18px", marginBottom: "16px", color: "#f59e0b" }}>{verifyError}</div>
+          <button
+            onClick={() => navigate(`/e/${slug}`)}
+            style={{
+              padding: "12px 24px",
+              background: colors.gold,
+              color: "#000",
+              border: "none",
+              borderRadius: "8px",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontSize: "15px",
+            }}
+          >
+            Back to Event
+          </button>
+        </div>
       </div>
     );
   }
@@ -988,7 +1139,9 @@ export function RsvpSuccessPage() {
                   {/* Calculate breakdown from payment amount if not provided */}
                   {(() => {
                     const currencySymbol =
-                      payment.currency === "sek" ? "kr" : "$";
+                      { sek: "kr", usd: "$", eur: "\u20AC", gbp: "\u00A3" }[
+                        (payment.currency || "").toLowerCase()
+                      ] || payment.currency?.toUpperCase() || "$";
                     const totalAmount = payment.amount || 0;
 
                     // If we have paymentBreakdown from state, use it

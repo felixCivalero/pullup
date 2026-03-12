@@ -567,6 +567,19 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
         if (event && rsvp) {
           const frontendUrl =
             process.env.FRONTEND_URL || "https://pullup.party";
+
+          // Fetch host branding for email footer
+          let hostBrand = {};
+          try {
+            const { getUserProfile } = await import("./data.js");
+            const hostProfile = await getUserProfile(event.hostId);
+            hostBrand = {
+              brandName: hostProfile?.brand || "",
+              brandWebsite: hostProfile?.brandWebsite || "",
+              contactEmail: hostProfile?.contactEmail || "",
+            };
+          } catch {}
+
           await sendEmail({
             to: rsvp.email,
             subject: "Your spot is confirmed",
@@ -587,6 +600,7 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
               ticketPrice: payment.amount ? (payment.amount / 100).toFixed(2) : 0,
               ticketCurrency: payment.currency || event.ticketCurrency || "",
               receiptUrl: receiptUrl || "",
+              ...hostBrand,
             }),
           });
           console.log(
@@ -626,12 +640,41 @@ async function handlePaymentIntentFailed(paymentIntent) {
     status: "failed",
   });
 
-  // If RSVP was PENDING_PAYMENT, delete it so the spot is freed up
+  // If RSVP was PENDING_PAYMENT, notify guest and delete RSVP to free the spot
   if (payment.rsvpId) {
     try {
-      const { findRsvpById, deleteRsvp } = await import("./data.js");
+      const { findRsvpById, deleteRsvp, findPersonById, findEventById } = await import("./data.js");
       const rsvp = await findRsvpById(payment.rsvpId);
       if (rsvp && rsvp.bookingStatus === "PENDING_PAYMENT") {
+        // Send payment failure email before deleting
+        try {
+          const person = await findPersonById(rsvp.personId);
+          const event = await findEventById(rsvp.eventId);
+          if (person?.email && event) {
+            const { sendEmail } = await import("./services/emailService.js");
+            const frontendUrl = process.env.FRONTEND_URL || "https://pullup.party";
+
+            // Fetch host branding for email footer
+            let footerHtml = "";
+            try {
+              const { getUserProfile } = await import("./data.js");
+              const hostProfile = await getUserProfile(event.hostId);
+              const contactEmail = hostProfile?.contactEmail || "";
+              const brandWebsite = hostProfile?.brandWebsite || "";
+              if (contactEmail) footerHtml += `<br>Questions? <a href="mailto:${contactEmail}" style="color:#666;text-decoration:none;">${contactEmail}</a>`;
+              if (brandWebsite) footerHtml += `<br><a href="${brandWebsite}" style="color:#666;text-decoration:none;">${brandWebsite.replace(/^https?:\/\//, "")}</a>`;
+            } catch {}
+
+            await sendEmail({
+              to: person.email,
+              subject: "Payment failed — your spot was not confirmed",
+              html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#111;color:#fff;font-family:sans-serif"><div style="max-width:500px;margin:0 auto;padding:40px 20px"><div style="text-align:center;margin-bottom:24px"><span style="display:inline-block;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">PAYMENT FAILED</span></div><h1 style="font-size:22px;text-align:center;margin:0 0 12px">${event.title}</h1><p style="font-size:15px;color:#aaa;text-align:center;line-height:1.6">Hi ${rsvp.name || person.name || "there"},</p><p style="font-size:15px;color:#aaa;text-align:center;line-height:1.6">Your payment could not be processed and your spot was not confirmed. You can try booking again from the event page.</p><div style="text-align:center;margin:32px 0"><a href="${frontendUrl}/e/${event.slug}" style="display:inline-block;padding:14px 32px;background:#c0a060;color:#000;font-weight:700;border-radius:8px;text-decoration:none;font-size:15px">Try Again</a></div><p style="font-size:12px;color:#666;text-align:center">If you believe this is an error, please contact the event organizer.${footerHtml}</p></div></body></html>`,
+            });
+          }
+        } catch (emailErr) {
+          console.error("[Webhook] Failed to send payment failure email:", emailErr.message);
+        }
+
         console.log("[Webhook] Deleting PENDING_PAYMENT RSVP after payment failure:", {
           rsvpId: payment.rsvpId,
           paymentId: payment.id,

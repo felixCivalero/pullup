@@ -12,6 +12,7 @@ export async function insertOutboxRow({
   idempotencyKey = null,
   provider = "ses",
   category = "transactional",
+  campaignTag = null,
 }) {
   const payload = {
     from_email: fromEmail,
@@ -24,6 +25,7 @@ export async function insertOutboxRow({
     provider,
     category,
     status: "queued",
+    ...(campaignTag ? { campaign_tag: campaignTag } : {}),
   };
 
   const { data, error } = await supabase

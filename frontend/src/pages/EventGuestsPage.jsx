@@ -2099,6 +2099,8 @@ function SortableHeader({
 function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote }) {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [promoting, setPromoting] = useState(false);
+  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
+  const [selectedExpiry, setSelectedExpiry] = useState(null); // minutes
   const { showToast } = useToast();
 
   // Use new model fields with backward compatibility
@@ -2248,16 +2250,32 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
   // Check if capacity was overridden
   const capacityOverridden = guest.capacityOverridden === true;
 
+  // Smart default expiry based on time until event
+  function getDefaultExpiryMinutes() {
+    if (!event?.startsAt) return 360; // 6 hours
+    const minutesUntil = (new Date(event.startsAt).getTime() - Date.now()) / (60 * 1000);
+    if (minutesUntil <= 120) return 30;        // < 2h away: 30 min
+    if (minutesUntil <= 360) return 60;        // 2-6h away: 1 hour
+    if (minutesUntil <= 1440) return 180;      // 6-24h away: 3 hours
+    return 360;                                // > 24h away: 6 hours
+  }
+
   // Generate waitlist link handler (for paid events only)
-  async function handleGenerateLink(e) {
+  async function handleGenerateLink(e, expiryMinutes) {
     e?.stopPropagation();
     if (!eventId || !isPaidEvent || bookingStatus !== "WAITLIST") return;
 
     setGeneratingLink(true);
+    setShowExpiryPicker(false);
     try {
+      const body = expiryMinutes ? { expiresInMinutes: expiryMinutes } : {};
       const res = await authenticatedFetch(
         `/host/events/${eventId}/waitlist-link/${guest.id}`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
       );
 
       if (!res.ok) {
@@ -2268,7 +2286,7 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
       const data = await res.json();
       // Copy to clipboard automatically
       await navigator.clipboard.writeText(data.link);
-      showToast("Link generated and copied to clipboard!", "success");
+      showToast("Link sent to guest and copied to clipboard!", "success");
       if (onLinkGenerated) {
         onLinkGenerated(data.link);
       }
@@ -2356,9 +2374,13 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
       {/* Generate Link button for waitlist guests in paid events */}
       {isPaidEvent &&
         bookingStatus === "WAITLIST" &&
-        linkStatus !== "CONFIRMED" && (
+        linkStatus !== "CONFIRMED" && !showExpiryPicker && (
           <button
-            onClick={handleGenerateLink}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedExpiry(getDefaultExpiryMinutes());
+              setShowExpiryPicker(true);
+            }}
             disabled={generatingLink}
             style={{
               padding: "4px 8px",
@@ -2395,10 +2417,10 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
             }}
           >
             {generatingLink ? (
-              "Generating..."
+              "Sending..."
             ) : linkStatus === "SENT" ? (
               <>
-                <SilverIcon as={RefreshCw} size={14} /> Regenerate
+                <SilverIcon as={RefreshCw} size={14} /> Resend
               </>
             ) : linkStatus === "EXPIRED" ? (
               <>
@@ -2406,11 +2428,92 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
               </>
             ) : (
               <>
-                <SilverIcon as={Link2} size={14} /> Generate Link
+                <SilverIcon as={Link2} size={14} /> Send Payment Link
               </>
             )}
           </button>
         )}
+      {/* Expiry picker for payment link */}
+      {showExpiryPicker && isPaidEvent && bookingStatus === "WAITLIST" && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "6px",
+            marginTop: "4px",
+            padding: "8px",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "8px",
+            alignSelf: "flex-start",
+          }}
+        >
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", fontWeight: 600 }}>
+            Expires in
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+            {[
+              { label: "30m", value: 30 },
+              { label: "1h", value: 60 },
+              { label: "3h", value: 180 },
+              { label: "6h", value: 360 },
+              { label: "12h", value: 720 },
+              { label: "24h", value: 1440 },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setSelectedExpiry(opt.value)}
+                style={{
+                  padding: "2px 8px",
+                  fontSize: "10px",
+                  fontWeight: 600,
+                  background: selectedExpiry === opt.value ? "rgba(59,130,246,0.3)" : "rgba(255,255,255,0.06)",
+                  border: selectedExpiry === opt.value ? "1px solid rgba(59,130,246,0.6)" : "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "4px",
+                  color: selectedExpiry === opt.value ? "#60a5fa" : "rgba(255,255,255,0.6)",
+                  cursor: "pointer",
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: "4px" }}>
+            <button
+              onClick={(e) => handleGenerateLink(e, selectedExpiry)}
+              disabled={generatingLink}
+              style={{
+                padding: "4px 10px",
+                fontSize: "10px",
+                fontWeight: 600,
+                background: "rgba(59,130,246,0.2)",
+                border: "1px solid rgba(59,130,246,0.4)",
+                borderRadius: "4px",
+                color: "#3b82f6",
+                cursor: generatingLink ? "not-allowed" : "pointer",
+                opacity: generatingLink ? 0.6 : 1,
+              }}
+            >
+              {generatingLink ? "Sending..." : "Send"}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowExpiryPicker(false); }}
+              style={{
+                padding: "4px 8px",
+                fontSize: "10px",
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "4px",
+                color: "rgba(255,255,255,0.4)",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {/* Confirm buttons for all waitlist guests */}
       {bookingStatus === "WAITLIST" && onPromote && (
         <div style={{ display: "flex", gap: "4px", marginTop: "4px", alignSelf: "flex-start" }}>

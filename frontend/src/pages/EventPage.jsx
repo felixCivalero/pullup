@@ -215,6 +215,13 @@ export function EventPage() {
     return now > eventEndTime;
   }, [event]);
 
+  // Check if event is sold out (full capacity, no waitlist)
+  const isSoldOut = useMemo(() => {
+    if (!event || event.waitlistEnabled) return false;
+    const spotsLeft = event._attendance?.cocktailSpotsLeft;
+    return spotsLeft !== null && spotsLeft !== undefined && spotsLeft <= 0;
+  }, [event]);
+
   // Detect mobile file-sharing support (for "Add to Story" button)
   useEffect(() => {
     async function checkShareSupport() {
@@ -404,12 +411,14 @@ export function EventPage() {
           utm_campaign: params.get("utm_campaign") || null,
           utm_content: params.get("utm_content") || null,
           deviceType: isMobile ? "mobile" : "desktop",
+          userAgent: navigator.userAgent || null,
+          isVip: !!vipToken,
         }),
       }).catch(() => {}); // Silently ignore tracking failures
     } catch {
       // Never let tracking break the page
     }
-  }, [event?.id, slug]);
+  }, [event?.id, slug, vipToken]);
 
   if (loading) {
     return (
@@ -475,6 +484,13 @@ export function EventPage() {
     try {
       // Include waitlist or VIP data if present
       let requestBody = { ...data };
+
+      // Link browsing session to RSVP
+      try {
+        const vid = localStorage.getItem("pullup_visitor_id");
+        if (vid) requestBody.visitorId = vid;
+      } catch {}
+
       if (waitlistOffer && waitlistOffer.rsvpDetails && waitlistToken) {
         requestBody = {
           ...requestBody,
@@ -498,20 +514,27 @@ export function EventPage() {
         const err = await res.json().catch(() => ({}));
 
         if (res.status === 409 && err.error === "full") {
-          return false;
+          return { error: "This event is sold out — no more spots available." };
         }
 
         if (res.status === 409 && err.error === "duplicate") {
-          return false;
+          const existingRsvp = err.rsvp || {};
+          const partySize = existingRsvp.partySize || 1;
+          const isWaitlisted = err.status === "waitlist" || existingRsvp.bookingStatus === "WAITLIST";
+          const statusLabel = isWaitlisted ? "on the waitlist" : "confirmed";
+          const partyLabel = partySize === 1 ? "1 person" : `${partySize} people`;
+          return {
+            error: `You've already booked for this event (${statusLabel}, ${partyLabel}). Need to make changes? Contact the host.`,
+          };
         }
 
         // Handle payment errors specifically
         if (res.status === 500 && err.error === "payment_failed") {
           console.error("Payment creation error:", err.details || err.message);
-          return false;
+          return { error: "Payment setup failed. Please try again or contact the host." };
         }
 
-        throw new Error(err.error || err.message || "Failed to RSVP");
+        return { error: err.message || err.error || "Something went wrong. Please try again." };
       }
 
       const body = await res.json();
@@ -1329,10 +1352,12 @@ export function EventPage() {
             onClick={() => setShowRsvpForm(true)}
             fullWidth
             size="lg"
-            disabled={loading || !event || isEventPast}
+            disabled={loading || !event || isEventPast || isSoldOut}
           >
             {isEventPast
               ? "Event has ended"
+              : isSoldOut
+              ? "Sold out"
               : event?.ticketType === "paid" && event?.ticketPrice
               ? (() => {
                   // Show base price (1 ticket) on button - total will be shown in modal

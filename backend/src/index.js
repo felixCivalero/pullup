@@ -82,6 +82,10 @@ import {
 import {
   signupConfirmationEmail,
   reminder8hEmail,
+  reservationEmail,
+  waitlistOfferEmail,
+  refundEmail,
+  cancellationEmail,
 } from "./emails/signupConfirmation.js";
 import {
   generateWaitlistToken,
@@ -707,23 +711,23 @@ app.get("/events", requireAuth, async (req, res) => {
     const filter = (req.query.filter || "all").toString().toLowerCase();
     let filteredEvents = eventsWithStats;
 
+    const DEFAULT_DURATION_MS = 3 * 60 * 60 * 1000; // 3 hours
     if (filter === "upcoming") {
       const now = new Date();
       filteredEvents = eventsWithStats.filter((event) => {
         if (!event.startsAt) return true;
         const start = new Date(event.startsAt);
-        const end = event.endsAt ? new Date(event.endsAt) : null;
-        // Match frontend getEventStatus: treat "ongoing" as not past
-        if (end && now > end) return false; // past
+        const end = event.endsAt ? new Date(event.endsAt) : new Date(start.getTime() + DEFAULT_DURATION_MS);
+        if (now > end) return false; // past
         return true; // upcoming or ongoing
       });
     } else if (filter === "past") {
       const now = new Date();
       filteredEvents = eventsWithStats.filter((event) => {
         if (!event.startsAt) return false;
-        const end = event.endsAt ? new Date(event.endsAt) : null;
-        // Match frontend getEventStatus "past" definition
-        return !!end && now > end;
+        const start = new Date(event.startsAt);
+        const end = event.endsAt ? new Date(event.endsAt) : new Date(start.getTime() + DEFAULT_DURATION_MS);
+        return now > end;
       });
     }
 
@@ -799,7 +803,7 @@ app.get("/e/:slug", async (req, res) => {
 app.post("/events/:slug/view", async (req, res) => {
   try {
     const { slug } = req.params;
-    const { visitorId, referrer, utm_source, utm_medium, utm_campaign, utm_content, deviceType } = req.body || {};
+    const { visitorId, referrer, utm_source, utm_medium, utm_campaign, utm_content, deviceType, userAgent, isVip } = req.body || {};
 
     // Resolve event ID from slug
     const event = await findEventBySlug(slug);
@@ -841,6 +845,8 @@ app.post("/events/:slug/view", async (req, res) => {
       utm_campaign: utm_campaign || null,
       utm_content: utm_content || null,
       device_type: deviceType || null,
+      user_agent: (userAgent || "").slice(0, 1000) || null,
+      is_vip: !!isVip,
     });
 
     return res.json({ ok: true });
@@ -1352,6 +1358,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       waitlistToken = null, // NEW: JWT token for waitlist upgrade
       vipToken = null, // NEW: JWT token for VIP invite
       marketingOptIn = false, // NEW: opt-in to newsletter from RSVP form
+      visitorId = null, // Links browsing session to RSVP
     } = req.body;
 
     if (!email && !vipToken) {
@@ -1527,6 +1534,8 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           dinnerTimeSlot: existingWaitlistRsvp.dinnerTimeSlot || null,
           dinnerPartySize: existingWaitlistRsvp.dinnerPartySize || null,
           marketingOptIn: marketingOptIn || false,
+          isVip: !!vipInvite,
+          visitorId: visitorId || null,
         }
       : {
           slug,
@@ -1537,6 +1546,8 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           dinnerTimeSlot,
           dinnerPartySize,
           marketingOptIn: marketingOptIn || false,
+          isVip: !!vipInvite,
+          visitorId: visitorId || null,
         };
 
     const result = await addRsvp(rsvpData);
@@ -2182,6 +2193,17 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       result.rsvp.bookingStatus === "PENDING_PAYMENT" ||
       (stripeClientSecret && stripePayment);
 
+    // Fetch host branding for email footers
+    let hostBrand = {};
+    try {
+      const hostProfile = await getUserProfile(result.event.hostId);
+      hostBrand = {
+        brandName: hostProfile?.brand || "",
+        brandWebsite: hostProfile?.brandWebsite || "",
+        contactEmail: hostProfile?.contactEmail || "",
+      };
+    } catch {}
+
     if (!isPendingPayment) {
       try {
         const isWaitlistEmail =
@@ -2209,6 +2231,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             spotifyUrl: result.event.spotify || "",
             ticketPrice: result.event.ticketPrice ? (Number(result.event.ticketPrice) / 100).toFixed(2) : 0,
             ticketCurrency: result.event.ticketCurrency || "",
+            ...hostBrand,
           }),
         });
       } catch (emailErr) {
@@ -2217,6 +2240,33 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           rsvpId: result.rsvp.id,
         });
         // Don’t block the RSVP on email failure
+      }
+    } else {
+      // Send reservation email for paid events with pending payment
+      try {
+        await sendEmail({
+          to: result.rsvp.email,
+          subject: "Your spot is reserved",
+          html: reservationEmail({
+            name: result.rsvp.name || name,
+            eventTitle: result.event.title,
+            imageUrl: result.event.coverImageUrl || result.event.imageUrl || "",
+            location: result.event.location || "",
+            startsAt: result.event.startsAt || "",
+            endsAt: result.event.endsAt || "",
+            timezone: result.event.timezone || "",
+            plusOnes: Number(result.rsvp.plusOnes) || 0,
+            slug: result.event.slug || "",
+            frontendUrl: getFrontendUrl(),
+            holdMinutes: 30,
+            ...hostBrand,
+          }),
+        });
+      } catch (emailErr) {
+        logger?.error?.("Failed to send reservation email", {
+          error: emailErr?.message,
+          rsvpId: result.rsvp.id,
+        });
       }
     }
 
@@ -2802,8 +2852,89 @@ app.post(
         });
       }
 
-      // Generate signed token (JWT)
-      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+      const frontendUrl = getFrontendUrl();
+
+      // Fetch host branding for email footers
+      let hostBrand = {};
+      try {
+        const hostProfile = await getUserProfile(event.hostId);
+        hostBrand = {
+          brandName: hostProfile?.brand || "",
+          brandWebsite: hostProfile?.brandWebsite || "",
+          contactEmail: hostProfile?.contactEmail || "",
+        };
+      } catch {}
+
+      // FREE EVENTS: Immediately confirm the guest (no payment needed)
+      if (isFreeEvent) {
+        await updateRsvp(rsvpId, {
+          bookingStatus: "CONFIRMED",
+          status: "attending",
+        }, { forceConfirm: true });
+
+        // Send confirmation email
+        try {
+          await sendEmail({
+            to: person.email,
+            subject: "Your spot is confirmed",
+            html: signupConfirmationEmail({
+              name: rsvp.name || person.name || "there",
+              eventTitle: event.title,
+              date: event.startsAt ? new Date(event.startsAt).toLocaleString() : "",
+              isWaitlist: false,
+              imageUrl: event.coverImageUrl || event.imageUrl || "",
+              location: event.location || "",
+              startsAt: event.startsAt || "",
+              endsAt: event.endsAt || "",
+              timezone: event.timezone || "",
+              plusOnes: Number(rsvp.plusOnes) || 0,
+              slug: event.slug || "",
+              frontendUrl,
+              spotifyUrl: event.spotify || "",
+              ...hostBrand,
+            }),
+          });
+        } catch (emailErr) {
+          console.error("Failed to send confirmation email:", emailErr);
+        }
+
+        return res.json({
+          link: null,
+          token: null,
+          expiresAt: null,
+          email: person.email,
+          isFreeEvent: true,
+          promoted: true,
+          emailSent: true,
+        });
+      }
+
+      // PAID EVENTS: Generate payment link for the guest
+      // Host can set custom expiry (in minutes), otherwise smart default
+      const { expiresInMinutes: customMinutes } = req.body || {};
+      let expiresAt;
+      if (customMinutes && Number(customMinutes) > 0) {
+        expiresAt = new Date(Date.now() + Number(customMinutes) * 60 * 1000);
+      } else {
+        // Smart default based on time until event
+        const now = Date.now();
+        const eventStart = event.startsAt ? new Date(event.startsAt).getTime() : null;
+        const minutesUntilEvent = eventStart ? (eventStart - now) / (60 * 1000) : null;
+
+        if (minutesUntilEvent === null || minutesUntilEvent > 24 * 60) {
+          // No start time or > 24h away: 6 hours
+          expiresAt = new Date(now + 6 * 60 * 60 * 1000);
+        } else if (minutesUntilEvent > 6 * 60) {
+          // 6-24h away: 2h before event
+          expiresAt = new Date(eventStart - 2 * 60 * 60 * 1000);
+        } else if (minutesUntilEvent > 2 * 60) {
+          // 2-6h away: 1h before event
+          expiresAt = new Date(eventStart - 1 * 60 * 60 * 1000);
+        } else {
+          // < 2h away or already started: 30 minutes (urgent)
+          expiresAt = new Date(now + 30 * 60 * 1000);
+        }
+      }
       const token = generateWaitlistToken({
         type: "waitlist_offer",
         eventId: event.id,
@@ -2825,19 +2956,44 @@ app.post(
       await updateRsvp(rsvpId, {
         waitlistLinkGeneratedAt: new Date().toISOString(),
         waitlistLinkExpiresAt: expiresAt.toISOString(),
-        waitlistLinkToken: token, // Store token for tracking (optional)
+        waitlistLinkToken: token,
       });
 
-      // Generate link using environment-aware frontend URL
-      const frontendUrl = getFrontendUrl();
       const link = `${frontendUrl}/e/${event.slug}?wl=${token}`;
+
+      // Send waitlist offer email with payment link
+      try {
+        await sendEmail({
+          to: person.email,
+          subject: "A spot has opened up!",
+          html: waitlistOfferEmail({
+            name: rsvp.name || person.name || "there",
+            eventTitle: event.title,
+            imageUrl: event.coverImageUrl || event.imageUrl || "",
+            location: event.location || "",
+            startsAt: event.startsAt || "",
+            endsAt: event.endsAt || "",
+            timezone: event.timezone || "",
+            plusOnes: Number(rsvp.plusOnes) || 0,
+            slug: event.slug || "",
+            frontendUrl,
+            offerLink: link,
+            isPaidEvent: true,
+            expiresInMinutes: Math.max(1, Math.round((expiresAt.getTime() - Date.now()) / (60 * 1000))),
+            ...hostBrand,
+          }),
+        });
+      } catch (emailErr) {
+        console.error("Failed to send waitlist offer email:", emailErr);
+      }
 
       return res.json({
         link,
         token,
         expiresAt: expiresAt.toISOString(),
         email: person.email,
-        isFreeEvent,
+        isFreeEvent: false,
+        emailSent: true,
       });
     } catch (error) {
       console.error("Error generating waitlist link:", error);
@@ -4018,6 +4174,9 @@ app.delete(
         return res.status(404).json({ error: "RSVP not found" });
       }
 
+      // Get person email before deletion
+      const person = await findPersonById(rsvp.personId);
+
       const result = await deleteRsvp(rsvpId);
 
       if (result.error === "not_found") {
@@ -4031,7 +4190,37 @@ app.delete(
         });
       }
 
-      res.json({ success: true });
+      // Send cancellation email to guest
+      if (person?.email) {
+        try {
+          let hostBrand = {};
+          try {
+            const hostProfile = await getUserProfile(event.hostId);
+            hostBrand = {
+              brandName: hostProfile?.brand || "",
+              brandWebsite: hostProfile?.brandWebsite || "",
+              contactEmail: hostProfile?.contactEmail || "",
+            };
+          } catch {}
+
+          await sendEmail({
+            to: person.email,
+            subject: "Your booking has been cancelled",
+            html: cancellationEmail({
+              name: rsvp.name || person.name || "there",
+              eventTitle: event.title,
+              imageUrl: event.coverImageUrl || event.imageUrl || "",
+              slug: event.slug || "",
+              frontendUrl: getFrontendUrl(),
+              ...hostBrand,
+            }),
+          });
+        } catch (emailErr) {
+          console.error("Failed to send cancellation email:", emailErr);
+        }
+      }
+
+      res.json({ success: true, emailSent: !!person?.email });
     } catch (error) {
       console.error("Error deleting RSVP:", error);
       res.status(500).json({ error: "Failed to delete RSVP" });
@@ -4092,6 +4281,16 @@ app.post(
           const person = await findPersonById(rsvp.personId);
           const email = person?.email || rsvp.email;
           if (email) {
+            let hostBrand = {};
+            try {
+              const hostProfile = await getUserProfile(event.hostId);
+              hostBrand = {
+                brandName: hostProfile?.brand || "",
+                brandWebsite: hostProfile?.brandWebsite || "",
+                contactEmail: hostProfile?.contactEmail || "",
+              };
+            } catch {}
+
             await sendEmail({
               to: email,
               subject: "Your spot is confirmed",
@@ -4111,6 +4310,7 @@ app.post(
                 spotifyUrl: event.spotify || "",
                 ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
                 ticketCurrency: event.ticketCurrency || "",
+                ...hostBrand,
               }),
             });
           }
@@ -4169,6 +4369,17 @@ app.post(
       // Sort FIFO by RSVP creation date
       rsvps.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
+      // Fetch host branding once for all emails
+      let hostBrand = {};
+      try {
+        const hostProfile = await getUserProfile(event.hostId);
+        hostBrand = {
+          brandName: hostProfile?.brand || "",
+          brandWebsite: hostProfile?.brandWebsite || "",
+          contactEmail: hostProfile?.contactEmail || "",
+        };
+      } catch {}
+
       let promoted = 0;
       for (const rsvp of rsvps) {
         const result = await updateRsvp(
@@ -4204,6 +4415,7 @@ app.post(
                     spotifyUrl: event.spotify || "",
                     ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
                     ticketCurrency: event.ticketCurrency || "",
+                    ...hostBrand,
                   }),
                 });
               }
@@ -4274,7 +4486,38 @@ app.post(
         });
       }
 
-      res.json(result.rsvp);
+      // Send cancellation email to guest
+      const person = await findPersonById(rsvp.personId);
+      if (person?.email) {
+        try {
+          let hostBrand = {};
+          try {
+            const hostProfile = await getUserProfile(event.hostId);
+            hostBrand = {
+              brandName: hostProfile?.brand || "",
+              brandWebsite: hostProfile?.brandWebsite || "",
+              contactEmail: hostProfile?.contactEmail || "",
+            };
+          } catch {}
+
+          await sendEmail({
+            to: person.email,
+            subject: "Your booking has been cancelled",
+            html: cancellationEmail({
+              name: rsvp.name || person.name || "there",
+              eventTitle: event.title,
+              imageUrl: event.coverImageUrl || event.imageUrl || "",
+              slug: event.slug || "",
+              frontendUrl: getFrontendUrl(),
+              ...hostBrand,
+            }),
+          });
+        } catch (emailErr) {
+          console.error("Failed to send cancellation email:", emailErr);
+        }
+      }
+
+      res.json({ ...result.rsvp, emailSent: !!person?.email });
     } catch (error) {
       console.error("Error cancelling RSVP:", error);
       res.status(500).json({ error: "Failed to cancel RSVP" });
@@ -5429,6 +5672,43 @@ app.post(
         }
       }
 
+      // Send refund notification email to guest
+      if (payment.rsvpId) {
+        try {
+          const rsvpForEmail = await findRsvpById(payment.rsvpId);
+          const personForEmail = rsvpForEmail ? await findPersonById(rsvpForEmail.personId) : null;
+          if (personForEmail?.email) {
+            let hostBrand = {};
+            try {
+              const hostProfile = await getUserProfile(event.hostId);
+              hostBrand = {
+                brandName: hostProfile?.brand || "",
+                brandWebsite: hostProfile?.brandWebsite || "",
+                contactEmail: hostProfile?.contactEmail || "",
+              };
+            } catch {}
+
+            await sendEmail({
+              to: personForEmail.email,
+              subject: isFullRefund ? "Your payment has been refunded" : "Partial refund processed",
+              html: refundEmail({
+                name: rsvpForEmail.name || personForEmail.name || "there",
+                eventTitle: event.title,
+                imageUrl: event.coverImageUrl || event.imageUrl || "",
+                slug: event.slug || "",
+                frontendUrl: getFrontendUrl(),
+                refundAmount: (refund.amount / 100).toFixed(2),
+                currency: refund.currency || event.ticketCurrency || "usd",
+                isFullRefund,
+                ...hostBrand,
+              }),
+            });
+          }
+        } catch (emailErr) {
+          console.error("Failed to send refund email:", emailErr);
+        }
+      }
+
       return res.json({
         success: true,
         refund: {
@@ -5443,6 +5723,7 @@ app.post(
           refundedAmount: refund.amount,
         },
         isFullRefund,
+        emailSent: true,
       });
     } catch (error) {
       console.error("Error creating refund:", error);
@@ -5542,6 +5823,10 @@ app.post("/payments/verify/:paymentIntentId", async (req, res) => {
 
       const result = await handleStripeWebhook(mockEvent);
 
+      // Import data functions for payment lookup (used for receipt URL and redirect-based payments)
+      const { findPaymentByStripePaymentIntentId, updatePayment } =
+        await import("./data.js");
+
       // Extract receipt URL from charge if available and update payment
       // Stripe generates receipt URLs asynchronously, so we check here too
       const receiptUrl = paymentIntent.charges?.data?.[0]?.receipt_url || null;
@@ -5550,8 +5835,6 @@ app.post("/payments/verify/:paymentIntentId", async (req, res) => {
           "[Payment Verify] Found receipt URL, ensuring it's stored:",
           receiptUrl
         );
-        const { findPaymentByStripePaymentIntentId, updatePayment } =
-          await import("./data.js");
         const payment = await findPaymentByStripePaymentIntentId(
           paymentIntentId
         );
@@ -5572,12 +5855,52 @@ app.post("/payments/verify/:paymentIntentId", async (req, res) => {
 
       if (result.processed) {
         console.log("[Payment Verify] ✅ Payment updated successfully");
+
+        // Fetch full RSVP + event data for redirect-based payment methods (Klarna etc.)
+        let rsvpData = null;
+        let eventData = null;
+        let paymentData = null;
+        try {
+          const dbPayment = await findPaymentByStripePaymentIntentId(paymentIntentId);
+          if (dbPayment) {
+            paymentData = {
+              id: dbPayment.id,
+              status: dbPayment.status,
+              amount: dbPayment.amount,
+              currency: dbPayment.currency,
+              receiptUrl: receiptUrl || dbPayment.receiptUrl || null,
+            };
+            if (dbPayment.rsvpId) {
+              const rsvp = await findRsvpById(dbPayment.rsvpId);
+              if (rsvp) {
+                const person = await findPersonById(rsvp.personId);
+                rsvpData = {
+                  name: rsvp.name || person?.name || null,
+                  email: person?.email || null,
+                  bookingStatus: rsvp.bookingStatus || "CONFIRMED",
+                  wantsDinner: rsvp.wantsDinner || false,
+                  partySize: rsvp.partySize || 1,
+                  plusOnes: rsvp.plusOnes || 0,
+                  dinnerPartySize: rsvp.dinnerPartySize || null,
+                  dinnerTimeSlot: rsvp.dinnerTimeSlot || null,
+                };
+                eventData = await findEventById(rsvp.eventId);
+              }
+            }
+          }
+        } catch (lookupErr) {
+          console.error("[Payment Verify] Error fetching RSVP/event data:", lookupErr);
+        }
+
         return res.json({
           success: true,
           message: "Payment verified and updated",
           paymentIntentId: paymentIntent.id,
           status: paymentIntent.status,
           receiptUrl: receiptUrl || null,
+          rsvp: rsvpData,
+          event: eventData,
+          payment: paymentData,
         });
       } else {
         console.error(
@@ -6147,6 +6470,91 @@ app.post("/host/profile/picture", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Error uploading profile picture:", error);
     res.status(500).json({ error: "Failed to upload profile picture" });
+  }
+});
+
+// Upload brand logo
+app.post("/host/profile/logo", requireAuth, async (req, res) => {
+  try {
+    const { imageData } = req.body;
+
+    if (!imageData) {
+      return res.status(400).json({ error: "imageData is required" });
+    }
+
+    // Enforce max size: ~500KB after base64 decoding
+    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+
+    if (buffer.length > 512 * 1024) {
+      return res.status(400).json({ error: "Logo must be under 500KB. Please use a smaller image." });
+    }
+
+    const mimeMatch = imageData.match(/data:image\/(\w+);base64/);
+    const extension = mimeMatch ? mimeMatch[1] : "png";
+    const fileName = `${req.user.id}/logo.${extension}`;
+
+    const { supabase } = await import("./supabase.js");
+    const { error } = await supabase.storage
+      .from("profile-pictures")
+      .upload(fileName, buffer, {
+        contentType: `image/${extension}`,
+        upsert: true,
+      });
+
+    if (error) {
+      console.error("Storage upload error:", error);
+      return res.status(500).json({ error: "Failed to upload logo" });
+    }
+
+    const updated = await updateUserProfile(req.user.id, {
+      brandLogo: fileName,
+    });
+
+    // Generate URL for immediate return
+    let logoUrl = null;
+    try {
+      const { data: signedUrlData, error: urlError } = await supabase.storage
+        .from("profile-pictures")
+        .createSignedUrl(fileName, 3600);
+      if (!urlError && signedUrlData?.signedUrl) {
+        logoUrl = signedUrlData.signedUrl;
+      }
+    } catch (err) {
+      console.error("Signed URL error:", err);
+    }
+
+    if (!logoUrl) {
+      const { data: { publicUrl } } = supabase.storage.from("profile-pictures").getPublicUrl(fileName);
+      logoUrl = publicUrl;
+    }
+
+    res.json({ ...updated, brandLogo: logoUrl });
+  } catch (error) {
+    console.error("Error uploading brand logo:", error);
+    res.status(500).json({ error: "Failed to upload brand logo" });
+  }
+});
+
+// Delete brand logo
+app.delete("/host/profile/logo", requireAuth, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.user.id);
+    if (profile.brandLogo) {
+      let filePath = profile.brandLogo;
+      if (filePath.includes("profile-pictures/")) {
+        const urlMatch = filePath.match(/profile-pictures\/([^?]+)/);
+        if (urlMatch) filePath = urlMatch[1];
+      }
+      const { supabase } = await import("./supabase.js");
+      await supabase.storage.from("profile-pictures").remove([filePath]);
+    }
+
+    const updated = await updateUserProfile(req.user.id, { brandLogo: null });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error deleting brand logo:", error);
+    res.status(500).json({ error: "Failed to delete brand logo" });
   }
 });
 
@@ -7282,53 +7690,273 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
     // Get page views for all host events
     const { data: views } = await sb
       .from("event_page_views")
-      .select("event_id, visitor_id, utm_source, created_at")
+      .select("event_id, visitor_id, utm_source, utm_campaign, referrer, device_type, created_at")
       .in("event_id", eventIds);
-
-    // Aggregate per event
-    const eventViewMap = {};
-    const allVisitors = new Set();
-    let newsletterViews = 0;
-    for (const v of (views || [])) {
-      if (!eventViewMap[v.event_id]) {
-        eventViewMap[v.event_id] = { views: 0, visitors: new Set() };
-      }
-      eventViewMap[v.event_id].views++;
-      eventViewMap[v.event_id].visitors.add(v.visitor_id);
-      allVisitors.add(v.visitor_id);
-      if (v.utm_source === "pullup_newsletter") newsletterViews++;
-    }
 
     // Get event details + RSVP counts
     const { data: events } = await sb
       .from("events")
-      .select("id, title, slug, starts_at, cover_image_url, image_url")
+      .select("id, title, slug, starts_at, ends_at, cover_image_url, image_url, host_id")
       .in("id", eventIds)
       .order("starts_at", { ascending: false });
 
     // Batch-fetch RSVP counts for all events in one query instead of N+1
     const { data: rsvpRows } = await sb
       .from("rsvps")
-      .select("event_id, party_size, total_guests, booking_status, status")
+      .select("id, event_id, party_size, total_guests, booking_status, status, visitor_id, created_at")
       .in("event_id", eventIds);
 
-    const rsvpCountMap = {};
-    for (const r of (rsvpRows || [])) {
-      if (r.booking_status === "CONFIRMED" || r.booking_status === "PENDING_PAYMENT" || r.status === "attending") {
-        rsvpCountMap[r.event_id] = (rsvpCountMap[r.event_id] || 0) + (r.total_guests ?? r.party_size ?? 1);
+    // Date range filtering — supports ?startDate=&endDate= or ?days=
+    const now = new Date();
+    let periodStart, periodEnd, days;
+    if (req.query.startDate && req.query.endDate) {
+      periodStart = new Date(req.query.startDate + "T00:00:00");
+      periodEnd = new Date(req.query.endDate + "T23:59:59.999");
+      days = Math.round((periodEnd - periodStart) / (1000 * 60 * 60 * 24)) + 1;
+    } else {
+      days = parseInt(req.query.days) || 30;
+      periodEnd = new Date(now);
+      periodEnd.setHours(23, 59, 59, 999);
+      periodStart = new Date(periodEnd);
+      periodStart.setDate(periodStart.getDate() - days + 1);
+      periodStart.setHours(0, 0, 0, 0);
+    }
+    const prevEnd = new Date(periodStart);
+    prevEnd.setMilliseconds(prevEnd.getMilliseconds() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - days + 1);
+    prevStart.setHours(0, 0, 0, 0);
+
+    // Build event title lookup
+    const eventTitleMap = {};
+    for (const e of (events || [])) {
+      eventTitleMap[e.id] = e.title;
+    }
+
+    // Aggregate views filtered by selected period
+    const eventViewMap = {};
+    const eventSourceMap = {}; // { eventId: { source: count } }
+    const eventDailyMap = {}; // { eventId: { "2026-03-10": count } }
+    const eventDailySourceMap = {}; // { eventId: { "2026-03-10": { source: count } } }
+    const allVisitors = new Set();
+    let newsletterViews = 0;
+    const deviceCounts = { mobile: 0, desktop: 0, unknown: 0 };
+
+    // Daily views per event + totals (current period)
+    const currentDays = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(periodStart);
+      d.setDate(d.getDate() + i);
+      currentDays.push(d.toISOString().slice(0, 10));
+    }
+
+    const dailyPerEvent = {};
+    const dailyTotal = {};
+    const prevDailyTotal = {};
+
+    for (const v of (views || [])) {
+      const day = v.created_at.slice(0, 10);
+      const vDate = new Date(v.created_at);
+
+      if (vDate >= periodStart && vDate <= periodEnd) {
+        // Period-filtered per-event aggregation
+        if (!eventViewMap[v.event_id]) {
+          eventViewMap[v.event_id] = { views: 0, visitors: new Set() };
+        }
+        eventViewMap[v.event_id].views++;
+        eventViewMap[v.event_id].visitors.add(v.visitor_id);
+        if (v.device_type === "mobile") deviceCounts.mobile++;
+        else if (v.device_type === "desktop") deviceCounts.desktop++;
+        else deviceCounts.unknown++;
+        allVisitors.add(v.visitor_id);
+        if (v.utm_source === "pullup_newsletter") newsletterViews++;
+
+        // Per-event source tracking
+        let source = "direct";
+        if (v.utm_source) {
+          source = v.utm_source;
+        } else if (v.referrer) {
+          try {
+            const host = new URL(v.referrer).hostname.replace("www.", "");
+            if (host.includes("instagram")) source = "instagram";
+            else if (host.includes("facebook") || host.includes("fb.")) source = "facebook";
+            else if (host.includes("twitter") || host.includes("x.com")) source = "twitter";
+            else if (host.includes("linkedin")) source = "linkedin";
+            else if (host.includes("pullup")) source = "pullup";
+            else source = host;
+          } catch { source = "other"; }
+        }
+        if (!eventSourceMap[v.event_id]) eventSourceMap[v.event_id] = {};
+        eventSourceMap[v.event_id][source] = (eventSourceMap[v.event_id][source] || 0) + 1;
+
+        // Per-event daily-by-source
+        if (!eventDailySourceMap[v.event_id]) eventDailySourceMap[v.event_id] = {};
+        if (!eventDailySourceMap[v.event_id][day]) eventDailySourceMap[v.event_id][day] = {};
+        eventDailySourceMap[v.event_id][day][source] = (eventDailySourceMap[v.event_id][day][source] || 0) + 1;
+
+        // Per-event daily views
+        if (!eventDailyMap[v.event_id]) eventDailyMap[v.event_id] = {};
+        eventDailyMap[v.event_id][day] = (eventDailyMap[v.event_id][day] || 0) + 1;
+
+        // Daily breakdown for chart
+        dailyTotal[day] = (dailyTotal[day] || 0) + 1;
+        if (!dailyPerEvent[v.event_id]) dailyPerEvent[v.event_id] = {};
+        dailyPerEvent[v.event_id][day] = (dailyPerEvent[v.event_id][day] || 0) + 1;
+      } else if (vDate >= prevStart && vDate <= prevEnd) {
+        const dayOffset = Math.floor((vDate - prevStart) / (1000 * 60 * 60 * 24));
+        const mappedDay = currentDays[dayOffset] || day;
+        prevDailyTotal[mappedDay] = (prevDailyTotal[mappedDay] || 0) + 1;
       }
     }
 
+    // RSVPs filtered by period
+    const rsvpCountMap = {};
     let totalRsvps = 0;
+    for (const r of (rsvpRows || [])) {
+      if (r.booking_status === "CONFIRMED" || r.booking_status === "PENDING_PAYMENT" || r.status === "attending") {
+        const rDate = new Date(r.created_at);
+        if (rDate >= periodStart && rDate <= periodEnd) {
+          const count = r.total_guests ?? r.party_size ?? 1;
+          rsvpCountMap[r.event_id] = (rsvpCountMap[r.event_id] || 0) + count;
+        }
+      }
+    }
+
+    // Per-event RSVP daily breakdown (+ VIP RSVP daily)
+    const rsvpDailyMap = {}; // { eventId: { "2026-03-10": count } }
+    const vipRsvpDailyMap = {}; // { eventId: { "2026-03-10": count } }
+    for (const r of (rsvpRows || [])) {
+      if (r.booking_status === "CONFIRMED" || r.booking_status === "PENDING_PAYMENT" || r.status === "attending") {
+        const rDate = new Date(r.created_at);
+        if (rDate >= periodStart && rDate <= periodEnd) {
+          const day = r.created_at.slice(0, 10);
+          const count = r.total_guests ?? r.party_size ?? 1;
+          if (!rsvpDailyMap[r.event_id]) rsvpDailyMap[r.event_id] = {};
+          rsvpDailyMap[r.event_id][day] = (rsvpDailyMap[r.event_id][day] || 0) + count;
+        }
+      }
+    }
+
+    // Batch-fetch VIP invites for all events
+    const { data: vipRows } = await sb
+      .from("vip_invites")
+      .select("id, event_id, email, max_guests, free_entry, used_at, used_rsvp_id, created_at")
+      .in("event_id", eventIds);
+
+    // Group VIP invites per event
+    const vipByEvent = {};
+    for (const v of (vipRows || [])) {
+      if (!vipByEvent[v.event_id]) vipByEvent[v.event_id] = [];
+      vipByEvent[v.event_id].push({
+        email: v.email,
+        maxGuests: v.max_guests,
+        freeEntry: v.free_entry,
+        redeemed: !!v.used_at,
+        createdAt: v.created_at,
+      });
+    }
+
+    // Build set of VIP RSVP IDs for golden-dot tracking
+    const vipRsvpIds = new Set();
+    for (const v of (vipRows || [])) {
+      if (v.used_rsvp_id) vipRsvpIds.add(v.used_rsvp_id);
+    }
+
+    // Now populate VIP RSVP daily map using the vipRsvpIds set
+    // Count VIP bookings (not total guests) — each redeemed VIP invite = 1 VIP RSVP
+    for (const r of (rsvpRows || [])) {
+      if (r.booking_status === "CONFIRMED" || r.booking_status === "PENDING_PAYMENT" || r.status === "attending") {
+        const rDate = new Date(r.created_at);
+        if (rDate >= periodStart && rDate <= periodEnd && vipRsvpIds.has(r.id)) {
+          const day = r.created_at.slice(0, 10);
+          if (!vipRsvpDailyMap[r.event_id]) vipRsvpDailyMap[r.event_id] = {};
+          vipRsvpDailyMap[r.event_id][day] = (vipRsvpDailyMap[r.event_id][day] || 0) + 1;
+        }
+      }
+    }
+
+    // Batch-fetch hosts for all events (event_hosts table + owner from events.host_id)
+    const { data: hostRows } = await sb
+      .from("event_hosts")
+      .select("event_id, user_id, role")
+      .in("event_id", eventIds);
+
+    // Collect all unique user IDs (owners + co-hosts)
+    const ownerIds = new Set((events || []).map(e => e.host_id).filter(Boolean));
+    const allHostUserIds = new Set([...ownerIds]);
+    for (const h of (hostRows || [])) allHostUserIds.add(h.user_id);
+
+    // Batch-fetch profiles for all host users
+    const { data: profileRows } = await sb
+      .from("profiles")
+      .select("id, name, brand, contact_email")
+      .in("id", [...allHostUserIds]);
+    const profileMap = {};
+    for (const p of (profileRows || [])) profileMap[p.id] = p;
+
+    // Batch-fetch auth emails for all host users
+    const hostEmailMap = {};
+    for (const uid of allHostUserIds) {
+      try {
+        const { data: { user: authUser } } = await sb.auth.admin.getUserById(uid);
+        if (authUser) hostEmailMap[uid] = authUser.email;
+      } catch {}
+    }
+
+    // Build per-event hosts list
+    const hostsByEvent = {};
+    for (const e of (events || [])) {
+      const hosts = [];
+      // Owner first
+      if (e.host_id) {
+        const p = profileMap[e.host_id];
+        hosts.push({
+          name: p?.name || p?.brand || null,
+          email: hostEmailMap[e.host_id] || p?.contact_email || null,
+          role: "owner",
+        });
+      }
+      // Additional hosts
+      for (const h of (hostRows || [])) {
+        if (h.event_id !== e.id || h.user_id === e.host_id) continue;
+        const p = profileMap[h.user_id];
+        hosts.push({
+          name: p?.name || p?.brand || null,
+          email: hostEmailMap[h.user_id] || p?.contact_email || null,
+          role: h.role || "editor",
+        });
+      }
+      hostsByEvent[e.id] = hosts;
+    }
+
+    // Build events list filtered by period
     const eventsWithAnalytics = (events || []).map((e) => {
       const rsvps = rsvpCountMap[e.id] || 0;
       totalRsvps += rsvps;
       const ev = eventViewMap[e.id] || { views: 0, visitors: new Set() };
+
+      // Per-event sources
+      const srcMap = eventSourceMap[e.id] || {};
+      const sources = Object.entries(srcMap)
+        .map(([source, count]) => ({ source, count, percentage: ev.views > 0 ? Math.round((count / ev.views) * 1000) / 10 : 0 }))
+        .sort((a, b) => b.count - a.count);
+
+      // Per-event daily views + RSVPs + per-source breakdown for the period
+      const dailySourceData = eventDailySourceMap[e.id] || {};
+      const dailyViews = currentDays.map(date => ({
+        date,
+        views: (eventDailyMap[e.id] && eventDailyMap[e.id][date]) || 0,
+        rsvps: (rsvpDailyMap[e.id] && rsvpDailyMap[e.id][date]) || 0,
+        vipRsvps: (vipRsvpDailyMap[e.id] && vipRsvpDailyMap[e.id][date]) || 0,
+        bySource: dailySourceData[date] || {},
+      }));
+
       return {
         id: e.id,
         title: e.title,
         slug: e.slug,
         starts_at: e.starts_at,
+        ends_at: e.ends_at,
         cover_image_url: e.cover_image_url || e.image_url,
         views: ev.views,
         unique_visitors: ev.visitors.size,
@@ -7336,29 +7964,227 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
         conversion_rate: ev.views > 0
           ? Math.round((rsvps / ev.views) * 1000) / 10
           : 0,
+        sources,
+        daily: dailyViews,
+        vipInvites: vipByEvent[e.id] || [],
+        hosts: hostsByEvent[e.id] || [],
       };
     });
-
-    // Sort by views descending
     eventsWithAnalytics.sort((a, b) => b.views - a.views);
 
-    // Daily views across all events (last 30 days)
-    const dailyViews = {};
-    for (const v of (views || [])) {
-      const day = v.created_at.slice(0, 10);
-      dailyViews[day] = (dailyViews[day] || 0) + 1;
+    // Build chart data arrays
+    const current = currentDays.map((date) => ({
+      date,
+      views: dailyTotal[date] || 0,
+    }));
+    const previous = currentDays.map((date) => ({
+      date,
+      views: prevDailyTotal[date] || 0,
+    }));
+
+    // Build per-event stacked data (top events only)
+    const topEventIds = eventsWithAnalytics.filter(e => e.views > 0).slice(0, 8).map(e => e.id);
+    const stackedData = currentDays.map((date) => {
+      const entry = { date };
+      let accounted = 0;
+      for (const eid of topEventIds) {
+        const val = (dailyPerEvent[eid] && dailyPerEvent[eid][date]) || 0;
+        entry[eid] = val;
+        accounted += val;
+      }
+      entry._other = (dailyTotal[date] || 0) - accounted;
+      return entry;
+    });
+
+    // Previous period aggregate stats
+    const prevViews = (views || []).filter(v => {
+      const d = new Date(v.created_at);
+      return d >= prevStart && d <= prevEnd;
+    });
+    const prevUniqueVisitors = new Set(prevViews.map(v => v.visitor_id)).size;
+    const currentViewsCount = (views || []).filter(v => {
+      const d = new Date(v.created_at);
+      return d >= periodStart && d <= periodEnd;
+    }).length;
+    const currentUniqueVisitors = allVisitors.size;
+
+    const viewsChange = prevViews.length > 0
+      ? Math.round(((currentViewsCount - prevViews.length) / prevViews.length) * 100)
+      : null;
+    const uniqueChange = prevUniqueVisitors > 0
+      ? Math.round(((currentUniqueVisitors - prevUniqueVisitors) / prevUniqueVisitors) * 100)
+      : null;
+
+    const totalPeriodViews = Object.values(dailyTotal).reduce((s, v) => s + v, 0);
+
+    // ── Campaign funnel tracking ──
+    // Fetch email_outbox for campaigns related to this host's events
+    // Get all event slugs for campaign_tag matching
+    const eventSlugMap = {};
+    for (const e of (events || [])) {
+      eventSlugMap[e.id] = e.slug;
     }
+    const allSlugs = Object.values(eventSlugMap);
+
+    // Fetch outbox rows for newsletter campaigns and VIP campaigns in period
+    const { data: outboxRows } = await sb
+      .from("email_outbox")
+      .select("id, tracking_id, to_email, campaign_tag, status, created_at")
+      .like("campaign_tag", "host_campaign_%")
+      .gte("created_at", periodStart.toISOString())
+      .lte("created_at", periodEnd.toISOString());
+
+    // Build campaign data if we have outbox rows
+    let campaigns = [];
+    if (outboxRows && outboxRows.length > 0) {
+      // Group by campaign_tag
+      const campaignMap = {};
+      const allTrackingIds = [];
+      for (const row of outboxRows) {
+        if (!row.campaign_tag) continue;
+        if (!campaignMap[row.campaign_tag]) {
+          campaignMap[row.campaign_tag] = { sent: 0, emails: new Set(), trackingIds: [] };
+        }
+        campaignMap[row.campaign_tag].sent++;
+        campaignMap[row.campaign_tag].emails.add(row.to_email);
+        if (row.tracking_id) {
+          campaignMap[row.campaign_tag].trackingIds.push(row.tracking_id);
+          allTrackingIds.push(row.tracking_id);
+        }
+      }
+
+      // Batch fetch opens and clicks for all tracking IDs
+      let opensSet = new Set();
+      let clicksSet = new Set();
+      if (allTrackingIds.length > 0) {
+        const { data: openRows } = await sb
+          .from("email_opens")
+          .select("tracking_id")
+          .in("tracking_id", allTrackingIds);
+        for (const o of (openRows || [])) opensSet.add(o.tracking_id);
+
+        const { data: clickRows } = await sb
+          .from("email_clicks")
+          .select("tracking_id")
+          .in("tracking_id", allTrackingIds);
+        for (const c of (clickRows || [])) clicksSet.add(c.tracking_id);
+      }
+
+      // Count page views and RSVPs per campaign using utm_campaign
+      // Also build per-event campaign view counts
+      const campaignViewMap = {}; // { campaign_tag: count }
+      const campaignVisitorMap = {}; // { campaign_tag: Set<visitor_id> }
+      const eventCampaignMap = {}; // { event_id: { campaign_tag: count } }
+      for (const v of (views || [])) {
+        if (!v.utm_campaign) continue;
+        // Only count host campaign views, skip admin/VIP campaigns
+        if (!v.utm_campaign.startsWith("host_campaign_")) continue;
+        const vDate = new Date(v.created_at);
+        if (vDate >= periodStart && vDate <= periodEnd) {
+          campaignViewMap[v.utm_campaign] = (campaignViewMap[v.utm_campaign] || 0) + 1;
+          if (!campaignVisitorMap[v.utm_campaign]) campaignVisitorMap[v.utm_campaign] = new Set();
+          campaignVisitorMap[v.utm_campaign].add(v.visitor_id);
+
+          // Per-event campaign breakdown
+          if (!eventCampaignMap[v.event_id]) eventCampaignMap[v.event_id] = {};
+          eventCampaignMap[v.event_id][v.utm_campaign] = (eventCampaignMap[v.event_id][v.utm_campaign] || 0) + 1;
+        }
+      }
+
+      // Match RSVPs to campaigns via visitor_id
+      const campaignRsvpMap = {}; // { campaign_tag: count }
+      for (const r of (rsvpRows || [])) {
+        if (!(r.booking_status === "CONFIRMED" || r.booking_status === "PENDING_PAYMENT" || r.status === "attending")) continue;
+        if (!r.visitor_id) continue;
+        const rDate = new Date(r.created_at);
+        if (rDate < periodStart || rDate > periodEnd) continue;
+        // Check which campaigns this visitor came from
+        for (const [tag, visitors] of Object.entries(campaignVisitorMap)) {
+          if (visitors.has(r.visitor_id)) {
+            campaignRsvpMap[tag] = (campaignRsvpMap[tag] || 0) + 1;
+          }
+        }
+      }
+
+      // Build campaign array
+      for (const [tag, data] of Object.entries(campaignMap)) {
+        const opened = data.trackingIds.filter(t => opensSet.has(t)).length;
+        const clicked = data.trackingIds.filter(t => clicksSet.has(t)).length;
+        const visited = campaignViewMap[tag] || 0;
+        const rsvps = campaignRsvpMap[tag] || 0;
+
+        // Determine a readable name from the campaign DB record
+        let name = tag;
+        if (tag.startsWith("host_campaign_")) {
+          const cId = tag.replace("host_campaign_", "");
+          // Try to look up the campaign name from email_campaigns table
+          try {
+            const { data: campaignRow } = await sb
+              .from("campaign_campaigns")
+              .select("name, subject")
+              .eq("id", cId)
+              .maybeSingle();
+            if (campaignRow) name = campaignRow.name || campaignRow.subject || tag;
+          } catch {}
+        }
+
+        campaigns.push({
+          tag,
+          name,
+          sent: data.sent,
+          opened,
+          clicked,
+          visited,
+          rsvps,
+          openRate: data.sent > 0 ? Math.round((opened / data.sent) * 1000) / 10 : 0,
+          clickRate: opened > 0 ? Math.round((clicked / opened) * 1000) / 10 : 0,
+          visitRate: clicked > 0 ? Math.round((visited / clicked) * 1000) / 10 : 0,
+          conversionRate: visited > 0 ? Math.round((rsvps / visited) * 1000) / 10 : 0,
+        });
+      }
+      campaigns.sort((a, b) => b.sent - a.sent);
+
+      // Attach campaign breakdowns to events
+      for (const ev of eventsWithAnalytics) {
+        const ecm = eventCampaignMap[ev.id];
+        if (ecm) {
+          ev.campaignBreakdown = Object.entries(ecm)
+            .map(([tag, count]) => ({ tag, count }))
+            .sort((a, b) => b.count - a.count);
+        }
+      }
+    }
+
+    // Also need utm_campaign in the views query — it's already selected, let's add it to per-event source tracking
+    // (utm_campaign is captured but we need to pass it through the event source data)
 
     return res.json({
       events: eventsWithAnalytics,
-      total_views: (views || []).length,
+      total_views: totalPeriodViews,
       total_unique_visitors: allVisitors.size,
       total_rsvps: totalRsvps,
       newsletter_views: newsletterViews,
-      daily_views: dailyViews,
-      avg_conversion: (views || []).length > 0
-        ? Math.round((totalRsvps / (views || []).length) * 1000) / 10
+      device_split: deviceCounts,
+      campaigns,
+      daily_views: dailyTotal,
+      avg_conversion: totalPeriodViews > 0
+        ? Math.round((totalRsvps / totalPeriodViews) * 1000) / 10
         : 0,
+      chart: {
+        current,
+        previous,
+        stacked: stackedData,
+        eventLabels: topEventIds.map(id => ({ id, title: eventTitleMap[id] || "Unknown" })),
+      },
+      period: {
+        days,
+        currentViews: currentViewsCount,
+        currentUnique: currentUniqueVisitors,
+        prevViews: prevViews.length,
+        prevUnique: prevUniqueVisitors,
+        viewsChange,
+        uniqueChange,
+      },
     });
   } catch (err) {
     console.error("[host] aggregate analytics error:", err.message);
@@ -7379,8 +8205,18 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
 
     const { supabase: sb } = await import("./supabase.js");
 
-    // Get page views
-    const { data: views, error: viewsErr } = await sb
+    // Date range (default last 30 days)
+    const days = 30;
+    const periodEnd = req.query.endDate ? new Date(req.query.endDate) : new Date();
+    const periodStart = req.query.startDate
+      ? new Date(req.query.startDate)
+      : new Date(periodEnd.getTime() - days * 86400000);
+    const periodLenMs = periodEnd.getTime() - periodStart.getTime();
+    const prevEnd = new Date(periodStart.getTime() - 1);
+    const prevStart = new Date(prevEnd.getTime() - periodLenMs);
+
+    // Get ALL page views (we filter in memory for current/prev)
+    const { data: allViews, error: viewsErr } = await sb
       .from("event_page_views")
       .select("id, visitor_id, referrer, utm_source, utm_medium, utm_campaign, utm_content, device_type, created_at")
       .eq("event_id", id)
@@ -7388,12 +8224,39 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
 
     if (viewsErr) throw viewsErr;
 
-    const totalViews = (views || []).length;
-    const uniqueVisitors = new Set((views || []).map((v) => v.visitor_id).filter(Boolean)).size;
+    // Filter views to current and previous period
+    const views = (allViews || []).filter(v => {
+      const d = new Date(v.created_at);
+      return d >= periodStart && d <= periodEnd;
+    });
+    const prevViews = (allViews || []).filter(v => {
+      const d = new Date(v.created_at);
+      return d >= prevStart && d <= prevEnd;
+    });
 
-    // Traffic sources breakdown
-    const sourceMap = {};
-    for (const v of (views || [])) {
+    const totalViews = views.length;
+    const uniqueVisitors = new Set(views.map(v => v.visitor_id).filter(Boolean)).size;
+    const prevUniqueVisitors = new Set(prevViews.map(v => v.visitor_id).filter(Boolean)).size;
+
+    // Period comparison
+    const viewsChange = prevViews.length > 0
+      ? Math.round(((totalViews - prevViews.length) / prevViews.length) * 1000) / 10
+      : totalViews > 0 ? 100 : 0;
+    const uniqueChange = prevUniqueVisitors > 0
+      ? Math.round(((uniqueVisitors - prevUniqueVisitors) / prevUniqueVisitors) * 1000) / 10
+      : uniqueVisitors > 0 ? 100 : 0;
+
+    // Device split
+    const device_split = { mobile: 0, desktop: 0, unknown: 0 };
+    for (const v of views) {
+      const dt = (v.device_type || "").toLowerCase();
+      if (dt === "mobile") device_split.mobile++;
+      else if (dt === "desktop") device_split.desktop++;
+      else device_split.unknown++;
+    }
+
+    // Source detection helper
+    function detectSource(v) {
       let source = "direct";
       if (v.utm_source) {
         source = v.utm_source;
@@ -7410,30 +8273,91 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
           source = "other";
         }
       }
-      sourceMap[source] = (sourceMap[source] || 0) + 1;
+      return source;
     }
 
+    // Traffic sources breakdown
+    const sourceMap = {};
+    for (const v of views) {
+      const source = detectSource(v);
+      sourceMap[source] = (sourceMap[source] || 0) + 1;
+    }
     const sources = Object.entries(sourceMap)
-      .map(([source, count]) => ({ source, count, percentage: Math.round((count / totalViews) * 1000) / 10 }))
+      .map(([source, count]) => ({ source, count, percentage: totalViews > 0 ? Math.round((count / totalViews) * 1000) / 10 : 0 }))
       .sort((a, b) => b.count - a.count);
+
+    // Fetch RSVPs
+    const { data: rsvpRows } = await sb
+      .from("rsvps")
+      .select("id, event_id, party_size, total_guests, booking_status, status, visitor_id, created_at")
+      .eq("event_id", id);
+
+    const validRsvps = (rsvpRows || []).filter(r =>
+      r.booking_status === "CONFIRMED" || r.booking_status === "PENDING_PAYMENT" || r.status === "attending"
+    );
+    const periodRsvps = validRsvps.filter(r => {
+      const d = new Date(r.created_at);
+      return d >= periodStart && d <= periodEnd;
+    });
 
     // Get RSVP count for conversion funnel
     const counts = await getEventCounts(id);
+    const rsvp_count = (counts?.confirmed || 0) + (counts?.waitlist || 0);
 
-    // Views per day (last 30 days)
-    const dailyViews = {};
-    for (const v of (views || [])) {
-      const day = v.created_at.slice(0, 10);
-      dailyViews[day] = (dailyViews[day] || 0) + 1;
+    // VIP invites
+    let vipInvites = [];
+    let vipRsvpIds = new Set();
+    try {
+      const { data: vipRows } = await sb
+        .from("vip_invites")
+        .select("id, event_id, email, max_guests, free_entry, used_at, used_rsvp_id, created_at")
+        .eq("event_id", id);
+      vipInvites = (vipRows || []).map(v => ({
+        email: v.email,
+        maxGuests: v.max_guests,
+        freeEntry: v.free_entry,
+        redeemed: !!v.used_at,
+      }));
+      for (const v of (vipRows || [])) {
+        if (v.used_rsvp_id) vipRsvpIds.add(v.used_rsvp_id);
+      }
+    } catch (e) {
+      console.error("[host] vip invites fetch error:", e.message);
     }
 
-    // Newsletter impact: how many views came from newsletters
-    const newsletterViews = (views || []).filter((v) => v.utm_source === "pullup_newsletter").length;
-    const newsletterCampaigns = [...new Set(
-      (views || []).filter((v) => v.utm_campaign).map((v) => v.utm_campaign)
-    )];
+    // Daily data with source breakdown + RSVPs + VIP RSVPs
+    const dailyMap = {};
+    // Initialize all days in range
+    const cursor = new Date(periodStart);
+    while (cursor <= periodEnd) {
+      const day = cursor.toISOString().slice(0, 10);
+      dailyMap[day] = { date: day, views: 0, rsvps: 0, vipRsvps: 0, bySource: {} };
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    for (const v of views) {
+      const day = v.created_at.slice(0, 10);
+      if (!dailyMap[day]) dailyMap[day] = { date: day, views: 0, rsvps: 0, vipRsvps: 0, bySource: {} };
+      dailyMap[day].views++;
+      const src = detectSource(v);
+      dailyMap[day].bySource[src] = (dailyMap[day].bySource[src] || 0) + 1;
+    }
+    for (const r of periodRsvps) {
+      const day = r.created_at.slice(0, 10);
+      if (!dailyMap[day]) continue;
+      dailyMap[day].rsvps++;
+      if (vipRsvpIds.has(r.id)) dailyMap[day].vipRsvps++;
+    }
+    const daily = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
 
-    // VIP invite email impact
+    // Newsletter impact
+    const newsletterViews = views.filter(v => v.utm_source === "pullup_newsletter").length;
+
+    // VIP email views on event page
+    const vipViews = views.filter(v =>
+      v.utm_campaign && v.utm_campaign.startsWith("vip_invite_")
+    ).length;
+
+    // VIP invite email impact (existing VIP stats)
     const event = await findEventById(id);
     let vipStats = null;
     if (event?.slug) {
@@ -7445,7 +8369,7 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
           .eq("campaign_tag", campaignTag);
 
         if (vipOutbox && vipOutbox.length > 0) {
-          const trackingIds = vipOutbox.map((r) => r.tracking_id).filter(Boolean);
+          const trackingIds = vipOutbox.map(r => r.tracking_id).filter(Boolean);
           const [opensRes, clicksRes] = await Promise.all([
             trackingIds.length > 0
               ? sb.from("email_opens").select("tracking_id").in("tracking_id", trackingIds)
@@ -7454,8 +8378,8 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
               ? sb.from("email_clicks").select("tracking_id").in("tracking_id", trackingIds)
               : { data: [] },
           ]);
-          const uniqueOpens = new Set((opensRes.data || []).map((o) => o.tracking_id)).size;
-          const uniqueClicks = new Set((clicksRes.data || []).map((c) => c.tracking_id)).size;
+          const uniqueOpens = new Set((opensRes.data || []).map(o => o.tracking_id)).size;
+          const uniqueClicks = new Set((clicksRes.data || []).map(c => c.tracking_id)).size;
           vipStats = {
             totalSent: vipOutbox.length,
             uniqueOpens,
@@ -7469,24 +8393,187 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
       }
     }
 
-    // VIP email views on event page
-    const vipViews = (views || []).filter((v) =>
-      v.utm_campaign && v.utm_campaign.startsWith("vip_invite_")
-    ).length;
+    // Hosts list
+    let hosts = [];
+    try {
+      const hostUserId = event?.host_id || event?.hostId;
+      const { data: hostRows } = await sb
+        .from("event_hosts")
+        .select("event_id, user_id, role")
+        .eq("event_id", id);
+
+      const allHostUserIds = new Set();
+      if (hostUserId) allHostUserIds.add(hostUserId);
+      for (const h of (hostRows || [])) allHostUserIds.add(h.user_id);
+
+      if (allHostUserIds.size > 0) {
+        const { data: profileRows } = await sb
+          .from("profiles")
+          .select("id, name, brand, contact_email")
+          .in("id", [...allHostUserIds]);
+        const profileMap = {};
+        for (const p of (profileRows || [])) profileMap[p.id] = p;
+
+        // Fetch auth emails
+        const emailMap = {};
+        for (const uid of allHostUserIds) {
+          try {
+            const { data: userData } = await sb.auth.admin.getUserById(uid);
+            if (userData?.user?.email) emailMap[uid] = userData.user.email;
+          } catch {}
+        }
+
+        // Build host for owner
+        if (hostUserId) {
+          const p = profileMap[hostUserId];
+          hosts.push({
+            name: p?.name || p?.brand || "Unknown",
+            email: p?.contact_email || emailMap[hostUserId] || null,
+            role: "owner",
+          });
+        }
+        // Build hosts for co-hosts
+        for (const h of (hostRows || [])) {
+          if (h.user_id === hostUserId) continue;
+          const p = profileMap[h.user_id];
+          hosts.push({
+            name: p?.name || p?.brand || "Unknown",
+            email: p?.contact_email || emailMap[h.user_id] || null,
+            role: h.role || "host",
+          });
+        }
+      }
+    } catch (hostsErr) {
+      console.error("[host] hosts fetch error:", hostsErr.message);
+    }
+
+    // Host campaign funnel
+    let campaigns = [];
+    try {
+      const { data: outboxRows } = await sb
+        .from("email_outbox")
+        .select("id, tracking_id, to_email, campaign_tag, status, created_at")
+        .like("campaign_tag", "host_campaign_%")
+        .gte("created_at", periodStart.toISOString())
+        .lte("created_at", periodEnd.toISOString());
+
+      if (outboxRows && outboxRows.length > 0) {
+        const campaignMap = {};
+        const allTrackingIds = [];
+        for (const row of outboxRows) {
+          if (!row.campaign_tag) continue;
+          if (!campaignMap[row.campaign_tag]) {
+            campaignMap[row.campaign_tag] = { sent: 0, emails: new Set(), trackingIds: [] };
+          }
+          campaignMap[row.campaign_tag].sent++;
+          campaignMap[row.campaign_tag].emails.add(row.to_email);
+          if (row.tracking_id) {
+            campaignMap[row.campaign_tag].trackingIds.push(row.tracking_id);
+            allTrackingIds.push(row.tracking_id);
+          }
+        }
+
+        let opensSet = new Set();
+        let clicksSet = new Set();
+        if (allTrackingIds.length > 0) {
+          const { data: openRows } = await sb
+            .from("email_opens")
+            .select("tracking_id")
+            .in("tracking_id", allTrackingIds);
+          for (const o of (openRows || [])) opensSet.add(o.tracking_id);
+
+          const { data: clickRows } = await sb
+            .from("email_clicks")
+            .select("tracking_id")
+            .in("tracking_id", allTrackingIds);
+          for (const c of (clickRows || [])) clicksSet.add(c.tracking_id);
+        }
+
+        // Count page views and RSVPs per campaign using utm_campaign
+        const campaignViewMap = {};
+        const campaignVisitorMap = {};
+        for (const v of views) {
+          if (!v.utm_campaign || !v.utm_campaign.startsWith("host_campaign_")) continue;
+          campaignViewMap[v.utm_campaign] = (campaignViewMap[v.utm_campaign] || 0) + 1;
+          if (!campaignVisitorMap[v.utm_campaign]) campaignVisitorMap[v.utm_campaign] = new Set();
+          campaignVisitorMap[v.utm_campaign].add(v.visitor_id);
+        }
+
+        // Match RSVPs to campaigns via visitor_id
+        const campaignRsvpMap = {};
+        for (const r of periodRsvps) {
+          if (!r.visitor_id) continue;
+          for (const [tag, visitors] of Object.entries(campaignVisitorMap)) {
+            if (visitors.has(r.visitor_id)) {
+              campaignRsvpMap[tag] = (campaignRsvpMap[tag] || 0) + 1;
+            }
+          }
+        }
+
+        // Build campaign array
+        for (const [tag, data] of Object.entries(campaignMap)) {
+          const opened = data.trackingIds.filter(t => opensSet.has(t)).length;
+          const clicked = data.trackingIds.filter(t => clicksSet.has(t)).length;
+          const visited = campaignViewMap[tag] || 0;
+          const rsvps = campaignRsvpMap[tag] || 0;
+
+          let name = tag;
+          if (tag.startsWith("host_campaign_")) {
+            const cId = tag.replace("host_campaign_", "");
+            try {
+              const { data: campaignRow } = await sb
+                .from("campaign_campaigns")
+                .select("name, subject")
+                .eq("id", cId)
+                .maybeSingle();
+              if (campaignRow) name = campaignRow.name || campaignRow.subject || tag;
+            } catch {}
+          }
+
+          campaigns.push({
+            tag,
+            name,
+            sent: data.sent,
+            opened,
+            clicked,
+            visited,
+            rsvps,
+            openRate: data.sent > 0 ? Math.round((opened / data.sent) * 1000) / 10 : 0,
+            clickRate: opened > 0 ? Math.round((clicked / opened) * 1000) / 10 : 0,
+            visitRate: clicked > 0 ? Math.round((visited / clicked) * 1000) / 10 : 0,
+            conversionRate: visited > 0 ? Math.round((rsvps / visited) * 1000) / 10 : 0,
+          });
+        }
+        campaigns.sort((a, b) => b.sent - a.sent);
+      }
+    } catch (campErr) {
+      console.error("[host] campaign funnel error:", campErr.message);
+    }
 
     return res.json({
       total_views: totalViews,
       unique_visitors: uniqueVisitors,
       sources,
-      daily_views: dailyViews,
+      daily,
+      device_split,
       newsletter_views: newsletterViews,
-      newsletter_campaigns: newsletterCampaigns,
       vip_stats: vipStats,
       vip_views: vipViews,
-      rsvp_count: (counts?.confirmed || 0) + (counts?.waitlist || 0),
+      vipInvites,
+      hosts,
+      campaigns,
+      rsvp_count,
       conversion_rate: totalViews > 0
-        ? Math.round((((counts?.confirmed || 0) + (counts?.waitlist || 0)) / totalViews) * 1000) / 10
+        ? Math.round((rsvp_count / totalViews) * 1000) / 10
         : 0,
+      period: {
+        currentViews: totalViews,
+        currentUnique: uniqueVisitors,
+        prevViews: prevViews.length,
+        prevUnique: prevUniqueVisitors,
+        viewsChange,
+        uniqueChange,
+      },
     });
   } catch (err) {
     console.error("[host] event analytics error:", err.message);

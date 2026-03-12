@@ -114,6 +114,7 @@ export function HomePage() {
       if (res.ok) {
         const updated = await res.json();
         setUser(updated);
+        window.dispatchEvent(new Event("profileUpdated"));
         return true;
       } else {
         throw new Error("Failed to save profile");
@@ -304,6 +305,10 @@ export function HomePage() {
             eventFilter={eventFilter}
             setEventFilter={setEventFilter}
             loadingPast={loadingPast}
+            user={user}
+            setUser={setUser}
+            onSaveProfile={handleSaveProfile}
+            showToast={showToast}
           />
         </div>
       </div>

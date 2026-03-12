@@ -157,9 +157,12 @@ export function RsvpForm({
             dinnerTimeSlot: details.dinnerTimeSlot || null,
             dinnerPartySize: details.dinnerPartySize || null,
           });
-          if (result !== false) { /* success */ }
+          if (result && result.error) {
+            setError(result.error);
+          }
         } catch (err) {
           console.error("RSVP submission error:", err);
+          setError(err.message || "Something went wrong. Please try again.");
         }
       }
       return;
@@ -202,9 +205,12 @@ export function RsvpForm({
           dinnerPartySize: wantsDinner ? dinnerSeats : null,
           marketingOptIn,
         });
-        if (result !== false) { /* success */ }
+        if (result && result.error) {
+          setError(result.error);
+        }
       } catch (err) {
         console.error("RSVP submission error:", err);
+        setError(err.message || "Something went wrong. Please try again.");
       }
     }
   }

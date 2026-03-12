@@ -49,6 +49,7 @@ export function SettingsPage() {
       if (res.ok) {
         const updated = await res.json();
         setUser(updated);
+        window.dispatchEvent(new Event("profileUpdated"));
         return true;
       } else {
         throw new Error("Failed to save profile");

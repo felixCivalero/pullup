@@ -272,6 +272,27 @@ export function CreateEventPage() {
   const { setEventNav } = useEventNav();
   const [editLoading, setEditLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
+  const [profileChecked, setProfileChecked] = useState(isEditMode);
+
+  // Redirect to /events if profile is incomplete (create mode only)
+  useEffect(() => {
+    if (isEditMode) return;
+    async function checkProfile() {
+      try {
+        const res = await authenticatedFetch("/host/profile");
+        if (res.ok) {
+          const profile = await res.json();
+          if (!profile.brand?.trim() || !profile.contactEmail?.trim()) {
+            showToast("Complete your profile before creating events", "error");
+            navigate("/events", { replace: true });
+            return;
+          }
+        }
+      } catch {}
+      setProfileChecked(true);
+    }
+    checkProfile();
+  }, [isEditMode, navigate, showToast]);
   const [showStartDateTimePicker, setShowStartDateTimePicker] = useState(false);
   const [showEndDateTimePicker, setShowEndDateTimePicker] = useState(false);
   const fileInputRef = useRef(null);
@@ -1124,6 +1145,8 @@ export function CreateEventPage() {
   }
 
   const tzInfo = formatTimezone(timezone);
+
+  if (!profileChecked) return null;
 
   if (editLoading) {
     return (

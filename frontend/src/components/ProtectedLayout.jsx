@@ -2,9 +2,11 @@
 import { useState, useEffect, useRef } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { EventNavProvider, useEventNav } from "../contexts/EventNavContext.jsx";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Settings } from "lucide-react";
+import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 function ProtectedLayoutInner() {
   const navigate = useNavigate();
@@ -15,6 +17,8 @@ function ProtectedLayoutInner() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [profilePic, setProfilePic] = useState(null);
+  const [profileComplete, setProfileComplete] = useState(true);
+  const { showToast } = useToast();
   const drawerRef = useRef(null);
 
   // Detect event routes
@@ -39,15 +43,31 @@ function ProtectedLayoutInner() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Fetch host profile picture
-  useEffect(() => {
+  // Fetch host profile (picture, admin flag, completeness)
+  function refreshProfile() {
     if (!user) return;
     authenticatedFetch("/host/profile")
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => {
-        if (p?.profilePicture) setProfilePic(p.profilePicture);
+        if (!p) return;
+        if (p.profilePicture) setProfilePic(p.profilePicture);
+        if (p.isAdmin) setIsAdmin(true);
+        setProfileComplete(!!(p.brand?.trim() && p.contactEmail?.trim()));
       })
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    refreshProfile();
+  }, [user]);
+
+  // Re-check when profile is saved anywhere in the app
+  useEffect(() => {
+    function onProfileUpdated() {
+      refreshProfile();
+    }
+    window.addEventListener("profileUpdated", onProfileUpdated);
+    return () => window.removeEventListener("profileUpdated", onProfileUpdated);
   }, [user]);
 
   const avatarSrc = profilePic || null;
@@ -81,32 +101,10 @@ function ProtectedLayoutInner() {
     if (!loading && user) {
       authenticatedFetch("/auth/link-newsletter", {
         method: "POST",
-      }).catch(() => {
-        // Fire-and-forget; linking failure shouldn't block the app
-      });
+      }).catch(() => {});
       authenticatedFetch("/auth/record-consent", {
         method: "POST",
       }).catch(() => {});
-    }
-  }, [loading, user]);
-
-  // Load profile once to determine admin badge
-  useEffect(() => {
-    async function loadProfileAdminFlag() {
-      try {
-        const res = await authenticatedFetch("/host/profile");
-        if (!res.ok) return;
-        const profile = await res.json();
-        if (profile?.isAdmin) {
-          setIsAdmin(true);
-        }
-      } catch {
-        // Ignore errors; admin badge is purely cosmetic
-      }
-    }
-
-    if (!loading && user) {
-      loadProfileAdminFlag();
     }
   }, [loading, user]);
 
@@ -471,7 +469,7 @@ function ProtectedLayoutInner() {
             </a>
           )}
 
-          {/* Desktop: Profile avatar */}
+          {/* Desktop: Settings icon */}
           {!isMobile && (
             <button
               onClick={() => handleNav("/settings")}
@@ -479,40 +477,19 @@ function ProtectedLayoutInner() {
                 width: 32,
                 height: 32,
                 borderRadius: "999px",
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "rgba(12,10,18,0.9)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "transparent",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "pointer",
-                overflow: "hidden",
                 padding: 0,
+                transition: "background 0.2s",
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
-              {avatarSrc ? (
-                <img
-                  src={avatarSrc}
-                  alt="Profile"
-                  referrerPolicy="no-referrer"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                  }}
-                  onError={(e) => { e.target.style.display = "none"; }}
-                />
-              ) : (
-                <span
-                  style={{
-                    color: "#fff",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {(user?.email || "?").slice(0, 2).toUpperCase()}
-                </span>
-              )}
+              <SilverIcon as={Settings} size={16} />
             </button>
           )}
 
@@ -545,7 +522,20 @@ function ProtectedLayoutInner() {
           {/* Create event button (hide on event routes to save space) */}
           {!isEventRoute && (
             <button
-              onClick={() => handleNav(isCreatingEvent ? "/events" : "/create")}
+              onClick={() => {
+                if (isCreatingEvent) {
+                  handleNav("/events");
+                } else if (!profileComplete) {
+                  showToast("Fill in your brand name and contact email first", "error");
+                  if (location.pathname !== "/events") {
+                    navigate("/events");
+                  } else {
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                } else {
+                  handleNav("/create");
+                }
+              }}
               style={{
                 padding: "10px 18px",
                 borderRadius: "999px",

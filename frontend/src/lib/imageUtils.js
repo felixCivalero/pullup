@@ -166,6 +166,51 @@ export async function uploadProfileImage(imageFile, options = {}) {
 }
 
 /**
+ * Upload brand logo
+ * Logo is compressed to max 200x200 and kept small for email use.
+ * @param {File} imageFile - Image file to upload
+ * @returns {Promise<object>} Updated user profile object
+ */
+export async function uploadBrandLogo(imageFile) {
+  const validation = validateImageFile(imageFile, 2); // max 2MB before compression
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+
+  // Compress to small dimensions for email/logo use
+  const compressedImage = await compressImage(imageFile, 200, 200, 0.85);
+
+  const res = await authenticatedFetch("/host/profile/logo", {
+    method: "POST",
+    body: JSON.stringify({ imageData: compressedImage }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || "Failed to upload logo");
+  }
+
+  return await res.json();
+}
+
+/**
+ * Remove brand logo
+ * @returns {Promise<object>} Updated profile
+ */
+export async function removeBrandLogo() {
+  const res = await authenticatedFetch("/host/profile/logo", {
+    method: "DELETE",
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || "Failed to remove logo");
+  }
+
+  return await res.json();
+}
+
+/**
  * Remove event image
  * @param {string} eventId - Event ID
  * @returns {Promise<void>}

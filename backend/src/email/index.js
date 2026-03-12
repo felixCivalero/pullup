@@ -51,6 +51,7 @@ export async function enqueueOutbox({
   idempotencyKey = null,
   sendAfter = null,
   category = "transactional",
+  campaignTag = null,
 }) {
   if (!toEmail) {
     throw new Error("[email] enqueueOutbox: toEmail is required");
@@ -75,6 +76,7 @@ export async function enqueueOutbox({
       idempotencyKey,
       provider: providerName,
       category,
+      campaignTag,
     }).then((row) => row);
   }
 
@@ -91,6 +93,7 @@ export async function enqueueOutbox({
     idempotencyKey,
     provider: providerName,
     category,
+    campaignTag,
   });
 
   if (sendAfter) {

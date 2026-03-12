@@ -5,6 +5,7 @@ import { findEventById } from "../data.js";
 import { addCampaignToPeople } from "../data.js";
 import { enqueueOutbox } from "../email/index.js";
 import { renderEventEmailTemplate } from "./emailTemplateService.js";
+import { addTracking } from "../email/tracking/linkRewriter.js";
 
 /**
  * Send campaign in batches
@@ -41,10 +42,13 @@ export async function sendCampaignInBatches(
       }
     }
 
+    // Generate campaign tag for tracking
+    const campaignTag = `host_campaign_${campaignId}`;
+    const backendBaseUrl = process.env.NODE_ENV === "production"
+      ? (process.env.BACKEND_URL || "https://pullup.se/api")
+      : "http://localhost:3001";
+
     // 3. Get all recipients using filterCriteria
-    // Note: We need userId, but campaign has it. We'll need to pass it or get it from campaign
-    // For now, we'll need to get userId from campaign or pass it as parameter
-    // Let's update getEmailCampaign to return userId, or pass it separately
     const { people, total } = await getPeopleWithFilters(
       campaign.userId,
       campaign.filterCriteria,
@@ -91,15 +95,35 @@ export async function sendCampaignInBatches(
 
             const campaignSendId = campaignSend?.id || null;
 
-            // Enqueue into delivery outbox
-            await enqueueOutbox({
+            // Enqueue into delivery outbox with campaign tag
+            const outboxRow = await enqueueOutbox({
               toEmail: person.email,
               subject: campaign.subject,
               htmlBody: html,
               textBody: null,
               campaignSendId,
               idempotencyKey: `${campaign.id}:${person.id}`,
+              category: "newsletter",
+              campaignTag,
             });
+
+            // Inject per-recipient tracking (open pixel + click redirects)
+            if (outboxRow?.tracking_id && html) {
+              try {
+                const trackedHtml = addTracking(html, {
+                  trackingId: outboxRow.tracking_id,
+                  baseUrl: backendBaseUrl,
+                  campaignTag,
+                });
+                const { supabase } = await import("../supabase.js");
+                await supabase
+                  .from("email_outbox")
+                  .update({ html_body: trackedHtml })
+                  .eq("id", outboxRow.id);
+              } catch (trackErr) {
+                console.error("[campaignSender] Tracking injection failed for", person.email, trackErr.message);
+              }
+            }
 
             totalSent++;
 

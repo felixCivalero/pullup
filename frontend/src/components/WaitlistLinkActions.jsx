@@ -45,7 +45,11 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
     try {
       const res = await authenticatedFetch(
         `/host/events/${event.id}/waitlist-link/${guest.id}`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
       );
 
       if (!res.ok) {
@@ -54,17 +58,26 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
       }
 
       const data = await res.json();
-      // data: { link, token, expiresAt, email }
 
+      // Free events: guest is promoted immediately, no link needed
+      if (data.promoted) {
+        showToast("Guest confirmed and notified!", "success");
+        if (onLinkGenerated) {
+          onLinkGenerated(null, { promoted: true });
+        }
+        return;
+      }
+
+      // Paid events: link generated for payment
       setLink(data.link);
-      showToast("Payment link generated!", "success");
+      showToast("Payment link sent to guest!", "success");
       if (onLinkGenerated) {
         onLinkGenerated(data.link);
       }
 
       // Copy to clipboard automatically
       navigator.clipboard.writeText(data.link);
-      showToast("Link copied to clipboard!", "info");
+      showToast("Link also copied to clipboard", "info");
     } catch (err) {
       showToast(err.message || "Failed to generate link", "error");
     } finally {
@@ -100,7 +113,11 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
             opacity: generating ? 0.6 : 1,
           }}
         >
-          {generating ? "Generating..." : <><SilverIcon as={Mail} size={14} /> Generate Link</>}
+          {generating
+            ? "Processing..."
+            : event?.ticketType === "paid" && event?.ticketPrice
+            ? <><SilverIcon as={Mail} size={14} /> Send Payment Link</>
+            : <><SilverIcon as={Check} size={14} /> Confirm Guest</>}
         </button>
       )}
 

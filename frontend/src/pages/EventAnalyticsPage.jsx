@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { colors } from "../theme/colors.js";
-import { Download, Smartphone, Monitor, HelpCircle, Crown, Users, Mail } from "lucide-react";
+import { Download, Smartphone, Monitor, HelpCircle } from "lucide-react";
 import { generateEventReport } from "../lib/reportGenerator.js";
 import { DateRangePicker } from "../components/DateRangePicker.jsx";
 
@@ -22,6 +22,14 @@ const SOURCE_COLORS = {
 
 function getSourceColor(name) {
   return SOURCE_COLORS[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.6)`;
+}
+
+function formatRevenue(cents, currency = 'sek') {
+  if (!cents && cents !== 0) return 'N/A';
+  const amount = cents / 100;
+  const sym = currency === 'sek' ? ' kr' : currency === 'eur' ? '€' : currency === 'gbp' ? '£' : '$';
+  const prefix = ['eur','gbp','usd'].includes(currency);
+  return prefix ? `${sym}${amount.toLocaleString()}` : `${amount.toLocaleString()}${sym}`;
 }
 
 export function EventAnalyticsPage() {
@@ -101,7 +109,9 @@ export function EventAnalyticsPage() {
         setEventNav({ title: eventData.title, slug: eventData.slug, myRole: eventData.myRole });
       }
       if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
-    } catch {}
+    } catch (err) {
+      console.error("Failed to load event analytics:", err);
+    }
     setLoading(false);
   }, [user, id, dateStart, dateEnd]);
 
@@ -125,9 +135,12 @@ export function EventAnalyticsPage() {
 
   const data = analytics || {
     total_views: 0, unique_visitors: 0, sources: [],
-    daily: [], device_split: null, vipInvites: [], hosts: [],
+    daily: [], device_split: null,
     vip_stats: null, vip_views: 0, campaigns: [],
     rsvp_count: 0, conversion_rate: 0, period: null,
+    pulled_up: 0, capacity: 0, is_paid: false,
+    ticket_price: 0, ticket_currency: 'sek',
+    revenue: 0, show_rate: 0, fill_rate: 0,
   };
 
   const daily = data.daily || [];
@@ -211,20 +224,23 @@ export function EventAnalyticsPage() {
           </div>
         ) : (
           <>
-            {/* Key metrics */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
-              <MetricCard label="Total Views" value={data.total_views} change={data.period?.viewsChange} />
-              <MetricCard label="Unique Visitors" value={data.unique_visitors} change={data.period?.uniqueChange} />
-              <MetricCard label="RSVPs" value={data.rsvp_count} />
-              <MetricCard
-                label="Conversion"
-                value={`${data.conversion_rate}%`}
-                color={data.conversion_rate > 20 ? colors.success : undefined}
-              />
-            </div>
+            {/* Conversion funnel */}
+            <FunnelChart
+              views={data.total_views}
+              rsvps={data.rsvp_count}
+              dinner={data.dinner_enabled ? data.dinner : null}
+              dinnerCapacity={data.dinner_enabled ? data.dinner_capacity : null}
+              pulledUp={data.pulled_up}
+              revenue={data.is_paid ? data.revenue : null}
+              currency={data.ticket_currency}
+              capacity={data.capacity}
+              uniqueVisitors={data.unique_visitors}
+              viewsChange={data.period?.viewsChange}
+              uniqueChange={data.period?.uniqueChange}
+            />
 
             {/* Device split */}
-            {data.device_split && (data.device_split.mobile + data.device_split.desktop + data.device_split.unknown) > 0 && (
+            {data.device_split && ((data.device_split.mobile || 0) + (data.device_split.desktop || 0) + (data.device_split.unknown || 0)) > 0 && (
               <DeviceSplitDonut split={data.device_split} />
             )}
 
@@ -272,99 +288,6 @@ export function EventAnalyticsPage() {
               )}
             </div>
 
-            {/* VIP Invites */}
-            {data.vip_stats && data.vip_stats.totalSent > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <SectionLabel>VIP Invites</SectionLabel>
-                <div style={{
-                  padding: 14, borderRadius: 14,
-                  background: "linear-gradient(135deg, rgba(251,191,36,0.06), rgba(251,191,36,0.02))",
-                  border: "1px solid rgba(251,191,36,0.15)",
-                }}>
-                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: (data.vipInvites || []).length > 0 ? 12 : 0 }}>
-                    <MiniStat label="Sent" value={data.vip_stats.totalSent} color={colors.gold} />
-                    <MiniStat label="Open Rate" value={`${data.vip_stats.openRate}%`} />
-                    <MiniStat label="Click Rate" value={`${data.vip_stats.clickRate}%`} />
-                    {data.vip_views > 0 && <MiniStat label="Page Views" value={data.vip_views} />}
-                  </div>
-                  {(data.vipInvites || []).length > 0 && (
-                    <div style={{ borderRadius: 8, background: "rgba(0,0,0,0.15)", border: "1px solid rgba(251,191,36,0.08)", overflow: "hidden" }}>
-                      {data.vipInvites.slice(0, 10).map((inv, i) => (
-                        <div key={i} style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          padding: "8px 10px",
-                          borderBottom: i < Math.min(data.vipInvites.length, 10) - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                          fontSize: "12px",
-                        }}>
-                          <Crown size={11} style={{ color: colors.gold, flexShrink: 0 }} />
-                          <div style={{ flex: 1, color: "rgba(255,255,255,0.6)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {inv.email}
-                          </div>
-                          <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.25)", flexShrink: 0 }}>+{inv.maxGuests}</span>
-                          {inv.freeEntry && (
-                            <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: 4, background: "rgba(74,222,128,0.15)", color: "rgba(74,222,128,0.7)" }}>FREE</span>
-                          )}
-                          <span style={{
-                            fontSize: "9px", padding: "1px 5px", borderRadius: 4,
-                            background: inv.redeemed ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
-                            color: inv.redeemed ? "rgba(59,130,246,0.7)" : "rgba(255,255,255,0.25)",
-                          }}>
-                            {inv.redeemed ? "Redeemed" : "Pending"}
-                          </span>
-                        </div>
-                      ))}
-                      {data.vipInvites.length > 10 && (
-                        <div style={{ padding: "6px 10px", fontSize: "10px", color: "rgba(255,255,255,0.2)", textAlign: "center" }}>
-                          + {data.vipInvites.length - 10} more
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Team / Hosts */}
-            {(data.hosts || []).length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <SectionLabel>Team ({data.hosts.length})</SectionLabel>
-                <div style={{
-                  borderRadius: 14,
-                  background: "rgba(255,255,255,0.02)",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  overflow: "hidden",
-                }}>
-                  {data.hosts.map((h, i) => (
-                    <div key={i} style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "10px 14px",
-                      borderBottom: i < data.hosts.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                    }}>
-                      {h.role === "owner" && <Crown size={12} style={{ color: colors.gold, flexShrink: 0 }} />}
-                      {h.role !== "owner" && <Users size={12} style={{ color: "rgba(255,255,255,0.25)", flexShrink: 0 }} />}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {h.name || h.email || "Unknown"}
-                        </div>
-                        {h.name && h.email && (
-                          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {h.email}
-                          </div>
-                        )}
-                      </div>
-                      <span style={{
-                        fontSize: "10px", padding: "2px 8px", borderRadius: 6, textTransform: "capitalize",
-                        background: h.role === "owner" ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.04)",
-                        color: h.role === "owner" ? "rgba(251,191,36,0.6)" : "rgba(255,255,255,0.3)",
-                        flexShrink: 0,
-                      }}>
-                        {h.role}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
@@ -400,6 +323,108 @@ function MiniStat({ label, value, color }) {
     <div>
       <div style={{ fontSize: "20px", fontWeight: 700, color: color || "#fff" }}>{value}</div>
       <div style={{ fontSize: "10px", color: colors.textFaded }}>{label}</div>
+    </div>
+  );
+}
+
+function FunnelChart({ views, rsvps, dinner, dinnerCapacity, pulledUp, revenue, currency, revenueByCurrency, capacity, uniqueVisitors, viewsChange, uniqueChange, mini }) {
+  const steps = [
+    { label: "Views", value: views, rate: null, color: "rgba(59,130,246,0.7)" },
+    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: views > 0 ? Math.round((rsvps / views) * 1000) / 10 : 0, rateLabel: "of views", color: "rgba(139,92,246,0.7)" },
+  ];
+  if (dinner !== null && dinner !== undefined) {
+    steps.push({ label: "Dinner", value: dinner, cap: dinnerCapacity > 0 ? dinnerCapacity : null, rate: rsvps > 0 ? Math.round((dinner / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(251,146,60,0.7)" });
+  }
+  steps.push({ label: "Pulled Up", value: pulledUp, rate: rsvps > 0 ? Math.round((pulledUp / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(74,222,128,0.7)" });
+  if (revenue !== null && revenue !== undefined) {
+    const revenueDisplay = revenueByCurrency && Object.keys(revenueByCurrency).length > 0
+      ? formatRevenueByCurrency(revenueByCurrency)
+      : formatRevenue(revenue, currency);
+    steps.push({ label: "Revenue", value: revenueDisplay, rawValue: revenue, rate: null, color: "rgba(251,191,36,0.7)" });
+  }
+  const maxVal = Math.max(views, 1);
+
+  return (
+    <div style={{
+      padding: mini ? "10px 12px" : "14px 16px", borderRadius: mini ? 10 : 14,
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      marginBottom: mini ? 12 : 20,
+    }}>
+      {steps.map((step, i) => {
+        const barPct = step.label === "Revenue"
+          ? (steps[2]?.value || 0) / maxVal * 100
+          : (step.value / maxVal) * 100;
+        return (
+          <div key={step.label} style={{ marginBottom: i < steps.length - 1 ? (mini ? 8 : 12) : 0 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: mini ? 2 : 3 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span style={{
+                  fontSize: mini ? "16px" : "20px", fontWeight: 700,
+                  color: step.color,
+                }}>
+                  {step.label === "Revenue" ? step.value : (step.value ?? 0).toLocaleString()}
+                  {step.cap && (
+                    <span style={{ fontSize: mini ? "11px" : "13px", fontWeight: 500, color: "rgba(255,255,255,0.25)" }}>
+                      {" / "}{step.cap.toLocaleString()}
+                    </span>
+                  )}
+                </span>
+                <span style={{ fontSize: mini ? "10px" : "11px", color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>
+                  {step.label}
+                </span>
+              </div>
+              {step.rate !== null && step.rate !== undefined && (
+                <span style={{
+                  fontSize: mini ? "10px" : "11px", fontWeight: 600,
+                  color: step.rate > (step.label === "Pulled Up" ? 50 : 20) ? "rgba(74,222,128,0.7)" : "rgba(255,255,255,0.35)",
+                }}>
+                  {step.rate}% <span style={{ fontWeight: 400, color: "rgba(255,255,255,0.25)" }}>{step.rateLabel}</span>
+                </span>
+              )}
+            </div>
+            <div style={{
+              height: mini ? 4 : 6, borderRadius: 3,
+              background: "rgba(255,255,255,0.04)",
+            }}>
+              <div style={{
+                height: "100%", borderRadius: 3,
+                background: step.color,
+                width: `${Math.max(barPct, step.value > 0 || step.rawValue > 0 ? 2 : 0)}%`,
+                transition: "width 0.3s ease",
+              }} />
+            </div>
+          </div>
+        );
+      })}
+      {/* Secondary stats */}
+      {!mini && (uniqueVisitors > 0 || capacity > 0) && (
+        <div style={{
+          display: "flex", gap: 16, marginTop: 12,
+          paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.04)",
+        }}>
+          {uniqueVisitors > 0 && (
+            <div>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{uniqueVisitors.toLocaleString()}</span>
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginLeft: 4 }}>unique visitors</span>
+              {viewsChange != null && (
+                <span style={{
+                  fontSize: "10px", fontWeight: 600, marginLeft: 6,
+                  color: viewsChange > 0 ? "#4ade80" : viewsChange < 0 ? "#f87171" : "rgba(255,255,255,0.3)",
+                }}>
+                  {viewsChange > 0 ? "↑" : viewsChange < 0 ? "↓" : "→"}{Math.abs(viewsChange)}%
+                </span>
+              )}
+            </div>
+          )}
+          {capacity > 0 && (
+            <div>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{Math.min(100, Math.round((rsvps / capacity) * 100))}%</span>
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginLeft: 4 }}>of {capacity} capacity</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

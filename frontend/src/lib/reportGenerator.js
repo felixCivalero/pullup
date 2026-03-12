@@ -8,6 +8,14 @@ const EVENT_COLORS = [
   "#fb923c", "#0ea5e9", "#a855f7", "#f59e0b",
 ];
 
+function formatRevenue(cents, currency = 'sek') {
+  if (!cents && cents !== 0) return 'N/A';
+  const amount = cents / 100;
+  const sym = currency === 'sek' ? ' kr' : currency === 'eur' ? '€' : currency === 'gbp' ? '£' : '$';
+  const prefix = ['eur','gbp','usd'].includes(currency);
+  return prefix ? `${sym}${amount.toLocaleString()}` : `${amount.toLocaleString()}${sym}`;
+}
+
 export function generateEventReport({ event, data, days, startDate: startDateArg, endDate: endDateArg }) {
   const win = window.open("", "_blank");
   if (!win) return;
@@ -71,49 +79,6 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
       <div style="display:flex;flex-direction:column;gap:3px;">${bars}</div>
     </div>`;
   }).join("") : `<div style="font-size:11px;color:rgba(255,255,255,0.25);">No campaigns sent in this period</div>`;
-
-  // VIP section
-  const vipInvites = data.vipInvites || [];
-  const vipStats = data.vip_stats;
-  const vipHtml = vipStats && vipStats.totalSent > 0 ? `
-    <div class="detail-section-label">VIP Invites</div>
-    <div style="padding:10px 12px;border-radius:10px;background:rgba(251,191,36,0.04);border:1px solid rgba(251,191,36,0.12);margin-bottom:4mm;">
-      <div style="display:flex;gap:16px;margin-bottom:${vipInvites.length > 0 ? "8px" : "0"};">
-        <div><div style="font-size:16px;font-weight:700;color:rgba(251,191,36,0.8);">${vipStats.totalSent}</div><div style="font-size:8px;color:rgba(255,255,255,0.35);">sent</div></div>
-        <div><div style="font-size:16px;font-weight:700;color:#fff;">${vipStats.openRate}%</div><div style="font-size:8px;color:rgba(255,255,255,0.35);">open rate</div></div>
-        <div><div style="font-size:16px;font-weight:700;color:#fff;">${vipStats.clickRate}%</div><div style="font-size:8px;color:rgba(255,255,255,0.35);">click rate</div></div>
-      </div>
-      ${vipInvites.length > 0 ? `<div style="border-radius:6px;background:rgba(0,0,0,0.15);border:1px solid rgba(251,191,36,0.06);overflow:hidden;">
-        ${vipInvites.slice(0, 8).map((inv, vi) => `
-          <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:${vi < Math.min(vipInvites.length, 8) - 1 ? "1px solid rgba(255,255,255,0.04)" : "none"};font-size:9px;">
-            <div style="flex:1;color:rgba(255,255,255,0.5);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(inv.email)}</div>
-            <span style="color:rgba(255,255,255,0.2);">+${inv.maxGuests}</span>
-            ${inv.freeEntry ? '<span style="font-size:7px;padding:1px 3px;border-radius:2px;background:rgba(74,222,128,0.15);color:rgba(74,222,128,0.7);">FREE</span>' : ""}
-            <span style="font-size:7px;padding:1px 3px;border-radius:2px;background:${inv.redeemed ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)"};color:${inv.redeemed ? "rgba(59,130,246,0.7)" : "rgba(255,255,255,0.2)"};">${inv.redeemed ? "Redeemed" : "Pending"}</span>
-          </div>
-        `).join("")}
-        ${vipInvites.length > 8 ? `<div style="padding:3px 8px;font-size:8px;color:rgba(255,255,255,0.2);text-align:center;">+ ${vipInvites.length - 8} more</div>` : ""}
-      </div>` : ""}
-    </div>
-  ` : "";
-
-  // Team section
-  const hosts = data.hosts || [];
-  const teamHtml = hosts.length > 0 ? `
-    <div class="detail-section-label">Team (${hosts.length})</div>
-    <div style="border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);overflow:hidden;">
-      ${hosts.map((h, hi) => `
-        <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:${hi < hosts.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none"};font-size:10px;">
-          ${h.role === "owner" ? '<span style="color:rgba(251,191,36,0.6);font-size:9px;">&#9733;</span>' : ""}
-          <div style="flex:1;min-width:0;overflow:hidden;">
-            <div style="color:rgba(255,255,255,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(h.name || h.email || "Unknown")}</div>
-            ${h.name && h.email ? `<div style="color:rgba(255,255,255,0.25);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(h.email)}</div>` : ""}
-          </div>
-          <span style="font-size:8px;padding:1px 4px;border-radius:3px;background:${h.role === "owner" ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.04)"};color:${h.role === "owner" ? "rgba(251,191,36,0.6)" : "rgba(255,255,255,0.3)"};text-transform:capitalize;flex-shrink:0;">${escHtml(h.role)}</span>
-        </div>
-      `).join("")}
-    </div>
-  ` : "";
 
   // Event time
   const eventTime = formatEventTimeReport(event?.starts_at, event?.ends_at);
@@ -213,28 +178,14 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
     <div><div class="report-period">${periodStart} — ${periodEnd}</div></div>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:8mm;position:relative;z-index:1;">
-    <div style="padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">
-      <div style="font-size:9px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:3px;">Total Views</div>
-      <div style="font-size:22px;font-weight:700;">${data.total_views}</div>
-      ${data.period?.viewsChange != null ? changeHtml(data.period.viewsChange) : ""}
+  <div style="display:flex;gap:16px;position:relative;z-index:1;margin-bottom:5mm;">
+    <div style="flex:1;min-width:0;">
+      ${buildFunnelHtml(data.total_views, data.rsvp_count, data.pulled_up || 0, data.is_paid ? data.revenue : null, data.ticket_currency, data.unique_visitors, data.capacity, false, null, data.dinner_enabled ? (data.dinner || 0) : null, data.dinner_enabled ? (data.dinner_capacity || 0) : null)}
     </div>
-    <div style="padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">
-      <div style="font-size:9px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:3px;">Unique Visitors</div>
-      <div style="font-size:22px;font-weight:700;">${data.unique_visitors}</div>
-      ${data.period?.uniqueChange != null ? changeHtml(data.period.uniqueChange) : ""}
-    </div>
-    <div style="padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">
-      <div style="font-size:9px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:3px;">RSVPs</div>
-      <div style="font-size:22px;font-weight:700;">${data.rsvp_count}</div>
-    </div>
-    <div style="padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">
-      <div style="font-size:9px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:3px;">Conversion</div>
-      <div style="font-size:22px;font-weight:700;${data.conversion_rate > 20 ? "color:#4ade80;" : ""}">${data.conversion_rate}%</div>
+    <div style="flex:0 0 auto;min-width:200px;max-width:240px;">
+      ${buildDeviceSplitHtml(data.device_split)}
     </div>
   </div>
-
-  ${buildDeviceSplitHtml(data.device_split)}
 
   <div style="margin-bottom:6mm;position:relative;z-index:1;">
     <div class="detail-section-label">Daily Views by Source & RSVPs — ${days} days</div>
@@ -250,7 +201,7 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
   </div>
 </div>
 
-<!-- Page 3: Sources + Campaigns + VIP + Team -->
+<!-- Page 3: Sources + Campaigns -->
 <div class="page">
   <div class="header">
     <div><div class="brand-name">${escHtml(eventTitle)}</div></div>
@@ -258,20 +209,16 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
   </div>
 
   <div style="display:flex;gap:16px;position:relative;z-index:1;">
-    <!-- Left column: sources + team -->
     <div style="flex:1;min-width:0;">
       ${sources.length > 0 ? `
         <div class="detail-section-label">Traffic Sources</div>
         <div style="margin-bottom:5mm;">${sourceRowsHtml}</div>
       ` : ""}
-      ${teamHtml}
     </div>
 
-    <!-- Right column: campaigns + VIP -->
     <div style="flex:1;min-width:0;">
       <div class="detail-section-label">Campaigns</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:5mm;">${campaignHtml}</div>
-      ${vipHtml}
     </div>
   </div>
 
@@ -299,6 +246,7 @@ function getSourceColorStatic(name) {
     pullup_newsletter: "rgba(251,191,36,0.7)",
     other: "rgba(168,85,247,0.5)",
   };
+  if (!name || name.length === 0) return "rgba(168,85,247,0.5)";
   return map[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.6)`;
 }
 
@@ -869,28 +817,14 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
 
   <div class="page-title">Overview</div>
 
-  <div class="metrics">
-    <div class="metric-card">
-      <div class="metric-label">Total Views</div>
-      <div class="metric-value">${data.period?.currentViews ?? data.total_views}</div>
-      ${changeHtml(data.period?.viewsChange)}
+  <div style="display:flex;gap:16px;position:relative;z-index:1;margin-bottom:5mm;">
+    <div style="flex:1;min-width:0;">
+      ${buildFunnelHtml(data.period?.currentViews ?? data.total_views, data.total_rsvps ?? 0, data.total_pulled_up ?? 0, data.has_paid_events ? data.total_revenue : null, null, data.period?.currentUnique ?? data.total_unique_visitors, data.total_capacity || null, false, data.has_paid_events ? data.revenue_by_currency : null, data.has_dinner_events ? (data.total_dinner || 0) : null, data.has_dinner_events ? (data.total_dinner_capacity || 0) : null)}
     </div>
-    <div class="metric-card">
-      <div class="metric-label">Unique Visitors</div>
-      <div class="metric-value">${data.period?.currentUnique ?? data.total_unique_visitors}</div>
-      ${changeHtml(data.period?.uniqueChange)}
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Total RSVPs</div>
-      <div class="metric-value">${data.total_rsvps}</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Avg Conversion</div>
-      <div class="metric-value" style="color:${data.avg_conversion > 20 ? "#4ade80" : "#fff"}">${data.avg_conversion}%</div>
+    <div style="flex:0 0 auto;min-width:200px;max-width:240px;">
+      ${buildDeviceSplitHtml(data.device_split)}
     </div>
   </div>
-
-  ${buildDeviceSplitHtml(data.device_split)}
 
   <div class="chart-section">
     <div class="section-label">Views — Last ${days} days</div>
@@ -926,6 +860,72 @@ function changeHtml(value) {
   const cls = value > 0 ? "change-up" : value < 0 ? "change-down" : "";
   const arrow = value > 0 ? "↑" : value < 0 ? "↓" : "→";
   return `<div class="metric-change ${cls}">${arrow} ${Math.abs(value)}% vs previous period</div>`;
+}
+
+function formatRevenueByCurrency(byCurrency) {
+  if (!byCurrency || typeof byCurrency !== 'object') return 'N/A';
+  const entries = Object.entries(byCurrency).filter(([, v]) => v > 0);
+  if (entries.length === 0) return 'N/A';
+  return entries.map(([cur, cents]) => formatRevenue(cents, cur)).join(' + ');
+}
+
+function buildFunnelHtml(views, rsvps, pulledUp, revenue, currency, uniqueVisitors, capacity, mini, revenueByCurrency, dinner, dinnerCapacity) {
+  const steps = [
+    { label: "Views", value: views, rate: null, color: "rgba(59,130,246,0.7)" },
+    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: views > 0 ? Math.round((rsvps / views) * 1000) / 10 : 0, rateLabel: "of views", color: "rgba(139,92,246,0.7)" },
+  ];
+  if (dinner !== null && dinner !== undefined) {
+    steps.push({ label: "Dinner", value: dinner, cap: dinnerCapacity > 0 ? dinnerCapacity : null, rate: rsvps > 0 ? Math.round((dinner / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(251,146,60,0.7)" });
+  }
+  steps.push({ label: "Pulled Up", value: pulledUp, rate: rsvps > 0 ? Math.round((pulledUp / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(74,222,128,0.7)" });
+  if (revenue !== null && revenue !== undefined) {
+    const revenueDisplay = revenueByCurrency && Object.keys(revenueByCurrency).length > 0
+      ? formatRevenueByCurrency(revenueByCurrency)
+      : formatRevenue(revenue, currency);
+    steps.push({ label: "Revenue", value: -1, display: revenueDisplay, rawValue: revenue, rate: null, color: "rgba(251,191,36,0.7)" });
+  }
+  const maxVal = Math.max(views, 1);
+  const fs = mini ? "16px" : "20px";
+  const lfs = mini ? "9px" : "10px";
+  const barH = mini ? "4px" : "6px";
+  const gap = mini ? "6px" : "10px";
+
+  const stepsHtml = steps.map((step, i) => {
+    const barPct = step.label === "Revenue"
+      ? (pulledUp / maxVal) * 100
+      : (step.value / maxVal) * 100;
+    const capSuffix = step.cap ? `<span style="font-size:${mini ? "11px" : "13px"};font-weight:500;color:rgba(255,255,255,0.25);"> / ${step.cap.toLocaleString()}</span>` : "";
+    const displayVal = (step.display || (step.value ?? 0).toLocaleString()) + capSuffix;
+    const rateColor = step.rate > (step.label === "Pulled Up" ? 50 : 20) ? "rgba(74,222,128,0.7)" : "rgba(255,255,255,0.35)";
+    const rateHtml = step.rate !== null && step.rate !== undefined
+      ? `<span style="font-size:${lfs};font-weight:600;color:${rateColor};">${step.rate}% <span style="font-weight:400;color:rgba(255,255,255,0.25);">${step.rateLabel}</span></span>`
+      : "";
+    return `<div style="margin-bottom:${i < steps.length - 1 ? gap : "0"};">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px;">
+        <div style="display:flex;align-items:baseline;gap:6px;">
+          <span style="font-size:${fs};font-weight:700;color:${step.color};">${displayVal}</span>
+          <span style="font-size:${lfs};color:rgba(255,255,255,0.4);font-weight:500;">${step.label}</span>
+        </div>
+        ${rateHtml}
+      </div>
+      <div style="height:${barH};border-radius:3px;background:rgba(255,255,255,0.04);">
+        <div style="height:100%;border-radius:3px;background:${step.color};width:${Math.max(barPct, step.value > 0 || step.rawValue > 0 ? 2 : 0)}%;"></div>
+      </div>
+    </div>`;
+  }).join("");
+
+  let secondaryHtml = "";
+  if (!mini && (uniqueVisitors > 0 || (capacity && capacity > 0))) {
+    const parts = [];
+    if (uniqueVisitors > 0) parts.push(`<span style="font-size:12px;font-weight:700;color:#fff;">${uniqueVisitors.toLocaleString()}</span><span style="font-size:9px;color:rgba(255,255,255,0.35);margin-left:3px;">unique visitors</span>`);
+    if (capacity && capacity > 0) parts.push(`<span style="font-size:12px;font-weight:700;color:#fff;">${Math.min(100, Math.round((rsvps / capacity) * 100))}%</span><span style="font-size:9px;color:rgba(255,255,255,0.35);margin-left:3px;">of ${capacity} capacity</span>`);
+    secondaryHtml = `<div style="display:flex;gap:14px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.04);">${parts.map(p => `<div>${p}</div>`).join("")}</div>`;
+  }
+
+  return `<div style="padding:${mini ? "6px 10px" : "10px 16px"};border-radius:${mini ? "8px" : "12px"};background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);margin-bottom:${mini ? "3mm" : "6mm"};position:relative;z-index:1;">
+    ${stepsHtml}
+    ${secondaryHtml}
+  </div>`;
 }
 
 function buildChartSvg(data, days) {
@@ -1171,7 +1171,8 @@ function buildEventDetailPage(ev, index, totalEvents, brandName, periodStart, pe
       pullup_newsletter: "rgba(251,191,36,0.7)",
       other: "rgba(168,85,247,0.5)",
     };
-    return map[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.6)`;
+    if (!name || name.length === 0) return "rgba(168,85,247,0.5)";
+  return map[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.6)`;
   }
 
   // Build stacked source chart SVG
@@ -1292,75 +1293,26 @@ function buildEventDetailPage(ev, index, totalEvents, brandName, periodStart, pe
   <div class="detail-event-title">${escHtml(ev.title)}</div>
   <div class="detail-event-time">${formatEventTimeReport(ev.starts_at, ev.ends_at)}</div>
 
-  <div class="detail-grid">
-    <div class="detail-metric">
-      <div class="detail-metric-label">Views</div>
-      <div class="detail-metric-value">${ev.views}</div>
+  <div style="display:flex;gap:16px;position:relative;z-index:1;">
+    <div style="flex:1;min-width:0;">
+      ${buildFunnelHtml(ev.views, ev.rsvps, ev.pulled_up || 0, ev.is_paid ? ev.revenue : null, ev.ticket_currency, ev.unique_visitors, ev.capacity, true, null, ev.dinner_enabled ? (ev.dinner || 0) : null, ev.dinner_enabled ? (ev.dinner_capacity || 0) : null)}
     </div>
-    <div class="detail-metric">
-      <div class="detail-metric-label">Unique</div>
-      <div class="detail-metric-value">${ev.unique_visitors}</div>
+    ${sources.length > 0 ? `
+    <div style="flex:1;min-width:0;">
+      <div class="detail-section-label">Traffic Sources</div>
+      <div style="margin-bottom:3mm;">
+        ${sourceRows}
+      </div>
     </div>
-    <div class="detail-metric">
-      <div class="detail-metric-label">RSVPs</div>
-      <div class="detail-metric-value">${ev.rsvps}</div>
-    </div>
-    <div class="detail-metric">
-      <div class="detail-metric-label">Conversion</div>
-      <div class="detail-metric-value">${ev.conversion_rate}%</div>
-    </div>
+    ` : ""}
   </div>
 
-  <div class="detail-section-label">Daily views by source & RSVPs</div>
+  <div class="detail-section-label">Daily Views by Source & RSVPs</div>
   <div style="border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:8px 10px 4px;margin-bottom:3mm;">
     ${chartSvg}
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;">
       ${legendHtml}
     </div>
-  </div>
-
-  ${sources.length > 0 ? `
-    <div class="detail-section-label">Traffic sources</div>
-    <div style="margin-bottom:3mm;">
-      ${sourceRows}
-    </div>
-  ` : ""}
-
-  <div style="display:flex;gap:12px;">
-    ${(ev.hosts || []).length > 0 ? `
-      <div style="flex:1;min-width:0;">
-        <div class="detail-section-label">Team (${ev.hosts.length})</div>
-        <div style="border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);overflow:hidden;">
-          ${ev.hosts.map((h, hi) => `
-            <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:${hi < ev.hosts.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none"};font-size:10px;">
-              ${h.role === "owner" ? '<span style="color:rgba(251,191,36,0.6);font-size:9px;">&#9733;</span>' : ""}
-              <div style="flex:1;min-width:0;overflow:hidden;">
-                <div style="color:rgba(255,255,255,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(h.name || h.email || "Unknown")}</div>
-                ${h.name && h.email ? `<div style="color:rgba(255,255,255,0.25);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(h.email)}</div>` : ""}
-              </div>
-              <span style="font-size:8px;padding:1px 4px;border-radius:3px;background:${h.role === "owner" ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.04)"};color:${h.role === "owner" ? "rgba(251,191,36,0.6)" : "rgba(255,255,255,0.3)"};text-transform:capitalize;flex-shrink:0;">${escHtml(h.role)}</span>
-            </div>
-          `).join("")}
-        </div>
-      </div>
-    ` : ""}
-
-    ${(ev.vipInvites || []).length > 0 ? `
-      <div style="flex:1;min-width:0;">
-        <div class="detail-section-label">VIP Invites (${ev.vipInvites.length})</div>
-        <div style="border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);overflow:hidden;">
-          ${ev.vipInvites.slice(0, 6).map((inv, vi) => `
-            <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:${vi < Math.min(ev.vipInvites.length, 6) - 1 ? "1px solid rgba(255,255,255,0.04)" : "none"};font-size:10px;">
-              <div style="flex:1;color:rgba(255,255,255,0.6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(inv.email)}</div>
-              <span style="color:rgba(255,255,255,0.25);flex-shrink:0;">+${inv.maxGuests}</span>
-              ${inv.freeEntry ? '<span style="font-size:8px;padding:1px 4px;border-radius:3px;background:rgba(74,222,128,0.15);color:rgba(74,222,128,0.7);">FREE</span>' : ""}
-              <span style="font-size:8px;padding:1px 4px;border-radius:3px;background:${inv.redeemed ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)"};color:${inv.redeemed ? "rgba(59,130,246,0.7)" : "rgba(255,255,255,0.25)"};">${inv.redeemed ? "Redeemed" : "Pending"}</span>
-            </div>
-          `).join("")}
-          ${ev.vipInvites.length > 6 ? `<div style="padding:3px 8px;font-size:9px;color:rgba(255,255,255,0.25);text-align:center;">+ ${ev.vipInvites.length - 6} more</div>` : ""}
-        </div>
-      </div>
-    ` : ""}
   </div>
 
   <div class="footer">

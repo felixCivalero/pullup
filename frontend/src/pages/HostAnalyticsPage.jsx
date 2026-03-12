@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
-import { TrendingUp, TrendingDown, Minus, Download, ChevronDown, Eye, EyeOff, Mail, Crown, Users, Smartphone, Monitor, HelpCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Download, ChevronDown, Eye, EyeOff, Smartphone, Monitor, HelpCircle } from "lucide-react";
 import { generateReport } from "../lib/reportGenerator.js";
 import { DateRangePicker } from "../components/DateRangePicker.jsx";
 
@@ -18,6 +18,21 @@ const EVENT_COLORS = [
   "rgba(168,85,247,0.75)",   // violet
   "rgba(245,158,11,0.75)",   // amber
 ];
+
+function formatRevenue(cents, currency = 'sek') {
+  if (!cents && cents !== 0) return 'N/A';
+  const amount = cents / 100;
+  const sym = currency === 'sek' ? ' kr' : currency === 'eur' ? '€' : currency === 'gbp' ? '£' : '$';
+  const prefix = ['eur','gbp','usd'].includes(currency);
+  return prefix ? `${sym}${amount.toLocaleString()}` : `${amount.toLocaleString()}${sym}`;
+}
+
+function formatRevenueByCurrency(byCurrency) {
+  if (!byCurrency || typeof byCurrency !== 'object') return 'N/A';
+  const entries = Object.entries(byCurrency).filter(([, v]) => v > 0);
+  if (entries.length === 0) return 'N/A';
+  return entries.map(([cur, cents]) => formatRevenue(cents, cur)).join(' + ');
+}
 
 export function HostAnalyticsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -106,15 +121,46 @@ export function HostAnalyticsPage() {
   }
 
   // Compute filtered data based on hidden events
+  const isFiltered = hiddenEvents.size > 0;
   const visibleEvents = data ? data.events.filter(e => !hiddenEvents.has(e.id)) : [];
   const filteredViews = visibleEvents.reduce((s, e) => s + e.views, 0);
   const filteredUnique = visibleEvents.reduce((s, e) => s + e.unique_visitors, 0);
   const filteredRsvps = visibleEvents.reduce((s, e) => s + e.rsvps, 0);
   const filteredConversion = filteredViews > 0 ? Math.round((filteredRsvps / filteredViews) * 1000) / 10 : 0;
+  const filteredPulledUp = visibleEvents.reduce((s, e) => s + (e.pulled_up || 0), 0);
+  const filteredRevenue = visibleEvents.reduce((s, e) => s + (e.revenue || 0), 0);
+  const filteredRevenueByCurrency = (() => {
+    const byCur = {};
+    for (const e of visibleEvents) {
+      if (e.is_paid && e.revenue > 0) {
+        const cur = e.ticket_currency || 'sek';
+        byCur[cur] = (byCur[cur] || 0) + e.revenue;
+      }
+    }
+    return byCur;
+  })();
+  const filteredHasPaid = visibleEvents.some(e => e.is_paid);
+  const filteredShowRate = filteredRsvps > 0 ? Math.round((filteredPulledUp / filteredRsvps) * 1000) / 10 : 0;
+  const filteredHasDinner = visibleEvents.some(e => e.dinner_enabled);
+  const filteredDinner = filteredHasDinner ? visibleEvents.reduce((s, e) => s + (e.dinner_enabled ? (e.dinner || 0) : 0), 0) : null;
+  const filteredCapacity = visibleEvents.reduce((s, e) => s + (e.capacity || 0), 0);
+  const filteredDinnerCapacity = filteredHasDinner ? visibleEvents.reduce((s, e) => s + (e.dinner_enabled ? (e.dinner_capacity || 0) : 0), 0) : 0;
 
-  // Build filtered report data (only visible events + filtered chart)
+  // Build filtered report data (only visible events + filtered chart + device split + period)
   const filteredData = data ? (() => {
     const visibleIds = new Set(visibleEvents.map(e => e.id));
+
+    // Recompute device split from per-event device data
+    const filteredDeviceSplit = { mobile: 0, desktop: 0, unknown: 0 };
+    for (const ev of visibleEvents) {
+      if (ev.device_split) {
+        filteredDeviceSplit.mobile += ev.device_split.mobile || 0;
+        filteredDeviceSplit.desktop += ev.device_split.desktop || 0;
+        filteredDeviceSplit.unknown += ev.device_split.unknown || 0;
+      }
+    }
+
+    // Recompute chart stacked data
     const filteredChart = data.chart ? {
       ...data.chart,
       eventLabels: (data.chart.eventLabels || []).filter(e => visibleIds.has(e.id)),
@@ -122,19 +168,55 @@ export function HostAnalyticsPage() {
         const filtered = { date: day.date };
         for (const key of Object.keys(day)) {
           if (key === "date") continue;
-          if (key === "_other") { filtered._other = day._other; continue; }
+          if (key === "_other") { if (!isFiltered) filtered._other = day._other; continue; }
           if (visibleIds.has(key)) filtered[key] = day[key];
         }
         return filtered;
       }),
+      // Recompute current period views from stacked for period stats
+      current: data.chart.stacked ? data.chart.stacked.map(day => {
+        let total = 0;
+        for (const key of Object.keys(day)) {
+          if (key === "date" || key === "_other") continue;
+          if (visibleIds.has(key)) total += day[key] || 0;
+        }
+        if (!isFiltered) total += day._other || 0;
+        return { date: day.date, views: total };
+      }) : data.chart.current,
     } : data.chart;
+
+    // Recompute period comparison from filtered daily data
+    let filteredPeriod = data.period;
+    if (data.period && isFiltered) {
+      const currentViews = filteredViews;
+      const currentUnique = filteredUnique;
+      // Previous period isn't per-event, so we can't perfectly filter it.
+      // Keep previous period as-is (it represents the full comparison baseline)
+      filteredPeriod = {
+        ...data.period,
+        currentViews,
+        currentUnique,
+      };
+    }
+
     return {
       ...data,
       events: visibleEvents,
       total_views: filteredViews,
       total_unique_visitors: filteredUnique,
       total_rsvps: filteredRsvps,
+      total_pulled_up: filteredPulledUp,
+      total_revenue: filteredRevenue,
+      revenue_by_currency: filteredRevenueByCurrency,
+      has_paid_events: filteredHasPaid,
+      avg_show_rate: filteredShowRate,
       avg_conversion: filteredConversion,
+      total_dinner: filteredDinner,
+      total_dinner_capacity: filteredDinnerCapacity,
+      has_dinner_events: filteredHasDinner,
+      total_capacity: filteredCapacity,
+      device_split: isFiltered ? filteredDeviceSplit : data.device_split,
+      period: filteredPeriod,
       chart: filteredChart,
     };
   })() : null;
@@ -147,7 +229,9 @@ export function HostAnalyticsPage() {
       const endStr = dateEnd.toISOString().slice(0, 10);
       const res = await authenticatedFetch(`/host/analytics?startDate=${startStr}&endDate=${endStr}`);
       if (res.ok) setData(await res.json());
-    } catch {}
+    } catch (err) {
+      console.error("Failed to load analytics:", err);
+    }
     setLoading(false);
   }, [user, dateStart, dateEnd]);
 
@@ -239,21 +323,22 @@ export function HostAnalyticsPage() {
           </div>
         </div>
 
-            {/* Key metrics */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 24 }}>
-              <MetricCard label="Total Views" value={hiddenEvents.size > 0 ? filteredViews : data.total_views} />
-              <MetricCard label="Unique Visitors" value={hiddenEvents.size > 0 ? filteredUnique : data.total_unique_visitors} />
-              <MetricCard label="Total RSVPs" value={hiddenEvents.size > 0 ? filteredRsvps : data.total_rsvps} />
-              <MetricCard
-                label="Avg Conversion"
-                value={`${hiddenEvents.size > 0 ? filteredConversion : data.avg_conversion}%`}
-                color={(hiddenEvents.size > 0 ? filteredConversion : data.avg_conversion) > 20 ? colors.success : undefined}
-              />
-            </div>
+            {/* Conversion funnel */}
+            <FunnelChart
+              views={filteredData.total_views}
+              rsvps={filteredData.total_rsvps}
+              dinner={filteredData.has_dinner_events ? filteredData.total_dinner : null}
+              dinnerCapacity={filteredData.has_dinner_events ? filteredData.total_dinner_capacity : null}
+              pulledUp={filteredData.total_pulled_up}
+              revenue={filteredData.has_paid_events ? filteredData.total_revenue : null}
+              revenueByCurrency={filteredData.has_paid_events ? filteredData.revenue_by_currency : null}
+              uniqueVisitors={filteredData.total_unique_visitors}
+              capacity={filteredData.total_capacity}
+            />
 
             {/* Device split donut */}
-            {data.device_split && (data.device_split.mobile + data.device_split.desktop + data.device_split.unknown) > 0 && (
-              <DeviceSplitDonut split={data.device_split} />
+            {filteredData.device_split && ((filteredData.device_split.mobile || 0) + (filteredData.device_split.desktop || 0) + (filteredData.device_split.unknown || 0)) > 0 && (
+              <DeviceSplitDonut split={filteredData.device_split} />
             )}
 
             {/* Campaigns */}
@@ -261,7 +346,7 @@ export function HostAnalyticsPage() {
               <SectionLabel>Campaigns</SectionLabel>
               {(data.campaigns || []).length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {data.campaigns.map(c => (
+                  {(data.campaigns || []).map(c => (
                     <CampaignCard key={c.tag} campaign={c} />
                   ))}
                 </div>
@@ -271,28 +356,28 @@ export function HostAnalyticsPage() {
             </div>
 
             {/* Views chart */}
-            {data.chart && (
+            {filteredData.chart && (
               <div style={{ marginBottom: 24 }}>
                 <div style={{ marginBottom: 12 }}>
                   <SectionLabel>Views</SectionLabel>
                 </div>
 
                 {/* Stats row with period comparison */}
-                {data.period && (
+                {filteredData.period && (
                   <div style={{ display: "flex", gap: 16, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                       <span style={{ fontSize: "24px", fontWeight: 700, color: "#fff" }}>
-                        {data.period.currentViews.toLocaleString()}
+                        {filteredData.period.currentViews.toLocaleString()}
                       </span>
                       <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>views</span>
-                      <ChangeIndicator value={data.period.viewsChange} />
+                      {!isFiltered && <ChangeIndicator value={filteredData.period.viewsChange} />}
                     </div>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                       <span style={{ fontSize: "24px", fontWeight: 700, color: "rgba(59,130,246,0.9)" }}>
-                        {data.period.currentUnique.toLocaleString()}
+                        {filteredData.period.currentUnique.toLocaleString()}
                       </span>
                       <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>unique</span>
-                      <ChangeIndicator value={data.period.uniqueChange} />
+                      {!isFiltered && <ChangeIndicator value={filteredData.period.uniqueChange} />}
                     </div>
                     <button
                       onClick={() => setShowPrevious(!showPrevious)}
@@ -314,9 +399,9 @@ export function HostAnalyticsPage() {
 
                 {/* Stacked bar chart */}
                 <StackedBarChart
-                  stacked={data.chart.stacked}
+                  stacked={filteredData.chart.stacked}
                   eventLabels={data.chart.eventLabels}
-                  previous={showPrevious ? data.chart.previous : null}
+                  previous={showPrevious && !isFiltered ? data.chart.previous : null}
                   hiddenEvents={hiddenEvents}
                 />
 
@@ -434,7 +519,7 @@ export function HostAnalyticsPage() {
                           {formatEventTime(ev.starts_at, ev.ends_at)}
                         </div>
                         <div style={{ fontSize: "11px", color: colors.textFaded }}>
-                          {ev.unique_visitors} visitors · {ev.rsvps} RSVPs · {ev.conversion_rate}% conv.
+                          {ev.unique_visitors} visitors · {ev.rsvps} RSVPs · {ev.pulled_up || 0} pulled up
                         </div>
                       </div>
 
@@ -505,6 +590,101 @@ function getSourceColor(name) {
   return SOURCE_COLORS[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.6)`;
 }
 
+function FunnelChart({ views, rsvps, dinner, dinnerCapacity, pulledUp, revenue, currency, revenueByCurrency, capacity, uniqueVisitors, mini }) {
+  const steps = [
+    { label: "Views", value: views, rate: null, color: "rgba(59,130,246,0.7)" },
+    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: views > 0 ? Math.round((rsvps / views) * 1000) / 10 : 0, rateLabel: "of views", color: "rgba(139,92,246,0.7)" },
+  ];
+  if (dinner !== null && dinner !== undefined) {
+    steps.push({ label: "Dinner", value: dinner, cap: dinnerCapacity > 0 ? dinnerCapacity : null, rate: rsvps > 0 ? Math.round((dinner / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(251,146,60,0.7)" });
+  }
+  steps.push(
+    { label: "Pulled Up", value: pulledUp, rate: rsvps > 0 ? Math.round((pulledUp / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(74,222,128,0.7)" },
+  );
+  if (revenue !== null && revenue !== undefined) {
+    const revenueDisplay = revenueByCurrency && Object.keys(revenueByCurrency).length > 0
+      ? formatRevenueByCurrency(revenueByCurrency)
+      : formatRevenue(revenue, currency);
+    steps.push({ label: "Revenue", value: revenueDisplay, rawValue: revenue, rate: null, color: "rgba(251,191,36,0.7)" });
+  }
+  const maxVal = Math.max(views, 1);
+
+  return (
+    <div style={{
+      padding: mini ? "10px 12px" : "14px 16px", borderRadius: mini ? 10 : 14,
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      marginBottom: mini ? 12 : 20,
+    }}>
+      {steps.map((step, i) => {
+        const barPct = step.label === "Revenue"
+          ? (steps[2]?.value || 0) / maxVal * 100
+          : (step.value / maxVal) * 100;
+        return (
+          <div key={step.label} style={{ marginBottom: i < steps.length - 1 ? (mini ? 8 : 12) : 0 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: mini ? 2 : 3 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span style={{
+                  fontSize: mini ? "16px" : "20px", fontWeight: 700,
+                  color: step.color,
+                }}>
+                  {step.label === "Revenue" ? step.value : (step.value ?? 0).toLocaleString()}
+                  {step.cap && (
+                    <span style={{ fontSize: mini ? "11px" : "13px", fontWeight: 500, color: "rgba(255,255,255,0.25)" }}>
+                      {" / "}{step.cap.toLocaleString()}
+                    </span>
+                  )}
+                </span>
+                <span style={{ fontSize: mini ? "10px" : "11px", color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>
+                  {step.label}
+                </span>
+              </div>
+              {step.rate !== null && step.rate !== undefined && (
+                <span style={{
+                  fontSize: mini ? "10px" : "11px", fontWeight: 600,
+                  color: step.rate > (step.label === "Pulled Up" ? 50 : 20) ? "rgba(74,222,128,0.7)" : "rgba(255,255,255,0.35)",
+                }}>
+                  {step.rate}% <span style={{ fontWeight: 400, color: "rgba(255,255,255,0.25)" }}>{step.rateLabel}</span>
+                </span>
+              )}
+            </div>
+            <div style={{
+              height: mini ? 4 : 6, borderRadius: 3,
+              background: "rgba(255,255,255,0.04)",
+            }}>
+              <div style={{
+                height: "100%", borderRadius: 3,
+                background: step.color,
+                width: `${Math.max(barPct, step.value > 0 || step.rawValue > 0 ? 2 : 0)}%`,
+                transition: "width 0.3s ease",
+              }} />
+            </div>
+          </div>
+        );
+      })}
+      {!mini && (uniqueVisitors > 0 || capacity > 0) && (
+        <div style={{
+          display: "flex", gap: 16, marginTop: 12,
+          paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.04)",
+        }}>
+          {uniqueVisitors > 0 && (
+            <div>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{uniqueVisitors.toLocaleString()}</span>
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginLeft: 4 }}>unique visitors</span>
+            </div>
+          )}
+          {capacity > 0 && (
+            <div>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{Math.min(100, Math.round((rsvps / capacity) * 100))}%</span>
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginLeft: 4 }}>of {capacity} capacity</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Per-event expanded detail panel ── */
 function EventDetailPanel({ event: ev }) {
   const [hoverDay, setHoverDay] = useState(null);
@@ -542,23 +722,18 @@ function EventDetailPanel({ event: ev }) {
       padding: "12px 14px 16px",
       background: "rgba(255,255,255,0.015)",
     }}>
-      {/* Mini metrics row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
-        {[
-          { label: "Views", value: ev.views },
-          { label: "Unique", value: ev.unique_visitors },
-          { label: "RSVPs", value: ev.rsvps },
-          { label: "Conv.", value: `${ev.conversion_rate}%` },
-        ].map(m => (
-          <div key={m.label} style={{
-            padding: "8px 10px", borderRadius: 8,
-            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)",
-          }}>
-            <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginBottom: 2 }}>{m.label}</div>
-            <div style={{ fontSize: "16px", fontWeight: 700, color: "#fff" }}>{m.value}</div>
-          </div>
-        ))}
-      </div>
+      {/* Conversion funnel */}
+      <FunnelChart
+        views={ev.views}
+        rsvps={ev.rsvps}
+        dinner={ev.dinner_enabled ? (ev.dinner || 0) : null}
+        dinnerCapacity={ev.dinner_enabled ? (ev.dinner_capacity || 0) : null}
+        pulledUp={ev.pulled_up || 0}
+        revenue={ev.is_paid ? ev.revenue : null}
+        currency={ev.ticket_currency}
+        capacity={ev.capacity}
+        mini
+      />
 
       {/* Stacked source bars + RSVP line chart */}
       {daily.length > 0 && (
@@ -797,91 +972,6 @@ function EventDetailPanel({ event: ev }) {
         </div>
       )}
 
-      {/* VIP Invites */}
-      {(ev.vipInvites || []).length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, color: "rgba(255,255,255,0.3)", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
-            <Mail size={10} /> VIP Invites ({ev.vipInvites.length})
-          </div>
-          <div style={{
-            borderRadius: 8,
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.05)",
-            overflow: "hidden",
-          }}>
-            {ev.vipInvites.map((inv, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "7px 10px",
-                borderBottom: i < ev.vipInvites.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                fontSize: "11px",
-              }}>
-                <div style={{ flex: 1, color: "rgba(255,255,255,0.6)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {inv.email}
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.25)", flexShrink: 0 }}>
-                  +{inv.maxGuests}
-                </div>
-                {inv.freeEntry && (
-                  <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: 4, background: "rgba(74,222,128,0.15)", color: "rgba(74,222,128,0.7)" }}>FREE</span>
-                )}
-                <span style={{
-                  fontSize: "9px", padding: "1px 5px", borderRadius: 4,
-                  background: inv.redeemed ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
-                  color: inv.redeemed ? "rgba(59,130,246,0.7)" : "rgba(255,255,255,0.25)",
-                }}>
-                  {inv.redeemed ? "Redeemed" : "Pending"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Hosts / Arrangers */}
-      {(ev.hosts || []).length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, color: "rgba(255,255,255,0.3)", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
-            <Users size={10} /> Team ({ev.hosts.length})
-          </div>
-          <div style={{
-            borderRadius: 8,
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.05)",
-            overflow: "hidden",
-          }}>
-            {ev.hosts.map((h, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "7px 10px",
-                borderBottom: i < ev.hosts.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                fontSize: "11px",
-              }}>
-                {h.role === "owner" && <Crown size={10} style={{ color: "rgba(251,191,36,0.6)", flexShrink: 0 }} />}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: "rgba(255,255,255,0.6)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {h.name || h.email || "Unknown"}
-                  </div>
-                  {h.name && h.email && (
-                    <div style={{ color: "rgba(255,255,255,0.25)", fontSize: "10px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {h.email}
-                    </div>
-                  )}
-                </div>
-                <span style={{
-                  fontSize: "9px", padding: "1px 5px", borderRadius: 4,
-                  background: h.role === "owner" ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.04)",
-                  color: h.role === "owner" ? "rgba(251,191,36,0.6)" : "rgba(255,255,255,0.3)",
-                  textTransform: "capitalize",
-                  flexShrink: 0,
-                }}>
-                  {h.role}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -934,7 +1024,7 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
   }), 1);
   const maxPrev = previous ? Math.max(...previous.map((d) => d.views), 0) : 0;
   const maxVal = Math.max(maxCurrent, maxPrev, 1);
-  const niceMax = Math.ceil(maxVal / (maxVal > 20 ? 10 : maxVal > 5 ? 5 : 1)) * (maxVal > 20 ? 10 : maxVal > 5 ? 5 : 1);
+  const niceMax = Math.ceil(maxVal / (maxVal > 20 ? 10 : maxVal > 5 ? 5 : 1)) * (maxVal > 20 ? 10 : maxVal > 5 ? 5 : 1) || 1;
 
   // Y ticks
   const yTicks = [0, Math.round(niceMax / 2), niceMax];

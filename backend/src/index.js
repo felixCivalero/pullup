@@ -7712,14 +7712,14 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
     // Get event details + RSVP counts
     const { data: events } = await sb
       .from("events")
-      .select("id, title, slug, starts_at, ends_at, cover_image_url, image_url, host_id")
+      .select("id, title, slug, starts_at, ends_at, cover_image_url, image_url, host_id, total_capacity, cocktail_capacity, ticket_type, ticket_price, ticket_currency, dinner_enabled, dinner_max_seats_per_slot, dinner_slots, dinner_start_time, dinner_end_time, dinner_seating_interval_hours")
       .in("id", eventIds)
       .order("starts_at", { ascending: false });
 
     // Batch-fetch RSVP counts for all events in one query instead of N+1
     const { data: rsvpRows } = await sb
       .from("rsvps")
-      .select("id, event_id, party_size, total_guests, booking_status, status, visitor_id, created_at")
+      .select("id, event_id, party_size, total_guests, booking_status, status, visitor_id, created_at, pulled_up, pulled_up_count, wants_dinner, dinner, dinner_party_size, dinner_status")
       .in("event_id", eventIds);
 
     // Date range filtering — supports ?startDate=&endDate= or ?days=
@@ -7757,6 +7757,7 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
     const allVisitors = new Set();
     let newsletterViews = 0;
     const deviceCounts = { mobile: 0, desktop: 0, unknown: 0 };
+    const eventDeviceMap = {}; // { eventId: { mobile: N, desktop: N, unknown: N } }
 
     // Daily views per event + totals (current period)
     const currentDays = [];
@@ -7784,6 +7785,10 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
         if (v.device_type === "mobile") deviceCounts.mobile++;
         else if (v.device_type === "desktop") deviceCounts.desktop++;
         else deviceCounts.unknown++;
+        if (!eventDeviceMap[v.event_id]) eventDeviceMap[v.event_id] = { mobile: 0, desktop: 0, unknown: 0 };
+        if (v.device_type === "mobile") eventDeviceMap[v.event_id].mobile++;
+        else if (v.device_type === "desktop") eventDeviceMap[v.event_id].desktop++;
+        else eventDeviceMap[v.event_id].unknown++;
         allVisitors.add(v.visitor_id);
         if (v.utm_source === "pullup_newsletter") newsletterViews++;
 
@@ -7891,58 +7896,46 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
       }
     }
 
-    // Batch-fetch hosts for all events (event_hosts table + owner from events.host_id)
-    const { data: hostRows } = await sb
-      .from("event_hosts")
-      .select("event_id, user_id, role")
-      .in("event_id", eventIds);
-
-    // Collect all unique user IDs (owners + co-hosts)
-    const ownerIds = new Set((events || []).map(e => e.host_id).filter(Boolean));
-    const allHostUserIds = new Set([...ownerIds]);
-    for (const h of (hostRows || [])) allHostUserIds.add(h.user_id);
-
-    // Batch-fetch profiles for all host users
-    const { data: profileRows } = await sb
-      .from("profiles")
-      .select("id, name, brand, contact_email")
-      .in("id", [...allHostUserIds]);
-    const profileMap = {};
-    for (const p of (profileRows || [])) profileMap[p.id] = p;
-
-    // Batch-fetch auth emails for all host users
-    const hostEmailMap = {};
-    for (const uid of allHostUserIds) {
-      try {
-        const { data: { user: authUser } } = await sb.auth.admin.getUserById(uid);
-        if (authUser) hostEmailMap[uid] = authUser.email;
-      } catch {}
+    // Compute pulled_up counts per event (period-filtered like rsvpCountMap)
+    const pulledUpMap = {};
+    for (const r of (rsvpRows || [])) {
+      if (r.pulled_up === true && (r.booking_status === "CONFIRMED" || r.status === "attending")) {
+        const rDate = new Date(r.created_at);
+        if (rDate >= periodStart && rDate <= periodEnd) {
+          const count = r.pulled_up_count ?? r.total_guests ?? r.party_size ?? 1;
+          pulledUpMap[r.event_id] = (pulledUpMap[r.event_id] || 0) + count;
+        }
+      }
     }
 
-    // Build per-event hosts list
-    const hostsByEvent = {};
-    for (const e of (events || [])) {
-      const hosts = [];
-      // Owner first
-      if (e.host_id) {
-        const p = profileMap[e.host_id];
-        hosts.push({
-          name: p?.name || p?.brand || null,
-          email: hostEmailMap[e.host_id] || p?.contact_email || null,
-          role: "owner",
-        });
+    // Compute dinner counts per event (period-filtered)
+    const dinnerMap = {};
+    const dinnerEventIds = new Set((events || []).filter(e => e.dinner_enabled).map(e => e.id));
+    for (const r of (rsvpRows || [])) {
+      if (!dinnerEventIds.has(r.event_id)) continue;
+      const hasDinner = ((r.dinner && r.dinner.enabled) || r.wants_dinner) &&
+        (r.dinner_status === "confirmed" || (r.dinner && r.dinner.bookingStatus === "CONFIRMED"));
+      if (hasDinner && (r.booking_status === "CONFIRMED" || r.status === "attending")) {
+        const rDate = new Date(r.created_at);
+        if (rDate >= periodStart && rDate <= periodEnd) {
+          const count = r.dinner_party_size ?? r.total_guests ?? r.party_size ?? 1;
+          dinnerMap[r.event_id] = (dinnerMap[r.event_id] || 0) + count;
+        }
       }
-      // Additional hosts
-      for (const h of (hostRows || [])) {
-        if (h.event_id !== e.id || h.user_id === e.host_id) continue;
-        const p = profileMap[h.user_id];
-        hosts.push({
-          name: p?.name || p?.brand || null,
-          email: hostEmailMap[h.user_id] || p?.contact_email || null,
-          role: h.role || "editor",
-        });
+    }
+
+    // Batch-query payments for paid events
+    const paidEventIds = (events || []).filter(e => e.ticket_type === "paid").map(e => e.id);
+    const revenueMap = {};
+    if (paidEventIds.length > 0) {
+      const { data: paymentRows } = await sb
+        .from("payments")
+        .select("event_id, amount")
+        .in("event_id", paidEventIds)
+        .eq("status", "succeeded");
+      for (const p of (paymentRows || [])) {
+        revenueMap[p.event_id] = (revenueMap[p.event_id] || 0) + (p.amount || 0);
       }
-      hostsByEvent[e.id] = hosts;
     }
 
     // Build events list filtered by period
@@ -7967,6 +7960,36 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
         bySource: dailySourceData[date] || {},
       }));
 
+      const capacity = e.total_capacity || e.cocktail_capacity || 0;
+      const pulledUp = pulledUpMap[e.id] || 0;
+      const dinnerCount = dinnerMap[e.id] || 0;
+      const isPaid = e.ticket_type === "paid";
+      const revenue = revenueMap[e.id] || 0;
+      const showRate = rsvps > 0 ? Math.round((pulledUp / rsvps) * 1000) / 10 : 0;
+
+      // Compute dinner capacity from slot config
+      let dinnerCapacity = 0;
+      if (e.dinner_enabled) {
+        const slots = generateDinnerTimeSlots({
+          dinnerEnabled: true,
+          dinnerStartTime: e.dinner_start_time,
+          dinnerEndTime: e.dinner_end_time,
+          dinnerSeatingIntervalHours: e.dinner_seating_interval_hours,
+          dinnerSlots: e.dinner_slots,
+        });
+        for (const slotTime of slots) {
+          let slotCap = e.dinner_max_seats_per_slot || 0;
+          if (Array.isArray(e.dinner_slots)) {
+            const match = e.dinner_slots.find(s => {
+              if (!s || typeof s === 'string') return false;
+              try { return new Date(s.time).getTime() === new Date(slotTime).getTime(); } catch { return false; }
+            });
+            if (match && typeof match.capacity === 'number') slotCap = match.capacity;
+          }
+          dinnerCapacity += slotCap;
+        }
+      }
+
       return {
         id: e.id,
         title: e.title,
@@ -7977,13 +8000,22 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
         views: ev.views,
         unique_visitors: ev.visitors.size,
         rsvps,
+        dinner: dinnerCount,
+        dinner_enabled: !!e.dinner_enabled,
+        dinner_capacity: dinnerCapacity,
+        pulled_up: pulledUp,
+        capacity,
+        is_paid: isPaid,
+        ticket_price: e.ticket_price || 0,
+        ticket_currency: e.ticket_currency || "sek",
+        revenue,
+        show_rate: showRate,
         conversion_rate: ev.views > 0
           ? Math.round((rsvps / ev.views) * 1000) / 10
           : 0,
         sources,
         daily: dailyViews,
-        vipInvites: vipByEvent[e.id] || [],
-        hosts: hostsByEvent[e.id] || [],
+        device_split: eventDeviceMap[e.id] || { mobile: 0, desktop: 0, unknown: 0 },
       };
     });
     eventsWithAnalytics.sort((a, b) => b.views - a.views);
@@ -8122,6 +8154,23 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
         }
       }
 
+      // Batch-fetch campaign names
+      const hostCampaignIds = Object.keys(campaignMap)
+        .filter(t => t.startsWith("host_campaign_"))
+        .map(t => t.replace("host_campaign_", ""));
+      let campaignNameMap = {};
+      if (hostCampaignIds.length > 0) {
+        try {
+          const { data: campaignRows } = await sb
+            .from("campaign_campaigns")
+            .select("id, name, subject")
+            .in("id", hostCampaignIds);
+          for (const row of (campaignRows || [])) {
+            campaignNameMap[row.id] = row.name || row.subject || `host_campaign_${row.id}`;
+          }
+        } catch {}
+      }
+
       // Build campaign array
       for (const [tag, data] of Object.entries(campaignMap)) {
         const opened = data.trackingIds.filter(t => opensSet.has(t)).length;
@@ -8129,19 +8178,10 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
         const visited = campaignViewMap[tag] || 0;
         const rsvps = campaignRsvpMap[tag] || 0;
 
-        // Determine a readable name from the campaign DB record
         let name = tag;
         if (tag.startsWith("host_campaign_")) {
           const cId = tag.replace("host_campaign_", "");
-          // Try to look up the campaign name from email_campaigns table
-          try {
-            const { data: campaignRow } = await sb
-              .from("campaign_campaigns")
-              .select("name, subject")
-              .eq("id", cId)
-              .maybeSingle();
-            if (campaignRow) name = campaignRow.name || campaignRow.subject || tag;
-          } catch {}
+          if (campaignNameMap[cId]) name = campaignNameMap[cId];
         }
 
         campaigns.push({
@@ -8179,6 +8219,24 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
       total_views: totalPeriodViews,
       total_unique_visitors: allVisitors.size,
       total_rsvps: totalRsvps,
+      total_pulled_up: Object.values(pulledUpMap).reduce((s, v) => s + v, 0),
+      total_dinner: Object.values(dinnerMap).reduce((s, v) => s + v, 0),
+      has_dinner_events: dinnerEventIds.size > 0,
+      total_revenue: Object.values(revenueMap).reduce((s, v) => s + v, 0),
+      revenue_by_currency: (() => {
+        const byCur = {};
+        for (const e of (events || [])) {
+          if (e.ticket_type === "paid" && revenueMap[e.id]) {
+            const cur = e.ticket_currency || "sek";
+            byCur[cur] = (byCur[cur] || 0) + revenueMap[e.id];
+          }
+        }
+        return byCur;
+      })(),
+      has_paid_events: paidEventIds.length > 0,
+      avg_show_rate: totalRsvps > 0
+        ? Math.round((Object.values(pulledUpMap).reduce((s, v) => s + v, 0) / totalRsvps) * 1000) / 10
+        : 0,
       newsletter_views: newsletterViews,
       device_split: deviceCounts,
       campaigns,
@@ -8214,9 +8272,9 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
     const { id } = req.params;
 
     // Verify the user has access to this event
-    const hasAccess = await isUserEventHost(req.user.id, id);
-    if (!hasAccess) {
-      return res.status(403).json({ error: "forbidden" });
+    const { isHost } = await isUserEventHost(req.user.id, id);
+    if (!isHost) {
+      return res.status(403).json({ error: "Forbidden", message: "You don't have access to this event" });
     }
 
     const { supabase: sb } = await import("./supabase.js");
@@ -8231,24 +8289,23 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
     const prevEnd = new Date(periodStart.getTime() - 1);
     const prevStart = new Date(prevEnd.getTime() - periodLenMs);
 
-    // Get ALL page views (we filter in memory for current/prev)
-    const { data: allViews, error: viewsErr } = await sb
-      .from("event_page_views")
-      .select("id, visitor_id, referrer, utm_source, utm_medium, utm_campaign, utm_content, device_type, created_at")
-      .eq("event_id", id)
-      .order("created_at", { ascending: false });
+    // Get page views for current + previous period (filter at DB level)
+    const [{ data: views, error: viewsErr }, { data: prevViews, error: prevViewsErr }] = await Promise.all([
+      sb.from("event_page_views")
+        .select("id, visitor_id, referrer, utm_source, utm_medium, utm_campaign, utm_content, device_type, created_at")
+        .eq("event_id", id)
+        .gte("created_at", periodStart.toISOString())
+        .lte("created_at", periodEnd.toISOString())
+        .order("created_at", { ascending: false }),
+      sb.from("event_page_views")
+        .select("id, visitor_id, referrer, utm_source, utm_medium, utm_campaign, utm_content, device_type, created_at")
+        .eq("event_id", id)
+        .gte("created_at", prevStart.toISOString())
+        .lte("created_at", prevEnd.toISOString())
+        .order("created_at", { ascending: false }),
+    ]);
 
     if (viewsErr) throw viewsErr;
-
-    // Filter views to current and previous period
-    const views = (allViews || []).filter(v => {
-      const d = new Date(v.created_at);
-      return d >= periodStart && d <= periodEnd;
-    });
-    const prevViews = (allViews || []).filter(v => {
-      const d = new Date(v.created_at);
-      return d >= prevStart && d <= prevEnd;
-    });
 
     const totalViews = views.length;
     const uniqueVisitors = new Set(views.map(v => v.visitor_id).filter(Boolean)).size;
@@ -8305,7 +8362,7 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
     // Fetch RSVPs
     const { data: rsvpRows } = await sb
       .from("rsvps")
-      .select("id, event_id, party_size, total_guests, booking_status, status, visitor_id, created_at")
+      .select("id, event_id, party_size, total_guests, booking_status, status, visitor_id, created_at, pulled_up, pulled_up_count, wants_dinner, dinner, dinner_party_size, dinner_status")
       .eq("event_id", id);
 
     const validRsvps = (rsvpRows || []).filter(r =>
@@ -8320,20 +8377,69 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
     const counts = await getEventCounts(id);
     const rsvp_count = (counts?.confirmed || 0) + (counts?.waitlist || 0);
 
-    // VIP invites
-    let vipInvites = [];
+    // Pulled up count
+    const pulledUpCount = validRsvps.filter(r => r.pulled_up === true)
+      .reduce((s, r) => s + (r.pulled_up_count ?? r.total_guests ?? r.party_size ?? 1), 0);
+
+    // Get event details for capacity and ticket info
+    const eventDetails = await findEventById(id);
+    const capacity = eventDetails?.total_capacity || eventDetails?.cocktail_capacity || 0;
+    const isPaid = eventDetails?.ticket_type === "paid" || eventDetails?.ticketType === "paid";
+    const ticketPrice = eventDetails?.ticket_price || eventDetails?.ticketPrice || 0;
+    const ticketCurrency = eventDetails?.ticket_currency || eventDetails?.ticketCurrency || "sek";
+    const dinnerEnabled = eventDetails?.dinnerEnabled || eventDetails?.dinner_enabled || false;
+
+    // Dinner count + capacity
+    let dinnerCount = 0;
+    let dinnerCapacity = 0;
+    if (dinnerEnabled) {
+      dinnerCount = validRsvps.filter(r => {
+        const d = r.dinner || {};
+        return ((d.enabled) || r.wants_dinner) &&
+          (r.dinner_status === "confirmed" || (d.bookingStatus === "CONFIRMED"));
+      }).reduce((s, r) => s + (r.dinner_party_size ?? r.total_guests ?? r.party_size ?? 1), 0);
+
+      const dinnerSlots = generateDinnerTimeSlots({
+        dinnerEnabled: true,
+        dinnerStartTime: eventDetails?.dinnerStartTime || eventDetails?.dinner_start_time,
+        dinnerEndTime: eventDetails?.dinnerEndTime || eventDetails?.dinner_end_time,
+        dinnerSeatingIntervalHours: eventDetails?.dinnerSeatingIntervalHours || eventDetails?.dinner_seating_interval_hours,
+        dinnerSlots: eventDetails?.dinnerSlots || eventDetails?.dinner_slots,
+      });
+      const defaultSlotCap = eventDetails?.dinnerMaxSeatsPerSlot || eventDetails?.dinner_max_seats_per_slot || 0;
+      const slotsConfig = eventDetails?.dinnerSlots || eventDetails?.dinner_slots;
+      for (const slotTime of dinnerSlots) {
+        let slotCap = defaultSlotCap;
+        if (Array.isArray(slotsConfig)) {
+          const match = slotsConfig.find(s => {
+            if (!s || typeof s === 'string') return false;
+            try { return new Date(s.time).getTime() === new Date(slotTime).getTime(); } catch { return false; }
+          });
+          if (match && typeof match.capacity === 'number') slotCap = match.capacity;
+        }
+        dinnerCapacity += slotCap;
+      }
+    }
+
+    // Revenue for paid events
+    let revenue = 0;
+    if (isPaid) {
+      const { data: paymentRows } = await sb
+        .from("payments")
+        .select("amount")
+        .eq("event_id", id)
+        .eq("status", "succeeded");
+      revenue = (paymentRows || []).reduce((s, p) => s + (p.amount || 0), 0);
+    }
+
+    // VIP invites — only need rsvp IDs for golden dots on chart
     let vipRsvpIds = new Set();
     try {
       const { data: vipRows } = await sb
         .from("vip_invites")
-        .select("id, event_id, email, max_guests, free_entry, used_at, used_rsvp_id, created_at")
-        .eq("event_id", id);
-      vipInvites = (vipRows || []).map(v => ({
-        email: v.email,
-        maxGuests: v.max_guests,
-        freeEntry: v.free_entry,
-        redeemed: !!v.used_at,
-      }));
+        .select("used_rsvp_id")
+        .eq("event_id", id)
+        .not("used_rsvp_id", "is", null);
       for (const v of (vipRows || [])) {
         if (v.used_rsvp_id) vipRsvpIds.add(v.used_rsvp_id);
       }
@@ -8374,7 +8480,7 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
     ).length;
 
     // VIP invite email impact (existing VIP stats)
-    const event = await findEventById(id);
+    const event = eventDetails;
     let vipStats = null;
     if (event?.slug) {
       try {
@@ -8407,60 +8513,6 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
       } catch (vipErr) {
         console.error("[host] vip analytics error:", vipErr.message);
       }
-    }
-
-    // Hosts list
-    let hosts = [];
-    try {
-      const hostUserId = event?.host_id || event?.hostId;
-      const { data: hostRows } = await sb
-        .from("event_hosts")
-        .select("event_id, user_id, role")
-        .eq("event_id", id);
-
-      const allHostUserIds = new Set();
-      if (hostUserId) allHostUserIds.add(hostUserId);
-      for (const h of (hostRows || [])) allHostUserIds.add(h.user_id);
-
-      if (allHostUserIds.size > 0) {
-        const { data: profileRows } = await sb
-          .from("profiles")
-          .select("id, name, brand, contact_email")
-          .in("id", [...allHostUserIds]);
-        const profileMap = {};
-        for (const p of (profileRows || [])) profileMap[p.id] = p;
-
-        // Fetch auth emails
-        const emailMap = {};
-        for (const uid of allHostUserIds) {
-          try {
-            const { data: userData } = await sb.auth.admin.getUserById(uid);
-            if (userData?.user?.email) emailMap[uid] = userData.user.email;
-          } catch {}
-        }
-
-        // Build host for owner
-        if (hostUserId) {
-          const p = profileMap[hostUserId];
-          hosts.push({
-            name: p?.name || p?.brand || "Unknown",
-            email: p?.contact_email || emailMap[hostUserId] || null,
-            role: "owner",
-          });
-        }
-        // Build hosts for co-hosts
-        for (const h of (hostRows || [])) {
-          if (h.user_id === hostUserId) continue;
-          const p = profileMap[h.user_id];
-          hosts.push({
-            name: p?.name || p?.brand || "Unknown",
-            email: p?.contact_email || emailMap[h.user_id] || null,
-            role: h.role || "host",
-          });
-        }
-      }
-    } catch (hostsErr) {
-      console.error("[host] hosts fetch error:", hostsErr.message);
     }
 
     // Host campaign funnel
@@ -8526,6 +8578,23 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
           }
         }
 
+        // Batch-fetch campaign names
+        const campaignIds = Object.keys(campaignMap)
+          .filter(t => t.startsWith("host_campaign_"))
+          .map(t => t.replace("host_campaign_", ""));
+        let campaignNameMap = {};
+        if (campaignIds.length > 0) {
+          try {
+            const { data: campaignRows } = await sb
+              .from("campaign_campaigns")
+              .select("id, name, subject")
+              .in("id", campaignIds);
+            for (const row of (campaignRows || [])) {
+              campaignNameMap[row.id] = row.name || row.subject || `host_campaign_${row.id}`;
+            }
+          } catch {}
+        }
+
         // Build campaign array
         for (const [tag, data] of Object.entries(campaignMap)) {
           const opened = data.trackingIds.filter(t => opensSet.has(t)).length;
@@ -8536,14 +8605,7 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
           let name = tag;
           if (tag.startsWith("host_campaign_")) {
             const cId = tag.replace("host_campaign_", "");
-            try {
-              const { data: campaignRow } = await sb
-                .from("campaign_campaigns")
-                .select("name, subject")
-                .eq("id", cId)
-                .maybeSingle();
-              if (campaignRow) name = campaignRow.name || campaignRow.subject || tag;
-            } catch {}
+            if (campaignNameMap[cId]) name = campaignNameMap[cId];
           }
 
           campaigns.push({
@@ -8575,10 +8637,19 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
       newsletter_views: newsletterViews,
       vip_stats: vipStats,
       vip_views: vipViews,
-      vipInvites,
-      hosts,
       campaigns,
       rsvp_count,
+      pulled_up: pulledUpCount,
+      dinner: dinnerCount,
+      dinner_enabled: dinnerEnabled,
+      dinner_capacity: dinnerCapacity,
+      capacity,
+      is_paid: isPaid,
+      ticket_price: ticketPrice,
+      ticket_currency: ticketCurrency,
+      revenue,
+      show_rate: rsvp_count > 0 ? Math.round((pulledUpCount / rsvp_count) * 1000) / 10 : 0,
+      fill_rate: capacity > 0 ? Math.round((rsvp_count / capacity) * 1000) / 10 : 0,
       conversion_rate: totalViews > 0
         ? Math.round((rsvp_count / totalViews) * 1000) / 10
         : 0,

@@ -539,6 +539,12 @@ export function CreateEventPage() {
         const ev = await res.json();
         if (cancelled) return;
 
+        // Analytics-only users cannot edit events
+        if (ev.myRole === "analytics" || ev.myRole === "viewer") {
+          navigate(`/app/events/${editEventId}/analytics`, { replace: true });
+          return;
+        }
+
         // Helper: ISO string → datetime-local input value
         const toLocal = (iso) => {
           if (!iso) return "";

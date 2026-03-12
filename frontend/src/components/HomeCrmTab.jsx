@@ -142,6 +142,7 @@ export function CrmTab() {
 
   // Load people with filters
   useEffect(() => {
+    let cancelled = false;
     async function loadPeople() {
       setLoading(true);
       try {
@@ -173,8 +174,10 @@ export function CrmTab() {
         params.append("offset", (page * PAGE_SIZE).toString());
 
         const res = await authenticatedFetch(`/host/crm/people?${params}`);
+        if (cancelled) return;
         if (!res.ok) throw new Error("Failed to load people");
         const data = await res.json();
+        if (cancelled) return;
         console.log(
           `[CRM] Received ${data.people?.length || 0} people for page ${
             page + 1
@@ -193,13 +196,15 @@ export function CrmTab() {
           setBaselineTotal(nextTotal);
         }
       } catch (err) {
+        if (cancelled) return;
         console.error(err);
         showToast("Failed to load contacts", "error");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     loadPeople();
+    return () => { cancelled = true; };
   }, [searchQuery, filters, page, showToast, events, baselineTotal]);
 
   // Open "Send campaign" modal and load concrete recipients for current segment
@@ -242,6 +247,10 @@ export function CrmTab() {
       }
       const data = await res.json();
       setSegmentRecipients(data.people || []);
+      // Sync total with the modal's fresh fetch so counts are always consistent
+      if (data.total !== undefined) {
+        setTotal(data.total);
+      }
     } catch (error) {
       console.error("Failed to load segment recipients:", error);
       showToast("Failed to load recipients for this segment", "error");
@@ -669,7 +678,7 @@ export function CrmTab() {
         <div
           style={{
             marginTop: "8px",
-            padding: "14px 16px 12px",
+            padding: "16px 18px 14px",
             background: "rgba(20, 16, 30, 0.7)",
             borderRadius: "16px",
             border: "1px solid rgba(34, 197, 94, 0.3)",
@@ -677,40 +686,72 @@ export function CrmTab() {
               "0 0 0 1px rgba(34,197,94,0.12), 0 14px 40px rgba(0,0,0,0.55)",
             display: "flex",
             flexDirection: "column",
-            gap: "10px",
+            gap: "12px",
           }}
         >
-          {/* Segment heading + total counter */}
+          {/* Segment heading + recipient count */}
           <div
             style={{
               display: "flex",
-              alignItems: "baseline",
+              alignItems: "center",
               justifyContent: "space-between",
               gap: "12px",
               flexWrap: "wrap",
-              marginBottom: "4px",
             }}
           >
-            <div
-              style={{
-                fontSize: "13px",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                opacity: 0.8,
-              }}
-            >
-              Segment
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <span style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: "#22c55e",
+                  display: "inline-block",
+                  boxShadow: "0 0 6px rgba(34,197,94,0.5)",
+                }} />
+                Email audience
+              </div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  opacity: 0.5,
+                  paddingLeft: "16px",
+                }}
+              >
+                Filter contacts below to define who receives your next email
+              </div>
             </div>
             <div
               style={{
-                fontSize: "13px",
-                opacity: 0.8,
+                display: "flex",
+                alignItems: "baseline",
+                gap: "6px",
+                background: "rgba(34, 197, 94, 0.08)",
+                border: "1px solid rgba(34, 197, 94, 0.2)",
+                borderRadius: "999px",
+                padding: "5px 14px",
               }}
             >
-              {total.toLocaleString()} /{" "}
-              {(baselineTotal ?? total).toLocaleString()} contacts
+              <span style={{ fontSize: "18px", fontWeight: 700, color: "#4ade80" }}>
+                {total.toLocaleString()}
+              </span>
+              <span style={{ fontSize: "12px", opacity: 0.6 }}>
+                {total === 1 ? "recipient" : "recipients"}
+              </span>
             </div>
           </div>
+
+          {/* Divider */}
+          <div style={{ height: "1px", background: "rgba(255,255,255,0.06)" }} />
           {/* Filters + CTA row */}
           <div
             style={{
@@ -731,12 +772,14 @@ export function CrmTab() {
               <label
                 style={{
                   display: "block",
-                  fontSize: "12px",
-                  opacity: 0.7,
+                  fontSize: "11px",
+                  opacity: 0.5,
                   marginBottom: "4px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
                 }}
               >
-                Attended events
+                Filter by event
               </label>
               <button
                 type="button"
@@ -862,12 +905,14 @@ export function CrmTab() {
               <label
                 style={{
                   display: "block",
-                  fontSize: "12px",
-                  opacity: 0.7,
+                  fontSize: "11px",
+                  opacity: 0.5,
                   marginBottom: "4px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
                 }}
               >
-                Dinners only
+                Dinner guests only
               </label>
               <div
                 style={{
@@ -932,22 +977,27 @@ export function CrmTab() {
                 type="button"
                 onClick={openSendModal}
                 style={{
-                  padding: "8px 16px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(34, 197, 94, 0.3)",
-                  background: "rgba(34, 197, 94, 0.08)",
-                  color: "#4ade80",
+                  padding: "9px 20px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: total
+                    ? "linear-gradient(135deg, rgba(34,197,94,0.25), rgba(34,197,94,0.12))"
+                    : "rgba(255,255,255,0.04)",
+                  color: total ? "#4ade80" : "rgba(255,255,255,0.3)",
                   fontSize: "14px",
-                  fontWeight: 500,
+                  fontWeight: 600,
                   cursor: total ? "pointer" : "not-allowed",
-                  opacity: total ? 1 : 0.6,
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
+                  gap: "8px",
+                  boxShadow: total
+                    ? "0 0 0 1px rgba(34,197,94,0.3), 0 4px 12px rgba(0,0,0,0.3)"
+                    : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
                 <SilverIcon as={Mail} size={16} />
-                Create email
+                Compose for {total ? total.toLocaleString() : 0} {total === 1 ? "recipient" : "recipients"} →
               </button>
             </div>
           </div>{" "}
@@ -971,7 +1021,7 @@ export function CrmTab() {
                 marginRight: "8px",
               }}
             >
-              Views:
+              Saved audiences:
             </span>
             {savedViews.map((view) => (
               <button
@@ -1219,7 +1269,7 @@ export function CrmTab() {
                 marginBottom: "8px",
               }}
             >
-              Send campaign to segment
+              Compose email
             </h2>
             <div
               style={{
@@ -1231,7 +1281,7 @@ export function CrmTab() {
                 marginBottom: "16px",
               }}
             >
-              <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+              <div style={{ fontWeight: 600, marginBottom: "4px", display: "flex", alignItems: "baseline", gap: "8px" }}>
                 <span
                   style={{
                     fontSize: "24px",
@@ -1240,6 +1290,9 @@ export function CrmTab() {
                   }}
                 >
                   {effectiveRecipientCount.toLocaleString()}
+                </span>
+                <span style={{ fontSize: "13px", opacity: 0.7 }}>
+                  {effectiveRecipientCount === 1 ? "recipient" : "recipients"}{excludedRecipientIds.size > 0 ? ` (${excludedRecipientIds.size} excluded)` : ""}
                 </span>
               </div>
               <div

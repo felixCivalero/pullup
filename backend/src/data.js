@@ -2210,7 +2210,7 @@ export async function getPeopleWithFilters(
 
   return {
     people: finalPeople,
-    total: finalPeople.length,
+    total: count || finalPeople.length,
   };
 }
 

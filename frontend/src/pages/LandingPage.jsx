@@ -105,21 +105,139 @@ const inputStyle = {
 const ROTATING_WORDS = ["people", "life", "culture", "art"];
 
 const CAPITAL_CITIES = [
-  "Abu Dhabi","Abuja","Accra","Addis Ababa","Algiers","Amman","Amsterdam","Ankara","Antananarivo",
-  "Ashgabat","Astana","Asunción","Athens","Baghdad","Baku","Bamako","Bangkok","Beijing","Beirut",
-  "Belgrade","Berlin","Bern","Bishkek","Bogotá","Brasília","Bratislava","Brussels","Bucharest",
-  "Budapest","Buenos Aires","Cairo","Canberra","Caracas","Chisinau","Copenhagen","Dakar","Damascus",
-  "Dhaka","Doha","Dublin","Dushanbe","Freetown","Georgetown","Guatemala City","Hanoi","Harare",
-  "Havana","Helsinki","Islamabad","Jakarta","Jerusalem","Kabul","Kampala","Kathmandu","Khartoum",
-  "Kigali","Kingston","Kinshasa","Kuala Lumpur","Kuwait City","Kyiv","La Paz","Lima","Lisbon",
-  "Ljubljana","London","Luanda","Lusaka","Luxembourg","Madrid","Managua","Manila","Maputo",
-  "Mexico City","Minsk","Mogadishu","Monaco","Montevideo","Moscow","Muscat","Nairobi","Nassau",
-  "New Delhi","Niamey","Nicosia","Oslo","Ottawa","Panama City","Paris","Phnom Penh","Podgorica",
-  "Port-au-Prince","Prague","Pretoria","Pyongyang","Quito","Rabat","Reykjavik","Riga","Riyadh",
-  "Rome","San José","San Salvador","Santiago","Santo Domingo","São Tomé","Sarajevo","Seoul",
-  "Singapore","Skopje","Sofia","Stockholm","Tallinn","Tashkent","Tbilisi","Tegucigalpa","Tehran",
-  "Tirana","Tokyo","Tripoli","Tunis","Ulaanbaatar","Valletta","Vienna","Vientiane","Vilnius",
-  "Warsaw","Washington D.C.","Wellington","Windhoek","Yaoundé","Zagreb","Zürich",
+  "Abu Dhabi",
+  "Abuja",
+  "Accra",
+  "Addis Ababa",
+  "Algiers",
+  "Amman",
+  "Amsterdam",
+  "Ankara",
+  "Antananarivo",
+  "Ashgabat",
+  "Astana",
+  "Asunción",
+  "Athens",
+  "Baghdad",
+  "Baku",
+  "Bamako",
+  "Bangkok",
+  "Beijing",
+  "Beirut",
+  "Belgrade",
+  "Berlin",
+  "Bern",
+  "Bishkek",
+  "Bogotá",
+  "Brasília",
+  "Bratislava",
+  "Brussels",
+  "Bucharest",
+  "Budapest",
+  "Buenos Aires",
+  "Cairo",
+  "Canberra",
+  "Caracas",
+  "Chisinau",
+  "Copenhagen",
+  "Dakar",
+  "Damascus",
+  "Dhaka",
+  "Doha",
+  "Dublin",
+  "Dushanbe",
+  "Freetown",
+  "Georgetown",
+  "Guatemala City",
+  "Hanoi",
+  "Harare",
+  "Havana",
+  "Helsinki",
+  "Islamabad",
+  "Jakarta",
+  "Jerusalem",
+  "Kabul",
+  "Kampala",
+  "Kathmandu",
+  "Khartoum",
+  "Kigali",
+  "Kingston",
+  "Kinshasa",
+  "Kuala Lumpur",
+  "Kuwait City",
+  "Kyiv",
+  "La Paz",
+  "Lima",
+  "Lisbon",
+  "Ljubljana",
+  "London",
+  "Luanda",
+  "Lusaka",
+  "Luxembourg",
+  "Madrid",
+  "Managua",
+  "Manila",
+  "Maputo",
+  "Mexico City",
+  "Minsk",
+  "Mogadishu",
+  "Monaco",
+  "Montevideo",
+  "Moscow",
+  "Muscat",
+  "Nairobi",
+  "Nassau",
+  "New Delhi",
+  "Niamey",
+  "Nicosia",
+  "Oslo",
+  "Ottawa",
+  "Panama City",
+  "Paris",
+  "Phnom Penh",
+  "Podgorica",
+  "Port-au-Prince",
+  "Prague",
+  "Pretoria",
+  "Pyongyang",
+  "Quito",
+  "Rabat",
+  "Reykjavik",
+  "Riga",
+  "Riyadh",
+  "Rome",
+  "San José",
+  "San Salvador",
+  "Santiago",
+  "Santo Domingo",
+  "São Tomé",
+  "Sarajevo",
+  "Seoul",
+  "Singapore",
+  "Skopje",
+  "Sofia",
+  "Stockholm",
+  "Tallinn",
+  "Tashkent",
+  "Tbilisi",
+  "Tegucigalpa",
+  "Tehran",
+  "Tirana",
+  "Tokyo",
+  "Tripoli",
+  "Tunis",
+  "Ulaanbaatar",
+  "Valletta",
+  "Vienna",
+  "Vientiane",
+  "Vilnius",
+  "Warsaw",
+  "Washington D.C.",
+  "Wellington",
+  "Windhoek",
+  "Yaoundé",
+  "Zagreb",
+  "Zürich",
 ];
 
 /* ─── component ─── */
@@ -156,7 +274,20 @@ export function LandingPage() {
   }, []);
 
   // Don't auto-redirect logged-in users — let them browse the landing page.
-  // They'll go to the dashboard when they click "Login" or "Get Started".
+  // EXCEPT: if they just completed an OAuth flow (tokens in URL), send them
+  // straight to the dashboard so they don't have to click Login again.
+  useEffect(() => {
+    if (!user) return;
+    const hash = window.location.hash || "";
+    const search = window.location.search || "";
+    const justCompletedOAuth =
+      hash.includes("access_token") ||
+      hash.includes("refresh_token") ||
+      search.includes("code=");
+    if (justCompletedOAuth) {
+      navigate("/events", { replace: true });
+    }
+  }, [user, navigate]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -164,10 +295,12 @@ export function LandingPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (cityDropdownRef.current && !cityDropdownRef.current.contains(e.target)) {
+      if (
+        cityDropdownRef.current &&
+        !cityDropdownRef.current.contains(e.target)
+      ) {
         setShowCityDropdown(false);
       }
     };
@@ -182,7 +315,9 @@ export function LandingPage() {
   };
 
   const filteredCities = CAPITAL_CITIES.filter(
-    (c) => c.toLowerCase().includes(citySearch.toLowerCase()) && !selectedCities.includes(c),
+    (c) =>
+      c.toLowerCase().includes(citySearch.toLowerCase()) &&
+      !selectedCities.includes(c),
   );
 
   /* ─── auth ─── */
@@ -198,7 +333,9 @@ export function LandingPage() {
     try {
       setSigningIn(true);
       await signInWithEmailPassword(email.trim(), password);
-      authenticatedFetch("/auth/record-consent", { method: "POST" }).catch(() => {});
+      authenticatedFetch("/auth/record-consent", { method: "POST" }).catch(
+        () => {},
+      );
       navigate("/events");
     } catch (error) {
       const msg = (error?.message || "").toLowerCase();
@@ -429,7 +566,7 @@ export function LandingPage() {
           </span>
         </div>
         <button
-          onClick={() => user ? navigate("/events") : setShowAuth(true)}
+          onClick={() => (user ? navigate("/events") : setShowAuth(true))}
           style={{
             padding: "8px 22px",
             borderRadius: "999px",
@@ -549,10 +686,13 @@ export function LandingPage() {
               >
                 {ROTATING_WORDS.map((word, i) => {
                   const faceTransform =
-                    i === 0 ? "rotateY(0deg) translateZ(0.625em)" :
-                    i === 1 ? "rotateX(90deg) translateZ(0.625em)" :
-                    i === 2 ? "rotateX(180deg) translateZ(0.625em)" :
-                              "rotateX(-90deg) translateZ(0.625em)";
+                    i === 0
+                      ? "rotateY(0deg) translateZ(0.625em)"
+                      : i === 1
+                        ? "rotateX(90deg) translateZ(0.625em)"
+                        : i === 2
+                          ? "rotateX(180deg) translateZ(0.625em)"
+                          : "rotateX(-90deg) translateZ(0.625em)";
                   return (
                     <span
                       key={word}
@@ -568,11 +708,13 @@ export function LandingPage() {
                         boxSizing: "border-box",
                         WebkitBackfaceVisibility: "hidden",
                         backfaceVisibility: "hidden",
-                        background: "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(/camo.png) center/cover",
+                        background:
+                          "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(/camo.png) center/cover",
                         border: "1px solid rgba(255,255,255,0.08)",
                         borderRadius: "0.12em",
                         padding: "0 0.35em",
-                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.5)",
+                        boxShadow:
+                          "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.5)",
                         WebkitTransform: faceTransform,
                         transform: faceTransform,
                       }}
@@ -603,7 +745,7 @@ export function LandingPage() {
               margin: "0 auto 32px",
             }}
           >
-            A{" "}
+            The platform for people who make{" "}
             <span
               style={{
                 background: colors.gradientGold,
@@ -613,13 +755,12 @@ export function LandingPage() {
                 color: "transparent",
               }}
             >
-              free event platform
+              cities worth living in
             </span>{" "}
-            for the people who make cities worth living in
           </p>
 
           <button
-            onClick={() => user ? navigate("/events") : setShowAuth(true)}
+            onClick={() => (user ? navigate("/events") : setShowAuth(true))}
             style={{
               padding: "14px 36px",
               borderRadius: "999px",
@@ -776,7 +917,7 @@ export function LandingPage() {
           do best
         </p>
         <button
-          onClick={() => user ? navigate("/events") : setShowAuth(true)}
+          onClick={() => (user ? navigate("/events") : setShowAuth(true))}
           style={{
             padding: "14px 36px",
             borderRadius: "999px",
@@ -944,7 +1085,30 @@ export function LandingPage() {
               lineHeight: 1.4,
             }}
           >
-            Get <span style={{ background: colors.gradientGold, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", color: "transparent" }}>weekly updates</span> with all <span style={{ background: colors.gradientGold, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", color: "transparent" }}>culture in your city</span>
+            Get{" "}
+            <span
+              style={{
+                background: colors.gradientGold,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              weekly updates
+            </span>{" "}
+            with all{" "}
+            <span
+              style={{
+                background: colors.gradientGold,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              culture in your city
+            </span>
           </p>
 
           {/* ─── Form card ─── */}
@@ -957,286 +1121,351 @@ export function LandingPage() {
               textAlign: "center",
             }}
           >
+            <p
+              style={{
+                fontSize: 11,
+                color: "rgba(255,255,255,0.3)",
+                margin: "0 0 8px",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                fontWeight: 600,
+                textAlign: "left",
+              }}
+            >
+              Your cities
+            </p>
 
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, textAlign: "left" }}>
-            Your cities
-          </p>
+            {/* City picker */}
+            <div
+              ref={cityDropdownRef}
+              style={{ position: "relative", marginBottom: 16 }}
+            >
+              {/* Selected city tags */}
+              {selectedCities.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 6,
+                    marginBottom: 8,
+                  }}
+                >
+                  {selectedCities.map((city) => (
+                    <span
+                      key={city}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        padding: "4px 10px",
+                        borderRadius: "999px",
+                        background: "rgba(255,255,255,0.1)",
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        color: "rgba(255,255,255,0.85)",
+                        fontSize: 12,
+                        fontWeight: 500,
+                      }}
+                    >
+                      <MapPin size={10} style={{ opacity: 0.7 }} />
+                      {city}
+                      <button
+                        type="button"
+                        onClick={() => toggleCity(city)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "rgba(255,255,255,0.4)",
+                          cursor: "pointer",
+                          padding: 0,
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                      >
+                        <X size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
 
-          {/* City picker */}
-          <div ref={cityDropdownRef} style={{ position: "relative", marginBottom: 16 }}>
-            {/* Selected city tags */}
-            {selectedCities.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
-                  marginBottom: 8,
-                }}
-              >
-                {selectedCities.map((city) => (
-                  <span
-                    key={city}
+              {/* Search input */}
+              <div style={{ position: "relative" }}>
+                <Search
+                  size={14}
+                  style={{
+                    position: "absolute",
+                    left: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "rgba(255,255,255,0.3)",
+                    pointerEvents: "none",
+                  }}
+                />
+                <input
+                  type="text"
+                  value={citySearch}
+                  onChange={(e) => {
+                    setCitySearch(e.target.value);
+                    setShowCityDropdown(true);
+                  }}
+                  onFocus={() => setShowCityDropdown(true)}
+                  placeholder="Add your city..."
+                  style={{
+                    ...inputStyle,
+                    paddingLeft: 32,
+                    background: "rgba(0,0,0,0.3)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    padding: "10px 14px 10px 32px",
+                    fontSize: 13,
+                    borderRadius: 12,
+                    width: "100%",
+                  }}
+                />
+              </div>
+
+              {/* Dropdown */}
+              {showCityDropdown && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    maxHeight: 200,
+                    overflowY: "auto",
+                    marginTop: 4,
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(10,8,18,0.97)",
+                    backdropFilter: "blur(16px)",
+                    boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+                    zIndex: 10,
+                  }}
+                >
+                  {filteredCities.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "12px 16px",
+                        fontSize: 12,
+                        color: "rgba(255,255,255,0.3)",
+                        textAlign: "center",
+                      }}
+                    >
+                      {citySearch ? "No cities found" : "All cities selected"}
+                    </div>
+                  ) : (
+                    filteredCities.slice(0, 50).map((city) => (
+                      <button
+                        key={city}
+                        type="button"
+                        onClick={() => {
+                          toggleCity(city);
+                          setCitySearch("");
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          width: "100%",
+                          padding: "9px 14px",
+                          background: "none",
+                          border: "none",
+                          borderBottom: "1px solid rgba(255,255,255,0.04)",
+                          color: "rgba(255,255,255,0.7)",
+                          fontSize: 13,
+                          cursor: "pointer",
+                          textAlign: "left",
+                          transition: "background 0.1s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            "rgba(255,255,255,0.06)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "none";
+                        }}
+                      >
+                        <MapPin
+                          size={12}
+                          style={{ opacity: 0.5, flexShrink: 0 }}
+                        />
+                        {city}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            <p
+              style={{
+                fontSize: 11,
+                color: "rgba(255,255,255,0.3)",
+                margin: "0 0 8px",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                fontWeight: 600,
+                textAlign: "left",
+              }}
+            >
+              Interests
+            </p>
+
+            {/* Interest pills */}
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+                marginBottom: 16,
+              }}
+            >
+              {INTEREST_OPTIONS.map((opt) => {
+                const active = selectedInterests.includes(opt.id);
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => toggleInterest(opt.id)}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
                       gap: 4,
-                      padding: "4px 10px",
+                      padding: "5px 12px",
                       borderRadius: "999px",
-                      background: "rgba(255,255,255,0.1)",
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      color: "rgba(255,255,255,0.85)",
+                      border: active
+                        ? "1px solid rgba(255,255,255,0.25)"
+                        : "1px solid rgba(255,255,255,0.08)",
+                      background: active
+                        ? "rgba(255,255,255,0.1)"
+                        : "rgba(255,255,255,0.03)",
+                      color: active
+                        ? "rgba(255,255,255,0.9)"
+                        : "rgba(255,255,255,0.4)",
                       fontSize: 12,
+                      cursor: "pointer",
+                      transition: "all 0.15s",
                       fontWeight: 500,
                     }}
                   >
-                    <MapPin size={10} style={{ opacity: 0.7 }} />
-                    {city}
-                    <button
-                      type="button"
-                      onClick={() => toggleCity(city)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "rgba(255,255,255,0.4)",
-                        cursor: "pointer",
-                        padding: 0,
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      <X size={10} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Search input */}
-            <div style={{ position: "relative" }}>
-              <Search
-                size={14}
-                style={{
-                  position: "absolute",
-                  left: 12,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "rgba(255,255,255,0.3)",
-                  pointerEvents: "none",
-                }}
-              />
-              <input
-                type="text"
-                value={citySearch}
-                onChange={(e) => {
-                  setCitySearch(e.target.value);
-                  setShowCityDropdown(true);
-                }}
-                onFocus={() => setShowCityDropdown(true)}
-                placeholder="Add your city..."
-                style={{
-                  ...inputStyle,
-                  paddingLeft: 32,
-                  background: "rgba(0,0,0,0.3)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  padding: "10px 14px 10px 32px",
-                  fontSize: 13,
-                  borderRadius: 12,
-                  width: "100%",
-                }}
-              />
+                    <CheckCircle
+                      size={10}
+                      style={{ opacity: active ? 1 : 0, flexShrink: 0 }}
+                    />
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Dropdown */}
-            {showCityDropdown && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  maxHeight: 200,
-                  overflowY: "auto",
-                  marginTop: 4,
-                  borderRadius: 12,
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(10,8,18,0.97)",
-                  backdropFilter: "blur(16px)",
-                  boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
-                  zIndex: 10,
-                }}
-              >
-                {filteredCities.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "12px 16px",
-                      fontSize: 12,
-                      color: "rgba(255,255,255,0.3)",
-                      textAlign: "center",
-                    }}
-                  >
-                    {citySearch ? "No cities found" : "All cities selected"}
-                  </div>
-                ) : (
-                  filteredCities.slice(0, 50).map((city) => (
-                    <button
-                      key={city}
-                      type="button"
-                      onClick={() => {
-                        toggleCity(city);
-                        setCitySearch("");
-                      }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        width: "100%",
-                        padding: "9px 14px",
-                        background: "none",
-                        border: "none",
-                        borderBottom: "1px solid rgba(255,255,255,0.04)",
-                        color: "rgba(255,255,255,0.7)",
-                        fontSize: 13,
-                        cursor: "pointer",
-                        textAlign: "left",
-                        transition: "background 0.1s",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "none";
-                      }}
-                    >
-                      <MapPin size={12} style={{ opacity: 0.5, flexShrink: 0 }} />
-                      {city}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, textAlign: "left" }}>
-            Interests
-          </p>
-
-          {/* Interest pills */}
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-              marginBottom: 16,
-            }}
-          >
-            {INTEREST_OPTIONS.map((opt) => {
-              const active = selectedInterests.includes(opt.id);
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => toggleInterest(opt.id)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "5px 12px",
-                    borderRadius: "999px",
-                    border: active
-                      ? "1px solid rgba(255,255,255,0.25)"
-                      : "1px solid rgba(255,255,255,0.08)",
-                    background: active
-                      ? "rgba(255,255,255,0.1)"
-                      : "rgba(255,255,255,0.03)",
-                    color: active
-                      ? "rgba(255,255,255,0.9)"
-                      : "rgba(255,255,255,0.4)",
-                    fontSize: 12,
-                    cursor: "pointer",
-                    transition: "all 0.15s",
-                    fontWeight: 500,
-                  }}
-                >
-                  <CheckCircle
-                    size={10}
-                    style={{ opacity: active ? 1 : 0, flexShrink: 0 }}
-                  />
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", margin: "0 0 14px" }} />
-
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "rgba(255,255,255,0.4)", margin: "0 0 12px", cursor: "pointer", textAlign: "left" }}>
-            <input
-              type="checkbox"
-              checked={consentChecked}
-              onChange={(e) => setConsentChecked(e.target.checked)}
-              style={{ marginTop: 2, accentColor: "#fbbf24", flexShrink: 0 }}
-            />
-            <span>I agree to the <a href="/terms" target="_blank" style={{ color: "rgba(255,255,255,0.6)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" style={{ color: "rgba(255,255,255,0.6)", textDecoration: "underline" }}>privacy policy</a></span>
-          </label>
-
-          {/* Email form */}
-          <form
-            onSubmit={handleNewsletterSubmit}
-            style={{ display: "flex", gap: 8 }}
-          >
-            <input
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              required
-              value={newsletterEmail}
-              onChange={(e) => setNewsletterEmail(e.target.value)}
-              placeholder="you@example.com"
-              style={{
-                ...inputStyle,
-                flex: 1,
-                background: "rgba(0,0,0,0.3)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                padding: "12px 14px",
-                fontSize: 13,
-                borderRadius: 12,
-              }}
-            />
-            <button
-              type="submit"
-              disabled={newsletterSubmitting}
-              style={{
-                padding: "12px 22px",
-                borderRadius: 12,
-                border: "none",
-                background: colors.gradientGold,
-                color: "#111",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: newsletterSubmitting ? "wait" : "pointer",
-                whiteSpace: "nowrap",
-                opacity: newsletterSubmitting ? 0.6 : 1,
-                transition: "opacity 0.15s",
-                boxShadow: "0 4px 16px rgba(245,158,11,0.2)",
-              }}
-            >
-              {newsletterSubmitting ? "Joining..." : "Subscribe"}
-            </button>
-          </form>
-
-          {newsletterStatus && (
             <div
               style={{
-                marginTop: 10,
+                borderTop: "1px solid rgba(255,255,255,0.06)",
+                margin: "0 0 14px",
+              }}
+            />
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
                 fontSize: 12,
-                color: "rgba(255,255,255,0.45)",
+                color: "rgba(255,255,255,0.4)",
+                margin: "0 0 12px",
+                cursor: "pointer",
+                textAlign: "left",
               }}
             >
-              {newsletterStatus}
-            </div>
-          )}
+              <input
+                type="checkbox"
+                checked={consentChecked}
+                onChange={(e) => setConsentChecked(e.target.checked)}
+                style={{ marginTop: 2, accentColor: "#fbbf24", flexShrink: 0 }}
+              />
+              <span>
+                I agree to the{" "}
+                <a
+                  href="/terms"
+                  target="_blank"
+                  style={{
+                    color: "rgba(255,255,255,0.6)",
+                    textDecoration: "underline",
+                  }}
+                >
+                  terms
+                </a>{" "}
+                and{" "}
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  style={{
+                    color: "rgba(255,255,255,0.6)",
+                    textDecoration: "underline",
+                  }}
+                >
+                  privacy policy
+                </a>
+              </span>
+            </label>
 
-          </div>{/* end form card */}
+            {/* Email form */}
+            <form
+              onSubmit={handleNewsletterSubmit}
+              style={{ display: "flex", gap: 8 }}
+            >
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                required
+                value={newsletterEmail}
+                onChange={(e) => setNewsletterEmail(e.target.value)}
+                placeholder="you@example.com"
+                style={{
+                  ...inputStyle,
+                  flex: 1,
+                  background: "rgba(0,0,0,0.3)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  padding: "12px 14px",
+                  fontSize: 13,
+                  borderRadius: 12,
+                }}
+              />
+              <button
+                type="submit"
+                disabled={newsletterSubmitting}
+                style={{
+                  padding: "12px 22px",
+                  borderRadius: 12,
+                  border: "none",
+                  background: colors.gradientGold,
+                  color: "#111",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: newsletterSubmitting ? "wait" : "pointer",
+                  whiteSpace: "nowrap",
+                  opacity: newsletterSubmitting ? 0.6 : 1,
+                  transition: "opacity 0.15s",
+                  boxShadow: "0 4px 16px rgba(245,158,11,0.2)",
+                }}
+              >
+                {newsletterSubmitting ? "Joining..." : "Subscribe"}
+              </button>
+            </form>
+
+            {newsletterStatus && (
+              <div
+                style={{
+                  marginTop: 10,
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.45)",
+                }}
+              >
+                {newsletterStatus}
+              </div>
+            )}
+          </div>
+          {/* end form card */}
         </div>
 
         <div
@@ -1401,14 +1630,54 @@ export function LandingPage() {
                   style={inputStyle}
                 />
               </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "rgba(255,255,255,0.45)", cursor: "pointer", marginTop: 2 }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.45)",
+                  cursor: "pointer",
+                  marginTop: 2,
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={authConsent}
                   onChange={(e) => setAuthConsent(e.target.checked)}
-                  style={{ accentColor: "#fbbf24", flexShrink: 0, width: 15, height: 15 }}
+                  style={{
+                    accentColor: "#fbbf24",
+                    flexShrink: 0,
+                    width: 15,
+                    height: 15,
+                  }}
                 />
-                <span>I agree to the <a href="/terms" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}>privacy policy</a></span>
+                <span>
+                  I agree to the{" "}
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener"
+                    style={{
+                      color: "rgba(255,255,255,0.65)",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    terms
+                  </a>{" "}
+                  and{" "}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener"
+                    style={{
+                      color: "rgba(255,255,255,0.65)",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    privacy policy
+                  </a>
+                </span>
               </label>
               <button
                 type="submit"

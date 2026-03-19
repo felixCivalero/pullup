@@ -466,18 +466,27 @@ app.post(
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    try {
-      console.log("[Webhook] Processing event:", event.type);
-      const result = await handleStripeWebhook(event);
-      console.log("[Webhook] ✅ Event processed:", {
-        processed: result.processed,
-        error: result.error,
+    // Respond 200 immediately so Stripe never times out, then process in background
+    res.json({ received: true });
+
+    // Process asynchronously — errors are logged but don't affect the HTTP response
+    handleStripeWebhook(event)
+      .then((result) => {
+        console.log("[Webhook] ✅ Event processed:", {
+          type: event.type,
+          id: event.id,
+          processed: result.processed,
+          error: result.error,
+        });
+      })
+      .catch((error) => {
+        console.error("[Webhook] ❌ Processing error:", {
+          type: event.type,
+          id: event.id,
+          error: error.message,
+          stack: error.stack,
+        });
       });
-      res.json({ received: true, processed: result.processed });
-    } catch (error) {
-      console.error("[Webhook] ❌ Processing error:", error);
-      res.status(500).json({ error: "Failed to process webhook" });
-    }
   }
 );
 

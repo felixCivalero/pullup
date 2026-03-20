@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { PartyPopper } from "lucide-react";
 import {
-  FaPaperPlane,
   FaInstagram,
   FaSpotify,
   FaTiktok,
@@ -961,23 +960,33 @@ export function EventPage() {
             pointerEvents: "none",
           }}
         >
-          {/* Title at the top - always visible */}
-          <h1
-            style={{
-              fontSize: "clamp(28px, 8vw, 40px)",
-              fontWeight: 800,
-              lineHeight: "1.2",
-              color: "#fff",
-              letterSpacing: "-0.02em",
-              margin: 0,
-              marginTop: "20px",
-              marginBottom: "0",
-              paddingBottom: "12px",
-              flexShrink: 0,
-            }}
-          >
-            {event?.title}
-          </h1>
+          {/* Title at the top */}
+          {event?.title && event?.titleSettings?.visible !== false && (() => {
+            const ts = event.titleSettings || {};
+            const fontMap = { default: "inherit", serif: "Georgia, 'Times New Roman', serif", mono: "'Courier New', 'Consolas', monospace", condensed: "'Arial Narrow', 'Impact', sans-serif" };
+            const sizeMap = { sm: "clamp(20px, 6vw, 28px)", md: "clamp(28px, 8vw, 40px)", lg: "clamp(36px, 10vw, 52px)" };
+            const font = ts.font || "default";
+            return (
+              <h1
+                style={{
+                  fontSize: sizeMap[ts.size] || sizeMap.md,
+                  fontWeight: font === "condensed" ? 900 : 800,
+                  lineHeight: "1.2",
+                  color: ts.color || "#fff",
+                  letterSpacing: font === "mono" ? "0" : font === "condensed" ? "0.02em" : "-0.02em",
+                  fontFamily: fontMap[font] || fontMap.default,
+                  textAlign: ts.align || "left",
+                  margin: 0,
+                  marginTop: "20px",
+                  marginBottom: "0",
+                  paddingBottom: "12px",
+                  flexShrink: 0,
+                }}
+              >
+                {event.title}
+              </h1>
+            );
+          })()}
 
           {/* Content group - Share/Event Details + Description - moves up together when expanded */}
           <div
@@ -1017,63 +1026,6 @@ export function EventPage() {
                   marginBottom: "12px",
                 }}
               >
-                {/* Share icon - always visible */}
-                <button
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    padding: 0,
-                    margin: 0,
-                    boxShadow: "none",
-                    appearance: "none",
-                    WebkitAppearance: "none",
-                    MozAppearance: "none",
-                    outline: "none",
-                    color: "inherit",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                  onClick={async () => {
-                    if (!shareUrl) return;
-
-                    // Manual carousel on mobile → open picker first
-                    if (canShareStory && isManualCarousel) {
-                      setSelectedShareIndexes(new Set());
-                      setShowSharePicker(true);
-                      return;
-                    }
-
-                    if (navigator.share) {
-                      try {
-                        if (canShareStory) {
-                          const files = await buildShareFiles();
-                          if (files.length > 0) {
-                            await navigator.share({ files, url: shareUrl });
-                            return;
-                          }
-                        }
-                        await navigator.share({ url: shareUrl });
-                        return;
-                      } catch (err) {
-                        if (err?.name === "AbortError") return;
-                        console.error("Error sharing:", err);
-                      }
-                    }
-
-                    // Fallback: copy to clipboard
-                    try {
-                      await navigator.clipboard.writeText(shareUrl);
-                      showToast("Link copied!", "success");
-                    } catch (copyErr) {
-                      console.error("Failed to copy:", copyErr);
-                      showToast("Failed to copy link", "error");
-                    }
-                  }}
-                >
-                  <FaPaperPlane size={20} />
-                </button>
-
                 {/* Instagram icon - conditional */}
                 {event?.instagram && (
                   <a

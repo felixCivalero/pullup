@@ -122,7 +122,7 @@ body {
     overflow: visible !important;
     border-right: none !important;
     background: transparent !important;
-    padding: 16px 0 !important;
+    padding: 0 !important;
   }
 
   .create-event-preview-desktop {

@@ -1,12 +1,30 @@
 import { useState, useRef, useEffect } from "react";
-import { FaPaperPlane, FaCalendar, FaMapMarkerAlt, FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
+import { FaCalendar, FaMapMarkerAlt, FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort } from "../lib/urlUtils";
 import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 
+const TITLE_FONTS = {
+  default: "inherit",
+  serif: "Georgia, 'Times New Roman', serif",
+  mono: "'Courier New', 'Consolas', monospace",
+  condensed: "'Arial Narrow', 'Impact', sans-serif",
+};
+
+const TITLE_SIZES = {
+  sm: "clamp(20px, 6vw, 28px)",
+  md: "clamp(28px, 8vw, 40px)",
+  lg: "clamp(36px, 10vw, 52px)",
+};
+
 export function EventPreview({
   title,
+  titleVisible = true,
+  titleAlign = "left",
+  titleFont = "default",
+  titleSize = "md",
+  titleColor = "#ffffff",
   description,
   location,
   startsAt,
@@ -189,23 +207,27 @@ export function EventPreview({
               : {}),
           }}
         >
-          {/* Title at the top */}
-          <h1
-            style={{
-              fontSize: "clamp(28px, 8vw, 40px)",
-              fontWeight: 800,
-              lineHeight: "1.2",
-              color: title ? "#fff" : "rgba(255,255,255,0.3)",
-              letterSpacing: "-0.02em",
-              margin: 0,
-              marginTop: "20px",
-              marginBottom: "0",
-              paddingBottom: "12px",
-              flexShrink: 0,
-            }}
-          >
-            {title || "Event Name"}
-          </h1>
+          {/* Title at the top — only shown when set and visible */}
+          {title && titleVisible && (
+            <h1
+              style={{
+                fontSize: TITLE_SIZES[titleSize] || TITLE_SIZES.md,
+                fontWeight: titleFont === "condensed" ? 900 : 800,
+                lineHeight: "1.2",
+                color: titleColor || "#fff",
+                letterSpacing: titleFont === "mono" ? "0" : titleFont === "condensed" ? "0.02em" : "-0.02em",
+                fontFamily: TITLE_FONTS[titleFont] || TITLE_FONTS.default,
+                textAlign: titleAlign,
+                margin: 0,
+                marginTop: "20px",
+                marginBottom: "0",
+                paddingBottom: "12px",
+                flexShrink: 0,
+              }}
+            >
+              {title}
+            </h1>
+          )}
 
           {/* Content group pushed to bottom — matches EventPage */}
           <div
@@ -236,10 +258,6 @@ export function EventPreview({
                 paddingTop: "16px",
               }}
             >
-              <FaPaperPlane
-                size={20}
-                style={{ color: "rgba(255, 255, 255, 0.8)" }}
-              />
               {instagram && (
                 <a
                   href={instagram}

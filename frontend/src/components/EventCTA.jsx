@@ -5,21 +5,14 @@ import { Button } from "./ui/Button";
 /** Height reserved for the CTA bar (used to offset content) */
 export const EVENT_CTA_HEIGHT = 72;
 
-/** Compute the "Pull up" label from ticket config */
+/** Compute the CTA label from ticket config */
 export function getCtaLabel({ ticketType, ticketPrice, ticketCurrency, isEventPast, isSoldOut } = {}) {
   if (isEventPast) return "Event has ended";
   if (isSoldOut) return "Sold out";
-  if (ticketType === "paid" && ticketPrice) {
-    const currency = (ticketCurrency || "usd").toLowerCase();
-    const symbol =
-      currency === "sek" ? "kr"
-        : currency === "eur" ? "\u20ac"
-        : currency === "gbp" ? "\u00a3"
-        : "$";
-    const amount = (ticketPrice / 100).toFixed(2);
-    return `Pull up \u2014 from ${symbol}${amount}`;
+  if (ticketType === "paid") {
+    return "Get Tickets";
   }
-  return "Pull up";
+  return "Register";
 }
 
 /** Sticky gradient bar + CTA button at the bottom of an event view */

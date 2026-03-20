@@ -1256,6 +1256,9 @@ app.post("/events", requireAuth, async (req, res) => {
     // Media settings
     mediaSettings,
 
+    // Title settings
+    titleSettings,
+
     // Social links
     instagram,
     spotify,
@@ -1303,6 +1306,7 @@ app.post("/events", requireAuth, async (req, res) => {
     createdVia: createdVia || "legacy",
     status: status || "PUBLISHED",
     mediaSettings,
+    titleSettings,
     instagram,
     spotify,
     tiktok,
@@ -3503,6 +3507,9 @@ app.put(
       // Media settings
       mediaSettings,
 
+      // Title settings
+      titleSettings,
+
       // Social links
       instagram,
       spotify,
@@ -3631,6 +3638,7 @@ app.put(
         totalCapacity,
         status,
         mediaSettings,
+        titleSettings,
         instagram,
         spotify,
         tiktok,

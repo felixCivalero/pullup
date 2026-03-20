@@ -23,6 +23,16 @@ import {
   Star,
   Film,
   GripVertical,
+  Layers,
+  ArrowRight,
+  ZoomIn,
+  Grid3X3,
+  Blend,
+  EyeOff,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Type,
 } from "lucide-react";
 import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { EventPreview } from "../components/EventPreview";
@@ -317,6 +327,11 @@ export function CreateEventPage() {
   const [showDraftBanner, setShowDraftBanner] = useState(!!draft);
 
   const [title, setTitle] = useState(draft?.title || "");
+  const [titleVisible, setTitleVisible] = useState(draft?.titleVisible !== false);
+  const [titleAlign, setTitleAlign] = useState(draft?.titleAlign || "left"); // "left"|"center"|"right"
+  const [titleFont, setTitleFont] = useState(draft?.titleFont || "default"); // "default"|"serif"|"mono"|"condensed"
+  const [titleSize, setTitleSize] = useState(draft?.titleSize || "md"); // "sm"|"md"|"lg"
+  const [titleColor, setTitleColor] = useState(draft?.titleColor || "#ffffff");
   const [description, setDescription] = useState(draft?.description || "");
   const [location, setLocation] = useState(draft?.location || "");
   const [locationLat, setLocationLat] = useState(draft?.locationLat || null);
@@ -330,6 +345,7 @@ export function CreateEventPage() {
   const [imagePreview, setImagePreview] = useState(null);
   const [mediaFiles, setMediaFiles] = useState([]); // [{file, preview, mediaType, id}]
   const [mediaMode, setMediaMode] = useState(null); // null | "images" | "video"
+  const [mediaIntent, setMediaIntent] = useState(null); // null | "image" | "carousel" | "video" — user's selection before upload
   // Video settings
   const [videoLoop, setVideoLoop] = useState(true);
   const [videoAutoplay, setVideoAutoplay] = useState(true);
@@ -337,9 +353,10 @@ export function CreateEventPage() {
   const [customThumbnail, setCustomThumbnail] = useState(null); // { file, preview }
   const thumbnailInputRef = useRef(null);
   // Carousel settings
-  const [carouselAutoscroll, setCarouselAutoscroll] = useState(false);
+  const [carouselAutoscroll, setCarouselAutoscroll] = useState(true);
   const [carouselInterval, setCarouselInterval] = useState(5);
   const [carouselLoop, setCarouselLoop] = useState(true);
+  const [carouselTransitions, setCarouselTransitions] = useState([]); // per-gap: "slide"|"fade"|"zoom"|"pixelate"
   const [theme] = useState("minimal");
   const [calendar] = useState("personal");
   const [visibility] = useState("public");
@@ -374,6 +391,9 @@ export function CreateEventPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [mobileView, setMobileView] = useState("edit"); // "edit" or "preview"
   const [desktopPreviewMode, setDesktopPreviewMode] = useState("phone"); // "desktop" or "phone"
+  const [currentStep, setCurrentStep] = useState(draft?.currentStep || 1); // 1=Vibe, 2=Details, 3=Settings
+  const [stepDirection, setStepDirection] = useState("forward");
+  const sidebarRef = useRef(null);
 
   // Build preview dinner slots from config for the RSVP preview
   const previewDinnerSlots = useMemo(() => {
@@ -458,7 +478,8 @@ export function CreateEventPage() {
     const timeout = setTimeout(() => {
       try {
         const draftData = {
-          title, description, location, locationLat, locationLng,
+          title, titleVisible, titleAlign, titleFont, titleSize, titleColor,
+          description, location, locationLat, locationLng,
           startsAt, endsAt, timezone, maxAttendees, waitlistEnabled,
           sellTicketsEnabled, ticketPrice, ticketCurrency,
           allowPlusOnes, maxPlusOnesPerGuest,
@@ -466,6 +487,7 @@ export function CreateEventPage() {
           dinnerMaxSeatsPerSlot, dinnerMaxGuestsPerBooking,
           dinnerOverflowAction, dinnerBookingEmail,
           instagram, spotify, tiktok, soundcloud,
+          currentStep,
           _savedAt: Date.now(),
         };
         localStorage.setItem("pullup_event_draft", JSON.stringify(draftData));
@@ -481,6 +503,7 @@ export function CreateEventPage() {
     dinnerMaxSeatsPerSlot, dinnerMaxGuestsPerBooking,
     dinnerOverflowAction, dinnerBookingEmail,
     instagram, spotify, tiktok, soundcloud,
+    currentStep,
   ]);
 
   function clearDraft() {
@@ -504,6 +527,38 @@ export function CreateEventPage() {
     setDinnerMaxSeatsPerSlot(""); setDinnerOverflowAction("waitlist");
     setDinnerBookingEmail(""); setDinnerSlotsConfig([]);
     setInstagram(""); setSpotify(""); setTiktok(""); setSoundcloud("");
+    setCurrentStep(1);
+  }
+
+  function goToStep(step) {
+    setStepDirection(step > currentStep ? "forward" : "backward");
+    setCurrentStep(step);
+    sidebarRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function validateStep(step) {
+    if (step >= 2) {
+      if (!title.trim()) {
+        goToStep(2);
+        showToast("Give your event a name", "error");
+        return false;
+      }
+    }
+    if (step >= 2) {
+      if (!startsAt) {
+        goToStep(2);
+        showToast("Set a start date and time", "error");
+        return false;
+      }
+    }
+    if (step >= 5) {
+      if (sellTicketsEnabled && !ticketPrice) {
+        goToStep(5);
+        showToast("Set a ticket price", "error");
+        return false;
+      }
+    }
+    return true;
   }
 
   // Reset form when switching between create/edit modes
@@ -560,6 +615,13 @@ export function CreateEventPage() {
 
         // Populate form fields
         setTitle(ev.title || "");
+        if (ev.titleSettings) {
+          if (ev.titleSettings.visible !== undefined) setTitleVisible(ev.titleSettings.visible);
+          if (ev.titleSettings.align) setTitleAlign(ev.titleSettings.align);
+          if (ev.titleSettings.font) setTitleFont(ev.titleSettings.font);
+          if (ev.titleSettings.size) setTitleSize(ev.titleSettings.size);
+          if (ev.titleSettings.color) setTitleColor(ev.titleSettings.color);
+        }
         setDescription(ev.description || "");
         setLocation(ev.location || "");
         setLocationLat(ev.locationLat || null);
@@ -620,6 +682,7 @@ export function CreateEventPage() {
           setCarouselAutoscroll(!!ms.autoscroll);
           setCarouselInterval(ms.interval || 5);
           setCarouselLoop(ms.loop !== undefined ? ms.loop : true);
+          if (ms.transitions) setCarouselTransitions(ms.transitions);
         }
 
         // Load existing media items
@@ -805,6 +868,15 @@ export function CreateEventPage() {
         // Sync legacy preview
         setImagePreview(updated[0].previewUrl || updated[0].preview);
         setImageFile(updated[0].file);
+        // Sync transitions — add a default for the new gap
+        if (updated.length > 1) {
+          setCarouselTransitions((t) => {
+            const needed = updated.length - 1;
+            const copy = [...t];
+            while (copy.length < needed) copy.push("slide");
+            return copy.slice(0, needed);
+          });
+        }
         return updated;
       });
 
@@ -824,6 +896,7 @@ export function CreateEventPage() {
       );
     }
     setMediaFiles((prev) => {
+      const removeIdx = prev.findIndex((m) => m.id === id);
       const updated = prev.filter((m) => m.id !== id);
       if (updated.length > 0) {
         setImagePreview(updated[0].previewUrl || updated[0].preview);
@@ -832,6 +905,17 @@ export function CreateEventPage() {
         setImagePreview(null);
         setImageFile(null);
         setMediaMode(null);
+      }
+      // Sync transitions — remove the gap
+      if (updated.length > 1) {
+        setCarouselTransitions((t) => {
+          const copy = [...t];
+          const gapIdx = Math.min(removeIdx, copy.length - 1);
+          if (gapIdx >= 0) copy.splice(gapIdx, 1);
+          return copy.slice(0, updated.length - 1);
+        });
+      } else {
+        setCarouselTransitions([]);
       }
       return updated;
     });
@@ -849,6 +933,14 @@ export function CreateEventPage() {
       }
       return updated;
     });
+    // Reorder transitions to match
+    setCarouselTransitions((prev) => {
+      if (prev.length === 0) return prev;
+      const copy = [...prev];
+      const [movedT] = copy.splice(Math.min(fromIndex, copy.length - 1), 1);
+      copy.splice(Math.min(toIndex, copy.length), 0, movedT);
+      return copy;
+    });
   }
 
   // Legacy handler for file input
@@ -861,6 +953,7 @@ export function CreateEventPage() {
 
   async function handleCreate(e) {
     e.preventDefault();
+    if (!validateStep(5)) return;
     setLoading(true);
 
     try {
@@ -954,6 +1047,7 @@ export function CreateEventPage() {
 
       const requestBody = {
         title,
+        titleSettings: { visible: titleVisible, align: titleAlign, font: titleFont, size: titleSize, color: titleColor },
         description,
         location,
         locationLat: locationLat || null,
@@ -1023,7 +1117,7 @@ export function CreateEventPage() {
         mediaSettings: mediaMode === "video"
           ? { mode: "video", loop: videoLoop, autoplay: videoAutoplay, audio: videoAudio }
           : mediaMode === "images" && mediaFiles.length > 1
-            ? { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop }
+            ? { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop, transitions: carouselTransitions }
             : {},
       };
 
@@ -1246,6 +1340,14 @@ export function CreateEventPage() {
           0%, 100% { transform: translate(0, 0) scale(1); }
           50% { transform: translate(30px, -30px) scale(1.1); }
         }
+        @keyframes stepSlideIn {
+          from { opacity: 0; transform: translateX(24px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes stepSlideInReverse {
+          from { opacity: 0; transform: translateX(-24px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
       `}</style>
 
       <div
@@ -1269,6 +1371,7 @@ export function CreateEventPage() {
           >
           {/* LEFT SIDE: Form sidebar */}
           <div
+            ref={sidebarRef}
             className="create-event-sidebar"
             style={{
               width: "440px",
@@ -1276,15 +1379,171 @@ export function CreateEventPage() {
               height: "100%",
               overflowY: "auto",
               overflowX: "hidden",
-              padding: "24px",
+              padding: "0",
               boxSizing: "border-box",
               borderRight: "1px solid rgba(255,255,255,0.06)",
               background: "rgba(12, 10, 18, 0.4)",
-              display: mobileView === "preview" ? "none" : "block",
+              display: mobileView === "preview" ? "none" : "flex",
+              flexDirection: "column",
             }}
           >
+            {/* Tab bar */}
+            <div
+              style={{
+                position: "sticky",
+                top: 0,
+                zIndex: 10,
+                background: "rgba(12, 10, 18, 0.95)",
+                backdropFilter: "blur(12px)",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", position: "relative" }}>
+                {[
+                  { num: 1, label: "Media" },
+                  { num: 2, label: "Details" },
+                  { num: 3, label: "Socials" },
+                  { num: 4, label: "Settings" },
+                  { num: 5, label: "Tickets" },
+                ].map((tab) => (
+                  <button
+                    key={tab.num}
+                    type="button"
+                    onClick={() => goToStep(tab.num)}
+                    disabled={loading}
+                    style={{
+                      flex: 1,
+                      padding: "14px 0",
+                      background: "none",
+                      border: "none",
+                      cursor: loading ? "not-allowed" : "pointer",
+                      WebkitTapHighlightColor: "transparent",
+                      fontSize: "10.5px",
+                      fontWeight: 600,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: currentStep === tab.num ? "#fff" : "rgba(255,255,255,0.3)",
+                      transition: "color 0.2s ease",
+                      whiteSpace: "nowrap",
+                      position: "relative",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+                {/* Sliding underline indicator */}
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: `${((currentStep - 1) / 5) * 100}%`,
+                    width: `${100 / 5}%`,
+                    height: "1.5px",
+                    background: "rgba(255,255,255,0.9)",
+                    transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                />
+                {/* Bottom border behind the indicator */}
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: "1px",
+                    background: "rgba(255,255,255,0.06)",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Step content */}
+            <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "24px" }}>
+            <div
+              key={`step-anim-${currentStep}`}
+              style={{
+                animation: `${stepDirection === "forward" ? "stepSlideIn" : "stepSlideInReverse"} 0.25s ease`,
+              }}
+            >
+
+            {/* === STEP 1: THE VIBE === */}
+            <div
+              style={{
+                display: currentStep === 1 ? "block" : "none",
+              }}
+            >
             {/* Media upload area */}
             <div style={{ marginBottom: "24px" }}>
+              {/* Media type selector */}
+              {mediaFiles.length === 0 && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gap: "8px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  {[
+                    { id: "image", icon: ImageIcon, label: "Image", desc: "Single cover" },
+                    { id: "carousel", icon: Layers, label: "Carousel", desc: "Multiple images" },
+                    { id: "video", icon: Film, label: "Video", desc: "Single video" },
+                  ].map((opt) => {
+                    const active = mediaIntent === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setMediaIntent(opt.id);
+                          setMediaMode(opt.id === "video" ? "video" : "images");
+                        }}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "14px 8px",
+                          borderRadius: "10px",
+                          border: active
+                            ? "1px solid rgba(255,255,255,0.35)"
+                            : "1px solid rgba(255,255,255,0.06)",
+                          background: active
+                            ? "rgba(255,255,255,0.08)"
+                            : "transparent",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          WebkitTapHighlightColor: "transparent",
+                        }}
+                      >
+                        <opt.icon
+                          size={20}
+                          style={{
+                            color: active ? "#fff" : "rgba(255,255,255,0.4)",
+                            transition: "color 0.15s ease",
+                          }}
+                        />
+                        <span style={{
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          color: active ? "#fff" : "rgba(255,255,255,0.5)",
+                          letterSpacing: "0.02em",
+                          transition: "color 0.15s ease",
+                        }}>
+                          {opt.label}
+                        </span>
+                        <span style={{
+                          fontSize: "9.5px",
+                          color: active ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)",
+                          transition: "color 0.15s ease",
+                        }}>
+                          {opt.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {/* Main drop zone / first item preview */}
               <div
                 style={{
@@ -1410,7 +1669,11 @@ export function CreateEventPage() {
                         padding: "0 16px",
                       }}
                     >
-                      {isDragging ? "Drop files here" : "Click or drag to upload"}
+                      {isDragging
+                        ? "Drop files here"
+                        : mediaIntent
+                          ? "Click or drag to upload"
+                          : "Select a type above, or drag files here"}
                     </div>
                     <div
                       style={{
@@ -1420,7 +1683,13 @@ export function CreateEventPage() {
                         padding: "0 16px",
                       }}
                     >
-                      Images (carousel) or a single Video
+                      {mediaIntent === "video"
+                        ? "MP4, MOV, or WebM"
+                        : mediaIntent === "carousel"
+                          ? "JPG, PNG, GIF — up to 10 images"
+                          : mediaIntent === "image"
+                            ? "JPG, PNG, or GIF"
+                            : "Image, carousel, or video"}
                     </div>
                   </div>
                 )}
@@ -1438,7 +1707,12 @@ export function CreateEventPage() {
                     alignItems: "center",
                   }}
                 >
-                  {mediaFiles.map((item, index) => (
+                  {mediaFiles.flatMap((item, index) => {
+                    const transitionTypes = ["slide", "fade", "zoom", "pixelate"];
+                    const transitionIcons = { slide: ArrowRight, fade: Blend, zoom: ZoomIn, pixelate: Grid3X3 };
+                    const transitionLabels = { slide: "Slide", fade: "Fade", zoom: "Zoom", pixelate: "Pixel" };
+
+                    const thumb = (
                     <div
                       key={item.id}
                       draggable={mediaMode === "images"}
@@ -1498,7 +1772,7 @@ export function CreateEventPage() {
                           {index + 1}
                         </div>
                       )}
-                      {/* Delete button — always visible */}
+                      {/* Delete button */}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleMediaRemove(item.id); }}
@@ -1524,7 +1798,57 @@ export function CreateEventPage() {
                         <X size={10} color="#fff" />
                       </button>
                     </div>
-                  ))}
+                    );
+
+                    // Transition indicator between this thumb and the next
+                    if (index < mediaFiles.length - 1 && mediaMode === "images") {
+                      const tType = carouselTransitions[index] || "slide";
+                      const TIcon = transitionIcons[tType];
+                      const indicator = (
+                        <button
+                          key={`tr-${index}`}
+                          type="button"
+                          title={transitionLabels[tType]}
+                          onClick={() => {
+                            setCarouselTransitions((prev) => {
+                              const copy = [...prev];
+                              while (copy.length <= index) copy.push("slide");
+                              const curIdx = transitionTypes.indexOf(copy[index] || "slide");
+                              copy[index] = transitionTypes[(curIdx + 1) % transitionTypes.length];
+                              return copy;
+                            });
+                          }}
+                          style={{
+                            flexShrink: 0,
+                            width: "28px",
+                            height: "28px",
+                            borderRadius: "6px",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "rgba(255,255,255,0.04)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            padding: 0,
+                            transition: "all 0.15s ease",
+                            WebkitTapHighlightColor: "transparent",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+                            e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                            e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                          }}
+                        >
+                          <TIcon size={12} color="rgba(255,255,255,0.5)" />
+                        </button>
+                      );
+                      return [thumb, indicator];
+                    }
+                    return [thumb];
+                  })}
 
                   {/* Add more — only for images mode */}
                   {mediaMode === "images" && mediaFiles.length < 10 && (
@@ -1563,8 +1887,8 @@ export function CreateEventPage() {
                 </div>
               )}
 
-              {/* Media settings */}
-              {mediaFiles.length > 0 && (
+              {/* Media settings — show based on intent (before upload) or actual mode (after upload) */}
+              {(mediaFiles.length > 0 || mediaIntent === "carousel" || mediaIntent === "video") && (
                 <div
                   style={{
                     marginTop: "14px",
@@ -1582,10 +1906,14 @@ export function CreateEventPage() {
                     color: "rgba(255,255,255,0.45)",
                     marginBottom: "12px",
                   }}>
-                    {mediaMode === "video" ? "Video Settings" : mediaFiles.length > 1 ? "Carousel Settings" : "Media Settings"}
+                    {(mediaMode === "video" || (mediaFiles.length === 0 && mediaIntent === "video"))
+                      ? "Video Settings"
+                      : (mediaFiles.length > 1 || (mediaFiles.length === 0 && mediaIntent === "carousel"))
+                        ? "Carousel Settings"
+                        : "Media Settings"}
                   </div>
 
-                  {mediaMode === "video" && (
+                  {(mediaMode === "video" || (mediaFiles.length === 0 && mediaIntent === "video")) && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                       {/* Loop */}
                       <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
@@ -1736,7 +2064,7 @@ export function CreateEventPage() {
                     </div>
                   )}
 
-                  {mediaMode === "images" && mediaFiles.length > 1 && (
+                  {((mediaMode === "images" && mediaFiles.length > 1) || (mediaFiles.length === 0 && mediaIntent === "carousel")) && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                       {/* Autoscroll */}
                       <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
@@ -1878,7 +2206,7 @@ export function CreateEventPage() {
                 ref={fileInputRef}
                 type="file"
                 accept={mediaMode === "video" ? "video/mp4,video/quicktime,video/webm" : mediaMode === "images" ? "image/*" : "image/*,video/mp4,video/quicktime,video/webm"}
-                multiple={mediaMode !== "video"}
+                multiple={mediaIntent === "carousel"}
                 onChange={(e) => {
                   handleMediaAdd(Array.from(e.target.files));
                   e.target.value = "";
@@ -1886,6 +2214,14 @@ export function CreateEventPage() {
                 style={{ display: "none" }}
               />
             </div>
+            </div>
+
+            {/* === STEP 2: DETAILS === */}
+            <div
+              style={{
+                display: currentStep === 2 ? "block" : "none",
+              }}
+            >
 
             {/* PULLUP · EVENT label - matching EventCard */}
             <div
@@ -1951,7 +2287,6 @@ export function CreateEventPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Event Name"
-              required
               style={{
                 width: "100%",
                 boxSizing: "border-box",
@@ -1983,6 +2318,163 @@ export function CreateEventPage() {
                 e.target.style.color = title ? "#fff" : "rgba(255,255,255,0.6)";
               }}
             />
+
+            {/* Title options toolbar */}
+            {(() => {
+              const toolBtnStyle = (active) => ({
+                width: "30px",
+                height: "28px",
+                borderRadius: "5px",
+                border: "none",
+                background: active ? "rgba(255,255,255,0.1)" : "transparent",
+                color: active ? "#fff" : "rgba(255,255,255,0.3)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+                transition: "all 0.15s ease",
+                WebkitTapHighlightColor: "transparent",
+              });
+
+              const selectStyle = {
+                height: "28px",
+                borderRadius: "5px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.04)",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: "11px",
+                fontWeight: 600,
+                cursor: "pointer",
+                outline: "none",
+                padding: "0 6px",
+                WebkitAppearance: "none",
+                appearance: "none",
+                backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23ffffff' stroke-width='1' stroke-linecap='round' stroke-opacity='0.4'/%3E%3C/svg%3E\")",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 5px center",
+                paddingRight: "18px",
+              };
+
+              const divider = <div style={{ width: "1px", height: "16px", background: "rgba(255,255,255,0.06)", margin: "0 2px", flexShrink: 0 }} />;
+
+              return (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "2px",
+                    marginTop: "-8px",
+                    marginBottom: "16px",
+                    padding: "4px",
+                    borderRadius: "8px",
+                    background: "rgba(255,255,255,0.02)",
+                    border: "1px solid rgba(255,255,255,0.04)",
+                    width: "fit-content",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {/* Visibility */}
+                  <button type="button" onClick={() => setTitleVisible(!titleVisible)} title={titleVisible ? "Hide title" : "Show title"} style={toolBtnStyle(!titleVisible)}>
+                    <EyeOff size={13} />
+                  </button>
+
+                  {divider}
+
+                  {/* Alignment */}
+                  <button type="button" onClick={() => setTitleAlign("left")} title="Left" style={toolBtnStyle(titleAlign === "left")}>
+                    <AlignLeft size={13} />
+                  </button>
+                  <button type="button" onClick={() => setTitleAlign("center")} title="Center" style={toolBtnStyle(titleAlign === "center")}>
+                    <AlignCenter size={13} />
+                  </button>
+                  <button type="button" onClick={() => setTitleAlign("right")} title="Right" style={toolBtnStyle(titleAlign === "right")}>
+                    <AlignRight size={13} />
+                  </button>
+
+                  {divider}
+
+                  {/* Font dropdown */}
+                  <select
+                    value={titleFont}
+                    onChange={(e) => setTitleFont(e.target.value)}
+                    style={selectStyle}
+                  >
+                    <option value="default">Sans</option>
+                    <option value="serif">Serif</option>
+                    <option value="mono">Mono</option>
+                    <option value="condensed">Narrow</option>
+                  </select>
+
+                  {/* Size dropdown */}
+                  <select
+                    value={titleSize}
+                    onChange={(e) => setTitleSize(e.target.value)}
+                    style={{ ...selectStyle, width: "52px" }}
+                  >
+                    <option value="sm">Small</option>
+                    <option value="md">Medium</option>
+                    <option value="lg">Large</option>
+                  </select>
+
+                  {divider}
+
+                  {/* Color picker + hex input */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <div style={{ position: "relative", width: "28px", height: "28px", flexShrink: 0 }}>
+                      <input
+                        type="color"
+                        value={titleColor}
+                        onChange={(e) => setTitleColor(e.target.value)}
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          height: "100%",
+                          border: "none",
+                          padding: 0,
+                          cursor: "pointer",
+                          opacity: 0,
+                        }}
+                      />
+                      <div style={{
+                        width: "28px",
+                        height: "28px",
+                        borderRadius: "5px",
+                        background: titleColor,
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        pointerEvents: "none",
+                      }} />
+                    </div>
+                    <input
+                      type="text"
+                      value={titleColor}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setTitleColor(v);
+                      }}
+                      placeholder="#ffffff"
+                      spellCheck={false}
+                      style={{
+                        width: "68px",
+                        height: "28px",
+                        borderRadius: "5px",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        background: "rgba(255,255,255,0.04)",
+                        color: "rgba(255,255,255,0.7)",
+                        fontSize: "11px",
+                        fontFamily: "'Courier New', monospace",
+                        fontWeight: 600,
+                        padding: "0 6px",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Description textarea - More visual but subtle */}
             <textarea
@@ -2366,13 +2858,12 @@ export function CreateEventPage() {
                 </button>
               </div>
             </div>
+            </div>
 
-            {/* Socials Section */}
+            {/* === STEP 3: SOCIALS === */}
             <div
               style={{
-                marginTop: "32px",
-                paddingTop: "32px",
-                borderTop: "1px solid rgba(255,255,255,0.1)",
+                display: currentStep === 3 ? "block" : "none",
               }}
             >
               <div
@@ -2500,14 +2991,15 @@ export function CreateEventPage() {
               </div>
             </div>
 
-            {/* Event Settings Section */}
+            {/* === STEP 4: SETTINGS === */}
             <div
               style={{
-                marginTop: "32px",
-                paddingTop: "32px",
-                borderTop: "1px solid rgba(255,255,255,0.1)",
+                display: currentStep === 4 ? "block" : "none",
               }}
             >
+
+            {/* Event Settings Section */}
+            <div>
               <div
                 style={{
                   fontSize: "11px",
@@ -2788,7 +3280,6 @@ export function CreateEventPage() {
                                         type="time"
                                         value={dinnerSlotsConfig[index]?.time || ""}
                                         onChange={(e) => updateSlotField(index, "time", e.target.value)}
-                                        required={dinnerEnabled}
                                         style={{
                                           ...inputStyle, fontSize: "14px", padding: "8px 12px 8px 36px",
                                           width: "100%", height: "38px", color: "transparent", cursor: "pointer",
@@ -2893,7 +3384,15 @@ export function CreateEventPage() {
                   </div>
                 )}
               </div>
-              {/* tickets */}
+            </div>
+            </div>
+
+            {/* === STEP 5: TICKETS === */}
+            <div
+              style={{
+                display: currentStep === 5 ? "block" : "none",
+              }}
+            >
               <OptionRow
                 icon={<SilverIcon as={Ticket} size={20} />}
                 label="Sell tickets to this event"
@@ -3068,7 +3567,6 @@ export function CreateEventPage() {
                           value={ticketPrice}
                           onChange={(e) => setTicketPrice(e.target.value)}
                           placeholder="0.00"
-                          required={sellTicketsEnabled}
                           style={{
                             ...inputStyle,
                             fontSize: "14px",
@@ -3091,7 +3589,6 @@ export function CreateEventPage() {
                         <select
                           value={ticketCurrency}
                           onChange={(e) => setTicketCurrency(e.target.value)}
-                          required={sellTicketsEnabled}
                           style={{
                             ...inputStyle,
                             fontSize: "14px",
@@ -3145,58 +3642,63 @@ export function CreateEventPage() {
                 </div>
               )}
 
-              {/* Submit Button - Mobile-first, prominent */}
+            </div>
+            {/* end animation wrapper */}
+            </div>
+            {/* end step content wrapper */}
+            </div>
+
+            {/* Fixed Publish bar at bottom of sidebar */}
+            <div
+              style={{
+                position: "sticky",
+                bottom: 0,
+                zIndex: 10,
+                padding: "12px 24px",
+                paddingBottom: "max(12px, env(safe-area-inset-bottom))",
+                background: "linear-gradient(to top, rgba(12, 10, 18, 0.98) 0%, rgba(12, 10, 18, 0.95) 80%, transparent 100%)",
+                backdropFilter: "blur(12px)",
+                borderTop: "1px solid rgba(255,255,255,0.06)",
+                flexShrink: 0,
+              }}
+            >
               <button
                 type="submit"
                 disabled={loading}
                 style={{
-                  marginTop: "40px",
                   width: "100%",
-                  padding: "18px 24px",
-                  borderRadius: "14px",
+                  padding: "14px 24px",
+                  borderRadius: "8px",
                   border: "none",
                   background: loading
                     ? "#666"
                     : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                  color: "#fff",
+                  color: "#111",
                   fontWeight: 700,
-                  fontSize: "17px",
+                  fontSize: "15px",
                   cursor: loading ? "not-allowed" : "pointer",
                   boxShadow: loading
                     ? "none"
-                    : "0 8px 24px rgba(192, 192, 192, 0.5)",
-                  transition: "all 0.3s ease",
+                    : "0 4px 16px rgba(192, 192, 192, 0.3)",
+                  transition: "all 0.2s ease",
                   textTransform: "uppercase",
-                  letterSpacing: "0.08em",
+                  letterSpacing: "0.06em",
                   opacity: loading ? 0.7 : 1,
-                  minHeight: "56px", // Better touch target
                 }}
                 onMouseEnter={(e) => {
                   if (!loading) {
-                    e.target.style.transform = "translateY(-2px)";
-                    e.target.style.boxShadow =
-                      "0 12px 32px rgba(192, 192, 192, 0.6)";
+                    e.target.style.transform = "translateY(-1px)";
+                    e.target.style.boxShadow = "0 6px 20px rgba(192, 192, 192, 0.4)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!loading) {
                     e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow =
-                      "0 8px 24px rgba(192, 192, 192, 0.5)";
-                  }
-                }}
-                onTouchStart={(e) => {
-                  if (!loading) {
-                    e.target.style.transform = "scale(0.98)";
-                  }
-                }}
-                onTouchEnd={(e) => {
-                  if (!loading) {
-                    e.target.style.transform = "scale(1)";
+                    e.target.style.boxShadow = "0 4px 16px rgba(192, 192, 192, 0.3)";
                   }
                 }}
               >
-                {loading ? (isEditMode ? "Saving…" : "Creating…") : (isEditMode ? "SAVE CHANGES" : "CREATE EVENT")}
+                {loading ? (isEditMode ? "Saving…" : "Creating…") : (isEditMode ? "SAVE CHANGES" : "PUBLISH")}
               </button>
             </div>
           </div>
@@ -3306,6 +3808,11 @@ export function CreateEventPage() {
             >
               <EventPreview
                 title={title}
+                titleVisible={titleVisible}
+                titleAlign={titleAlign}
+                titleFont={titleFont}
+                titleSize={titleSize}
+                titleColor={titleColor}
                 description={description}
                 location={location}
                 locationLat={locationLat}
@@ -3322,7 +3829,7 @@ export function CreateEventPage() {
                 })) : null}
                 mediaSettings={mediaMode === "video"
                   ? { mode: "video", loop: videoLoop, autoplay: videoAutoplay, audio: videoAudio }
-                  : { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop }}
+                  : { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop, transitions: carouselTransitions }}
                 ticketType={sellTicketsEnabled ? "paid" : "free"}
                 compact={desktopPreviewMode === "phone"}
                 instagram={instagram}
@@ -3380,6 +3887,10 @@ export function CreateEventPage() {
         >
           <EventPreview
             title={title}
+            titleVisible={titleVisible}
+            titleAlign={titleAlign}
+            titleFont={titleFont}
+            titleSize={titleSize}
             description={description}
             location={location}
             locationLat={locationLat}
@@ -3396,7 +3907,7 @@ export function CreateEventPage() {
             })) : null}
             mediaSettings={mediaMode === "video"
               ? { mode: "video", loop: videoLoop, autoplay: videoAutoplay, audio: videoAudio }
-              : { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop }}
+              : { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop, transitions: carouselTransitions }}
             ticketType={sellTicketsEnabled ? "paid" : "free"}
             compact
             instagram={instagram}

@@ -18,8 +18,10 @@ export function Button({
     justifyContent: "center",
     gap: "10px",
     border: "none",
-    borderRadius: "12px",
-    fontWeight: 600,
+    borderRadius: "8px",
+    fontWeight: 700,
+    letterSpacing: "0.01em",
+    textTransform: "uppercase",
     cursor: disabled || loading ? "not-allowed" : "pointer",
     transition: "all 0.2s ease",
     position: "relative",
@@ -33,7 +35,7 @@ export function Button({
   const sizeStyles = {
     sm: { padding: "10px 16px", fontSize: "14px" },
     md: { padding: "16px 24px", fontSize: "16px" },
-    lg: { padding: "20px 32px", fontSize: "18px" },
+    lg: { padding: "14px 32px", fontSize: "17px" },
   };
 
   const variantStyles = {

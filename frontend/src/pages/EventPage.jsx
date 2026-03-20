@@ -25,6 +25,7 @@ import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
 import { RsvpForm } from "../components/RsvpForm";
 import { PaymentForm } from "../components/PaymentForm";
 import { Button } from "../components/ui/Button";
+import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "../components/EventCTA";
 import { Badge } from "../components/ui/Badge";
 import { publicFetch } from "../lib/api.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
@@ -817,7 +818,7 @@ export function EventPage() {
           /* On desktop, content group always behaves as expanded */
           .content-group-desktop {
             flex: 0 1 auto !important;
-            max-height: calc(100vh - 90px) !important;
+            max-height: calc(100vh - ${EVENT_CTA_HEIGHT}px) !important;
             overflow: hidden !important;
           }
         }
@@ -829,13 +830,13 @@ export function EventPage() {
         /* When description is expanded, content group sizes naturally (not forced to top) */
         .content-group-expanded {
           flex: 0 1 auto;
-          max-height: calc(100vh - 90px);
-          max-height: calc(100dvh - 90px);
+          max-height: calc(100vh - ${EVENT_CTA_HEIGHT}px);
+          max-height: calc(100dvh - ${EVENT_CTA_HEIGHT}px);
           overflow: hidden;
         }
         @supports (height: 100dvh) {
           .content-group-expanded {
-            max-height: calc(100dvh - 90px);
+            max-height: calc(100dvh - ${EVENT_CTA_HEIGHT}px);
           }
         }
         /* Static info section - sticks to top of description */
@@ -866,16 +867,16 @@ export function EventPage() {
         }
         /* Content container accounts for sticky button - mobile optimized */
         .event-content-container {
-          height: calc(100vh - 90px);
-          height: calc(100dvh - 90px); /* Use dynamic viewport height when supported (better for mobile) */
-          max-height: calc(100vh - 90px);
-          max-height: calc(100dvh - 90px);
+          height: calc(100vh - ${EVENT_CTA_HEIGHT}px);
+          height: calc(100dvh - ${EVENT_CTA_HEIGHT}px); /* Use dynamic viewport height when supported (better for mobile) */
+          max-height: calc(100vh - ${EVENT_CTA_HEIGHT}px);
+          max-height: calc(100dvh - ${EVENT_CTA_HEIGHT}px);
           box-sizing: border-box;
         }
         @supports (height: 100dvh) {
           .event-content-container {
-            height: calc(100dvh - 90px);
-            max-height: calc(100dvh - 90px);
+            height: calc(100dvh - ${EVENT_CTA_HEIGHT}px);
+            max-height: calc(100dvh - ${EVENT_CTA_HEIGHT}px);
           }
         }
         /* Outer container for proper viewport handling */
@@ -1331,47 +1332,20 @@ export function EventPage() {
           </div>
         </div>
 
-        {/* Sticky CTA Button */}
-        <div
-          style={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            padding: "16px 20px",
-            paddingBottom: "max(16px, env(safe-area-inset-bottom))",
-            background:
-              "linear-gradient(to top, #05040a 0%, rgba(5, 4, 10, 0.98) 70%, transparent 100%)",
-            backdropFilter: "blur(20px)",
-            zIndex: 100,
-            boxSizing: "border-box",
-            width: "100%",
-            maxWidth: "420px",
-          }}
-        >
-          <Button
-            onClick={() => setShowRsvpForm(true)}
-            fullWidth
-            size="lg"
-            disabled={loading || !event || isEventPast || isSoldOut}
-          >
-            {isEventPast
-              ? "Event has ended"
-              : isSoldOut
-              ? "Sold out"
-              : event?.ticketType === "paid" && event?.ticketPrice
-              ? (() => {
-                  // Show base price (1 ticket) on button - total will be shown in modal
-                  const baseTotal = event.ticketPrice; // 1 ticket
-                  const currency = (
-                    event.ticketCurrency || "usd"
-                  ).toLowerCase();
-                  const symbol = currency === "sek" ? "kr" : "$";
-                  const amount = (baseTotal / 100).toFixed(2);
-                  return `Pull up — from ${symbol}${amount}`;
-                })()
-              : "Pull up"}
-          </Button>
-        </div>
+        {/* Sticky CTA Button — shared with EventPreview */}
+        <EventCTA
+          fixed
+          label={getCtaLabel({
+            ticketType: event?.ticketType,
+            ticketPrice: event?.ticketPrice,
+            ticketCurrency: event?.ticketCurrency,
+            isEventPast,
+            isSoldOut,
+          })}
+          disabled={loading || !event || isEventPast || isSoldOut}
+          onClick={() => setShowRsvpForm(true)}
+          maxWidth="420px"
+        />
 
         {/* RSVP Form Modal/Drawer (with inline payment section for paid events) */}
         <ModalOrDrawer

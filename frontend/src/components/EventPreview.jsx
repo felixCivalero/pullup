@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { FaPaperPlane, FaCalendar, FaMapMarkerAlt, FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort } from "../lib/urlUtils";
-import { Button } from "./ui/Button";
 import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
+import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 
 export function EventPreview({
   title,
@@ -54,22 +54,7 @@ export function EventPreview({
     setTimeout(() => setShowRsvp(false), 300);
   }
 
-  const buttonLabel = (() => {
-    if (ticketType === "paid" && ticketPrice) {
-      const currency = (ticketCurrency || "usd").toLowerCase();
-      const symbol =
-        currency === "sek"
-          ? "kr"
-          : currency === "eur"
-            ? "\u20ac"
-            : currency === "gbp"
-              ? "\u00a3"
-              : "$";
-      const amount = (ticketPrice / 100).toFixed(2);
-      return `Pull up \u2014 from ${symbol}${amount}`;
-    }
-    return "Pull up";
-  })();
+  const buttonLabel = getCtaLabel({ ticketType, ticketPrice, ticketCurrency });
 
   return (
     <>
@@ -80,8 +65,8 @@ export function EventPreview({
           overflow: hidden;
         }
         .event-preview-content {
-          height: calc(100% - 90px);
-          max-height: calc(100% - 90px);
+          height: calc(100% - ${EVENT_CTA_HEIGHT}px);
+          max-height: calc(100% - ${EVENT_CTA_HEIGHT}px);
           box-sizing: border-box;
         }
         @media (min-width: 969px) {
@@ -419,32 +404,14 @@ export function EventPreview({
           </div>
         </div>
 
-        {/* Sticky CTA Button — matches EventPage */}
-        {!hideCta && <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: "16px 20px",
-            paddingBottom: "max(16px, env(safe-area-inset-bottom))",
-            background:
-              "linear-gradient(to top, #05040a 0%, rgba(5, 4, 10, 0.98) 70%, transparent 100%)",
-            backdropFilter: "blur(20px)",
-            zIndex: 100,
-            boxSizing: "border-box",
-            width: "100%",
-          }}
-        >
-          <Button
-            fullWidth
-            size="lg"
+        {/* Sticky CTA Button — shared with EventPage */}
+        {!hideCta && (
+          <EventCTA
+            label={buttonLabel}
             disabled={!rsvpContent}
             onClick={rsvpContent ? () => setShowRsvp(true) : undefined}
-          >
-            {buttonLabel}
-          </Button>
-        </div>}
+          />
+        )}
 
         {/* Inline RSVP bottom-sheet — scoped to the preview container */}
         {showRsvp && rsvpContent && (

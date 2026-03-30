@@ -45,9 +45,10 @@ export function EventPreview({
   soundcloud,
   timezone,
   rsvpContent,
+  autoShowRsvp = false,
 }) {
   const [showDescription, setShowDescription] = useState(false);
-  const [showRsvp, setShowRsvp] = useState(false);
+  const [showRsvp, setShowRsvp] = useState(autoShowRsvp);
   const [rsvpVisible, setRsvpVisible] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const rsvpSheetRef = useRef(null);
@@ -57,6 +58,11 @@ export function EventPreview({
 
   const eventDate = startsAt ? formatEventDate(new Date(startsAt), timezone) : "";
   const eventTime = startsAt ? formatEventTime(new Date(startsAt), timezone) : "";
+
+  // Sync with autoShowRsvp prop
+  useEffect(() => {
+    setShowRsvp(autoShowRsvp);
+  }, [autoShowRsvp]);
 
   // Animate the RSVP sheet in/out
   useEffect(() => {

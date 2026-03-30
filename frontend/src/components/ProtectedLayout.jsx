@@ -108,9 +108,23 @@ function ProtectedLayoutInner() {
     }
   }, [loading, user]);
 
+  const [navConfirm, setNavConfirm] = useState(null); // { path } when pending
+
   function handleNav(path) {
+    if (window.__pullupUnsavedMedia) {
+      setNavConfirm({ path });
+      return;
+    }
     navigate(path);
     setMenuOpen(false);
+  }
+
+  function confirmNavLeave() {
+    window.__pullupUnsavedMedia = false;
+    const path = navConfirm.path;
+    setNavConfirm(null);
+    setMenuOpen(false);
+    navigate(path);
   }
 
   const isCreatingEvent = location.pathname === "/create";
@@ -533,7 +547,7 @@ function ProtectedLayoutInner() {
                 } else if (!profileComplete) {
                   showToast("Fill in your brand name and contact email first", "error");
                   if (location.pathname !== "/events") {
-                    navigate("/events");
+                    handleNav("/events");
                   } else {
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
@@ -962,6 +976,85 @@ function ProtectedLayoutInner() {
       <main>
         <Outlet />
       </main>
+
+      {/* Unsaved media confirm dialog */}
+      {navConfirm && (
+        <>
+          <div
+            onClick={() => setNavConfirm(null)}
+            style={{
+              position: "fixed",
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: "rgba(0, 0, 0, 0.6)",
+              backdropFilter: "blur(8px)",
+              zIndex: 10000,
+            }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              top: "50%", left: "50%",
+              transform: "translate(-50%, -50%)",
+              background: "rgba(18, 16, 24, 0.98)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "20px",
+              padding: "32px",
+              maxWidth: "360px",
+              width: "calc(100% - 48px)",
+              zIndex: 10001,
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "32px", marginBottom: "16px" }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(251, 191, 36, 0.9)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <div style={{ fontSize: "16px", fontWeight: 700, color: "#fff", marginBottom: "8px" }}>
+              Unsaved media
+            </div>
+            <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", lineHeight: 1.5, marginBottom: "24px" }}>
+              Your uploaded images and video haven't been saved yet. If you leave now, they'll be lost.
+            </div>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => setNavConfirm(null)}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "transparent",
+                  color: "#fff",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Stay
+              </button>
+              <button
+                onClick={confirmNavLeave}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "rgba(239, 68, 68, 0.15)",
+                  color: "#ef4444",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

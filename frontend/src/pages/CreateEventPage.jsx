@@ -365,7 +365,8 @@ export function CreateEventPage() {
   const [visibility] = useState("public");
   const [sellTicketsEnabled, setSellTicketsEnabled] = useState(draft?.sellTicketsEnabled || false);
   const [ticketPrice, setTicketPrice] = useState(draft?.ticketPrice || "");
-  const [ticketCurrency, setTicketCurrency] = useState(draft?.ticketCurrency || "USD");
+  const [ticketCurrency, setTicketCurrency] = useState(draft?.ticketCurrency || "SEK");
+  const isPaidEvent = sellTicketsEnabled && ticketPrice && parseFloat(ticketPrice) > 0;
 
   // NEW: plus-ones
   const [allowPlusOnes, setAllowPlusOnes] = useState(draft?.allowPlusOnes || false);
@@ -381,7 +382,8 @@ export function CreateEventPage() {
     useState(draft?.dinnerMaxGuestsPerBooking || "");
   const [dinnerOverflowAction, setDinnerOverflowAction] = useState(draft?.dinnerOverflowAction || "waitlist");
   const [dinnerBookingEmail, setDinnerBookingEmail] = useState(draft?.dinnerBookingEmail || "");
-  const [dinnerSlotsConfig, setDinnerSlotsConfig] = useState([]);
+  const [hideDinnerRemaining, setHideDinnerRemaining] = useState(draft?.hideDinnerRemaining || false);
+  const [dinnerSlotsConfig, setDinnerSlotsConfig] = useState(draft?.dinnerSlotsConfig || []);
 
   // Social links
   const [instagram, setInstagram] = useState(draft?.instagram || "");
@@ -394,9 +396,39 @@ export function CreateEventPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [mobileView, setMobileView] = useState("edit"); // "edit" or "preview"
   const [desktopPreviewMode, setDesktopPreviewMode] = useState("phone"); // "desktop" or "phone"
-  const [currentStep, setCurrentStep] = useState(draft?.currentStep || 1); // 1=Vibe, 2=Details, 3=Settings
+  const [currentStep, setCurrentStep] = useState(draft?.currentStep || 1);
   const [stepDirection, setStepDirection] = useState("forward");
+  const [hasAttemptedPublish, setHasAttemptedPublish] = useState(false);
+  const [goldFlash, setGoldFlash] = useState({}); // { title: true, startsAt: true, media: true }
   const sidebarRef = useRef(null);
+
+  // Compute missing required fields
+  const missingFields = {
+    media: mediaFiles.length === 0 && !(isEditMode),
+    title: !title.trim(),
+    startsAt: !startsAt,
+  };
+  const missingCount = Object.values(missingFields).filter(Boolean).length;
+  const tabHasMissing = {
+    1: missingFields.media, // Media tab
+    2: missingFields.title || missingFields.startsAt, // Details tab
+  };
+
+  // Gold flash when a field goes from missing to filled
+  const prevMissing = useRef(missingFields);
+  useEffect(() => {
+    if (!hasAttemptedPublish) return;
+    const prev = prevMissing.current;
+    const flashes = {};
+    if (prev.title && !missingFields.title) flashes.title = true;
+    if (prev.startsAt && !missingFields.startsAt) flashes.startsAt = true;
+    if (prev.media && !missingFields.media) flashes.media = true;
+    if (Object.keys(flashes).length > 0) {
+      setGoldFlash((f) => ({ ...f, ...flashes }));
+      setTimeout(() => setGoldFlash({}), 1200);
+    }
+    prevMissing.current = { ...missingFields };
+  }, [missingFields.title, missingFields.startsAt, missingFields.media, hasAttemptedPublish]);
 
   // Build preview dinner slots from config for the RSVP preview
   const previewDinnerSlots = useMemo(() => {
@@ -475,6 +507,68 @@ export function CreateEventPage() {
   }
   const [isDragging, setIsDragging] = useState(false);
 
+  // Warn before navigating away if there are unsaved media files
+  const hasUnsavedMedia = mediaFiles.length > 0;
+  const hasUnsavedMediaRef = useRef(false);
+  hasUnsavedMediaRef.current = hasUnsavedMedia;
+
+  // Expose to global so nav can check before navigating
+  useEffect(() => {
+    window.__pullupUnsavedMedia = hasUnsavedMedia;
+    return () => { window.__pullupUnsavedMedia = false; };
+  }, [hasUnsavedMedia]);
+
+  useEffect(() => {
+    if (!hasUnsavedMedia) return;
+
+    // Browser tab close / reload
+    const beforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+
+    // Browser back/forward button
+    const handlePopState = (e) => {
+      if (!hasUnsavedMediaRef.current) return;
+      const confirmed = window.confirm(
+        "You have uploaded media that hasn't been saved. If you leave, your images/video will be lost.\n\nLeave anyway?"
+      );
+      if (!confirmed) {
+        // Push state back to prevent navigation
+        window.history.pushState(null, "", window.location.href);
+      }
+    };
+    // Push an extra history entry so we can intercept back
+    window.history.pushState(null, "", window.location.href);
+    window.addEventListener("popstate", handlePopState);
+
+    // In-app link clicks — intercept <a> clicks within the app
+    const clickHandler = (e) => {
+      if (!hasUnsavedMediaRef.current) return;
+      const link = e.target.closest("a[href]");
+      if (!link) return;
+      const href = link.getAttribute("href");
+      if (!href || href.startsWith("http") || href.startsWith("#")) return;
+      // It's an in-app link
+      const confirmed = window.confirm(
+        "You have uploaded media that hasn't been saved. If you leave, your images/video will be lost.\n\nLeave anyway?"
+      );
+      if (!confirmed) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener("click", clickHandler, true);
+
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      window.removeEventListener("popstate", handlePopState);
+      document.removeEventListener("click", clickHandler, true);
+    };
+  }, [hasUnsavedMedia]);
+
+
   // Save draft to localStorage (create mode only, debounced)
   useEffect(() => {
     if (isEditMode) return;
@@ -488,7 +582,8 @@ export function CreateEventPage() {
           allowPlusOnes, maxPlusOnesPerGuest,
           dinnerEnabled, dinnerStartTime, dinnerEndTime,
           dinnerMaxSeatsPerSlot, dinnerMaxGuestsPerBooking,
-          dinnerOverflowAction, dinnerBookingEmail,
+          dinnerOverflowAction, dinnerBookingEmail, hideDinnerRemaining,
+          dinnerSlotsConfig,
           instagram, spotify, tiktok, soundcloud,
           currentStep,
           _savedAt: Date.now(),
@@ -504,7 +599,8 @@ export function CreateEventPage() {
     allowPlusOnes, maxPlusOnesPerGuest,
     dinnerEnabled, dinnerStartTime, dinnerEndTime,
     dinnerMaxSeatsPerSlot, dinnerMaxGuestsPerBooking,
-    dinnerOverflowAction, dinnerBookingEmail,
+    dinnerOverflowAction, dinnerBookingEmail, hideDinnerRemaining,
+    dinnerSlotsConfig,
     instagram, spotify, tiktok, soundcloud,
     currentStep, detailsColor, detailsGradient, detailsGradientEnabled,
   ]);
@@ -539,37 +635,28 @@ export function CreateEventPage() {
     sidebarRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function validateStep(step) {
-    if (step >= 2) {
-      if (!title.trim()) {
-        goToStep(2);
-        showToast("Give your event a name", "error");
-        return false;
-      }
+  function validateStep() {
+    // Check date logic errors (these are hard errors, not missing fields)
+    if (startsAt && new Date(startsAt) < new Date()) {
+      goToStep(2);
+      showToast("Event start date cannot be in the past", "error");
+      return false;
     }
-    if (step >= 2) {
-      if (!startsAt) {
-        goToStep(2);
-        showToast("Set a start date and time", "error");
-        return false;
-      }
-      if (new Date(startsAt) < new Date()) {
-        goToStep(2);
-        showToast("Event start date cannot be in the past", "error");
-        return false;
-      }
-      if (endsAt && new Date(endsAt) < new Date()) {
-        goToStep(2);
-        showToast("Event end date cannot be in the past", "error");
-        return false;
-      }
+    if (endsAt && new Date(endsAt) < new Date()) {
+      goToStep(2);
+      showToast("Event end date cannot be in the past", "error");
+      return false;
     }
-    if (step >= 5) {
-      if (sellTicketsEnabled && !ticketPrice) {
-        goToStep(5);
-        showToast("Set a ticket price", "error");
-        return false;
+    // Check missing required fields
+    if (missingCount > 0) {
+      setHasAttemptedPublish(true);
+      // Navigate to first tab with issues
+      if (missingFields.media) {
+        goToStep(1);
+      } else {
+        goToStep(2);
       }
+      return false;
     }
     return true;
   }
@@ -669,6 +756,7 @@ export function CreateEventPage() {
           if (ev.dinnerMaxSeatsPerSlot) setDinnerMaxSeatsPerSlot(String(ev.dinnerMaxSeatsPerSlot));
           setDinnerOverflowAction(ev.dinnerOverflowAction || "waitlist");
           if (ev.dinnerBookingEmail) setDinnerBookingEmail(ev.dinnerBookingEmail);
+          if (ev.hideDinnerRemaining) setHideDinnerRemaining(ev.hideDinnerRemaining);
           if (ev.dinnerSlots && ev.dinnerSlots.length > 0) {
             const slotConfigs = ev.dinnerSlots.map((s) => ({
               time: s.time ? toLocal(s.time).split("T")[1] || "" : "",
@@ -789,9 +877,9 @@ export function CreateEventPage() {
       if (prev.length > 0) return prev;
       return [
         {
-          time: "",
-          maxSeats: dinnerMaxSeatsPerSlot || "",
-          maxGuestsPerBooking: dinnerMaxGuestsPerBooking || "",
+          time: "18:00",
+          maxSeats: dinnerMaxSeatsPerSlot || "20",
+          maxGuestsPerBooking: dinnerMaxGuestsPerBooking || "4",
         },
       ];
     });
@@ -801,14 +889,21 @@ export function CreateEventPage() {
     if (!dinnerEnabled) return;
     setDinnerSlotsConfig((prev) => {
       const last = prev[prev.length - 1] || {
-        time: "",
-        maxSeats: dinnerMaxSeatsPerSlot || "",
-        maxGuestsPerBooking: dinnerMaxGuestsPerBooking || "",
+        time: "18:00",
+        maxSeats: dinnerMaxSeatsPerSlot || "20",
+        maxGuestsPerBooking: dinnerMaxGuestsPerBooking || "4",
       };
+      // Auto-increment by 1 hour from last slot
+      let nextTime = "18:00";
+      if (last.time) {
+        const [h, m] = last.time.split(":");
+        const nextH = String(parseInt(h, 10) + 1).padStart(2, "0");
+        nextTime = `${nextH}:${m}`;
+      }
       return [
         ...prev,
         {
-          time: "",
+          time: nextTime,
           maxSeats: last.maxSeats,
           maxGuestsPerBooking: last.maxGuestsPerBooking,
         },
@@ -969,7 +1064,7 @@ export function CreateEventPage() {
 
   async function handleCreate(e) {
     e.preventDefault();
-    if (!validateStep(5)) return;
+    if (!validateStep()) return;
     setLoading(true);
 
     try {
@@ -1102,6 +1197,7 @@ export function CreateEventPage() {
               : null,
         dinnerOverflowAction: dinnerEnabled ? dinnerOverflowAction : "waitlist",
         dinnerBookingEmail: dinnerEnabled && dinnerBookingEmail ? dinnerBookingEmail.trim() : null,
+        hideDinnerRemaining: hideDinnerRemaining || false,
         // Explicit per-slot configuration for backend & analytics
         dinnerSlots:
           dinnerEnabled && dinnerSlotsIso.length > 0
@@ -1352,6 +1448,11 @@ export function CreateEventPage() {
       />
 
       <style>{`
+        @keyframes goldFlash {
+          0% { border-color: #d4a012; box-shadow: 0 0 12px rgba(212, 160, 18, 0.4); }
+          50% { border-color: #f0c040; box-shadow: 0 0 20px rgba(240, 192, 64, 0.3); }
+          100% { border-color: rgba(255,255,255,0.1); box-shadow: none; }
+        }
         @keyframes float {
           0%, 100% { transform: translate(0, 0) scale(1); }
           50% { transform: translate(30px, -30px) scale(1.1); }
@@ -1418,8 +1519,8 @@ export function CreateEventPage() {
                 {[
                   { num: 1, label: "Media" },
                   { num: 2, label: "Details" },
-                  { num: 3, label: "Socials" },
-                  { num: 4, label: "Settings" },
+                  { num: 3, label: "Settings" },
+                  { num: 4, label: "Socials" },
                   { num: 5, label: "Tickets" },
                 ].map((tab) => (
                   <button
@@ -1445,6 +1546,17 @@ export function CreateEventPage() {
                     }}
                   >
                     {tab.label}
+                    {hasAttemptedPublish && tabHasMissing[tab.num] && (
+                      <span style={{
+                        position: "absolute",
+                        top: "8px",
+                        right: "4px",
+                        width: "6px",
+                        height: "6px",
+                        borderRadius: "50%",
+                        background: "#ef4444",
+                      }} />
+                    )}
                   </button>
                 ))}
                 {/* Sliding underline indicator */}
@@ -1489,7 +1601,16 @@ export function CreateEventPage() {
               }}
             >
             {/* Media upload area */}
-            <div style={{ marginBottom: "24px" }}>
+            <div style={{
+              marginBottom: "24px",
+              borderRadius: "14px",
+              border: hasAttemptedPublish && missingFields.media
+                ? "2px solid rgba(239, 68, 68, 0.5)"
+                : "2px solid transparent",
+              ...(goldFlash.media ? { animation: "goldFlash 1.2s ease forwards" } : {}),
+              transition: "border-color 0.3s ease",
+              padding: hasAttemptedPublish && missingFields.media ? "12px" : "0",
+            }}>
               {/* Media type selector */}
               {mediaFiles.length === 0 && (
                 <div
@@ -2309,7 +2430,10 @@ export function CreateEventPage() {
                 fontSize: "clamp(24px, 5vw, 32px)",
                 fontWeight: 700,
                 background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                border: hasAttemptedPublish && missingFields.title
+                  ? "1px solid rgba(239, 68, 68, 0.5)"
+                  : "1px solid rgba(255,255,255,0.08)",
+                ...(goldFlash.title ? { animation: "goldFlash 1.2s ease forwards" } : {}),
                 borderRadius: "12px",
                 color: title ? "#fff" : "rgba(255,255,255,0.6)",
                 outline: "none",
@@ -2743,7 +2867,15 @@ export function CreateEventPage() {
               </div>
 
               {/* Start Date & Time - Simple button interface */}
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{
+                marginBottom: "20px",
+                borderRadius: "14px",
+                border: hasAttemptedPublish && missingFields.startsAt
+                  ? "2px solid rgba(239, 68, 68, 0.5)"
+                  : "2px solid transparent",
+                ...(goldFlash.startsAt ? { animation: "goldFlash 1.2s ease forwards" } : {}),
+                transition: "border-color 0.3s ease",
+              }}>
                 <div
                   style={{
                     position: "relative",
@@ -3025,10 +3157,10 @@ export function CreateEventPage() {
             </div>
             </div>
 
-            {/* === STEP 3: SOCIALS === */}
+            {/* === STEP 3 (tab position): SOCIALS === */}
             <div
               style={{
-                display: currentStep === 3 ? "block" : "none",
+                display: currentStep === 4 ? "block" : "none",
               }}
             >
               <div
@@ -3156,10 +3288,10 @@ export function CreateEventPage() {
               </div>
             </div>
 
-            {/* === STEP 4: SETTINGS === */}
+            {/* === STEP 4 (tab position): SETTINGS === */}
             <div
               style={{
-                display: currentStep === 4 ? "block" : "none",
+                display: currentStep === 3 ? "block" : "none",
               }}
             >
 
@@ -3327,6 +3459,7 @@ export function CreateEventPage() {
                           textTransform: "uppercase",
                           letterSpacing: "0.1em",
                           opacity: 0.9,
+                          flex: 1,
                         }}
                       >
                         Cuisine Configuration
@@ -3359,9 +3492,9 @@ export function CreateEventPage() {
                           setDinnerSlotsConfig((prev) => {
                             const next = [...prev];
                             const current = next[index] || {
-                              time: "",
-                              maxSeats: dinnerMaxSeatsPerSlot || "",
-                              maxGuestsPerBooking: dinnerMaxGuestsPerBooking || "",
+                              time: "18:00",
+                              maxSeats: dinnerMaxSeatsPerSlot || "20",
+                              maxGuestsPerBooking: dinnerMaxGuestsPerBooking || "4",
                             };
                             next[index] = { ...current, [field]: value };
                             return next;
@@ -3381,9 +3514,12 @@ export function CreateEventPage() {
                           updateSlotField(index, field, String(next));
                         };
 
-                        const MiniStepper = ({ label, value, onMinus, onPlus, disableMinus, disablePlus }) => (
+                        const MiniStepper = ({ label, value, onMinus, onPlus, disableMinus, disablePlus, labelExtra }) => (
                           <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
-                            <span style={{ fontSize: "10px", opacity: 0.5, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center" }}>{label}</span>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                              <span style={{ fontSize: "10px", opacity: 0.5, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+                              {labelExtra}
+                            </div>
                             <div style={{
                               display: "flex", alignItems: "center", gap: "2px",
                               background: "rgba(255,255,255,0.05)", borderRadius: "8px",
@@ -3433,41 +3569,45 @@ export function CreateEventPage() {
                                     }}>
                                       {slotCount > 1 ? `${index + 1}` : ""}
                                     </div>
-                                    <div style={{ position: "relative", flex: 1, cursor: "pointer" }}
-                                      onClick={(e) => {
-                                        const input = e.currentTarget.querySelector('input[type="time"]');
-                                        if (input) { input.showPicker?.(); input.focus(); }
-                                      }}
-                                    >
-                                      <input
-                                        className="cuisine-time-input"
-                                        ref={index === 0 ? dinnerStartTimeInputRef : null}
-                                        type="time"
-                                        value={dinnerSlotsConfig[index]?.time || ""}
-                                        onChange={(e) => updateSlotField(index, "time", e.target.value)}
-                                        style={{
-                                          ...inputStyle, fontSize: "14px", padding: "8px 12px 8px 36px",
-                                          width: "100%", height: "38px", color: "transparent", cursor: "pointer",
-                                          boxSizing: "border-box", background: "rgba(255,255,255,0.04)",
-                                          border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px",
-                                          appearance: "none", WebkitAppearance: "none", MozAppearance: "textfield",
-                                          position: "relative", zIndex: 2,
-                                        }}
-                                      />
-                                      <div style={{
-                                        position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)",
-                                        pointerEvents: "none", zIndex: 3, opacity: 0.6,
-                                      }}>
-                                        <SilverIcon as={Clock} size={16} />
-                                      </div>
-                                      <div style={{
-                                        position: "absolute", left: "36px", top: "50%", transform: "translateY(-50%)",
-                                        pointerEvents: "none", zIndex: 3, fontSize: "13px",
-                                        color: dinnerSlotsConfig[index]?.time ? "#fff" : "rgba(255,255,255,0.4)",
-                                      }}>
-                                        {getSlotTimeDisplay(index) || "Slot time *"}
-                                      </div>
-                                    </div>
+                                    {(() => {
+                                      const timeVal = dinnerSlotsConfig[index]?.time || "18:00";
+                                      const [hh, mm] = timeVal.split(":");
+                                      const selStyle = {
+                                        flex: 1, height: "38px", borderRadius: "10px",
+                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        background: "rgba(255,255,255,0.04)",
+                                        color: "#fff", fontSize: "14px", fontWeight: 600,
+                                        textAlign: "center", cursor: "pointer",
+                                        outline: "none", appearance: "none",
+                                        WebkitAppearance: "none", MozAppearance: "none",
+                                        padding: "0 8px",
+                                      };
+                                      return (
+                                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1 }}>
+                                          <SilverIcon as={Clock} size={16} style={{ opacity: 0.6, flexShrink: 0 }} />
+                                          <select
+                                            value={hh}
+                                            onChange={(e) => updateSlotField(index, "time", `${e.target.value}:${mm}`)}
+                                            style={selStyle}
+                                          >
+                                            {Array.from({ length: 24 }, (_, i) => {
+                                              const h = String(i).padStart(2, "0");
+                                              return <option key={h} value={h}>{h}</option>;
+                                            })}
+                                          </select>
+                                          <span style={{ fontSize: "16px", fontWeight: 700, opacity: 0.5 }}>:</span>
+                                          <select
+                                            value={mm}
+                                            onChange={(e) => updateSlotField(index, "time", `${hh}:${e.target.value}`)}
+                                            style={selStyle}
+                                          >
+                                            {["00", "10", "20", "30", "40", "50"].map((m) => (
+                                              <option key={m} value={m}>{m}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      );
+                                    })()}
                                     {slotCount > 1 && index === slotCount - 1 && (
                                       <button type="button" onClick={handleRemoveDinnerSlot} style={{
                                         width: "28px", height: "28px", borderRadius: "8px", border: "none",
@@ -3486,9 +3626,24 @@ export function CreateEventPage() {
                                       onMinus={() => stepValue(index, "maxSeats", -1, 0)}
                                       onPlus={() => stepValue(index, "maxSeats", 1)}
                                       disableMinus={seatsNum <= 0}
+                                      labelExtra={index === 0 ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => setHideDinnerRemaining(!hideDinnerRemaining)}
+                                          title={hideDinnerRemaining ? "Show remaining seats to guests" : "Hide remaining seats from guests"}
+                                          style={{
+                                            background: "none", border: "none", padding: "2px",
+                                            cursor: "pointer", display: "flex", alignItems: "center",
+                                            color: hideDinnerRemaining ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.5)",
+                                            transition: "all 0.15s ease",
+                                          }}
+                                        >
+                                          <EyeOff size={11} />
+                                        </button>
+                                      ) : undefined}
                                     />
                                     <MiniStepper
-                                      label="Max/booking"
+                                      label="Per booking"
                                       value={guestsVal}
                                       onMinus={() => stepValue(index, "maxGuestsPerBooking", -1, 1)}
                                       onPlus={() => stepValue(index, "maxGuestsPerBooking", 1, undefined, 12)}
@@ -3558,252 +3713,107 @@ export function CreateEventPage() {
                 display: currentStep === 5 ? "block" : "none",
               }}
             >
-              <OptionRow
-                icon={<SilverIcon as={Ticket} size={20} />}
-                label="Sell tickets to this event"
-                right={
-                  <Toggle
-                    checked={sellTicketsEnabled}
-                    onChange={setSellTicketsEnabled}
-                  />
-                }
-              />
+              <div style={{ fontSize: "13px", opacity: 0.4, marginBottom: "16px" }}>
+                Set a price to sell tickets. Leave empty for a free event.
+              </div>
 
-              {sellTicketsEnabled && (
-                <div
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "stretch",
+                  borderRadius: "12px",
+                  overflow: "hidden",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(255,255,255,0.03)",
+                }}
+              >
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={ticketPrice}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTicketPrice(val);
+                    setSellTicketsEnabled(val && parseFloat(val) > 0);
+                  }}
+                  placeholder="0"
                   style={{
-                    marginTop: "16px",
-                    padding: "24px",
-                    borderRadius: "16px",
-                    border: "1px solid rgba(192, 192, 192, 0.2)",
-                    background:
-                      "linear-gradient(135deg, rgba(192, 192, 192, 0.08) 0%, rgba(232, 232, 232, 0.05) 100%)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "20px",
+                    flex: 1,
+                    background: "transparent",
+                    border: "none",
+                    color: "#fff",
+                    fontSize: "24px",
+                    fontWeight: 700,
+                    padding: "14px 18px",
+                    outline: "none",
+                    minWidth: 0,
+                  }}
+                />
+                <select
+                  value={ticketCurrency}
+                  onChange={(e) => setTicketCurrency(e.target.value)}
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "none",
+                    borderLeft: "1px solid rgba(255,255,255,0.08)",
+                    color: "rgba(255,255,255,0.6)",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    padding: "0 16px",
+                    cursor: "pointer",
+                    outline: "none",
+                    appearance: "none",
+                    WebkitAppearance: "none",
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    <SilverIcon as={Ticket} size={20} />
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.1em",
-                        opacity: 0.9,
-                      }}
-                    >
-                      Ticket Configuration
-                    </div>
-                  </div>
+                  <option value="SEK">SEK</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                  <option value="DKK">DKK</option>
+                  <option value="NOK">NOK</option>
+                </select>
+              </div>
 
-                  {/* Stripe Connection Check */}
-                  {!stripeConnected && (
-                    <div
-                      style={{
-                        padding: "16px",
-                        borderRadius: "12px",
-                        border: "1px solid rgba(251, 191, 36, 0.3)",
-                        background: "rgba(251, 191, 36, 0.1)",
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: "12px",
-                      }}
-                    >
-                      <div style={{ flexShrink: 0 }}>
-                        <SilverIcon
-                          as={AlertTriangle}
-                          size={20}
-                          style={{ color: "#f59e0b" }}
-                        />
+              <div style={{ marginTop: "8px", fontSize: "12px", opacity: 0.4, display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ color: isPaidEvent ? "#22c55e" : "rgba(255,255,255,0.4)" }}>
+                  {isPaidEvent ? "●" : "○"}
+                </span>
+                {isPaidEvent ? `Paid event — ${ticketPrice} ${ticketCurrency}` : "Free event"}
+              </div>
+
+              {/* Stripe — only when paid */}
+              {isPaidEvent && (
+                <div style={{ marginTop: "20px", padding: "16px", borderRadius: "12px",
+                  border: stripeConnected ? "1px solid rgba(34, 197, 94, 0.2)" : "1px solid rgba(251, 191, 36, 0.3)",
+                  background: stripeConnected ? "rgba(34, 197, 94, 0.05)" : "rgba(251, 191, 36, 0.05)",
+                }}>
+                  {stripeConnected ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "13px" }}>
+                      <span style={{ color: "#22c55e", fontSize: "16px" }}>✓</span>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{stripeBusinessName || "Stripe connected"}</div>
+                        {stripeAccountEmail && <div style={{ opacity: 0.5, fontSize: "11px" }}>{stripeAccountEmail}</div>}
                       </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <SilverIcon as={AlertTriangle} size={18} style={{ color: "#f59e0b", flexShrink: 0 }} />
                       <div style={{ flex: 1 }}>
-                        <div
+                        <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Connect Stripe to accept payments</div>
+                        <button type="button" onClick={handleConnectStripeInline} disabled={stripeConnecting}
                           style={{
-                            fontSize: "14px",
-                            fontWeight: 600,
-                            marginBottom: "6px",
-                          }}
-                        >
-                          Stripe Account Required
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            opacity: 0.8,
-                            marginBottom: "12px",
-                            lineHeight: "1.5",
-                          }}
-                        >
-                          Connect your Stripe account to accept payments for
-                          this event.
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleConnectStripeInline}
-                          disabled={stripeConnecting}
-                          style={{
-                            padding: "8px 16px",
-                            borderRadius: "8px",
-                            border: "none",
-                            background:
-                              "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                            color: "#fff",
-                            fontSize: "13px",
-                            fontWeight: 600,
+                            padding: "8px 16px", borderRadius: "8px", border: "none",
+                            background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+                            color: "#111", fontSize: "13px", fontWeight: 600,
                             cursor: stripeConnecting ? "default" : "pointer",
                             opacity: stripeConnecting ? 0.6 : 1,
-                            transition: "all 0.2s ease",
                           }}
-                        >
-                          {stripeConnecting ? "Connecting..." : "Connect Stripe"}
-                        </button>
+                        >{stripeConnecting ? "Connecting..." : "Connect Stripe"}</button>
                       </div>
                     </div>
                   )}
-
-                  {stripeConnected && (
-                    <div
-                      style={{
-                        padding: "12px 16px",
-                        borderRadius: "8px",
-                        background: "rgba(34, 197, 94, 0.1)",
-                        border: "1px solid rgba(34, 197, 94, 0.2)",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        fontSize: "12px",
-                      }}
-                    >
-                      <span style={{ color: "#22c55e" }}>✓</span>
-                      <span style={{ opacity: 0.9 }}>
-                        {stripeBusinessName && <strong>{stripeBusinessName}</strong>}
-                        {stripeBusinessName && stripeAccountEmail && " · "}
-                        {stripeAccountEmail || "Stripe connected"}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Price and Currency */}
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                        opacity: 0.7,
-                        marginBottom: "12px",
-                      }}
-                    >
-                      Price & Currency
-                    </div>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 120px",
-                        gap: "12px",
-                      }}
-                    >
-                      <div>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "12px",
-                            opacity: 0.8,
-                            marginBottom: "8px",
-                          }}
-                        >
-                          Ticket Price{" "}
-                          <span style={{ color: "#ef4444" }}>*</span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={ticketPrice}
-                          onChange={(e) => setTicketPrice(e.target.value)}
-                          placeholder="0.00"
-                          style={{
-                            ...inputStyle,
-                            fontSize: "14px",
-                            padding: "12px 14px",
-                            width: "100%",
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "12px",
-                            opacity: 0.8,
-                            marginBottom: "8px",
-                          }}
-                        >
-                          Currency <span style={{ color: "#ef4444" }}>*</span>
-                        </label>
-                        <select
-                          value={ticketCurrency}
-                          onChange={(e) => setTicketCurrency(e.target.value)}
-                          style={{
-                            ...inputStyle,
-                            fontSize: "14px",
-                            padding: "12px 14px",
-                            width: "100%",
-                            cursor: "pointer",
-                            appearance: "none",
-                            backgroundImage:
-                              "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.5'/%3E%3C/svg%3E\")",
-                            backgroundRepeat: "no-repeat",
-                            backgroundPosition: "right 8px center",
-                            paddingRight: "28px",
-                          }}
-                        >
-                          <option value="USD">USD ($)</option>
-                          <option value="EUR">EUR (€)</option>
-                          <option value="GBP">GBP (£)</option>
-                          <option value="SEK">SEK (kr)</option>
-                          <option value="DKK">DKK (kr)</option>
-                          <option value="NOK">NOK (kr)</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Info about automatic Stripe creation */}
-                  <div
-                    style={{
-                      padding: "12px 16px",
-                      borderRadius: "8px",
-                      background: "rgba(192, 192, 192, 0.1)",
-                      border: "1px solid rgba(192, 192, 192, 0.2)",
-                      fontSize: "12px",
-                      opacity: 0.8,
-                      lineHeight: "1.5",
-                    }}
-                  >
-                    <strong>
-                      <SilverIcon
-                        as={Lightbulb}
-                        size={14}
-                        style={{ verticalAlign: "middle", marginRight: 4 }}
-                      />{" "}
-                      Automatic Setup:
-                    </strong>{" "}
-                    When you create this event, a Stripe product and price will
-                    be automatically created using the event name, description,
-                    and ticket price you've entered above. No manual setup
-                    required!
-                  </div>
                 </div>
               )}
 
@@ -3865,6 +3875,17 @@ export function CreateEventPage() {
               >
                 {loading ? (isEditMode ? "Saving…" : "Creating…") : (isEditMode ? "SAVE CHANGES" : "PUBLISH")}
               </button>
+              {hasAttemptedPublish && missingCount > 0 && (
+                <div style={{
+                  textAlign: "center",
+                  marginTop: "8px",
+                  fontSize: "12px",
+                  color: "rgba(239, 68, 68, 0.8)",
+                  fontWeight: 500,
+                }}>
+                  {missingCount} {missingCount === 1 ? "field" : "fields"} missing
+                </div>
+              )}
             </div>
           </div>
 
@@ -3957,20 +3978,59 @@ export function CreateEventPage() {
             {/* Preview frame */}
             <div
               style={{
-                width: desktopPreviewMode === "phone" ? "390px" : "100%",
-                height: desktopPreviewMode === "phone" ? "calc(100% - 60px)" : "100%",
-                marginTop: desktopPreviewMode === "phone" ? "50px" : "0",
-                borderRadius: desktopPreviewMode === "phone" ? "24px" : "0",
+                ...(desktopPreviewMode === "phone"
+                  ? {
+                      width: "390px",
+                      height: "calc(100% - 60px)",
+                      marginTop: "50px",
+                      borderRadius: "24px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+                    }
+                  : {
+                      width: "90%",
+                      maxWidth: "900px",
+                      aspectRatio: "16 / 10",
+                      maxHeight: "calc(100% - 80px)",
+                      marginTop: "50px",
+                      borderRadius: "12px",
+                      border: "2px solid rgba(255,255,255,0.12)",
+                      boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255,255,255,0.05)",
+                    }),
                 overflow: "hidden",
-                border: desktopPreviewMode === "phone"
-                  ? "1px solid rgba(255,255,255,0.1)"
-                  : "none",
-                boxShadow: desktopPreviewMode === "phone"
-                  ? "0 20px 60px rgba(0, 0, 0, 0.5)"
-                  : "none",
                 transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                position: "relative",
               }}
             >
+              {/* Desktop browser chrome */}
+              {desktopPreviewMode === "desktop" && (
+                <div style={{
+                  height: "32px",
+                  background: "rgba(30, 28, 36, 0.95)",
+                  borderBottom: "1px solid rgba(255,255,255,0.08)",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0 12px",
+                  gap: "6px",
+                  flexShrink: 0,
+                }}>
+                  <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "rgba(255,95,87,0.8)" }} />
+                  <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "rgba(255,189,46,0.8)" }} />
+                  <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "rgba(39,201,63,0.8)" }} />
+                  <div style={{
+                    flex: 1, marginLeft: "12px", height: "20px", borderRadius: "6px",
+                    background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center",
+                    padding: "0 10px", fontSize: "10px", color: "rgba(255,255,255,0.3)",
+                  }}>
+                    pullup.se/e/{title ? title.toLowerCase().replace(/\s+/g, "-").slice(0, 30) : "your-event"}
+                  </div>
+                </div>
+              )}
+              <div style={{
+                width: "100%",
+                height: desktopPreviewMode === "desktop" ? "calc(100% - 32px)" : "100%",
+                overflow: "hidden",
+              }}>
               <EventPreview
                 title={title}
                 titleVisible={titleVisible}
@@ -3980,6 +4040,7 @@ export function CreateEventPage() {
                 titleColor={titleColor}
                 detailsColor={detailsColor}
                 detailsGradient={detailsGradientEnabled ? detailsGradient : null}
+                autoShowRsvp={currentStep === 3 || currentStep === 5}
                 description={description}
                 location={location}
                 locationLat={locationLat}
@@ -4016,6 +4077,7 @@ export function CreateEventPage() {
                       dinnerEnabled: dinnerEnabled,
                       dinnerBookingEmail: dinnerBookingEmail || null,
                       waitlistEnabled: waitlistEnabled,
+                      hideDinnerRemaining: hideDinnerRemaining,
                       maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
                       timezone: timezone,
                     }}
@@ -4029,6 +4091,7 @@ export function CreateEventPage() {
                   />
                 )}
               />
+              </div>
             </div>
           </div>
 
@@ -4077,6 +4140,7 @@ export function CreateEventPage() {
               : { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop, transitions: carouselTransitions }}
             ticketType={sellTicketsEnabled ? "paid" : "free"}
             compact
+            autoShowRsvp={currentStep === 4 || currentStep === 5}
             instagram={instagram}
             spotify={spotify}
             ticketPrice={
@@ -4092,6 +4156,7 @@ export function CreateEventPage() {
                   dinnerEnabled: dinnerEnabled,
                   dinnerBookingEmail: dinnerBookingEmail || null,
                   waitlistEnabled: waitlistEnabled,
+                  hideDinnerRemaining: hideDinnerRemaining,
                   maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
                 }}
                 previewSlots={previewDinnerSlots}

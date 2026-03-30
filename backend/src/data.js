@@ -177,6 +177,7 @@ export async function mapEventFromDb(dbEvent) {
     dinnerSlots: dbEvent.dinner_slots || null,
     dinnerOverflowAction: dbEvent.dinner_overflow_action || "waitlist",
     dinnerBookingEmail: dbEvent.dinner_booking_email || null,
+    hideDinnerRemaining: dbEvent.hide_dinner_remaining || false,
     ticketPrice: dbEvent.ticket_price,
     ticketCurrency: dbEvent.ticket_currency || "usd",
     stripeProductId: dbEvent.stripe_product_id,
@@ -691,6 +692,8 @@ function mapEventToDb(eventData) {
     dbData.dinner_slots = eventData.dinnerSlots;
   if (eventData.dinnerBookingEmail !== undefined)
     dbData.dinner_booking_email = eventData.dinnerBookingEmail;
+  if (eventData.hideDinnerRemaining !== undefined)
+    dbData.hide_dinner_remaining = eventData.hideDinnerRemaining;
   if (eventData.ticketPrice !== undefined)
     dbData.ticket_price = eventData.ticketPrice;
   if (eventData.ticketCurrency !== undefined)

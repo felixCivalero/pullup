@@ -18,12 +18,12 @@ export function Button({
     justifyContent: "center",
     gap: "10px",
     border: "none",
-    borderRadius: "8px",
-    fontWeight: 700,
-    letterSpacing: "0.01em",
+    borderRadius: "14px",
+    fontWeight: 800,
+    letterSpacing: "0.06em",
     textTransform: "uppercase",
     cursor: disabled || loading ? "not-allowed" : "pointer",
-    transition: "all 0.2s ease",
+    transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
     position: "relative",
     overflow: "hidden",
     WebkitTapHighlightColor: "transparent",
@@ -33,9 +33,9 @@ export function Button({
   };
 
   const sizeStyles = {
-    sm: { padding: "10px 16px", fontSize: "14px" },
-    md: { padding: "16px 24px", fontSize: "16px" },
-    lg: { padding: "14px 32px", fontSize: "17px" },
+    sm: { padding: "10px 16px", fontSize: "14px", borderRadius: "10px" },
+    md: { padding: "16px 24px", fontSize: "16px", borderRadius: "12px" },
+    lg: { padding: "18px 32px", fontSize: "18px", borderRadius: "14px" },
   };
 
   const variantStyles = {
@@ -43,10 +43,12 @@ export function Button({
       background:
         disabled || loading
           ? "rgba(255, 255, 255, 0.1)"
-          : colors.gradientPrimary,
+          : "#fff",
       color: "#05040a",
       boxShadow:
-        disabled || loading ? "none" : `0 4px 20px ${colors.silverShadow}`,
+        disabled || loading
+          ? "none"
+          : "0 6px 0 rgba(0,0,0,0.15), 0 8px 24px rgba(0,0,0,0.3)",
     },
     secondary: {
       background:
@@ -82,10 +84,11 @@ export function Button({
       }}
       onMouseEnter={(e) => {
         if (!disabled && !loading) {
-          e.target.style.transform = "translateY(-2px)";
           if (variant === "primary") {
-            e.target.style.boxShadow = `0 6px 25px ${colors.silverShadowHover}`;
+            e.target.style.transform = "translateY(-1px)";
+            e.target.style.boxShadow = "0 8px 0 rgba(0,0,0,0.12), 0 12px 32px rgba(0,0,0,0.35)";
           } else if (variant === "secondary") {
+            e.target.style.transform = "translateY(-2px)";
             e.target.style.background = colors.gradientPrimarySoft;
             e.target.style.borderColor = colors.silverRgba;
             e.target.style.boxShadow = `0 4px 15px ${colors.silverShadow}`;
@@ -96,13 +99,25 @@ export function Button({
         if (!disabled && !loading) {
           e.target.style.transform = "translateY(0)";
           if (variant === "primary") {
-            e.target.style.boxShadow = `0 4px 20px ${colors.silverShadow}`;
+            e.target.style.boxShadow = "0 6px 0 rgba(0,0,0,0.15), 0 8px 24px rgba(0,0,0,0.3)";
           } else if (variant === "secondary") {
             e.target.style.background =
               "linear-gradient(135deg, rgba(192, 192, 192, 0.12) 0%, rgba(232, 232, 232, 0.1) 100%)";
             e.target.style.borderColor = "rgba(255, 255, 255, 0.2)";
             e.target.style.boxShadow = "0 2px 10px rgba(192, 192, 192, 0.15)";
           }
+        }
+      }}
+      onMouseDown={(e) => {
+        if (!disabled && !loading && variant === "primary") {
+          e.target.style.transform = "translateY(4px)";
+          e.target.style.boxShadow = "0 2px 0 rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.2)";
+        }
+      }}
+      onMouseUp={(e) => {
+        if (!disabled && !loading && variant === "primary") {
+          e.target.style.transform = "translateY(-1px)";
+          e.target.style.boxShadow = "0 8px 0 rgba(0,0,0,0.12), 0 12px 32px rgba(0,0,0,0.35)";
         }
       }}
       {...props}

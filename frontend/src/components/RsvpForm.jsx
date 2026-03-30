@@ -368,7 +368,7 @@ export function RsvpForm({
           >
             <span style={{ fontSize: "20px", lineHeight: 1 }}>🍽</span>
             <span style={{ flex: 1, fontSize: "15px", fontWeight: 500 }}>
-              Add dinner
+              Book dinner
             </span>
             {/* Toggle pill */}
             <div style={{
@@ -455,7 +455,7 @@ export function RsvpForm({
                           }}>
                             {formatEventTime(slot.time, event?.timezone)}
                           </span>
-                          {slot.remaining !== null && (
+                          {slot.remaining !== null && !event?.hideDinnerRemaining && (
                             <span style={{
                               fontSize: "11px",
                               opacity: 0.5,

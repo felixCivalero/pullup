@@ -1270,6 +1270,13 @@ app.post("/events", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "title and startsAt are required" });
   }
 
+  if (new Date(startsAt) < new Date()) {
+    return res.status(400).json({ error: "Event start date cannot be in the past" });
+  }
+  if (endsAt && new Date(endsAt) < new Date()) {
+    return res.status(400).json({ error: "Event end date cannot be in the past" });
+  }
+
   // Create the event first to get its ID (with host_id from authenticated user)
   const event = await createEvent({
     hostId: req.user.id, // Set host_id from authenticated user
@@ -3516,6 +3523,14 @@ app.put(
       tiktok,
       soundcloud,
     } = req.body;
+
+    // Validate dates are not in the past
+    if (startsAt && new Date(startsAt) < new Date()) {
+      return res.status(400).json({ error: "Event start date cannot be in the past" });
+    }
+    if (endsAt && new Date(endsAt) < new Date()) {
+      return res.status(400).json({ error: "Event end date cannot be in the past" });
+    }
 
     // Get current event to check if price/currency changed
     const currentEvent = await findEventById(id);

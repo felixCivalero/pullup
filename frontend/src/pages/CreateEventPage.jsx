@@ -551,6 +551,16 @@ export function CreateEventPage() {
         showToast("Set a start date and time", "error");
         return false;
       }
+      if (new Date(startsAt) < new Date()) {
+        goToStep(2);
+        showToast("Event start date cannot be in the past", "error");
+        return false;
+      }
+      if (endsAt && new Date(endsAt) < new Date()) {
+        goToStep(2);
+        showToast("Event end date cannot be in the past", "error");
+        return false;
+      }
     }
     if (step >= 5) {
       if (sellTicketsEnabled && !ticketPrice) {

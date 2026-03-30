@@ -773,6 +773,7 @@ export function EventPage() {
   // Format date/time (centralized helpers)
   const eventDate = event?.startsAt ? formatEventDate(event.startsAt, event.timezone) : "";
   const eventTime = event?.startsAt ? formatEventTime(event.startsAt, event.timezone) : "";
+  const detailsColor = event?.titleSettings?.detailsColor || "#ffffff";
 
   const mediaCount = event?.media?.length || 0;
   const canSwipeEvent = mediaCount > 1 && !event?.mediaSettings?.autoscroll;
@@ -1033,18 +1034,19 @@ export function EventPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      color: "rgba(255, 255, 255, 0.8)",
+                      color: detailsColor,
+                      opacity: 0.8,
                       textDecoration: "none",
                       display: "flex",
                       alignItems: "center",
                       transition: "all 0.2s ease",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.opacity = "1";
                       e.currentTarget.style.transform = "scale(1.1)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+                      e.currentTarget.style.opacity = "0.8";
                       e.currentTarget.style.transform = "scale(1)";
                     }}
                   >
@@ -1059,18 +1061,19 @@ export function EventPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      color: "rgba(255, 255, 255, 0.8)",
+                      color: detailsColor,
+                      opacity: 0.8,
                       textDecoration: "none",
                       display: "flex",
                       alignItems: "center",
                       transition: "all 0.2s ease",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.opacity = "1";
                       e.currentTarget.style.transform = "scale(1.1)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+                      e.currentTarget.style.opacity = "0.8";
                       e.currentTarget.style.transform = "scale(1)";
                     }}
                   >
@@ -1085,18 +1088,19 @@ export function EventPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      color: "rgba(255, 255, 255, 0.8)",
+                      color: detailsColor,
+                      opacity: 0.8,
                       textDecoration: "none",
                       display: "flex",
                       alignItems: "center",
                       transition: "all 0.2s ease",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.opacity = "1";
                       e.currentTarget.style.transform = "scale(1.1)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+                      e.currentTarget.style.opacity = "0.8";
                       e.currentTarget.style.transform = "scale(1)";
                     }}
                   >
@@ -1111,18 +1115,19 @@ export function EventPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      color: "rgba(255, 255, 255, 0.8)",
+                      color: detailsColor,
+                      opacity: 0.8,
                       textDecoration: "none",
                       display: "flex",
                       alignItems: "center",
                       transition: "all 0.2s ease",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.opacity = "1";
                       e.currentTarget.style.transform = "scale(1.1)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+                      e.currentTarget.style.opacity = "0.8";
                       e.currentTarget.style.transform = "scale(1)";
                     }}
                   >
@@ -1141,7 +1146,8 @@ export function EventPage() {
                     marginBottom: "12px",
                     fontSize: "16px",
                     lineHeight: "1.4",
-                    color: "rgba(255, 255, 255, 0.9)",
+                    color: detailsColor,
+                    opacity: 0.9,
                   }}
                 >
                   <FaCalendar
@@ -1151,7 +1157,8 @@ export function EventPage() {
                       display: "flex",
                       alignItems: "center",
                       marginTop: "1px",
-                      color: "rgba(255, 255, 255, 0.7)",
+                      color: detailsColor,
+                      opacity: 0.7,
                     }}
                   />
                   <span>
@@ -1171,7 +1178,8 @@ export function EventPage() {
                     marginBottom: "12px",
                     fontSize: "16px",
                     lineHeight: "1.4",
-                    color: "rgba(255, 255, 255, 0.9)",
+                    color: detailsColor,
+                    opacity: 0.9,
                   }}
                 >
                   <FaMapMarkerAlt
@@ -1181,7 +1189,8 @@ export function EventPage() {
                       display: "flex",
                       alignItems: "center",
                       marginTop: "1px",
-                      color: "rgba(255, 255, 255, 0.7)",
+                      color: detailsColor,
+                      opacity: 0.7,
                     }}
                   />
                   <a
@@ -1193,21 +1202,19 @@ export function EventPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      color: "rgba(255, 255, 255, 0.9)",
+                      color: detailsColor,
+                      opacity: 0.9,
                       textDecoration: "none",
-                      borderBottom: "1px solid rgba(255, 255, 255, 0.3)",
+                      borderBottom: `1px solid ${detailsColor}`,
+                      borderBottomColor: detailsColor,
                       transition: "all 0.2s ease",
                       cursor: "pointer",
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.color = "#fff";
-                      e.target.style.borderBottomColor =
-                        "rgba(255, 255, 255, 0.6)";
+                      e.target.style.opacity = "1";
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.color = "rgba(255, 255, 255, 0.9)";
-                      e.target.style.borderBottomColor =
-                        "rgba(255, 255, 255, 0.3)";
+                      e.target.style.opacity = "0.9";
                     }}
                   >
                     {formatLocationShort(event.location)}
@@ -1235,7 +1242,8 @@ export function EventPage() {
                     style={{
                       fontSize: "16px",
                       lineHeight: "1.5",
-                      color: "rgba(255, 255, 255, 0.85)",
+                      color: detailsColor,
+                      opacity: 0.85,
                       margin: 0,
                       marginBottom: showDescription ? "4px" : "0",
                       whiteSpace: "pre-line",
@@ -1256,7 +1264,8 @@ export function EventPage() {
                     style={{
                       background: "none",
                       border: "none",
-                      color: colors.silverText,
+                      color: detailsColor,
+                      opacity: 0.8,
                       fontSize: "14px",
                       fontWeight: 500,
                       cursor: "pointer",
@@ -1268,11 +1277,11 @@ export function EventPage() {
                       flexShrink: 0,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.opacity = "1";
                       e.currentTarget.style.transform = "scale(1.1)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+                      e.currentTarget.style.opacity = "0.8";
                       e.currentTarget.style.transform = "scale(1)";
                     }}
                   >

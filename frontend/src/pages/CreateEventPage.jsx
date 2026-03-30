@@ -332,6 +332,7 @@ export function CreateEventPage() {
   const [titleFont, setTitleFont] = useState(draft?.titleFont || "default"); // "default"|"serif"|"mono"|"condensed"
   const [titleSize, setTitleSize] = useState(draft?.titleSize || "md"); // "sm"|"md"|"lg"
   const [titleColor, setTitleColor] = useState(draft?.titleColor || "#ffffff");
+  const [detailsColor, setDetailsColor] = useState(draft?.detailsColor || "#ffffff");
   const [description, setDescription] = useState(draft?.description || "");
   const [location, setLocation] = useState(draft?.location || "");
   const [locationLat, setLocationLat] = useState(draft?.locationLat || null);
@@ -478,7 +479,7 @@ export function CreateEventPage() {
     const timeout = setTimeout(() => {
       try {
         const draftData = {
-          title, titleVisible, titleAlign, titleFont, titleSize, titleColor,
+          title, titleVisible, titleAlign, titleFont, titleSize, titleColor, detailsColor,
           description, location, locationLat, locationLng,
           startsAt, endsAt, timezone, maxAttendees, waitlistEnabled,
           sellTicketsEnabled, ticketPrice, ticketCurrency,
@@ -503,7 +504,7 @@ export function CreateEventPage() {
     dinnerMaxSeatsPerSlot, dinnerMaxGuestsPerBooking,
     dinnerOverflowAction, dinnerBookingEmail,
     instagram, spotify, tiktok, soundcloud,
-    currentStep,
+    currentStep, detailsColor,
   ]);
 
   function clearDraft() {
@@ -621,6 +622,7 @@ export function CreateEventPage() {
           if (ev.titleSettings.font) setTitleFont(ev.titleSettings.font);
           if (ev.titleSettings.size) setTitleSize(ev.titleSettings.size);
           if (ev.titleSettings.color) setTitleColor(ev.titleSettings.color);
+          if (ev.titleSettings.detailsColor) setDetailsColor(ev.titleSettings.detailsColor);
         }
         setDescription(ev.description || "");
         setLocation(ev.location || "");
@@ -1047,7 +1049,7 @@ export function CreateEventPage() {
 
       const requestBody = {
         title,
-        titleSettings: { visible: titleVisible, align: titleAlign, font: titleFont, size: titleSize, color: titleColor },
+        titleSettings: { visible: titleVisible, align: titleAlign, font: titleFont, size: titleSize, color: titleColor, detailsColor },
         description,
         location,
         locationLat: locationLat || null,
@@ -2513,6 +2515,71 @@ export function CreateEventPage() {
               }}
             />
 
+            {/* Details section color picker */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "12px 16px",
+                background: "rgba(20, 16, 30, 0.25)",
+                borderRadius: "12px",
+                border: "1px solid rgba(255,255,255,0.06)",
+                marginBottom: "8px",
+              }}
+            >
+              <span style={{ fontSize: "12px", opacity: 0.6, marginRight: "auto" }}>
+                Details color
+              </span>
+              <div style={{ position: "relative", width: "28px", height: "28px", flexShrink: 0 }}>
+                <input
+                  type="color"
+                  value={detailsColor}
+                  onChange={(e) => setDetailsColor(e.target.value)}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    opacity: 0,
+                  }}
+                />
+                <div style={{
+                  width: "28px",
+                  height: "28px",
+                  borderRadius: "5px",
+                  background: detailsColor,
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  pointerEvents: "none",
+                }} />
+              </div>
+              <input
+                type="text"
+                value={detailsColor}
+                onChange={(e) => setDetailsColor(e.target.value)}
+                placeholder="#ffffff"
+                spellCheck={false}
+                style={{
+                  width: "68px",
+                  height: "28px",
+                  borderRadius: "5px",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "rgba(255,255,255,0.7)",
+                  fontSize: "11px",
+                  fontFamily: "'Courier New', monospace",
+                  fontWeight: 600,
+                  padding: "0 6px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+
             {/* Location and Date/Time - Integrated together */}
             <div
               style={{
@@ -3813,6 +3880,7 @@ export function CreateEventPage() {
                 titleFont={titleFont}
                 titleSize={titleSize}
                 titleColor={titleColor}
+                detailsColor={detailsColor}
                 description={description}
                 location={location}
                 locationLat={locationLat}

@@ -25,6 +25,7 @@ export function EventPreview({
   titleFont = "default",
   titleSize = "md",
   titleColor = "#ffffff",
+  detailsColor = "#ffffff",
   description,
   location,
   startsAt,
@@ -263,7 +264,7 @@ export function EventPreview({
                   href={instagram}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: "rgba(255, 255, 255, 0.8)", display: "inline-flex" }}
+                  style={{ color: detailsColor, opacity: 0.8, display: "inline-flex" }}
                 >
                   <FaInstagram size={20} />
                 </a>
@@ -273,7 +274,7 @@ export function EventPreview({
                   href={spotify}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: "rgba(255, 255, 255, 0.8)", display: "inline-flex" }}
+                  style={{ color: detailsColor, opacity: 0.8, display: "inline-flex" }}
                 >
                   <FaSpotify size={20} />
                 </a>
@@ -283,7 +284,7 @@ export function EventPreview({
                   href={tiktok}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: "rgba(255, 255, 255, 0.8)", display: "inline-flex" }}
+                  style={{ color: detailsColor, opacity: 0.8, display: "inline-flex" }}
                 >
                   <FaTiktok size={20} />
                 </a>
@@ -293,7 +294,7 @@ export function EventPreview({
                   href={soundcloud}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: "rgba(255, 255, 255, 0.8)", display: "inline-flex" }}
+                  style={{ color: detailsColor, opacity: 0.8, display: "inline-flex" }}
                 >
                   <FaSoundcloud size={20} />
                 </a>
@@ -310,8 +311,9 @@ export function EventPreview({
                 fontSize: "16px",
                 lineHeight: "1.4",
                 color: eventDate
-                  ? "rgba(255, 255, 255, 0.9)"
+                  ? detailsColor
                   : "rgba(255,255,255,0.3)",
+                opacity: eventDate ? 0.9 : 1,
               }}
             >
               <FaCalendar
@@ -322,8 +324,9 @@ export function EventPreview({
                   alignItems: "center",
                   marginTop: "1px",
                   color: eventDate
-                    ? "rgba(255, 255, 255, 0.7)"
+                    ? detailsColor
                     : "rgba(255,255,255,0.2)",
+                  opacity: eventDate ? 0.7 : 1,
                 }}
               />
               <span>
@@ -343,8 +346,9 @@ export function EventPreview({
                 fontSize: "16px",
                 lineHeight: "1.4",
                 color: location
-                  ? "rgba(255, 255, 255, 0.9)"
+                  ? detailsColor
                   : "rgba(255,255,255,0.3)",
+                opacity: location ? 0.9 : 1,
               }}
             >
               <FaMapMarkerAlt
@@ -355,15 +359,17 @@ export function EventPreview({
                   alignItems: "center",
                   marginTop: "1px",
                   color: location
-                    ? "rgba(255, 255, 255, 0.7)"
+                    ? detailsColor
                     : "rgba(255,255,255,0.2)",
+                  opacity: location ? 0.7 : 1,
                 }}
               />
               <span
                 style={{
                   borderBottom: location
-                    ? "1px solid rgba(255, 255, 255, 0.3)"
+                    ? `1px solid ${detailsColor}`
                     : "none",
+                  opacity: location ? 0.7 : 1,
                 }}
               >
                 {location ? formatLocationShort(location) : "Where is it?"}
@@ -382,7 +388,8 @@ export function EventPreview({
                   style={{
                     fontSize: "16px",
                     lineHeight: "1.5",
-                    color: "rgba(255, 255, 255, 0.85)",
+                    color: detailsColor,
+                    opacity: 0.85,
                     margin: 0,
                     marginBottom: showDescription ? "4px" : "0",
                     whiteSpace: "pre-line",
@@ -403,7 +410,8 @@ export function EventPreview({
                   style={{
                     background: "none",
                     border: "none",
-                    color: "rgba(229, 229, 229, 0.8)",
+                    color: detailsColor,
+                    opacity: 0.8,
                     fontSize: "14px",
                     fontWeight: 500,
                     cursor: "pointer",

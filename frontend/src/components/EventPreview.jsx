@@ -26,6 +26,7 @@ export function EventPreview({
   titleSize = "md",
   titleColor = "#ffffff",
   detailsColor = "#ffffff",
+  detailsGradient = "#000000",
   description,
   location,
   startsAt,
@@ -124,19 +125,6 @@ export function EventPreview({
             >
               <MediaCarousel media={media} mediaSettings={mediaSettings} hideDots controlledIndex={canSwipe ? carouselIndex : undefined} onIndexChange={setCarouselIndex} />
             </div>
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background:
-                  "linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(5, 4, 10, 0.3) 60%, rgba(5, 4, 10, 0.7) 75%, #05040a 100%)",
-                pointerEvents: "none",
-                zIndex: 1,
-              }}
-            />
           </>
         ) : imagePreview ? (
           <>
@@ -163,19 +151,6 @@ export function EventPreview({
                 }}
               />
             </div>
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background:
-                  "linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(5, 4, 10, 0.3) 60%, rgba(5, 4, 10, 0.7) 75%, #05040a 100%)",
-                pointerEvents: "none",
-                zIndex: 1,
-              }}
-            />
           </>
         ) : (
           <div
@@ -188,6 +163,22 @@ export function EventPreview({
               background:
                 "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.06) 0%, transparent 50%), #05040a",
               zIndex: 0,
+            }}
+          />
+        )}
+
+        {/* Details gradient background — between bg image and content */}
+        {detailsGradient && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: "55%",
+              background: `linear-gradient(to bottom, ${detailsGradient}00 0%, ${detailsGradient}80 15%, ${detailsGradient}cc 30%, ${detailsGradient} 50%, ${detailsGradient} 100%)`,
+              pointerEvents: "none",
+              zIndex: 1,
             }}
           />
         )}
@@ -436,6 +427,7 @@ export function EventPreview({
             label={buttonLabel}
             disabled={!rsvpContent}
             onClick={rsvpContent ? () => setShowRsvp(true) : undefined}
+            bgColor={detailsGradient}
           />
         )}
 

@@ -774,6 +774,8 @@ export function EventPage() {
   const eventDate = event?.startsAt ? formatEventDate(event.startsAt, event.timezone) : "";
   const eventTime = event?.startsAt ? formatEventTime(event.startsAt, event.timezone) : "";
   const detailsColor = event?.titleSettings?.detailsColor || "#ffffff";
+  const detailsGradientEnabled = event?.titleSettings?.detailsGradientEnabled !== false;
+  const detailsGradient = detailsGradientEnabled ? (event?.titleSettings?.detailsGradient || "#000000") : null;
 
   const mediaCount = event?.media?.length || 0;
   const canSwipeEvent = mediaCount > 1 && !event?.mediaSettings?.autoscroll;
@@ -931,21 +933,23 @@ export function EventPage() {
                 />
               )}
             </div>
-            {/* Gradient overlay - fades to black at bottom */}
-            <div
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background:
-                  "linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(5, 4, 10, 0.3) 60%, rgba(5, 4, 10, 0.7) 75%, #05040a 100%)",
-                pointerEvents: "none",
-                zIndex: 1,
-              }}
-            />
           </>
+        )}
+
+        {/* Details gradient background — fixed to bottom, between bg image and content */}
+        {detailsGradient && (
+          <div
+            style={{
+              position: "fixed",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: "55vh",
+              background: `linear-gradient(to bottom, ${detailsGradient}00 0%, ${detailsGradient}80 15%, ${detailsGradient}cc 30%, ${detailsGradient} 50%, ${detailsGradient} 100%)`,
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+          />
         )}
 
         {/* Content - Overlaid on background */}
@@ -1306,6 +1310,7 @@ export function EventPage() {
           disabled={loading || !event || isEventPast || isSoldOut}
           onClick={() => setShowRsvpForm(true)}
           maxWidth="420px"
+          bgColor={detailsGradient}
         />
 
         {/* RSVP Form Modal/Drawer (with inline payment section for paid events) */}

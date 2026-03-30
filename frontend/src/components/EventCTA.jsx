@@ -16,7 +16,7 @@ export function getCtaLabel({ ticketType, ticketPrice, ticketCurrency, isEventPa
 }
 
 /** Sticky gradient bar + CTA button at the bottom of an event view */
-export function EventCTA({ onClick, disabled, label, maxWidth, fixed }) {
+export function EventCTA({ onClick, disabled, label, maxWidth, fixed, bgColor }) {
   return (
     <div
       style={{
@@ -26,9 +26,7 @@ export function EventCTA({ onClick, disabled, label, maxWidth, fixed }) {
         right: 0,
         padding: "12px 20px",
         paddingBottom: "max(12px, env(safe-area-inset-bottom))",
-        background:
-          "linear-gradient(to top, #05040a 0%, rgba(5, 4, 10, 0.98) 70%, transparent 100%)",
-        backdropFilter: "blur(20px)",
+        background: "transparent",
         zIndex: 100,
         boxSizing: "border-box",
         width: "100%",

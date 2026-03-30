@@ -26,7 +26,7 @@ export function EventPreview({
   titleSize = "md",
   titleColor = "#ffffff",
   detailsColor = "#ffffff",
-  detailsGradient = "#000000",
+  detailsGradient = null,
   description,
   location,
   startsAt,

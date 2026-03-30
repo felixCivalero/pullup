@@ -774,7 +774,7 @@ export function EventPage() {
   const eventDate = event?.startsAt ? formatEventDate(event.startsAt, event.timezone) : "";
   const eventTime = event?.startsAt ? formatEventTime(event.startsAt, event.timezone) : "";
   const detailsColor = event?.titleSettings?.detailsColor || "#ffffff";
-  const detailsGradientEnabled = event?.titleSettings?.detailsGradientEnabled !== false;
+  const detailsGradientEnabled = event?.titleSettings?.detailsGradientEnabled === true;
   const detailsGradient = detailsGradientEnabled ? (event?.titleSettings?.detailsGradient || "#000000") : null;
 
   const mediaCount = event?.media?.length || 0;

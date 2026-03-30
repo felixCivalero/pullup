@@ -334,7 +334,7 @@ export function CreateEventPage() {
   const [titleColor, setTitleColor] = useState(draft?.titleColor || "#ffffff");
   const [detailsColor, setDetailsColor] = useState(draft?.detailsColor || "#ffffff");
   const [detailsGradient, setDetailsGradient] = useState(draft?.detailsGradient || "#000000");
-  const [detailsGradientEnabled, setDetailsGradientEnabled] = useState(draft?.detailsGradientEnabled !== false);
+  const [detailsGradientEnabled, setDetailsGradientEnabled] = useState(draft?.detailsGradientEnabled === true);
   const [description, setDescription] = useState(draft?.description || "");
   const [location, setLocation] = useState(draft?.location || "");
   const [locationLat, setLocationLat] = useState(draft?.locationLat || null);

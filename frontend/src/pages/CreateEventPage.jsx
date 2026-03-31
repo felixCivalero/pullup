@@ -3124,14 +3124,14 @@ export function CreateEventPage() {
                 EVENT SETTINGS
               </div>
 
-              {/* event options - Better mobile hierarchy */}
-              <div style={{ marginBottom: "36px" }}>
+              {/* event options */}
+              <div style={{ marginBottom: "16px" }}>
                 <h3
                   style={{
-                    fontSize: "13px",
+                    fontSize: "11px",
                     fontWeight: 700,
-                    marginBottom: "18px",
-                    opacity: 0.9,
+                    marginBottom: "10px",
+                    opacity: 0.6,
                     textTransform: "uppercase",
                     letterSpacing: "0.1em",
                   }}
@@ -3246,15 +3246,15 @@ export function CreateEventPage() {
                 {dinnerEnabled && (
                   <div
                     style={{
-                      marginTop: "16px",
-                      padding: "24px",
-                      borderRadius: "16px",
-                      border: "1px solid rgba(192, 192, 192, 0.2)",
+                      marginTop: "8px",
+                      padding: "16px",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(192, 192, 192, 0.15)",
                       background:
-                        "linear-gradient(135deg, rgba(192, 192, 192, 0.08) 0%, rgba(232, 232, 232, 0.05) 100%)",
+                        "linear-gradient(135deg, rgba(192, 192, 192, 0.06) 0%, rgba(232, 232, 232, 0.03) 100%)",
                       display: "flex",
                       flexDirection: "column",
-                      gap: "20px",
+                      gap: "12px",
                     }}
                   >
                     <div
@@ -4134,13 +4134,13 @@ function OptionRow({ icon, label, description, right }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "14px 16px",
+        padding: "10px 14px",
         background: "rgba(20, 16, 30, 0.25)",
-        borderRadius: "12px",
-        marginBottom: "8px",
+        borderRadius: "10px",
+        marginBottom: "6px",
         border: "1px solid rgba(255,255,255,0.06)",
         transition: "all 0.2s ease",
-        minHeight: "56px", // Better touch target for mobile
+        minHeight: "44px",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = "rgba(20, 16, 30, 0.35)";
@@ -4154,17 +4154,16 @@ function OptionRow({ icon, label, description, right }) {
       <div
         style={{
           display: "flex",
-          alignItems: "flex-start",
-          gap: "12px",
+          alignItems: "center",
+          gap: "10px",
           flex: 1,
-          minWidth: 0, // Allow text to shrink
+          minWidth: 0,
         }}
       >
         <span
           style={{
-            fontSize: "18px",
+            fontSize: "16px",
             flexShrink: 0,
-            marginTop: "2px",
           }}
         >
           {icon}
@@ -4172,9 +4171,9 @@ function OptionRow({ icon, label, description, right }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
-              fontSize: "15px",
+              fontSize: "14px",
               fontWeight: 600,
-              marginBottom: description ? "4px" : "0",
+              marginBottom: description ? "2px" : "0",
               lineHeight: "1.3",
             }}
           >

@@ -34,9 +34,11 @@ export function EventPreview({
 }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [rsvpRevealPx, setRsvpRevealPx] = useState(0); // actual pixels to reveal
+  const [formHeight, setFormHeight] = useState(0); // track actual form height
   const scrollRef = useRef(null);
   const rsvpSentinelRef = useRef(null);
   const rsvpFormRef = useRef(null);
+  const ctaBarRef = useRef(null);
   const mediaCount = media?.length || 0;
   const canSwipe = mediaCount > 1 && !mediaSettings?.autoscroll;
   const swipeHandlers = useCarouselSwipe(mediaCount, setCarouselIndex);
@@ -95,6 +97,17 @@ export function EventPreview({
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
+
+  // Track form height dynamically (dinner slots, plus ones can change it)
+  useEffect(() => {
+    if (!rsvpFormRef.current) return;
+    const ro = new ResizeObserver(() => {
+      // Form content height + extra for the expanded header (title + location + date + price ≈ 80px)
+      if (rsvpFormRef.current) setFormHeight(rsvpFormRef.current.scrollHeight);
+    });
+    ro.observe(rsvpFormRef.current);
+    return () => ro.disconnect();
+  }, [rsvpContent]);
 
   // Auto-scroll to RSVP
   useEffect(() => {
@@ -214,14 +227,14 @@ export function EventPreview({
           {/* ─── CONTENT SECTION ─── */}
           <div style={{
             background: "#05040a",
-            padding: "28px 20px 20px",
+            padding: "28px 20px 0",
             minHeight: hasContent ? "40%" : undefined,
                       }}>
             {(!sections || sections.length === 0) && (
               <>
                 {title && <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: "0 0 12px 0" }}>{title}</h1>}
                 {location && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6, marginBottom: "4px" }}>{formatLocationShort(location)}</div>}
-                {formattedDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "rgba(200, 200, 60, 0.95)", marginBottom: "20px" }}>{formattedDate}</div>}
+                {formattedDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", marginBottom: "20px" }}>{formattedDate}</div>}
                 {description && <div style={{ marginBottom: "24px" }}><p style={{ fontSize: "15px", lineHeight: "1.6", color: "#fff", opacity: 0.85, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{description}</p></div>}
               </>
             )}
@@ -233,7 +246,7 @@ export function EventPreview({
                 ) : section.type === "location" ? (
                   location ? <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6 }}>{formatLocationShort(location)}</div> : null
                 ) : section.type === "datetime" ? (
-                  formattedDate ? <div style={{ fontSize: "14px", fontWeight: 600, color: "rgba(200, 200, 60, 0.95)" }}>{formattedDate}</div> : null
+                  formattedDate ? <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635" }}>{formattedDate}</div> : null
                 ) : section.type === "spotify" && section.url && section.url.includes("spotify.com") ? (
                   <iframe src={section.url.replace("spotify.com/", "spotify.com/embed/").split("?")[0]} width="100%" height={section.url.includes("/track/") ? "80" : "152"} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style={{ borderRadius: "12px", border: "none" }} />
                 ) : section.type === "socials" ? (
@@ -253,13 +266,12 @@ export function EventPreview({
             ))}
           </div>
 
-          {/* ─── RSVP SCROLL SPACER — this is what we scroll through to reveal the form ─── */}
+          {/* ─── RSVP SCROLL SPACER ─── */}
           {rsvpContent && (
             <div
               ref={rsvpSentinelRef}
               style={{
-                background: "#05040a",
-                height: "40vh",
+                height: formHeight > 0 ? `${formHeight + 20}px` : "50vh",
               }}
             />
           )}
@@ -268,6 +280,7 @@ export function EventPreview({
         {/* ─── FIXED CTA BAR — always at bottom, grows upward to reveal form ─── */}
         {!hideCta && (
           <div
+            ref={ctaBarRef}
             style={{
               position: "absolute",
               bottom: 0,
@@ -280,10 +293,10 @@ export function EventPreview({
               borderTop: "1px solid rgba(255, 255, 255, 0.08)",
               display: "flex",
               flexDirection: "column",
-              maxHeight: "85vh",
+              maxHeight: "55vh",
             }}
           >
-            {/* Price/date header — always at top */}
+            {/* Header — event info + price, matches content section */}
             <div
               onWheel={(e) => {
                 if (scrollRef.current) scrollRef.current.scrollTop += e.deltaY;
@@ -302,7 +315,7 @@ export function EventPreview({
                     ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
                     : "Free entry"}
                 </div>
-                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 600, color: rsvpRevealPx > 20 ? "#a3e635" : "rgba(255,255,255,0.4)", marginTop: "1px" }}>
                   {formattedDate}
                 </div>
               </div>
@@ -318,7 +331,6 @@ export function EventPreview({
                   cursor: !rsvpContent ? "not-allowed" : "pointer",
                   opacity: rsvpRevealPx > 20 ? 0 : (!rsvpContent ? 0.5 : 1),
                   flexShrink: 0, whiteSpace: "nowrap",
-                  transition: "opacity 0.2s ease",
                   pointerEvents: rsvpRevealPx > 20 ? "none" : "auto",
                   position: rsvpRevealPx > 20 ? "absolute" : "relative",
                   right: rsvpRevealPx > 20 ? "20px" : undefined,
@@ -332,7 +344,9 @@ export function EventPreview({
             <div style={{
               overflow: "hidden",
               height: `${rsvpRevealPx}px`,
+              maxHeight: "calc(55vh - 62px)",
               opacity: rsvpRevealPx > 5 ? Math.min(rsvpRevealPx / 40, 1) : 0,
+              overflowY: formHeight > 0 && rsvpRevealPx >= formHeight ? "auto" : "hidden",
             }}>
               <div
                 ref={rsvpFormRef}
@@ -343,10 +357,14 @@ export function EventPreview({
                   }
                 }}
                 style={{
-                  padding: "0 20px 20px",
-                  borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+                  padding: "8px 20px 60px",
                 }}
               >
+                {/* Event info — part of the form unit */}
+                <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: "2px" }}>{title}</div>}
+                  {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.4)", marginBottom: "1px" }}>{formatLocationShort(location)}</div>}
+                </div>
                 {typeof rsvpContent === "function" ? rsvpContent({ onClose: () => {} }) : rsvpContent}
               </div>
             </div>

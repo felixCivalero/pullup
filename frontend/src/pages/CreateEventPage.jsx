@@ -3983,9 +3983,9 @@ export function CreateEventPage() {
                       width: "390px",
                       height: "calc(100% - 60px)",
                       marginTop: "50px",
-                      borderRadius: "24px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+                      borderRadius: "40px",
+                      border: "3px solid rgba(255,255,255,0.12)",
+                      boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255,255,255,0.05)",
                     }
                   : {
                       width: "90%",
@@ -4002,6 +4002,57 @@ export function CreateEventPage() {
                 position: "relative",
               }}
             >
+              {/* Phone chrome — status bar + Safari URL bar */}
+              {desktopPreviewMode === "phone" && (
+                <div style={{ flexShrink: 0, background: "rgba(18, 16, 24, 0.95)", position: "relative", zIndex: 10 }}>
+                  {/* Status bar */}
+                  <div style={{
+                    height: "28px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0 20px",
+                  }}>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#fff" }}>
+                      {new Date().getHours().toString().padStart(2, "0")}:{new Date().getMinutes().toString().padStart(2, "0")}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
+                        <rect x="0" y="4" width="2.5" height="6" rx="0.5" fill="rgba(255,255,255,0.9)"/>
+                        <rect x="4" y="2.5" width="2.5" height="7.5" rx="0.5" fill="rgba(255,255,255,0.9)"/>
+                        <rect x="8" y="0.5" width="2.5" height="9.5" rx="0.5" fill="rgba(255,255,255,0.9)"/>
+                        <rect x="12" y="0" width="2" height="10" rx="0.5" fill="rgba(255,255,255,0.3)"/>
+                      </svg>
+                      <svg width="13" height="10" viewBox="0 0 13 10" fill="none">
+                        <path d="M0.5 3C3.5 0 9.5 0 12.5 3" stroke="rgba(255,255,255,0.3)" strokeWidth="1.2" strokeLinecap="round"/>
+                        <path d="M2.5 5.5C4.5 3.5 8.5 3.5 10.5 5.5" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2" strokeLinecap="round"/>
+                        <path d="M4.5 8C5.5 7 7.5 7 8.5 8" stroke="rgba(255,255,255,0.9)" strokeWidth="1.2" strokeLinecap="round"/>
+                        <circle cx="6.5" cy="9.5" r="1" fill="#fff"/>
+                      </svg>
+                      <svg width="20" height="10" viewBox="0 0 20 10" fill="none">
+                        <rect x="0.5" y="0.5" width="16" height="9" rx="2" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/>
+                        <rect x="17.5" y="3" width="2" height="4" rx="0.5" fill="rgba(255,255,255,0.3)"/>
+                        <rect x="2" y="2" width="10" height="6" rx="1" fill="rgba(251,191,36,0.9)"/>
+                      </svg>
+                    </div>
+                  </div>
+                  {/* Safari URL bar */}
+                  <div style={{
+                    margin: "2px 8px 6px",
+                    height: "32px",
+                    borderRadius: "10px",
+                    background: "rgba(255,255,255,0.08)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "12px",
+                    color: "rgba(255,255,255,0.5)",
+                    fontWeight: 500,
+                  }}>
+                    pullup.se
+                  </div>
+                </div>
+              )}
               {/* Desktop browser chrome */}
               {desktopPreviewMode === "desktop" && (
                 <div style={{
@@ -4028,7 +4079,7 @@ export function CreateEventPage() {
               )}
               <div style={{
                 width: "100%",
-                height: desktopPreviewMode === "desktop" ? "calc(100% - 32px)" : "100%",
+                height: desktopPreviewMode === "desktop" ? "calc(100% - 32px)" : desktopPreviewMode === "phone" ? "calc(100% - 102px)" : "100%",
                 overflow: "hidden",
               }}>
               <EventPreview
@@ -4092,6 +4143,30 @@ export function CreateEventPage() {
                 )}
               />
               </div>
+              {/* Phone bottom Safari toolbar */}
+              {desktopPreviewMode === "phone" && (
+                <div style={{
+                  height: "36px",
+                  background: "rgba(18, 16, 24, 0.95)",
+                  borderTop: "1px solid rgba(255,255,255,0.06)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-around",
+                  padding: "0 16px",
+                  flexShrink: 0,
+                }}>
+                  {/* Back */}
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  {/* Forward */}
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M8 4L14 10L8 16" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  {/* Share */}
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2V11M9 2L5 6M9 2L13 6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 10V14C3 15.1 3.9 16 5 16H13C14.1 16 15 15.1 15 14V10" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  {/* Tabs */}
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="14" height="14" rx="3" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5"/><rect x="5" y="5" width="8" height="8" rx="1.5" stroke="rgba(255,255,255,0.25)" strokeWidth="1"/></svg>
+                  {/* Menu */}
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="4" cy="9" r="1.5" fill="rgba(255,255,255,0.4)"/><circle cx="9" cy="9" r="1.5" fill="rgba(255,255,255,0.4)"/><circle cx="14" cy="9" r="1.5" fill="rgba(255,255,255,0.4)"/></svg>
+                </div>
+              )}
             </div>
           </div>
 

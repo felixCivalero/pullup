@@ -1284,7 +1284,7 @@ export function CreateEventPage() {
         }
 
         showToast("Event updated successfully!", "success");
-        navigate(`/app/events/${editEventId}/manage`);
+        navigate(`/app/events/${editEventId}/guests`);
       } else {
         // --- CREATE MODE: POST new event ---
         const res = await authenticatedFetch("/events", {

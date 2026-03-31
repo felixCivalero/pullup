@@ -1041,6 +1041,37 @@ export function EventGuestsPage() {
               </button>
             </div>
 
+            {/* Compact Stats Summary */}
+            <div style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              marginBottom: "16px",
+              padding: "0 20px",
+            }}>
+              {[
+                { label: "Total", value: attending, cap: totalCapacity, color: totalCapacity != null && attending > totalCapacity ? "#f59e0b" : "rgba(255,255,255,0.9)" },
+                { label: "List", value: stats.cocktailsOnly, cap: cocktailCapacity, color: cocktailCapacity != null && stats.cocktailsOnly > cocktailCapacity ? "#f59e0b" : "rgba(255,255,255,0.9)" },
+                ...(event.dinnerEnabled ? [{ label: "Dinner", value: stats.dinnerConfirmed, cap: foodCapacity, color: "#10b981" }] : []),
+                { label: "Waitlist", value: stats.waitlist, cap: null, color: "rgba(192,192,192,0.8)" },
+              ].map((s) => (
+                <div key={s.label} style={{
+                  padding: "6px 12px",
+                  borderRadius: "8px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: "6px",
+                }}>
+                  <span style={{ fontSize: "15px", fontWeight: 700, color: s.color }}>
+                    {s.value}{s.cap != null ? <span style={{ fontSize: "11px", fontWeight: 500, color: "rgba(255,255,255,0.25)" }}>/{s.cap}</span> : null}
+                  </span>
+                  <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", fontWeight: 500 }}>{s.label}</span>
+                </div>
+              ))}
+            </div>
+
             {/* Search Bar - Smartphone Friendly */}
             <div
               className="guests-search-sticky"

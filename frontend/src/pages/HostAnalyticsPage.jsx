@@ -126,7 +126,7 @@ export function HostAnalyticsPage() {
   const filteredViews = visibleEvents.reduce((s, e) => s + e.views, 0);
   const filteredUnique = visibleEvents.reduce((s, e) => s + e.unique_visitors, 0);
   const filteredRsvps = visibleEvents.reduce((s, e) => s + e.rsvps, 0);
-  const filteredConversion = filteredViews > 0 ? Math.round((filteredRsvps / filteredViews) * 1000) / 10 : 0;
+  const filteredConversion = filteredUnique > 0 ? Math.round((filteredRsvps / filteredUnique) * 1000) / 10 : 0;
   const filteredPulledUp = visibleEvents.reduce((s, e) => s + (e.pulled_up || 0), 0);
   const filteredRevenue = visibleEvents.reduce((s, e) => s + (e.revenue || 0), 0);
   const filteredRevenueByCurrency = (() => {
@@ -188,7 +188,7 @@ export function HostAnalyticsPage() {
     // Recompute period comparison from filtered daily data
     let filteredPeriod = data.period;
     if (data.period && isFiltered) {
-      const currentViews = filteredViews;
+      const currentViews = filteredUnique;
       const currentUnique = filteredUnique;
       // Previous period isn't per-event, so we can't perfectly filter it.
       // Keep previous period as-is (it represents the full comparison baseline)
@@ -202,7 +202,7 @@ export function HostAnalyticsPage() {
     return {
       ...data,
       events: visibleEvents,
-      total_views: filteredViews,
+      total_views: filteredUnique,
       total_unique_visitors: filteredUnique,
       total_rsvps: filteredRsvps,
       total_pulled_up: filteredPulledUp,
@@ -359,24 +359,17 @@ export function HostAnalyticsPage() {
             {filteredData.chart && (
               <div style={{ marginBottom: 24 }}>
                 <div style={{ marginBottom: 12 }}>
-                  <SectionLabel>Views</SectionLabel>
+                  <SectionLabel>Unique Visitors</SectionLabel>
                 </div>
 
                 {/* Stats row with period comparison */}
                 {filteredData.period && (
                   <div style={{ display: "flex", gap: 16, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      <span style={{ fontSize: "24px", fontWeight: 700, color: "#fff" }}>
-                        {filteredData.period.currentViews.toLocaleString()}
-                      </span>
-                      <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>views</span>
-                      {!isFiltered && <ChangeIndicator value={filteredData.period.viewsChange} />}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                       <span style={{ fontSize: "24px", fontWeight: 700, color: "rgba(59,130,246,0.9)" }}>
                         {filteredData.period.currentUnique.toLocaleString()}
                       </span>
-                      <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>unique</span>
+                      <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>unique visitors</span>
                       {!isFiltered && <ChangeIndicator value={filteredData.period.uniqueChange} />}
                     </div>
                     <button
@@ -456,10 +449,10 @@ export function HostAnalyticsPage() {
               overflow: "hidden",
               marginBottom: 24,
             }}>
-              {data.events.filter((e) => e.views > 0).map((ev, i, arr) => {
+              {data.events.filter((e) => e.views > 0 || e.unique_visitors > 0).sort((a, b) => (b.unique_visitors || 0) - (a.unique_visitors || 0)).map((ev, i, arr) => {
                 const isExpanded = expandedEvent === ev.id;
                 const isHidden = hiddenEvents.has(ev.id);
-                const maxViews = arr[0]?.views || 1;
+                const maxViews = arr[0]?.unique_visitors || 1;
                 return (
                   <div key={ev.id}>
                     <div
@@ -532,7 +525,7 @@ export function HostAnalyticsPage() {
                           <div style={{
                             height: "100%", borderRadius: 2,
                             background: isHidden ? "rgba(255,255,255,0.15)" : "rgba(59,130,246,0.6)",
-                            width: `${Math.round((ev.views / maxViews) * 100)}%`,
+                            width: `${Math.round(((ev.unique_visitors || 0) / maxViews) * 100)}%`,
                             transition: "background 0.2s ease",
                           }} />
                         </div>
@@ -542,7 +535,7 @@ export function HostAnalyticsPage() {
                           minWidth: 32, textAlign: "right",
                           transition: "color 0.2s ease",
                         }}>
-                          {ev.views}
+                          {ev.unique_visitors || 0}
                         </div>
                         <ChevronDown size={14} style={{
                           color: "rgba(255,255,255,0.3)",
@@ -564,9 +557,9 @@ export function HostAnalyticsPage() {
                 );
               })}
 
-              {data.events.filter((e) => e.views > 0).length === 0 && (
+              {data.events.filter((e) => e.views > 0 || e.unique_visitors > 0).length === 0 && (
                 <div style={{ padding: "20px", textAlign: "center", fontSize: "13px", color: colors.textFaded }}>
-                  No event views in this period.
+                  No visitors in this period.
                 </div>
               )}
             </div>
@@ -591,9 +584,10 @@ function getSourceColor(name) {
 }
 
 function FunnelChart({ views, rsvps, dinner, dinnerCapacity, pulledUp, revenue, currency, revenueByCurrency, capacity, uniqueVisitors, mini }) {
+  const topMetric = uniqueVisitors > 0 ? uniqueVisitors : views;
   const steps = [
-    { label: "Views", value: views, rate: null, color: "rgba(59,130,246,0.7)" },
-    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: views > 0 ? Math.round((rsvps / views) * 1000) / 10 : 0, rateLabel: "of views", color: "rgba(139,92,246,0.7)" },
+    { label: "Unique Visitors", value: topMetric, rate: null, color: "rgba(59,130,246,0.7)" },
+    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: topMetric > 0 ? Math.round((rsvps / topMetric) * 1000) / 10 : 0, rateLabel: "of visitors", color: "rgba(139,92,246,0.7)" },
   ];
   if (dinner !== null && dinner !== undefined) {
     steps.push({ label: "Dinner", value: dinner, cap: dinnerCapacity > 0 ? dinnerCapacity : null, rate: rsvps > 0 ? Math.round((dinner / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(251,146,60,0.7)" });
@@ -607,7 +601,7 @@ function FunnelChart({ views, rsvps, dinner, dinnerCapacity, pulledUp, revenue, 
       : formatRevenue(revenue, currency);
     steps.push({ label: "Revenue", value: revenueDisplay, rawValue: revenue, rate: null, color: "rgba(251,191,36,0.7)" });
   }
-  const maxVal = Math.max(views, 1);
+  const maxVal = Math.max(topMetric, 1);
 
   return (
     <div style={{
@@ -662,23 +656,20 @@ function FunnelChart({ views, rsvps, dinner, dinnerCapacity, pulledUp, revenue, 
           </div>
         );
       })}
-      {!mini && (uniqueVisitors > 0 || capacity > 0) && (
+      {!mini && capacity > 0 && (
         <div style={{
           display: "flex", gap: 16, marginTop: 12,
           paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.04)",
         }}>
-          {uniqueVisitors > 0 && (
-            <div>
-              <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{uniqueVisitors.toLocaleString()}</span>
-              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginLeft: 4 }}>unique visitors</span>
-            </div>
-          )}
-          {capacity > 0 && (
-            <div>
-              <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{Math.min(100, Math.round((rsvps / capacity) * 100))}%</span>
-              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginLeft: 4 }}>of {capacity} capacity</span>
-            </div>
-          )}
+          <div>
+            <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{Math.min(100, Math.round((rsvps / capacity) * 100))}%</span>
+            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginLeft: 4 }}>of {capacity} capacity</span>
+          </div>
+        </div>
+      )}
+      {!mini && views > 0 && (
+        <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.2)", marginTop: capacity > 0 ? 4 : 12 }}>
+          {views.toLocaleString()} total views
         </div>
       )}
     </div>
@@ -739,7 +730,7 @@ function EventDetailPanel({ event: ev }) {
       {daily.length > 0 && (
         <div style={{ marginBottom: 14, position: "relative" }}>
           <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, color: "rgba(255,255,255,0.3)", marginBottom: 6 }}>
-            Daily views by source & RSVPs
+            Daily unique visitors by source & RSVPs
           </div>
           <div style={{
             borderRadius: 10,
@@ -867,7 +858,7 @@ function EventDetailPanel({ event: ev }) {
                 <div style={{ fontWeight: 600, marginBottom: 2 }}>
                   {new Date(daily[hoverDay].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.5)" }}>{daily[hoverDay].views} views</div>
+                <div style={{ color: "rgba(255,255,255,0.5)" }}>{daily[hoverDay].views} unique visitors</div>
                 {Object.entries(daily[hoverDay].bySource || {}).sort((a, b) => b[1] - a[1]).map(([src, count]) => (
                   <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
                     <div style={{ width: 5, height: 5, borderRadius: 1, background: getSourceColor(src), flexShrink: 0 }} />
@@ -1205,7 +1196,7 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
             {new Date(hover.d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
           </div>
           <div style={{ color: "rgba(255,255,255,0.7)" }}>
-            {hover.dayTotal} total views
+            {hover.dayTotal} unique visitors
           </div>
           {eventIds.map((eid, ei) => {
             if (hiddenEvents.has(eid)) return null;
@@ -1225,7 +1216,7 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
           })}
           {previous && previous[hover.i] && previous[hover.i].views > 0 && (
             <div style={{ color: "rgba(255,255,255,0.3)", marginTop: 2 }}>
-              prev: {previous[hover.i].views} views
+              prev: {previous[hover.i].views} visitors
             </div>
           )}
         </div>
@@ -1347,7 +1338,7 @@ function DeviceSplitDonut({ split }) {
           );
         })}
         <text x={CX} y={CY - 4} textAnchor="middle" fill="#fff" fontSize="14" fontWeight="700">{total}</text>
-        <text x={CX} y={CY + 8} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="7">views</text>
+        <text x={CX} y={CY + 8} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="7">visitors</text>
       </svg>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>

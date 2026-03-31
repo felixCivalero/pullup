@@ -7825,8 +7825,7 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
     const eventDailySourceMap = {}; // { eventId: { "2026-03-10": { source: count } } }
     const allVisitors = new Set();
     let newsletterViews = 0;
-    const deviceCounts = { mobile: 0, desktop: 0, unknown: 0 };
-    const eventDeviceMap = {}; // { eventId: { mobile: N, desktop: N, unknown: N } }
+    const eventDeviceMap = {}; // { eventId: { mobile: Set, desktop: Set, unknown: Set } }
 
     // Daily views per event + totals (current period)
     const currentDays = [];
@@ -7851,13 +7850,12 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
         }
         eventViewMap[v.event_id].views++;
         eventViewMap[v.event_id].visitors.add(v.visitor_id);
-        if (v.device_type === "mobile") deviceCounts.mobile++;
-        else if (v.device_type === "desktop") deviceCounts.desktop++;
-        else deviceCounts.unknown++;
-        if (!eventDeviceMap[v.event_id]) eventDeviceMap[v.event_id] = { mobile: 0, desktop: 0, unknown: 0 };
-        if (v.device_type === "mobile") eventDeviceMap[v.event_id].mobile++;
-        else if (v.device_type === "desktop") eventDeviceMap[v.event_id].desktop++;
-        else eventDeviceMap[v.event_id].unknown++;
+        // Device split tracked via visitor sets (unique per device)
+        if (!eventDeviceMap[v.event_id]) eventDeviceMap[v.event_id] = { mobile: new Set(), desktop: new Set(), unknown: new Set() };
+        const vid = v.visitor_id || v.event_id + v.created_at;
+        if (v.device_type === "mobile") eventDeviceMap[v.event_id].mobile.add(vid);
+        else if (v.device_type === "desktop") eventDeviceMap[v.event_id].desktop.add(vid);
+        else eventDeviceMap[v.event_id].unknown.add(vid);
         allVisitors.add(v.visitor_id);
         if (v.utm_source === "pullup_newsletter") newsletterViews++;
 
@@ -7877,21 +7875,26 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
           } catch { source = "other"; }
         }
         if (!eventSourceMap[v.event_id]) eventSourceMap[v.event_id] = {};
-        eventSourceMap[v.event_id][source] = (eventSourceMap[v.event_id][source] || 0) + 1;
+        if (!eventSourceMap[v.event_id][source]) eventSourceMap[v.event_id][source] = new Set();
+        eventSourceMap[v.event_id][source].add(v.visitor_id || v.event_id + v.created_at);
 
-        // Per-event daily-by-source
+        // Per-event daily-by-source (unique visitors)
         if (!eventDailySourceMap[v.event_id]) eventDailySourceMap[v.event_id] = {};
         if (!eventDailySourceMap[v.event_id][day]) eventDailySourceMap[v.event_id][day] = {};
-        eventDailySourceMap[v.event_id][day][source] = (eventDailySourceMap[v.event_id][day][source] || 0) + 1;
+        if (!eventDailySourceMap[v.event_id][day][source]) eventDailySourceMap[v.event_id][day][source] = new Set();
+        eventDailySourceMap[v.event_id][day][source].add(vid);
 
-        // Per-event daily views
+        // Per-event daily unique visitors
         if (!eventDailyMap[v.event_id]) eventDailyMap[v.event_id] = {};
-        eventDailyMap[v.event_id][day] = (eventDailyMap[v.event_id][day] || 0) + 1;
+        if (!eventDailyMap[v.event_id][day]) eventDailyMap[v.event_id][day] = new Set();
+        eventDailyMap[v.event_id][day].add(vid);
 
-        // Daily breakdown for chart
-        dailyTotal[day] = (dailyTotal[day] || 0) + 1;
+        // Daily breakdown for chart (unique visitors)
+        if (!dailyTotal[day]) dailyTotal[day] = new Set();
+        dailyTotal[day].add(vid);
         if (!dailyPerEvent[v.event_id]) dailyPerEvent[v.event_id] = {};
-        dailyPerEvent[v.event_id][day] = (dailyPerEvent[v.event_id][day] || 0) + 1;
+        if (!dailyPerEvent[v.event_id][day]) dailyPerEvent[v.event_id][day] = new Set();
+        dailyPerEvent[v.event_id][day].add(vid);
       } else if (vDate >= prevStart && vDate <= prevEnd) {
         const dayOffset = Math.floor((vDate - prevStart) / (1000 * 60 * 60 * 24));
         const mappedDay = currentDays[dayOffset] || day;
@@ -8013,21 +8016,29 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
       totalRsvps += rsvps;
       const ev = eventViewMap[e.id] || { views: 0, visitors: new Set() };
 
-      // Per-event sources
+      // Per-event sources (unique visitors)
       const srcMap = eventSourceMap[e.id] || {};
+      const uniqueCount = ev.visitors.size;
       const sources = Object.entries(srcMap)
-        .map(([source, count]) => ({ source, count, percentage: ev.views > 0 ? Math.round((count / ev.views) * 1000) / 10 : 0 }))
+        .map(([source, visitors]) => ({ source, count: visitors.size, percentage: uniqueCount > 0 ? Math.round((visitors.size / uniqueCount) * 1000) / 10 : 0 }))
         .sort((a, b) => b.count - a.count);
 
-      // Per-event daily views + RSVPs + per-source breakdown for the period
+      // Per-event daily unique visitors + RSVPs + per-source breakdown for the period
       const dailySourceData = eventDailySourceMap[e.id] || {};
-      const dailyViews = currentDays.map(date => ({
-        date,
-        views: (eventDailyMap[e.id] && eventDailyMap[e.id][date]) || 0,
-        rsvps: (rsvpDailyMap[e.id] && rsvpDailyMap[e.id][date]) || 0,
-        vipRsvps: (vipRsvpDailyMap[e.id] && vipRsvpDailyMap[e.id][date]) || 0,
-        bySource: dailySourceData[date] || {},
-      }));
+      const dailyViews = currentDays.map(date => {
+        const bySourceSets = dailySourceData[date] || {};
+        const bySource = {};
+        for (const [src, visitors] of Object.entries(bySourceSets)) {
+          bySource[src] = visitors.size;
+        }
+        return {
+          date,
+          views: (eventDailyMap[e.id] && eventDailyMap[e.id][date]) ? eventDailyMap[e.id][date].size : 0,
+          rsvps: (rsvpDailyMap[e.id] && rsvpDailyMap[e.id][date]) || 0,
+          vipRsvps: (vipRsvpDailyMap[e.id] && vipRsvpDailyMap[e.id][date]) || 0,
+          bySource,
+        };
+      });
 
       const capacity = e.total_capacity || e.cocktail_capacity || 0;
       const pulledUp = pulledUpMap[e.id] || 0;
@@ -8066,7 +8077,7 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
         starts_at: e.starts_at,
         ends_at: e.ends_at,
         cover_image_url: e.cover_image_url || e.image_url,
-        views: ev.views,
+        views: ev.visitors.size,
         unique_visitors: ev.visitors.size,
         rsvps,
         dinner: dinnerCount,
@@ -8079,20 +8090,24 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
         ticket_currency: e.ticket_currency || "sek",
         revenue,
         show_rate: showRate,
-        conversion_rate: ev.views > 0
-          ? Math.round((rsvps / ev.views) * 1000) / 10
+        conversion_rate: uniqueCount > 0
+          ? Math.round((rsvps / uniqueCount) * 1000) / 10
           : 0,
         sources,
         daily: dailyViews,
-        device_split: eventDeviceMap[e.id] || { mobile: 0, desktop: 0, unknown: 0 },
+        device_split: (() => {
+          const dm = eventDeviceMap[e.id];
+          if (!dm) return { mobile: 0, desktop: 0, unknown: 0 };
+          return { mobile: dm.mobile.size, desktop: dm.desktop.size, unknown: dm.unknown.size };
+        })(),
       };
     });
-    eventsWithAnalytics.sort((a, b) => b.views - a.views);
+    eventsWithAnalytics.sort((a, b) => b.unique_visitors - a.unique_visitors);
 
     // Build chart data arrays
     const current = currentDays.map((date) => ({
       date,
-      views: dailyTotal[date] || 0,
+      views: dailyTotal[date] ? dailyTotal[date].size : 0,
     }));
     const previous = currentDays.map((date) => ({
       date,
@@ -8100,16 +8115,16 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
     }));
 
     // Build per-event stacked data (top events only)
-    const topEventIds = eventsWithAnalytics.filter(e => e.views > 0).slice(0, 8).map(e => e.id);
+    const topEventIds = eventsWithAnalytics.filter(e => e.unique_visitors > 0).slice(0, 8).map(e => e.id);
     const stackedData = currentDays.map((date) => {
       const entry = { date };
       let accounted = 0;
       for (const eid of topEventIds) {
-        const val = (dailyPerEvent[eid] && dailyPerEvent[eid][date]) || 0;
+        const val = (dailyPerEvent[eid] && dailyPerEvent[eid][date]) ? dailyPerEvent[eid][date].size : 0;
         entry[eid] = val;
         accounted += val;
       }
-      entry._other = (dailyTotal[date] || 0) - accounted;
+      entry._other = Math.max(0, (dailyTotal[date] ? dailyTotal[date].size : 0) - accounted);
       return entry;
     });
 
@@ -8118,21 +8133,34 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
       const d = new Date(v.created_at);
       return d >= prevStart && d <= prevEnd;
     });
-    const prevUniqueVisitors = new Set(prevViews.map(v => v.visitor_id)).size;
-    const currentViewsCount = (views || []).filter(v => {
-      const d = new Date(v.created_at);
-      return d >= periodStart && d <= periodEnd;
-    }).length;
-    const currentUniqueVisitors = allVisitors.size;
+    // Use sum of per-event unique visitors (not global deduped) to match event list totals
+    const currentUniqueVisitors = eventsWithAnalytics.reduce((s, e) => s + e.unique_visitors, 0);
 
-    const viewsChange = prevViews.length > 0
-      ? Math.round(((currentViewsCount - prevViews.length) / prevViews.length) * 100)
-      : null;
-    const uniqueChange = prevUniqueVisitors > 0
+    // For previous period, compute per-event unique visitors the same way
+    const prevEventVisitors = {};
+    for (const v of (views || [])) {
+      const d = new Date(v.created_at);
+      if (d >= prevStart && d <= prevEnd) {
+        if (!prevEventVisitors[v.event_id]) prevEventVisitors[v.event_id] = new Set();
+        prevEventVisitors[v.event_id].add(v.visitor_id);
+      }
+    }
+    const prevUniqueVisitors = Object.values(prevEventVisitors).reduce((s, set) => s + set.size, 0);
+
+    const viewsChange = prevUniqueVisitors > 0
       ? Math.round(((currentUniqueVisitors - prevUniqueVisitors) / prevUniqueVisitors) * 100)
       : null;
+    const uniqueChange = viewsChange;
 
-    const totalPeriodViews = Object.values(dailyTotal).reduce((s, v) => s + v, 0);
+    const totalPeriodViews = Object.values(dailyTotal).reduce((s, v) => s + v.size, 0);
+
+    // Aggregate device split from per-event unique visitor sets
+    const deviceCounts = { mobile: 0, desktop: 0, unknown: 0 };
+    for (const dm of Object.values(eventDeviceMap)) {
+      deviceCounts.mobile += dm.mobile.size;
+      deviceCounts.desktop += dm.desktop.size;
+      deviceCounts.unknown += dm.unknown.size;
+    }
 
     // ── Campaign funnel tracking ──
     // Fetch email_outbox for campaigns related to this host's events
@@ -8285,8 +8313,8 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
 
     return res.json({
       events: eventsWithAnalytics,
-      total_views: totalPeriodViews,
-      total_unique_visitors: allVisitors.size,
+      total_views: eventsWithAnalytics.reduce((s, e) => s + e.unique_visitors, 0),
+      total_unique_visitors: eventsWithAnalytics.reduce((s, e) => s + e.unique_visitors, 0),
       total_rsvps: totalRsvps,
       total_pulled_up: Object.values(pulledUpMap).reduce((s, v) => s + v, 0),
       total_dinner: Object.values(dinnerMap).reduce((s, v) => s + v, 0),
@@ -8321,9 +8349,9 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
       },
       period: {
         days,
-        currentViews: currentViewsCount,
+        currentViews: currentUniqueVisitors,
         currentUnique: currentUniqueVisitors,
-        prevViews: prevViews.length,
+        prevViews: prevUniqueVisitors,
         prevUnique: prevUniqueVisitors,
         viewsChange,
         uniqueChange,
@@ -8380,22 +8408,25 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
     const uniqueVisitors = new Set(views.map(v => v.visitor_id).filter(Boolean)).size;
     const prevUniqueVisitors = new Set(prevViews.map(v => v.visitor_id).filter(Boolean)).size;
 
-    // Period comparison
-    const viewsChange = prevViews.length > 0
-      ? Math.round(((totalViews - prevViews.length) / prevViews.length) * 1000) / 10
-      : totalViews > 0 ? 100 : 0;
-    const uniqueChange = prevUniqueVisitors > 0
+    // Period comparison (based on unique visitors)
+    const viewsChange = prevUniqueVisitors > 0
       ? Math.round(((uniqueVisitors - prevUniqueVisitors) / prevUniqueVisitors) * 1000) / 10
       : uniqueVisitors > 0 ? 100 : 0;
+    const uniqueChange = viewsChange;
 
-    // Device split
+    // Device split (unique visitors per device)
     const device_split = { mobile: 0, desktop: 0, unknown: 0 };
+    const deviceVisitors = { mobile: new Set(), desktop: new Set(), unknown: new Set() };
     for (const v of views) {
       const dt = (v.device_type || "").toLowerCase();
-      if (dt === "mobile") device_split.mobile++;
-      else if (dt === "desktop") device_split.desktop++;
-      else device_split.unknown++;
+      const vid = v.visitor_id || v.id;
+      if (dt === "mobile") deviceVisitors.mobile.add(vid);
+      else if (dt === "desktop") deviceVisitors.desktop.add(vid);
+      else deviceVisitors.unknown.add(vid);
     }
+    device_split.mobile = deviceVisitors.mobile.size;
+    device_split.desktop = deviceVisitors.desktop.size;
+    device_split.unknown = deviceVisitors.unknown.size;
 
     // Source detection helper
     function detectSource(v) {
@@ -8418,14 +8449,15 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
       return source;
     }
 
-    // Traffic sources breakdown
-    const sourceMap = {};
+    // Traffic sources breakdown (unique visitors per source)
+    const sourceVisitorMap = {};
     for (const v of views) {
       const source = detectSource(v);
-      sourceMap[source] = (sourceMap[source] || 0) + 1;
+      if (!sourceVisitorMap[source]) sourceVisitorMap[source] = new Set();
+      sourceVisitorMap[source].add(v.visitor_id || v.id);
     }
-    const sources = Object.entries(sourceMap)
-      .map(([source, count]) => ({ source, count, percentage: totalViews > 0 ? Math.round((count / totalViews) * 1000) / 10 : 0 }))
+    const sources = Object.entries(sourceVisitorMap)
+      .map(([source, visitors]) => ({ source, count: visitors.size, percentage: uniqueVisitors > 0 ? Math.round((visitors.size / uniqueVisitors) * 1000) / 10 : 0 }))
       .sort((a, b) => b.count - a.count);
 
     // Fetch RSVPs
@@ -8516,21 +8548,35 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
       console.error("[host] vip invites fetch error:", e.message);
     }
 
-    // Daily data with source breakdown + RSVPs + VIP RSVPs
+    // Daily data with unique visitors per source + RSVPs + VIP RSVPs
     const dailyMap = {};
+    const dailyVisitorSets = {};
     // Initialize all days in range
     const cursor = new Date(periodStart);
     while (cursor <= periodEnd) {
       const day = cursor.toISOString().slice(0, 10);
       dailyMap[day] = { date: day, views: 0, rsvps: 0, vipRsvps: 0, bySource: {} };
+      dailyVisitorSets[day] = { total: new Set(), bySource: {} };
       cursor.setDate(cursor.getDate() + 1);
     }
     for (const v of views) {
       const day = v.created_at.slice(0, 10);
-      if (!dailyMap[day]) dailyMap[day] = { date: day, views: 0, rsvps: 0, vipRsvps: 0, bySource: {} };
-      dailyMap[day].views++;
+      if (!dailyMap[day]) {
+        dailyMap[day] = { date: day, views: 0, rsvps: 0, vipRsvps: 0, bySource: {} };
+        dailyVisitorSets[day] = { total: new Set(), bySource: {} };
+      }
+      const vid = v.visitor_id || v.id;
+      dailyVisitorSets[day].total.add(vid);
       const src = detectSource(v);
-      dailyMap[day].bySource[src] = (dailyMap[day].bySource[src] || 0) + 1;
+      if (!dailyVisitorSets[day].bySource[src]) dailyVisitorSets[day].bySource[src] = new Set();
+      dailyVisitorSets[day].bySource[src].add(vid);
+    }
+    // Convert sets to counts
+    for (const day of Object.keys(dailyMap)) {
+      dailyMap[day].views = dailyVisitorSets[day].total.size;
+      for (const [src, visitors] of Object.entries(dailyVisitorSets[day].bySource)) {
+        dailyMap[day].bySource[src] = visitors.size;
+      }
     }
     for (const r of periodRsvps) {
       const day = r.created_at.slice(0, 10);
@@ -8584,15 +8630,28 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
       }
     }
 
-    // Host campaign funnel
+    // Host campaign funnel — only campaigns that featured THIS event
     let campaigns = [];
     try {
-      const { data: outboxRows } = await sb
-        .from("email_outbox")
-        .select("id, tracking_id, to_email, campaign_tag, status, created_at")
-        .like("campaign_tag", "host_campaign_%")
-        .gte("created_at", periodStart.toISOString())
-        .lte("created_at", periodEnd.toISOString());
+      // First, find campaign IDs that are linked to this event
+      const { data: eventCampaigns } = await sb
+        .from("campaign_campaigns")
+        .select("id")
+        .eq("event_id", id);
+
+      const eventCampaignTags = (eventCampaigns || []).map(c => `host_campaign_${c.id}`);
+
+      // Only fetch outbox rows for campaigns that include this event
+      let outboxRows = [];
+      if (eventCampaignTags.length > 0) {
+        const { data: rows } = await sb
+          .from("email_outbox")
+          .select("id, tracking_id, to_email, campaign_tag, status, created_at")
+          .in("campaign_tag", eventCampaignTags)
+          .gte("created_at", periodStart.toISOString())
+          .lte("created_at", periodEnd.toISOString());
+        outboxRows = rows || [];
+      }
 
       if (outboxRows && outboxRows.length > 0) {
         const campaignMap = {};
@@ -8698,7 +8757,7 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
     }
 
     return res.json({
-      total_views: totalViews,
+      total_views: uniqueVisitors,
       unique_visitors: uniqueVisitors,
       sources,
       daily,
@@ -8719,13 +8778,13 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
       revenue,
       show_rate: rsvp_count > 0 ? Math.round((pulledUpCount / rsvp_count) * 1000) / 10 : 0,
       fill_rate: capacity > 0 ? Math.round((rsvp_count / capacity) * 1000) / 10 : 0,
-      conversion_rate: totalViews > 0
-        ? Math.round((rsvp_count / totalViews) * 1000) / 10
+      conversion_rate: uniqueVisitors > 0
+        ? Math.round((rsvp_count / uniqueVisitors) * 1000) / 10
         : 0,
       period: {
-        currentViews: totalViews,
+        currentViews: uniqueVisitors,
         currentUnique: uniqueVisitors,
-        prevViews: prevViews.length,
+        prevViews: prevUniqueVisitors,
         prevUnique: prevUniqueVisitors,
         viewsChange,
         uniqueChange,

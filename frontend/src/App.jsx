@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { LandingPage } from "./pages/LandingPage";
 import { NewsletterPage } from "./pages/NewsletterPage";
 import { HomePage } from "./pages/HomePage";
@@ -69,11 +69,7 @@ function App() {
           <Route path="/events/:slug/success" element={<EventSuccessPage />} />
           <Route
             path="/app/events/:id/manage"
-            element={
-              <ErrorBoundary>
-                <ManageEventPage />
-              </ErrorBoundary>
-            }
+            element={<Navigate to="../guests" replace />}
           />
           <Route
             path="/app/events/:id/manage/edit"

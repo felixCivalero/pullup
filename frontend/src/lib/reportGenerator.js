@@ -188,7 +188,7 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
   </div>
 
   <div style="margin-bottom:6mm;position:relative;z-index:1;">
-    <div class="detail-section-label">Daily Views by Source & RSVPs — ${days} days</div>
+    <div class="detail-section-label">Daily Unique Visitors by Source & RSVPs — ${days} days</div>
     <div style="border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:8px 10px 4px;">
       ${chartSvg}
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:3px;">${legendHtml}</div>
@@ -827,7 +827,7 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
   </div>
 
   <div class="chart-section">
-    <div class="section-label">Views — Last ${days} days</div>
+    <div class="section-label">Unique Visitors — Last ${days} days</div>
     <div class="chart-container">
       ${chartSvg}
     </div>
@@ -870,9 +870,10 @@ function formatRevenueByCurrency(byCurrency) {
 }
 
 function buildFunnelHtml(views, rsvps, pulledUp, revenue, currency, uniqueVisitors, capacity, mini, revenueByCurrency, dinner, dinnerCapacity) {
+  const topMetric = uniqueVisitors > 0 ? uniqueVisitors : views;
   const steps = [
-    { label: "Views", value: views, rate: null, color: "rgba(59,130,246,0.7)" },
-    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: views > 0 ? Math.round((rsvps / views) * 1000) / 10 : 0, rateLabel: "of views", color: "rgba(139,92,246,0.7)" },
+    { label: "Unique Visitors", value: topMetric, rate: null, color: "rgba(59,130,246,0.7)" },
+    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: topMetric > 0 ? Math.round((rsvps / topMetric) * 1000) / 10 : 0, rateLabel: "of visitors", color: "rgba(139,92,246,0.7)" },
   ];
   if (dinner !== null && dinner !== undefined) {
     steps.push({ label: "Dinner", value: dinner, cap: dinnerCapacity > 0 ? dinnerCapacity : null, rate: rsvps > 0 ? Math.round((dinner / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(251,146,60,0.7)" });
@@ -884,7 +885,7 @@ function buildFunnelHtml(views, rsvps, pulledUp, revenue, currency, uniqueVisito
       : formatRevenue(revenue, currency);
     steps.push({ label: "Revenue", value: -1, display: revenueDisplay, rawValue: revenue, rate: null, color: "rgba(251,191,36,0.7)" });
   }
-  const maxVal = Math.max(views, 1);
+  const maxVal = Math.max(topMetric, 1);
   const fs = mini ? "16px" : "20px";
   const lfs = mini ? "9px" : "10px";
   const barH = mini ? "4px" : "6px";
@@ -915,10 +916,9 @@ function buildFunnelHtml(views, rsvps, pulledUp, revenue, currency, uniqueVisito
   }).join("");
 
   let secondaryHtml = "";
-  if (!mini && (uniqueVisitors > 0 || (capacity && capacity > 0))) {
+  if (!mini && capacity && capacity > 0) {
     const parts = [];
-    if (uniqueVisitors > 0) parts.push(`<span style="font-size:12px;font-weight:700;color:#fff;">${uniqueVisitors.toLocaleString()}</span><span style="font-size:9px;color:rgba(255,255,255,0.35);margin-left:3px;">unique visitors</span>`);
-    if (capacity && capacity > 0) parts.push(`<span style="font-size:12px;font-weight:700;color:#fff;">${Math.min(100, Math.round((rsvps / capacity) * 100))}%</span><span style="font-size:9px;color:rgba(255,255,255,0.35);margin-left:3px;">of ${capacity} capacity</span>`);
+    parts.push(`<span style="font-size:12px;font-weight:700;color:#fff;">${Math.min(100, Math.round((rsvps / capacity) * 100))}%</span><span style="font-size:9px;color:rgba(255,255,255,0.35);margin-left:3px;">of ${capacity} capacity</span>`);
     secondaryHtml = `<div style="display:flex;gap:14px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.04);">${parts.map(p => `<div>${p}</div>`).join("")}</div>`;
   }
 
@@ -1057,7 +1057,7 @@ function buildDeviceSplitHtml(split) {
     <svg width="72" height="72" viewBox="0 0 72 72" style="flex-shrink:0;">
       ${arcs}
       <text x="${CX}" y="${CY - 3}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">${total}</text>
-      <text x="${CX}" y="${CY + 7}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="6">views</text>
+      <text x="${CX}" y="${CY + 7}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="6">visitors</text>
     </svg>
     <div style="display:flex;flex-direction:column;gap:5px;flex:1;">${rows}</div>
   </div>`;
@@ -1307,7 +1307,7 @@ function buildEventDetailPage(ev, index, totalEvents, brandName, periodStart, pe
     ` : ""}
   </div>
 
-  <div class="detail-section-label">Daily Views by Source & RSVPs</div>
+  <div class="detail-section-label">Daily Unique Visitors by Source & RSVPs</div>
   <div style="border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:8px 10px 4px;margin-bottom:3mm;">
     ${chartSvg}
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;">

@@ -21,6 +21,7 @@ import {
 } from "../lib/urlUtils";
 import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
+import { EventPageContent } from "../components/EventPageContent";
 import { RsvpForm } from "../components/RsvpForm";
 import { PaymentForm } from "../components/PaymentForm";
 import { Button } from "../components/ui/Button";
@@ -1178,7 +1179,7 @@ export function EventPage() {
               )}
 
               {/* Location */}
-              {event?.location && (
+              {event?.location && !event?.hideLocation && (
                 <div
                   style={{
                     display: "flex",
@@ -1232,7 +1233,50 @@ export function EventPage() {
                   </a>
                 </div>
               )}
+              {event?.hideLocation && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "12px",
+                    paddingBottom: "12px",
+                    marginBottom: "12px",
+                    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                    fontSize: "16px",
+                    lineHeight: "1.4",
+                    color: detailsColor,
+                    opacity: 0.5,
+                    fontStyle: "italic",
+                  }}
+                >
+                  <FaMapMarkerAlt
+                    size={18}
+                    style={{
+                      flexShrink: 0,
+                      marginTop: "1px",
+                      color: detailsColor,
+                      opacity: 0.7,
+                    }}
+                  />
+                  <span>Location revealed later</span>
+                </div>
+              )}
             </div>
+
+            {/* Sections from event builder */}
+            {event?.sections && event.sections.length > 0 && (
+              <div style={{ marginTop: "16px" }}>
+                <EventPageContent
+                  title={null}
+                  description={null}
+                  location={event.location}
+                  startsAt={event.startsAt}
+                  timezone={event.timezone}
+                  sections={event.sections.filter(s => s.type !== "title" && s.type !== "location" && s.type !== "datetime")}
+                  hideLocation={event.hideLocation}
+                />
+              </div>
+            )}
 
             {/* Description - sticks below Share/Event Details, becomes scrollable when group reaches minimum */}
             {event?.description && (

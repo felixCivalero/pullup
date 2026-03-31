@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { FaCalendar, FaMapMarkerAlt, FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { ChevronDown } from "lucide-react";
-import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
+import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort } from "../lib/urlUtils";
+import { EventPageContent } from "./EventPageContent";
 import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 import { useStickyReveal } from "./useStickyReveal";
@@ -29,6 +29,7 @@ export function EventPreview({
   soundcloud,
   timezone,
   sections = [],
+  hideLocation = false,
   rsvpContent,
   autoShowRsvp = false,
   activeStep,
@@ -185,41 +186,16 @@ export function EventPreview({
             background: "#05040a",
             padding: `28px 20px ${CTA_BAR_HEIGHT + 10}px`,
             minHeight: hasContent ? "40%" : undefined,
-                      }}>
-            {(!sections || sections.length === 0) && (
-              <>
-                {title && <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: "0 0 12px 0" }}>{title}</h1>}
-                {location && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6, marginBottom: "4px" }}>{formatLocationShort(location)}</div>}
-                {formattedDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", marginBottom: "20px" }}>{formattedDate}</div>}
-                {description && <div style={{ marginBottom: "24px" }}><p style={{ fontSize: "15px", lineHeight: "1.6", color: "#fff", opacity: 0.85, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{description}</p></div>}
-              </>
-            )}
-
-            {sections && sections.map((section, i) => (
-              <div key={i} style={{ marginBottom: section.type === "location" ? "4px" : "16px" }}>
-                {section.type === "title" ? (
-                  title ? <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: 0 }}>{title}</h1> : null
-                ) : section.type === "location" ? (
-                  location ? <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6 }}>{formatLocationShort(location)}</div> : null
-                ) : section.type === "datetime" ? (
-                  formattedDate ? <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635" }}>{formattedDate}</div> : null
-                ) : section.type === "spotify" && section.url && section.url.includes("spotify.com") ? (
-                  <iframe src={section.url.replace("spotify.com/", "spotify.com/embed/").split("?")[0]} width="100%" height={section.url.includes("/track/") ? "80" : "152"} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style={{ borderRadius: "12px", border: "none" }} />
-                ) : section.type === "socials" ? (
-                  <div style={{ display: "flex", gap: "14px" }}>
-                    {section.instagram && <a href={section.instagram} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaInstagram size={18} /></a>}
-                    {section.spotify && <a href={section.spotify} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaSpotify size={18} /></a>}
-                    {section.tiktok && <a href={section.tiktok} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaTiktok size={18} /></a>}
-                    {section.soundcloud && <a href={section.soundcloud} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaSoundcloud size={18} /></a>}
-                  </div>
-                ) : (
-                  <>
-                    {section.title && <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#fff", margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.title}</h3>}
-                    {section.text && <p style={{ fontSize: "15px", lineHeight: "1.6", color: "#fff", opacity: 0.8, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{section.text}</p>}
-                  </>
-                )}
-              </div>
-            ))}
+          }}>
+            <EventPageContent
+              title={title}
+              description={description}
+              location={location}
+              startsAt={startsAt}
+              timezone={timezone}
+              sections={sections}
+              hideLocation={hideLocation}
+            />
           </div>
 
           {/* ─── RSVP SCROLL SPACER ─── */}
@@ -236,7 +212,7 @@ export function EventPreview({
           <div
             ref={ctaBarRef}
             onWheel={(e) => {
-              if (scrollRef.current) scrollRef.current.scrollTop += e.deltaY;
+              if (!formRevealed && scrollRef.current) scrollRef.current.scrollTop += e.deltaY;
             }}
             style={{
               position: "absolute",
@@ -248,7 +224,7 @@ export function EventPreview({
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-              overflow: "hidden",
+              overflowX: "hidden",
               ...barStyle,
             }}
           >
@@ -283,6 +259,7 @@ export function EventPreview({
                     fontSize: "14px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
                     cursor: !rsvpContent ? "not-allowed" : "pointer",
                     opacity: formRevealed ? 0 : (!rsvpContent ? 0.5 : 1),
+                    visibility: formRevealed ? "hidden" : "visible",
                     flexShrink: 0, whiteSpace: "nowrap",
                     pointerEvents: formRevealed ? "none" : "auto",
                   }}
@@ -292,7 +269,7 @@ export function EventPreview({
               </div>
 
               {/* Row 2+: Title, location, form fields — all one continuous block */}
-              <div style={{ paddingBottom: "60px" }}>
+              <div style={{ paddingBottom: "20px" }}>
                 <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                   {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
                   {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>{formatLocationShort(location)}</div>}

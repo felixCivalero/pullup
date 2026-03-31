@@ -351,6 +351,7 @@ export function CreateEventPage() {
   const [location, setLocation] = useState(draft?.location || "");
   const [locationLat, setLocationLat] = useState(draft?.locationLat || null);
   const [locationLng, setLocationLng] = useState(draft?.locationLng || null);
+  const [hideLocation, setHideLocation] = useState(draft?.hideLocation || false);
   const [startsAt, setStartsAt] = useState(draft?.startsAt || "");
   const [endsAt, setEndsAt] = useState(draft?.endsAt || "");
   const [timezone, setTimezone] = useState(draft?.timezone || getUserTimezone());
@@ -625,7 +626,7 @@ export function CreateEventPage() {
     clearDraft();
     setShowDraftBanner(false);
     setTitle(""); setDescription(""); setLocation("");
-    setLocationLat(null); setLocationLng(null);
+    setLocationLat(null); setLocationLng(null); setHideLocation(false);
     setStartsAt(""); setEndsAt(""); setTimezone(getUserTimezone());
     setMaxAttendees(""); setWaitlistEnabled(false);
     setImageFile(null); setImagePreview(null);
@@ -679,7 +680,7 @@ export function CreateEventPage() {
     // Don't reset if we have a draft (page reload scenario)
     if (draft) return;
     setTitle(""); setDescription(""); setLocation("");
-    setLocationLat(null); setLocationLng(null);
+    setLocationLat(null); setLocationLng(null); setHideLocation(false);
     setStartsAt(""); setEndsAt(""); setTimezone(getUserTimezone());
     setMaxAttendees(""); setWaitlistEnabled(false);
     setImageFile(null); setImagePreview(null);
@@ -752,6 +753,7 @@ export function CreateEventPage() {
         setLocation(ev.location || "");
         setLocationLat(ev.locationLat || null);
         setLocationLng(ev.locationLng || null);
+        setHideLocation(ev.hideLocation || false);
         setStartsAt(ev.startsAt || "");
         setEndsAt(ev.endsAt || "");
         setTimezone(ev.timezone || getUserTimezone());
@@ -1183,7 +1185,12 @@ export function CreateEventPage() {
         title,
         titleSettings: { visible: titleVisible, align: titleAlign, font: titleFont, size: titleSize, color: titleColor, detailsColor, detailsGradient, detailsGradientEnabled },
         description,
-        sections: sections.filter(s => s.type === "socials" ? (s.instagram || s.spotify || s.tiktok || s.soundcloud) : ((s.title || "").trim() || (s.text || "").trim())),
+        sections: sections.filter(s => {
+          if (s.type === "title" || s.type === "location" || s.type === "datetime") return true;
+          if (s.type === "socials") return s.instagram || s.spotify || s.tiktok || s.soundcloud;
+          if (s.type === "spotify" || s.type === "applemusic" || s.type === "soundcloud" || s.type === "youtube") return (s.url || "").trim();
+          return (s.title || "").trim() || (s.text || "").trim();
+        }),
         instagram: sections.find(s => s.type === "socials")?.instagram || "",
         spotify: sections.find(s => s.type === "socials")?.spotify || "",
         tiktok: sections.find(s => s.type === "socials")?.tiktok || "",
@@ -1191,6 +1198,7 @@ export function CreateEventPage() {
         location,
         locationLat: locationLat || null,
         locationLng: locationLng || null,
+        hideLocation,
         startsAt: new Date(startsAt).toISOString(),
         endsAt: endsAt ? new Date(endsAt).toISOString() : null,
         timezone,
@@ -2772,7 +2780,7 @@ export function CreateEventPage() {
                       }} style={{ background: "none", border: "none", color: i === sections.length - 1 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)", cursor: i === sections.length - 1 ? "default" : "pointer", padding: 0, fontSize: "12px", lineHeight: 1 }}>&#9660;</button>
                     </div>
                     <span style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.25)", flexShrink: 0 }}>
-                      {({ title: "Title", location: "Location", datetime: "Date & Time", socials: "Social Links", spotify: "Spotify", text: "Text" })[section.type] || "Text"}
+                      {({ title: "Title", location: "Location", datetime: "Date & Time", socials: "Social Links", spotify: "Spotify", applemusic: "Apple Music", soundcloud: "SoundCloud", youtube: "YouTube", text: "Text" })[section.type] || "Text"}
                     </span>
                     <div style={{ flex: 1 }} />
                     {section.type !== "title" && section.type !== "location" && section.type !== "datetime" && (
@@ -2792,22 +2800,43 @@ export function CreateEventPage() {
                     />
                   ) : section.type === "location" ? (
                     /* Location input */
-                    <LocationAutocomplete
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      onLocationSelect={async (locationData) => {
-                        setLocation(locationData.address);
-                        setLocationLat(locationData.lat);
-                        setLocationLng(locationData.lng);
-                        const tz = await fetchTimezoneForLocation(locationData.lat, locationData.lng);
-                        if (tz) setTimezone(tz);
-                      }}
-                      onFocus={() => setFocusedField("location")}
-                      onBlur={() => setFocusedField(null)}
-                      style={{ flex: 1, background: "transparent", border: "none", color: "#fff", fontSize: "15px", outline: "none", padding: 0, width: "100%", fontFamily: "inherit" }}
-                      placeholder="Where's the event?"
-                      disabled={loading}
-                    />
+                    <>
+                      <LocationAutocomplete
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        onLocationSelect={async (locationData) => {
+                          setLocation(locationData.address);
+                          setLocationLat(locationData.lat);
+                          setLocationLng(locationData.lng);
+                          const tz = await fetchTimezoneForLocation(locationData.lat, locationData.lng);
+                          if (tz) setTimezone(tz);
+                        }}
+                        onFocus={() => setFocusedField("location")}
+                        onBlur={() => setFocusedField(null)}
+                        style={{ flex: 1, background: "transparent", border: "none", color: "#fff", fontSize: "15px", outline: "none", padding: 0, width: "100%", fontFamily: "inherit" }}
+                        placeholder="Where's the event?"
+                        disabled={loading}
+                      />
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px" }}>
+                        <button
+                          type="button"
+                          onClick={() => setHideLocation(!hideLocation)}
+                          style={{
+                            width: "36px", height: "20px", borderRadius: "10px", border: "none",
+                            background: hideLocation ? "#a3e635" : "rgba(255,255,255,0.15)",
+                            position: "relative", cursor: "pointer", transition: "background 0.2s ease", flexShrink: 0,
+                          }}
+                        >
+                          <div style={{
+                            width: "16px", height: "16px", borderRadius: "50%", background: "#fff",
+                            position: "absolute", top: "2px",
+                            left: hideLocation ? "18px" : "2px",
+                            transition: "left 0.2s ease",
+                          }} />
+                        </button>
+                        <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>Reveal later</span>
+                      </div>
+                    </>
                   ) : section.type === "datetime" ? (
                     /* Date/time inputs */
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -2879,6 +2908,90 @@ export function CreateEventPage() {
                           style={{ borderRadius: "8px", marginTop: "10px" }}
                         />
                       )}
+                    </div>
+                  ) : section.type === "applemusic" ? (
+                    /* Apple Music embed section */
+                    <div>
+                      <input
+                        type="url"
+                        value={section.url || ""}
+                        onChange={(e) => {
+                          const u = [...sections]; u[i] = { ...u[i], url: e.target.value }; setSections(u);
+                        }}
+                        placeholder="Paste Apple Music URL (song, album, or playlist)"
+                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
+                      />
+                      {section.url && section.url.includes("music.apple.com") && (
+                        <iframe
+                          src={section.url.replace("music.apple.com", "embed.music.apple.com")}
+                          width="100%"
+                          height={section.url.includes("/song/") || section.url.includes("?i=") ? "175" : "450"}
+                          frameBorder="0"
+                          allow="autoplay *; encrypted-media *; fullscreen *"
+                          sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation"
+                          loading="lazy"
+                          style={{ borderRadius: "8px", marginTop: "10px", border: "none" }}
+                        />
+                      )}
+                    </div>
+                  ) : section.type === "soundcloud" ? (
+                    /* SoundCloud embed section */
+                    <div>
+                      <input
+                        type="url"
+                        value={section.url || ""}
+                        onChange={(e) => {
+                          const u = [...sections]; u[i] = { ...u[i], url: e.target.value }; setSections(u);
+                        }}
+                        placeholder="Paste SoundCloud URL (track or playlist)"
+                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
+                      />
+                      {section.url && section.url.includes("soundcloud.com") && (
+                        <iframe
+                          src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(section.url)}&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&visual=true`}
+                          width="100%"
+                          height={section.url.includes("/sets/") ? "300" : "166"}
+                          frameBorder="0"
+                          allow="autoplay"
+                          loading="lazy"
+                          style={{ borderRadius: "8px", marginTop: "10px", border: "none" }}
+                        />
+                      )}
+                    </div>
+                  ) : section.type === "youtube" ? (
+                    /* YouTube embed section */
+                    <div>
+                      <input
+                        type="url"
+                        value={section.url || ""}
+                        onChange={(e) => {
+                          const u = [...sections]; u[i] = { ...u[i], url: e.target.value }; setSections(u);
+                        }}
+                        placeholder="Paste YouTube URL"
+                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
+                      />
+                      {section.url && (section.url.includes("youtube.com") || section.url.includes("youtu.be")) && (() => {
+                        let videoId = null;
+                        try {
+                          const u = new URL(section.url);
+                          if (u.hostname === "youtu.be") videoId = u.pathname.slice(1);
+                          else if (u.hostname.includes("youtube.com")) {
+                            if (u.pathname.startsWith("/embed/")) videoId = u.pathname.split("/embed/")[1];
+                            else videoId = u.searchParams.get("v");
+                          }
+                        } catch {}
+                        return videoId ? (
+                          <iframe
+                            src={`https://www.youtube.com/embed/${videoId}`}
+                            width="100%"
+                            style={{ aspectRatio: "16/9", borderRadius: "8px", marginTop: "10px", border: "none" }}
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                            loading="lazy"
+                          />
+                        ) : null;
+                      })()}
                     </div>
                   ) : section.type === "socials" ? (
                     /* Social links section */
@@ -2957,6 +3070,27 @@ export function CreateEventPage() {
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
                       <span style={{ fontSize: "16px", color: "#1DB954" }}>&#9835;</span> Spotify
+                    </button>
+                    <button type="button" onClick={() => { setSections([...sections, { type: "applemusic", url: "" }]); setShowSectionPicker(false); }}
+                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span style={{ fontSize: "16px", color: "#FC3C44" }}>&#9835;</span> Apple Music
+                    </button>
+                    <button type="button" onClick={() => { setSections([...sections, { type: "soundcloud", url: "" }]); setShowSectionPicker(false); }}
+                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span style={{ fontSize: "16px", color: "#FF5500" }}>&#9835;</span> SoundCloud
+                    </button>
+                    <button type="button" onClick={() => { setSections([...sections, { type: "youtube", url: "" }]); setShowSectionPicker(false); }}
+                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span style={{ fontSize: "16px", color: "#FF0000" }}>&#9654;</span> YouTube
                     </button>
                     <button type="button" onClick={() => { setSections([...sections, { type: "socials", instagram: "", spotify: "", tiktok: "", soundcloud: "" }]); setShowSectionPicker(false); }}
                       style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
@@ -3930,6 +4064,7 @@ export function CreateEventPage() {
                 }
                 ticketCurrency={sellTicketsEnabled ? ticketCurrency : null}
                 sections={sections}
+                hideLocation={hideLocation}
                 rsvpContent={({ onClose }) => (
                   <RsvpForm
                     event={{

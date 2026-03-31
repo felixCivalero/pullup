@@ -78,6 +78,10 @@ export function useStickyReveal({
     sentinelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  // The bar is "capped" when its natural height would exceed maxHeight
+  const maxHeight = "80vh";
+  const atMaxHeight = revealPx > 0 && (barHeight + revealPx) >= window.innerHeight * 0.8;
+
   return {
     sentinelRef,
     formRef,
@@ -87,7 +91,9 @@ export function useStickyReveal({
     spacerHeight: formHeight > 0 ? `${formHeight}px` : "50vh",
     barStyle: {
       height: `${barHeight + revealPx}px`,
-      maxHeight: "80vh",
+      maxHeight,
+      // During reveal: clip content. Once at max: allow internal scrolling.
+      overflowY: atMaxHeight ? "auto" : "hidden",
     },
   };
 }

@@ -194,6 +194,7 @@ export async function mapEventFromDb(dbEvent) {
     mediaSettings: dbEvent.media_settings || {},
     titleSettings: dbEvent.title_settings || null,
     sections: dbEvent.sections || [],
+    hideLocation: dbEvent.hide_location || false,
   };
 }
 
@@ -725,6 +726,7 @@ function mapEventToDb(eventData) {
   if (eventData.mediaSettings !== undefined) dbData.media_settings = eventData.mediaSettings;
   if (eventData.titleSettings !== undefined) dbData.title_settings = eventData.titleSettings;
   if (eventData.sections !== undefined) dbData.sections = eventData.sections;
+  if (eventData.hideLocation !== undefined) dbData.hide_location = eventData.hideLocation;
   return dbData;
 }
 

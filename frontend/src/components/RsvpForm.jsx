@@ -295,7 +295,7 @@ export function RsvpForm({
         )}
         {!pendingPayment && (
           <button type="submit" disabled={loading} style={submitButtonStyle(loading)}>
-            {loading ? "Processing..." : "Proceed to Payment"}
+            {loading ? "Processing..." : "Get Tickets"}
           </button>
         )}
       </form>
@@ -309,8 +309,8 @@ export function RsvpForm({
       style={{ width: "100%", touchAction: "manipulation" }}
       onTouchStart={(e) => { if (e.touches.length > 1) e.preventDefault(); }}
     >
-      {/* Email & Name — compact stacked inputs */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
+      {/* Email & Name */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "20px" }}>
         <div style={{ position: "relative" }}>
           <input
             type="email"
@@ -538,13 +538,12 @@ export function RsvpForm({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          padding: "10px 16px",
-          borderRadius: "12px",
-          background: "rgba(255, 255, 255, 0.02)",
+          padding: "12px 0",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
           marginBottom: "16px",
           fontSize: "13px",
         }}>
-          <span style={{ opacity: 0.5 }}>Your party</span>
+          <span style={{ opacity: 0.4, fontSize: "14px" }}>Your party</span>
           <span style={{ fontWeight: 600 }}>
             {totalPartySize} {totalPartySize === 1 ? "person" : "people"}
             {wantsDinner && dinnerCount > 0 && (
@@ -667,14 +666,14 @@ export function RsvpForm({
 
       {/* Marketing opt-in (shown here for free events, inside payment section for paid) */}
       {!(isPaidEvent && ticketPrice && !willGoToWaitlist) && (
-        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.5)", cursor: "pointer", textAlign: "left", margin: "16px 0 12px", padding: "0 2px" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "rgba(255,255,255,0.35)", cursor: "pointer", textAlign: "left", margin: "12px 0 16px", padding: 0 }}>
           <input
             type="checkbox"
             checked={marketingOptIn}
             onChange={(e) => setMarketingOptIn(e.target.checked)}
-            style={{ accentColor: "#fbbf24", flexShrink: 0, width: 16, height: 16 }}
+            style={{ accentColor: "#fff", flexShrink: 0, width: 14, height: 14 }}
           />
-          <span>I agree to the <a href="/terms" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>privacy policy</a></span>
+          <span>I agree to the <a href="/terms" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>privacy policy</a></span>
         </label>
       )}
 
@@ -690,7 +689,7 @@ export function RsvpForm({
             ? "Processing..."
             : willGoToWaitlist && event?.waitlistEnabled
             ? "Join waitlist"
-            : "Pull up"}
+            : "Register"}
         </button>
       )}
 
@@ -831,37 +830,39 @@ function PaymentBreakdown({ ticketPrice, partySize, currency, pendingPayment }) 
 // ─── Shared Styles ───
 const inputStyle = {
   width: "100%",
-  padding: "14px 16px",
-  borderRadius: "14px",
-  border: "1px solid rgba(255, 255, 255, 0.08)",
-  background: "rgba(255, 255, 255, 0.04)",
+  padding: "12px 0",
+  borderRadius: "0",
+  border: "none",
+  borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
+  background: "transparent",
   color: "#fff",
   fontSize: "15px",
   outline: "none",
   boxSizing: "border-box",
-  transition: "border-color 0.15s ease",
+  transition: "border-color 0.2s ease",
   WebkitAppearance: "none",
   appearance: "none",
+  fontFamily: "inherit",
 };
 
 function submitButtonStyle(disabled) {
   return {
     width: "100%",
-    padding: "16px",
-    borderRadius: "14px",
+    padding: "14px",
+    borderRadius: "999px",
     border: "none",
     background: disabled
       ? "rgba(255, 255, 255, 0.08)"
-      : colors.gradientPrimary,
-    color: disabled ? "rgba(255, 255, 255, 0.4)" : "#05040a",
-    fontSize: "16px",
-    fontWeight: 700,
+      : "#fff",
+    color: disabled ? "rgba(255, 255, 255, 0.4)" : "#000",
+    fontSize: "14px",
+    fontWeight: 800,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
     cursor: disabled ? "not-allowed" : "pointer",
     transition: "all 0.2s ease",
     WebkitTapHighlightColor: "transparent",
     touchAction: "manipulation",
-    letterSpacing: "-0.01em",
-    boxShadow: disabled ? "none" : `0 4px 20px ${colors.silverShadow}`,
     opacity: disabled ? 0.5 : 1,
   };
 }

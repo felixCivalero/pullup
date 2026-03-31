@@ -1,32 +1,15 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { FaCalendar, FaMapMarkerAlt, FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
+import { ChevronDown } from "lucide-react";
 import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort } from "../lib/urlUtils";
 import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 
-const TITLE_FONTS = {
-  default: "inherit",
-  serif: "Georgia, 'Times New Roman', serif",
-  mono: "'Courier New', 'Consolas', monospace",
-  condensed: "'Arial Narrow', 'Impact', sans-serif",
-};
-
-const TITLE_SIZES = {
-  sm: "clamp(20px, 6vw, 28px)",
-  md: "clamp(28px, 8vw, 40px)",
-  lg: "clamp(36px, 10vw, 52px)",
-};
+const CTA_BAR_HEIGHT = 62;
 
 export function EventPreview({
   title,
-  titleVisible = true,
-  titleAlign = "left",
-  titleFont = "default",
-  titleSize = "md",
-  titleColor = "#ffffff",
-  detailsColor = "#ffffff",
-  detailsGradient = null,
   description,
   location,
   startsAt,
@@ -44,408 +27,330 @@ export function EventPreview({
   tiktok,
   soundcloud,
   timezone,
+  sections = [],
   rsvpContent,
   autoShowRsvp = false,
+  activeStep,
 }) {
-  const [showDescription, setShowDescription] = useState(false);
-  const [showRsvp, setShowRsvp] = useState(autoShowRsvp);
-  const [rsvpVisible, setRsvpVisible] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const rsvpSheetRef = useRef(null);
+  const [rsvpRevealPx, setRsvpRevealPx] = useState(0); // actual pixels to reveal
+  const scrollRef = useRef(null);
+  const rsvpSentinelRef = useRef(null);
+  const rsvpFormRef = useRef(null);
   const mediaCount = media?.length || 0;
   const canSwipe = mediaCount > 1 && !mediaSettings?.autoscroll;
   const swipeHandlers = useCarouselSwipe(mediaCount, setCarouselIndex);
 
-  const eventDate = startsAt ? formatEventDate(new Date(startsAt), timezone) : "";
   const eventTime = startsAt ? formatEventTime(new Date(startsAt), timezone) : "";
 
-  // Sync with autoShowRsvp prop
+  const formattedDate = startsAt ? (() => {
+    const d = new Date(startsAt);
+    const tzOpt = timezone ? { timeZone: timezone } : {};
+    const day = d.toLocaleDateString("en-US", { weekday: "short", ...tzOpt });
+    const dateNum = d.toLocaleDateString("en-US", { day: "numeric", ...tzOpt });
+    const month = d.toLocaleDateString("en-US", { month: "short", ...tzOpt }).toLowerCase();
+    return `${day} ${dateNum} ${month}${eventTime ? `, ${eventTime}` : ""}`;
+  })() : "";
+
+  // Scroll preview when switching between Media/Details
   useEffect(() => {
-    setShowRsvp(autoShowRsvp);
+    if (!scrollRef.current) return;
+    if (activeStep === 1) {
+      scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    } else if (activeStep === 2) {
+      const heroHeight = scrollRef.current.querySelector("[data-hero]")?.offsetHeight;
+      if (heroHeight) {
+        scrollRef.current.scrollTo({ top: heroHeight, behavior: "smooth" });
+      }
+    }
+  }, [activeStep]);
+
+  // Track scroll to calculate how much to reveal the RSVP form
+  const handleScroll = useCallback(() => {
+    if (!rsvpSentinelRef.current || !scrollRef.current || !rsvpFormRef.current) {
+      setRsvpReveal(0);
+      return;
+    }
+    const container = scrollRef.current;
+    const sentinel = rsvpSentinelRef.current;
+    const sentinelRect = sentinel.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const formHeight = rsvpFormRef.current.scrollHeight || 300;
+
+    // How far the sentinel top is above the container bottom (the CTA bar position)
+    // Subtract CTA_BAR_HEIGHT so we only trigger once sentinel clears the bar
+    const distancePastTrigger = containerRect.bottom - sentinelRect.top - CTA_BAR_HEIGHT;
+
+    if (distancePastTrigger <= 0) {
+      setRsvpRevealPx(0);
+    } else {
+      // 1:1 mapping — each pixel scrolled reveals one pixel of form
+      setRsvpRevealPx(distancePastTrigger);
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  // Auto-scroll to RSVP
+  useEffect(() => {
+    if (autoShowRsvp && rsvpSentinelRef.current) {
+      setTimeout(() => {
+        rsvpSentinelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
+    }
   }, [autoShowRsvp]);
 
-  // Animate the RSVP sheet in/out
-  useEffect(() => {
-    if (showRsvp) {
-      // Mount then animate in
-      setRsvpVisible(false);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setRsvpVisible(true));
-      });
+  function scrollToRsvp() {
+    if (rsvpSentinelRef.current) {
+      rsvpSentinelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, [showRsvp]);
-
-  function closeRsvp() {
-    setRsvpVisible(false);
-    setTimeout(() => setShowRsvp(false), 300);
   }
 
   const buttonLabel = getCtaLabel({ ticketType, ticketPrice, ticketCurrency });
+  const hasContent = description || (sections && sections.length > 0);
+  const formRevealed = rsvpRevealPx > 0;
 
   return (
     <>
       <style>{`
-        .event-preview-container {
-          min-height: 100%;
-          height: 100%;
-          overflow: hidden;
+        @keyframes scroll-chevron {
+          0% { opacity: 0; transform: translateY(-4px); }
+          30% { opacity: 0.6; }
+          60% { opacity: 0.6; }
+          100% { opacity: 0; transform: translateY(6px); }
         }
-        .event-preview-content {
-          height: calc(100% - ${EVENT_CTA_HEIGHT}px);
-          max-height: calc(100% - ${EVENT_CTA_HEIGHT}px);
-          box-sizing: border-box;
+        .event-preview-scroll-container {
         }
-        @media (min-width: 969px) {
-          .event-preview-description {
-            max-width: 60%;
-          }
-        }
+        .event-preview-scroll-container::-webkit-scrollbar { display: none; }
       `}</style>
       <div
-        className="event-preview-container"
-        {...(canSwipe ? swipeHandlers : {})}
         style={{
           position: "relative",
           width: "100%",
           maxWidth: "100%",
-          overflowX: "hidden",
-          overflowY: "hidden",
+          height: "100%",
+          overflow: "hidden",
           background: "#05040a",
-          cursor: canSwipe ? "grab" : undefined,
+          display: "flex",
+          flexDirection: "column",
         }}
       >
-        {/* Background — carousel or single image */}
-        {media && media.length > 0 ? (
-          <>
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                width: "100%",
-                height: "100%",
-                zIndex: 0,
-              }}
-            >
-              <MediaCarousel media={media} mediaSettings={mediaSettings} hideDots controlledIndex={canSwipe ? carouselIndex : undefined} onIndexChange={setCarouselIndex} />
-            </div>
-          </>
-        ) : imagePreview ? (
-          <>
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                width: "100%",
-                height: "100%",
-                zIndex: 0,
-              }}
-            >
-              <img
-                src={imagePreview}
-                alt="Event preview"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  display: "block",
-                }}
-              />
-            </div>
-          </>
-        ) : (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background:
-                "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.06) 0%, transparent 50%), #05040a",
-              zIndex: 0,
-            }}
-          />
-        )}
-
-        {/* Details gradient background — between bg image and content */}
-        {detailsGradient && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: "55%",
-              background: `linear-gradient(to bottom, ${detailsGradient}00 0%, ${detailsGradient}80 15%, ${detailsGradient}cc 30%, ${detailsGradient} 50%, ${detailsGradient} 100%)`,
-              pointerEvents: "none",
-              zIndex: 1,
-            }}
-          />
-        )}
-
-        {/* Content — matches EventPage .event-content-container */}
+        {/* Scrollable content */}
         <div
-          className={hideCta ? undefined : "event-preview-content"}
+          ref={scrollRef}
+          className="event-preview-scroll-container"
           style={{
-            position: "relative",
-            zIndex: 2,
-            display: "flex",
-            flexDirection: "column",
-            padding: "20px",
-            overflow: "hidden",
-            pointerEvents: "none",
-            ...(hideCta
-              ? { height: "100%", maxHeight: "100%", boxSizing: "border-box" }
-              : {}),
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            overflowX: "hidden",
           }}
         >
-          {/* Title at the top — only shown when set and visible */}
-          {title && titleVisible && (
-            <h1
-              style={{
-                fontSize: TITLE_SIZES[titleSize] || TITLE_SIZES.md,
-                fontWeight: titleFont === "condensed" ? 900 : 800,
-                lineHeight: "1.2",
-                color: titleColor || "#fff",
-                letterSpacing: titleFont === "mono" ? "0" : titleFont === "condensed" ? "0.02em" : "-0.02em",
-                fontFamily: TITLE_FONTS[titleFont] || TITLE_FONTS.default,
-                textAlign: titleAlign,
-                margin: 0,
-                marginTop: "20px",
-                marginBottom: "0",
-                paddingBottom: "12px",
-                flexShrink: 0,
-              }}
-            >
-              {title}
-            </h1>
-          )}
-
-          {/* Content group pushed to bottom — matches EventPage */}
+          {/* ─── HERO SECTION ─── */}
           <div
+            data-hero
+            {...(canSwipe ? swipeHandlers : {})}
             style={{
-              marginTop: "auto",
-              display: "flex",
-              flexDirection: "column",
-              pointerEvents: "auto",
-              gap: "2px",
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              minHeight: "100%",
+              flexShrink: 0,
+                            cursor: canSwipe ? "grab" : undefined,
             }}
           >
-            {/* Carousel dots */}
-            {media && media.length > 1 && !mediaSettings?.autoscroll && (
-              <CarouselDots
-                count={media.length}
-                currentIndex={carouselIndex}
-                style={{ paddingTop: "12px", paddingBottom: "4px" }}
-              />
+            {media && media.length > 0 ? (
+              <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+                <MediaCarousel media={media} mediaSettings={mediaSettings} hideDots controlledIndex={canSwipe ? carouselIndex : undefined} onIndexChange={setCarouselIndex} />
+              </div>
+            ) : imagePreview ? (
+              <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+                <img src={imagePreview} alt="Event preview" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              </div>
+            ) : (
+              <div style={{
+                position: "absolute", inset: 0, zIndex: 0,
+                background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232,232,232,0.06) 0%, transparent 50%), #05040a",
+              }} />
             )}
 
-            {/* Date & Time — biggest, most prominent */}
-            <div
-              style={{
-                background: "rgba(0,0,0,0.55)",
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
-                padding: "14px 16px",
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                color: detailsColor,
-              }}
-            >
-              <FaCalendar size={18} style={{ flexShrink: 0, opacity: 0.6 }} />
-              <span style={{ fontSize: "18px", fontWeight: 700, letterSpacing: "-0.01em" }}>
-                {eventDate
-                  ? `${eventDate}${eventTime ? `  ${eventTime}` : ""}`
-                  : "When is it?"}
-              </span>
-            </div>
+            <div style={{
+              position: "absolute", bottom: 0, left: 0, right: 0, height: "40%",
+              background: "linear-gradient(to bottom, transparent 0%, rgba(5,4,10,0.6) 60%, #05040a 100%)",
+              pointerEvents: "none", zIndex: 1,
+            }} />
 
-            {/* Location */}
-            {(location || !eventDate) && (
-              <div
-                style={{
-                  background: "rgba(0,0,0,0.55)",
-                  backdropFilter: "blur(12px)",
-                  WebkitBackdropFilter: "blur(12px)",
-                  padding: "12px 16px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  color: detailsColor,
-                }}
-              >
-                <FaMapMarkerAlt size={16} style={{ flexShrink: 0, opacity: 0.6 }} />
-                <span style={{ fontSize: "15px", fontWeight: 500 }}>
-                  {location ? formatLocationShort(location) : "Where is it?"}
-                </span>
+            {media && media.length > 1 && !mediaSettings?.autoscroll && (
+              <div style={{
+                position: "absolute", bottom: `${CTA_BAR_HEIGHT + 60}px`, left: 0, right: 0,
+                zIndex: 2, pointerEvents: "none",
+              }}>
+                <CarouselDots count={media.length} currentIndex={carouselIndex} />
               </div>
             )}
 
-            {/* Description + Register */}
-            <div
-              style={{
-                background: "rgba(0,0,0,0.55)",
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
-                padding: "14px 16px",
-              }}
-            >
-              {/* Social icons */}
-              {(instagram || spotify || tiktok || soundcloud) && (
-                <div style={{ display: "flex", gap: "14px", marginBottom: "12px" }}>
-                  {instagram && <a href={instagram} target="_blank" rel="noopener noreferrer" style={{ color: detailsColor, opacity: 0.7, display: "inline-flex" }}><FaInstagram size={18} /></a>}
-                  {spotify && <a href={spotify} target="_blank" rel="noopener noreferrer" style={{ color: detailsColor, opacity: 0.7, display: "inline-flex" }}><FaSpotify size={18} /></a>}
-                  {tiktok && <a href={tiktok} target="_blank" rel="noopener noreferrer" style={{ color: detailsColor, opacity: 0.7, display: "inline-flex" }}><FaTiktok size={18} /></a>}
-                  {soundcloud && <a href={soundcloud} target="_blank" rel="noopener noreferrer" style={{ color: detailsColor, opacity: 0.7, display: "inline-flex" }}><FaSoundcloud size={18} /></a>}
-                </div>
-              )}
-
-              {description && (
-                <>
-                  <p
-                    className={compact ? undefined : "event-preview-description"}
-                    style={{
-                      fontSize: "15px",
-                      lineHeight: "1.5",
-                      color: detailsColor,
-                      opacity: 0.85,
-                      margin: 0,
-                      marginBottom: showDescription ? "4px" : "0",
-                      whiteSpace: "pre-line",
-                      wordWrap: "break-word",
-                      overflowWrap: "break-word",
-                      display: showDescription ? "block" : "-webkit-box",
-                      WebkitLineClamp: showDescription ? "none" : 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: showDescription ? "visible" : "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {description}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowDescription(!showDescription)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: detailsColor,
-                      opacity: 0.6,
-                      fontSize: "13px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      padding: "4px 0",
-                      margin: "4px 0 0 0",
-                      textDecoration: "none",
-                      display: "inline-block",
-                      WebkitTapHighlightColor: "transparent",
-                    }}
-                  >
-                    {showDescription ? "Read less" : "Read more"}
-                  </button>
-                </>
-              )}
-
-              {/* Register button — integrated in content flow */}
-              {!hideCta && (
-                <button
-                  type="button"
-                  disabled={!rsvpContent}
-                  onClick={rsvpContent ? () => setShowRsvp(true) : undefined}
-                  style={{
-                    width: "100%",
-                    marginTop: description ? "16px" : "0",
-                    padding: "16px",
-                    background: "#fff",
-                    color: "#000",
-                    border: "none",
-                    borderRadius: "0",
-                    fontSize: "16px",
-                    fontWeight: 800,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    cursor: !rsvpContent ? "not-allowed" : "pointer",
-                    opacity: !rsvpContent ? 0.5 : 1,
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {buttonLabel}
-                </button>
-              )}
-            </div>
+            {hasContent && (
+              <div style={{
+                position: "absolute", bottom: `${CTA_BAR_HEIGHT + 16}px`, left: "50%", transform: "translateX(-50%)",
+                zIndex: 3, pointerEvents: "none",
+                display: "flex", flexDirection: "column", alignItems: "center",
+              }}>
+                {[0, 1, 2].map((i) => (
+                  <ChevronDown key={i} size={22} color="#fff" style={{
+                    opacity: 0,
+                    animation: `scroll-chevron 1.8s ease-in-out ${i * 0.2}s infinite`,
+                    marginTop: i > 0 ? "-8px" : 0,
+                  }} />
+                ))}
+              </div>
+            )}
           </div>
-        </div>
 
-        {/* Inline RSVP bottom-sheet — scoped to the preview container */}
-        {showRsvp && rsvpContent && (
-          <>
-            {/* Backdrop */}
+          {/* ─── CONTENT SECTION ─── */}
+          <div style={{
+            background: "#05040a",
+            padding: "28px 20px 20px",
+            minHeight: hasContent ? "40%" : undefined,
+                      }}>
+            {(!sections || sections.length === 0) && (
+              <>
+                {title && <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: "0 0 12px 0" }}>{title}</h1>}
+                {location && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6, marginBottom: "4px" }}>{formatLocationShort(location)}</div>}
+                {formattedDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "rgba(200, 200, 60, 0.95)", marginBottom: "20px" }}>{formattedDate}</div>}
+                {description && <div style={{ marginBottom: "24px" }}><p style={{ fontSize: "15px", lineHeight: "1.6", color: "#fff", opacity: 0.85, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{description}</p></div>}
+              </>
+            )}
+
+            {sections && sections.map((section, i) => (
+              <div key={i} style={{ marginBottom: section.type === "location" ? "4px" : "16px" }}>
+                {section.type === "title" ? (
+                  title ? <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: 0 }}>{title}</h1> : null
+                ) : section.type === "location" ? (
+                  location ? <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6 }}>{formatLocationShort(location)}</div> : null
+                ) : section.type === "datetime" ? (
+                  formattedDate ? <div style={{ fontSize: "14px", fontWeight: 600, color: "rgba(200, 200, 60, 0.95)" }}>{formattedDate}</div> : null
+                ) : section.type === "spotify" && section.url && section.url.includes("spotify.com") ? (
+                  <iframe src={section.url.replace("spotify.com/", "spotify.com/embed/").split("?")[0]} width="100%" height={section.url.includes("/track/") ? "80" : "152"} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style={{ borderRadius: "12px", border: "none" }} />
+                ) : section.type === "socials" ? (
+                  <div style={{ display: "flex", gap: "14px" }}>
+                    {section.instagram && <a href={section.instagram} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaInstagram size={18} /></a>}
+                    {section.spotify && <a href={section.spotify} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaSpotify size={18} /></a>}
+                    {section.tiktok && <a href={section.tiktok} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaTiktok size={18} /></a>}
+                    {section.soundcloud && <a href={section.soundcloud} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaSoundcloud size={18} /></a>}
+                  </div>
+                ) : (
+                  <>
+                    {section.title && <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#fff", margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.title}</h3>}
+                    {section.text && <p style={{ fontSize: "15px", lineHeight: "1.6", color: "#fff", opacity: 0.8, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{section.text}</p>}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* ─── RSVP SCROLL SPACER — this is what we scroll through to reveal the form ─── */}
+          {rsvpContent && (
             <div
-              onClick={closeRsvp}
+              ref={rsvpSentinelRef}
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: rsvpVisible ? "rgba(0, 0, 0, 0.5)" : "transparent",
-                backdropFilter: rsvpVisible ? "blur(4px)" : "none",
-                zIndex: 200,
-                transition: "background 0.3s ease, backdrop-filter 0.3s ease",
+                background: "#05040a",
+                height: "40vh",
               }}
             />
-            {/* Bottom sheet */}
+          )}
+        </div>
+
+        {/* ─── FIXED CTA BAR — always at bottom, grows upward to reveal form ─── */}
+        {!hideCta && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: 10,
+              background: "rgba(5, 4, 10, 0.96)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+              display: "flex",
+              flexDirection: "column",
+              maxHeight: "85vh",
+            }}
+          >
+            {/* Price/date header — always at top */}
             <div
-              ref={rsvpSheetRef}
-              onClick={(e) => e.stopPropagation()}
+              onWheel={(e) => {
+                if (scrollRef.current) scrollRef.current.scrollTop += e.deltaY;
+              }}
               style={{
-                position: "absolute",
-                bottom: 0,
-                left: 0,
-                right: 0,
-                background: "rgba(12, 10, 18, 0.97)",
-                backdropFilter: "blur(20px)",
-                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-                borderTopLeftRadius: "20px",
-                borderTopRightRadius: "20px",
-                maxHeight: "85%",
-                overflowY: "auto",
-                zIndex: 201,
-                padding: "20px",
-                paddingTop: "12px",
-                boxSizing: "border-box",
-                transform: rsvpVisible ? "translateY(0)" : "translateY(100%)",
-                transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                padding: "12px 20px",
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
               }}
             >
-              {/* Handle — tap to close */}
-              <div
-                onClick={closeRsvp}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
+                  {ticketType === "paid" && ticketPrice
+                    ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
+                    : "Free entry"}
+                </div>
+                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>
+                  {formattedDate}
+                </div>
+              </div>
+              {/* Compact REGISTER button — visible only when form is collapsed */}
+              <button
+                type="button"
+                disabled={!rsvpContent}
+                onClick={rsvpContent ? scrollToRsvp : undefined}
                 style={{
-                  padding: "8px 0 16px",
-                  cursor: "pointer",
-                  display: "flex",
-                  justifyContent: "center",
+                  padding: "12px 24px",
+                  background: "#fff", color: "#000", border: "none", borderRadius: "999px",
+                  fontSize: "14px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
+                  cursor: !rsvpContent ? "not-allowed" : "pointer",
+                  opacity: rsvpRevealPx > 20 ? 0 : (!rsvpContent ? 0.5 : 1),
+                  flexShrink: 0, whiteSpace: "nowrap",
+                  transition: "opacity 0.2s ease",
+                  pointerEvents: rsvpRevealPx > 20 ? "none" : "auto",
+                  position: rsvpRevealPx > 20 ? "absolute" : "relative",
+                  right: rsvpRevealPx > 20 ? "20px" : undefined,
                 }}
               >
-                <div style={{
-                  width: "36px",
-                  height: "4px",
-                  background: "rgba(255, 255, 255, 0.2)",
-                  borderRadius: "2px",
-                }} />
-              </div>
-              {/* Form content */}
-              {typeof rsvpContent === "function" ? rsvpContent({ onClose: closeRsvp }) : rsvpContent}
+                {buttonLabel}
+              </button>
             </div>
-          </>
+
+            {/* Form fields — expand from below the price/date row */}
+            <div style={{
+              overflow: "hidden",
+              height: `${rsvpRevealPx}px`,
+              opacity: rsvpRevealPx > 5 ? Math.min(rsvpRevealPx / 40, 1) : 0,
+            }}>
+              <div
+                ref={rsvpFormRef}
+                onWheel={(e) => {
+                  // Forward scroll to the main scroll container so scrolling over the form works
+                  if (scrollRef.current) {
+                    scrollRef.current.scrollTop += e.deltaY;
+                  }
+                }}
+                style={{
+                  padding: "0 20px 20px",
+                  borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+                }}
+              >
+                {typeof rsvpContent === "function" ? rsvpContent({ onClose: () => {} }) : rsvpContent}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </>

@@ -193,6 +193,7 @@ export async function mapEventFromDb(dbEvent) {
     soundcloud: dbEvent.soundcloud || null,
     mediaSettings: dbEvent.media_settings || {},
     titleSettings: dbEvent.title_settings || null,
+    sections: dbEvent.sections || [],
   };
 }
 
@@ -723,6 +724,7 @@ function mapEventToDb(eventData) {
   if (eventData.soundcloud !== undefined) dbData.soundcloud = eventData.soundcloud;
   if (eventData.mediaSettings !== undefined) dbData.media_settings = eventData.mediaSettings;
   if (eventData.titleSettings !== undefined) dbData.title_settings = eventData.titleSettings;
+  if (eventData.sections !== undefined) dbData.sections = eventData.sections;
   return dbData;
 }
 

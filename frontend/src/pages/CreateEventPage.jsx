@@ -336,6 +336,18 @@ export function CreateEventPage() {
   const [detailsGradient, setDetailsGradient] = useState(draft?.detailsGradient || "#000000");
   const [detailsGradientEnabled, setDetailsGradientEnabled] = useState(draft?.detailsGradientEnabled === true);
   const [description, setDescription] = useState(draft?.description || "");
+  const [sections, setSections] = useState(() => {
+    const saved = draft?.sections || [];
+    const hasTitle = saved.some(s => s.type === "title");
+    const hasLocation = saved.some(s => s.type === "location");
+    const hasDatetime = saved.some(s => s.type === "datetime");
+    const defaults = [];
+    if (!hasTitle) defaults.push({ type: "title" });
+    if (!hasLocation) defaults.push({ type: "location" });
+    if (!hasDatetime) defaults.push({ type: "datetime" });
+    return [...defaults, ...saved.filter(s => s.type !== "title" && s.type !== "location" && s.type !== "datetime")];
+  });
+  const [showSectionPicker, setShowSectionPicker] = useState(false);
   const [location, setLocation] = useState(draft?.location || "");
   const [locationLat, setLocationLat] = useState(draft?.locationLat || null);
   const [locationLng, setLocationLng] = useState(draft?.locationLng || null);
@@ -726,6 +738,17 @@ export function CreateEventPage() {
           if (ev.titleSettings.detailsGradientEnabled !== undefined) setDetailsGradientEnabled(ev.titleSettings.detailsGradientEnabled);
         }
         setDescription(ev.description || "");
+        (() => {
+          const saved = ev.sections || [];
+          const hasT = saved.some(s => s.type === "title");
+          const hasLoc = saved.some(s => s.type === "location");
+          const hasDt = saved.some(s => s.type === "datetime");
+          const defaults = [];
+          if (!hasT) defaults.push({ type: "title" });
+          if (!hasLoc) defaults.push({ type: "location" });
+          if (!hasDt) defaults.push({ type: "datetime" });
+          setSections([...defaults, ...saved.filter(s => s.type !== "title" && s.type !== "location" && s.type !== "datetime")]);
+        })();
         setLocation(ev.location || "");
         setLocationLat(ev.locationLat || null);
         setLocationLng(ev.locationLng || null);
@@ -1160,6 +1183,11 @@ export function CreateEventPage() {
         title,
         titleSettings: { visible: titleVisible, align: titleAlign, font: titleFont, size: titleSize, color: titleColor, detailsColor, detailsGradient, detailsGradientEnabled },
         description,
+        sections: sections.filter(s => s.type === "socials" ? (s.instagram || s.spotify || s.tiktok || s.soundcloud) : ((s.title || "").trim() || (s.text || "").trim())),
+        instagram: sections.find(s => s.type === "socials")?.instagram || "",
+        spotify: sections.find(s => s.type === "socials")?.spotify || "",
+        tiktok: sections.find(s => s.type === "socials")?.tiktok || "",
+        soundcloud: sections.find(s => s.type === "socials")?.soundcloud || "",
         location,
         locationLat: locationLat || null,
         locationLng: locationLng || null,
@@ -1520,7 +1548,6 @@ export function CreateEventPage() {
                   { num: 1, label: "Media" },
                   { num: 2, label: "Details" },
                   { num: 3, label: "Settings" },
-                  { num: 4, label: "Socials" },
                   { num: 5, label: "Tickets" },
                 ].map((tab) => (
                   <button
@@ -2419,398 +2446,10 @@ export function CreateEventPage() {
               </div>
             )}
 
-            {/* Title input - Enhanced visibility with subtle background */}
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Event Name"
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                fontSize: "clamp(24px, 5vw, 32px)",
-                fontWeight: 700,
-                background: "rgba(255,255,255,0.03)",
-                border: hasAttemptedPublish && missingFields.title
-                  ? "1px solid rgba(239, 68, 68, 0.5)"
-                  : "1px solid rgba(255,255,255,0.08)",
-                ...(goldFlash.title ? { animation: "goldFlash 1.2s ease forwards" } : {}),
-                borderRadius: "12px",
-                color: title ? "#fff" : "rgba(255,255,255,0.6)",
-                outline: "none",
-                marginBottom: "16px",
-                padding: "16px 18px",
-                lineHeight: "1.3",
-                textShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                transition: "all 0.2s ease",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-              }}
-              onFocus={(e) => {
-                e.target.style.background = "rgba(255,255,255,0.05)";
-                e.target.style.border = "1px solid rgba(192, 192, 192, 0.3)";
-                e.target.style.boxShadow =
-                  "0 4px 12px rgba(192, 192, 192, 0.15)";
-                e.target.style.color = "#fff";
-              }}
-              onBlur={(e) => {
-                e.target.style.background = "rgba(255,255,255,0.03)";
-                e.target.style.border = "1px solid rgba(255,255,255,0.08)";
-                e.target.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
-                e.target.style.color = title ? "#fff" : "rgba(255,255,255,0.6)";
-              }}
-            />
 
-            {/* Title options toolbar */}
-            {(() => {
-              const toolBtnStyle = (active) => ({
-                width: "30px",
-                height: "28px",
-                borderRadius: "5px",
-                border: "none",
-                background: active ? "rgba(255,255,255,0.1)" : "transparent",
-                color: active ? "#fff" : "rgba(255,255,255,0.3)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 0,
-                transition: "all 0.15s ease",
-                WebkitTapHighlightColor: "transparent",
-              });
 
-              const selectStyle = {
-                height: "28px",
-                borderRadius: "5px",
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.04)",
-                color: "rgba(255,255,255,0.7)",
-                fontSize: "11px",
-                fontWeight: 600,
-                cursor: "pointer",
-                outline: "none",
-                padding: "0 6px",
-                WebkitAppearance: "none",
-                appearance: "none",
-                backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23ffffff' stroke-width='1' stroke-linecap='round' stroke-opacity='0.4'/%3E%3C/svg%3E\")",
-                backgroundRepeat: "no-repeat",
-                backgroundPosition: "right 5px center",
-                paddingRight: "18px",
-              };
-
-              const divider = <div style={{ width: "1px", height: "16px", background: "rgba(255,255,255,0.06)", margin: "0 2px", flexShrink: 0 }} />;
-
-              return (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "2px",
-                    marginTop: "-8px",
-                    marginBottom: "16px",
-                    padding: "4px",
-                    borderRadius: "8px",
-                    background: "rgba(255,255,255,0.02)",
-                    border: "1px solid rgba(255,255,255,0.04)",
-                    width: "fit-content",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {/* Visibility */}
-                  <button type="button" onClick={() => setTitleVisible(!titleVisible)} title={titleVisible ? "Hide title" : "Show title"} style={toolBtnStyle(!titleVisible)}>
-                    <EyeOff size={13} />
-                  </button>
-
-                  {divider}
-
-                  {/* Alignment */}
-                  <button type="button" onClick={() => setTitleAlign("left")} title="Left" style={toolBtnStyle(titleAlign === "left")}>
-                    <AlignLeft size={13} />
-                  </button>
-                  <button type="button" onClick={() => setTitleAlign("center")} title="Center" style={toolBtnStyle(titleAlign === "center")}>
-                    <AlignCenter size={13} />
-                  </button>
-                  <button type="button" onClick={() => setTitleAlign("right")} title="Right" style={toolBtnStyle(titleAlign === "right")}>
-                    <AlignRight size={13} />
-                  </button>
-
-                  {divider}
-
-                  {/* Font dropdown */}
-                  <select
-                    value={titleFont}
-                    onChange={(e) => setTitleFont(e.target.value)}
-                    style={selectStyle}
-                  >
-                    <option value="default">Sans</option>
-                    <option value="serif">Serif</option>
-                    <option value="mono">Mono</option>
-                    <option value="condensed">Narrow</option>
-                  </select>
-
-                  {/* Size dropdown */}
-                  <select
-                    value={titleSize}
-                    onChange={(e) => setTitleSize(e.target.value)}
-                    style={{ ...selectStyle, width: "52px" }}
-                  >
-                    <option value="sm">Small</option>
-                    <option value="md">Medium</option>
-                    <option value="lg">Large</option>
-                  </select>
-
-                  {divider}
-
-                  {/* Color picker + hex input */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <div style={{ position: "relative", width: "28px", height: "28px", flexShrink: 0 }}>
-                      <input
-                        type="color"
-                        value={titleColor}
-                        onChange={(e) => setTitleColor(e.target.value)}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          height: "100%",
-                          border: "none",
-                          padding: 0,
-                          cursor: "pointer",
-                          opacity: 0,
-                        }}
-                      />
-                      <div style={{
-                        width: "28px",
-                        height: "28px",
-                        borderRadius: "5px",
-                        background: titleColor,
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        pointerEvents: "none",
-                      }} />
-                    </div>
-                    <input
-                      type="text"
-                      value={titleColor}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setTitleColor(v);
-                      }}
-                      placeholder="#ffffff"
-                      spellCheck={false}
-                      style={{
-                        width: "68px",
-                        height: "28px",
-                        borderRadius: "5px",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        background: "rgba(255,255,255,0.04)",
-                        color: "rgba(255,255,255,0.7)",
-                        fontSize: "11px",
-                        fontFamily: "'Courier New', monospace",
-                        fontWeight: 600,
-                        padding: "0 6px",
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Description textarea - More visual but subtle */}
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Tell people what to expect..."
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                fontSize: "16px",
-                lineHeight: "1.7",
-                marginBottom: "24px",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: "12px",
-                color: "#fff",
-                outline: "none",
-                resize: "vertical",
-                minHeight: "80px",
-                padding: "16px 18px",
-                fontFamily: "inherit",
-                fontWeight: 400,
-                transition: "all 0.2s ease",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-              }}
-              onFocus={(e) => {
-                e.target.style.background = "rgba(255,255,255,0.06)";
-                e.target.style.border = "1px solid rgba(192, 192, 192, 0.3)";
-                e.target.style.boxShadow =
-                  "0 4px 12px rgba(192, 192, 192, 0.15)";
-              }}
-              onBlur={(e) => {
-                e.target.style.background = "rgba(255,255,255,0.04)";
-                e.target.style.border = "1px solid rgba(255,255,255,0.1)";
-                e.target.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
-              }}
-            />
-
-            {/* Details section color picker */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "12px 16px",
-                background: "rgba(20, 16, 30, 0.25)",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.06)",
-                marginBottom: "8px",
-              }}
-            >
-              <span style={{ fontSize: "12px", opacity: 0.6, marginRight: "auto" }}>
-                Details color
-              </span>
-              <div style={{ position: "relative", width: "28px", height: "28px", flexShrink: 0 }}>
-                <input
-                  type="color"
-                  value={detailsColor}
-                  onChange={(e) => setDetailsColor(e.target.value)}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    border: "none",
-                    padding: 0,
-                    cursor: "pointer",
-                    opacity: 0,
-                  }}
-                />
-                <div style={{
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "5px",
-                  background: detailsColor,
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  pointerEvents: "none",
-                }} />
-              </div>
-              <input
-                type="text"
-                value={detailsColor}
-                onChange={(e) => setDetailsColor(e.target.value)}
-                placeholder="#ffffff"
-                spellCheck={false}
-                style={{
-                  width: "68px",
-                  height: "28px",
-                  borderRadius: "5px",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  background: "rgba(255,255,255,0.04)",
-                  color: "rgba(255,255,255,0.7)",
-                  fontSize: "11px",
-                  fontFamily: "'Courier New', monospace",
-                  fontWeight: 600,
-                  padding: "0 6px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            {/* Details gradient background picker */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "12px 16px",
-                background: "rgba(20, 16, 30, 0.25)",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.06)",
-                marginBottom: "8px",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setDetailsGradientEnabled(!detailsGradientEnabled)}
-                title={detailsGradientEnabled ? "Disable background" : "Enable background"}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  color: detailsGradientEnabled ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.3)",
-                  display: "flex",
-                  alignItems: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <EyeOff size={14} />
-              </button>
-              <span style={{ fontSize: "12px", opacity: detailsGradientEnabled ? 0.6 : 0.3, marginRight: "auto" }}>
-                Details background
-              </span>
-              <div style={{ position: "relative", width: "28px", height: "28px", flexShrink: 0, opacity: detailsGradientEnabled ? 1 : 0.3, pointerEvents: detailsGradientEnabled ? "auto" : "none" }}>
-                <input
-                  type="color"
-                  value={detailsGradient}
-                  onChange={(e) => setDetailsGradient(e.target.value)}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    border: "none",
-                    padding: 0,
-                    cursor: "pointer",
-                    opacity: 0,
-                  }}
-                />
-                <div style={{
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "5px",
-                  background: detailsGradient,
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  pointerEvents: "none",
-                }} />
-              </div>
-              <input
-                type="text"
-                value={detailsGradient}
-                onChange={(e) => setDetailsGradient(e.target.value)}
-                placeholder="#000000"
-                disabled={!detailsGradientEnabled}
-                spellCheck={false}
-                style={{
-                  width: "68px",
-                  height: "28px",
-                  borderRadius: "5px",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  background: "rgba(255,255,255,0.04)",
-                  color: "rgba(255,255,255,0.7)",
-                  fontSize: "11px",
-                  fontFamily: "'Courier New', monospace",
-                  fontWeight: 600,
-                  opacity: detailsGradientEnabled ? 1 : 0.3,
-                  padding: "0 6px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            {/* Location and Date/Time - Integrated together */}
-            <div
-              style={{
-                marginTop: "28px",
-                marginBottom: "32px",
-              }}
-            >
-              {/* Location - Enhanced with autocomplete and current location */}
-              <div style={{ marginBottom: "20px", width: "100%" }}>
+            {/* OLD Location and Date/Time — REMOVED, now in sections builder */}
+            {false && <div><div>
                 <div
                   style={{
                     position: "relative",
@@ -2866,9 +2505,9 @@ export function CreateEventPage() {
                 </div>
               </div>
 
-              {/* Start Date & Time - Simple button interface */}
+              {/* Start Date & Time */}
               <div style={{
-                marginBottom: "20px",
+                marginBottom: "8px",
                 borderRadius: "14px",
                 border: hasAttemptedPublish && missingFields.startsAt
                   ? "2px solid rgba(239, 68, 68, 0.5)"
@@ -3001,8 +2640,8 @@ export function CreateEventPage() {
                 </div>
               </div>
 
-              {/* End Date & Time - Simple button interface */}
-              <div style={{ marginBottom: "20px" }}>
+              {/* End Date & Time */}
+              <div style={{ marginBottom: "0" }}>
                 <div
                   style={{
                     position: "relative",
@@ -3109,50 +2748,225 @@ export function CreateEventPage() {
                 </div>
               </div>
 
-              {/* Timezone - Subtle, integrated at bottom */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  marginTop: "8px",
-                }}
-              >
+            </div>}
+
+            {/* Content sections builder */}
+            <div style={{ marginBottom: "16px" }}>
+              {sections.map((section, i) => (
+                <div key={i} style={{
+                  padding: "14px 16px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "12px",
+                  marginBottom: "8px",
+                }}>
+                  {/* Section header: reorder + type label + delete */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: section.type === "title" || section.type === "location" || section.type === "datetime" ? "0" : "10px" }}>
+                    {/* Up/down reorder */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexShrink: 0 }}>
+                      <button type="button" disabled={i === 0} onClick={() => {
+                        const u = [...sections]; [u[i-1], u[i]] = [u[i], u[i-1]]; setSections(u);
+                      }} style={{ background: "none", border: "none", color: i === 0 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)", cursor: i === 0 ? "default" : "pointer", padding: 0, fontSize: "12px", lineHeight: 1 }}>&#9650;</button>
+                      <button type="button" disabled={i === sections.length - 1} onClick={() => {
+                        const u = [...sections]; [u[i], u[i+1]] = [u[i+1], u[i]]; setSections(u);
+                      }} style={{ background: "none", border: "none", color: i === sections.length - 1 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)", cursor: i === sections.length - 1 ? "default" : "pointer", padding: 0, fontSize: "12px", lineHeight: 1 }}>&#9660;</button>
+                    </div>
+                    <span style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.25)", flexShrink: 0 }}>
+                      {({ title: "Title", location: "Location", datetime: "Date & Time", socials: "Social Links", spotify: "Spotify", text: "Text" })[section.type] || "Text"}
+                    </span>
+                    <div style={{ flex: 1 }} />
+                    {section.type !== "title" && section.type !== "location" && section.type !== "datetime" && (
+                      <button type="button" onClick={() => setSections(sections.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: "18px", cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>
+                        &times;
+                      </button>
+                    )}
+                  </div>
+
+                  {section.type === "title" ? (
+                    /* Title input */
+                    <input
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Event Name"
+                      style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: "#fff", fontSize: "18px", fontWeight: 700, outline: "none", padding: 0, fontFamily: "inherit" }}
+                    />
+                  ) : section.type === "location" ? (
+                    /* Location input */
+                    <LocationAutocomplete
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      onLocationSelect={async (locationData) => {
+                        setLocation(locationData.address);
+                        setLocationLat(locationData.lat);
+                        setLocationLng(locationData.lng);
+                        const tz = await fetchTimezoneForLocation(locationData.lat, locationData.lng);
+                        if (tz) setTimezone(tz);
+                      }}
+                      onFocus={() => setFocusedField("location")}
+                      onBlur={() => setFocusedField(null)}
+                      style={{ flex: 1, background: "transparent", border: "none", color: "#fff", fontSize: "15px", outline: "none", padding: 0, width: "100%", fontFamily: "inherit" }}
+                      placeholder="Where's the event?"
+                      disabled={loading}
+                    />
+                  ) : section.type === "datetime" ? (
+                    /* Date/time inputs */
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <div
+                        style={{ position: "relative", width: "100%", cursor: "pointer" }}
+                        onClick={() => { startDateTimeInputRef.current?.focus(); startDateTimeInputRef.current?.showPicker?.(); }}
+                      >
+                        <input
+                          ref={startDateTimeInputRef}
+                          type="datetime-local"
+                          value={isoToLocalDateTime(startsAt)}
+                          onChange={(e) => {
+                            const localValue = e.target.value;
+                            if (localValue) {
+                              setStartsAt(localDateTimeToIso(localValue));
+                              const [eventDatePart] = localValue.split("T");
+                              if (eventDatePart) {
+                                if (dinnerStartTime) { const [, tp] = dinnerStartTime.split("T"); if (tp) setDinnerStartTime(`${eventDatePart}T${tp}`); }
+                                if (dinnerEndTime) { const [, tp] = dinnerEndTime.split("T"); if (tp) setDinnerEndTime(`${eventDatePart}T${tp}`); }
+                              }
+                            }
+                          }}
+                          style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", zIndex: 1 }}
+                        />
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", color: startsAt ? "#fff" : "rgba(255,255,255,0.4)", fontSize: "14px" }}>
+                          <SilverIcon as={Clock} size={16} />
+                          <span>{startsAt ? formatReadableDateTime(new Date(startsAt), timezone) : "Event start"}</span>
+                          {startsAt && <span style={{ marginLeft: "auto", fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>{formatRelativeTime(new Date(startsAt))}</span>}
+                        </div>
+                      </div>
+                      <div
+                        style={{ position: "relative", width: "100%", cursor: "pointer" }}
+                        onClick={() => { endDateTimeInputRef.current?.focus(); endDateTimeInputRef.current?.showPicker?.(); }}
+                      >
+                        <input
+                          ref={endDateTimeInputRef}
+                          type="datetime-local"
+                          value={isoToLocalDateTime(endsAt)}
+                          onChange={(e) => { if (e.target.value) setEndsAt(localDateTimeToIso(e.target.value)); }}
+                          style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", zIndex: 1 }}
+                        />
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", color: endsAt ? "#fff" : "rgba(255,255,255,0.4)", fontSize: "14px" }}>
+                          <SilverIcon as={Clock} size={16} />
+                          <span>{endsAt ? formatReadableDateTime(new Date(endsAt), timezone) : "Event end"}</span>
+                          {endsAt && <span style={{ marginLeft: "auto", fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>{formatRelativeTime(new Date(endsAt))}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ) : section.type === "spotify" ? (
+                    /* Spotify embed section */
+                    <div>
+                      <input
+                        type="url"
+                        value={section.url || ""}
+                        onChange={(e) => {
+                          const u = [...sections]; u[i] = { ...u[i], url: e.target.value }; setSections(u);
+                        }}
+                        placeholder="Paste Spotify URL (track, album, artist, or playlist)"
+                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
+                      />
+                      {section.url && section.url.includes("spotify.com") && (
+                        <iframe
+                          src={section.url.replace("spotify.com/", "spotify.com/embed/").split("?")[0]}
+                          width="100%"
+                          height={section.url.includes("/track/") ? "80" : "152"}
+                          frameBorder="0"
+                          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                          loading="lazy"
+                          style={{ borderRadius: "8px", marginTop: "10px" }}
+                        />
+                      )}
+                    </div>
+                  ) : section.type === "socials" ? (
+                    /* Social links section */
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {[
+                        { key: "instagram", label: "Instagram", placeholder: "https://instagram.com/..." },
+                        { key: "spotify", label: "Spotify", placeholder: "https://open.spotify.com/..." },
+                        { key: "tiktok", label: "TikTok", placeholder: "https://tiktok.com/@..." },
+                        { key: "soundcloud", label: "SoundCloud", placeholder: "https://soundcloud.com/..." },
+                      ].map(({ key, label, placeholder }) => (
+                        <div key={key} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", width: "76px", flexShrink: 0 }}>{label}</span>
+                          <input
+                            type="url"
+                            value={section[key] || ""}
+                            onChange={(e) => {
+                              const u = [...sections]; u[i] = { ...u[i], [key]: e.target.value }; setSections(u);
+                            }}
+                            placeholder={placeholder}
+                            style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "8px 10px", outline: "none", fontFamily: "inherit", minWidth: 0 }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    /* Header & text section */
+                    <>
+                      <input
+                        type="text"
+                        value={section.title || ""}
+                        onChange={(e) => {
+                          const u = [...sections]; u[i] = { ...u[i], title: e.target.value }; setSections(u);
+                        }}
+                        placeholder="Section title (e.g. About, Lineup, Menu...)"
+                        style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: "#fff", fontSize: "15px", fontWeight: 600, outline: "none", padding: 0, marginBottom: "8px", fontFamily: "inherit" }}
+                      />
+                      <textarea
+                        value={section.text || ""}
+                        onChange={(e) => {
+                          const u = [...sections]; u[i] = { ...u[i], text: e.target.value }; setSections(u);
+                        }}
+                        placeholder="Write your content..."
+                        style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: "#fff", fontSize: "14px", lineHeight: "1.6", outline: "none", resize: "vertical", minHeight: "60px", padding: 0, fontFamily: "inherit", opacity: 0.85 }}
+                      />
+                    </>
+                  )}
+                </div>
+              ))}
+
+              {/* Add section picker */}
+              <div style={{ position: "relative" }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    showToast(
-                      `Timezone: ${tzInfo.tzName} ${tzInfo.city}`,
-                      "info",
-                    );
-                  }}
-                  style={{
-                    padding: "8px 12px",
-                    background: "rgba(192, 192, 192, 0.1)",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(192, 192, 192, 0.2)",
-                    fontSize: "10px",
-                    textAlign: "center",
-                    cursor: "pointer",
-                    transition: "all 0.15s ease",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                  onTouchStart={(e) => {
-                    e.target.style.background = "rgba(192, 192, 192, 0.15)";
-                  }}
-                  onTouchEnd={(e) => {
-                    e.target.style.background = "rgba(192, 192, 192, 0.1)";
-                  }}
+                  onClick={() => setShowSectionPicker(!showSectionPicker)}
+                  style={{ width: "100%", padding: "12px", borderRadius: "12px", border: "1px dashed rgba(255,255,255,0.15)", background: "transparent", color: "rgba(255,255,255,0.4)", fontSize: "14px", fontWeight: 500, cursor: "pointer", transition: "all 0.2s ease" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}
                 >
-                  <SilverIcon as={Globe} size={14} />
-                  <span style={{ fontWeight: 600, color: "#e5e5e5" }}>
-                    {tzInfo.tzName}
-                  </span>
-                  <span style={{ opacity: 0.7, fontSize: "9px" }}>
-                    {tzInfo.city}
-                  </span>
+                  + Add section
                 </button>
+                {showSectionPicker && (
+                  <div style={{
+                    marginTop: "6px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(12, 10, 18, 0.95)", overflow: "hidden",
+                  }}>
+                    <button type="button" onClick={() => { setSections([...sections, { type: "text", title: "", text: "" }]); setShowSectionPicker(false); }}
+                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span style={{ fontSize: "16px" }}>T</span> Header & Text
+                    </button>
+                    <button type="button" onClick={() => { setSections([...sections, { type: "spotify", url: "" }]); setShowSectionPicker(false); }}
+                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span style={{ fontSize: "16px", color: "#1DB954" }}>&#9835;</span> Spotify
+                    </button>
+                    <button type="button" onClick={() => { setSections([...sections, { type: "socials", instagram: "", spotify: "", tiktok: "", soundcloud: "" }]); setShowSectionPicker(false); }}
+                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span style={{ fontSize: "16px" }}>@</span> Social Links
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             </div>
@@ -4084,14 +3898,8 @@ export function CreateEventPage() {
               }}>
               <EventPreview
                 title={title}
-                titleVisible={titleVisible}
-                titleAlign={titleAlign}
-                titleFont={titleFont}
-                titleSize={titleSize}
-                titleColor={titleColor}
-                detailsColor={detailsColor}
-                detailsGradient={detailsGradientEnabled ? detailsGradient : null}
                 autoShowRsvp={currentStep === 3 || currentStep === 5}
+                activeStep={currentStep}
                 description={description}
                 location={location}
                 locationLat={locationLat}
@@ -4121,6 +3929,7 @@ export function CreateEventPage() {
                     : null
                 }
                 ticketCurrency={sellTicketsEnabled ? ticketCurrency : null}
+                sections={sections}
                 rsvpContent={({ onClose }) => (
                   <RsvpForm
                     event={{
@@ -4192,10 +4001,6 @@ export function CreateEventPage() {
         >
           <EventPreview
             title={title}
-            titleVisible={titleVisible}
-            titleAlign={titleAlign}
-            titleFont={titleFont}
-            titleSize={titleSize}
             description={description}
             location={location}
             locationLat={locationLat}
@@ -4216,6 +4021,7 @@ export function CreateEventPage() {
             ticketType={sellTicketsEnabled ? "paid" : "free"}
             compact
             autoShowRsvp={currentStep === 4 || currentStep === 5}
+            activeStep={currentStep}
             instagram={instagram}
             spotify={spotify}
             ticketPrice={
@@ -4224,6 +4030,7 @@ export function CreateEventPage() {
                 : null
             }
             ticketCurrency={sellTicketsEnabled ? ticketCurrency : null}
+            sections={sections}
             rsvpContent={({ onClose }) => (
               <RsvpForm
                 event={{

@@ -773,9 +773,8 @@ export function EventPage() {
   // Format date/time (centralized helpers)
   const eventDate = event?.startsAt ? formatEventDate(event.startsAt, event.timezone) : "";
   const eventTime = event?.startsAt ? formatEventTime(event.startsAt, event.timezone) : "";
-  const detailsColor = event?.titleSettings?.detailsColor || "#ffffff";
-  const detailsGradientEnabled = event?.titleSettings?.detailsGradientEnabled === true;
-  const detailsGradient = detailsGradientEnabled ? (event?.titleSettings?.detailsGradient || "#000000") : null;
+  const detailsColor = "#ffffff";
+  const detailsGradient = null; // Always use dark gradient overlay
 
   const mediaCount = event?.media?.length || 0;
   const canSwipeEvent = mediaCount > 1 && !event?.mediaSettings?.autoscroll;
@@ -820,7 +819,7 @@ export function EventPage() {
           /* On desktop, content group always behaves as expanded */
           .content-group-desktop {
             flex: 0 1 auto !important;
-            max-height: calc(100vh - ${EVENT_CTA_HEIGHT}px) !important;
+            max-height: 100vh !important;
             overflow: hidden !important;
           }
         }
@@ -832,13 +831,13 @@ export function EventPage() {
         /* When description is expanded, content group sizes naturally (not forced to top) */
         .content-group-expanded {
           flex: 0 1 auto;
-          max-height: calc(100vh - ${EVENT_CTA_HEIGHT}px);
-          max-height: calc(100dvh - ${EVENT_CTA_HEIGHT}px);
+          max-height: 100vh;
+          max-height: 100dvh;
           overflow: hidden;
         }
         @supports (height: 100dvh) {
           .content-group-expanded {
-            max-height: calc(100dvh - ${EVENT_CTA_HEIGHT}px);
+            max-height: 100dvh;
           }
         }
         /* Static info section - sticks to top of description */
@@ -869,16 +868,16 @@ export function EventPage() {
         }
         /* Content container accounts for sticky button - mobile optimized */
         .event-content-container {
-          height: calc(100vh - ${EVENT_CTA_HEIGHT}px);
-          height: calc(100dvh - ${EVENT_CTA_HEIGHT}px); /* Use dynamic viewport height when supported (better for mobile) */
-          max-height: calc(100vh - ${EVENT_CTA_HEIGHT}px);
-          max-height: calc(100dvh - ${EVENT_CTA_HEIGHT}px);
+          height: 100vh;
+          height: 100dvh; /* Use dynamic viewport height when supported (better for mobile) */
+          max-height: 100vh;
+          max-height: 100dvh;
           box-sizing: border-box;
         }
         @supports (height: 100dvh) {
           .event-content-container {
-            height: calc(100dvh - ${EVENT_CTA_HEIGHT}px);
-            max-height: calc(100dvh - ${EVENT_CTA_HEIGHT}px);
+            height: 100dvh;
+            max-height: 100dvh;
           }
         }
         /* Outer container for proper viewport handling */
@@ -936,21 +935,20 @@ export function EventPage() {
           </>
         )}
 
-        {/* Details gradient background — fixed to bottom, between bg image and content */}
-        {detailsGradient && (
-          <div
-            style={{
-              position: "fixed",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: "55vh",
-              background: `linear-gradient(to bottom, ${detailsGradient}00 0%, ${detailsGradient}80 15%, ${detailsGradient}cc 30%, ${detailsGradient} 50%, ${detailsGradient} 100%)`,
-              pointerEvents: "none",
-              zIndex: 1,
-            }}
-          />
-        )}
+        {/* Dark gradient overlay - fades to black at bottom */}
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background:
+              "linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(5, 4, 10, 0.3) 60%, rgba(5, 4, 10, 0.7) 75%, #05040a 100%)",
+            pointerEvents: "none",
+            zIndex: 1,
+          }}
+        />
 
         {/* Content - Overlaid on background */}
         <div
@@ -993,7 +991,7 @@ export function EventPage() {
             );
           })()}
 
-          {/* Content group - Share/Event Details + Description - moves up together when expanded */}
+          {/* Content group - glass card with details + CTA */}
           <div
             className={`content-group ${
               showDescription ? "content-group-expanded" : ""
@@ -1003,14 +1001,19 @@ export function EventPage() {
               display: "flex",
               flexDirection: "column",
               pointerEvents: "auto",
+              background: "rgba(5, 4, 10, 0.65)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              borderRadius: "20px",
+              padding: "20px",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
             }}
           >
-            {/* Static info section - sticks to top of description */}
+            {/* Static info section */}
             <div
               className="static-info-section"
               style={{
                 flexShrink: 0,
-                paddingTop: "16px",
               }}
             >
               {/* Carousel dots */}
@@ -1147,7 +1150,9 @@ export function EventPage() {
                     display: "flex",
                     alignItems: "flex-start",
                     gap: "12px",
+                    paddingBottom: "12px",
                     marginBottom: "12px",
+                    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
                     fontSize: "16px",
                     lineHeight: "1.4",
                     color: detailsColor,
@@ -1179,7 +1184,9 @@ export function EventPage() {
                     display: "flex",
                     alignItems: "flex-start",
                     gap: "12px",
+                    paddingBottom: "12px",
                     marginBottom: "12px",
+                    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
                     fontSize: "16px",
                     lineHeight: "1.4",
                     color: detailsColor,
@@ -1294,24 +1301,23 @@ export function EventPage() {
                 </div>
               </div>
             )}
+            {/* Register button inside card */}
+            <div style={{ marginTop: "12px" }}>
+              <EventCTA
+                label={getCtaLabel({
+                  ticketType: event?.ticketType,
+                  ticketPrice: event?.ticketPrice,
+                  ticketCurrency: event?.ticketCurrency,
+                  isEventPast,
+                  isSoldOut,
+                })}
+                disabled={loading || !event || isEventPast || isSoldOut}
+                onClick={() => setShowRsvpForm(true)}
+                maxWidth="100%"
+              />
+            </div>
           </div>
         </div>
-
-        {/* Sticky CTA Button — shared with EventPreview */}
-        <EventCTA
-          fixed
-          label={getCtaLabel({
-            ticketType: event?.ticketType,
-            ticketPrice: event?.ticketPrice,
-            ticketCurrency: event?.ticketCurrency,
-            isEventPast,
-            isSoldOut,
-          })}
-          disabled={loading || !event || isEventPast || isSoldOut}
-          onClick={() => setShowRsvpForm(true)}
-          maxWidth="420px"
-          bgColor={detailsGradient}
-        />
 
         {/* RSVP Form Modal/Drawer (with inline payment section for paid events) */}
         <ModalOrDrawer

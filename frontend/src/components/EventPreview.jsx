@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { FaCalendar, FaMapMarkerAlt, FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { ChevronDown } from "lucide-react";
 import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort } from "../lib/urlUtils";
 import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
+import { useStickyReveal } from "./useStickyReveal";
 
 const CTA_BAR_HEIGHT = 62;
 
@@ -33,12 +34,25 @@ export function EventPreview({
   activeStep,
 }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const [rsvpRevealPx, setRsvpRevealPx] = useState(0); // actual pixels to reveal
-  const [formHeight, setFormHeight] = useState(0); // track actual form height
   const scrollRef = useRef(null);
-  const rsvpSentinelRef = useRef(null);
-  const rsvpFormRef = useRef(null);
   const ctaBarRef = useRef(null);
+
+  const {
+    sentinelRef,
+    formRef,
+    revealPx: rsvpRevealPx,
+    isRevealed: formRevealed,
+    scrollToPanel: scrollToRsvp,
+    spacerHeight,
+    barStyle,
+  } = useStickyReveal({
+    scrollRef,
+    barHeight: CTA_BAR_HEIGHT,
+    enabled: !!rsvpContent,
+    autoShow: autoShowRsvp,
+    contentKey: rsvpContent,
+  });
+
   const mediaCount = media?.length || 0;
   const canSwipe = mediaCount > 1 && !mediaSettings?.autoscroll;
   const swipeHandlers = useCarouselSwipe(mediaCount, setCarouselIndex);
@@ -67,66 +81,8 @@ export function EventPreview({
     }
   }, [activeStep]);
 
-  // Track scroll to calculate how much to reveal the RSVP form
-  const handleScroll = useCallback(() => {
-    if (!rsvpSentinelRef.current || !scrollRef.current || !rsvpFormRef.current) {
-      setRsvpReveal(0);
-      return;
-    }
-    const container = scrollRef.current;
-    const sentinel = rsvpSentinelRef.current;
-    const sentinelRect = sentinel.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-    const formHeight = rsvpFormRef.current.scrollHeight || 300;
-
-    // How far the sentinel top is above the container bottom (the CTA bar position)
-    // Subtract CTA_BAR_HEIGHT so we only trigger once sentinel clears the bar
-    const distancePastTrigger = containerRect.bottom - sentinelRect.top - CTA_BAR_HEIGHT;
-
-    if (distancePastTrigger <= 0) {
-      setRsvpRevealPx(0);
-    } else {
-      // 1:1 mapping — each pixel scrolled reveals one pixel of form
-      setRsvpRevealPx(distancePastTrigger);
-    }
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.addEventListener("scroll", handleScroll, { passive: true });
-    return () => el.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
-
-  // Track form height dynamically (dinner slots, plus ones can change it)
-  useEffect(() => {
-    if (!rsvpFormRef.current) return;
-    const ro = new ResizeObserver(() => {
-      // Form content height + extra for the expanded header (title + location + date + price ≈ 80px)
-      if (rsvpFormRef.current) setFormHeight(rsvpFormRef.current.scrollHeight);
-    });
-    ro.observe(rsvpFormRef.current);
-    return () => ro.disconnect();
-  }, [rsvpContent]);
-
-  // Auto-scroll to RSVP
-  useEffect(() => {
-    if (autoShowRsvp && rsvpSentinelRef.current) {
-      setTimeout(() => {
-        rsvpSentinelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 300);
-    }
-  }, [autoShowRsvp]);
-
-  function scrollToRsvp() {
-    if (rsvpSentinelRef.current) {
-      rsvpSentinelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }
-
   const buttonLabel = getCtaLabel({ ticketType, ticketPrice, ticketCurrency });
   const hasContent = description || (sections && sections.length > 0);
-  const formRevealed = rsvpRevealPx > 0;
 
   return (
     <>
@@ -227,7 +183,7 @@ export function EventPreview({
           {/* ─── CONTENT SECTION ─── */}
           <div style={{
             background: "#05040a",
-            padding: "28px 20px 0",
+            padding: `28px 20px ${CTA_BAR_HEIGHT + 10}px`,
             minHeight: hasContent ? "40%" : undefined,
                       }}>
             {(!sections || sections.length === 0) && (
@@ -269,18 +225,19 @@ export function EventPreview({
           {/* ─── RSVP SCROLL SPACER ─── */}
           {rsvpContent && (
             <div
-              ref={rsvpSentinelRef}
-              style={{
-                height: formHeight > 0 ? `${formHeight + 20}px` : "50vh",
-              }}
+              ref={sentinelRef}
+              style={{ height: spacerHeight }}
             />
           )}
         </div>
 
-        {/* ─── FIXED CTA BAR — always at bottom, grows upward to reveal form ─── */}
+        {/* ─── FIXED CTA — one single unit, clips from bottom ─── */}
         {!hideCta && (
           <div
             ref={ctaBarRef}
+            onWheel={(e) => {
+              if (scrollRef.current) scrollRef.current.scrollTop += e.deltaY;
+            }}
             style={{
               position: "absolute",
               bottom: 0,
@@ -291,79 +248,54 @@ export function EventPreview({
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-              display: "flex",
-              flexDirection: "column",
-              maxHeight: "55vh",
+              overflow: "hidden",
+              ...barStyle,
             }}
           >
-            {/* Header — event info + price, matches content section */}
-            <div
-              onWheel={(e) => {
-                if (scrollRef.current) scrollRef.current.scrollTop += e.deltaY;
-              }}
-              style={{
-                padding: "12px 20px",
-                flexShrink: 0,
+            {/* Everything is one ref'd unit */}
+            <div ref={formRef} style={{ padding: "0 20px" }}>
+              {/* Row 1: Price/date + Register button */}
+              <div style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-              }}
-            >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
-                  {ticketType === "paid" && ticketPrice
-                    ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
-                    : "Free entry"}
+                height: `${CTA_BAR_HEIGHT}px`,
+                boxSizing: "border-box",
+                padding: "12px 0",
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
+                    {ticketType === "paid" && ticketPrice
+                      ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
+                      : "Free entry"}
+                  </div>
+                  <div style={{ fontSize: "11px", fontWeight: 600, color: formRevealed ? "#a3e635" : "rgba(255,255,255,0.4)", marginTop: "1px" }}>
+                    {formattedDate}
+                  </div>
                 </div>
-                <div style={{ fontSize: "11px", fontWeight: 600, color: rsvpRevealPx > 20 ? "#a3e635" : "rgba(255,255,255,0.4)", marginTop: "1px" }}>
-                  {formattedDate}
-                </div>
+                <button
+                  type="button"
+                  disabled={!rsvpContent}
+                  onClick={rsvpContent ? scrollToRsvp : undefined}
+                  style={{
+                    padding: "12px 24px",
+                    background: "#fff", color: "#000", border: "none", borderRadius: "999px",
+                    fontSize: "14px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
+                    cursor: !rsvpContent ? "not-allowed" : "pointer",
+                    opacity: formRevealed ? 0 : (!rsvpContent ? 0.5 : 1),
+                    flexShrink: 0, whiteSpace: "nowrap",
+                    pointerEvents: formRevealed ? "none" : "auto",
+                  }}
+                >
+                  {buttonLabel}
+                </button>
               </div>
-              {/* Compact REGISTER button — visible only when form is collapsed */}
-              <button
-                type="button"
-                disabled={!rsvpContent}
-                onClick={rsvpContent ? scrollToRsvp : undefined}
-                style={{
-                  padding: "12px 24px",
-                  background: "#fff", color: "#000", border: "none", borderRadius: "999px",
-                  fontSize: "14px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-                  cursor: !rsvpContent ? "not-allowed" : "pointer",
-                  opacity: rsvpRevealPx > 20 ? 0 : (!rsvpContent ? 0.5 : 1),
-                  flexShrink: 0, whiteSpace: "nowrap",
-                  pointerEvents: rsvpRevealPx > 20 ? "none" : "auto",
-                  position: rsvpRevealPx > 20 ? "absolute" : "relative",
-                  right: rsvpRevealPx > 20 ? "20px" : undefined,
-                }}
-              >
-                {buttonLabel}
-              </button>
-            </div>
 
-            {/* Form fields — expand from below the price/date row */}
-            <div style={{
-              overflow: "hidden",
-              height: `${rsvpRevealPx}px`,
-              maxHeight: "calc(55vh - 62px)",
-              opacity: rsvpRevealPx > 5 ? Math.min(rsvpRevealPx / 40, 1) : 0,
-              overflowY: formHeight > 0 && rsvpRevealPx >= formHeight ? "auto" : "hidden",
-            }}>
-              <div
-                ref={rsvpFormRef}
-                onWheel={(e) => {
-                  // Forward scroll to the main scroll container so scrolling over the form works
-                  if (scrollRef.current) {
-                    scrollRef.current.scrollTop += e.deltaY;
-                  }
-                }}
-                style={{
-                  padding: "8px 20px 60px",
-                }}
-              >
-                {/* Event info — part of the form unit */}
-                <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                  {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: "2px" }}>{title}</div>}
-                  {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.4)", marginBottom: "1px" }}>{formatLocationShort(location)}</div>}
+              {/* Row 2+: Title, location, form fields — all one continuous block */}
+              <div style={{ paddingBottom: "60px" }}>
+                <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                  {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
+                  {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>{formatLocationShort(location)}</div>}
                 </div>
                 {typeof rsvpContent === "function" ? rsvpContent({ onClose: () => {} }) : rsvpContent}
               </div>

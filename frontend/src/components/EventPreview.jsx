@@ -234,9 +234,10 @@ export function EventPreview({
               display: "flex",
               flexDirection: "column",
               pointerEvents: "auto",
+              gap: "2px",
             }}
           >
-            {/* Carousel dots — above share row, visible in the content zone */}
+            {/* Carousel dots */}
             {media && media.length > 1 && !mediaSettings?.autoscroll && (
               <CarouselDots
                 count={media.length}
@@ -245,197 +246,142 @@ export function EventPreview({
               />
             )}
 
-            {/* Share icon row */}
+            {/* Date & Time — biggest, most prominent */}
             <div
               style={{
+                background: "rgba(0,0,0,0.55)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                padding: "14px 16px",
                 display: "flex",
                 alignItems: "center",
-                gap: "16px",
-                marginBottom: "12px",
-                flexShrink: 0,
-                paddingTop: "16px",
-              }}
-            >
-              {instagram && (
-                <a
-                  href={instagram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: detailsColor, opacity: 0.8, display: "inline-flex" }}
-                >
-                  <FaInstagram size={20} />
-                </a>
-              )}
-              {spotify && (
-                <a
-                  href={spotify}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: detailsColor, opacity: 0.8, display: "inline-flex" }}
-                >
-                  <FaSpotify size={20} />
-                </a>
-              )}
-              {tiktok && (
-                <a
-                  href={tiktok}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: detailsColor, opacity: 0.8, display: "inline-flex" }}
-                >
-                  <FaTiktok size={20} />
-                </a>
-              )}
-              {soundcloud && (
-                <a
-                  href={soundcloud}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: detailsColor, opacity: 0.8, display: "inline-flex" }}
-                >
-                  <FaSoundcloud size={20} />
-                </a>
-              )}
-            </div>
-
-            {/* Date & Time */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
                 gap: "12px",
-                marginBottom: "12px",
-                fontSize: "16px",
-                lineHeight: "1.4",
-                color: eventDate
-                  ? detailsColor
-                  : "rgba(255,255,255,0.3)",
-                opacity: eventDate ? 0.9 : 1,
+                color: detailsColor,
               }}
             >
-              <FaCalendar
-                size={18}
-                style={{
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  marginTop: "1px",
-                  color: eventDate
-                    ? detailsColor
-                    : "rgba(255,255,255,0.2)",
-                  opacity: eventDate ? 0.7 : 1,
-                }}
-              />
-              <span>
+              <FaCalendar size={18} style={{ flexShrink: 0, opacity: 0.6 }} />
+              <span style={{ fontSize: "18px", fontWeight: 700, letterSpacing: "-0.01em" }}>
                 {eventDate
-                  ? `${eventDate}${eventTime ? ` at ${eventTime}` : ""}`
+                  ? `${eventDate}${eventTime ? `  ${eventTime}` : ""}`
                   : "When is it?"}
               </span>
             </div>
 
             {/* Location */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "12px",
-                marginBottom: "12px",
-                fontSize: "16px",
-                lineHeight: "1.4",
-                color: location
-                  ? detailsColor
-                  : "rgba(255,255,255,0.3)",
-                opacity: location ? 0.9 : 1,
-              }}
-            >
-              <FaMapMarkerAlt
-                size={18}
-                style={{
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  marginTop: "1px",
-                  color: location
-                    ? detailsColor
-                    : "rgba(255,255,255,0.2)",
-                  opacity: location ? 0.7 : 1,
-                }}
-              />
-              <span
-                style={{
-                  borderBottom: location
-                    ? `1px solid ${detailsColor}`
-                    : "none",
-                  opacity: location ? 0.7 : 1,
-                }}
-              >
-                {location ? formatLocationShort(location) : "Where is it?"}
-              </span>
-            </div>
-
-            {/* Description */}
-            {description && (
+            {(location || !eventDate) && (
               <div
                 style={{
-                  paddingTop: "16px",
+                  background: "rgba(0,0,0,0.55)",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                  padding: "12px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  color: detailsColor,
                 }}
               >
-                <p
-                  className={compact ? undefined : "event-preview-description"}
-                  style={{
-                    fontSize: "16px",
-                    lineHeight: "1.5",
-                    color: detailsColor,
-                    opacity: 0.85,
-                    margin: 0,
-                    marginBottom: showDescription ? "4px" : "0",
-                    whiteSpace: "pre-line",
-                    wordWrap: "break-word",
-                    overflowWrap: "break-word",
-                    display: showDescription ? "block" : "-webkit-box",
-                    WebkitLineClamp: showDescription ? "none" : 2,
-                    WebkitBoxOrient: "vertical",
-                    overflow: showDescription ? "visible" : "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {description}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowDescription(!showDescription)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: detailsColor,
-                    opacity: 0.8,
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    padding: "4px 0",
-                    margin: "4px 0 0 0",
-                    textDecoration: "none",
-                    display: "inline-block",
-                    WebkitTapHighlightColor: "transparent",
-                    flexShrink: 0,
-                  }}
-                >
-                  {showDescription ? "Read less" : "Read more"}
-                </button>
+                <FaMapMarkerAlt size={16} style={{ flexShrink: 0, opacity: 0.6 }} />
+                <span style={{ fontSize: "15px", fontWeight: 500 }}>
+                  {location ? formatLocationShort(location) : "Where is it?"}
+                </span>
               </div>
             )}
+
+            {/* Description + Register */}
+            <div
+              style={{
+                background: "rgba(0,0,0,0.55)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                padding: "14px 16px",
+              }}
+            >
+              {/* Social icons */}
+              {(instagram || spotify || tiktok || soundcloud) && (
+                <div style={{ display: "flex", gap: "14px", marginBottom: "12px" }}>
+                  {instagram && <a href={instagram} target="_blank" rel="noopener noreferrer" style={{ color: detailsColor, opacity: 0.7, display: "inline-flex" }}><FaInstagram size={18} /></a>}
+                  {spotify && <a href={spotify} target="_blank" rel="noopener noreferrer" style={{ color: detailsColor, opacity: 0.7, display: "inline-flex" }}><FaSpotify size={18} /></a>}
+                  {tiktok && <a href={tiktok} target="_blank" rel="noopener noreferrer" style={{ color: detailsColor, opacity: 0.7, display: "inline-flex" }}><FaTiktok size={18} /></a>}
+                  {soundcloud && <a href={soundcloud} target="_blank" rel="noopener noreferrer" style={{ color: detailsColor, opacity: 0.7, display: "inline-flex" }}><FaSoundcloud size={18} /></a>}
+                </div>
+              )}
+
+              {description && (
+                <>
+                  <p
+                    className={compact ? undefined : "event-preview-description"}
+                    style={{
+                      fontSize: "15px",
+                      lineHeight: "1.5",
+                      color: detailsColor,
+                      opacity: 0.85,
+                      margin: 0,
+                      marginBottom: showDescription ? "4px" : "0",
+                      whiteSpace: "pre-line",
+                      wordWrap: "break-word",
+                      overflowWrap: "break-word",
+                      display: showDescription ? "block" : "-webkit-box",
+                      WebkitLineClamp: showDescription ? "none" : 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: showDescription ? "visible" : "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {description}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowDescription(!showDescription)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: detailsColor,
+                      opacity: 0.6,
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      padding: "4px 0",
+                      margin: "4px 0 0 0",
+                      textDecoration: "none",
+                      display: "inline-block",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    {showDescription ? "Read less" : "Read more"}
+                  </button>
+                </>
+              )}
+
+              {/* Register button — integrated in content flow */}
+              {!hideCta && (
+                <button
+                  type="button"
+                  disabled={!rsvpContent}
+                  onClick={rsvpContent ? () => setShowRsvp(true) : undefined}
+                  style={{
+                    width: "100%",
+                    marginTop: description ? "16px" : "0",
+                    padding: "16px",
+                    background: "#fff",
+                    color: "#000",
+                    border: "none",
+                    borderRadius: "0",
+                    fontSize: "16px",
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    cursor: !rsvpContent ? "not-allowed" : "pointer",
+                    opacity: !rsvpContent ? 0.5 : 1,
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {buttonLabel}
+                </button>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Sticky CTA Button — shared with EventPage */}
-        {!hideCta && (
-          <EventCTA
-            label={buttonLabel}
-            disabled={!rsvpContent}
-            onClick={rsvpContent ? () => setShowRsvp(true) : undefined}
-            bgColor={detailsGradient}
-          />
-        )}
 
         {/* Inline RSVP bottom-sheet — scoped to the preview container */}
         {showRsvp && rsvpContent && (

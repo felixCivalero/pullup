@@ -641,6 +641,43 @@ app.post("/internal/webhooks/ses-eventbridge", async (req, res) => {
 app.use(trackingRoutes);
 
 // ---------------------------
+// PARTNER CLICK TRACKING
+// ---------------------------
+app.post("/partner-clicks", optionalAuth, async (req, res) => {
+  try {
+    const { partnerSlug, eventId, placement } = req.body;
+
+    if (!partnerSlug || !eventId || !placement) {
+      return res.status(400).json({ error: "partnerSlug, eventId, and placement are required" });
+    }
+
+    const userId = req.user?.id || null;
+    const userAgent = (req.headers["user-agent"] || "").slice(0, 500);
+    const ipAddress = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
+
+    const { supabase } = await import("./supabase.js");
+    const { error } = await supabase.from("partner_clicks").insert({
+      partner_slug: partnerSlug,
+      user_id: userId,
+      event_id: eventId,
+      placement,
+      user_agent: userAgent,
+      ip_address: ipAddress,
+    });
+
+    if (error) {
+      console.error("Supabase insert error:", error);
+      return res.status(500).json({ error: "Failed to record click" });
+    }
+
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    console.error("Error recording partner click:", err);
+    res.status(500).json({ error: "Failed to record click" });
+  }
+});
+
+// ---------------------------
 // PROTECTED: List user's events (requires auth)
 // ---------------------------
 app.get("/events", requireAuth, async (req, res) => {

@@ -30,6 +30,7 @@ export function EventSuccessPage() {
   const [event, setEvent] = useState(location.state?.event || null);
   const [loading, setLoading] = useState(!location.state?.event);
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
+  const [zodaHovered, setZodaHovered] = useState(false);
   const calendarDropdownRef = useRef(null);
   const retryCountRef = useRef(0);
 
@@ -518,6 +519,17 @@ export function EventSuccessPage() {
                 justifyContent: "center",
                 gap: 8,
                 position: "relative",
+                transition: "transform 0.3s, box-shadow 0.3s, border-color 0.3s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = "0 0 24px rgba(251,191,36,0.2), 0 0 48px rgba(251,191,36,0.08)";
+                e.currentTarget.style.borderColor = "rgba(251,191,36,0.35)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
               }}
             >
               <SilverIcon as={Megaphone} size={18} />
@@ -542,33 +554,6 @@ export function EventSuccessPage() {
                 }}
               >
                 Popular
-              </span>
-            </button>
-
-            <button
-              onClick={handleShare}
-              style={{
-                width: "100%",
-                padding: "16px",
-                borderRadius: "14px",
-                border: "1px solid rgba(255,255,255,0.14)",
-                background:
-                  "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                color: "#fff",
-                fontSize: "16px",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <SilverIcon as={Link2} size={20} style={{ color: "#05040a" }} />
-                Share Event
               </span>
             </button>
           </div>
@@ -601,6 +586,17 @@ export function EventSuccessPage() {
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "8px",
+                transition: "transform 0.3s, box-shadow 0.3s, border-color 0.3s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = "0 0 24px rgba(251,191,36,0.2), 0 0 48px rgba(251,191,36,0.08)";
+                e.currentTarget.style.borderColor = "rgba(251,191,36,0.35)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
               }}
             >
               <SilverIcon as={Calendar} size={18} />
@@ -717,6 +713,110 @@ export function EventSuccessPage() {
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Zoda promo section */}
+          <div style={{ marginTop: "32px", width: "100%" }}>
+            <h2
+              style={{
+                fontSize: "18px",
+                fontWeight: 600,
+                marginBottom: "10px",
+                textAlign: "left",
+              }}
+            >
+              Need something for your event?
+            </h2>
+            <a
+              href={`https://zoda.com?utm_source=pullup&utm_medium=partner_cta&utm_campaign=event_success&utm_content=${encodeURIComponent(event.slug)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onMouseEnter={() => setZodaHovered(true)}
+              onMouseLeave={() => setZodaHovered(false)}
+              onClick={() => {
+                fetch(`${API_BASE}/partner-clicks`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    partnerSlug: "zoda",
+                    eventId: event.id,
+                    placement: "event_success_page",
+                  }),
+                }).catch(() => {});
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "16px",
+                width: "100%",
+                height: "54px",
+                borderRadius: "14px",
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(10,10,18,0.92)",
+                color: "#fff",
+                fontSize: "16px",
+                fontWeight: 600,
+                cursor: "pointer",
+                textAlign: "center",
+                textDecoration: "none",
+                boxSizing: "border-box",
+                overflow: "visible",
+                position: "relative",
+              }}
+            >
+              <img
+                src="/zoda_can.webp"
+                alt=""
+                style={{
+                  height: "70px",
+                  marginTop: "-16px",
+                  marginBottom: "-16px",
+                  transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                  transform: zodaHovered ? "rotate(-30deg) translateX(-120px) scale(0.5)" : "rotate(-10deg)",
+                  opacity: zodaHovered ? 0 : 1,
+                }}
+              />
+              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <img
+                  src="/zoda_logotype_white.webp"
+                  alt="Zoda"
+                  style={{
+                    height: "22px",
+                    transition: "all 0.3s ease",
+                    opacity: zodaHovered ? 0 : 1,
+                    transform: zodaHovered ? "scale(0.8)" : "scale(1)",
+                  }}
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    whiteSpace: "nowrap",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    letterSpacing: "0.5px",
+                    color: "rgba(255,255,255,0.9)",
+                    transition: "all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                    opacity: zodaHovered ? 1 : 0,
+                    transform: zodaHovered ? "translateY(0) scale(1)" : "translateY(8px) scale(0.9)",
+                  }}
+                >
+                  Electrolyte Soda
+                </span>
+              </div>
+              <img
+                src="/zoda_can_2.webp"
+                alt=""
+                style={{
+                  height: "70px",
+                  marginTop: "-16px",
+                  marginBottom: "-16px",
+                  transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                  transform: zodaHovered ? "rotate(30deg) translateX(120px) scale(0.5)" : "rotate(10deg)",
+                  opacity: zodaHovered ? 0 : 1,
+                }}
+              />
+            </a>
           </div>
         </div>
       </div>

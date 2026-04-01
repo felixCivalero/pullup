@@ -326,7 +326,7 @@ export function CreateEventPage() {
   })() : null;
   const [showDraftBanner, setShowDraftBanner] = useState(!!draft);
 
-  const [title, setTitle] = useState(draft?.title || "");
+  const [title, setTitle] = useState(draft?.title || "Summer Rooftop Party");
   const [titleVisible, setTitleVisible] = useState(draft?.titleVisible !== false);
   const [titleAlign, setTitleAlign] = useState(draft?.titleAlign || "left"); // "left"|"center"|"right"
   const [titleFont, setTitleFont] = useState(draft?.titleFont || "default"); // "default"|"serif"|"mono"|"condensed"
@@ -345,14 +345,28 @@ export function CreateEventPage() {
     if (!hasTitle) defaults.push({ type: "title" });
     if (!hasLocation) defaults.push({ type: "location" });
     if (!hasDatetime) defaults.push({ type: "datetime" });
-    return [...defaults, ...saved.filter(s => s.type !== "title" && s.type !== "location" && s.type !== "datetime")];
+    const custom = saved.filter(s => s.type !== "title" && s.type !== "location" && s.type !== "datetime");
+    // Pre-fill with template sections for new events (no draft / no custom sections yet)
+    if (custom.length === 0 && !draft?.sections?.length) {
+      custom.push(
+        { type: "text", title: "", text: "A short description about something nice maybe a quote yes." },
+        { type: "text", title: "About the artist", text: "A boundary-pushing creative known for blending electronic, soul, and experimental sounds into immersive live experiences. With roots in Stockholm\u2019s underground scene, they\u2019ve built a reputation for high-energy sets that blur the line between DJ performance and live act." },
+      );
+    }
+    return [...defaults, ...custom];
   });
-  const [showSectionPicker, setShowSectionPicker] = useState(false);
-  const [location, setLocation] = useState(draft?.location || "");
+  // showSectionPicker state removed — grid is always visible
+  const [location, setLocation] = useState(draft?.location || "Slakthusomr\u00e5det, Stockholm");
   const [locationLat, setLocationLat] = useState(draft?.locationLat || null);
   const [locationLng, setLocationLng] = useState(draft?.locationLng || null);
   const [hideLocation, setHideLocation] = useState(draft?.hideLocation || false);
-  const [startsAt, setStartsAt] = useState(draft?.startsAt || "");
+  const [startsAt, setStartsAt] = useState(draft?.startsAt || (() => {
+    // Default to 14 days from now at 21:00
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    d.setHours(21, 0, 0, 0);
+    return d.toISOString().slice(0, 16);
+  })());
   const [endsAt, setEndsAt] = useState(draft?.endsAt || "");
   const [timezone, setTimezone] = useState(draft?.timezone || getUserTimezone());
   const [maxAttendees, setMaxAttendees] = useState(draft?.maxAttendees || "");
@@ -3041,66 +3055,44 @@ export function CreateEventPage() {
                 </div>
               ))}
 
-              {/* Add section picker */}
-              <div style={{ position: "relative" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowSectionPicker(!showSectionPicker)}
-                  style={{ width: "100%", padding: "12px", borderRadius: "12px", border: "1px dashed rgba(255,255,255,0.15)", background: "transparent", color: "rgba(255,255,255,0.4)", fontSize: "14px", fontWeight: 500, cursor: "pointer", transition: "all 0.2s ease" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}
-                >
-                  + Add section
-                </button>
-                {showSectionPicker && (
-                  <div style={{
-                    marginTop: "6px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgba(12, 10, 18, 0.95)", overflow: "hidden",
-                  }}>
-                    <button type="button" onClick={() => { setSections([...sections, { type: "text", title: "", text: "" }]); setShowSectionPicker(false); }}
-                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              {/* Add section grid — always visible */}
+              <div style={{
+                borderRadius: "12px", border: "1px dashed rgba(255,255,255,0.12)",
+                background: "rgba(12, 10, 18, 0.6)", padding: "10px 8px 8px",
+              }}>
+                <div style={{ fontSize: "11px", fontWeight: 500, color: "rgba(255,255,255,0.3)", textAlign: "center", marginBottom: "8px" }}>Add section</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "2px" }}>
+                  {[
+                    { data: { type: "text", title: "Heading", text: "Write something here..." }, icon: "T", label: "Text", color: "#fff" },
+                    { data: { type: "spotify", url: "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT" }, icon: "\u266B", label: "Spotify", color: "#1DB954" },
+                    { data: { type: "applemusic", url: "https://music.apple.com/us/album/blinding-lights/1499378108?i=1499378615" }, icon: "\u266A", label: "Apple", color: "#FC3C44" },
+                    { data: { type: "soundcloud", url: "https://soundcloud.com/fredagain" }, icon: "\u266A", label: "SoundCloud", color: "#FF5500" },
+                    { data: { type: "youtube", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }, icon: "\u25B6", label: "YouTube", color: "#FF0000" },
+                    { data: { type: "socials", instagram: "https://instagram.com/pullup", spotify: "https://open.spotify.com/artist/example", tiktok: "https://tiktok.com/@pullup", soundcloud: "" }, icon: "@", label: "Socials", color: "#E1306C" },
+                  ].map((item) => (
+                    <button
+                      key={item.data.type}
+                      type="button"
+                      onClick={() => { setSections([...sections, item.data]); }}
+                      style={{
+                        display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
+                        padding: "10px 2px 8px", background: "transparent", border: "none", borderRadius: "8px",
+                        cursor: "pointer", transition: "all 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                        e.currentTarget.querySelector("[data-icon]").style.color = item.color;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "transparent";
+                        e.currentTarget.querySelector("[data-icon]").style.color = "rgba(255,255,255,0.35)";
+                      }}
                     >
-                      <span style={{ fontSize: "16px" }}>T</span> Header & Text
+                      <span data-icon style={{ fontSize: "20px", color: "rgba(255,255,255,0.35)", transition: "color 0.15s ease", lineHeight: 1 }}>{item.icon}</span>
+                      <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>{item.label}</span>
                     </button>
-                    <button type="button" onClick={() => { setSections([...sections, { type: "spotify", url: "" }]); setShowSectionPicker(false); }}
-                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      <span style={{ fontSize: "16px", color: "#1DB954" }}>&#9835;</span> Spotify
-                    </button>
-                    <button type="button" onClick={() => { setSections([...sections, { type: "applemusic", url: "" }]); setShowSectionPicker(false); }}
-                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      <span style={{ fontSize: "16px", color: "#FC3C44" }}>&#9835;</span> Apple Music
-                    </button>
-                    <button type="button" onClick={() => { setSections([...sections, { type: "soundcloud", url: "" }]); setShowSectionPicker(false); }}
-                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      <span style={{ fontSize: "16px", color: "#FF5500" }}>&#9835;</span> SoundCloud
-                    </button>
-                    <button type="button" onClick={() => { setSections([...sections, { type: "youtube", url: "" }]); setShowSectionPicker(false); }}
-                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      <span style={{ fontSize: "16px", color: "#FF0000" }}>&#9654;</span> YouTube
-                    </button>
-                    <button type="button" onClick={() => { setSections([...sections, { type: "socials", instagram: "", spotify: "", tiktok: "", soundcloud: "" }]); setShowSectionPicker(false); }}
-                      style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", color: "#fff", fontSize: "14px", fontWeight: 500, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      <span style={{ fontSize: "16px" }}>@</span> Social Links
-                    </button>
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
             </div>
             </div>

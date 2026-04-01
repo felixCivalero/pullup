@@ -22,6 +22,7 @@ import {
 import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
 import { EventPageContent } from "../components/EventPageContent";
+import { EventPreview } from "../components/EventPreview";
 import { RsvpForm } from "../components/RsvpForm";
 import { PaymentForm } from "../components/PaymentForm";
 import { Button } from "../components/ui/Button";
@@ -771,669 +772,88 @@ export function EventPage() {
     return [new File([blob], `${event.title || "event"}.${ext}`, { type: blob.type || "image/jpeg" })];
   }
 
-  // Format date/time (centralized helpers)
-  const eventDate = event?.startsAt ? formatEventDate(event.startsAt, event.timezone) : "";
-  const eventTime = event?.startsAt ? formatEventTime(event.startsAt, event.timezone) : "";
-  const detailsColor = "#ffffff";
-  const detailsGradient = null; // Always use dark gradient overlay
-
-  const mediaCount = event?.media?.length || 0;
-  const canSwipeEvent = mediaCount > 1 && !event?.mediaSettings?.autoscroll;
+  const isDisabled = loading || !event || isEventPast || isSoldOut;
 
   return (
     <>
       <style>{`
-        /* Prevent horizontal scroll and ensure proper alignment */
-        body {
-          overflow-x: hidden;
-          overflow-y: hidden;
-          width: 100%;
-          height: 100vh;
-          height: 100dvh; /* Dynamic viewport height for mobile */
-        }
-        html {
-          overflow: hidden;
-          height: 100vh;
-          height: 100dvh; /* Dynamic viewport height for mobile */
-        }
-        @supports (height: 100dvh) {
-          body, html {
-            height: 100dvh;
-          }
-        }
-        * {
-          box-sizing: border-box;
-        }
-        /* Desktop-specific styles */
-        @media (min-width: 768px) {
-          .description-text {
-            max-width: 60%;
-          }
-          /* On desktop, always make description scrollable when needed */
-          .description-container {
-            flex: 1 !important;
-            min-height: 0 !important;
-          }
-          .description-container .description-text {
-            max-width: 60%;
-          }
-          /* On desktop, content group always behaves as expanded */
-          .content-group-desktop {
-            flex: 0 1 auto !important;
-            max-height: 100vh !important;
-            overflow: hidden !important;
-          }
-        }
-        /* Content group - contains Share/Event Details + Description, moves up together */
-        .content-group {
-          flex-shrink: 0;
-          flex: 0 0 auto;
-        }
-        /* When description is expanded, content group sizes naturally (not forced to top) */
-        .content-group-expanded {
-          flex: 0 1 auto;
-          max-height: 100vh;
-          max-height: 100dvh;
-          overflow: hidden;
-        }
-        @supports (height: 100dvh) {
-          .content-group-expanded {
-            max-height: 100dvh;
-          }
-        }
-        /* Static info section - sticks to top of description */
-        .static-info-section {
-          flex-shrink: 0;
-        }
-        /* Scrollable description container - works on all screen sizes */
-        .description-scrollable {
-          flex: 1;
-          min-height: 0;
-          overflow-y: auto;
-          overflow-x: hidden;
-          -webkit-overflow-scrolling: touch;
-          padding-right: 4px; /* Space for scrollbar */
-        }
-        .description-scrollable::-webkit-scrollbar {
-          width: 4px;
-        }
-        .description-scrollable::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .description-scrollable::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.2);
-          border-radius: 2px;
-        }
-        .description-scrollable::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.3);
-        }
-        /* Content container accounts for sticky button - mobile optimized */
-        .event-content-container {
-          height: 100vh;
-          height: 100dvh; /* Use dynamic viewport height when supported (better for mobile) */
-          max-height: 100vh;
-          max-height: 100dvh;
-          box-sizing: border-box;
-        }
-        @supports (height: 100dvh) {
-          .event-content-container {
-            height: 100dvh;
-            max-height: 100dvh;
-          }
-        }
-        /* Outer container for proper viewport handling */
-        .event-page-container {
-          min-height: 100vh;
-          min-height: 100dvh; /* Use dynamic viewport height when supported */
-          height: 100vh;
-          height: 100dvh;
-          overflow: hidden;
-        }
+        body, html { overflow: hidden; height: 100vh; height: 100dvh; width: 100%; }
+        @supports (height: 100dvh) { body, html { height: 100dvh; } }
+        * { box-sizing: border-box; }
       `}</style>
-      <div
-        className="event-page-container"
-        {...(canSwipeEvent ? swipeHandlers : {})}
-        style={{
-          position: "relative",
-          width: "100%",
-          maxWidth: "100vw",
-          overflowX: "hidden",
-          overflowY: "hidden",
-          background: "#05040a",
-          cursor: canSwipeEvent ? "grab" : undefined,
-        }}
-      >
-        {/* Event Media as Full Background (carousel or single image) */}
-        {(event?.media?.length > 0 || event?.imageUrl) && (
-          <>
-            <div
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                width: "100%",
-                height: "100%",
-                zIndex: 0,
-              }}
-            >
-              {event?.media?.length > 0 ? (
-                <MediaCarousel media={event.media} mediaSettings={event.mediaSettings} hideDots controlledIndex={canSwipeEvent ? carouselIndex : undefined} onIndexChange={setCarouselIndex} />
-              ) : (
-                <img
-                  src={event.imageUrl}
-                  alt={event.title}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                />
-              )}
-            </div>
-          </>
-        )}
-
-        {/* Dark gradient overlay - fades to black at bottom */}
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background:
-              "linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(5, 4, 10, 0.3) 60%, rgba(5, 4, 10, 0.7) 75%, #05040a 100%)",
-            pointerEvents: "none",
-            zIndex: 1,
-          }}
-        />
-
-        {/* Content - Overlaid on background */}
-        <div
-          className="event-content-container"
-          style={{
-            position: "relative",
-            zIndex: 2,
-            display: "flex",
-            flexDirection: "column",
-            padding: "20px",
-            overflow: "hidden",
-            pointerEvents: "none",
-          }}
-        >
-          {/* Title at the top */}
-          {event?.title && event?.titleSettings?.visible !== false && (() => {
-            const ts = event.titleSettings || {};
-            const fontMap = { default: "inherit", serif: "Georgia, 'Times New Roman', serif", mono: "'Courier New', 'Consolas', monospace", condensed: "'Arial Narrow', 'Impact', sans-serif" };
-            const sizeMap = { sm: "clamp(20px, 6vw, 28px)", md: "clamp(28px, 8vw, 40px)", lg: "clamp(36px, 10vw, 52px)" };
-            const font = ts.font || "default";
-            return (
-              <h1
-                style={{
-                  fontSize: sizeMap[ts.size] || sizeMap.md,
-                  fontWeight: font === "condensed" ? 900 : 800,
-                  lineHeight: "1.2",
-                  color: ts.color || "#fff",
-                  letterSpacing: font === "mono" ? "0" : font === "condensed" ? "0.02em" : "-0.02em",
-                  fontFamily: fontMap[font] || fontMap.default,
-                  textAlign: ts.align || "left",
-                  margin: 0,
-                  marginTop: "20px",
-                  marginBottom: "0",
-                  paddingBottom: "12px",
-                  flexShrink: 0,
-                }}
-              >
-                {event.title}
-              </h1>
-            );
-          })()}
-
-          {/* Content group - glass card with details + CTA */}
-          <div
-            className={`content-group ${
-              showDescription ? "content-group-expanded" : ""
-            } content-group-desktop`}
-            style={{
-              marginTop: "auto",
-              display: "flex",
-              flexDirection: "column",
-              pointerEvents: "auto",
-              background: "rgba(5, 4, 10, 0.65)",
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
-              borderRadius: "20px",
-              padding: "20px",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-            }}
-          >
-            {/* Static info section */}
-            <div
-              className="static-info-section"
-              style={{
-                flexShrink: 0,
-              }}
-            >
-              {/* Carousel dots */}
-              {event?.media?.length > 1 && !event?.mediaSettings?.autoscroll && (
-                <CarouselDots
-                  count={event.media.length}
-                  currentIndex={carouselIndex}
-                  style={{ paddingTop: "12px", paddingBottom: "4px" }}
-                />
-              )}
-
-              {/* Social Icons - Share, Instagram, Spotify */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "16px",
-                  marginBottom: "12px",
-                }}
-              >
-                {/* Instagram icon - conditional */}
-                {event?.instagram && (
-                  <a
-                    href={event.instagram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: detailsColor,
-                      opacity: 0.8,
-                      textDecoration: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = "1";
-                      e.currentTarget.style.transform = "scale(1.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = "0.8";
-                      e.currentTarget.style.transform = "scale(1)";
-                    }}
-                  >
-                    <FaInstagram size={20} />
-                  </a>
-                )}
-
-                {/* Spotify icon - conditional */}
-                {event?.spotify && (
-                  <a
-                    href={event.spotify}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: detailsColor,
-                      opacity: 0.8,
-                      textDecoration: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = "1";
-                      e.currentTarget.style.transform = "scale(1.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = "0.8";
-                      e.currentTarget.style.transform = "scale(1)";
-                    }}
-                  >
-                    <FaSpotify size={20} />
-                  </a>
-                )}
-
-                {/* TikTok icon - conditional */}
-                {event?.tiktok && (
-                  <a
-                    href={event.tiktok}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: detailsColor,
-                      opacity: 0.8,
-                      textDecoration: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = "1";
-                      e.currentTarget.style.transform = "scale(1.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = "0.8";
-                      e.currentTarget.style.transform = "scale(1)";
-                    }}
-                  >
-                    <FaTiktok size={20} />
-                  </a>
-                )}
-
-                {/* SoundCloud icon - conditional */}
-                {event?.soundcloud && (
-                  <a
-                    href={event.soundcloud}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: detailsColor,
-                      opacity: 0.8,
-                      textDecoration: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = "1";
-                      e.currentTarget.style.transform = "scale(1.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = "0.8";
-                      e.currentTarget.style.transform = "scale(1)";
-                    }}
-                  >
-                    <FaSoundcloud size={20} />
-                  </a>
-                )}
-              </div>
-
-              {/* Date & Time */}
-              {(eventDate || eventTime) && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "12px",
-                    paddingBottom: "12px",
-                    marginBottom: "12px",
-                    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                    fontSize: "16px",
-                    lineHeight: "1.4",
-                    color: detailsColor,
-                    opacity: 0.9,
-                  }}
-                >
-                  <FaCalendar
-                    size={18}
-                    style={{
-                      flexShrink: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      marginTop: "1px",
-                      color: detailsColor,
-                      opacity: 0.7,
-                    }}
-                  />
-                  <span>
-                    {eventDate}
-                    {eventTime && ` at ${eventTime}`}
-                  </span>
-                </div>
-              )}
-
-              {/* Location */}
-              {event?.location && !event?.hideLocation && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "12px",
-                    paddingBottom: "12px",
-                    marginBottom: "12px",
-                    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                    fontSize: "16px",
-                    lineHeight: "1.4",
-                    color: detailsColor,
-                    opacity: 0.9,
-                  }}
-                >
-                  <FaMapMarkerAlt
-                    size={18}
-                    style={{
-                      flexShrink: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      marginTop: "1px",
-                      color: detailsColor,
-                      opacity: 0.7,
-                    }}
-                  />
-                  <a
-                    href={getGoogleMapsUrl(
-                      event.location,
-                      event.locationLat,
-                      event.locationLng
-                    )}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: detailsColor,
-                      opacity: 0.9,
-                      textDecoration: "none",
-                      borderBottom: `1px solid ${detailsColor}`,
-                      borderBottomColor: detailsColor,
-                      transition: "all 0.2s ease",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.opacity = "1";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.opacity = "0.9";
-                    }}
-                  >
-                    {formatLocationShort(event.location)}
-                  </a>
-                </div>
-              )}
-              {event?.hideLocation && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "12px",
-                    paddingBottom: "12px",
-                    marginBottom: "12px",
-                    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                    fontSize: "16px",
-                    lineHeight: "1.4",
-                    color: detailsColor,
-                    opacity: 0.5,
-                    fontStyle: "italic",
-                  }}
-                >
-                  <FaMapMarkerAlt
-                    size={18}
-                    style={{
-                      flexShrink: 0,
-                      marginTop: "1px",
-                      color: detailsColor,
-                      opacity: 0.7,
-                    }}
-                  />
-                  <span>Location revealed later</span>
-                </div>
-              )}
-            </div>
-
-            {/* Sections from event builder */}
-            {event?.sections && event.sections.length > 0 && (
-              <div style={{ marginTop: "16px" }}>
-                <EventPageContent
-                  title={null}
-                  description={null}
-                  location={event.location}
-                  startsAt={event.startsAt}
-                  timezone={event.timezone}
-                  sections={event.sections.filter(s => s.type !== "title" && s.type !== "location" && s.type !== "datetime")}
-                  hideLocation={event.hideLocation}
-                />
-              </div>
-            )}
-
-            {/* Description - sticks below Share/Event Details, becomes scrollable when group reaches minimum */}
-            {event?.description && (
-              <div
-                className={`description-container ${
-                  showDescription ? "description-scrollable" : ""
-                }`}
-                style={{
-                  flex: showDescription ? "1" : "0 0 auto",
-                  minHeight: showDescription ? 0 : "auto",
-                  paddingTop: "16px",
-                  paddingBottom: showDescription ? "0" : "0",
-                }}
-              >
-                <div style={{ marginBottom: showDescription ? "0" : "8px" }}>
-                  <p
-                    className="description-text"
-                    style={{
-                      fontSize: "16px",
-                      lineHeight: "1.5",
-                      color: detailsColor,
-                      opacity: 0.85,
-                      margin: 0,
-                      marginBottom: showDescription ? "4px" : "0",
-                      whiteSpace: "pre-line",
-                      wordWrap: "break-word",
-                      overflowWrap: "break-word",
-                      display: showDescription ? "block" : "-webkit-box",
-                      WebkitLineClamp: showDescription ? "none" : 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: showDescription ? "visible" : "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {event.description}
-                  </p>
-                  <button
-                    className="read-more-button"
-                    onClick={() => setShowDescription(!showDescription)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: detailsColor,
-                      opacity: 0.8,
-                      fontSize: "14px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      padding: "4px 0",
-                      margin: "4px 0 0 0",
-                      textDecoration: "none",
-                      display: "inline-block",
-                      WebkitTapHighlightColor: "transparent",
-                      flexShrink: 0,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = "1";
-                      e.currentTarget.style.transform = "scale(1.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = "0.8";
-                      e.currentTarget.style.transform = "scale(1)";
-                    }}
-                  >
-                    {showDescription ? "Read less" : "Read more"}
-                  </button>
-                </div>
-              </div>
-            )}
-            {/* Register button inside card */}
-            <div style={{ marginTop: "12px" }}>
-              <EventCTA
-                label={getCtaLabel({
-                  ticketType: event?.ticketType,
-                  ticketPrice: event?.ticketPrice,
-                  ticketCurrency: event?.ticketCurrency,
-                  isEventPast,
-                  isSoldOut,
-                })}
-                disabled={loading || !event || isEventPast || isSoldOut}
-                onClick={() => setShowRsvpForm(true)}
-                maxWidth="100%"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* RSVP Form Modal/Drawer (with inline payment section for paid events) */}
-        <ModalOrDrawer
-          isOpen={showRsvpForm}
-          onClose={() => {
-            setShowRsvpForm(false);
-            setPendingPayment(null);
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Waitlist offer banner */}
-            {waitlistOffer && (
-              <div
-                style={{
+      <div style={{ width: "100%", height: "100vh", height: "100dvh", overflow: "hidden", background: "#05040a" }}>
+        <EventPreview
+          title={event?.titleSettings?.visible !== false ? event?.title : null}
+          description={event?.description}
+          location={event?.location}
+          startsAt={event?.startsAt}
+          endsAt={event?.endsAt}
+          timezone={event?.timezone}
+          media={event?.media}
+          mediaSettings={event?.mediaSettings}
+          imagePreview={event?.imageUrl}
+          ticketType={event?.ticketType || "free"}
+          ticketPrice={event?.ticketPrice}
+          ticketCurrency={event?.ticketCurrency}
+          instagram={event?.instagram}
+          spotify={event?.spotify}
+          tiktok={event?.tiktok}
+          soundcloud={event?.soundcloud}
+          sections={event?.sections || []}
+          hideLocation={event?.hideLocation}
+          autoShowRsvp={!!vipOffer || !!waitlistOffer}
+          rsvpContent={!isDisabled ? ({ onClose }) => (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Waitlist offer banner */}
+              {waitlistOffer && (
+                <div style={{
                   padding: "16px",
                   background: "rgba(59, 130, 246, 0.1)",
                   border: "1px solid rgba(59, 130, 246, 0.3)",
                   borderRadius: "8px",
                   marginBottom: "8px",
+                }}>
+                  <div style={{ fontSize: "16px", fontWeight: 600, color: "#3b82f6", marginBottom: "8px" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                      <SilverIcon as={PartyPopper} size={20} style={{ color: "#3b82f6" }} />
+                      You've got a spot!
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "14px", opacity: 0.9 }}>
+                    Your booking details are locked based on your original
+                    waitlist request. Complete payment below to confirm your spot.
+                  </div>
+                </div>
+              )}
+              <RsvpForm
+                event={event}
+                onSubmit={handleRsvpSubmit}
+                loading={rsvpLoading}
+                onClose={() => {
+                  onClose();
+                  setPendingPayment(null);
+                  setWaitlistOffer(null);
+                  setWaitlistToken(null);
+                  setVipOffer(null);
+                  setVipToken(null);
                 }}
-              >
-                <div
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    color: "#3b82f6",
-                    marginBottom: "8px",
-                  }}
-                >
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-                    <SilverIcon as={PartyPopper} size={20} style={{ color: "#3b82f6" }} />
-                    You've got a spot!
-                  </span>
-                </div>
-                <div style={{ fontSize: "14px", opacity: 0.9 }}>
-                  Your booking details are locked based on your original
-                  waitlist request. Complete payment below to confirm your spot.
-                </div>
-              </div>
-            )}
-            <RsvpForm
-              event={event}
-              onSubmit={handleRsvpSubmit}
-              loading={rsvpLoading}
-              onClose={() => {
-                setShowRsvpForm(false);
-                setPendingPayment(null);
-                // Clear waitlist offer when closing
-                setWaitlistOffer(null);
-                setWaitlistToken(null);
-                setVipOffer(null);
-                setVipToken(null);
-              }}
-              onPartySizeChange={setCurrentPartySize}
-              // Waitlist upgrade props
-              waitlistOffer={waitlistOffer}
-              waitlistToken={waitlistToken}
-              // VIP invite props
-              vipOffer={vipOffer}
-              vipToken={vipToken}
-              // Payment props for paid events
-              isPaidEvent={event?.ticketType === "paid"}
-              ticketPrice={event?.ticketPrice}
-              ticketCurrency={(event?.ticketCurrency || "usd").toLowerCase()}
-              currentPartySize={currentPartySize}
-              pendingPayment={pendingPayment}
-              PaymentFormComponent={PaymentFormComponent}
-            />
-          </div>
-        </ModalOrDrawer>
+                onPartySizeChange={setCurrentPartySize}
+                waitlistOffer={waitlistOffer}
+                waitlistToken={waitlistToken}
+                vipOffer={vipOffer}
+                vipToken={vipToken}
+                isPaidEvent={event?.ticketType === "paid"}
+                ticketPrice={event?.ticketPrice}
+                ticketCurrency={(event?.ticketCurrency || "usd").toLowerCase()}
+                currentPartySize={currentPartySize}
+                pendingPayment={pendingPayment}
+                PaymentFormComponent={PaymentFormComponent}
+              />
+            </div>
+          ) : null}
+        />
 
-        {/* Share picker for manual carousels — select which images to share */}
+        {/* Share picker for manual carousels */}
         <ModalOrDrawer
           isOpen={showSharePicker}
           onClose={() => setShowSharePicker(false)}
@@ -1464,9 +884,7 @@ export function EventPage() {
                   style={{
                     position: "relative",
                     aspectRatio: "1",
-                    border: selectedShareIndexes.has(i)
-                      ? "3px solid #fff"
-                      : "3px solid transparent",
+                    border: selectedShareIndexes.has(i) ? "3px solid #fff" : "3px solid transparent",
                     borderRadius: "12px",
                     overflow: "hidden",
                     padding: 0,
@@ -1476,28 +894,12 @@ export function EventPage() {
                     transition: "all 0.2s ease",
                   }}
                 >
-                  <img
-                    src={m.thumbnailUrl || m.url}
-                    alt=""
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                  />
+                  <img src={m.thumbnailUrl || m.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                   {selectedShareIndexes.has(i) && (
                     <div style={{
-                      position: "absolute",
-                      top: "6px",
-                      right: "6px",
-                      width: "24px",
-                      height: "24px",
-                      borderRadius: "50%",
-                      background: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      position: "absolute", top: "6px", right: "6px",
+                      width: "24px", height: "24px", borderRadius: "50%", background: "#fff",
+                      display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="20 6 9 17 4 12" />
@@ -1523,16 +925,9 @@ export function EventPage() {
                 }
               }}
               style={{
-                width: "100%",
-                padding: "16px",
-                borderRadius: "14px",
-                border: "none",
-                background: selectedShareIndexes.size > 0
-                  ? "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)"
-                  : "#333",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: "16px",
+                width: "100%", padding: "16px", borderRadius: "14px", border: "none",
+                background: selectedShareIndexes.size > 0 ? "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)" : "#333",
+                color: "#fff", fontWeight: 700, fontSize: "16px",
                 cursor: selectedShareIndexes.size > 0 ? "pointer" : "not-allowed",
                 opacity: selectedShareIndexes.size > 0 ? 1 : 0.5,
                 transition: "all 0.2s ease",

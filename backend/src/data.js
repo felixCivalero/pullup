@@ -785,6 +785,9 @@ export async function createEvent({
   spotify,
   tiktok,
   soundcloud,
+
+  // Sections (event builder blocks)
+  sections,
 }) {
   if (!hostId) {
     throw new Error("hostId is required to create an event");
@@ -860,6 +863,7 @@ export async function createEvent({
     spotify,
     tiktok,
     soundcloud,
+    sections: Array.isArray(sections) ? sections : [],
   };
 
   const dbData = mapEventToDb(eventData);

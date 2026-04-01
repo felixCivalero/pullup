@@ -1301,6 +1301,9 @@ app.post("/events", requireAuth, async (req, res) => {
     spotify,
     tiktok,
     soundcloud,
+
+    // Sections (event builder blocks)
+    sections,
   } = req.body;
 
   if (!title || !startsAt) {
@@ -1355,6 +1358,7 @@ app.post("/events", requireAuth, async (req, res) => {
     spotify,
     tiktok,
     soundcloud,
+    sections,
   });
 
   // If paid tickets, automatically create Stripe product and price (internal only)
@@ -3559,6 +3563,9 @@ app.put(
       spotify,
       tiktok,
       soundcloud,
+
+      // Sections (event builder blocks)
+      sections,
     } = req.body;
 
     // Validate dates are not in the past
@@ -3695,6 +3702,7 @@ app.put(
         spotify,
         tiktok,
         soundcloud,
+        sections,
       });
     } catch (err) {
       console.error(`[PUT /host/events/${id}] Update failed:`, err.message);

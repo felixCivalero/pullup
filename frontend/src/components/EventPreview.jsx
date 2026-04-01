@@ -185,7 +185,7 @@ export function EventPreview({
           {/* ─── CONTENT SECTION ─── */}
           <div style={{
             background: "#05040a",
-            padding: `28px 20px ${CTA_BAR_HEIGHT + 10}px`,
+            padding: `28px 20px ${CTA_BAR_HEIGHT}px`,
             minHeight: hasContent ? "40%" : undefined,
           }}>
             <EventPageContent

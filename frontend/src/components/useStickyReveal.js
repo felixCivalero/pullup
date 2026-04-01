@@ -6,6 +6,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
  * Place `sentinelRef` on a spacer div inside the scroll container.
  * Place `formRef` on the panel content wrapper in the fixed bar.
  * The hook tracks scrolling past the sentinel and maps it 1:1 to reveal pixels.
+ * The bar grows 1:1 with scroll — no max-height cap. The spacer determines
+ * exactly how far the bar can grow, so the form always fits fully.
  *
  * @param {Object} options
  * @param {React.RefObject} options.scrollRef - ref to the scrollable container
@@ -78,9 +80,27 @@ export function useStickyReveal({
     sentinelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  // The bar is "capped" when its natural height would exceed maxHeight
-  const maxHeight = "80vh";
-  const atMaxHeight = revealPx > 0 && (barHeight + revealPx) >= window.innerHeight * 0.8;
+  // Forward scroll events from the bar to the main scroll container
+  // so the page feels continuous even when hovering the revealed panel
+  const handleBarWheel = useCallback((e) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop += e.deltaY;
+  }, [scrollRef]);
+
+  // Forward touch events from the bar to the main scroll container
+  const touchStartY = useRef(0);
+  const handleBarTouchStart = useCallback((e) => {
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleBarTouchMove = useCallback((e) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const deltaY = touchStartY.current - e.touches[0].clientY;
+    touchStartY.current = e.touches[0].clientY;
+    el.scrollTop += deltaY;
+  }, [scrollRef]);
 
   return {
     sentinelRef,
@@ -88,12 +108,20 @@ export function useStickyReveal({
     revealPx,
     isRevealed: revealPx > 0,
     scrollToPanel,
-    spacerHeight: formHeight > 0 ? `${formHeight}px` : "50vh",
+    // Spacer = form content height + barHeight so the bar can grow to full form size.
+    // At max scroll: revealPx = spacerHeight - barHeight, bar = barHeight + revealPx = spacerHeight.
+    // We need bar = formRef.scrollHeight = formHeight + barHeight, so spacerHeight = formHeight + barHeight.
+    spacerHeight: formHeight > 0 ? `${formHeight + barHeight}px` : "50vh",
+    barScrollHandlers: {
+      onWheel: handleBarWheel,
+      onTouchStart: handleBarTouchStart,
+      onTouchMove: handleBarTouchMove,
+    },
     barStyle: {
       height: `${barHeight + revealPx}px`,
-      maxHeight,
-      // During reveal: clip content. Once at max: allow internal scrolling.
-      overflowY: atMaxHeight ? "auto" : "hidden",
+      // No maxHeight — bar grows to fit full form content.
+      // The spacer limits scroll distance so it naturally stops at the right spot.
+      overflowY: "hidden",
     },
   };
 }

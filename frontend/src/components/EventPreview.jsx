@@ -36,8 +36,8 @@ export function EventPreview({
 }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const scrollRef = useRef(null);
-  const ctaBarRef = useRef(null);
 
+  const ctaBarRef = useRef(null);
   const {
     sentinelRef,
     formRef,
@@ -46,6 +46,7 @@ export function EventPreview({
     scrollToPanel: scrollToRsvp,
     spacerHeight,
     barStyle,
+    barScrollHandlers,
   } = useStickyReveal({
     scrollRef,
     barHeight: CTA_BAR_HEIGHT,
@@ -211,9 +212,7 @@ export function EventPreview({
         {!hideCta && (
           <div
             ref={ctaBarRef}
-            onWheel={(e) => {
-              if (!formRevealed && scrollRef.current) scrollRef.current.scrollTop += e.deltaY;
-            }}
+            {...barScrollHandlers}
             style={{
               position: "absolute",
               bottom: 0,
@@ -269,7 +268,7 @@ export function EventPreview({
               </div>
 
               {/* Row 2+: Title, location, form fields — all one continuous block */}
-              <div style={{ paddingBottom: "20px" }}>
+              <div style={{ paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))" }}>
                 <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                   {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
                   {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>{formatLocationShort(location)}</div>}

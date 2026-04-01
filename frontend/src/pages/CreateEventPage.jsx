@@ -1204,6 +1204,7 @@ export function CreateEventPage() {
         sections: sections.filter(s => {
           if (s.type === "title" || s.type === "location" || s.type === "datetime") return true;
           if (s.type === "socials") return s.instagram || s.spotify || s.tiktok || s.soundcloud;
+          if (s.type === "hostedby") return (s.name || "").trim();
           if (s.type === "spotify" || s.type === "applemusic" || s.type === "soundcloud" || s.type === "youtube") return (s.url || "").trim();
           return (s.title || "").trim() || (s.text || "").trim();
         }),
@@ -2871,7 +2872,7 @@ export function CreateEventPage() {
                       }} style={{ background: "none", border: "none", color: i === sections.length - 1 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)", cursor: i === sections.length - 1 ? "default" : "pointer", padding: 0, fontSize: "12px", lineHeight: 1 }}>&#9660;</button>
                     </div>
                     <span style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.25)", flexShrink: 0, userSelect: "none" }}>
-                      {({ title: "Title", location: "Location", datetime: "Date & Time", socials: "Social Links", spotify: "Spotify", applemusic: "Apple Music", soundcloud: "SoundCloud", youtube: "YouTube", text: "Text" })[section.type] || "Text"}
+                      {({ title: "Title", location: "Location", datetime: "Date & Time", socials: "Social Links", spotify: "Spotify", applemusic: "Apple Music", soundcloud: "SoundCloud", youtube: "YouTube", hostedby: "Hosted By", text: "Text" })[section.type] || "Text"}
                     </span>
                     <div style={{ flex: 1 }} />
                     {section.type !== "title" && section.type !== "location" && section.type !== "datetime" && (
@@ -3107,6 +3108,66 @@ export function CreateEventPage() {
                         </div>
                       ))}
                     </div>
+                  ) : section.type === "hostedby" ? (
+                    /* Hosted by section */
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {/* Logo upload */}
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <label style={{
+                          width: "48px", height: "48px", borderRadius: "8px", flexShrink: 0,
+                          border: "1px dashed rgba(255,255,255,0.15)", cursor: "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          overflow: "hidden", background: "rgba(255,255,255,0.03)",
+                        }}>
+                          {section.logo ? (
+                            <img src={section.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <span style={{ fontSize: "18px", opacity: 0.25 }}>+</span>
+                          )}
+                          <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              const u = [...sections]; u[i] = { ...u[i], logo: ev.target.result }; setSections(u);
+                            };
+                            reader.readAsDataURL(file);
+                          }} />
+                        </label>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.25)", marginBottom: "4px" }}>Logo</div>
+                          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>{section.logo ? "Click to change" : "Click to upload"}</div>
+                        </div>
+                        {section.logo && (
+                          <button type="button" onClick={() => { const u = [...sections]; u[i] = { ...u[i], logo: "" }; setSections(u); }}
+                            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: "14px", cursor: "pointer", padding: "4px" }}>&times;</button>
+                        )}
+                      </div>
+                      {/* Name */}
+                      <input
+                        type="text"
+                        value={section.name || ""}
+                        onChange={(e) => { const u = [...sections]; u[i] = { ...u[i], name: e.target.value }; setSections(u); }}
+                        placeholder="Host or agency name"
+                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "14px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
+                      />
+                      {/* Email */}
+                      <input
+                        type="email"
+                        value={section.email || ""}
+                        onChange={(e) => { const u = [...sections]; u[i] = { ...u[i], email: e.target.value }; setSections(u); }}
+                        placeholder="Contact email"
+                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "8px 12px", outline: "none", fontFamily: "inherit" }}
+                      />
+                      {/* Website */}
+                      <input
+                        type="url"
+                        value={section.website || ""}
+                        onChange={(e) => { const u = [...sections]; u[i] = { ...u[i], website: e.target.value }; setSections(u); }}
+                        placeholder="Website URL"
+                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "8px 12px", outline: "none", fontFamily: "inherit" }}
+                      />
+                    </div>
                   ) : (
                     /* Header & text section */
                     <>
@@ -3138,7 +3199,7 @@ export function CreateEventPage() {
                 background: "rgba(12, 10, 18, 0.6)", padding: "10px 8px 8px",
               }}>
                 <div style={{ fontSize: "11px", fontWeight: 500, color: "rgba(255,255,255,0.3)", textAlign: "center", marginBottom: "8px" }}>Add section</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "2px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
                   {[
                     { data: { type: "text", title: "Heading", text: "Write something here..." }, icon: "T", label: "Text", color: "#fff" },
                     { data: { type: "spotify", url: "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT" }, icon: "\u266B", label: "Spotify", color: "#1DB954" },
@@ -3146,6 +3207,7 @@ export function CreateEventPage() {
                     { data: { type: "soundcloud", url: "https://soundcloud.com/fredagain" }, icon: "\u266A", label: "SoundCloud", color: "#FF5500" },
                     { data: { type: "youtube", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }, icon: "\u25B6", label: "YouTube", color: "#FF0000" },
                     { data: { type: "socials", instagram: "https://instagram.com/pullup", spotify: "https://open.spotify.com/artist/example", tiktok: "https://tiktok.com/@pullup", soundcloud: "" }, icon: "@", label: "Socials", color: "#E1306C" },
+                    { data: { type: "hostedby", name: "", logo: "", email: "", website: "" }, icon: "\u2605", label: "Hosted by", color: "#a3e635" },
                   ].map((item) => (
                     <button
                       key={item.data.type}

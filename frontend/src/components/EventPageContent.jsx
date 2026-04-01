@@ -117,6 +117,39 @@ export function EventPageContent({
               {section.soundcloud && <a href={section.soundcloud} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaSoundcloud size={18} /></a>}
             </div>
 
+          ) : section.type === "hostedby" && section.name ? (
+            <div style={{
+              display: "flex", alignItems: "center", gap: "14px",
+              padding: "14px 16px", borderRadius: "8px",
+              background: "rgba(255, 255, 255, 0.04)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+            }}>
+              {section.logo && (
+                <img src={section.logo} alt="" style={{
+                  width: "40px", height: "40px", borderRadius: "6px",
+                  objectFit: "cover", flexShrink: 0,
+                }} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.35)", marginBottom: "2px" }}>Hosted by</div>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "#fff" }}>{section.name}</div>
+                {(section.email || section.website) && (
+                  <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
+                    {section.email && (
+                      <a href={`mailto:${section.email}`} style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>
+                        {section.email}
+                      </a>
+                    )}
+                    {section.website && (
+                      <a href={section.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>
+                        {section.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
           ) : (
             <>
               {section.title && <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#fff", margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.title}</h3>}

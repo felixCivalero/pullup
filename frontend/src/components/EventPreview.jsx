@@ -234,9 +234,29 @@ export function EventPreview({
                 borderTop: "1px solid rgba(255, 255, 255, 0.08)",
                 paddingTop: "20px",
               }}>
-                <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                  {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
-                  {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>{formatLocationShort(location)}</div>}
+                {/* Price/date + title/location header */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "16px",
+                  paddingBottom: "12px",
+                  borderBottom: "1px solid rgba(255,255,255,0.08)",
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
+                    {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>{formatLocationShort(location)}</div>}
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0, marginLeft: "12px" }}>
+                    <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
+                      {ticketType === "paid" && ticketPrice
+                        ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
+                        : "Free entry"}
+                    </div>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#a3e635", marginTop: "1px" }}>
+                      {formattedDate}
+                    </div>
+                  </div>
                 </div>
                 {typeof rsvpContent === "function" ? rsvpContent({ onClose: () => {} }) : rsvpContent}
               </div>

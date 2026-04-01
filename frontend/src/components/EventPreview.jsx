@@ -254,7 +254,7 @@ export function EventPreview({
                   onClick={rsvpContent ? scrollToRsvp : undefined}
                   style={{
                     padding: "12px 24px",
-                    background: "#fff", color: "#000", border: "none", borderRadius: "999px",
+                    background: "#fff", color: "#000", border: "none", borderRadius: "4px",
                     fontSize: "14px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
                     cursor: !rsvpContent ? "not-allowed" : "pointer",
                     opacity: formRevealed ? 0 : (!rsvpContent ? 0.5 : 1),

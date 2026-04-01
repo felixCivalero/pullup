@@ -179,6 +179,11 @@ export function RsvpForm({
       }
     }
 
+    if (!name.trim()) {
+      setError("Full name is required");
+      return;
+    }
+
     if (wantsDinner && !dinnerTimeSlot) {
       setError("Please select a dinner time");
       return;
@@ -230,7 +235,7 @@ export function RsvpForm({
         <div style={{
           padding: "16px",
           background: "rgba(255, 255, 255, 0.04)",
-          borderRadius: "16px",
+          borderRadius: "4px",
           border: "1px solid rgba(255, 255, 255, 0.08)",
           marginBottom: "16px",
         }}>
@@ -265,7 +270,7 @@ export function RsvpForm({
             marginTop: "12px",
             padding: "10px 12px",
             background: "rgba(59, 130, 246, 0.08)",
-            borderRadius: "10px",
+            borderRadius: "4px",
             fontSize: "12px",
             opacity: 0.8,
             lineHeight: "1.4",
@@ -306,7 +311,14 @@ export function RsvpForm({
   return (
     <form
       onSubmit={handleSubmit}
-      style={{ width: "100%", touchAction: "manipulation" }}
+      style={{
+        width: "100%",
+        touchAction: "manipulation",
+        background: "rgba(255, 255, 255, 0.02)",
+        padding: "20px 16px",
+        margin: "0 -16px",
+        borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+      }}
       onTouchStart={(e) => { if (e.touches.length > 1) e.preventDefault(); }}
     >
       {/* Email & Name */}
@@ -337,221 +349,235 @@ export function RsvpForm({
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Name (optional)"
+          placeholder="Full name"
+          required
           disabled={loading}
           autoComplete="name"
           style={inputStyle}
         />
       </div>
 
-      {/* Dinner toggle — sleek card */}
-      {event?.dinnerEnabled && (
-        <div style={{ marginBottom: "16px" }}>
-          <button
-            type="button"
-            onClick={() => !loading && !loadingSlots && setWantsDinner(!wantsDinner)}
-            style={{
-              width: "100%",
+      {/* Party options block */}
+      {(event?.dinnerEnabled || maxPlusOnes > 0) && (
+        <div style={{
+          borderRadius: "4px",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "rgba(255, 255, 255, 0.02)",
+          marginBottom: "16px",
+          overflow: "hidden",
+        }}>
+          {/* Dinner toggle */}
+          {event?.dinnerEnabled && (
+            <>
+              <button
+                type="button"
+                onClick={() => !loading && !loadingSlots && setWantsDinner(!wantsDinner)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "14px 16px",
+                  border: "none",
+                  borderBottom: (wantsDinner || maxPlusOnes > 0) ? "1px solid rgba(255, 255, 255, 0.06)" : "none",
+                  background: wantsDinner ? "rgba(192, 192, 192, 0.06)" : "transparent",
+                  cursor: loading || loadingSlots ? "not-allowed" : "pointer",
+                  transition: "all 0.2s ease",
+                  WebkitTapHighlightColor: "transparent",
+                  textAlign: "left",
+                  color: "#fff",
+                }}
+              >
+                <span style={{ flex: 1, fontSize: "14px", fontWeight: 500 }}>
+                  Book dinner
+                </span>
+                <div style={{
+                  width: "40px",
+                  height: "24px",
+                  borderRadius: "12px",
+                  background: wantsDinner
+                    ? colors.gradientPrimary
+                    : "rgba(255, 255, 255, 0.1)",
+                  padding: "3px",
+                  transition: "background 0.2s ease",
+                  flexShrink: 0,
+                  boxSizing: "border-box",
+                }}>
+                  <div style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "50%",
+                    background: wantsDinner ? "#05040a" : "rgba(255, 255, 255, 0.4)",
+                    transform: wantsDinner ? "translateX(16px)" : "translateX(0)",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }} />
+                </div>
+              </button>
+
+              {/* Dinner details */}
+              {wantsDinner && (
+                <div style={{
+                  padding: "12px 16px",
+                  borderBottom: maxPlusOnes > 0 ? "1px solid rgba(255, 255, 255, 0.06)" : "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                }}>
+                  {loadingSlots ? (
+                    <div style={{ fontSize: "13px", opacity: 0.5, textAlign: "center", padding: "8px" }}>
+                      Loading times...
+                    </div>
+                  ) : dinnerSlots.length === 0 ? (
+                    <div style={{ fontSize: "13px", opacity: 0.5, textAlign: "center", padding: "8px" }}>
+                      No dinner slots available
+                    </div>
+                  ) : (
+                    <>
+                      {dinnerSlots.map((slot) => {
+                        const isFull = slot.remaining !== null && slot.remaining === 0;
+                        const isSelected = dinnerTimeSlot === slot.time;
+                        return (
+                          <button
+                            key={slot.time}
+                            type="button"
+                            onClick={() => setDinnerTimeSlot(slot.time)}
+                            disabled={loading}
+                            style={{
+                              width: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "12px",
+                              padding: "10px 12px",
+                              borderRadius: "4px",
+                              border: isSelected
+                                ? `1.5px solid ${colors.silver}`
+                                : isFull
+                                ? "1px solid rgba(245, 158, 11, 0.2)"
+                                : "1px solid rgba(255, 255, 255, 0.06)",
+                              background: isSelected
+                                ? "rgba(192, 192, 192, 0.1)"
+                                : "transparent",
+                              color: "#fff",
+                              cursor: loading ? "not-allowed" : "pointer",
+                              transition: "all 0.15s ease",
+                              WebkitTapHighlightColor: "transparent",
+                              textAlign: "left",
+                            }}
+                          >
+                            <span style={{
+                              fontSize: "14px",
+                              fontWeight: isSelected ? 600 : 400,
+                              color: isFull && !isSelected ? "rgba(245, 158, 11, 0.8)" : "#fff",
+                            }}>
+                              {formatEventTime(slot.time, event?.timezone)}
+                            </span>
+                            {slot.remaining !== null && !event?.hideDinnerRemaining && (
+                              <span style={{
+                                fontSize: "11px",
+                                opacity: 0.5,
+                                color: isFull ? "rgba(245, 158, 11, 0.7)" : undefined,
+                              }}>
+                                {isFull ? "waitlist" : `${slot.remaining} left`}
+                              </span>
+                            )}
+                            {isSelected && (
+                              <div
+                                style={{ marginLeft: "auto" }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <InlineStepper
+                                  value={dinnerSeats}
+                                  onChange={setDinnerSeats}
+                                  min={1}
+                                  max={maxDinnerPerBooking}
+                                />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                      {event?.dinnerBookingEmail && (
+                        <div style={{
+                          fontSize: "12px", opacity: 0.5, lineHeight: "1.4", marginTop: "4px",
+                        }}>
+                          For large or specific bookings:{" "}
+                          <a
+                            href={`mailto:${event.dinnerBookingEmail}`}
+                            style={{ color: colors.silverText, textDecoration: "underline" }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {event.dinnerBookingEmail}
+                          </a>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Bring friends */}
+          {maxPlusOnes > 0 && (
+            <div style={{
               display: "flex",
               alignItems: "center",
-              gap: "12px",
-              padding: "14px 16px",
-              borderRadius: "14px",
-              border: wantsDinner ? `1px solid ${colors.silverRgba}` : "1px solid rgba(255, 255, 255, 0.08)",
-              background: wantsDinner ? "rgba(192, 192, 192, 0.08)" : "rgba(255, 255, 255, 0.03)",
-              cursor: loading || loadingSlots ? "not-allowed" : "pointer",
-              transition: "all 0.2s ease",
-              WebkitTapHighlightColor: "transparent",
-              textAlign: "left",
-              color: "#fff",
-            }}
-          >
-            <span style={{ fontSize: "20px", lineHeight: 1 }}>🍽</span>
-            <span style={{ flex: 1, fontSize: "15px", fontWeight: 500 }}>
-              Book dinner
-            </span>
-            {/* Toggle pill */}
-            <div style={{
-              width: "44px",
-              height: "26px",
-              borderRadius: "13px",
-              background: wantsDinner
-                ? colors.gradientPrimary
-                : "rgba(255, 255, 255, 0.1)",
-              padding: "3px",
-              transition: "background 0.2s ease",
-              flexShrink: 0,
-              boxSizing: "border-box",
+              justifyContent: "space-between",
+              padding: "12px 16px",
             }}>
-              <div style={{
-                width: "20px",
-                height: "20px",
-                borderRadius: "50%",
-                background: wantsDinner ? "#05040a" : "rgba(255, 255, 255, 0.4)",
-                transform: wantsDinner ? "translateX(18px)" : "translateX(0)",
-                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-              }} />
-            </div>
-          </button>
-
-          {/* Dinner details — time + seats in one compact block */}
-          {wantsDinner && (
-            <div style={{
-              marginTop: "10px",
-              padding: "14px",
-              borderRadius: "14px",
-              background: "rgba(255, 255, 255, 0.03)",
-              border: "1px solid rgba(255, 255, 255, 0.06)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-            }}>
-              {loadingSlots ? (
-                <div style={{ fontSize: "13px", opacity: 0.5, textAlign: "center", padding: "8px" }}>
-                  Loading times...
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff" }}>
+                  Bring friends
                 </div>
-              ) : dinnerSlots.length === 0 ? (
-                <div style={{ fontSize: "13px", opacity: 0.5, textAlign: "center", padding: "8px" }}>
-                  No dinner slots available
+                <div style={{ fontSize: "11px", opacity: 0.4, marginTop: "2px" }}>
+                  Up to {maxPlusOnes}{wantsDinner ? " · cocktails only" : ""}
                 </div>
-              ) : (
-                <>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {dinnerSlots.map((slot) => {
-                      const isFull = slot.remaining !== null && slot.remaining === 0;
-                      const isSelected = dinnerTimeSlot === slot.time;
-                      return (
-                        <button
-                          key={slot.time}
-                          type="button"
-                          onClick={() => setDinnerTimeSlot(slot.time)}
-                          disabled={loading}
-                          style={{
-                            width: "100%",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "12px",
-                            padding: isSelected ? "10px 10px 10px 14px" : "10px 14px",
-                            borderRadius: "12px",
-                            border: isSelected
-                              ? `1.5px solid ${colors.silver}`
-                              : isFull
-                              ? "1px solid rgba(245, 158, 11, 0.2)"
-                              : "1px solid rgba(255, 255, 255, 0.06)",
-                            background: isSelected
-                              ? "rgba(192, 192, 192, 0.1)"
-                              : "transparent",
-                            color: "#fff",
-                            cursor: loading ? "not-allowed" : "pointer",
-                            transition: "all 0.15s ease",
-                            WebkitTapHighlightColor: "transparent",
-                            textAlign: "left",
-                          }}
-                        >
-                          <span style={{
-                            fontSize: "15px",
-                            fontWeight: isSelected ? 600 : 400,
-                            color: isFull && !isSelected ? "rgba(245, 158, 11, 0.8)" : "#fff",
-                          }}>
-                            {formatEventTime(slot.time, event?.timezone)}
-                          </span>
-                          {slot.remaining !== null && !event?.hideDinnerRemaining && (
-                            <span style={{
-                              fontSize: "11px",
-                              opacity: 0.5,
-                              color: isFull ? "rgba(245, 158, 11, 0.7)" : undefined,
-                            }}>
-                              {isFull ? "waitlist" : `${slot.remaining} left`}
-                            </span>
-                          )}
-                          {/* Seats stepper — only on selected row */}
-                          {isSelected && (
-                            <div
-                              style={{ marginLeft: "auto" }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <InlineStepper
-                                value={dinnerSeats}
-                                onChange={setDinnerSeats}
-                                min={1}
-                                max={maxDinnerPerBooking}
-                              />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {event?.dinnerBookingEmail && (
-                    <div style={{
-                      fontSize: "12px", opacity: 0.5, lineHeight: "1.4", marginTop: "4px",
-                    }}>
-                      For large or specific bookings:{" "}
-                      <a
-                        href={`mailto:${event.dinnerBookingEmail}`}
-                        style={{ color: colors.silverText, textDecoration: "underline" }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {event.dinnerBookingEmail}
-                      </a>
-                    </div>
-                  )}
-                </>
-              )}
+              </div>
+              <InlineStepper
+                value={cocktailGuests}
+                onChange={setCocktailGuests}
+                min={0}
+                max={maxPlusOnes}
+              />
             </div>
           )}
         </div>
       )}
 
-      {/* Bring friends — always same name, consistent UX */}
-      {maxPlusOnes > 0 && (
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 16px",
-          borderRadius: "14px",
-          background: "rgba(255, 255, 255, 0.03)",
-          border: "1px solid rgba(255, 255, 255, 0.06)",
-          marginBottom: "16px",
-        }}>
-          <div>
-            <div style={{ fontSize: "15px", fontWeight: 500, color: "#fff" }}>
-              Bring friends
-            </div>
-            <div style={{ fontSize: "12px", opacity: 0.4, marginTop: "2px" }}>
-              Up to {maxPlusOnes}{wantsDinner ? " · cocktails only" : ""}
-            </div>
-          </div>
-          <InlineStepper
-            value={cocktailGuests}
-            onChange={setCocktailGuests}
-            min={0}
-            max={maxPlusOnes}
-          />
-        </div>
-      )}
-
-      {/* Party summary — always visible */}
+      {/* Party summary — list breakdown */}
       {!isPaidEvent && (
         <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "12px 0",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+          padding: "0 0 16px",
           marginBottom: "16px",
-          fontSize: "13px",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
         }}>
-          <span style={{ opacity: 0.4, fontSize: "14px" }}>Your party</span>
-          <span style={{ fontWeight: 600 }}>
-            {totalPartySize} {totalPartySize === 1 ? "person" : "people"}
-            {wantsDinner && dinnerCount > 0 && (
-              <span style={{ fontWeight: 400, opacity: 0.5, marginLeft: "6px" }}>
-                ({dinnerCount} dinner{cocktailsOnlyCount > 0 ? ` + ${cocktailsOnlyCount} cocktails` : ""})
-              </span>
-            )}
-          </span>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: (wantsDinner && dinnerCount > 0) || cocktailsOnlyCount > 0 ? "8px" : 0,
+          }}>
+            <span style={{ opacity: 0.4, fontSize: "14px" }}>Your party</span>
+            <span style={{ fontWeight: 600, fontSize: "14px" }}>
+              {totalPartySize} {totalPartySize === 1 ? "person" : "people"}
+            </span>
+          </div>
+          {((wantsDinner && dinnerCount > 0) || cocktailsOnlyCount > 0) && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {wantsDinner && dinnerCount > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", opacity: 0.4 }}>
+                  <span>Dinner</span>
+                  <span>{dinnerCount} {dinnerCount === 1 ? "seat" : "seats"}</span>
+                </div>
+              )}
+              {cocktailsOnlyCount > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", opacity: 0.4 }}>
+                  <span>{wantsDinner ? "Cocktails only" : "Extra guests"}</span>
+                  <span>{cocktailsOnlyCount}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -559,7 +585,7 @@ export function RsvpForm({
       {isPaidEvent && ticketPrice && !willGoToWaitlist && (
         <div style={{
           padding: "16px",
-          borderRadius: "14px",
+          borderRadius: "4px",
           background: "rgba(255, 255, 255, 0.03)",
           border: "1px solid rgba(255, 255, 255, 0.06)",
           marginBottom: "16px",
@@ -632,7 +658,7 @@ export function RsvpForm({
       {willGoToWaitlist && event?.waitlistEnabled && (
         <div style={{
           padding: "12px 14px",
-          borderRadius: "12px",
+          borderRadius: "4px",
           background: "rgba(245, 158, 11, 0.08)",
           border: "1px solid rgba(245, 158, 11, 0.15)",
           marginBottom: "16px",
@@ -653,7 +679,7 @@ export function RsvpForm({
       {error && !error.includes("email") && (
         <div style={{
           padding: "10px 14px",
-          borderRadius: "10px",
+          borderRadius: "4px",
           background: "rgba(239, 68, 68, 0.1)",
           border: "1px solid rgba(239, 68, 68, 0.2)",
           fontSize: "13px",
@@ -721,7 +747,7 @@ function InlineStepper({ value, onChange, min = 0, max = 10 }) {
       alignItems: "center",
       gap: "2px",
       background: "rgba(255, 255, 255, 0.06)",
-      borderRadius: "10px",
+      borderRadius: "4px",
       padding: "3px",
     }}>
       <button
@@ -758,7 +784,7 @@ function stepperBtnStyle(disabled) {
   return {
     width: "32px",
     height: "32px",
-    borderRadius: "8px",
+    borderRadius: "3px",
     border: "none",
     background: disabled ? "transparent" : "rgba(255, 255, 255, 0.08)",
     color: disabled ? "rgba(255, 255, 255, 0.2)" : "#fff",
@@ -849,7 +875,7 @@ function submitButtonStyle(disabled) {
   return {
     width: "100%",
     padding: "14px",
-    borderRadius: "999px",
+    borderRadius: "4px",
     border: "none",
     background: disabled
       ? "rgba(255, 255, 255, 0.08)"

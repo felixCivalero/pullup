@@ -345,15 +345,14 @@ export function CreateEventPage() {
     if (!hasTitle) defaults.push({ type: "title" });
     if (!hasLocation) defaults.push({ type: "location" });
     if (!hasDatetime) defaults.push({ type: "datetime" });
-    const custom = saved.filter(s => s.type !== "title" && s.type !== "location" && s.type !== "datetime");
     // Pre-fill with template sections for new events (no draft / no custom sections yet)
-    if (custom.length === 0 && !draft?.sections?.length) {
-      custom.push(
+    if (saved.length === 0 && !draft?.sections?.length) {
+      return [...defaults,
         { type: "text", title: "", text: "A short description about something nice maybe a quote yes." },
         { type: "text", title: "About the artist", text: "A boundary-pushing creative known for blending electronic, soul, and experimental sounds into immersive live experiences. With roots in Stockholm\u2019s underground scene, they\u2019ve built a reputation for high-energy sets that blur the line between DJ performance and live act." },
-      );
+      ];
     }
-    return [...defaults, ...custom];
+    return [...defaults, ...saved];
   });
   // showSectionPicker state removed — grid is always visible
   const [location, setLocation] = useState(draft?.location || "Slakthusomr\u00e5det, Stockholm");
@@ -762,7 +761,7 @@ export function CreateEventPage() {
           if (!hasT) defaults.push({ type: "title" });
           if (!hasLoc) defaults.push({ type: "location" });
           if (!hasDt) defaults.push({ type: "datetime" });
-          setSections([...defaults, ...saved.filter(s => s.type !== "title" && s.type !== "location" && s.type !== "datetime")]);
+          setSections([...defaults, ...saved]);
         })();
         setLocation(ev.location || "");
         setLocationLat(ev.locationLat || null);

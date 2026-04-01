@@ -29,6 +29,7 @@ export function EventPreview({
   soundcloud,
   timezone,
   sections = [],
+  hoveredSection = null,
   hideLocation = false,
   rsvpContent,
   autoShowRsvp = false,
@@ -82,6 +83,20 @@ export function EventPreview({
       }
     }
   }, [activeStep]);
+
+  // Scroll preview to hovered section
+  useEffect(() => {
+    if (hoveredSection === null || !scrollRef.current) return;
+    const el = scrollRef.current.querySelector(`[data-section-index="${hoveredSection}"]`);
+    if (!el) return;
+    const container = scrollRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const offsetInContainer = elRect.top - containerRect.top + container.scrollTop;
+    // Scroll so the section is roughly 1/3 from top of the preview
+    const target = offsetInContainer - containerRect.height * 0.3;
+    container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+  }, [hoveredSection]);
 
   const buttonLabel = getCtaLabel({ ticketType, ticketPrice, ticketCurrency });
   const hasContent = description || (sections && sections.length > 0);
@@ -195,6 +210,7 @@ export function EventPreview({
               startsAt={startsAt}
               timezone={timezone}
               sections={sections}
+              hoveredSection={hoveredSection}
               hideLocation={hideLocation}
             />
           </div>

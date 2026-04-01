@@ -325,6 +325,9 @@ export function CreateEventPage() {
     } catch { return null; }
   })() : null;
   const [showDraftBanner, setShowDraftBanner] = useState(!!draft);
+  const [hoveredSection, setHoveredSection] = useState(null);
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
   const [title, setTitle] = useState(draft?.title || "Summer Rooftop Party");
   const [titleVisible, setTitleVisible] = useState(draft?.titleVisible !== false);
@@ -2774,30 +2777,105 @@ export function CreateEventPage() {
             {/* Content sections builder */}
             <div style={{ marginBottom: "16px" }}>
               {sections.map((section, i) => (
-                <div key={i} style={{
-                  padding: "14px 16px",
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "12px",
-                  marginBottom: "8px",
-                }}>
-                  {/* Section header: reorder + type label + delete */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: section.type === "title" || section.type === "location" || section.type === "datetime" ? "0" : "10px" }}>
+                <div key={i}
+                  data-section-card
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (dragIndex === null) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    const dropIdx = e.clientY < midY ? i : i + 1;
+                    if (dropIdx !== dragOverIndex) {
+                      setDragOverIndex(dropIdx);
+                      const targetPreview = dropIdx > dragIndex ? Math.min(dropIdx - 1, sections.length - 1) : dropIdx;
+                      setHoveredSection(targetPreview);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIndex === null || dragOverIndex === null) return;
+                    const u = [...sections];
+                    const [moved] = u.splice(dragIndex, 1);
+                    const insertAt = dragOverIndex > dragIndex ? dragOverIndex - 1 : dragOverIndex;
+                    u.splice(insertAt, 0, moved);
+                    setSections(u);
+                    setHoveredSection(insertAt);
+                    setDragIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  onMouseEnter={() => { if (dragIndex === null) setHoveredSection(i); }}
+                  onMouseLeave={() => { if (dragIndex === null) setHoveredSection(null); }}
+                  style={{
+                    padding: "14px 16px",
+                    background: dragIndex === i ? "rgba(163, 230, 53, 0.06)" : "rgba(255,255,255,0.04)",
+                    border: hoveredSection === i ? "1px solid rgba(163, 230, 53, 0.5)" : "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "12px",
+                    marginBottom: "8px",
+                    transition: dragIndex !== null ? "none" : "border-color 0.15s ease",
+                    opacity: dragIndex === i ? 0.4 : 1,
+                    position: "relative",
+                  }}>
+                  {/* Drop indicator line */}
+                  {dragIndex !== null && dragOverIndex === i && dragIndex !== i && dragIndex !== i - 1 && (
+                    <div style={{
+                      position: "absolute",
+                      top: "-5px",
+                      left: "8px",
+                      right: "8px",
+                      height: "2px",
+                      background: "#a3e635",
+                      borderRadius: "1px",
+                    }} />
+                  )}
+                  {dragIndex !== null && dragOverIndex === i + 1 && dragIndex !== i && dragIndex !== i + 1 && (
+                    <div style={{
+                      position: "absolute",
+                      bottom: "-5px",
+                      left: "8px",
+                      right: "8px",
+                      height: "2px",
+                      background: "#a3e635",
+                      borderRadius: "1px",
+                    }} />
+                  )}
+                  {/* Section header: drag handle + type label + delete */}
+                  <div
+                    draggable
+                    onDragStart={(e) => {
+                      setDragIndex(i);
+                      setHoveredSection(i);
+                      e.dataTransfer.effectAllowed = "move";
+                      // Use the whole card as drag image
+                      const card = e.currentTarget.closest("[data-section-card]");
+                      if (card) e.dataTransfer.setDragImage(card, card.offsetWidth / 2, 20);
+                    }}
+                    onDragEnd={() => {
+                      setDragIndex(null);
+                      setDragOverIndex(null);
+                      setHoveredSection(null);
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: section.type === "title" || section.type === "location" || section.type === "datetime" ? "0" : "10px", cursor: "grab" }}
+                  >
                     {/* Up/down reorder */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexShrink: 0 }}>
-                      <button type="button" disabled={i === 0} onClick={() => {
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexShrink: 0 }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <button type="button" draggable={false} disabled={i === 0} onClick={() => {
                         const u = [...sections]; [u[i-1], u[i]] = [u[i], u[i-1]]; setSections(u);
+                        setHoveredSection(i - 1);
                       }} style={{ background: "none", border: "none", color: i === 0 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)", cursor: i === 0 ? "default" : "pointer", padding: 0, fontSize: "12px", lineHeight: 1 }}>&#9650;</button>
-                      <button type="button" disabled={i === sections.length - 1} onClick={() => {
+                      <button type="button" draggable={false} disabled={i === sections.length - 1} onClick={() => {
                         const u = [...sections]; [u[i], u[i+1]] = [u[i+1], u[i]]; setSections(u);
+                        setHoveredSection(i + 1);
                       }} style={{ background: "none", border: "none", color: i === sections.length - 1 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)", cursor: i === sections.length - 1 ? "default" : "pointer", padding: 0, fontSize: "12px", lineHeight: 1 }}>&#9660;</button>
                     </div>
-                    <span style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.25)", flexShrink: 0 }}>
+                    <span style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.25)", flexShrink: 0, userSelect: "none" }}>
                       {({ title: "Title", location: "Location", datetime: "Date & Time", socials: "Social Links", spotify: "Spotify", applemusic: "Apple Music", soundcloud: "SoundCloud", youtube: "YouTube", text: "Text" })[section.type] || "Text"}
                     </span>
                     <div style={{ flex: 1 }} />
                     {section.type !== "title" && section.type !== "location" && section.type !== "datetime" && (
-                      <button type="button" onClick={() => setSections(sections.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: "18px", cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>
+                      <button type="button" draggable={false} onClick={() => setSections(sections.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: "18px", cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>
                         &times;
                       </button>
                     )}
@@ -4055,6 +4133,7 @@ export function CreateEventPage() {
                 }
                 ticketCurrency={sellTicketsEnabled ? ticketCurrency : null}
                 sections={sections}
+                hoveredSection={hoveredSection}
                 hideLocation={hideLocation}
                 rsvpContent={({ onClose }) => (
                   <RsvpForm

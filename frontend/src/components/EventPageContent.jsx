@@ -51,6 +51,7 @@ export function EventPageContent({
   startsAt,
   timezone,
   sections = [],
+  hoveredSection = null,
   hideLocation = false,
 }) {
   const formattedDate = formatDate(startsAt, timezone);
@@ -70,8 +71,16 @@ export function EventPageContent({
 
   return (
     <>
-      {sections.map((section, i) => (
-        <div key={i} style={{ marginBottom: i === sections.length - 1 ? 0 : section.type === "location" ? "4px" : "16px" }}>
+      {sections.map((section, i) => {
+        const isHovered = hoveredSection === i;
+        return (
+        <div key={i} data-section-index={i} style={{
+          marginBottom: i === sections.length - 1 ? 0 : section.type === "location" ? "4px" : "16px",
+          borderRadius: "4px",
+          outline: isHovered ? "1px solid rgba(163, 230, 53, 0.5)" : "1px solid transparent",
+          outlineOffset: "4px",
+          transition: "outline-color 0.15s ease",
+        }}>
           {section.type === "title" ? (
             title ? <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: 0 }}>{title}</h1> : null
 
@@ -115,7 +124,8 @@ export function EventPageContent({
             </>
           )}
         </div>
-      ))}
+        );
+      })}
     </>
   );
 }

@@ -38,15 +38,13 @@ export function EventPreview({
   const [carouselIndex, setCarouselIndex] = useState(0);
   const scrollRef = useRef(null);
 
-  const ctaBarRef = useRef(null);
   const {
     sentinelRef,
     formRef,
-    revealPx: rsvpRevealPx,
+    barRef,
     isRevealed: formRevealed,
     scrollToPanel: scrollToRsvp,
     spacerHeight,
-    barStyle,
     barScrollHandlers,
   } = useStickyReveal({
     scrollRef,
@@ -227,7 +225,7 @@ export function EventPreview({
         {/* ─── FIXED CTA — one single unit, clips from bottom ─── */}
         {!hideCta && (
           <div
-            ref={ctaBarRef}
+            ref={barRef}
             {...barScrollHandlers}
             style={{
               position: "absolute",
@@ -240,7 +238,7 @@ export function EventPreview({
               WebkitBackdropFilter: "blur(16px)",
               borderTop: "1px solid rgba(255, 255, 255, 0.08)",
               overflowX: "hidden",
-              ...barStyle,
+              // height and overflowY managed directly by useStickyReveal via barRef
             }}
           >
             {/* Everything is one ref'd unit */}

@@ -3,18 +3,16 @@ import { useState, useRef, useCallback, useEffect } from "react";
 /**
  * Hook that manages scroll-driven reveal of a fixed bottom panel.
  *
- * Place `sentinelRef` on a spacer div inside the scroll container.
- * Place `formRef` on the panel content wrapper in the fixed bar.
- * The hook tracks scrolling past the sentinel and maps it 1:1 to reveal pixels.
- * The bar grows 1:1 with scroll — no max-height cap. The spacer determines
- * exactly how far the bar can grow, so the form always fits fully.
+ * Performance: all per-frame updates (bar height) are applied directly to the
+ * DOM via refs — no React state is set during scrolling.  Only the boolean
+ * `isRevealed` goes through React (changes once, not per-pixel).
  *
  * @param {Object} options
  * @param {React.RefObject} options.scrollRef - ref to the scrollable container
  * @param {number} [options.barHeight=62] - collapsed bar height in px
  * @param {boolean} [options.enabled=true] - whether reveal behavior is active
  * @param {boolean} [options.autoShow=false] - auto-scroll to sentinel on mount
- * @param {any} [options.contentKey] - dependency to re-measure form height (e.g. rsvpContent)
+ * @param {any} [options.contentKey] - dependency to re-measure form height
  */
 export function useStickyReveal({
   scrollRef,
@@ -23,24 +21,46 @@ export function useStickyReveal({
   autoShow = false,
   contentKey,
 }) {
-  const [revealPx, setRevealPx] = useState(0);
-  const [formHeight, setFormHeight] = useState(0);
+  const [isRevealed, setIsRevealed] = useState(false);
+  const [spacerHeight, setSpacerHeight] = useState("50vh");
+
   const sentinelRef = useRef(null);
   const formRef = useRef(null);
+  const barNodeRef = useRef(null);
+  const revealPxRef = useRef(0);
+  const formHeightRef = useRef(0);
 
-  // Scroll handler — compute how far sentinel has scrolled past the bar trigger line
+  // Callback ref — attach to the bar DOM node for direct style manipulation
+  const barRef = useCallback(
+    (node) => {
+      barNodeRef.current = node;
+      if (node) {
+        node.style.height = `${barHeight}px`;
+        node.style.overflowY = "hidden";
+        node.style.willChange = "height";
+      }
+    },
+    [barHeight],
+  );
+
+  // Scroll handler — direct DOM, no setState per-frame
   const handleScroll = useCallback(() => {
-    if (!sentinelRef.current || !scrollRef.current || !formRef.current) {
-      setRevealPx(0);
+    if (!sentinelRef.current || !scrollRef.current || !barNodeRef.current)
       return;
-    }
+
     const containerRect = scrollRef.current.getBoundingClientRect();
     const sentinelRect = sentinelRef.current.getBoundingClientRect();
+    const dist = containerRect.bottom - sentinelRect.top - barHeight;
+    const px = dist <= 0 ? 0 : dist;
 
-    // How far sentinel top is above the bar's top edge (container bottom - barHeight)
-    const distancePastTrigger = containerRect.bottom - sentinelRect.top - barHeight;
+    revealPxRef.current = px;
 
-    setRevealPx(distancePastTrigger <= 0 ? 0 : distancePastTrigger);
+    // Direct DOM update — bypasses React entirely
+    barNodeRef.current.style.height = `${barHeight + px}px`;
+
+    // Only flip the boolean (changes once per reveal/hide cycle)
+    const revealed = px > 0;
+    setIsRevealed((prev) => (prev === revealed ? prev : revealed));
   }, [scrollRef, barHeight]);
 
   // Attach scroll listener
@@ -51,27 +71,39 @@ export function useStickyReveal({
     return () => el.removeEventListener("scroll", handleScroll);
   }, [scrollRef, handleScroll]);
 
-  // Track form height — watches resizes AND DOM mutations (toggles, dynamic content)
+  // Track form height — updates spacer (infrequent, only on resize/mutation)
   useEffect(() => {
     if (!formRef.current) return;
     const update = () => {
       if (formRef.current) {
-        setFormHeight(Math.max(0, formRef.current.scrollHeight - barHeight));
+        const h = Math.max(0, formRef.current.scrollHeight - barHeight);
+        formHeightRef.current = h;
+        setSpacerHeight(h > 0 ? `${h + barHeight}px` : "50vh");
       }
     };
     const ro = new ResizeObserver(update);
     ro.observe(formRef.current);
     const mo = new MutationObserver(() => requestAnimationFrame(update));
-    mo.observe(formRef.current, { childList: true, subtree: true, attributes: true });
+    mo.observe(formRef.current, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
     update();
-    return () => { ro.disconnect(); mo.disconnect(); };
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+    };
   }, [contentKey, barHeight]);
 
   // Auto-scroll to sentinel
   useEffect(() => {
     if (autoShow && sentinelRef.current) {
       setTimeout(() => {
-        sentinelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        sentinelRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
       }, 300);
     }
   }, [autoShow]);
@@ -80,48 +112,47 @@ export function useStickyReveal({
     sentinelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  // Forward scroll events from the bar to the main scroll container
-  // so the page feels continuous even when hovering the revealed panel
-  const handleBarWheel = useCallback((e) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop += e.deltaY;
-  }, [scrollRef]);
+  // Forward wheel events from the bar to the scroll container
+  const handleBarWheel = useCallback(
+    (e) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollTop += e.deltaY;
+    },
+    [scrollRef],
+  );
 
-  // Forward touch events from the bar to the main scroll container
+  // Forward touch events from the bar to the scroll container
   const touchStartY = useRef(0);
   const handleBarTouchStart = useCallback((e) => {
     touchStartY.current = e.touches[0].clientY;
   }, []);
 
-  const handleBarTouchMove = useCallback((e) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const deltaY = touchStartY.current - e.touches[0].clientY;
-    touchStartY.current = e.touches[0].clientY;
-    el.scrollTop += deltaY;
-  }, [scrollRef]);
+  const handleBarTouchMove = useCallback(
+    (e) => {
+      const el = scrollRef.current;
+      if (!el || !barNodeRef.current) return;
+      const deltaY = touchStartY.current - e.touches[0].clientY;
+      touchStartY.current = e.touches[0].clientY;
+
+      // Update scroll position — this fires the scroll handler which
+      // updates the bar directly via DOM, no React in the loop.
+      el.scrollTop += deltaY;
+    },
+    [scrollRef],
+  );
 
   return {
     sentinelRef,
     formRef,
-    revealPx,
-    isRevealed: revealPx > 0,
+    barRef, // callback ref — attach to the bar container
+    isRevealed,
     scrollToPanel,
-    // Spacer = form content height + barHeight so the bar can grow to full form size.
-    // At max scroll: revealPx = spacerHeight - barHeight, bar = barHeight + revealPx = spacerHeight.
-    // We need bar = formRef.scrollHeight = formHeight + barHeight, so spacerHeight = formHeight + barHeight.
-    spacerHeight: formHeight > 0 ? `${formHeight + barHeight}px` : "50vh",
+    spacerHeight,
     barScrollHandlers: {
       onWheel: handleBarWheel,
       onTouchStart: handleBarTouchStart,
       onTouchMove: handleBarTouchMove,
-    },
-    barStyle: {
-      height: `${barHeight + revealPx}px`,
-      // No maxHeight — bar grows to fit full form content.
-      // The spacer limits scroll distance so it naturally stops at the right spot.
-      overflowY: "hidden",
     },
   };
 }

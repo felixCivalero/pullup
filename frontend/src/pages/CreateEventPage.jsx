@@ -47,7 +47,7 @@ import {
   formatReadableDateTime,
   formatEventTime,
 } from "../lib/dateUtils.js";
-import { uploadEventImage, validateMediaFile, uploadEventMedia, deleteEventMedia, reorderEventMedia, generateVideoThumbnail } from "../lib/imageUtils.js";
+import { uploadEventImage, validateMediaFile, uploadEventMedia, deleteEventMedia, reorderEventMedia, generateVideoThumbnail, compressImage, validateImageFile } from "../lib/imageUtils.js";
 import {
   isNetworkError,
   handleNetworkError,
@@ -3124,14 +3124,13 @@ export function CreateEventPage() {
                           ) : (
                             <span style={{ fontSize: "18px", opacity: 0.25 }}>+</span>
                           )}
-                          <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => {
+                          <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            const reader = new FileReader();
-                            reader.onload = (ev) => {
-                              const u = [...sections]; u[i] = { ...u[i], logo: ev.target.result }; setSections(u);
-                            };
-                            reader.readAsDataURL(file);
+                            const validation = validateImageFile(file, 2);
+                            if (!validation.valid) { alert(validation.error); return; }
+                            const compressed = await compressImage(file, 200, 200, 0.85);
+                            const u = [...sections]; u[i] = { ...u[i], logo: compressed }; setSections(u);
                           }} />
                         </label>
                         <div style={{ flex: 1, minWidth: 0 }}>

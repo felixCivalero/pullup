@@ -1361,6 +1361,19 @@ app.post("/events", requireAuth, async (req, res) => {
     sections,
   });
 
+  // Upload any hostedby logos from sections to storage (now that we have event.id)
+  if (sections && Array.isArray(sections)) {
+    try {
+      const processedSections = await processHostedByLogos(event.id, sections);
+      if (processedSections !== sections) {
+        await updateEvent(event.id, { sections: processedSections });
+        event.sections = processedSections;
+      }
+    } catch (err) {
+      console.warn("[POST /host/events] Hosted-by logo upload failed:", err.message);
+    }
+  }
+
   // If paid tickets, automatically create Stripe product and price (internal only)
   if (ticketType === "paid" && ticketPrice) {
     try {
@@ -3658,6 +3671,16 @@ app.put(
       }
     }
 
+    // Upload any hostedby logos from sections to storage before saving
+    let processedSections = sections;
+    if (sections && Array.isArray(sections)) {
+      try {
+        processedSections = await processHostedByLogos(id, sections);
+      } catch (err) {
+        console.warn(`[PUT /host/events/${id}] Hosted-by logo upload failed:`, err.message);
+      }
+    }
+
     let updated;
     try {
       updated = await updateEvent(id, {
@@ -3702,7 +3725,7 @@ app.put(
         spotify,
         tiktok,
         soundcloud,
-        sections,
+        sections: processedSections,
       });
     } catch (err) {
       console.error(`[PUT /host/events/${id}] Update failed:`, err.message);
@@ -6096,6 +6119,54 @@ app.post("/host/stripe/connect/disconnect", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Failed to disconnect Stripe account" });
   }
 });
+
+// ---------------------------
+// Helper: Upload hostedby logos from sections to Supabase Storage
+// Replaces base64 data URLs with storage URLs so JSONB stays small
+// ---------------------------
+async function processHostedByLogos(eventId, sections) {
+  if (!Array.isArray(sections)) return sections;
+
+  const hostedByIdx = sections.findIndex(
+    (s) => s.type === "hostedby" && s.logo && s.logo.startsWith("data:image/")
+  );
+  if (hostedByIdx === -1) return sections; // nothing to upload
+
+  const section = sections[hostedByIdx];
+  const base64Data = section.logo.replace(/^data:image\/\w+;base64,/, "");
+  const buffer = Buffer.from(base64Data, "base64");
+
+  // Enforce 500KB limit
+  if (buffer.length > 512 * 1024) {
+    throw new Error("Hosted-by logo must be under 500KB. Please use a smaller image.");
+  }
+
+  const mimeMatch = section.logo.match(/data:image\/(\w+);base64/);
+  const extension = mimeMatch ? mimeMatch[1] : "png";
+  const fileName = `${eventId}/hostedby_logo.${extension}`;
+
+  const { supabase } = await import("./supabase.js");
+  const { error } = await supabase.storage
+    .from("event-images")
+    .upload(fileName, buffer, {
+      contentType: `image/${extension}`,
+      upsert: true,
+    });
+
+  if (error) {
+    console.error("Hosted-by logo upload error:", error);
+    throw new Error("Failed to upload hosted-by logo");
+  }
+
+  // Get public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from("event-images")
+    .getPublicUrl(fileName);
+
+  const updated = [...sections];
+  updated[hostedByIdx] = { ...updated[hostedByIdx], logo: publicUrl };
+  return updated;
+}
 
 // ---------------------------
 // PROTECTED: Upload event image

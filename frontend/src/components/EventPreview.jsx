@@ -1,11 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronDown } from "lucide-react";
 import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort } from "../lib/urlUtils";
 import { EventPageContent } from "./EventPageContent";
 import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
-import { useStickyReveal } from "./useStickyReveal";
 
 const CTA_BAR_HEIGHT = 62;
 
@@ -37,22 +36,8 @@ export function EventPreview({
 }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const scrollRef = useRef(null);
-
-  const {
-    sentinelRef,
-    formRef,
-    barRef,
-    isRevealed: formRevealed,
-    scrollToPanel: scrollToRsvp,
-    spacerHeight,
-    barScrollHandlers,
-  } = useStickyReveal({
-    scrollRef,
-    barHeight: CTA_BAR_HEIGHT,
-    enabled: !!rsvpContent,
-    autoShow: autoShowRsvp,
-    contentKey: rsvpContent,
-  });
+  const rsvpSectionRef = useRef(null);
+  const [rsvpVisible, setRsvpVisible] = useState(false);
 
   const mediaCount = media?.length || 0;
   const canSwipe = mediaCount > 1 && !mediaSettings?.autoscroll;
@@ -68,6 +53,30 @@ export function EventPreview({
     const month = d.toLocaleDateString("en-US", { month: "short", ...tzOpt }).toLowerCase();
     return `${day} ${dateNum} ${month}${eventTime ? `, ${eventTime}` : ""}`;
   })() : "";
+
+  // IntersectionObserver: detect when inline RSVP section is visible
+  useEffect(() => {
+    if (!rsvpSectionRef.current || !rsvpContent) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setRsvpVisible(entry.isIntersecting),
+      { root: scrollRef.current, threshold: 0.15 },
+    );
+    observer.observe(rsvpSectionRef.current);
+    return () => observer.disconnect();
+  }, [rsvpContent]);
+
+  // Auto-scroll to RSVP form on mount (for VIP/waitlist offers)
+  useEffect(() => {
+    if (autoShowRsvp && rsvpSectionRef.current) {
+      setTimeout(() => {
+        rsvpSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
+    }
+  }, [autoShowRsvp]);
+
+  const scrollToRsvp = useCallback(() => {
+    rsvpSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   // Scroll preview when switching between Media/Details
   useEffect(() => {
@@ -91,7 +100,6 @@ export function EventPreview({
     const containerRect = container.getBoundingClientRect();
     const elRect = el.getBoundingClientRect();
     const offsetInContainer = elRect.top - containerRect.top + container.scrollTop;
-    // Scroll so the section is roughly 1/3 from top of the preview
     const target = offsetInContainer - containerRect.height * 0.3;
     container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
   }, [hoveredSection]);
@@ -145,7 +153,7 @@ export function EventPreview({
               height: "100%",
               minHeight: "100%",
               flexShrink: 0,
-                            cursor: canSwipe ? "grab" : undefined,
+              cursor: canSwipe ? "grab" : undefined,
             }}
           >
             {media && media.length > 0 ? (
@@ -198,7 +206,7 @@ export function EventPreview({
           {/* ─── CONTENT SECTION ─── */}
           <div style={{
             background: "#05040a",
-            padding: `28px 20px ${CTA_BAR_HEIGHT}px`,
+            padding: `28px 20px ${rsvpContent ? "8px" : `${CTA_BAR_HEIGHT}px`}`,
             minHeight: hasContent ? "40%" : undefined,
           }}>
             <EventPageContent
@@ -213,76 +221,19 @@ export function EventPreview({
             />
           </div>
 
-          {/* ─── RSVP SCROLL SPACER ─── */}
+          {/* ─── INLINE RSVP SECTION ─── */}
           {rsvpContent && (
             <div
-              ref={sentinelRef}
-              style={{ height: spacerHeight }}
-            />
-          )}
-        </div>
-
-        {/* ─── FIXED CTA — one single unit, clips from bottom ─── */}
-        {!hideCta && (
-          <div
-            ref={barRef}
-            {...barScrollHandlers}
-            style={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              zIndex: 10,
-              background: "rgba(5, 4, 10, 0.96)",
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
-              borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-              overflowX: "hidden",
-              // height and overflowY managed directly by useStickyReveal via barRef
-            }}
-          >
-            {/* Everything is one ref'd unit */}
-            <div ref={formRef} style={{ padding: "0 20px" }}>
-              {/* Row 1: Price/date + Register button */}
+              ref={rsvpSectionRef}
+              style={{
+                background: "#05040a",
+                padding: `0 20px max(${CTA_BAR_HEIGHT + 20}px, calc(${CTA_BAR_HEIGHT}px + env(safe-area-inset-bottom, 20px)))`,
+              }}
+            >
               <div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                height: `${CTA_BAR_HEIGHT}px`,
-                boxSizing: "border-box",
-                padding: "12px 0",
+                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                paddingTop: "20px",
               }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
-                    {ticketType === "paid" && ticketPrice
-                      ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
-                      : "Free entry"}
-                  </div>
-                  <div style={{ fontSize: "11px", fontWeight: 600, color: formRevealed ? "#a3e635" : "rgba(255,255,255,0.4)", marginTop: "1px" }}>
-                    {formattedDate}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  disabled={!rsvpContent}
-                  onClick={rsvpContent ? scrollToRsvp : undefined}
-                  style={{
-                    padding: "12px 24px",
-                    background: "#fff", color: "#000", border: "none", borderRadius: "4px",
-                    fontSize: "14px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-                    cursor: !rsvpContent ? "not-allowed" : "pointer",
-                    opacity: formRevealed ? 0 : (!rsvpContent ? 0.5 : 1),
-                    visibility: formRevealed ? "hidden" : "visible",
-                    flexShrink: 0, whiteSpace: "nowrap",
-                    pointerEvents: formRevealed ? "none" : "auto",
-                  }}
-                >
-                  {buttonLabel}
-                </button>
-              </div>
-
-              {/* Row 2+: Title, location, form fields — all one continuous block */}
-              <div style={{ paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))" }}>
                 <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                   {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
                   {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>{formatLocationShort(location)}</div>}
@@ -290,6 +241,58 @@ export function EventPreview({
                 {typeof rsvpContent === "function" ? rsvpContent({ onClose: () => {} }) : rsvpContent}
               </div>
             </div>
+          )}
+        </div>
+
+        {/* ─── FIXED CTA BAR — always 62px, fades when form is visible ─── */}
+        {!hideCta && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: 10,
+              height: `${CTA_BAR_HEIGHT}px`,
+              background: "rgba(5, 4, 10, 0.96)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+              padding: "0 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              boxSizing: "border-box",
+              opacity: rsvpVisible ? 0 : 1,
+              pointerEvents: rsvpVisible ? "none" : "auto",
+              transition: "opacity 0.25s ease",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
+                {ticketType === "paid" && ticketPrice
+                  ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
+                  : "Free entry"}
+              </div>
+              <div style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>
+                {formattedDate}
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={!rsvpContent}
+              onClick={rsvpContent ? scrollToRsvp : undefined}
+              style={{
+                padding: "12px 24px",
+                background: "#fff", color: "#000", border: "none", borderRadius: "4px",
+                fontSize: "14px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
+                cursor: !rsvpContent ? "not-allowed" : "pointer",
+                opacity: !rsvpContent ? 0.5 : 1,
+                flexShrink: 0, whiteSpace: "nowrap",
+              }}
+            >
+              {buttonLabel}
+            </button>
           </div>
         )}
       </div>

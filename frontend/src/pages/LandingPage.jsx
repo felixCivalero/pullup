@@ -2229,6 +2229,7 @@ export function LandingPage() {
 
   const handleGoogleContinue = async () => {
     if (signingIn) return;
+    setFormError("");
     if (!authConsent) {
       setFormError("You must agree to the terms and privacy policy.");
       return;
@@ -3540,6 +3541,7 @@ export function LandingPage() {
                   color: "rgba(255,255,255,0.45)",
                   cursor: "pointer",
                   marginTop: 2,
+                  minHeight: 44,
                 }}
               >
                 <input
@@ -3549,8 +3551,8 @@ export function LandingPage() {
                   style={{
                     accentColor: "#fbbf24",
                     flexShrink: 0,
-                    width: 15,
-                    height: 15,
+                    width: 18,
+                    height: 18,
                   }}
                 />
                 <span>
@@ -3559,6 +3561,7 @@ export function LandingPage() {
                     href="/terms"
                     target="_blank"
                     rel="noopener"
+                    onClick={(e) => e.stopPropagation()}
                     style={{
                       color: "rgba(255,255,255,0.65)",
                       textDecoration: "underline",
@@ -3571,6 +3574,7 @@ export function LandingPage() {
                     href="/privacy"
                     target="_blank"
                     rel="noopener"
+                    onClick={(e) => e.stopPropagation()}
                     style={{
                       color: "rgba(255,255,255,0.65)",
                       textDecoration: "underline",

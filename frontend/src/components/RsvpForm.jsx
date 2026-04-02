@@ -615,14 +615,14 @@ export function RsvpForm({
           />
           {!pendingPayment && PaymentFormComponent && (
             <>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.5)", cursor: "pointer", textAlign: "left", margin: "12px 0", padding: "0 2px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.5)", cursor: "pointer", textAlign: "left", margin: "12px 0", padding: "0 2px", minHeight: 44 }}>
                 <input
                   type="checkbox"
                   checked={marketingOptIn}
                   onChange={(e) => setMarketingOptIn(e.target.checked)}
-                  style={{ accentColor: "#fbbf24", flexShrink: 0, width: 16, height: 16 }}
+                  style={{ accentColor: "#fbbf24", flexShrink: 0, width: 18, height: 18 }}
                 />
-                <span>I agree to the <a href="/terms" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>privacy policy</a></span>
+                <span>I agree to the <a href="/terms" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>privacy policy</a></span>
               </label>
               <button
                 type="button"
@@ -692,14 +692,14 @@ export function RsvpForm({
 
       {/* Marketing opt-in (shown here for free events, inside payment section for paid) */}
       {!(isPaidEvent && ticketPrice && !willGoToWaitlist) && (
-        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "rgba(255,255,255,0.35)", cursor: "pointer", textAlign: "left", margin: "12px 0 16px", padding: 0 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "rgba(255,255,255,0.35)", cursor: "pointer", textAlign: "left", margin: "12px 0 16px", padding: 0, minHeight: 44 }}>
           <input
             type="checkbox"
             checked={marketingOptIn}
             onChange={(e) => setMarketingOptIn(e.target.checked)}
-            style={{ accentColor: "#fff", flexShrink: 0, width: 14, height: 14 }}
+            style={{ accentColor: "#fff", flexShrink: 0, width: 18, height: 18 }}
           />
-          <span>I agree to the <a href="/terms" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>privacy policy</a></span>
+          <span>I agree to the <a href="/terms" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>privacy policy</a></span>
         </label>
       )}
 

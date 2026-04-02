@@ -138,7 +138,7 @@ const INTEREST_OPTIONS = [
 const SHOWCASE_SECTIONS = [
   {
     id: "event-pages",
-    headline: "The best event page editor. Period.",
+    headline: "The best event page editor.",
     sub: "Carousels, video, full customization — your page is your content. Build something that actually looks like you, not a template with your name on it.",
     accent: "#818cf8",
     accentBg: "rgba(129,140,248,0.08)",
@@ -2642,7 +2642,7 @@ export function LandingPage() {
               margin: "0 auto 32px",
             }}
           >
-            The platform for people who make{" "}
+            For the people who make{" "}
             <span
               style={{
                 background: colors.gradientGold,

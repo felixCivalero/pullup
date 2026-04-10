@@ -941,8 +941,24 @@ app.get("/events/:slug", optionalAuth, async (req, res) => {
         ? Math.max(0, event.cocktailCapacity - cocktailsOnly)
         : null;
 
+    // Strip hidden fields from public response (hosts still see everything)
+    const hostEventIds = userId ? await getUserEventIds(userId) : [];
+    const isHost = hostEventIds.includes(event.id);
+    const publicEvent = { ...event };
+    if (!isHost) {
+      if (publicEvent.hideLocation) {
+        publicEvent.location = null;
+        publicEvent.locationLat = null;
+        publicEvent.locationLng = null;
+      }
+      if (publicEvent.hideDate) {
+        publicEvent.startsAt = null;
+        publicEvent.endsAt = null;
+      }
+    }
+
     res.json({
-      ...event,
+      ...publicEvent,
       _attendance: {
         confirmed,
         waitlist,
@@ -1304,6 +1320,13 @@ app.post("/events", requireAuth, async (req, res) => {
 
     // Sections (event builder blocks)
     sections,
+
+    // Reveal & waitlist features
+    hideLocation,
+    hideDate,
+    instantWaitlist,
+    revealHint,
+    dateRevealHint,
   } = req.body;
 
   if (!title || !startsAt) {
@@ -1359,6 +1382,11 @@ app.post("/events", requireAuth, async (req, res) => {
     tiktok,
     soundcloud,
     sections,
+    hideLocation,
+    hideDate,
+    instantWaitlist,
+    revealHint,
+    dateRevealHint,
   });
 
   // Upload any hostedby logos from sections to storage (now that we have event.id)
@@ -3579,6 +3607,13 @@ app.put(
 
       // Sections (event builder blocks)
       sections,
+
+      // Reveal & waitlist features
+      hideLocation,
+      hideDate,
+      instantWaitlist,
+      revealHint,
+      dateRevealHint,
     } = req.body;
 
     // Validate dates are not in the past
@@ -3726,6 +3761,11 @@ app.put(
         tiktok,
         soundcloud,
         sections: processedSections,
+        hideLocation,
+        hideDate,
+        instantWaitlist,
+        revealHint,
+        dateRevealHint,
       });
     } catch (err) {
       console.error(`[PUT /host/events/${id}] Update failed:`, err.message);
@@ -7089,6 +7129,63 @@ app.post("/auth/link-newsletter", requireAuth, async (req, res) => {
 });
 
 // ---------------------------
+// PUBLIC: Ideas / feedback
+// ---------------------------
+
+const ideasRateLimit = new Map(); // IP -> { count, resetAt }
+
+app.post("/ideas", optionalAuth, async (req, res) => {
+  try {
+    // Rate limit: 5 per hour per IP
+    const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
+    const now = Date.now();
+    const entry = ideasRateLimit.get(ip);
+    if (entry && entry.resetAt > now) {
+      if (entry.count >= 5) {
+        return res.status(429).json({ error: "Too many ideas submitted. Try again later." });
+      }
+      entry.count++;
+    } else {
+      ideasRateLimit.set(ip, { count: 1, resetAt: now + 60 * 60 * 1000 });
+    }
+
+    const { body, pageUrl } = req.body || {};
+    if (!body || typeof body !== "string" || !body.trim()) {
+      return res.status(400).json({ error: "body is required" });
+    }
+    if (body.length > 2000) {
+      return res.status(400).json({ error: "body must be 2000 characters or fewer" });
+    }
+
+    const row = {
+      body: body.trim(),
+      page_url: pageUrl || null,
+      status: "new",
+    };
+
+    if (req.user) {
+      row.user_id = req.user.id;
+      row.user_email = req.user.email;
+      try {
+        const profile = await getUserProfile(req.user.id);
+        row.user_name = profile?.name || null;
+      } catch (_) {
+        row.user_name = null;
+      }
+    }
+
+    const { supabase } = await import("./supabase.js");
+    const { error } = await supabase.from("ideas").insert(row);
+    if (error) throw error;
+
+    return res.status(201).json({ ok: true });
+  } catch (error) {
+    console.error("[ideas] Error submitting idea:", error);
+    return res.status(500).json({ error: "Failed to submit idea" });
+  }
+});
+
+// ---------------------------
 // ADMIN: Newsletter preview & send
 // ---------------------------
 
@@ -9477,6 +9574,50 @@ app.delete("/admin/sales/leads/:id", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("[sales] delete error:", err.message);
     return res.status(500).json({ error: "Failed to delete lead" });
+  }
+});
+
+// ---------------------------
+// ADMIN: Ideas management
+// ---------------------------
+
+app.get("/admin/ideas", requireAdmin, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    let query = supabase.from("ideas").select("*").order("created_at", { ascending: false });
+
+    const { status } = req.query;
+    if (status && ["new", "read", "done", "archived"].includes(status)) {
+      query = query.eq("status", status);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return res.json(data);
+  } catch (err) {
+    console.error("[admin] ideas list error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch ideas" });
+  }
+});
+
+app.patch("/admin/ideas/:id", requireAdmin, async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    if (!status || !["new", "read", "done", "archived"].includes(status)) {
+      return res.status(400).json({ error: "status must be one of: new, read, done, archived" });
+    }
+
+    const { supabase } = await import("./supabase.js");
+    const { error } = await supabase
+      .from("ideas")
+      .update({ status })
+      .eq("id", req.params.id);
+
+    if (error) throw error;
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin] ideas update error:", err.message);
+    return res.status(500).json({ error: "Failed to update idea" });
   }
 });
 

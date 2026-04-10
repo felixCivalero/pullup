@@ -144,6 +144,7 @@ function ProtectedLayoutInner() {
     { label: "Newsletter", path: "/admin" },
     { label: "Analytics", path: "/admin/analytics" },
     { label: "Sales", path: "/admin/sales" },
+    { label: "Ideas", path: "/admin/ideas" },
   ];
 
   // Event tab items — analytics-only users see just the Analytics tab

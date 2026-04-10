@@ -39,6 +39,8 @@ import { EventPreview } from "../components/EventPreview";
 import { VideoPlayer } from "../components/MediaCarousel";
 import { RsvpForm } from "../components/RsvpForm";
 import { useToast } from "../components/Toast";
+import { PublishAuthModal } from "../components/PublishAuthModal";
+import { useAuth } from "../contexts/AuthContext";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
@@ -280,29 +282,57 @@ export function CreateEventPage() {
   const isEditMode = !!editEventId;
   const { showToast } = useToast();
   const { setEventNav } = useEventNav();
+  const { user } = useAuth();
   const [editLoading, setEditLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
-  const [profileChecked, setProfileChecked] = useState(isEditMode);
+  const [profileChecked, setProfileChecked] = useState(true);
+  const [showPublishAuth, setShowPublishAuth] = useState(false);
+  const [pendingPublishAfterAuth, setPendingPublishAfterAuth] = useState(false);
+  const [detailsTabPulse, setDetailsTabPulse] = useState(false);
 
-  // Redirect to /events if profile is incomplete (create mode only)
+  // After OAuth redirect: check for pendingPublish flag and auto-resume
   useEffect(() => {
-    if (isEditMode) return;
-    async function checkProfile() {
-      try {
-        const res = await authenticatedFetch("/host/profile");
-        if (res.ok) {
-          const profile = await res.json();
-          if (!profile.brand?.trim() || !profile.contactEmail?.trim()) {
-            showToast("Complete your profile before creating events", "error");
-            navigate("/events", { replace: true });
-            return;
+    if (!user || isEditMode) return;
+    try {
+      const raw = localStorage.getItem("pullup_event_draft");
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft.pendingPublish) {
+        // Clear the flag
+        draft.pendingPublish = false;
+        localStorage.setItem("pullup_event_draft", JSON.stringify(draft));
+        // Check if profile is complete
+        (async () => {
+          try {
+            const res = await authenticatedFetch("/host/profile");
+            if (res.ok) {
+              const profile = await res.json();
+              if (profile.brand?.trim() && profile.contactEmail?.trim()) {
+                setPendingPublishAfterAuth(true);
+              } else {
+                setShowPublishAuth(true);
+              }
+            } else {
+              setShowPublishAuth(true);
+            }
+          } catch {
+            setShowPublishAuth(true);
           }
-        }
-      } catch {}
-      setProfileChecked(true);
+        })();
+      }
+    } catch {}
+  }, [user, isEditMode]);
+
+  // Auto-publish after OAuth redirect when profile is already complete
+  const publishRef = useRef(false);
+  useEffect(() => {
+    if (pendingPublishAfterAuth && !publishRef.current) {
+      publishRef.current = true;
+      // Small delay to ensure form state is restored from draft
+      setTimeout(() => handleCreate(null), 300);
     }
-    checkProfile();
-  }, [isEditMode, navigate, showToast]);
+  }, [pendingPublishAfterAuth]);
+
   const [showStartDateTimePicker, setShowStartDateTimePicker] = useState(false);
   const [showEndDateTimePicker, setShowEndDateTimePicker] = useState(false);
   const fileInputRef = useRef(null);
@@ -373,6 +403,10 @@ export function CreateEventPage() {
   const [timezone, setTimezone] = useState(draft?.timezone || getUserTimezone());
   const [maxAttendees, setMaxAttendees] = useState(draft?.maxAttendees || "");
   const [waitlistEnabled, setWaitlistEnabled] = useState(draft?.waitlistEnabled || false);
+  const [instantWaitlist, setInstantWaitlist] = useState(draft?.instantWaitlist || false);
+  const [hideDate, setHideDate] = useState(draft?.hideDate || false);
+  const [revealHint, setRevealHint] = useState(draft?.revealHint || "");
+  const [dateRevealHint, setDateRevealHint] = useState(draft?.dateRevealHint || "");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [mediaFiles, setMediaFiles] = useState([]); // [{file, preview, mediaType, id}]
@@ -423,6 +457,16 @@ export function CreateEventPage() {
   const [loading, setLoading] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMounted, setIsMounted] = useState(false);
+  const [expandAnim, setExpandAnim] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem("pullup_editor_origin");
+      if (raw) {
+        sessionStorage.removeItem("pullup_editor_origin");
+        return JSON.parse(raw);
+      }
+    } catch {}
+    return null;
+  });
   const [mobileView, setMobileView] = useState("edit"); // "edit" or "preview"
   const [desktopPreviewMode, setDesktopPreviewMode] = useState("phone"); // "desktop" or "phone"
   const [currentStep, setCurrentStep] = useState(draft?.currentStep || 1);
@@ -605,8 +649,8 @@ export function CreateEventPage() {
       try {
         const draftData = {
           title, titleVisible, titleAlign, titleFont, titleSize, titleColor, detailsColor, detailsGradient, detailsGradientEnabled,
-          description, location, locationLat, locationLng,
-          startsAt, endsAt, timezone, maxAttendees, waitlistEnabled,
+          description, location, locationLat, locationLng, hideLocation, hideDate, revealHint, dateRevealHint,
+          startsAt, endsAt, timezone, maxAttendees, waitlistEnabled, instantWaitlist,
           sellTicketsEnabled, ticketPrice, ticketCurrency,
           allowPlusOnes, maxPlusOnesPerGuest,
           dinnerEnabled, dinnerStartTime, dinnerEndTime,
@@ -770,6 +814,10 @@ export function CreateEventPage() {
         setLocationLat(ev.locationLat || null);
         setLocationLng(ev.locationLng || null);
         setHideLocation(ev.hideLocation || false);
+        setHideDate(ev.hideDate || false);
+        setInstantWaitlist(ev.instantWaitlist || false);
+        setRevealHint(ev.revealHint || "");
+        setDateRevealHint(ev.dateRevealHint || "");
         setStartsAt(ev.startsAt || "");
         setEndsAt(ev.endsAt || "");
         setTimezone(ev.timezone || getUserTimezone());
@@ -1039,6 +1087,61 @@ export function CreateEventPage() {
     showToast(`Media added! It will be uploaded when you ${isEditMode ? "save" : "create the event"}.`, "success");
   }
 
+  // Pick up pre-loaded content from landing page DemoEditor
+  useEffect(() => {
+    if (isEditMode) return;
+    try {
+      // Pre-loaded image (cover photo uploaded on landing page)
+      const preloadImage = sessionStorage.getItem("pullup_editor_preload_image");
+      if (preloadImage) {
+        sessionStorage.removeItem("pullup_editor_preload_image");
+        fetch(preloadImage)
+          .then(res => res.blob())
+          .then(blob => {
+            const file = new File([blob], "cover.jpg", { type: blob.type || "image/jpeg" });
+            handleMediaAdd([file]);
+          })
+          .catch(() => {});
+      }
+
+      // Pre-loaded data (title, location, text, spotify, startStep)
+      const preloadRaw = sessionStorage.getItem("pullup_editor_preload_data");
+      if (preloadRaw) {
+        sessionStorage.removeItem("pullup_editor_preload_data");
+        const data = JSON.parse(preloadRaw);
+        if (data.title) setTitle(data.title);
+        if (data.location) setLocation(data.location);
+        // Update sections with preloaded content
+        setSections(prev => {
+          const updated = [...prev];
+          if (data.textContent) {
+            const textIdx = updated.findIndex(s => s.type === "text");
+            if (textIdx >= 0) {
+              updated[textIdx] = { ...updated[textIdx], text: data.textContent };
+            }
+          }
+          if (data.spotifyUrl && !updated.some(s => s.type === "spotify")) {
+            updated.push({ type: "spotify", url: data.spotifyUrl });
+          } else if (data.spotifyUrl) {
+            const spotIdx = updated.findIndex(s => s.type === "spotify");
+            if (spotIdx >= 0) updated[spotIdx] = { ...updated[spotIdx], url: data.spotifyUrl };
+          }
+          return updated;
+        });
+        // Auto-reveal: start on Media (step 1) to show uploaded photo,
+        // pulse the Details tab after 1.2s, then switch to it at 2s
+        if (data.autoRevealDetails) {
+          setCurrentStep(1);
+          setTimeout(() => setDetailsTabPulse(true), 1200);
+          setTimeout(() => {
+            setDetailsTabPulse(false);
+            goToStep(2);
+          }, 2200);
+        }
+      }
+    } catch {}
+  }, []);
+
   function handleMediaRemove(id) {
     // If editing and item is already on server, delete it
     const item = mediaFiles.find((m) => m.id === id);
@@ -1104,8 +1207,38 @@ export function CreateEventPage() {
   }
 
   async function handleCreate(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!validateStep()) return;
+
+    // Auth gate: if not logged in, save draft and show auth modal
+    if (!user && !isEditMode) {
+      // Save current draft with pendingPublish flag
+      try {
+        const raw = localStorage.getItem("pullup_event_draft");
+        if (raw) {
+          const d = JSON.parse(raw);
+          d.pendingPublish = true;
+          localStorage.setItem("pullup_event_draft", JSON.stringify(d));
+        }
+      } catch {}
+      setShowPublishAuth(true);
+      return;
+    }
+
+    // Profile gate: check if profile is complete
+    if (!isEditMode) {
+      try {
+        const profileRes = await authenticatedFetch("/host/profile");
+        if (profileRes.ok) {
+          const profile = await profileRes.json();
+          if (!profile.brand?.trim() || !profile.contactEmail?.trim()) {
+            setShowPublishAuth(true);
+            return;
+          }
+        }
+      } catch {}
+    }
+
     setLoading(true);
 
     try {
@@ -1216,6 +1349,9 @@ export function CreateEventPage() {
         locationLat: locationLat || null,
         locationLng: locationLng || null,
         hideLocation,
+        hideDate,
+        revealHint: revealHint.trim() || null,
+        dateRevealHint: dateRevealHint.trim() || null,
         startsAt: new Date(startsAt).toISOString(),
         endsAt: endsAt ? new Date(endsAt).toISOString() : null,
         timezone,
@@ -1224,6 +1360,7 @@ export function CreateEventPage() {
         foodCapacity,
         totalCapacity,
         waitlistEnabled,
+        instantWaitlist,
         theme,
         calendar,
         visibility,
@@ -1430,6 +1567,42 @@ export function CreateEventPage() {
   }
 
   return (
+    <>
+    {/* Expand-from-landing-page animation */}
+    {expandAnim && (() => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      // Calculate the transform origin and scale from the source rect
+      const originX = ((expandAnim.left + expandAnim.width / 2) / vw) * 100;
+      const originY = ((expandAnim.top + expandAnim.height / 2) / vh) * 100;
+      const scaleX = expandAnim.width / vw;
+      const scaleY = expandAnim.height / vh;
+      const scale = Math.min(scaleX, scaleY);
+      return (
+        <style>{`
+          @keyframes editorExpandIn {
+            0% {
+              transform: scale(${(scale * 0.92).toFixed(4)});
+              border-radius: 16px;
+            }
+            55% {
+              transform: scale(1.025);
+              border-radius: 0px;
+            }
+            75% {
+              transform: scale(0.994);
+            }
+            88% {
+              transform: scale(1.003);
+            }
+            100% {
+              transform: scale(1);
+              border-radius: 0px;
+            }
+          }
+        `}</style>
+      );
+    })()}
     <div
       className="page-with-header create-event-page"
       style={{
@@ -1439,7 +1612,12 @@ export function CreateEventPage() {
         background:
           "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.12) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.12) 0%, transparent 50%), #05040a",
         overflow: "hidden",
+        ...(expandAnim ? {
+          transformOrigin: `${((expandAnim.left + expandAnim.width / 2) / window.innerWidth * 100).toFixed(1)}% ${((expandAnim.top + expandAnim.height / 2) / window.innerHeight * 100).toFixed(1)}%`,
+          animation: "editorExpandIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+        } : {}),
       }}
+      onAnimationEnd={() => setExpandAnim(null)}
     >
       {/* animated background */}
       <div
@@ -1518,6 +1696,12 @@ export function CreateEventPage() {
           from { opacity: 0; transform: translateX(-24px); }
           to { opacity: 1; transform: translateX(0); }
         }
+        @keyframes detailsTabGlow {
+          0% { color: rgba(255,255,255,0.3); text-shadow: none; }
+          30% { color: #a3e635; text-shadow: 0 0 12px rgba(163,230,53,0.6), 0 0 24px rgba(163,230,53,0.3); }
+          60% { color: #a3e635; text-shadow: 0 0 8px rgba(163,230,53,0.4); }
+          100% { color: #fff; text-shadow: none; }
+        }
       `}</style>
 
       <div
@@ -1595,6 +1779,9 @@ export function CreateEventPage() {
                       transition: "color 0.2s ease",
                       whiteSpace: "nowrap",
                       position: "relative",
+                      ...(detailsTabPulse && tab.num === 2 ? {
+                        animation: "detailsTabGlow 1s ease forwards",
+                      } : {}),
                     }}
                   >
                     {tab.label}
@@ -2928,6 +3115,16 @@ export function CreateEventPage() {
                         </button>
                         <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>Reveal later</span>
                       </div>
+                      {hideLocation && (
+                        <input
+                          type="text"
+                          value={revealHint}
+                          onChange={(e) => setRevealHint(e.target.value)}
+                          placeholder="e.g. Location drops Friday"
+                          maxLength={80}
+                          style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "12px", padding: "8px 10px", outline: "none", fontFamily: "inherit", marginTop: "8px" }}
+                        />
+                      )}
                     </>
                   ) : section.type === "datetime" ? (
                     /* Date/time inputs */
@@ -2976,6 +3173,35 @@ export function CreateEventPage() {
                           {endsAt && <span style={{ marginLeft: "auto", fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>{formatRelativeTime(new Date(endsAt))}</span>}
                         </div>
                       </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
+                        <button
+                          type="button"
+                          onClick={() => setHideDate(!hideDate)}
+                          style={{
+                            width: "36px", height: "20px", borderRadius: "10px", border: "none",
+                            background: hideDate ? "#a3e635" : "rgba(255,255,255,0.15)",
+                            position: "relative", cursor: "pointer", transition: "background 0.2s ease", flexShrink: 0,
+                          }}
+                        >
+                          <div style={{
+                            width: "16px", height: "16px", borderRadius: "50%", background: "#fff",
+                            position: "absolute", top: "2px",
+                            left: hideDate ? "18px" : "2px",
+                            transition: "left 0.2s ease",
+                          }} />
+                        </button>
+                        <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>Reveal later</span>
+                      </div>
+                      {hideDate && (
+                        <input
+                          type="text"
+                          value={dateRevealHint}
+                          onChange={(e) => setDateRevealHint(e.target.value)}
+                          placeholder="e.g. Date announced soon"
+                          maxLength={80}
+                          style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "12px", padding: "8px 10px", outline: "none", fontFamily: "inherit", marginTop: "8px" }}
+                        />
+                      )}
                     </div>
                   ) : section.type === "spotify" ? (
                     /* Spotify embed section */
@@ -3428,14 +3654,28 @@ export function CreateEventPage() {
                     />
                   }
                 />
-                {/* waitlist */}
+                {/* waitlist — only show when capacity is set */}
+                {maxAttendees && (
+                  <OptionRow
+                    icon={<SilverIcon as={RefreshCw} size={20} />}
+                    label="Enable waitlist when full"
+                    right={
+                      <Toggle
+                        checked={waitlistEnabled}
+                        onChange={setWaitlistEnabled}
+                      />
+                    }
+                  />
+                )}
+                {/* instant waitlist */}
                 <OptionRow
-                  icon={<SilverIcon as={RefreshCw} size={20} />}
-                  label="Enable waitlist when full"
+                  icon={<SilverIcon as={Clock} size={20} />}
+                  label="Waitlist-only"
+                  description="Everyone registers interest. You approve who gets in."
                   right={
                     <Toggle
-                      checked={waitlistEnabled}
-                      onChange={setWaitlistEnabled}
+                      checked={instantWaitlist}
+                      onChange={setInstantWaitlist}
                     />
                   }
                 />
@@ -4196,6 +4436,10 @@ export function CreateEventPage() {
                 sections={sections}
                 hoveredSection={hoveredSection}
                 hideLocation={hideLocation}
+                hideDate={hideDate}
+                revealHint={revealHint || null}
+                dateRevealHint={dateRevealHint || null}
+                instantWaitlist={instantWaitlist}
                 rsvpContent={({ onClose }) => (
                   <RsvpForm
                     event={{
@@ -4388,7 +4632,20 @@ export function CreateEventPage() {
           Preview
         </button>
       </div>
+
+      {/* Publish auth modal — shown when unauthenticated user hits publish */}
+      {showPublishAuth && (
+        <PublishAuthModal
+          onClose={() => setShowPublishAuth(false)}
+          onProfileReady={() => {
+            setShowPublishAuth(false);
+            // Profile is now complete — trigger publish
+            handleCreate(null);
+          }}
+        />
+      )}
     </div>
+    </>
   );
 }
 

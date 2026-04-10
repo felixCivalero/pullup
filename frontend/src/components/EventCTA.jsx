@@ -6,9 +6,10 @@ import { Button } from "./ui/Button";
 export const EVENT_CTA_HEIGHT = 72;
 
 /** Compute the CTA label from ticket config */
-export function getCtaLabel({ ticketType, ticketPrice, ticketCurrency, isEventPast, isSoldOut } = {}) {
+export function getCtaLabel({ ticketType, ticketPrice, ticketCurrency, isEventPast, isSoldOut, instantWaitlist } = {}) {
   if (isEventPast) return "Event has ended";
   if (isSoldOut) return "Sold out";
+  if (instantWaitlist) return "Register interest";
   if (ticketType === "paid") {
     return "Get Tickets";
   }

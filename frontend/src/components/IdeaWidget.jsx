@@ -115,18 +115,18 @@ export function IdeaWidget() {
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 14, color: "#fff", fontWeight: 500, marginBottom: 4 }}>
-                Tell me what you'd love to see here
+              <div style={{ fontSize: 14, color: "#fff", fontWeight: 500, marginBottom: 6, lineHeight: 1.4 }}>
+                Help us make PullUp top tier
               </div>
               <div
                 style={{
                   fontSize: 12,
                   color: "rgba(255,255,255,0.4)",
                   marginBottom: 14,
-                  lineHeight: 1.4,
+                  lineHeight: 1.5,
                 }}
               >
-                Ideas, missing features, things that bother you — anything goes.
+                We built this for free, for the culture, to keep the city alive. Every idea helps us get better — tell us what you'd love to see.
               </div>
 
               <textarea
@@ -200,9 +200,7 @@ export function IdeaWidget() {
         onClick={() => setOpen((prev) => !prev)}
         title="Share an idea"
         style={{
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
+          borderRadius: 999,
           border: "1px solid rgba(255,255,255,0.12)",
           background: "rgba(255,255,255,0.06)",
           backdropFilter: "blur(12px)",
@@ -211,10 +209,10 @@ export function IdeaWidget() {
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
+          gap: 7,
           color: "rgba(255,255,255,0.6)",
           transition: "all 0.15s ease",
-          padding: 0,
+          padding: "10px 14px 10px 12px",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.color = "rgba(255,255,255,0.9)";
@@ -225,7 +223,10 @@ export function IdeaWidget() {
           e.currentTarget.style.background = "rgba(255,255,255,0.06)";
         }}
       >
-        <Lightbulb size={20} />
+        <Lightbulb size={18} />
+        <span style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" }}>
+          Have an idea?
+        </span>
       </button>
     </div>
   );

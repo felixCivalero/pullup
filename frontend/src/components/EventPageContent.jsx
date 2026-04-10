@@ -53,8 +53,13 @@ export function EventPageContent({
   sections = [],
   hoveredSection = null,
   hideLocation = false,
+  hideDate = false,
+  revealHint = null,
+  dateRevealHint = null,
 }) {
-  const formattedDate = formatDate(startsAt, timezone);
+  const formattedDate = hideDate ? null : formatDate(startsAt, timezone);
+  const locationTba = revealHint || "Location revealed later";
+  const dateTba = dateRevealHint || "Date TBA";
 
   // Fallback: no sections defined, show legacy layout
   if (!sections || sections.length === 0) {
@@ -62,8 +67,9 @@ export function EventPageContent({
       <>
         {title && <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: "0 0 12px 0" }}>{title}</h1>}
         {location && !hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6, marginBottom: "4px" }}>{formatLocationShort(location)}</div>}
-        {hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.35, marginBottom: "4px", fontStyle: "italic" }}>Location revealed later</div>}
+        {hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.35, marginBottom: "4px", fontStyle: "italic" }}>{locationTba}</div>}
         {formattedDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", marginBottom: "20px" }}>{formattedDate}</div>}
+        {hideDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", opacity: 0.5, marginBottom: "20px", fontStyle: "italic" }}>{dateTba}</div>}
         {description && <div style={{ marginBottom: "24px" }}><p style={{ fontSize: "15px", lineHeight: "1.6", color: "#fff", opacity: 0.85, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{description}</p></div>}
       </>
     );
@@ -86,11 +92,13 @@ export function EventPageContent({
 
           ) : section.type === "location" ? (
             hideLocation
-              ? <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.35, fontStyle: "italic" }}>Location revealed later</div>
+              ? <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.35, fontStyle: "italic" }}>{locationTba}</div>
               : location ? <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6 }}>{formatLocationShort(location)}</div> : null
 
           ) : section.type === "datetime" ? (
-            formattedDate ? <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635" }}>{formattedDate}</div> : null
+            hideDate
+              ? <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", opacity: 0.5, fontStyle: "italic" }}>{dateTba}</div>
+              : formattedDate ? <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635" }}>{formattedDate}</div> : null
 
           ) : section.type === "spotify" && section.url && section.url.includes("spotify.com") ? (
             <iframe src={getSpotifyEmbedUrl(section.url)} width="100%" height={section.url.includes("/track/") ? "80" : "152"} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style={{ borderRadius: "12px", border: "none" }} />

@@ -30,6 +30,10 @@ export function EventPreview({
   sections = [],
   hoveredSection = null,
   hideLocation = false,
+  hideDate = false,
+  revealHint = null,
+  dateRevealHint = null,
+  instantWaitlist = false,
   rsvpContent,
   autoShowRsvp = false,
   activeStep,
@@ -43,9 +47,9 @@ export function EventPreview({
   const canSwipe = mediaCount > 1 && !mediaSettings?.autoscroll;
   const swipeHandlers = useCarouselSwipe(mediaCount, setCarouselIndex);
 
-  const eventTime = startsAt ? formatEventTime(new Date(startsAt), timezone) : "";
+  const eventTime = (!hideDate && startsAt) ? formatEventTime(new Date(startsAt), timezone) : "";
 
-  const formattedDate = startsAt ? (() => {
+  const formattedDate = hideDate ? (dateRevealHint || "Date TBA") : startsAt ? (() => {
     const d = new Date(startsAt);
     const tzOpt = timezone ? { timeZone: timezone } : {};
     const day = d.toLocaleDateString("en-US", { weekday: "short", ...tzOpt });
@@ -104,7 +108,7 @@ export function EventPreview({
     container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
   }, [hoveredSection]);
 
-  const buttonLabel = getCtaLabel({ ticketType, ticketPrice, ticketCurrency });
+  const buttonLabel = getCtaLabel({ ticketType, ticketPrice, ticketCurrency, instantWaitlist });
   const hasContent = description || (sections && sections.length > 0);
 
   return (
@@ -218,6 +222,9 @@ export function EventPreview({
               sections={sections}
               hoveredSection={hoveredSection}
               hideLocation={hideLocation}
+              hideDate={hideDate}
+              revealHint={revealHint}
+              dateRevealHint={dateRevealHint}
             />
           </div>
 

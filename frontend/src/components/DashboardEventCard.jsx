@@ -158,8 +158,10 @@ export function DashboardEventCard({ event, onPreview, onManage, index = 0 }) {
                 }}>
                   {event.title}
                 </div>
-                <div style={{ fontSize: "13px", opacity: 0.5, marginTop: "2px" }}>
-                  {formatReadableDateTime(event.startsAt, event.timezone)}
+                <div style={{ fontSize: "13px", opacity: 0.5, marginTop: "2px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                  <span>{event.hideDate ? "Date TBA" : formatReadableDateTime(event.startsAt, event.timezone)}</span>
+                  {event.hideLocation && <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: "rgba(163,230,53,0.12)", color: "rgba(163,230,53,0.7)" }}>Location hidden</span>}
+                  {event.instantWaitlist && <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: "rgba(251,191,36,0.12)", color: "rgba(251,191,36,0.7)" }}>Waitlist-only</span>}
                 </div>
               </div>
 

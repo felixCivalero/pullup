@@ -1,0 +1,77 @@
+<h2>Approach Options: Landing Page Editor Integration</h2>
+<p class="subtitle">How to embed the real CreateEventPage into the landing page with expand animation</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Component Extraction + Portal</h3>
+      <p><strong>How:</strong> Extract the CreateEventPage internals into a reusable <code>&lt;EventEditor /&gt;</code> component. On the landing page, render it inside the showcase section at compact size. On expand, use a React Portal to move it into a fixed fullscreen overlay with a smooth CSS animation (transform + scale from the original position).</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Clean separation — editor component is reusable</li>
+          <li>Smooth animation with FLIP technique (First-Last-Invert-Play)</li>
+          <li>No route change — stays on landing page, data in memory</li>
+          <li>Overlay can be dismissed to return to landing page</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Significant refactor of CreateEventPage (~4500 lines) into extractable component</li>
+          <li>Must handle all the same state, refs, side effects in new context</li>
+          <li>Portal rendering can be tricky with scroll/focus management</li>
+        </ul></div>
+      </div>
+      <p><strong>Effort:</strong> High — major refactor of CreateEventPage</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Iframe + Animation Shell (Recommended)</h3>
+      <p><strong>How:</strong> Keep CreateEventPage at <code>/create</code> exactly as-is but make it publicly accessible (auth guard only on publish). On the landing page, show the DemoEditor mockup in the showcase section. When user interacts, animate the showcase container to fullscreen, then load an iframe of <code>/create</code> (or navigate). Communication between landing page and editor via postMessage or shared localStorage.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Zero refactor of CreateEventPage — it stays untouched</li>
+          <li>Animation is purely on the shell/container — simple CSS</li>
+          <li>Editor gets full viewport naturally</li>
+          <li>Draft localStorage already works for data persistence</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>iframe feels slightly less native (scrolling, focus quirks)</li>
+          <li>Communication between landing page and iframe is indirect</li>
+          <li>Double memory footprint while both pages are loaded</li>
+        </ul></div>
+      </div>
+      <p><strong>Effort:</strong> Low-Medium — mostly animation + auth changes</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Route-Based with Animated Transition</h3>
+      <p><strong>How:</strong> Make <code>/create</code> publicly accessible (auth only on publish). On the landing page, clicking the editor CTA captures the element position, stores it, then navigates to <code>/create</code>. The create page reads the stored position and plays an "expand from origin" animation on mount. Data persists via localStorage drafts. Publish triggers auth modal → profile step → auto-publish.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Minimal changes to CreateEventPage — just remove auth guard, add publish-time auth</li>
+          <li>Clean architecture — each page owns its route</li>
+          <li>No portal/iframe complexity</li>
+          <li>Existing draft system handles data persistence naturally</li>
+          <li>Back button returns to landing page</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Page transition is a navigation (brief flash possible)</li>
+          <li>Animation across route change requires coordination</li>
+          <li>Not truly "inline" — it's a page change with a nice animation</li>
+        </ul></div>
+      </div>
+      <p><strong>Effort:</strong> Low — auth changes + entry animation + auth modal on publish</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px; padding: 16px; border-radius: 12px; background: rgba(163,230,53,0.08); border: 1px solid rgba(163,230,53,0.2);">
+  <h3 style="margin-top:0">Recommendation: Option C</h3>
+  <p>Option C gives the best bang-for-effort ratio. The CreateEventPage barely needs changes — we just make <code>/create</code> publicly accessible, move the auth check from page-load to publish-time, and add the auth+profile modal flow. The expand animation from the landing page mockup to the full editor is achievable with a shared-element-style transition. The existing localStorage draft system already handles persistence across the OAuth redirect.</p>
+  <p>Option A is technically superior but requires a massive refactor of a 4500-line file. Option B works but iframes introduce UX friction. Option C keeps the architecture clean and the diff small.</p>
+</div>

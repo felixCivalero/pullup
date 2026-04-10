@@ -219,7 +219,7 @@ export function EventPage() {
 
   // Check if event is sold out (full capacity, no waitlist)
   const isSoldOut = useMemo(() => {
-    if (!event || event.waitlistEnabled) return false;
+    if (!event || event.waitlistEnabled || event.instantWaitlist) return false;
     const spotsLeft = event._attendance?.cocktailSpotsLeft;
     return spotsLeft !== null && spotsLeft !== undefined && spotsLeft <= 0;
   }, [event]);
@@ -602,10 +602,12 @@ export function EventPage() {
 
       if (bookingStatus === "WAITLIST") {
         // Entire booking is on waitlist (all-or-nothing)
-        message = "You're on the waitlist";
+        message = "You're on the list";
         toastType = "info";
 
-        if (wantsDinner && dinnerBookingStatus === "WAITLIST") {
+        if (event?.instantWaitlist) {
+          subtext = "The host will confirm your spot.";
+        } else if (wantsDinner && dinnerBookingStatus === "WAITLIST") {
           subtext =
             "Dinner is full right now. The host will reach out if a table opens.";
         } else {
@@ -801,6 +803,10 @@ export function EventPage() {
           soundcloud={event?.soundcloud}
           sections={event?.sections || []}
           hideLocation={event?.hideLocation}
+          hideDate={event?.hideDate}
+          revealHint={event?.revealHint}
+          dateRevealHint={event?.dateRevealHint}
+          instantWaitlist={event?.instantWaitlist}
           autoShowRsvp={!!vipOffer || !!waitlistOffer}
           rsvpContent={!isDisabled ? ({ onClose }) => (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

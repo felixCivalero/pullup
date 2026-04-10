@@ -20,8 +20,9 @@ export function EventNavProvider({ children }) {
   );
 }
 
+const noopEventNav = { eventNav: null, setEventNav: () => {}, clearEventNav: () => {} };
+
 export function useEventNav() {
   const ctx = useContext(EventNavContext);
-  if (!ctx) throw new Error("useEventNav must be used within EventNavProvider");
-  return ctx;
+  return ctx || noopEventNav;
 }

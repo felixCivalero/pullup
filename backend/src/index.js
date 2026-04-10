@@ -7133,6 +7133,13 @@ app.post("/auth/link-newsletter", requireAuth, async (req, res) => {
 // ---------------------------
 
 const ideasRateLimit = new Map(); // IP -> { count, resetAt }
+// Prune expired rate-limit entries every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of ideasRateLimit) {
+    if (entry.resetAt <= now) ideasRateLimit.delete(ip);
+  }
+}, 10 * 60 * 1000);
 
 app.post("/ideas", optionalAuth, async (req, res) => {
   try {
@@ -9608,11 +9615,16 @@ app.patch("/admin/ideas/:id", requireAdmin, async (req, res) => {
     }
 
     const { supabase } = await import("./supabase.js");
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("ideas")
       .update({ status })
-      .eq("id", req.params.id);
+      .eq("id", req.params.id)
+      .select("id")
+      .single();
 
+    if (error && error.code === "PGRST116") {
+      return res.status(404).json({ error: "Idea not found" });
+    }
     if (error) throw error;
     return res.json({ ok: true });
   } catch (err) {

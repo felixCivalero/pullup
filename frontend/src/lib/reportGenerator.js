@@ -39,6 +39,14 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
   const allSources = [...new Set(sources.map(s => s.source))];
   const chartSvg = buildEventChartSvg(daily, allSources);
 
+  // Build per-event chart SVG (if event breakdown data is provided)
+  const dailyByEvent = data.daily_by_event || [];
+  const eventsList = data.events_list || [];
+  const eventChartSvg = buildEventByEventChartSvg(dailyByEvent, eventsList);
+  const eventLegendHtml = eventsList.map(ev =>
+    `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:1.5px;background:${ev.color};"></div><span style="font-size:8px;color:rgba(255,255,255,0.5);">${escHtml(ev.name)}</span></div>`
+  ).join("") + (Math.max(...dailyByEvent.map(d => d.rsvps || 0), 0) > 0 ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:10px;height:2px;border-radius:1px;background:rgba(74,222,128,0.7);"></div><span style="font-size:8px;color:rgba(255,255,255,0.5);">RSVPs</span></div>` : "");
+
   // Build source rows
   const sourceRowsHtml = sources.slice(0, 8).map(s => {
     const barColor = getSourceColorStatic(s.source);
@@ -187,13 +195,21 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
     </div>
   </div>
 
-  <div style="margin-bottom:6mm;position:relative;z-index:1;">
+  <div style="margin-bottom:${eventChartSvg ? '4mm' : '6mm'};position:relative;z-index:1;">
     <div class="detail-section-label">Daily Unique Visitors by Source & RSVPs — ${days} days</div>
     <div style="border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:8px 10px 4px;">
       ${chartSvg}
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:3px;">${legendHtml}</div>
     </div>
   </div>
+
+  ${eventChartSvg ? `<div style="margin-bottom:4mm;position:relative;z-index:1;">
+    <div class="detail-section-label">Daily Visitors by Event — ${days} days</div>
+    <div style="border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:8px 10px 4px;">
+      ${eventChartSvg}
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:3px;">${eventLegendHtml}</div>
+    </div>
+  </div>` : ""}
 
   <div class="footer">
     <span>${escHtml(eventTitle)} — Report</span>
@@ -320,6 +336,75 @@ function buildEventChartSvg(daily, allSources) {
   daily.forEach((d, i) => {
     if (i % step !== 0 && i !== daily.length - 1) return;
     const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
+    const label = new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    svg += `<text x="${x}" y="${H - 4}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="8">${label}</text>`;
+  });
+
+  svg += "</svg>";
+  return svg;
+}
+
+function buildEventByEventChartSvg(dailyByEvent, eventsList) {
+  if (!dailyByEvent || dailyByEvent.length === 0 || !eventsList || eventsList.length === 0) return "";
+
+  const maxDailyViews = Math.max(...dailyByEvent.map(d => d.views), 1);
+  const maxDailyRsvps = Math.max(...dailyByEvent.map(d => d.rsvps || 0), 0);
+  const W = 800, H = 130;
+  const PAD = { top: 8, right: 8, bottom: 20, left: 32 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+  const niceMax = Math.ceil(maxDailyViews / (maxDailyViews > 20 ? 10 : maxDailyViews > 5 ? 5 : 1)) * (maxDailyViews > 20 ? 10 : maxDailyViews > 5 ? 5 : 1) || 1;
+  const rsvpScale = maxDailyRsvps > 0 ? chartH / maxDailyRsvps : 0;
+  const barWidth = Math.max(2, (chartW / dailyByEvent.length) * 0.65);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Grid
+  [0, 0.5, 1].forEach(f => {
+    const y = PAD.top + (1 - f) * chartH;
+    const val = Math.round(f * niceMax);
+    svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}" stroke="rgba(255,255,255,0.05)" stroke-dasharray="3,3" />`;
+    svg += `<text x="${PAD.left - 4}" y="${y + 3}" text-anchor="end" fill="rgba(255,255,255,0.4)" font-size="8">${val}</text>`;
+  });
+
+  // Stacked bars by event
+  dailyByEvent.forEach((d, i) => {
+    const x = PAD.left + (i / (dailyByEvent.length - 1 || 1)) * chartW - barWidth / 2;
+    let yOffset = 0;
+    const byEvent = d.byEvent || {};
+    for (let ei = eventsList.length - 1; ei >= 0; ei--) {
+      const ev = eventsList[ei];
+      const val = byEvent[ev.name] || 0;
+      if (val === 0) continue;
+      const segH = (val / niceMax) * chartH;
+      const y = PAD.top + chartH - yOffset - segH;
+      svg += `<rect x="${x}" y="${y}" width="${barWidth}" height="${segH}" rx="${yOffset === 0 ? 1.5 : 0}" fill="${ev.color}" />`;
+      yOffset += segH;
+    }
+  });
+
+  // RSVP line
+  if (maxDailyRsvps > 0) {
+    let linePath = "";
+    dailyByEvent.forEach((d, i) => {
+      const x = PAD.left + (i / (dailyByEvent.length - 1 || 1)) * chartW;
+      const y = PAD.top + chartH - ((d.rsvps || 0) * rsvpScale);
+      linePath += `${i === 0 ? "M" : "L"}${x},${y} `;
+    });
+    svg += `<path d="${linePath}" fill="none" stroke="rgba(74,222,128,0.7)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />`;
+    dailyByEvent.forEach((d, i) => {
+      if (!d.rsvps) return;
+      const x = PAD.left + (i / (dailyByEvent.length - 1 || 1)) * chartW;
+      const y = PAD.top + chartH - (d.rsvps * rsvpScale);
+      svg += `<circle cx="${x}" cy="${y}" r="2.5" fill="rgba(74,222,128,0.9)" />`;
+    });
+  }
+
+  // X labels
+  const step = Math.max(1, Math.floor(dailyByEvent.length / 8));
+  dailyByEvent.forEach((d, i) => {
+    if (i % step !== 0 && i !== dailyByEvent.length - 1) return;
+    const x = PAD.left + (i / (dailyByEvent.length - 1 || 1)) * chartW;
     const label = new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
     svg += `<text x="${x}" y="${H - 4}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="8">${label}</text>`;
   });

@@ -21,8 +21,14 @@ import {
   Smartphone,
   Monitor,
   HelpCircle,
+  Layers,
+  Camera,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { CreateEventPage } from "./CreateEventPage";
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
 import { generateEventReport } from "../lib/reportGenerator.js";
@@ -125,6 +131,46 @@ const DEMO_EVENT = {
   ends_at: new Date(Date.now() + 7 * 86400000 + 5 * 3600000).toISOString(),
 };
 
+/* ─── demo events for "per event" chart view ─── */
+const DEMO_EVENTS_LIST = (() => {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const events = [
+    { name: "Rooftop Popup", color: "rgba(139,92,246,0.75)", startDay: 1, endDay: 3, peakMultiplier: 1.2 },
+    { name: "Release Party", color: "rgba(251,191,36,0.8)", startDay: 6, endDay: 9, peakMultiplier: 1.8 },
+    { name: "Gallery Opening", color: "rgba(59,130,246,0.7)", startDay: 12, endDay: 14, peakMultiplier: 1.4 },
+    { name: "DJ Night", color: "rgba(244,114,182,0.75)", startDay: 17, endDay: 19, peakMultiplier: 1.6 },
+    { name: "Food Festival", color: "rgba(74,222,128,0.7)", startDay: 22, endDay: 26, peakMultiplier: 2.0 },
+    { name: "Culture Week", color: "rgba(251,146,60,0.75)", startDay: 28, endDay: Math.min(totalDays, 30), peakMultiplier: 1.5 },
+  ].filter(e => e.endDay <= totalDays);
+
+  // Generate per-day-per-event visitor counts
+  const dailyByEvent = DEMO_DAILY.map((d, i) => {
+    const dayNum = i + 1;
+    const byEvent = {};
+    let eventTotal = 0;
+    for (const ev of events) {
+      if (dayNum >= ev.startDay && dayNum <= ev.endDay) {
+        const span = ev.endDay - ev.startDay + 1;
+        const mid = (ev.startDay + ev.endDay) / 2;
+        const dist = 1 - Math.abs(dayNum - mid) / (span / 2 + 1);
+        const base = d.views * (0.3 + dist * 0.5) * ev.peakMultiplier / events.length;
+        byEvent[ev.name] = Math.round(base * (0.8 + Math.sin(dayNum * 0.9) * 0.2));
+        eventTotal += byEvent[ev.name];
+      }
+    }
+    // Scale so total roughly matches the source view's total
+    const scale = eventTotal > 0 ? d.views / eventTotal : 1;
+    for (const name in byEvent) byEvent[name] = Math.round(byEvent[name] * scale);
+    return { ...d, byEvent };
+  });
+
+  return { events, dailyByEvent };
+})();
+const DEMO_EVENT_COLORS = {};
+DEMO_EVENTS_LIST.events.forEach(e => { DEMO_EVENT_COLORS[e.name] = e.color; });
+
 const INTEREST_OPTIONS = [
   { id: "music", label: "Music" },
   { id: "club", label: "Club & nightlife" },
@@ -143,7 +189,7 @@ const SHOWCASE_SECTIONS = [
     accent: "#818cf8",
     accentBg: "rgba(129,140,248,0.08)",
     accentBorder: "rgba(129,140,248,0.20)",
-    mockType: "event",
+    mockType: "editor",
   },
   {
     id: "analytics",
@@ -162,15 +208,6 @@ const SHOWCASE_SECTIONS = [
     accentBg: "rgba(251,191,36,0.08)",
     accentBorder: "rgba(251,191,36,0.20)",
     mockType: "email",
-  },
-  {
-    id: "social",
-    headline: "Your event becomes your content.",
-    sub: "Every carousel and video you create doubles as ready-to-post stories and reels. One upload, everywhere — from event page to Instagram in one click.",
-    accent: "#f472b6",
-    accentBg: "rgba(244,114,182,0.08)",
-    accentBorder: "rgba(244,114,182,0.20)",
-    mockType: "social",
   },
 ];
 
@@ -1028,12 +1065,682 @@ function Reveal({ children, delay = 0, y = 24 }) {
   );
 }
 
+/* ─── In-memory media handoff (survives client-side navigation, no size limits) ─── */
+window.__pullupPreloadMedia = null;
+
+/* ─── Demo Editor (interactive editor mockup with live preview) ─── */
+function DemoEditor() {
+  const navigate = useNavigate();
+  const containerRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [activeTab, setActiveTab] = useState(1);
+  const [title, setTitle] = useState("");
+  const [location, setLocation] = useState("");
+  const [textContent, setTextContent] = useState("");
+  const [mediaType, setMediaType] = useState("image");
+  const [hoveredSection, setHoveredSection] = useState(null);
+  const [uploadedPreview, setUploadedPreview] = useState(null); // first file preview URL
+  const [uploadedFiles, setUploadedFiles] = useState([]); // all File objects
+  const [launchPhase, setLaunchPhase] = useState(null); // null | "pullback" | "expanding" | "done"
+  const [showRealEditor, setShowRealEditor] = useState(false);
+  const [expandOrigin, setExpandOrigin] = useState(null);
+
+  const storePreloadData = (opts = {}) => {
+    const preloadData = {};
+    if (title.trim()) preloadData.title = title.trim();
+    if (location.trim()) preloadData.location = location.trim();
+    if (textContent.trim()) preloadData.textContent = textContent.trim();
+    preloadData.spotifyUrl = "https://open.spotify.com/artist/0hAHZyzSMpBKN5t3X7buvt";
+    if (opts.autoRevealDetails) preloadData.autoRevealDetails = true;
+    if (Object.keys(preloadData).length > 0) {
+      sessionStorage.setItem("pullup_editor_preload_data", JSON.stringify(preloadData));
+    }
+  };
+
+  const launchEditor = (opts = {}) => {
+    storePreloadData(opts);
+    navigate("/create");
+  };
+
+  const triggerLaunch = (files) => {
+    // Store files in memory for CreateEventPage to pick up
+    window.__pullupPreloadMedia = files;
+    // Remove old sessionStorage image approach
+    sessionStorage.removeItem("pullup_editor_preload_image");
+    storePreloadData({ autoRevealDetails: true });
+
+    // Phase 1: slingshot pullback
+    setLaunchPhase("pullback");
+
+    // Phase 2: mount real editor as overlay + expand
+    setTimeout(() => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setExpandOrigin({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+      }
+      sessionStorage.removeItem("pullup_editor_origin");
+      setShowRealEditor(true);
+      setLaunchPhase("expanding");
+    }, 550);
+  };
+
+  const handleFileUpload = (fileList) => {
+    const files = Array.isArray(fileList) ? fileList : [fileList];
+    const valid = files.filter(f => f && (f.type.startsWith("image/") || f.type.startsWith("video/")));
+    if (valid.length === 0) return;
+
+    // Generate preview from first file
+    const first = valid[0];
+    if (first.type.startsWith("video/")) {
+      setUploadedPreview(URL.createObjectURL(first));
+      setMediaType("video");
+    } else {
+      setUploadedPreview(URL.createObjectURL(first));
+      if (valid.length > 1) setMediaType("carousel");
+    }
+    setUploadedFiles(valid);
+    triggerLaunch(valid);
+  };
+
+  // Once expand animation finishes, do the real navigate to update URL
+  const handleExpandDone = () => {
+    setLaunchPhase("done");
+    // Replace URL without triggering a re-mount since CreateEventPage is already visible
+    navigate("/create", { replace: true });
+  };
+
+  const tabs = [
+    { num: 1, label: "Media" },
+    { num: 2, label: "Details" },
+    { num: 3, label: "Settings" },
+    { num: 4, label: "Tickets" },
+  ];
+
+  const sectionTypes = {
+    title: "Title", location: "Location", datetime: "Date & Time",
+    text: "Text", spotify: "Spotify",
+  };
+
+  const sections = [
+    { type: "title" },
+    { type: "location" },
+    { type: "datetime" },
+    { type: "text" },
+    { type: "spotify" },
+  ];
+
+  const sidebarBg = "rgba(12, 10, 18, 0.95)";
+  const cardBg = "rgba(255,255,255,0.04)";
+  const cardBorder = "rgba(255,255,255,0.1)";
+  const dimText = "rgba(255,255,255,0.4)";
+  const faintText = "rgba(255,255,255,0.25)";
+
+  const spotifyArtistUrl = "https://open.spotify.com/embed/artist/0hAHZyzSMpBKN5t3X7buvt";
+
+  /* ── Mini preview panel — mirrors real EventPageContent ── */
+  const PreviewPanel = () => (
+    <div style={{
+      flex: 1, minWidth: 0, background: "#05040a",
+      display: "flex", flexDirection: "column", position: "relative",
+      overflow: "hidden",
+    }}>
+      {/* Preview content — full height scrollable like real EventPreview */}
+      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+        {/* Hero area — full bleed like real EventPreview */}
+        <div style={{
+          width: "100%", minHeight: "100%", position: "relative",
+          background: uploadedPreview ? "transparent" : "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232,232,232,0.06) 0%, transparent 50%), #05040a",
+          overflow: "hidden",
+        }}>
+          {uploadedPreview && (
+            <img src={uploadedPreview} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+          )}
+          {/* Gradient fade at bottom */}
+          <div style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: "40%",
+            background: "linear-gradient(to bottom, transparent 0%, rgba(5,4,10,0.6) 60%, #05040a 100%)",
+            pointerEvents: "none",
+          }} />
+          {/* Scroll chevrons — matching real EventPreview */}
+          <div style={{
+            position: "absolute", bottom: 52, left: "50%", transform: "translateX(-50%)",
+            display: "flex", flexDirection: "column", alignItems: "center",
+          }}>
+            {[0, 1, 2].map((i) => (
+              <ChevronDown key={i} size={14} color="#fff" style={{
+                opacity: 0.4, marginTop: i > 0 ? "-6px" : 0,
+              }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Content sections — matching real EventPageContent */}
+        <div style={{ padding: "0 16px 24px" }}>
+          {/* Location */}
+          <div style={{
+            marginBottom: 4, transition: "all 0.15s",
+            borderRadius: 4,
+            ...(hoveredSection === 1 ? { outline: "1px solid rgba(163,230,53,0.5)", outlineOffset: 4 } : {}),
+          }}>
+            <p style={{
+              margin: 0, fontSize: "11px", fontWeight: 500, color: "#fff",
+              opacity: location ? 0.6 : 0.35,
+              fontStyle: location ? "normal" : "italic",
+            }}>
+              {location || "Location TBA"}
+            </p>
+          </div>
+
+          {/* Date */}
+          <div style={{
+            marginBottom: 16, transition: "all 0.15s",
+            borderRadius: 4,
+            ...(hoveredSection === 2 ? { outline: "1px solid rgba(163,230,53,0.5)", outlineOffset: 4 } : {}),
+          }}>
+            <p style={{ margin: 0, fontSize: "11px", fontWeight: 600, color: "#a3e635" }}>
+              Sat 12 Jul, 8:00 PM
+            </p>
+          </div>
+
+          {/* Title */}
+          <div style={{
+            marginBottom: 16, transition: "all 0.15s",
+            borderRadius: 4,
+            ...(hoveredSection === 0 ? { outline: "1px solid rgba(163,230,53,0.5)", outlineOffset: 4 } : {}),
+          }}>
+            <h3 style={{
+              margin: 0,
+              fontSize: "clamp(16px, 4vw, 22px)", fontWeight: 800, lineHeight: 1.2,
+              color: "#fff",
+            }}>
+              {title || "Your Event"}
+            </h3>
+          </div>
+
+          {/* About section */}
+          {textContent && (
+            <div style={{
+              marginBottom: 16, transition: "all 0.15s",
+              borderRadius: 4,
+              ...(hoveredSection === 3 ? { outline: "1px solid rgba(163,230,53,0.5)", outlineOffset: 4 } : {}),
+            }}>
+              <div style={{
+                fontSize: "12px", fontWeight: 700, color: "#fff",
+                textTransform: "uppercase", letterSpacing: "0.04em",
+                margin: "0 0 6px",
+              }}>About</div>
+              <p style={{
+                margin: 0, fontSize: "11px", lineHeight: 1.6,
+                color: "#fff", opacity: 0.8, whiteSpace: "pre-line", wordWrap: "break-word",
+              }}>
+                {textContent}
+              </p>
+            </div>
+          )}
+
+          {/* Spotify embed — real iframe */}
+          <div style={{
+            marginBottom: 16, transition: "all 0.15s",
+            borderRadius: 4,
+            ...(hoveredSection === 4 ? { outline: "1px solid rgba(163,230,53,0.5)", outlineOffset: 4 } : {}),
+          }}>
+            <iframe
+              src={spotifyArtistUrl}
+              width="100%"
+              height="152"
+              frameBorder="0"
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              loading="lazy"
+              style={{ borderRadius: 12, border: "none", display: "block" }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* CTA bar — matching real EventCTA */}
+      <div style={{
+        padding: "10px 16px", borderTop: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(5,4,10,0.95)", flexShrink: 0,
+      }}>
+        <div style={{
+          padding: "10px 0", borderRadius: 999, textAlign: "center",
+          background: colors.gradientPrimary, color: "#05040a",
+          fontSize: "12px", fontWeight: 700, letterSpacing: "0.02em",
+          boxShadow: "0 4px 16px rgba(192,192,192,0.12)",
+        }}>
+          RSVP
+        </div>
+      </div>
+    </div>
+  );
+
+  const launchStyle = launchPhase === "pullback" ? {
+    transform: "scale(0.92)",
+    boxShadow: "0 8px 20px rgba(0,0,0,0.7), 0 0 40px rgba(163,230,53,0.15)",
+    transition: "transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s ease",
+  } : (launchPhase === "expanding" || launchPhase === "done") ? {
+    transform: "scale(0.92)",
+    opacity: 0,
+    transition: "opacity 0.15s ease",
+  } : {};
+
+  return (
+    <>
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        borderRadius: 16,
+        overflow: "hidden",
+        background: sidebarBg,
+        border: "1px solid rgba(255,255,255,0.06)",
+        boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
+        fontSize: "12px",
+        display: "flex",
+        height: 480,
+        position: "relative",
+        transition: "transform 0.3s, box-shadow 0.3s, opacity 0.3s",
+        ...launchStyle,
+      }}
+    >
+      {/* ── LEFT: Editor sidebar ── */}
+      <div style={{
+        width: "52%", minWidth: 0, display: "flex", flexDirection: "column",
+        borderRight: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(12, 10, 18, 0.4)",
+      }}>
+        {/* Tab bar */}
+        <div style={{ background: sidebarBg, backdropFilter: "blur(12px)", position: "relative", flexShrink: 0 }}>
+          <div style={{ display: "flex", position: "relative" }}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.num}
+                onClick={() => setActiveTab(tab.num)}
+                style={{
+                  flex: 1, padding: "10px 0", background: "none", border: "none",
+                  cursor: "pointer", fontSize: "8px", fontWeight: 600,
+                  letterSpacing: "0.08em", textTransform: "uppercase",
+                  color: activeTab === tab.num ? "#fff" : "rgba(255,255,255,0.3)",
+                  transition: "color 0.2s ease", whiteSpace: "nowrap",
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+            <div style={{
+              position: "absolute", bottom: 0,
+              left: `${((activeTab - 1) / tabs.length) * 100}%`,
+              width: `${100 / tabs.length}%`, height: "1.5px",
+              background: "rgba(255,255,255,0.9)",
+              transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+            }} />
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "1px", background: "rgba(255,255,255,0.06)" }} />
+          </div>
+        </div>
+
+        {/* Tab content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
+
+          {/* MEDIA TAB */}
+          {activeTab === 1 && (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "5px", marginBottom: "10px" }}>
+                {[
+                  { id: "image", label: "Image", desc: "Single cover" },
+                  { id: "carousel", label: "Carousel", desc: "Multiple" },
+                  { id: "video", label: "Video", desc: "Single video" },
+                ].map((opt) => {
+                  const active = mediaType === opt.id;
+                  return (
+                    <button key={opt.id} onClick={() => setMediaType(opt.id)} style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
+                      padding: "8px 4px", borderRadius: "7px",
+                      border: active ? "1px solid rgba(255,255,255,0.35)" : "1px solid rgba(255,255,255,0.06)",
+                      background: active ? "rgba(255,255,255,0.08)" : "transparent",
+                      cursor: "pointer", transition: "all 0.15s ease",
+                    }}>
+                      {opt.id === "image" && <Image size={13} style={{ color: active ? "#fff" : dimText }} />}
+                      {opt.id === "carousel" && <Layers size={13} style={{ color: active ? "#fff" : dimText }} />}
+                      {opt.id === "video" && <Play size={13} style={{ color: active ? "#fff" : dimText }} />}
+                      <span style={{ fontSize: "8px", fontWeight: 600, color: active ? "#fff" : "rgba(255,255,255,0.5)" }}>{opt.label}</span>
+                      <span style={{ fontSize: "7px", color: active ? "rgba(255,255,255,0.5)" : faintText }}>{opt.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+                multiple
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (files?.length) handleFileUpload(Array.from(files));
+                  e.target.value = "";
+                }}
+              />
+              <div
+                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.style.borderColor = "rgba(192,192,192,0.5)"; e.currentTarget.style.background = "rgba(192,192,192,0.08)"; }}
+                onDragLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.background = "rgba(20, 16, 30, 0.3)"; }}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const files = Array.from(e.dataTransfer.files); if (files.length) handleFileUpload(files); }}
+                style={{
+                  width: "100%", aspectRatio: "16/9", borderRadius: "10px",
+                  background: uploadedPreview ? "transparent" : "rgba(20, 16, 30, 0.3)",
+                  border: uploadedPreview ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.06)",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  gap: "5px", cursor: "pointer", transition: "all 0.3s ease",
+                  overflow: "hidden", position: "relative",
+                }}
+                onMouseEnter={(e) => { if (!uploadedPreview) { e.currentTarget.style.borderColor = "rgba(192,192,192,0.3)"; e.currentTarget.style.background = "rgba(192,192,192,0.04)"; }}}
+                onMouseLeave={(e) => { if (!uploadedPreview) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.background = "rgba(20, 16, 30, 0.3)"; }}}
+              >
+                {uploadedPreview ? (
+                  uploadedFiles[0]?.type.startsWith("video/") ? (
+                    <video src={uploadedPreview} autoPlay muted loop playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  ) : (
+                    <>
+                      <img src={uploadedPreview} alt="Uploaded" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                      {uploadedFiles.length > 1 && (
+                        <div style={{
+                          position: "absolute", top: 4, right: 4, padding: "2px 6px",
+                          borderRadius: 4, background: "rgba(0,0,0,0.7)", border: "1px solid rgba(255,255,255,0.15)",
+                          fontSize: "8px", fontWeight: 600, color: "#fff",
+                        }}>
+                          {uploadedFiles.length} images
+                        </div>
+                      )}
+                    </>
+                  )
+                ) : (
+                  <>
+                    <Camera size={16} style={{ color: "rgba(255,255,255,0.2)" }} />
+                    <span style={{ fontSize: "9px", color: "rgba(255,255,255,0.25)", fontWeight: 500 }}>
+                      Drop {mediaType === "video" ? "video" : "images"} or click
+                    </span>
+                    <span style={{ fontSize: "8px", color: "rgba(255,255,255,0.15)" }}>16:9 · supports carousel & video</span>
+                  </>
+                )}
+              </div>
+              {mediaType === "video" && (
+                <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 8, background: cardBg, border: `1px solid ${cardBorder}` }}>
+                  <div style={{ fontSize: "8px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: faintText, marginBottom: 6 }}>Video Settings</div>
+                  {["Loop", "Autoplay", "Audio"].map((label, idx) => (
+                    <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: idx < 2 ? 5 : 0 }}>
+                      <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.7)" }}>{label}</span>
+                      <div style={{ width: 24, height: 14, borderRadius: 7, background: idx < 2 ? "rgba(192,192,192,0.5)" : "rgba(255,255,255,0.1)", position: "relative" }}>
+                        <div style={{ position: "absolute", top: 2, left: idx < 2 ? 12 : 2, width: 10, height: 10, borderRadius: "50%", background: idx < 2 ? "#fff" : "rgba(255,255,255,0.4)" }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* DETAILS TAB */}
+          {activeTab === 2 && (
+            <div>
+              <div style={{ fontSize: "8px", textTransform: "uppercase", opacity: 0.6, letterSpacing: "0.15em", fontWeight: 600, marginBottom: "10px" }}>
+                PULLUP · CREATE EVENT
+              </div>
+              {sections.map((section, i) => (
+                <div key={i}
+                  onMouseEnter={() => setHoveredSection(i)}
+                  onMouseLeave={() => setHoveredSection(null)}
+                  style={{
+                    padding: "8px 10px", borderRadius: "8px", marginBottom: "5px",
+                    background: cardBg,
+                    border: hoveredSection === i ? "1px solid rgba(163, 230, 53, 0.5)" : `1px solid ${cardBorder}`,
+                    transition: "border-color 0.15s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "3px", marginBottom: section.type === "title" || section.type === "location" || section.type === "datetime" ? 0 : "5px", cursor: "grab" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0px", flexShrink: 0 }}>
+                      <span style={{ fontSize: "7px", lineHeight: 1, color: i === 0 ? "rgba(255,255,255,0.1)" : dimText }}>&#9650;</span>
+                      <span style={{ fontSize: "7px", lineHeight: 1, color: i === sections.length - 1 ? "rgba(255,255,255,0.1)" : dimText }}>&#9660;</span>
+                    </div>
+                    <span style={{ fontSize: "7px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: faintText, userSelect: "none" }}>
+                      {sectionTypes[section.type]}
+                    </span>
+                    <div style={{ flex: 1 }} />
+                    {section.type !== "title" && section.type !== "location" && section.type !== "datetime" && (
+                      <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", cursor: "pointer", lineHeight: 1 }}>&times;</span>
+                    )}
+                  </div>
+                  {section.type === "title" && (
+                    <input value={title} onChange={(e) => setTitle(e.target.value)}
+                      style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: "#fff", fontSize: "13px", fontWeight: 700, outline: "none", padding: 0, fontFamily: "inherit" }}
+                    />
+                  )}
+                  {section.type === "location" && (
+                    <input value={location} onChange={(e) => setLocation(e.target.value)}
+                      style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: "#fff", fontSize: "11px", outline: "none", padding: 0, fontFamily: "inherit" }}
+                    />
+                  )}
+                  {section.type === "datetime" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "5px", padding: "3px 0", color: "#fff", fontSize: "10px" }}>
+                        <Calendar size={10} style={{ color: dimText }} />
+                        <span>Sat, Jul 12 · 8:00 PM</span>
+                        <span style={{ marginLeft: "auto", fontSize: "8px", color: "rgba(255,255,255,0.3)" }}>in 3 months</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "5px", padding: "3px 0", color: dimText, fontSize: "10px" }}>
+                        <Calendar size={10} style={{ color: "rgba(255,255,255,0.2)" }} />
+                        <span>Event end</span>
+                      </div>
+                    </div>
+                  )}
+                  {section.type === "text" && (
+                    <>
+                      <input value="About" readOnly
+                        style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: "#fff", fontSize: "11px", fontWeight: 600, outline: "none", padding: 0, marginBottom: "3px", fontFamily: "inherit" }}
+                      />
+                      <textarea value={textContent} onChange={(e) => setTextContent(e.target.value)} rows={2}
+                        style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: "#fff", fontSize: "10px", lineHeight: "1.4", outline: "none", resize: "none", padding: 0, fontFamily: "inherit", opacity: 0.8 }}
+                      />
+                    </>
+                  )}
+                  {section.type === "spotify" && (
+                    <div>
+                      <input
+                        value="https://open.spotify.com/artist/0hAHZyzSMpBKN5t3X7buvt"
+                        readOnly
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "6px", color: "rgba(255,255,255,0.5)", fontSize: "8px", padding: "6px 8px", outline: "none", fontFamily: "inherit", marginBottom: "6px" }}
+                      />
+                      <iframe
+                        src={spotifyArtistUrl}
+                        width="100%"
+                        height="80"
+                        frameBorder="0"
+                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                        loading="lazy"
+                        style={{ borderRadius: 8, border: "none", display: "block", pointerEvents: "none" }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+              {/* Add section grid */}
+              <div style={{
+                borderRadius: "8px", border: "1px dashed rgba(255,255,255,0.12)",
+                background: "rgba(12, 10, 18, 0.6)", padding: "6px 5px 5px",
+              }}>
+                <div style={{ fontSize: "8px", fontWeight: 500, color: "rgba(255,255,255,0.3)", textAlign: "center", marginBottom: "4px" }}>Add section</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "1px" }}>
+                  {[
+                    { icon: "T", label: "Text", color: "#fff" },
+                    { icon: "\u266B", label: "Spotify", color: "#1DB954" },
+                    { icon: "\u266A", label: "Apple", color: "#FC3C44" },
+                    { icon: "\u266A", label: "SoundCl", color: "#FF5500" },
+                    { icon: "\u25B6", label: "YouTube", color: "#FF0000" },
+                    { icon: "@", label: "Socials", color: "#E1306C" },
+                    { icon: "\u2605", label: "Hosted", color: "#a3e635" },
+                  ].map((item) => (
+                    <div key={item.label} style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: "1px",
+                      padding: "5px 1px 3px", borderRadius: "5px", cursor: "pointer", transition: "all 0.15s ease",
+                    }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.firstChild.style.color = item.color; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.firstChild.style.color = "rgba(255,255,255,0.35)"; }}
+                    >
+                      <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.35)", transition: "color 0.15s ease", lineHeight: 1 }}>{item.icon}</span>
+                      <span style={{ fontSize: "6px", fontWeight: 500, color: dimText, whiteSpace: "nowrap" }}>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SETTINGS TAB */}
+          {activeTab === 3 && (
+            <div>
+              <div style={{ fontSize: "8px", textTransform: "uppercase", letterSpacing: "0.15em", opacity: 0.6, fontWeight: 600, marginBottom: "12px" }}>Title Styling</div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: "8px", color: faintText, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 5 }}>Alignment</div>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {[{ val: "left", icon: <AlignLeft size={11} /> }, { val: "center", icon: <AlignCenter size={11} /> }, { val: "right", icon: <AlignRight size={11} /> }].map((a) => (
+                    <button key={a.val} style={{ flex: 1, padding: "6px 0", borderRadius: 5, border: "none", background: a.val === "center" ? "rgba(255,255,255,0.1)" : "transparent", color: a.val === "center" ? "#fff" : dimText, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{a.icon}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: "8px", color: faintText, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 5 }}>Font</div>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {["Default", "Serif", "Mono", "Condensed"].map((f) => (
+                    <button key={f} style={{ flex: 1, padding: "5px 0", borderRadius: 5, border: "none", background: f === "Default" ? "rgba(255,255,255,0.1)" : "transparent", color: f === "Default" ? "#fff" : dimText, cursor: "pointer", fontSize: "7px", fontWeight: 600 }}>{f}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: "8px", color: faintText, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 5 }}>Size</div>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {["SM", "MD", "LG"].map((s) => (
+                    <button key={s} style={{ flex: 1, padding: "5px 0", borderRadius: 5, border: "none", background: s === "MD" ? "rgba(255,255,255,0.1)" : "transparent", color: s === "MD" ? "#fff" : dimText, cursor: "pointer", fontSize: "8px", fontWeight: 600 }}>{s}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: "8px", color: faintText, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 5 }}>Title Color</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: 5, background: "#fff", border: "2px solid rgba(255,255,255,0.3)" }} />
+                  <span style={{ fontSize: "9px", color: dimText, fontFamily: "monospace" }}>#FFFFFF</span>
+                </div>
+              </div>
+              <div style={{ padding: "8px 10px", borderRadius: 8, background: cardBg, border: `1px solid ${cardBorder}`, marginTop: 12 }}>
+                <div style={{ fontSize: "8px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: faintText, marginBottom: 6 }}>Capacity</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Users size={10} style={{ color: dimText }} />
+                  <span style={{ fontSize: "10px", color: "#fff" }}>150</span>
+                  <span style={{ fontSize: "8px", color: "rgba(255,255,255,0.3)" }}>guests max</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TICKETS TAB */}
+          {activeTab === 4 && (
+            <div>
+              <div style={{ fontSize: "8px", textTransform: "uppercase", letterSpacing: "0.15em", opacity: 0.6, fontWeight: 600, marginBottom: "12px" }}>Ticketing</div>
+              <div style={{ padding: "10px", borderRadius: 8, background: cardBg, border: `1px solid ${cardBorder}`, marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.8)", fontWeight: 500 }}>Sell Tickets</span>
+                  <div style={{ width: 24, height: 14, borderRadius: 7, background: "rgba(192,192,192,0.5)", position: "relative" }}>
+                    <div style={{ position: "absolute", top: 2, left: 12, width: 10, height: 10, borderRadius: "50%", background: "#fff" }} />
+                  </div>
+                </div>
+              </div>
+              <div style={{ padding: "10px", borderRadius: 8, background: cardBg, border: `1px solid ${cardBorder}`, marginBottom: 8 }}>
+                <div style={{ fontSize: "8px", color: faintText, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Price</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ fontSize: "16px", fontWeight: 700, color: "#fff" }}>$25</span>
+                  <span style={{ fontSize: "8px", fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", color: dimText }}>USD</span>
+                </div>
+              </div>
+              <div style={{ padding: "8px 10px", borderRadius: 8, background: "rgba(99, 102, 241, 0.06)", border: "1px solid rgba(99, 102, 241, 0.15)", display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80" }} />
+                <span style={{ fontSize: "9px", color: "rgba(255,255,255,0.6)" }}>Stripe connected</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Start building CTA */}
+        <div style={{ padding: "10px 14px", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); launchEditor(); }}
+            style={{
+              width: "100%", padding: "8px 0", borderRadius: 8, textAlign: "center",
+              background: colors.gradientPrimary, color: "#05040a",
+              fontSize: "10px", fontWeight: 700, cursor: "pointer",
+              boxShadow: "0 6px 20px rgba(192,192,192,0.12)",
+              border: "none", fontFamily: "inherit",
+              transition: "transform 0.2s, box-shadow 0.2s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(192,192,192,0.2)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(192,192,192,0.12)"; }}
+          >
+            START BUILDING
+          </button>
+        </div>
+      </div>
+
+      {/* ── RIGHT: Live preview ── */}
+      <PreviewPanel />
+    </div>
+
+    {/* Real CreateEventPage rendered as fixed overlay during expand */}
+    {showRealEditor && expandOrigin && (
+      <>
+        <style>{`
+          @keyframes demoEditorExpand {
+            0% {
+              clip-path: inset(
+                ${expandOrigin.top}px
+                ${window.innerWidth - expandOrigin.left - expandOrigin.width}px
+                ${window.innerHeight - expandOrigin.top - expandOrigin.height}px
+                ${expandOrigin.left}px
+                round 16px
+              );
+            }
+            55% {
+              clip-path: inset(-2% -1% -2% -1% round 0px);
+            }
+            75% {
+              clip-path: inset(0.3% 0.2% 0.3% 0.2% round 0px);
+            }
+            100% {
+              clip-path: inset(0 0 0 0 round 0px);
+            }
+          }
+        `}</style>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            animation: "demoEditorExpand 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+          }}
+          onAnimationEnd={handleExpandDone}
+        >
+          <CreateEventPage />
+        </div>
+      </>
+    )}
+    </>
+  );
+}
+
 /* ─── Demo Analytics (real interactive components with dummy data) ─── */
-function DemoSectionLabel({ children }) {
+function DemoSectionLabel({ children, style: overrideStyle }) {
   return (
     <div style={{
       fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.1em",
       fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 10,
+      ...overrideStyle,
     }}>
       {children}
     </div>
@@ -1178,8 +1885,11 @@ function DemoDeviceSplitDonut() {
 
 function DemoDailyChart() {
   const [hoverDay, setHoverDay] = useState(null);
-  const daily = DEMO_ANALYTICS.daily;
+  const [viewMode, setViewMode] = useState("source"); // "source" | "event"
+
+  const daily = viewMode === "source" ? DEMO_ANALYTICS.daily : DEMO_EVENTS_LIST.dailyByEvent;
   const allSources = DEMO_SOURCES;
+  const allEvents = DEMO_EVENTS_LIST.events;
   const maxDailyViews = Math.max(...daily.map(d => d.views), 1);
   const maxDailyRsvps = Math.max(...daily.map(d => d.rsvps), 1);
   const maxDailyVipRsvps = Math.max(...daily.map(d => d.vipRsvps || 0), 0);
@@ -1202,9 +1912,32 @@ function DemoDailyChart() {
     return `${i === 0 ? "M" : "L"}${x},${y}`;
   }).join(" ");
 
+  const toggleStyle = (active) => ({
+    padding: "3px 10px",
+    borderRadius: 6,
+    border: "none",
+    fontSize: 10,
+    fontWeight: 600,
+    cursor: "pointer",
+    background: active ? "rgba(255,255,255,0.1)" : "transparent",
+    color: active ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)",
+    transition: "all 0.2s",
+  });
+
   return (
     <div style={{ marginBottom: 20 }}>
-      <DemoSectionLabel>Daily Unique Visitors by Source & RSVPs</DemoSectionLabel>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <DemoSectionLabel style={{ marginBottom: 0 }}>
+          {viewMode === "source" ? "Daily Unique Visitors by Source & RSVPs" : "Daily Visitors by Event"}
+        </DemoSectionLabel>
+        <div style={{
+          display: "flex", gap: 2, padding: 2, borderRadius: 8,
+          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          <button onClick={() => { setViewMode("source"); setHoverDay(null); }} style={toggleStyle(viewMode === "source")}>Source</button>
+          <button onClick={() => { setViewMode("event"); setHoverDay(null); }} style={toggleStyle(viewMode === "event")}>Per Event</button>
+        </div>
+      </div>
       <div style={{
         borderRadius: 14, background: "rgba(255,255,255,0.02)",
         border: "1px solid rgba(255,255,255,0.06)",
@@ -1228,20 +1961,38 @@ function DemoDailyChart() {
           {daily.map((d, i) => {
             const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW - barWidth / 2;
             let yOffset = 0;
-            const bySource = d.bySource || {};
             const segments = [];
-            for (let si = allSources.length - 1; si >= 0; si--) {
-              const src = allSources[si];
-              const val = bySource[src] || 0;
-              if (val === 0) continue;
-              const segH = (val / niceMax) * chartH;
-              const y = PAD.top + chartH - yOffset - segH;
-              segments.push(
-                <rect key={`${i}-${src}`} x={x} y={y} width={barWidth} height={segH}
-                  rx={yOffset === 0 ? 1.5 : 0} fill={getDemoSourceColor(src)} />
-              );
-              yOffset += segH;
+
+            if (viewMode === "source") {
+              const bySource = d.bySource || {};
+              for (let si = allSources.length - 1; si >= 0; si--) {
+                const src = allSources[si];
+                const val = bySource[src] || 0;
+                if (val === 0) continue;
+                const segH = (val / niceMax) * chartH;
+                const y = PAD.top + chartH - yOffset - segH;
+                segments.push(
+                  <rect key={`${i}-${src}`} x={x} y={y} width={barWidth} height={segH}
+                    rx={yOffset === 0 ? 1.5 : 0} fill={getDemoSourceColor(src)} />
+                );
+                yOffset += segH;
+              }
+            } else {
+              const byEvent = d.byEvent || {};
+              for (let ei = allEvents.length - 1; ei >= 0; ei--) {
+                const ev = allEvents[ei];
+                const val = byEvent[ev.name] || 0;
+                if (val === 0) continue;
+                const segH = (val / niceMax) * chartH;
+                const y = PAD.top + chartH - yOffset - segH;
+                segments.push(
+                  <rect key={`${i}-${ev.name}`} x={x} y={y} width={barWidth} height={segH}
+                    rx={yOffset === 0 ? 1.5 : 0} fill={ev.color} />
+                );
+                yOffset += segH;
+              }
             }
+
             return (
               <g key={i} onMouseEnter={() => setHoverDay(i)}>
                 <rect x={PAD.left + (i / (daily.length - 1 || 1)) * chartW - chartW / daily.length / 2}
@@ -1307,12 +2058,21 @@ function DemoDailyChart() {
               {new Date(daily[hoverDay].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
             </div>
             <div style={{ color: "rgba(255,255,255,0.5)" }}>{daily[hoverDay].views} unique visitors</div>
-            {Object.entries(daily[hoverDay].bySource || {}).sort((a, b) => b[1] - a[1]).map(([src, count]) => (
-              <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
-                <div style={{ width: 5, height: 5, borderRadius: 1, background: getDemoSourceColor(src), flexShrink: 0 }} />
-                <span style={{ color: "rgba(255,255,255,0.4)" }}>{src}: {count}</span>
-              </div>
-            ))}
+            {viewMode === "source" ? (
+              Object.entries(daily[hoverDay].bySource || {}).sort((a, b) => b[1] - a[1]).map(([src, count]) => (
+                <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: 1, background: getDemoSourceColor(src), flexShrink: 0 }} />
+                  <span style={{ color: "rgba(255,255,255,0.4)" }}>{src}: {count}</span>
+                </div>
+              ))
+            ) : (
+              Object.entries(daily[hoverDay].byEvent || {}).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1]).map(([name, count]) => (
+                <div key={name} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: 1, background: DEMO_EVENT_COLORS[name] || "rgba(255,255,255,0.3)", flexShrink: 0 }} />
+                  <span style={{ color: "rgba(255,255,255,0.4)" }}>{name}: {count}</span>
+                </div>
+              ))
+            )}
             {daily[hoverDay].rsvps > 0 && (
               <div style={{ color: "rgba(74,222,128,0.7)", marginTop: 2 }}>{daily[hoverDay].rsvps} RSVPs</div>
             )}
@@ -1328,12 +2088,21 @@ function DemoDailyChart() {
 
       {/* Legend */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
-        {allSources.map(src => (
-          <div key={src} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <div style={{ width: 7, height: 7, borderRadius: 1.5, background: getDemoSourceColor(src) }} />
-            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>{src}</span>
-          </div>
-        ))}
+        {viewMode === "source" ? (
+          allSources.map(src => (
+            <div key={src} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 7, height: 7, borderRadius: 1.5, background: getDemoSourceColor(src) }} />
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>{src}</span>
+            </div>
+          ))
+        ) : (
+          allEvents.map(ev => (
+            <div key={ev.name} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 7, height: 7, borderRadius: 1.5, background: ev.color }} />
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>{ev.name}</span>
+            </div>
+          ))
+        )}
         {maxDailyRsvps > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 10, height: 2, borderRadius: 1, background: "rgba(74,222,128,0.7)" }} />
@@ -1755,7 +2524,7 @@ function DemoAnalytics() {
         <button
           onClick={() => generateEventReport({
             event: DEMO_EVENT,
-            data: d,
+            data: { ...d, daily_by_event: DEMO_EVENTS_LIST.dailyByEvent, events_list: DEMO_EVENTS_LIST.events },
             days,
             startDate: dateStart,
             endDate: dateEnd,
@@ -1796,7 +2565,7 @@ function DemoAnalytics() {
         <button
           onClick={() => generateEventReport({
             event: DEMO_EVENT,
-            data: d,
+            data: { ...d, daily_by_event: DEMO_EVENTS_LIST.dailyByEvent, events_list: DEMO_EVENTS_LIST.events },
             days,
             startDate: dateStart,
             endDate: dateEnd,
@@ -1917,30 +2686,9 @@ function ShowcaseSection({ section, index, sp }) {
             }}
           />
           {/* Mockup container */}
-          {section.mockType === "event" ? (
-            <div
-              style={{
-                position: "relative",
-                borderRadius: 16,
-                overflow: "hidden",
-              }}
-            >
-              <video
-                autoPlay
-                muted
-                loop
-                playsInline
-                src="/create_pullup_editor.mp4"
-                style={{
-                  width: "100%",
-                  display: "block",
-                  borderRadius: 16,
-                  maskImage:
-                    "radial-gradient(ellipse 80% 70% at 50% 50%, #000 40%, transparent 100%)",
-                  WebkitMaskImage:
-                    "radial-gradient(ellipse 80% 70% at 50% 50%, #000 40%, transparent 100%)",
-                }}
-              />
+          {section.mockType === "editor" ? (
+            <div style={{ position: "relative" }}>
+              <DemoEditor />
             </div>
           ) : section.mockType === "analytics" ? (
             <div style={{ position: "relative" }}>
@@ -1954,7 +2702,7 @@ function ShowcaseSection({ section, index, sp }) {
           <div
             style={{
               position: "relative",
-              aspectRatio: section.mockType === "social" ? "auto" : "4/3",
+              aspectRatio: "4/3",
               borderRadius: 16,
               border: `1px solid ${section.accentBorder}`,
               background: "rgba(255,255,255,0.02)",
@@ -1964,9 +2712,6 @@ function ShowcaseSection({ section, index, sp }) {
               justifyContent: "center",
             }}
           >
-            {section.mockType === "social" && (
-              <SocialMockup accent={section.accent} />
-            )}
           </div>
           )}
         </div>
@@ -2684,7 +3429,7 @@ export function LandingPage() {
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
-            Start hosting <ArrowRight size={18} />
+            Create your first event <ArrowRight size={18} />
           </button>
         </div>
 
@@ -2792,7 +3537,7 @@ export function LandingPage() {
               marginBottom: 12,
             }}
           >
-            You create the{" "}
+            Yes.{" "}
             <span
               style={{
                 background: colors.gradientPrimary,
@@ -2802,19 +3547,32 @@ export function LandingPage() {
                 color: "transparent",
               }}
             >
-              culture
+              Start building.
             </span>
           </h2>
+          <p
+            style={{
+              fontSize: "clamp(14px, 2.5vw, 17px)",
+              color: "rgba(255,255,255,0.5)",
+              marginBottom: 24,
+              maxWidth: 440,
+              marginLeft: "auto",
+              marginRight: "auto",
+              lineHeight: 1.5,
+            }}
+          >
+            Your next event is already in your head. Put it out there.
+          </p>
 
           <button
             onClick={() => (user ? navigate("/events") : setShowAuth(true))}
             style={{
-              padding: "14px 36px",
+              padding: "16px 44px",
               borderRadius: "999px",
               border: "none",
               background: colors.gradientPrimary,
               color: "#111",
-              fontSize: 16,
+              fontSize: 17,
               fontWeight: 700,
               cursor: "pointer",
               display: "inline-flex",
@@ -2826,7 +3584,7 @@ export function LandingPage() {
             onMouseEnter={(e) => {
               e.currentTarget.style.boxShadow =
                 "0 8px 32px rgba(192,192,192,0.18), 0 0 28px rgba(251,191,36,0.25), 0 0 56px rgba(251,191,36,0.1)";
-              e.currentTarget.style.transform = "translateY(-1px)";
+              e.currentTarget.style.transform = "translateY(-2px)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.boxShadow =
@@ -2834,7 +3592,7 @@ export function LandingPage() {
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
-            Start hosting <ArrowRight size={18} />
+            Create your first event <ArrowRight size={18} />
           </button>
         </section>
       </Reveal>

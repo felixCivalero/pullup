@@ -195,6 +195,10 @@ export async function mapEventFromDb(dbEvent) {
     titleSettings: dbEvent.title_settings || null,
     sections: dbEvent.sections || [],
     hideLocation: dbEvent.hide_location || false,
+    hideDate: dbEvent.hide_date || false,
+    instantWaitlist: dbEvent.instant_waitlist || false,
+    revealHint: dbEvent.reveal_hint || null,
+    dateRevealHint: dbEvent.date_reveal_hint || null,
   };
 }
 
@@ -727,6 +731,10 @@ function mapEventToDb(eventData) {
   if (eventData.titleSettings !== undefined) dbData.title_settings = eventData.titleSettings;
   if (eventData.sections !== undefined) dbData.sections = eventData.sections;
   if (eventData.hideLocation !== undefined) dbData.hide_location = eventData.hideLocation;
+  if (eventData.hideDate !== undefined) dbData.hide_date = eventData.hideDate;
+  if (eventData.instantWaitlist !== undefined) dbData.instant_waitlist = eventData.instantWaitlist;
+  if (eventData.revealHint !== undefined) dbData.reveal_hint = eventData.revealHint;
+  if (eventData.dateRevealHint !== undefined) dbData.date_reveal_hint = eventData.dateRevealHint;
   return dbData;
 }
 
@@ -2700,10 +2708,13 @@ export async function addRsvp({
     }
   }
 
+  // INSTANT WAITLIST: If enabled, every RSVP goes straight to waitlist — skip capacity logic
   // ALL-OR-NOTHING: Set bookingStatus based on BOTH capacity checks
   // If EITHER cocktail OR dinner capacity is insufficient, entire party goes to waitlist
   let bookingStatus = "CONFIRMED";
-  if (!cocktailCapacityOk || !dinnerCapacityOk) {
+  if (event.instantWaitlist) {
+    bookingStatus = "WAITLIST";
+  } else if (!cocktailCapacityOk || !dinnerCapacityOk) {
     if (event.waitlistEnabled) {
       bookingStatus = "WAITLIST";
     } else {

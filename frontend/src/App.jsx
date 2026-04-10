@@ -22,10 +22,12 @@ import { CookiesPage } from "./pages/CookiesPage";
 import { HostAnalyticsPage } from "./pages/HostAnalyticsPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { IdeaWidget } from "./components/IdeaWidget";
 
 function App() {
   return (
     <ErrorBoundary>
+      <IdeaWidget />
       <Routes>
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
@@ -49,6 +51,8 @@ function App() {
             </ErrorBoundary>
           }
         />
+        {/* Public create — auth is deferred to publish time */}
+        <Route path="/create" element={<CreateEventPage key="create" />} />
 
         {/* "Protected" app area */}
         <Route element={<ProtectedLayout />}>
@@ -64,7 +68,6 @@ function App() {
           <Route path="/home" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/create" element={<CreateEventPage key="create" />} />
           <Route path="/app/events/:id/edit" element={<CreateEventPage key="edit" />} />
           <Route path="/events/:slug/success" element={<EventSuccessPage />} />
           <Route

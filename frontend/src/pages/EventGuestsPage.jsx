@@ -1109,25 +1109,24 @@ export function EventGuestsPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "14px 16px",
-                    paddingRight: searchQuery ? "44px" : "16px",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgb(12 10 18 / 10%)",
+                    padding: "16px 18px",
+                    paddingRight: searchQuery ? "48px" : "18px",
+                    borderRadius: "14px",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    background: "rgba(255, 255, 255, 0.08)",
                     color: "#fff",
                     fontSize: "16px",
                     outline: "none",
                     boxSizing: "border-box",
                     transition: "all 0.2s ease",
-                    backdropFilter: "blur(10px)",
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = "rgba(192, 192, 192, 0.5)";
-                    e.target.style.background = "rgb(12 10 18 / 15%)";
+                    e.target.style.borderColor = "rgba(255, 255, 255, 0.35)";
+                    e.target.style.background = "rgba(255, 255, 255, 0.12)";
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = "rgba(255,255,255,0.05)";
-                    e.target.style.background = "rgb(12 10 18 / 10%)";
+                    e.target.style.borderColor = "rgba(255,255,255,0.2)";
+                    e.target.style.background = "rgba(255, 255, 255, 0.08)";
                   }}
                 />
                 {searchQuery && (

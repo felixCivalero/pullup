@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { Lightbulb, X, Send } from "lucide-react";
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
@@ -6,6 +7,7 @@ import { useAuth } from "../contexts/AuthContext.jsx";
 
 export function IdeaWidget() {
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState("");
@@ -57,7 +59,9 @@ export function IdeaWidget() {
     [handleSubmit]
   );
 
-  if (!isDesktop) return null;
+  // Only show on landing page and dashboard, not on event pages
+  const isEventPage = pathname.startsWith("/e/") || pathname.startsWith("/events/");
+  if (!isDesktop || isEventPage) return null;
 
   const canSubmit = body.trim().length > 0 && !sending;
 

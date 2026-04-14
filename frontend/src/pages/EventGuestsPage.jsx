@@ -740,7 +740,6 @@ export function EventGuestsPage() {
 
   function handleRowClick(guest, e) {
     if (!canCheckIn) return;
-    // Don't open modal if clicking on action buttons or inputs
     if (
       e.target.closest("button") ||
       e.target.closest("input") ||
@@ -748,8 +747,21 @@ export function EventGuestsPage() {
     ) {
       return;
     }
-    // Only allow check-in for confirmed guests
     if (guest.bookingStatus !== "CONFIRMED" && guest.status !== "attending") {
+      return;
+    }
+    // Skip if everyone already arrived
+    const partySize = guest.partySize || 1;
+    const wantsDinner = guest.wantsDinner || guest.dinner?.enabled || false;
+    const dinnerPartySize = guest.dinnerPartySize || guest.dinner?.partySize || 0;
+    const dinnerConfirmed = guest.dinner?.bookingStatus === "CONFIRMED" || guest.dinnerStatus === "confirmed";
+    const plusOnes = guest.plusOnes ?? 0;
+    const cocktailsMax = wantsDinner && dinnerConfirmed ? plusOnes : partySize;
+    const totalExpected = (wantsDinner && dinnerConfirmed ? dinnerPartySize : 0) + cocktailsMax;
+    const cocktailsPulledUp = guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? 0;
+    const dinnerPulledUp = guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? 0;
+    const totalArrived = dinnerPulledUp + cocktailsPulledUp;
+    if (totalArrived >= totalExpected) {
       return;
     }
     setPulledUpModalGuest(guest);

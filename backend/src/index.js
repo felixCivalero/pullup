@@ -1461,6 +1461,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       vipToken = null, // NEW: JWT token for VIP invite
       marketingOptIn = false, // NEW: opt-in to newsletter from RSVP form
       visitorId = null, // Links browsing session to RSVP
+      joinWaitlist = false, // If true, join waitlist when event is full
     } = req.body;
 
     if (!email && !vipToken) {
@@ -1650,6 +1651,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           marketingOptIn: marketingOptIn || false,
           isVip: !!vipInvite,
           visitorId: visitorId || null,
+          joinWaitlist: !!joinWaitlist,
         };
 
     const result = await addRsvp(rsvpData);
@@ -2086,6 +2088,13 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     if (result.error === "full") {
       return res.status(409).json({
         error: "full",
+        event: result.event,
+      });
+    }
+
+    if (result.error === "capacity_exceeded") {
+      return res.status(409).json({
+        error: "capacity_exceeded",
         event: result.event,
       });
     }

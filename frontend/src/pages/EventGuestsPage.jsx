@@ -1098,7 +1098,7 @@ export function EventGuestsPage() {
               style={{
                 marginBottom: "24px",
                 padding: "16px 20px",
-                background: "rgba(255, 255, 255, 0.12)",
+                background: "rgba(255, 255, 255, 0.25)",
                 borderRadius: "16px",
                 margin: "0 16px 24px",
               }}

@@ -3978,15 +3978,7 @@ function EditGuestModal({
   );
 }
 
-function PulledUpModal({ guest, event, onClose, onSave }) {
-  const [dinnerPullUpCount, setDinnerPullUpCount] = useState(
-    guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? 0,
-  );
-  const [cocktailOnlyPullUpCount, setCocktailOnlyPullUpCount] = useState(
-    guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? 0,
-  );
-  const [loading, setLoading] = useState(false);
-  const [saved, setSaved] = useState(false);
+function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
   const [isMobileView] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
 
   const totalGuests = guest.totalGuests ?? guest.partySize ?? 1;
@@ -3999,35 +3991,51 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
     wantsDinner && dinnerConfirmed
       ? Math.max(0, totalGuests - dinnerPartySize)
       : totalGuests;
+  const totalExpected = (wantsDinner && dinnerConfirmed ? dinnerPartySize : 0) + cocktailsMax;
 
-  // Quick check-in: set all counters to max
-  const isAllMaxed =
-    (cocktailOnlyPullUpCount || 0) >= cocktailsMax &&
-    (!wantsDinner || !dinnerConfirmed || (dinnerPullUpCount || 0) >= dinnerPartySize);
+  // Current arrival counts
+  const alreadyCocktails = guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? 0;
+  const alreadyDinner = guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? 0;
+  const alreadyArrived = alreadyCocktails + alreadyDinner;
+  const remaining = Math.max(0, totalExpected - alreadyArrived);
 
-  function handleCheckInAll() {
-    setCocktailOnlyPullUpCount(cocktailsMax);
-    if (wantsDinner && dinnerConfirmed) {
-      setDinnerPullUpCount(dinnerPartySize);
-    }
-  }
+  // Counter state — defaults to remaining (max out)
+  const [checkInCount, setCheckInCount] = useState(remaining);
+  const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function handleCheckIn() {
+    if (checkInCount <= 0) return;
     setLoading(true);
-    setSaved(false);
 
     try {
-      const success = await onSave(
-        dinnerPullUpCount || 0,
-        cocktailOnlyPullUpCount || 0,
-      );
+      // Distribute the check-in count across cocktails and dinner
+      let toDistribute = checkInCount;
+      let newCocktails = alreadyCocktails;
+      let newDinner = alreadyDinner;
 
+      if (wantsDinner && dinnerConfirmed) {
+        // For dinner guests: fill dinner slots first, overflow to cocktails
+        const dinnerRemaining = dinnerPartySize - alreadyDinner;
+        const dinnerAdd = Math.min(toDistribute, dinnerRemaining);
+        newDinner += dinnerAdd;
+        toDistribute -= dinnerAdd;
+
+        const cocktailRemaining = cocktailsMax - alreadyCocktails;
+        const cocktailAdd = Math.min(toDistribute, cocktailRemaining);
+        newCocktails += cocktailAdd;
+      } else {
+        // No dinner: all go to cocktails counter
+        const cocktailRemaining = cocktailsMax - alreadyCocktails;
+        newCocktails += Math.min(toDistribute, cocktailRemaining);
+      }
+
+      const success = await onSave(newDinner, newCocktails);
       if (success) {
-        setSaved(true);
-        setTimeout(() => {
+        if (onCheckInComplete) {
+          onCheckInComplete();
+        } else {
           onClose();
-        }, 600);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -4036,80 +4044,9 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
     }
   }
 
-  // Shared counter component for both mobile and desktop
-  function CounterRow({ value, max, onChange, color, bgColor, borderColor, label }) {
-    const btnSize = isMobileView ? "56px" : "44px";
-    const fontSize = isMobileView ? "28px" : "24px";
-    const btnFontSize = isMobileView ? "26px" : "22px";
-    return (
-      <div style={{ marginBottom: isMobileView ? "20px" : "24px" }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: isMobileView ? "14px" : "13px",
-            fontWeight: 600,
-            marginBottom: isMobileView ? "10px" : "12px",
-            opacity: 0.9,
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-            color,
-          }}
-        >
-          {label}
-        </label>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            background: bgColor,
-            borderRadius: "12px",
-            padding: isMobileView ? "10px" : "8px",
-            border: `1px solid ${borderColor}`,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => onChange(Math.max(0, value - 1))}
-            disabled={value <= 0}
-            style={{
-              width: btnSize, height: btnSize, borderRadius: "10px", border: "none",
-              background: value <= 0 ? "rgba(255, 255, 255, 0.05)" : bgColor.replace("0.1", "0.25"),
-              color: value <= 0 ? "rgba(255, 255, 255, 0.3)" : color,
-              fontSize: btnFontSize, fontWeight: 600,
-              cursor: value <= 0 ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.15s ease", WebkitTapHighlightColor: "transparent",
-            }}
-          >
-            −
-          </button>
-          <div style={{ flex: 1, textAlign: "center", fontSize, fontWeight: 700, color }}>
-            {value}
-          </div>
-          <button
-            type="button"
-            onClick={() => onChange(Math.min(max, value + 1))}
-            disabled={value >= max}
-            style={{
-              width: btnSize, height: btnSize, borderRadius: "10px", border: "none",
-              background: value >= max ? "rgba(255, 255, 255, 0.05)" : bgColor.replace("0.1", "0.25"),
-              color: value >= max ? "rgba(255, 255, 255, 0.3)" : color,
-              fontSize: btnFontSize, fontWeight: 600,
-              cursor: value >= max ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.15s ease", WebkitTapHighlightColor: "transparent",
-            }}
-          >
-            +
-          </button>
-        </div>
-        <div style={{ fontSize: "11px", opacity: 0.6, marginTop: "6px", textAlign: "center", color }}>
-          Max: {max} {max === 1 ? "person" : "people"}
-        </div>
-      </div>
-    );
-  }
+  const btnSize = isMobileView ? "60px" : "48px";
+  const counterFontSize = isMobileView ? "32px" : "28px";
+  const btnFontSize = isMobileView ? "28px" : "24px";
 
   return (
     <div
@@ -4132,164 +4069,130 @@ function PulledUpModal({ guest, event, onClose, onSave }) {
           backdropFilter: "blur(20px)",
           border: isMobileView ? "none" : "1px solid rgba(255,255,255,0.1)",
           borderRadius: isMobileView ? "24px 24px 0 0" : "24px",
-          padding: isMobileView ? "24px 20px 32px" : "32px",
-          maxWidth: isMobileView ? "100%" : "500px",
+          padding: isMobileView ? "24px 20px 36px" : "32px",
+          maxWidth: isMobileView ? "100%" : "420px",
           width: "100%",
           boxShadow: "0 -10px 40px rgba(0,0,0,0.5)",
-          maxHeight: isMobileView ? "85vh" : "auto",
-          overflowY: "auto",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag indicator for mobile */}
         {isMobileView && (
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
             <div style={{ width: "40px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)" }} />
           </div>
         )}
 
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <h2 style={{ fontSize: isMobileView ? "20px" : "24px", fontWeight: 700, color: "#fff", margin: 0 }}>
-            Check-In
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: "transparent", border: "none",
-              color: "rgba(255,255,255,0.6)", fontSize: "24px",
-              cursor: "pointer", padding: "0",
-              width: "40px", height: "40px",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              borderRadius: "10px", WebkitTapHighlightColor: "transparent",
-            }}
-          >
-            ×
-          </button>
+        {/* Guest name + party size */}
+        <div style={{ textAlign: "center", marginBottom: "28px" }}>
+          <div style={{
+            fontSize: isMobileView ? "22px" : "20px",
+            fontWeight: 700,
+            color: "#fff",
+            marginBottom: "4px",
+          }}>
+            {guest.name || "Guest"}
+          </div>
+          <div style={{
+            fontSize: "14px",
+            color: "rgba(255,255,255,0.45)",
+          }}>
+            {totalExpected} {totalExpected === 1 ? "guest" : "guests"}
+            {alreadyArrived > 0 && ` · ${alreadyArrived} already arrived`}
+          </div>
         </div>
 
-        {/* Guest info */}
+        {/* Counter */}
         <div style={{
-          marginBottom: "16px", padding: isMobileView ? "12px 14px" : "16px",
-          background: "rgba(192, 192, 192, 0.08)", borderRadius: "12px",
-          border: "1px solid rgba(192, 192, 192, 0.15)",
-          display: "flex", justifyContent: "space-between", alignItems: "center",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "16px",
+          marginBottom: "28px",
         }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: isMobileView ? "16px" : "14px", fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {guest.name || "Guest"}
-            </div>
-            <div style={{ fontSize: "12px", opacity: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {guest.email}
-            </div>
-          </div>
-          <div style={{ fontSize: isMobileView ? "14px" : "13px", fontWeight: 600, color: "rgba(255,255,255,0.6)", flexShrink: 0, marginLeft: "12px" }}>
-            {totalGuests} {totalGuests === 1 ? "guest" : "guests"}
-          </div>
-        </div>
-
-        {/* Quick check-in all button */}
-        {!isAllMaxed && (
           <button
             type="button"
-            onClick={handleCheckInAll}
+            onClick={() => setCheckInCount(Math.max(0, checkInCount - 1))}
+            disabled={checkInCount <= 0}
             style={{
-              width: "100%",
-              padding: isMobileView ? "14px" : "12px",
-              marginBottom: "16px",
-              borderRadius: "12px",
-              border: "1px solid rgba(16, 185, 129, 0.4)",
-              background: "rgba(16, 185, 129, 0.1)",
-              color: "#10b981",
-              fontSize: isMobileView ? "15px" : "14px",
-              fontWeight: 600,
-              cursor: "pointer",
-              WebkitTapHighlightColor: "transparent",
+              width: btnSize, height: btnSize,
+              borderRadius: "14px",
+              border: "none",
+              background: checkInCount <= 0
+                ? "rgba(255, 255, 255, 0.05)"
+                : "rgba(255, 255, 255, 0.1)",
+              color: checkInCount <= 0
+                ? "rgba(255, 255, 255, 0.2)"
+                : "#fff",
+              fontSize: btnFontSize, fontWeight: 600,
+              cursor: checkInCount <= 0 ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
               transition: "all 0.15s ease",
+              WebkitTapHighlightColor: "transparent",
             }}
           >
-            Check in all ({totalGuests})
+            −
           </button>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <CounterRow
-            value={cocktailOnlyPullUpCount || 0}
-            max={cocktailsMax}
-            onChange={setCocktailOnlyPullUpCount}
-            color="#f59e0b"
-            bgColor="rgba(245, 158, 11, 0.1)"
-            borderColor="rgba(245, 158, 11, 0.3)"
-            label="Cocktails"
-          />
-
-          {wantsDinner && dinnerConfirmed && (
-            <CounterRow
-              value={dinnerPullUpCount || 0}
-              max={dinnerPartySize}
-              onChange={setDinnerPullUpCount}
-              color="#10b981"
-              bgColor="rgba(16, 185, 129, 0.1)"
-              borderColor="rgba(16, 185, 129, 0.3)"
-              label="Dinner"
-            />
-          )}
-
-          <div style={{ display: "flex", gap: "12px", marginTop: isMobileView ? "8px" : "32px" }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              style={{
-                flex: 1,
-                padding: isMobileView ? "16px 24px" : "14px 24px",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.2)",
-                background: "rgba(255,255,255,0.05)",
-                color: "#fff",
-                fontSize: isMobileView ? "16px" : "15px",
-                fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.5 : 1,
-                WebkitTapHighlightColor: "transparent",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || saved}
-              style={{
-                flex: 1,
-                padding: isMobileView ? "16px 24px" : "14px 24px",
-                borderRadius: "12px",
-                border: "none",
-                background: saved
-                  ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-                  : "linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 100%)",
-                color: "#fff",
-                fontSize: isMobileView ? "16px" : "15px",
-                fontWeight: 600,
-                cursor: loading || saved ? "not-allowed" : "pointer",
-                opacity: loading ? 0.6 : 1,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-                WebkitTapHighlightColor: "transparent",
-              }}
-            >
-              {loading ? (
-                <>
-                  <SilverIcon as={Loader2} size={16} /> Saving...
-                </>
-              ) : saved ? (
-                <>
-                  <span>✓</span> Saved!
-                </>
-              ) : (
-                "Save"
-              )}
-            </button>
+          <div style={{
+            fontSize: counterFontSize,
+            fontWeight: 700,
+            color: "#fff",
+            minWidth: "60px",
+            textAlign: "center",
+          }}>
+            {checkInCount}
           </div>
-        </form>
+          <button
+            type="button"
+            onClick={() => setCheckInCount(Math.min(remaining, checkInCount + 1))}
+            disabled={checkInCount >= remaining}
+            style={{
+              width: btnSize, height: btnSize,
+              borderRadius: "14px",
+              border: "none",
+              background: checkInCount >= remaining
+                ? "rgba(255, 255, 255, 0.05)"
+                : "rgba(255, 255, 255, 0.1)",
+              color: checkInCount >= remaining
+                ? "rgba(255, 255, 255, 0.2)"
+                : "#fff",
+              fontSize: btnFontSize, fontWeight: 600,
+              cursor: checkInCount >= remaining ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.15s ease",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            +
+          </button>
+        </div>
+
+        {/* Check in button */}
+        <button
+          type="button"
+          onClick={handleCheckIn}
+          disabled={loading || checkInCount <= 0}
+          style={{
+            width: "100%",
+            padding: isMobileView ? "18px" : "16px",
+            borderRadius: "14px",
+            border: "none",
+            background: checkInCount <= 0
+              ? "rgba(255, 255, 255, 0.05)"
+              : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+            color: checkInCount <= 0
+              ? "rgba(255, 255, 255, 0.3)"
+              : "#fff",
+            fontSize: isMobileView ? "17px" : "16px",
+            fontWeight: 700,
+            cursor: loading || checkInCount <= 0 ? "not-allowed" : "pointer",
+            opacity: loading ? 0.7 : 1,
+            WebkitTapHighlightColor: "transparent",
+            transition: "all 0.15s ease",
+          }}
+        >
+          {loading ? "Checking in..." : `Check in ${checkInCount}`}
+        </button>
       </div>
     </div>
   );

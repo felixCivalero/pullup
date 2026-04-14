@@ -1237,12 +1237,13 @@ export function EventGuestsPage() {
                   const wantsDinner = g.wantsDinner || g.dinner?.enabled || false;
                   const dinnerPartySize = g.dinnerPartySize || g.dinner?.partySize || 0;
                   const plusOnes = g.plusOnes ?? 0;
+                  const dinnerConfirmed = g.dinner?.bookingStatus === "CONFIRMED" || g.dinnerStatus === "confirmed";
                   const cocktailsPulledUp = g.cocktailOnlyPullUpCount ?? g.pulledUpForCocktails ?? 0;
                   const dinnerPulledUp = g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0;
 
                   // DPCS pull-up totals
-                  const cocktailOnlyMax = wantsDinner ? plusOnes : partySize;
-                  const totalExpected = (wantsDinner ? dinnerPartySize : 0) + cocktailOnlyMax;
+                  const cocktailOnlyMax = wantsDinner && dinnerConfirmed ? plusOnes : partySize;
+                  const totalExpected = (wantsDinner && dinnerConfirmed ? dinnerPartySize : 0) + cocktailOnlyMax;
                   const totalArrived = dinnerPulledUp + cocktailsPulledUp;
                   const allPulledUp = totalArrived > 0 && totalArrived >= totalExpected;
                   const hasPartial = totalArrived > 0 && !allPulledUp;
@@ -4039,16 +4040,14 @@ function EditGuestModal({
 function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
   const [isMobileView] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
 
-  const totalGuests = guest.totalGuests ?? guest.partySize ?? 1;
+  const partySize = guest.partySize || 1;
   const dinnerPartySize = guest.dinner?.partySize ?? guest.dinnerPartySize ?? 0;
   const dinnerConfirmed =
     guest.dinner?.bookingStatus === "CONFIRMED" ||
     guest.dinnerStatus === "confirmed";
   const wantsDinner = guest.dinner?.enabled ?? guest.wantsDinner ?? false;
-  const cocktailsMax =
-    wantsDinner && dinnerConfirmed
-      ? Math.max(0, totalGuests - dinnerPartySize)
-      : totalGuests;
+  const plusOnes = guest.plusOnes ?? 0;
+  const cocktailsMax = wantsDinner && dinnerConfirmed ? plusOnes : partySize;
   const totalExpected = (wantsDinner && dinnerConfirmed ? dinnerPartySize : 0) + cocktailsMax;
 
   // Current arrival counts

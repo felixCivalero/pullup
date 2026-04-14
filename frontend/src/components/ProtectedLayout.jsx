@@ -89,12 +89,12 @@ function ProtectedLayoutInner() {
     };
   }, [menuOpen]);
 
-  // Redirect to landing page if not authenticated
+  // Redirect to landing page if not authenticated (except /create where auth is deferred)
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !user && location.pathname !== "/create") {
       navigate("/");
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, location.pathname]);
 
   // On first authenticated load, link any existing newsletter subscriptions
   useEffect(() => {
@@ -140,11 +140,11 @@ function ProtectedLayoutInner() {
 
   // Admin-only nav items
   const adminNavItems = [
-    { label: "Discover", path: "/admin/discover" },
-    { label: "Newsletter", path: "/admin" },
     { label: "Analytics", path: "/admin/analytics" },
+    { label: "Events", path: "/admin/events" },
     { label: "Sales", path: "/admin/sales" },
     { label: "Ideas", path: "/admin/ideas" },
+    { label: "Presentation", path: "/admin/presentation" },
   ];
 
   // Event tab items — analytics-only users see just the Analytics tab
@@ -190,8 +190,8 @@ function ProtectedLayoutInner() {
     );
   }
 
-  // Don't render if not authenticated (redirect will happen)
-  if (!user) {
+  // Don't render if not authenticated (redirect will happen) — except /create
+  if (!user && location.pathname !== "/create") {
     return null;
   }
 

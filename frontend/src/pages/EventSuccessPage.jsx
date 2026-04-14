@@ -31,6 +31,7 @@ export function EventSuccessPage() {
   const [loading, setLoading] = useState(!location.state?.event);
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
   const [zodaHovered, setZodaHovered] = useState(false);
+  const [showlightersHovered, setShowlightersHovered] = useState(false);
   const calendarDropdownRef = useRef(null);
   const retryCountRef = useRef(0);
 
@@ -728,7 +729,7 @@ export function EventSuccessPage() {
               Need something for your event?
             </h2>
             <a
-              href={`https://zoda.com?utm_source=pullup&utm_medium=partner_cta&utm_campaign=event_success&utm_content=${encodeURIComponent(event.slug)}`}
+              href={`https://www.zoda.com/collections/all?utm_source=pullup&utm_medium=partner_cta&utm_campaign=event_success&utm_content=${encodeURIComponent(event.slug)}`}
               target="_blank"
               rel="noopener noreferrer"
               onMouseEnter={() => setZodaHovered(true)}
@@ -816,6 +817,84 @@ export function EventSuccessPage() {
                   opacity: zodaHovered ? 0 : 1,
                 }}
               />
+            </a>
+
+            {/* Showlighters */}
+            <a
+              href={`https://www.showlighters.se/?utm_source=pullup&utm_medium=partner_cta&utm_campaign=event_success&utm_content=${encodeURIComponent(event.slug)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onMouseEnter={() => setShowlightersHovered(true)}
+              onMouseLeave={() => setShowlightersHovered(false)}
+              onClick={() => {
+                fetch(`${API_BASE}/partner-clicks`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    partnerSlug: "showlighters",
+                    eventId: event.id,
+                    placement: "event_success_page",
+                  }),
+                }).catch(() => {});
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "12px",
+                width: "100%",
+                height: "54px",
+                borderRadius: "14px",
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: showlightersHovered
+                  ? "linear-gradient(135deg, rgba(251,191,36,0.15) 0%, rgba(245,158,11,0.1) 100%)"
+                  : "rgba(10,10,18,0.92)",
+                color: "#fff",
+                fontSize: "16px",
+                fontWeight: 600,
+                cursor: "pointer",
+                textDecoration: "none",
+                boxSizing: "border-box",
+                marginTop: "8px",
+                transition: "all 0.3s ease",
+              }}
+            >
+              <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                <span style={{
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  letterSpacing: "0.3px",
+                  color: "rgba(255,255,255,0.85)",
+                  transition: "all 0.3s ease",
+                  opacity: showlightersHovered ? 0 : 1,
+                  transform: showlightersHovered ? "scale(0.8)" : "scale(1)",
+                }}>
+                  Showlighters
+                </span>
+                <span style={{
+                  fontSize: "11px",
+                  color: "rgba(255,255,255,0.35)",
+                  fontWeight: 400,
+                  transition: "all 0.3s ease",
+                  opacity: showlightersHovered ? 0 : 1,
+                  marginTop: "1px",
+                }}>
+                  Sound, lights & event equipment
+                </span>
+                <span style={{
+                  position: "absolute",
+                  whiteSpace: "nowrap",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  letterSpacing: "0.5px",
+                  color: "rgba(251,191,36,0.95)",
+                  transition: "all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                  opacity: showlightersHovered ? 1 : 0,
+                  transform: showlightersHovered ? "translateY(0) scale(1)" : "translateY(8px) scale(0.9)",
+                }}>
+                  Browse equipment →
+                </span>
+              </div>
             </a>
           </div>
         </div>

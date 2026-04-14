@@ -2883,9 +2883,22 @@ export function LandingPage() {
   }, [spawnParticle]);
 
   useEffect(() => {
+    // Generate or retrieve a persistent visitor ID
+    let visitorId = localStorage.getItem("pullup_visitor_id");
+    if (!visitorId) {
+      visitorId = typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem("pullup_visitor_id", visitorId);
+    }
     publicFetch("/t/pageview", {
       method: "POST",
-      body: JSON.stringify({ page: "landing" }),
+      body: JSON.stringify({
+        page: "landing",
+        visitorId,
+        referrer: document.referrer || null,
+        deviceType: window.innerWidth < 768 ? "mobile" : "desktop",
+      }),
     }).catch(() => {});
   }, []);
 

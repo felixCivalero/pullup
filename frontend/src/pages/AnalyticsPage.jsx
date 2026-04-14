@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Monitor, Smartphone } from "lucide-react";
 
 export function AnalyticsPage() {
   const { user, loading } = useAuth();
@@ -18,6 +18,7 @@ export function AnalyticsPage() {
   const [pageviews, setPageviews] = useState(null);
   const [pvDays, setPvDays] = useState(30);
   const [pvShowPrevious, setPvShowPrevious] = useState(true);
+  const [partnerClicks, setPartnerClicks] = useState(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/");
@@ -56,6 +57,14 @@ export function AnalyticsPage() {
   useEffect(() => {
     if (user) fetchPageviews();
   }, [user, fetchPageviews]);
+
+  useEffect(() => {
+    if (!user) return;
+    authenticatedFetch("/admin/analytics/partner-clicks?days=90")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setPartnerClicks(d); })
+      .catch(() => {});
+  }, [user]);
 
   async function loadDetail(tag) {
     if (selectedCampaign === tag) {
@@ -116,7 +125,7 @@ export function AnalyticsPage() {
         {pageviews && (
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <SectionLabel>Landing Page Views</SectionLabel>
+              <SectionLabel>Landing Page — pullup.se</SectionLabel>
               <div style={{ display: "flex", gap: 4 }}>
                 {[7, 14, 30, 90].map((d) => (
                   <button
@@ -140,7 +149,7 @@ export function AnalyticsPage() {
             </div>
 
             {/* Stats row */}
-            <div style={{ display: "flex", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 16, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                 <span style={{ fontSize: "24px", fontWeight: 700, color: "#fff" }}>
                   {pageviews.totalViews.toLocaleString()}
@@ -150,33 +159,101 @@ export function AnalyticsPage() {
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                 <span style={{ fontSize: "24px", fontWeight: 700, color: "rgba(59,130,246,0.9)" }}>
-                  {pageviews.totalUnique.toLocaleString()}
+                  {pageviews.uniqueVisitors.toLocaleString()}
                 </span>
                 <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>unique</span>
                 <ChangeIndicator value={pageviews.uniqueChange} />
               </div>
-              <button
-                onClick={() => setPvShowPrevious(!pvShowPrevious)}
-                style={{
-                  marginLeft: "auto",
-                  padding: "3px 10px",
-                  borderRadius: "999px",
-                  border: pvShowPrevious ? "1px solid rgba(255,255,255,0.15)" : "1px solid transparent",
-                  background: pvShowPrevious ? "rgba(255,255,255,0.06)" : "transparent",
-                  color: "rgba(255,255,255,0.4)",
-                  fontSize: "11px",
-                  cursor: "pointer",
-                }}
-              >
-                {pvShowPrevious ? "Hide" : "Show"} previous
-              </button>
+              {pageviews.device_split && (pageviews.device_split.mobile > 0 || pageviews.device_split.desktop > 0) && (
+                <DeviceDonut mobile={pageviews.device_split.mobile} desktop={pageviews.device_split.desktop} />
+              )}
             </div>
 
-            {/* Chart */}
-            <PageviewChart
-              current={pageviews.current}
-              previous={pvShowPrevious ? pageviews.previous : null}
-            />
+            {/* Stacked bar chart */}
+            {pageviews.daily && pageviews.daily.length > 0 && (
+              <LandingDailyChart
+                daily={pageviews.daily}
+                allSources={[...new Set((pageviews.sources || []).map(s => s.source))]}
+              />
+            )}
+
+            {/* Source breakdown */}
+            {pageviews.sources && pageviews.sources.length > 0 && (
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+                {pageviews.sources.map((s) => (
+                  <div key={s.source} style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "5px 10px", borderRadius: 8,
+                    background: "rgba(255,255,255,0.02)",
+                  }}>
+                    <div style={{ width: 6, height: 6, borderRadius: 2, background: getLandingSourceColor(s.source), flexShrink: 0 }} />
+                    <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)", flex: 1 }}>{s.source}</span>
+                    <span style={{ fontSize: "12px", fontWeight: 600, color: "#fff" }}>{s.count}</span>
+                    <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", minWidth: 36, textAlign: "right" }}>{s.percentage}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Partner CTA Clicks */}
+        {partnerClicks && partnerClicks.totalClicks > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <SectionLabel>Partner Clicks</SectionLabel>
+            <div style={{
+              borderRadius: 14,
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              padding: "16px",
+            }}>
+              {/* Partner rows */}
+              {partnerClicks.partners.map((p, i) => (
+                <div key={p.slug} style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "8px 0",
+                  borderBottom: i < partnerClicks.partners.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                }}>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: "#fff", textTransform: "capitalize", minWidth: 100 }}>
+                    {p.slug}
+                  </span>
+                  {/* Mini bar */}
+                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.04)", overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%", borderRadius: 3,
+                      width: `${Math.min(100, (p.total / Math.max(...partnerClicks.partners.map(x => x.total))) * 100)}%`,
+                      background: "linear-gradient(90deg, rgba(251,191,36,0.5), rgba(251,191,36,0.25))",
+                    }} />
+                  </div>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff", minWidth: 28, textAlign: "right" }}>{p.total}</span>
+                  <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", minWidth: 50 }}>{p.unique} uniq</span>
+                </div>
+              ))}
+
+              {/* Top events */}
+              {partnerClicks.topEvents && partnerClicks.topEvents.length > 0 && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    By event
+                  </div>
+                  {partnerClicks.topEvents.map((ev) => (
+                    <div key={ev.id} style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "4px 0",
+                    }}>
+                      <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {ev.title}
+                      </span>
+                      {Object.entries(ev.byPartner).map(([partner, count]) => (
+                        <span key={partner} style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", textTransform: "capitalize" }}>
+                          {partner} {count}
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -594,175 +671,178 @@ function ChangeIndicator({ value }) {
   );
 }
 
-function PageviewChart({ current, previous }) {
-  if (!current || current.length === 0) return null;
+const LANDING_SOURCE_COLORS = {
+  direct: "rgba(255,255,255,0.35)",
+  instagram: "rgba(225,48,108,0.75)",
+  facebook: "rgba(66,103,178,0.75)",
+  twitter: "rgba(29,155,240,0.75)",
+  linkedin: "rgba(10,102,194,0.75)",
+  google: "rgba(66,133,244,0.75)",
+  pullup: "rgba(192,192,192,0.6)",
+  other: "rgba(168,85,247,0.5)",
+};
 
-  const W = 720;
-  const H = 160;
+function getLandingSourceColor(name) {
+  return LANDING_SOURCE_COLORS[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.6)`;
+}
+
+function DeviceDonut({ mobile, desktop }) {
+  const total = mobile + desktop;
+  if (total === 0) return null;
+  const mobileP = mobile / total;
+  const r = 20, stroke = 5, cx = 28, cy = 28;
+  const circ = 2 * Math.PI * r;
+  const mobileArc = mobileP * circ;
+  const desktopArc = (1 - mobileP) * circ;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
+      <svg width="56" height="56" viewBox="0 0 56 56">
+        {/* Desktop arc */}
+        <circle cx={cx} cy={cy} r={r} fill="none"
+          stroke="rgba(59,130,246,0.6)" strokeWidth={stroke}
+          strokeDasharray={`${desktopArc} ${circ}`}
+          strokeDashoffset={0}
+          transform={`rotate(-90 ${cx} ${cy})`}
+        />
+        {/* Mobile arc */}
+        <circle cx={cx} cy={cy} r={r} fill="none"
+          stroke="rgba(16,185,129,0.7)" strokeWidth={stroke}
+          strokeDasharray={`${mobileArc} ${circ}`}
+          strokeDashoffset={-desktopArc}
+          transform={`rotate(-90 ${cx} ${cy})`}
+        />
+      </svg>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: "11px" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, color: "rgba(255,255,255,0.5)" }}>
+          <Smartphone size={11} style={{ color: "rgba(16,185,129,0.7)" }} />
+          {mobile} <span style={{ color: "rgba(255,255,255,0.25)" }}>({Math.round(mobileP * 100)}%)</span>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, color: "rgba(255,255,255,0.5)" }}>
+          <Monitor size={11} style={{ color: "rgba(59,130,246,0.6)" }} />
+          {desktop} <span style={{ color: "rgba(255,255,255,0.25)" }}>({Math.round((1 - mobileP) * 100)}%)</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function LandingDailyChart({ daily, allSources }) {
+  const [hoverDay, setHoverDay] = useState(null);
+
+  const maxDailyViews = Math.max(...daily.map(d => d.views), 1);
+  const step = Math.max(1, Math.floor(daily.length / 7));
+  const xLabels = daily.map((_, i) => i).filter(i => i % step === 0 || i === daily.length - 1);
+
+  const W = 720, H = 160;
   const PAD = { top: 10, right: 8, bottom: 24, left: 36 };
   const chartW = W - PAD.left - PAD.right;
   const chartH = H - PAD.top - PAD.bottom;
-
-  const allValues = [
-    ...current.map((d) => d.views),
-    ...(previous || []).map((d) => d.views),
-  ];
-  const maxVal = Math.max(...allValues, 1);
-  // Round up to nice number
-  const niceMax = Math.ceil(maxVal / (maxVal > 20 ? 10 : maxVal > 5 ? 5 : 1)) * (maxVal > 20 ? 10 : maxVal > 5 ? 5 : 1);
-
-  function toPath(data) {
-    if (!data.length) return "";
-    return data
-      .map((d, i) => {
-        const x = PAD.left + (i / (data.length - 1 || 1)) * chartW;
-        const y = PAD.top + chartH - (d.views / niceMax) * chartH;
-        return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ");
-  }
-
-  function toArea(data) {
-    if (!data.length) return "";
-    const line = data.map((d, i) => {
-      const x = PAD.left + (i / (data.length - 1 || 1)) * chartW;
-      const y = PAD.top + chartH - (d.views / niceMax) * chartH;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    });
-    const bottom = `${(PAD.left + chartW).toFixed(1)},${(PAD.top + chartH).toFixed(1)} ${PAD.left.toFixed(1)},${(PAD.top + chartH).toFixed(1)}`;
-    return `M${line.join(" L")} L${bottom} Z`;
-  }
-
-  // Y-axis labels
-  const yTicks = [0, Math.round(niceMax / 2), niceMax];
-
-  // X-axis labels (show ~5-7 dates)
-  const step = Math.max(1, Math.floor(current.length / 6));
-  const xLabels = current.filter((_, i) => i % step === 0 || i === current.length - 1);
-
-  // Tooltip state
-  const [hover, setHover] = useState(null);
+  const niceMax = Math.ceil(maxDailyViews / (maxDailyViews > 20 ? 10 : maxDailyViews > 5 ? 5 : 1)) * (maxDailyViews > 20 ? 10 : maxDailyViews > 5 ? 5 : 1) || 1;
+  const barWidth = Math.max(3, (chartW / daily.length) * 0.7);
 
   return (
-    <div
-      style={{
-        borderRadius: 14,
-        background: "rgba(255,255,255,0.02)",
-        border: "1px solid rgba(255,255,255,0.06)",
-        padding: "14px 12px 8px",
-        position: "relative",
-      }}
-    >
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        style={{ width: "100%", height: "auto", display: "block" }}
-        onMouseLeave={() => setHover(null)}
+    <div style={{
+      borderRadius: 14, background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      padding: "14px 12px 8px", position: "relative",
+    }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}
+        onMouseLeave={() => setHoverDay(null)}
       >
-        {/* Grid lines */}
-        {yTicks.map((v) => {
-          const y = PAD.top + chartH - (v / niceMax) * chartH;
+        {/* Grid */}
+        {[0, 0.5, 1].map(f => {
+          const y = PAD.top + chartH - f * chartH;
+          const val = Math.round(f * niceMax);
           return (
-            <g key={v}>
-              <line
-                x1={PAD.left} y1={y} x2={PAD.left + chartW} y2={y}
-                stroke="rgba(255,255,255,0.06)" strokeDasharray="4,4"
-              />
-              <text
-                x={PAD.left - 6} y={y + 3}
-                textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize="10"
-              >
-                {v}
-              </text>
+            <g key={f}>
+              <line x1={PAD.left} y1={y} x2={PAD.left + chartW} y2={y}
+                stroke="rgba(255,255,255,0.06)" strokeDasharray="4,4" />
+              <text x={PAD.left - 6} y={y + 3} textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize="10">{val}</text>
             </g>
           );
         })}
 
-        {/* X-axis labels */}
-        {xLabels.map((d) => {
-          const i = current.indexOf(d);
-          const x = PAD.left + (i / (current.length - 1 || 1)) * chartW;
-          const label = new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+        {/* Stacked bars */}
+        {daily.map((d, i) => {
+          const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW - barWidth / 2;
+          let yOffset = 0;
+          const bySource = d.bySource || {};
+          const segments = [];
+          for (let si = allSources.length - 1; si >= 0; si--) {
+            const src = allSources[si];
+            const val = bySource[src] || 0;
+            if (val === 0) continue;
+            const segH = (val / niceMax) * chartH;
+            const y = PAD.top + chartH - yOffset - segH;
+            segments.push(
+              <rect key={`${i}-${src}`} x={x} y={y} width={barWidth} height={segH}
+                rx={yOffset === 0 ? 2 : 0} fill={getLandingSourceColor(src)} />
+            );
+            yOffset += segH;
+          }
           return (
-            <text
-              key={d.date} x={x} y={H - 4}
-              textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="10"
-            >
-              {label}
-            </text>
+            <g key={i} onMouseEnter={() => setHoverDay(i)}>
+              <rect x={PAD.left + (i / (daily.length - 1 || 1)) * chartW - chartW / daily.length / 2}
+                y={PAD.top} width={chartW / daily.length} height={chartH}
+                fill="transparent" style={{ cursor: "crosshair" }} />
+              {segments}
+            </g>
           );
         })}
 
-        {/* Previous period area + line */}
-        {previous && (
-          <>
-            <path d={toArea(previous)} fill="rgba(255,255,255,0.03)" />
-            <path d={toPath(previous)} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" strokeDasharray="4,3" />
-          </>
+        {/* Hover line */}
+        {hoverDay !== null && (
+          <line
+            x1={PAD.left + (hoverDay / (daily.length - 1 || 1)) * chartW}
+            y1={PAD.top}
+            x2={PAD.left + (hoverDay / (daily.length - 1 || 1)) * chartW}
+            y2={PAD.top + chartH}
+            stroke="rgba(255,255,255,0.15)" strokeWidth="1"
+          />
         )}
 
-        {/* Current period area + line */}
-        <path d={toArea(current)} fill="rgba(59,130,246,0.08)" />
-        <path d={toPath(current)} fill="none" stroke="rgba(59,130,246,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Hover detection zones */}
-        {current.map((d, i) => {
-          const x = PAD.left + (i / (current.length - 1 || 1)) * chartW;
-          const y = PAD.top + chartH - (d.views / niceMax) * chartH;
-          const prevY = previous ? PAD.top + chartH - (previous[i]?.views / niceMax) * chartH : null;
-          return (
-            <g key={i} onMouseEnter={() => setHover({ i, x, y, d, prev: previous?.[i] })}>
-              <rect
-                x={x - chartW / current.length / 2} y={PAD.top}
-                width={chartW / current.length} height={chartH}
-                fill="transparent" style={{ cursor: "crosshair" }}
-              />
-              {hover?.i === i && (
-                <>
-                  <line x1={x} y1={PAD.top} x2={x} y2={PAD.top + chartH} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-                  <circle cx={x} cy={y} r="4" fill="rgba(59,130,246,0.9)" stroke="#fff" strokeWidth="1.5" />
-                  {previous && prevY != null && (
-                    <circle cx={x} cy={prevY} r="3" fill="rgba(255,255,255,0.4)" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
-                  )}
-                </>
-              )}
-            </g>
-          );
+        {/* X-axis labels */}
+        {xLabels.map(i => {
+          const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
+          const label = new Date(daily[i].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+          return <text key={i} x={x} y={H - 4} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="10">{label}</text>;
         })}
-
       </svg>
 
-      {/* Tooltip - positioned as DOM element outside SVG */}
-      {hover && (
-        <div
-          style={{
-            position: "absolute",
-            left: `${(hover.x / W) * 100}%`,
-            top: `${(hover.y / H) * 100}%`,
-            transform: `translate(${hover.x > W * 0.75 ? "calc(-100% - 12px)" : "12px"}, -50%)`,
-            background: "rgba(15,12,25,0.95)",
-            border: "1px solid rgba(255,255,255,0.15)",
-            borderRadius: 8,
-            padding: "8px 12px",
-            fontSize: "12px",
-            color: "#fff",
-            lineHeight: 1.6,
-            backdropFilter: "blur(12px)",
-            pointerEvents: "none",
-            zIndex: 10,
-            whiteSpace: "nowrap",
-          }}
-        >
+      {/* Tooltip */}
+      {hoverDay !== null && daily[hoverDay] && (
+        <div style={{
+          position: "absolute",
+          left: `${((PAD.left + (hoverDay / (daily.length - 1 || 1)) * chartW) / W) * 100}%`,
+          top: 12,
+          transform: `translateX(${hoverDay > daily.length * 0.65 ? "calc(-100% - 10px)" : "10px"})`,
+          background: "rgba(15,12,25,0.95)", border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 8, padding: "8px 12px", fontSize: "12px", color: "#fff",
+          lineHeight: 1.6, backdropFilter: "blur(12px)", pointerEvents: "none", zIndex: 10, whiteSpace: "nowrap",
+        }}>
           <div style={{ fontWeight: 600, marginBottom: 2 }}>
-            {new Date(hover.d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            {new Date(daily[hoverDay].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
           </div>
-          <div style={{ color: "rgba(59,130,246,0.9)" }}>
-            {hover.d.views} views / {hover.d.unique_visitors} unique
-          </div>
-          {hover.prev && (
-            <div style={{ color: "rgba(255,255,255,0.4)" }}>
-              prev: {hover.prev.views} views
+          <div style={{ color: "rgba(255,255,255,0.5)" }}>{daily[hoverDay].views} unique visitors</div>
+          {Object.entries(daily[hoverDay].bySource || {}).sort((a, b) => b[1] - a[1]).map(([src, count]) => (
+            <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+              <div style={{ width: 5, height: 5, borderRadius: 1, background: getLandingSourceColor(src), flexShrink: 0 }} />
+              <span style={{ color: "rgba(255,255,255,0.4)" }}>{src}: {count}</span>
             </div>
-          )}
+          ))}
+        </div>
+      )}
+
+      {/* Legend */}
+      {allSources.length > 0 && (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8, paddingLeft: PAD.left }}>
+          {allSources.map(src => (
+            <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
+              <div style={{ width: 7, height: 7, borderRadius: 1.5, background: getLandingSourceColor(src) }} />
+              {src}
+            </div>
+          ))}
         </div>
       )}
     </div>

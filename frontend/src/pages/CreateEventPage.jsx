@@ -33,6 +33,7 @@ import {
   AlignCenter,
   AlignRight,
   Type,
+  Trash2,
 } from "lucide-react";
 import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { EventPreview } from "../components/EventPreview";
@@ -289,6 +290,8 @@ export function CreateEventPage() {
   const [showPublishAuth, setShowPublishAuth] = useState(false);
   const [pendingPublishAfterAuth, setPendingPublishAfterAuth] = useState(false);
   const [detailsTabPulse, setDetailsTabPulse] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // After OAuth redirect: check for pendingPublish flag and auto-resume
   useEffect(() => {
@@ -4204,6 +4207,35 @@ export function CreateEventPage() {
                   {missingCount} {missingCount === 1 ? "field" : "fields"} missing
                 </div>
               )}
+
+              {/* Delete event — edit mode only */}
+              {isEditMode && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  style={{
+                    width: "100%",
+                    marginTop: "24px",
+                    padding: "14px",
+                    borderRadius: "14px",
+                    border: "1px solid rgba(239, 68, 68, 0.2)",
+                    background: "transparent",
+                    color: "rgba(239, 68, 68, 0.6)",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    transition: "all 0.15s ease",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <Trash2 size={16} />
+                  Delete event
+                </button>
+              )}
             </div>
           </div>
 
@@ -4643,6 +4675,114 @@ export function CreateEventPage() {
             handleCreate(null);
           }}
         />
+      )}
+
+      {/* Delete event confirmation */}
+      {showDeleteConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.6)",
+            zIndex: 1100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            style={{
+              background: "rgba(20, 16, 30, 0.98)",
+              backdropFilter: "blur(20px)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: "20px",
+              padding: "28px 24px 20px",
+              maxWidth: "320px",
+              width: "100%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+              textAlign: "center",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              fontSize: "17px",
+              fontWeight: 700,
+              color: "#fff",
+              marginBottom: "6px",
+            }}>
+              Delete this event?
+            </div>
+            <div style={{
+              fontSize: "14px",
+              color: "rgba(255,255,255,0.45)",
+              marginBottom: "24px",
+            }}>
+              This action cannot be undone. The event and all its data will be permanently removed.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setDeleting(true);
+                  try {
+                    const res = await authenticatedFetch(`/host/events/${editEventId}`, { method: "DELETE" });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      showToast(data.message || "Could not delete event", "error");
+                      setShowDeleteConfirm(false);
+                      return;
+                    }
+                    showToast("Event deleted", "success");
+                    navigate("/events");
+                  } catch (err) {
+                    console.error(err);
+                    showToast("Could not delete event", "error");
+                  } finally {
+                    setDeleting(false);
+                    setShowDeleteConfirm(false);
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "14px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                  color: "#fff",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  cursor: deleting ? "not-allowed" : "pointer",
+                  opacity: deleting ? 0.7 : 1,
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                {deleting ? "Deleting..." : "Delete event"}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
+                style={{
+                  width: "100%",
+                  padding: "14px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "transparent",
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
     </>

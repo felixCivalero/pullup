@@ -309,6 +309,10 @@ export function HomePage() {
             setUser={setUser}
             onSaveProfile={handleSaveProfile}
             showToast={showToast}
+            onDeleteEvent={(eventId) => {
+              setUpcomingEvents((prev) => prev?.filter((e) => e.id !== eventId) || []);
+              setPastEvents((prev) => prev?.filter((e) => e.id !== eventId) || []);
+            }}
           />
         </div>
       </div>

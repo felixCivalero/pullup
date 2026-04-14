@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaInstagram, FaTiktok, FaFacebookF, FaXTwitter, FaLinkedinIn } from "react-icons/fa6";
-import { Users, Link2, Check, Link as LinkIcon, Share, ChevronRight, Megaphone } from "lucide-react";
+import { Users, Link2, Check, Link as LinkIcon, Share, ChevronRight, Megaphone, Trash2 } from "lucide-react";
 import { getEventShareUrl } from "../lib/urlUtils";
 import { formatReadableDateTime } from "../lib/dateUtils.js";
 import { useToast } from "./Toast";
@@ -31,13 +31,15 @@ const shareChannels = [
   { key: "direct", icon: LinkIcon, color: "rgba(255,255,255,0.4)", label: "Direct link" },
 ];
 
-export function DashboardEventCard({ event, onPreview, onManage, index = 0 }) {
+export function DashboardEventCard({ event, onPreview, onManage, onDelete, index = 0 }) {
   const status = getEventStatus(event);
   const isLive = status === "ongoing";
   const navigate = useNavigate();
   const [showTeam, setShowTeam] = useState(false);
   const [showVip, setShowVip] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { showToast } = useToast();
 
   const canManageHosts = event.myRole === "owner" || event.myRole === "admin";
@@ -298,6 +300,30 @@ export function DashboardEventCard({ event, onPreview, onManage, index = 0 }) {
               ))}
               </>
               )}
+
+              {/* Delete — owner only, no registrations */}
+              {event.myRole === "owner" && onDelete && (
+                <>
+                  <div style={{ width: "1px", height: "16px", background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
+                    style={{
+                      padding: "6px 8px", borderRadius: "999px",
+                      border: "1px solid rgba(239,68,68,0.15)",
+                      background: "rgba(239,68,68,0.05)",
+                      color: "rgba(239,68,68,0.6)",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      display: "flex", alignItems: "center",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.15)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.05)"; }}
+                    title="Delete event"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Empty state nudge - only for upcoming events with no traction */}
@@ -431,6 +457,107 @@ export function DashboardEventCard({ event, onPreview, onManage, index = 0 }) {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation */}
+      {showDeleteConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.6)",
+            zIndex: 1100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+          onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
+        >
+          <div
+            style={{
+              background: "rgba(20, 16, 30, 0.98)",
+              backdropFilter: "blur(20px)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: "20px",
+              padding: "28px 24px 20px",
+              maxWidth: "320px",
+              width: "100%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+              textAlign: "center",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {hasRsvps ? (
+              <>
+                <div style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>
+                  Can't delete this event
+                </div>
+                <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.45)", marginBottom: "24px" }}>
+                  This event has {event._stats.confirmed} registered {event._stats.confirmed === 1 ? "guest" : "guests"}. Remove all registrations from the guest list before deleting.
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
+                  style={{
+                    width: "100%", padding: "14px", borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "transparent", color: "rgba(255,255,255,0.5)",
+                    fontSize: "15px", fontWeight: 600, cursor: "pointer",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  Got it
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>
+                  Delete "{event.title}"?
+                </div>
+                <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.45)", marginBottom: "24px" }}>
+                  This action cannot be undone.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setDeleting(true);
+                      const success = await onDelete(event.id);
+                      setDeleting(false);
+                      setShowDeleteConfirm(false);
+                    }}
+                    style={{
+                      width: "100%", padding: "14px", borderRadius: "12px", border: "none",
+                      background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                      color: "#fff", fontSize: "15px", fontWeight: 700,
+                      cursor: deleting ? "not-allowed" : "pointer",
+                      opacity: deleting ? 0.7 : 1,
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    {deleting ? "Deleting..." : "Delete event"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
+                    style={{
+                      width: "100%", padding: "14px", borderRadius: "12px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "transparent", color: "rgba(255,255,255,0.5)",
+                      fontSize: "15px", fontWeight: 600, cursor: "pointer",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

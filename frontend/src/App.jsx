@@ -16,6 +16,8 @@ import { DiscoverPage } from "./pages/DiscoverPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { SalesPage } from "./pages/SalesPage";
 import { IdeasPage } from "./pages/IdeasPage";
+import { AdminEventsPage } from "./pages/AdminEventsPage";
+import { AdminPresentationPage } from "./pages/AdminPresentationPage";
 import { EventAnalyticsPage } from "./pages/EventAnalyticsPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { TermsPage } from "./pages/TermsPage";
@@ -52,11 +54,10 @@ function App() {
             </ErrorBoundary>
           }
         />
-        {/* Public create — auth is deferred to publish time */}
-        <Route path="/create" element={<CreateEventPage key="create" />} />
-
         {/* "Protected" app area */}
         <Route element={<ProtectedLayout />}>
+          {/* Create — auth is deferred to publish time */}
+          <Route path="/create" element={<CreateEventPage key="create" />} />
           {/* Events / CRM dashboard */}
           <Route path="/events" element={<HomePage />} />
           <Route path="/analytics" element={<HostAnalyticsPage />} />
@@ -66,6 +67,8 @@ function App() {
           <Route path="/admin/analytics" element={<AnalyticsPage />} />
           <Route path="/admin/sales" element={<SalesPage />} />
           <Route path="/admin/ideas" element={<IdeasPage />} />
+          <Route path="/admin/events" element={<AdminEventsPage />} />
+          <Route path="/admin/presentation" element={<AdminPresentationPage />} />
           {/* Backwards-compat: /home currently points to events */}
           <Route path="/home" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />

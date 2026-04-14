@@ -1020,6 +1020,39 @@ export async function updateEvent(id, updates) {
 }
 
 // ---------------------------
+/**
+ * Delete an event. Only allowed if the event has zero RSVPs.
+ */
+export async function deleteEvent(eventId) {
+  // Check for any RSVPs
+  const { count, error: countError } = await supabase
+    .from("rsvps")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", eventId);
+
+  if (countError) {
+    console.error("Error checking RSVPs for deletion:", countError);
+    return { error: "database_error", message: countError.message };
+  }
+
+  if (count > 0) {
+    return { error: "has_registrations", message: `Cannot delete event with ${count} registration(s). Remove all guests first.` };
+  }
+
+  // Delete event_hosts entries
+  await supabase.from("event_hosts").delete().eq("event_id", eventId);
+
+  // Delete the event
+  const { error: deleteError } = await supabase.from("events").delete().eq("id", eventId);
+
+  if (deleteError) {
+    console.error("Error deleting event:", deleteError);
+    return { error: "database_error", message: deleteError.message };
+  }
+
+  return { success: true };
+}
+
 // RSVP Logic
 // ---------------------------
 

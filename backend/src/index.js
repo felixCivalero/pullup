@@ -47,6 +47,7 @@ import {
   markVipInviteUsed,
   updateVipInvite,
   getVipInvitesForEvent,
+  deleteEvent,
 } from "./data.js";
 
 import { requireAuth, optionalAuth, requireAdmin } from "./middleware/auth.js";
@@ -3816,6 +3817,38 @@ app.put("/host/events/:id/publish", requireAuth, async (req, res) => {
   }
 
   res.json(updated);
+});
+
+// ---------------------------
+// PROTECTED: Delete event (requires auth, owner only, no RSVPs)
+// ---------------------------
+app.delete("/host/events/:id", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const event = await findEventById(id);
+
+  if (!event) {
+    return res.status(404).json({ error: "Event not found" });
+  }
+
+  const isOwner = await isUserEventOwner(req.user.id, id);
+  if (!isOwner) {
+    return res.status(403).json({
+      error: "Forbidden",
+      message: "Only the event owner can delete an event.",
+    });
+  }
+
+  const result = await deleteEvent(id);
+
+  if (result.error === "has_registrations") {
+    return res.status(400).json({ error: result.error, message: result.message });
+  }
+
+  if (result.error) {
+    return res.status(500).json({ error: result.error, message: result.message });
+  }
+
+  res.json({ success: true });
 });
 
 // ---------------------------
@@ -9293,18 +9326,67 @@ app.post("/admin/stockholm-events/scrape", requireAdmin, async (req, res) => {
 app.post("/t/pageview", async (req, res) => {
   try {
     const { supabase } = await import("./supabase.js");
-    const { page } = req.body;
+    const { page, visitorId, referrer, deviceType } = req.body;
     if (!page) return res.status(400).json({ error: "page is required" });
 
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    if (page === "landing" && visitorId) {
+      // Detect source from referrer
+      let source = "direct";
+      if (referrer) {
+        try {
+          const host = new URL(referrer).hostname.replace("www.", "");
+          if (host.includes("instagram")) source = "instagram";
+          else if (host.includes("facebook") || host.includes("fb.")) source = "facebook";
+          else if (host.includes("twitter") || host.includes("x.com")) source = "twitter";
+          else if (host.includes("linkedin")) source = "linkedin";
+          else if (host.includes("google")) source = "google";
+          else if (host.includes("pullup")) source = "pullup";
+          else source = host;
+        } catch {
+          source = "other";
+        }
+      }
 
-    // Simple fingerprint from IP + user-agent for unique visitor approximation
+      // Try new per-row table
+      let inserted = false;
+      try {
+        // Dedup: same visitor + source within 30 min
+        const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        const { data: existing } = await supabase
+          .from("landing_page_views")
+          .select("id")
+          .eq("visitor_id", visitorId)
+          .eq("source", source)
+          .gte("created_at", thirtyMinAgo)
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          return res.json({ ok: true, deduplicated: true });
+        }
+
+        const { error: insertErr } = await supabase.from("landing_page_views").insert({
+          visitor_id: visitorId,
+          referrer: referrer ? referrer.slice(0, 2000) : null,
+          source,
+          device_type: deviceType || null,
+        });
+
+        if (!insertErr) inserted = true;
+      } catch (e) {
+        // Table doesn't exist yet — fall through to legacy
+      }
+
+      if (inserted) return res.json({ ok: true });
+      // Fall through to legacy tracking below
+    }
+
+    // Legacy aggregate tracking
+    const today = new Date().toISOString().slice(0, 10);
     const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || "unknown";
     const ua = req.headers["user-agent"] || "unknown";
     const { createHash } = await import("crypto");
     const visitorHash = createHash("sha256").update(`${ip}:${ua}:${today}`).digest("hex").slice(0, 16);
 
-    // Upsert the daily row
     const { error } = await supabase.rpc("increment_page_view", {
       p_page: page,
       p_date: today,
@@ -9323,76 +9405,352 @@ app.post("/t/pageview", async (req, res) => {
 app.get("/admin/analytics/pageviews", requireAdmin, async (req, res) => {
   try {
     const { supabase } = await import("./supabase.js");
-    const { page = "landing", days = "30" } = req.query;
+    const { days = "30" } = req.query;
     const numDays = Math.min(parseInt(days) || 30, 365);
 
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - numDays + 1);
-    const startStr = startDate.toISOString().slice(0, 10);
+    const periodEnd = new Date();
+    const periodStart = new Date();
+    periodStart.setDate(periodStart.getDate() - numDays + 1);
+    periodStart.setHours(0, 0, 0, 0);
 
-    // Previous period for comparison
-    const prevStart = new Date(startDate);
-    prevStart.setDate(prevStart.getDate() - numDays);
-    const prevStartStr = prevStart.toISOString().slice(0, 10);
+    const prevEnd = new Date(periodStart.getTime() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - numDays + 1);
+    prevStart.setHours(0, 0, 0, 0);
 
-    const { data, error } = await supabase
-      .from("page_views_daily")
-      .select("date, views, unique_visitors")
-      .eq("page", page)
-      .gte("date", prevStartStr)
-      .order("date", { ascending: true });
+    // Try new per-row table first
+    let currentRows = [];
+    let prevRows = [];
+    let useNewTable = false;
 
-    if (error) throw error;
+    try {
+      const [{ data: views, error: viewsErr }, { data: pv, error: pvErr }] = await Promise.all([
+        supabase.from("landing_page_views")
+          .select("id, visitor_id, referrer, source, device_type, created_at")
+          .gte("created_at", periodStart.toISOString())
+          .lte("created_at", periodEnd.toISOString())
+          .order("created_at", { ascending: false }),
+        supabase.from("landing_page_views")
+          .select("id, visitor_id, source, created_at")
+          .gte("created_at", prevStart.toISOString())
+          .lte("created_at", prevEnd.toISOString()),
+      ]);
+      if (!viewsErr && views && views.length > 0) {
+        currentRows = views;
+        prevRows = pv || [];
+        useNewTable = true;
+      }
+    } catch (e) {
+      // Table doesn't exist yet — fall through to legacy
+    }
 
-    // Split into current and previous periods
-    const current = [];
-    const previous = [];
-    const rows = data || [];
+    // Fallback to legacy page_views_daily if new table empty/missing
+    if (!useNewTable) {
+      const startStr = periodStart.toISOString().slice(0, 10);
+      const prevStartStr = prevStart.toISOString().slice(0, 10);
 
-    // Build a full date range for current period (fill gaps with 0)
-    for (let i = 0; i < numDays; i++) {
-      const d = new Date(startDate);
-      d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().slice(0, 10);
-      const row = rows.find((r) => r.date === dateStr);
-      current.push({
-        date: dateStr,
-        views: row?.views || 0,
-        unique_visitors: row?.unique_visitors || 0,
+      const { data, error } = await supabase
+        .from("page_views_daily")
+        .select("date, views, unique_visitors")
+        .eq("page", "landing")
+        .gte("date", prevStartStr)
+        .order("date", { ascending: true });
+
+      if (error) throw error;
+
+      const rows = data || [];
+      const daily = [];
+      for (let i = 0; i < numDays; i++) {
+        const d = new Date(periodStart);
+        d.setDate(d.getDate() + i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const row = rows.find((r) => r.date === dateStr);
+        daily.push({
+          date: dateStr,
+          views: row?.unique_visitors || row?.views || 0,
+          bySource: (row?.unique_visitors || row?.views) ? { direct: row?.unique_visitors || row?.views || 0 } : {},
+        });
+      }
+
+      const totalViews = daily.reduce((s, r) => s + r.views, 0);
+      const prevDaily = [];
+      for (let i = 0; i < numDays; i++) {
+        const d = new Date(prevStart);
+        d.setDate(d.getDate() + i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const row = rows.find((r) => r.date === dateStr);
+        prevDaily.push({ views: row?.unique_visitors || row?.views || 0 });
+      }
+      const prevTotalViews = prevDaily.reduce((s, r) => s + r.views, 0);
+
+      return res.json({
+        daily,
+        sources: totalViews > 0 ? [{ source: "direct", count: totalViews, percentage: 100 }] : [],
+        totalViews,
+        uniqueVisitors: totalViews,
+        prevTotalViews,
+        prevUniqueVisitors: prevTotalViews,
+        viewsChange: prevTotalViews > 0 ? Math.round(((totalViews - prevTotalViews) / prevTotalViews) * 100) : null,
+        uniqueChange: prevTotalViews > 0 ? Math.round(((totalViews - prevTotalViews) / prevTotalViews) * 100) : null,
+        device_split: null,
+        legacy: true,
       });
     }
 
-    // Build previous period
-    for (let i = 0; i < numDays; i++) {
-      const d = new Date(prevStart);
-      d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().slice(0, 10);
-      const row = rows.find((r) => r.date === dateStr);
-      previous.push({
-        date: dateStr,
-        views: row?.views || 0,
-        unique_visitors: row?.unique_visitors || 0,
-      });
+    // --- New table path: full source-per-day analytics ---
+    const uniqueVisitors = new Set(currentRows.map(v => v.visitor_id).filter(Boolean)).size;
+    const prevUniqueVisitors = new Set(prevRows.map(v => v.visitor_id).filter(Boolean)).size;
+
+    // Source breakdown
+    const sourceVisitorMap = {};
+    for (const v of currentRows) {
+      const src = v.source || "direct";
+      if (!sourceVisitorMap[src]) sourceVisitorMap[src] = new Set();
+      sourceVisitorMap[src].add(v.visitor_id || v.id);
+    }
+    const sources = Object.entries(sourceVisitorMap)
+      .map(([source, visitors]) => ({
+        source,
+        count: visitors.size,
+        percentage: uniqueVisitors > 0 ? Math.round((visitors.size / uniqueVisitors) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // Daily data with source stacking
+    const dailyMap = {};
+    const dailyVisitorSets = {};
+    const cursor = new Date(periodStart);
+    while (cursor <= periodEnd) {
+      const day = cursor.toISOString().slice(0, 10);
+      dailyMap[day] = { date: day, views: 0, bySource: {} };
+      dailyVisitorSets[day] = { total: new Set(), bySource: {} };
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    for (const v of currentRows) {
+      const day = v.created_at.slice(0, 10);
+      if (!dailyMap[day]) {
+        dailyMap[day] = { date: day, views: 0, bySource: {} };
+        dailyVisitorSets[day] = { total: new Set(), bySource: {} };
+      }
+      const vid = v.visitor_id || v.id;
+      const src = v.source || "direct";
+      dailyVisitorSets[day].total.add(vid);
+      if (!dailyVisitorSets[day].bySource[src]) dailyVisitorSets[day].bySource[src] = new Set();
+      dailyVisitorSets[day].bySource[src].add(vid);
+    }
+    for (const day of Object.keys(dailyMap)) {
+      dailyMap[day].views = dailyVisitorSets[day].total.size;
+      for (const [src, visitors] of Object.entries(dailyVisitorSets[day].bySource)) {
+        dailyMap[day].bySource[src] = visitors.size;
+      }
+    }
+    const daily = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
+
+    // Device split
+    const deviceVisitors = { mobile: new Set(), desktop: new Set() };
+    for (const v of currentRows) {
+      const dt = (v.device_type || "").toLowerCase();
+      const vid = v.visitor_id || v.id;
+      if (dt === "mobile") deviceVisitors.mobile.add(vid);
+      else deviceVisitors.desktop.add(vid);
     }
 
-    const totalViews = current.reduce((s, r) => s + r.views, 0);
-    const totalUnique = current.reduce((s, r) => s + r.unique_visitors, 0);
-    const prevViews = previous.reduce((s, r) => s + r.views, 0);
-    const prevUnique = previous.reduce((s, r) => s + r.unique_visitors, 0);
+    const totalViews = currentRows.length;
+    const prevTotalViews = prevRows.length;
 
     return res.json({
-      current,
-      previous,
+      daily,
+      sources,
       totalViews,
-      totalUnique,
-      prevViews,
-      prevUnique,
-      viewsChange: prevViews ? Math.round(((totalViews - prevViews) / prevViews) * 100) : null,
-      uniqueChange: prevUnique ? Math.round(((totalUnique - prevUnique) / prevUnique) * 100) : null,
+      uniqueVisitors,
+      prevTotalViews,
+      prevUniqueVisitors,
+      viewsChange: prevTotalViews > 0 ? Math.round(((totalViews - prevTotalViews) / prevTotalViews) * 100) : null,
+      uniqueChange: prevUniqueVisitors > 0 ? Math.round(((uniqueVisitors - prevUniqueVisitors) / prevUniqueVisitors) * 100) : null,
+      device_split: { mobile: deviceVisitors.mobile.size, desktop: deviceVisitors.desktop.size },
     });
   } catch (err) {
     console.error("[pageviews] error:", err.message);
     return res.status(500).json({ error: "Failed to fetch pageviews" });
+  }
+});
+
+// ---------------------------
+// Admin: Platform-wide events overview
+// ---------------------------
+app.get("/admin/platform-events", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+    const { filter = "upcoming" } = req.query;
+
+    const now = new Date().toISOString();
+    let query = sb
+      .from("events")
+      .select("id, slug, title, starts_at, ends_at, location, status, host_id, total_capacity, cocktail_capacity, ticket_type, created_at")
+      .order("starts_at", { ascending: filter === "upcoming" });
+
+    if (filter === "upcoming") {
+      query = query.gte("starts_at", new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()); // include recently started
+    } else if (filter === "past") {
+      query = query.lt("starts_at", now).order("starts_at", { ascending: false }).limit(50);
+    }
+    // filter === "all" — no date filter
+
+    const { data: events, error } = await query;
+    if (error) throw error;
+
+    // Batch-fetch RSVP counts + host info
+    const eventIds = (events || []).map(e => e.id);
+    const hostIds = [...new Set((events || []).map(e => e.host_id).filter(Boolean))];
+
+    const [{ data: rsvps }, { data: hosts }, { data: eventHosts }] = await Promise.all([
+      eventIds.length > 0
+        ? sb.from("rsvps").select("event_id, party_size, total_guests, booking_status, status").in("event_id", eventIds)
+        : { data: [] },
+      hostIds.length > 0
+        ? sb.from("profiles").select("id, name, brand, contact_email").in("id", hostIds)
+        : { data: [] },
+      eventIds.length > 0
+        ? sb.from("event_hosts").select("event_id, user_id, role").in("event_id", eventIds)
+        : { data: [] },
+    ]);
+
+    const hostMap = {};
+    for (const h of (hosts || [])) hostMap[h.id] = h;
+
+    // Count confirmed RSVPs per event
+    const rsvpCountMap = {};
+    for (const r of (rsvps || [])) {
+      if (r.booking_status === "CONFIRMED" || r.booking_status === "PENDING_PAYMENT" || r.status === "attending") {
+        if (!rsvpCountMap[r.event_id]) rsvpCountMap[r.event_id] = 0;
+        rsvpCountMap[r.event_id] += (r.total_guests ?? r.party_size ?? 1);
+      }
+    }
+
+    const result = (events || []).map(ev => {
+      const host = hostMap[ev.host_id];
+      const capacity = ev.total_capacity || ev.cocktail_capacity || 0;
+      return {
+        id: ev.id,
+        slug: ev.slug,
+        title: ev.title,
+        startsAt: ev.starts_at,
+        endsAt: ev.ends_at,
+        location: ev.location,
+        status: ev.status,
+        ticketType: ev.ticket_type,
+        createdAt: ev.created_at,
+        capacity,
+        confirmedGuests: rsvpCountMap[ev.id] || 0,
+        host: host ? { name: host.name, brand: host.brand, email: host.contact_email } : null,
+      };
+    });
+
+    return res.json({ events: result });
+  } catch (err) {
+    console.error("[admin/platform-events] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch events" });
+  }
+});
+
+// Admin: View guest list for any event (bypasses host ownership check)
+app.get("/admin/platform-events/:id/guests", requireAdmin, async (req, res) => {
+  try {
+    const event = await findEventById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const guests = await getRsvpsForEvent(event.id);
+    res.json({ event, guests });
+  } catch (err) {
+    console.error("[admin/platform-events/guests] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch guests" });
+  }
+});
+
+// ---------------------------
+// Admin: Partner CTA click analytics
+// ---------------------------
+app.get("/admin/analytics/partner-clicks", requireAdmin, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { days = "30" } = req.query;
+    const numDays = Math.min(parseInt(days) || 30, 365);
+
+    const since = new Date();
+    since.setDate(since.getDate() - numDays + 1);
+    since.setHours(0, 0, 0, 0);
+
+    const { data: clicks, error } = await supabase
+      .from("partner_clicks")
+      .select("id, partner_slug, event_id, placement, clicked_at, ip_address")
+      .gte("clicked_at", since.toISOString())
+      .order("clicked_at", { ascending: false });
+
+    if (error) throw error;
+
+    const rows = clicks || [];
+
+    // Per-partner breakdown
+    const partnerMap = {};
+    for (const c of rows) {
+      const slug = c.partner_slug;
+      if (!partnerMap[slug]) partnerMap[slug] = { total: 0, unique: new Set(), daily: {} };
+      partnerMap[slug].total++;
+      partnerMap[slug].unique.add(c.ip_address || c.id);
+      const day = c.clicked_at.slice(0, 10);
+      if (!partnerMap[slug].daily[day]) partnerMap[slug].daily[day] = 0;
+      partnerMap[slug].daily[day]++;
+    }
+
+    const partners = Object.entries(partnerMap).map(([slug, data]) => ({
+      slug,
+      total: data.total,
+      unique: data.unique.size,
+      daily: data.daily,
+    })).sort((a, b) => b.total - a.total);
+
+    // Top events driving clicks
+    const eventClickMap = {};
+    for (const c of rows) {
+      if (!c.event_id) continue;
+      if (!eventClickMap[c.event_id]) eventClickMap[c.event_id] = { total: 0, byPartner: {} };
+      eventClickMap[c.event_id].total++;
+      if (!eventClickMap[c.event_id].byPartner[c.partner_slug]) eventClickMap[c.event_id].byPartner[c.partner_slug] = 0;
+      eventClickMap[c.event_id].byPartner[c.partner_slug]++;
+    }
+
+    // Fetch event titles for top events
+    const topEventIds = Object.entries(eventClickMap)
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 10)
+      .map(([id]) => id);
+
+    let eventTitles = {};
+    if (topEventIds.length > 0) {
+      const { data: events } = await supabase
+        .from("events")
+        .select("id, title, slug")
+        .in("id", topEventIds);
+      for (const e of (events || [])) eventTitles[e.id] = { title: e.title, slug: e.slug };
+    }
+
+    const topEvents = topEventIds.map(id => ({
+      id,
+      title: eventTitles[id]?.title || "Unknown",
+      slug: eventTitles[id]?.slug,
+      clicks: eventClickMap[id].total,
+      byPartner: eventClickMap[id].byPartner,
+    }));
+
+    return res.json({
+      totalClicks: rows.length,
+      uniqueClickers: new Set(rows.map(c => c.ip_address || c.id)).size,
+      partners,
+      topEvents,
+    });
+  } catch (err) {
+    console.error("[partner-clicks analytics] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch partner click analytics" });
   }
 });
 

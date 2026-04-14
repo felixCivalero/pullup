@@ -5,6 +5,7 @@ import { DashboardEventCard } from "./DashboardEventCard";
 import { SubTabToggle } from "./HomeTabs";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { uploadBrandLogo, removeBrandLogo } from "../lib/imageUtils.js";
+import { authenticatedFetch } from "../lib/api.js";
 
 function ProfileSection({ user, setUser, onSave, showToast }) {
   const [saving, setSaving] = useState(false);
@@ -367,6 +368,7 @@ export function EventsTab({
   setUser,
   onSaveProfile,
   showToast,
+  onDeleteEvent,
 }) {
   const navigate = useNavigate();
   const [createBlocked, setCreateBlocked] = useState(false);
@@ -517,6 +519,23 @@ export function EventsTab({
               index={index}
               onPreview={`/e/${ev.slug}`}
               onManage={() => navigate(ev.myRole === "analytics" ? `/app/events/${ev.id}/analytics` : `/app/events/${ev.id}/guests`)}
+              onDelete={async (eventId) => {
+                try {
+                  const res = await authenticatedFetch(`/host/events/${eventId}`, { method: "DELETE" });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    showToast(data.message || "Could not delete event", "error");
+                    return false;
+                  }
+                  showToast("Event deleted", "success");
+                  if (onDeleteEvent) onDeleteEvent(eventId);
+                  return true;
+                } catch (err) {
+                  console.error(err);
+                  showToast("Could not delete event", "error");
+                  return false;
+                }
+              }}
             />
           ))}
 

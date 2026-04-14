@@ -42,6 +42,7 @@ export function RsvpForm({
   const [dinnerSlots, setDinnerSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [capacityExceeded, setCapacityExceeded] = useState(false);
 
   useEffect(() => {
     if (document.activeElement && document.activeElement.blur) {
@@ -211,7 +212,12 @@ export function RsvpForm({
           marketingOptIn,
         });
         if (result && result.error) {
-          setError(result.error);
+          if (result.capacityExceeded) {
+            setCapacityExceeded(true);
+            setError("");
+          } else {
+            setError(result.error);
+          }
         }
       } catch (err) {
         console.error("RSVP submission error:", err);
@@ -654,86 +660,158 @@ export function RsvpForm({
         </div>
       )}
 
-      {/* Waitlist notice */}
-      {willGoToWaitlist && event?.waitlistEnabled && (
+      {/* Capacity exceeded — event filled during submission */}
+      {capacityExceeded && (
         <div style={{
-          padding: "12px 14px",
-          borderRadius: "4px",
-          background: "rgba(245, 158, 11, 0.08)",
+          padding: "20px",
+          borderRadius: "8px",
+          background: "rgba(245, 158, 11, 0.06)",
           border: "1px solid rgba(245, 158, 11, 0.15)",
           marginBottom: "16px",
-          fontSize: "13px",
-          color: "#fbbf24",
-          lineHeight: "1.5",
+          textAlign: "center",
         }}>
-          <div style={{ fontWeight: 600, marginBottom: "4px" }}>You'll join the waitlist</div>
-          <div style={{ opacity: 0.8, fontSize: "12px" }}>
-            {isPaidEvent
-              ? "No payment now. You'll get a link to confirm if spots open."
-              : "The host will contact you if a spot becomes available."}
+          <div style={{
+            fontSize: "16px",
+            fontWeight: 600,
+            color: "#fbbf24",
+            marginBottom: "8px",
+          }}>
+            This event just filled up
           </div>
+          <div style={{
+            fontSize: "13px",
+            color: "rgba(255, 255, 255, 0.6)",
+            marginBottom: "20px",
+            lineHeight: "1.5",
+          }}>
+            A spot was taken while you were registering. Want to join the waitlist? We'll reach out if a spot opens up.
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setCapacityExceeded(false);
+              if (onSubmit) {
+                onSubmit({
+                  email: email.trim(),
+                  name: name.trim() || null,
+                  plusOnes: cocktailGuests,
+                  wantsDinner,
+                  dinnerTimeSlot: wantsDinner ? dinnerTimeSlot : null,
+                  dinnerPartySize: wantsDinner ? dinnerSeats : null,
+                  marketingOptIn,
+                  joinWaitlist: true,
+                });
+              }
+            }}
+            style={{
+              ...submitButtonStyle(false),
+              background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+              marginBottom: "12px",
+            }}
+          >
+            Join waitlist
+          </button>
+          <button
+            type="button"
+            onClick={() => setCapacityExceeded(false)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "rgba(255, 255, 255, 0.4)",
+              fontSize: "13px",
+              cursor: "pointer",
+              padding: "8px",
+            }}
+          >
+            Go back
+          </button>
         </div>
       )}
 
-      {/* Error */}
-      {error && !error.includes("email") && (
-        <div style={{
-          padding: "10px 14px",
-          borderRadius: "4px",
-          background: "rgba(239, 68, 68, 0.1)",
-          border: "1px solid rgba(239, 68, 68, 0.2)",
-          fontSize: "13px",
-          color: "#ef4444",
-          marginBottom: "16px",
-        }}>
-          {error}
-        </div>
-      )}
+      {!capacityExceeded && (
+        <>
+          {/* Waitlist notice */}
+          {willGoToWaitlist && event?.waitlistEnabled && (
+            <div style={{
+              padding: "12px 14px",
+              borderRadius: "4px",
+              background: "rgba(245, 158, 11, 0.08)",
+              border: "1px solid rgba(245, 158, 11, 0.15)",
+              marginBottom: "16px",
+              fontSize: "13px",
+              color: "#fbbf24",
+              lineHeight: "1.5",
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: "4px" }}>You'll join the waitlist</div>
+              <div style={{ opacity: 0.8, fontSize: "12px" }}>
+                {isPaidEvent
+                  ? "No payment now. You'll get a link to confirm if spots open."
+                  : "The host will contact you if a spot becomes available."}
+              </div>
+            </div>
+          )}
 
-      {/* Marketing opt-in (shown here for free events, inside payment section for paid) */}
-      {!(isPaidEvent && ticketPrice && !willGoToWaitlist) && (
-        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "rgba(255,255,255,0.35)", cursor: "pointer", textAlign: "left", margin: "12px 0 16px", padding: 0, minHeight: 44 }}>
-          <input
-            type="checkbox"
-            checked={marketingOptIn}
-            onChange={(e) => setMarketingOptIn(e.target.checked)}
-            style={{ accentColor: "#fff", flexShrink: 0, width: 18, height: 18 }}
-          />
-          <span>I agree to the <a href="/terms" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>privacy policy</a></span>
-        </label>
-      )}
+          {/* Error */}
+          {error && !error.includes("email") && (
+            <div style={{
+              padding: "10px 14px",
+              borderRadius: "4px",
+              background: "rgba(239, 68, 68, 0.1)",
+              border: "1px solid rgba(239, 68, 68, 0.2)",
+              fontSize: "13px",
+              color: "#ef4444",
+              marginBottom: "16px",
+            }}>
+              {error}
+            </div>
+          )}
 
-      {/* Submit — single gorgeous button, no cancel */}
-      {!isPaidEvent && (
-        <button
-          type="submit"
-          disabled={loading || (wantsDinner && !dinnerTimeSlot)}
-          style={submitButtonStyle(loading || (wantsDinner && !dinnerTimeSlot))}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {loading
-            ? "Processing..."
-            : willGoToWaitlist && event?.waitlistEnabled
-            ? "Join waitlist"
-            : "Register"}
-        </button>
-      )}
+          {/* Marketing opt-in (shown here for free events, inside payment section for paid) */}
+          {!(isPaidEvent && ticketPrice && !willGoToWaitlist) && (
+            <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "rgba(255,255,255,0.35)", cursor: "pointer", textAlign: "left", margin: "12px 0 16px", padding: 0, minHeight: 44 }}>
+              <input
+                type="checkbox"
+                checked={marketingOptIn}
+                onChange={(e) => setMarketingOptIn(e.target.checked)}
+                style={{ accentColor: "#fff", flexShrink: 0, width: 18, height: 18 }}
+              />
+              <span>I agree to the <a href="/terms" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>privacy policy</a></span>
+            </label>
+          )}
 
-      {/* For paid events: show waitlist button or cancel */}
-      {isPaidEvent && willGoToWaitlist && event?.waitlistEnabled && (
-        <button
-          type="submit"
-          disabled={loading || (wantsDinner && !dinnerTimeSlot)}
-          style={{
-            ...submitButtonStyle(loading || (wantsDinner && !dinnerTimeSlot)),
-            background: loading || (wantsDinner && !dinnerTimeSlot)
-              ? "rgba(255, 255, 255, 0.08)"
-              : "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {loading ? "Processing..." : "Join waitlist"}
-        </button>
+          {/* Submit — single gorgeous button, no cancel */}
+          {!isPaidEvent && (
+            <button
+              type="submit"
+              disabled={loading || (wantsDinner && !dinnerTimeSlot)}
+              style={submitButtonStyle(loading || (wantsDinner && !dinnerTimeSlot))}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {loading
+                ? "Processing..."
+                : willGoToWaitlist && event?.waitlistEnabled
+                ? "Join waitlist"
+                : "Register"}
+            </button>
+          )}
+
+          {/* For paid events: show waitlist button or cancel */}
+          {isPaidEvent && willGoToWaitlist && event?.waitlistEnabled && (
+            <button
+              type="submit"
+              disabled={loading || (wantsDinner && !dinnerTimeSlot)}
+              style={{
+                ...submitButtonStyle(loading || (wantsDinner && !dinnerTimeSlot)),
+                background: loading || (wantsDinner && !dinnerTimeSlot)
+                  ? "rgba(255, 255, 255, 0.08)"
+                  : "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {loading ? "Processing..." : "Join waitlist"}
+            </button>
+          )}
+        </>
       )}
     </form>
   );

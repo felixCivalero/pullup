@@ -1097,10 +1097,10 @@ export function EventGuestsPage() {
               className="guests-search-sticky"
               style={{
                 marginBottom: "24px",
-                padding: "14px 20px",
-                background: "rgba(255, 255, 255, 0.06)",
-                borderTop: "1px solid rgba(255,255,255,0.08)",
-                borderBottom: "1px solid rgba(255,255,255,0.08)",
+                padding: "16px 20px",
+                background: "rgba(255, 255, 255, 0.12)",
+                borderRadius: "16px",
+                margin: "0 16px 24px",
               }}
             >
               <div style={{ position: "relative" }}>
@@ -1115,8 +1115,8 @@ export function EventGuestsPage() {
                     padding: "16px 18px",
                     paddingRight: searchQuery ? "48px" : "18px",
                     borderRadius: "14px",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    background: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                    background: "rgba(255, 255, 255, 0.15)",
                     color: "#fff",
                     fontSize: "16px",
                     outline: "none",
@@ -1124,12 +1124,12 @@ export function EventGuestsPage() {
                     transition: "all 0.2s ease",
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = "rgba(255, 255, 255, 0.35)";
-                    e.target.style.background = "rgba(255, 255, 255, 0.12)";
+                    e.target.style.borderColor = "rgba(255, 255, 255, 0.4)";
+                    e.target.style.background = "rgba(255, 255, 255, 0.2)";
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = "rgba(255,255,255,0.2)";
-                    e.target.style.background = "rgba(255, 255, 255, 0.08)";
+                    e.target.style.borderColor = "rgba(255,255,255,0.25)";
+                    e.target.style.background = "rgba(255, 255, 255, 0.15)";
                   }}
                 />
                 {searchQuery && (

@@ -2523,6 +2523,7 @@ export async function addRsvp({
   marketingOptIn = false,
   isVip = false,
   visitorId = null,
+  joinWaitlist = false,
 }) {
   const event = await findEventBySlug(slug);
   if (!event) return { error: "not_found" };
@@ -2711,12 +2712,18 @@ export async function addRsvp({
   // INSTANT WAITLIST: If enabled, every RSVP goes straight to waitlist — skip capacity logic
   // ALL-OR-NOTHING: Set bookingStatus based on BOTH capacity checks
   // If EITHER cocktail OR dinner capacity is insufficient, entire party goes to waitlist
+  // ALL-OR-NOTHING: Set bookingStatus based on BOTH capacity checks
   let bookingStatus = "CONFIRMED";
   if (event.instantWaitlist) {
     bookingStatus = "WAITLIST";
   } else if (!cocktailCapacityOk || !dinnerCapacityOk) {
-    if (event.waitlistEnabled) {
+    if (event.waitlistEnabled && joinWaitlist) {
+      // User explicitly opted into waitlist (frontend pre-check showed waitlist)
       bookingStatus = "WAITLIST";
+    } else if (event.waitlistEnabled) {
+      // Capacity exceeded but user didn't opt in — will be caught by atomic function
+      // Set to CONFIRMED here; the atomic function will make the final call
+      bookingStatus = "CONFIRMED";
     } else {
       return { error: "full", event };
     }
@@ -2790,21 +2797,59 @@ export async function addRsvp({
     visitorId: visitorId || null,
   };
 
+  const willGoToWaitlist = !cocktailCapacityOk || !dinnerCapacityOk;
+
   const dbRsvpData = mapRsvpToDb(rsvpData);
 
-  // Insert RSVP into database
-  const { data: insertedRsvp, error: insertError } = await supabase
-    .from("rsvps")
-    .insert(dbRsvpData)
-    .select()
-    .single();
+  // Use atomic function for race-proof capacity check + insert
+  const { data: atomicResult, error: rpcError } = await supabase.rpc(
+    "atomic_rsvp_insert",
+    {
+      p_person_id: dbRsvpData.person_id,
+      p_event_id: dbRsvpData.event_id,
+      p_slug: dbRsvpData.slug,
+      p_booking_status: dbRsvpData.booking_status,
+      p_status: dbRsvpData.status,
+      p_plus_ones: dbRsvpData.plus_ones ?? 0,
+      p_party_size: dbRsvpData.party_size ?? 1,
+      p_wants_dinner: dbRsvpData.wants_dinner ?? false,
+      p_dinner: dbRsvpData.dinner ?? null,
+      p_dinner_status: dbRsvpData.dinner_status ?? null,
+      p_dinner_time_slot: dbRsvpData.dinner_time_slot ?? null,
+      p_dinner_party_size: dbRsvpData.dinner_party_size ?? null,
+      p_total_guests: dbRsvpData.total_guests ?? dbRsvpData.party_size ?? 1,
+      p_payment_id: dbRsvpData.payment_id ?? null,
+      p_payment_status: dbRsvpData.payment_status ?? null,
+      p_dinner_pull_up_count: dbRsvpData.dinner_pull_up_count ?? 0,
+      p_cocktail_only_pull_up_count: dbRsvpData.cocktail_only_pull_up_count ?? 0,
+      p_pulled_up: dbRsvpData.pulled_up ?? false,
+      p_pulled_up_count: dbRsvpData.pulled_up_count ?? null,
+      p_pulled_up_for_dinner: dbRsvpData.pulled_up_for_dinner ?? false,
+      p_pulled_up_for_cocktails: dbRsvpData.pulled_up_for_cocktails ?? false,
+      p_marketing_opt_in: dbRsvpData.marketing_opt_in ?? false,
+      p_is_vip: dbRsvpData.is_vip ?? false,
+      p_visitor_id: dbRsvpData.visitor_id ?? null,
+      // Capacity params
+      p_cocktails_only_for_booking: cocktailsOnlyForThisBooking,
+      p_cocktail_capacity: event.cocktailCapacity ?? null,
+      p_dinner_max_seats: event.dinnerMaxSeatsPerSlot ?? null,
+      p_dinner_slot_key: finalDinnerTimeSlot ?? null,
+      p_join_waitlist: joinWaitlist || (willGoToWaitlist && event.waitlistEnabled),
+      p_instant_waitlist: !!event.instantWaitlist,
+    }
+  );
 
-  if (insertError) {
-    console.error("Error creating RSVP:", insertError);
-    return { error: "database_error", message: insertError.message };
+  if (rpcError) {
+    console.error("Error in atomic RSVP insert:", rpcError);
+    return { error: "database_error", message: rpcError.message };
   }
 
-  const rsvp = mapRsvpFromDb(insertedRsvp, person);
+  // Check if the atomic function rejected the insert (capacity exceeded, user didn't opt in)
+  if (atomicResult && atomicResult.rejected) {
+    return { error: "capacity_exceeded", event };
+  }
+
+  const rsvp = mapRsvpFromDb(atomicResult, person);
 
   return { event, rsvp };
 }

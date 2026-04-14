@@ -2709,10 +2709,8 @@ export async function addRsvp({
     }
   }
 
-  // INSTANT WAITLIST: If enabled, every RSVP goes straight to waitlist — skip capacity logic
   // ALL-OR-NOTHING: Set bookingStatus based on BOTH capacity checks
   // If EITHER cocktail OR dinner capacity is insufficient, entire party goes to waitlist
-  // ALL-OR-NOTHING: Set bookingStatus based on BOTH capacity checks
   let bookingStatus = "CONFIRMED";
   if (event.instantWaitlist) {
     bookingStatus = "WAITLIST";

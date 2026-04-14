@@ -1097,7 +1097,10 @@ export function EventGuestsPage() {
               className="guests-search-sticky"
               style={{
                 marginBottom: "24px",
-                padding: "0 20px",
+                padding: "14px 20px",
+                background: "rgba(255, 255, 255, 0.06)",
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                borderBottom: "1px solid rgba(255,255,255,0.08)",
               }}
             >
               <div style={{ position: "relative" }}>

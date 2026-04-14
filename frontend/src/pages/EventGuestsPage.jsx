@@ -1178,23 +1178,21 @@ export function EventGuestsPage() {
               <>
               {/* Mobile Card Layout */}
               <div className="guests-mobile-list" style={{ display: "none", flexDirection: "column", gap: "8px" }}>
-                {sortedGuests.map((g) => {
+                {sortedGuests.filter(g => g.bookingStatus === "CONFIRMED" || g.status === "attending").map((g) => {
                   const isConfirmed = g.bookingStatus === "CONFIRMED" || g.status === "attending";
-                  const isWaitlist = g.bookingStatus === "WAITLIST" || g.status === "waitlist";
-                  const isCancelled = g.bookingStatus === "CANCELLED" || g.status === "cancelled";
-                  const cocktailsPulledUp = g.cocktailOnlyPullUpCount ?? g.pulledUpForCocktails ?? 0;
-                  const dinnerPulledUp = g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0;
-                  const hasAnyPulledUp = cocktailsPulledUp > 0 || dinnerPulledUp > 0;
                   const partySize = g.partySize || 1;
                   const wantsDinner = g.wantsDinner || g.dinner?.enabled || false;
                   const dinnerPartySize = g.dinnerPartySize || g.dinner?.partySize || 0;
                   const plusOnes = g.plusOnes ?? 0;
+                  const cocktailsPulledUp = g.cocktailOnlyPullUpCount ?? g.pulledUpForCocktails ?? 0;
+                  const dinnerPulledUp = g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0;
 
                   // DPCS pull-up totals
                   const cocktailOnlyMax = wantsDinner ? plusOnes : partySize;
                   const totalExpected = (wantsDinner ? dinnerPartySize : 0) + cocktailOnlyMax;
                   const totalArrived = dinnerPulledUp + cocktailsPulledUp;
                   const allPulledUp = totalArrived > 0 && totalArrived >= totalExpected;
+                  const hasPartial = totalArrived > 0 && !allPulledUp;
 
                   return (
                     <div
@@ -1206,133 +1204,72 @@ export function EventGuestsPage() {
                       style={{
                         background: allPulledUp
                           ? "rgba(16, 185, 129, 0.06)"
+                          : hasPartial
+                          ? "rgba(245, 158, 11, 0.04)"
                           : "rgba(20, 16, 30, 0.5)",
                         borderRadius: "16px",
                         border: allPulledUp
                           ? "1px solid rgba(16, 185, 129, 0.2)"
+                          : hasPartial
+                          ? "1px solid rgba(245, 158, 11, 0.15)"
                           : "1px solid rgba(255,255,255,0.08)",
-                        padding: "14px 16px",
-                        cursor: isConfirmed ? "pointer" : "default",
+                        padding: "16px",
+                        cursor: isConfirmed && !allPulledUp ? "pointer" : "default",
                         WebkitTapHighlightColor: "transparent",
                         transition: "all 0.15s ease",
+                        opacity: allPulledUp ? 0.6 : 1,
                       }}
                     >
-                      {/* Top row: Name + Status */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", marginBottom: "8px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        {/* Left: Name + party size */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, fontSize: "15px", color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div style={{
+                            fontWeight: 600,
+                            fontSize: "17px",
+                            color: "#fff",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            marginBottom: "2px",
+                          }}>
                             {g.name || "Guest"}
                           </div>
-                          <div style={{ fontSize: "12px", opacity: 0.5, color: "#e5e7eb", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {g.email}
+                          <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.45)" }}>
+                            {partySize} {partySize === 1 ? "guest" : "guests"}
                           </div>
                         </div>
-                        <div style={{ flexShrink: 0 }}>
-                          <span style={{
-                            fontSize: "10px",
-                            fontWeight: 700,
-                            padding: "4px 10px",
-                            borderRadius: "999px",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.08em",
-                            lineHeight: "1.3",
-                            display: "inline-block",
-                            ...(isConfirmed
-                              ? { background: "rgba(16, 185, 129, 0.2)", border: "1px solid rgba(16, 185, 129, 0.5)", color: "#10b981" }
-                              : isWaitlist
-                              ? { background: "rgba(244, 114, 182, 0.2)", border: "1px solid rgba(244, 114, 182, 0.5)", color: "#f472b6" }
-                              : { background: "rgba(107, 114, 128, 0.2)", border: "1px solid rgba(107, 114, 128, 0.5)", color: "#9ca3af" }),
-                          }}>
-                            {isConfirmed ? "CONFIRMED" : isWaitlist ? "WAITLIST" : "CANCELLED"}
-                          </span>
-                        </div>
-                      </div>
 
-                      {/* Bottom row: Party info + Check-in status + Actions */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                        {/* Party info */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                          <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
-                            {partySize} {partySize === 1 ? "guest" : "guests"}
-                          </span>
-                          {event.dinnerEnabled && wantsDinner && dinnerPartySize > 0 && (
-                            <span style={{
-                              fontSize: "11px",
+                        {/* Right: Arrival status */}
+                        <div style={{ flexShrink: 0, marginLeft: "12px", textAlign: "right" }}>
+                          {allPulledUp && (
+                            <div style={{
+                              fontSize: "13px",
                               fontWeight: 600,
-                              padding: "2px 8px",
-                              borderRadius: "6px",
-                              background: "rgba(16, 185, 129, 0.12)",
-                              border: "1px solid rgba(16, 185, 129, 0.25)",
                               color: "#10b981",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
                             }}>
-                              {dinnerPartySize} dinner
-                            </span>
-                          )}
-                          {plusOnes > 0 && event.dinnerEnabled && (
-                            <span style={{
-                              fontSize: "11px",
-                              fontWeight: 600,
-                              padding: "2px 8px",
-                              borderRadius: "6px",
-                              background: "rgba(245, 158, 11, 0.12)",
-                              border: "1px solid rgba(245, 158, 11, 0.25)",
-                              color: "#f59e0b",
-                            }}>
-                              +{plusOnes} cocktails
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Check-in badges + actions */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-                          {isConfirmed && hasAnyPulledUp && (
-                            <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                              {cocktailsPulledUp > 0 && (
-                                <span style={{
-                                  fontSize: "11px", fontWeight: 700, color: "#f59e0b",
-                                  padding: "3px 7px", borderRadius: "6px",
-                                  background: "rgba(245, 158, 11, 0.15)",
-                                  border: "1px solid rgba(245, 158, 11, 0.3)",
-                                }}>
-                                  {cocktailsPulledUp}
-                                </span>
-                              )}
-                              {dinnerPulledUp > 0 && (
-                                <span style={{
-                                  fontSize: "11px", fontWeight: 700, color: "#10b981",
-                                  padding: "3px 7px", borderRadius: "6px",
-                                  background: "rgba(16, 185, 129, 0.15)",
-                                  border: "1px solid rgba(16, 185, 129, 0.3)",
-                                }}>
-                                  {dinnerPulledUp}
-                                </span>
-                              )}
+                              <Check size={16} /> arrived
                             </div>
                           )}
-                          {isConfirmed && allPulledUp && (
-                            <Check size={16} style={{ color: "#10b981" }} />
+                          {hasPartial && (
+                            <div style={{
+                              fontSize: "13px",
+                              fontWeight: 600,
+                              color: "#f59e0b",
+                            }}>
+                              {totalArrived}/{totalExpected} arrived
+                            </div>
                           )}
-                          {isConfirmed && !hasAnyPulledUp && (
-                            <span style={{ fontSize: "11px", opacity: 0.4, fontStyle: "italic", color: "rgba(255,255,255,0.4)" }}>
+                          {!allPulledUp && !hasPartial && isConfirmed && (
+                            <div style={{
+                              fontSize: "12px",
+                              color: "rgba(255,255,255,0.3)",
+                              fontStyle: "italic",
+                            }}>
                               tap to check in
-                            </span>
-                          )}
-                          {canEditGuests && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditGuest(g);
-                              }}
-                              style={{
-                                padding: "5px 10px", borderRadius: "8px",
-                                border: "1px solid rgba(192, 192, 192, 0.3)",
-                                background: "rgba(192, 192, 192, 0.08)",
-                                color: "#e5e5e5", fontSize: "11px", fontWeight: 600,
-                                cursor: "pointer", marginLeft: "4px",
-                              }}
-                            >
-                              Edit
-                            </button>
+                            </div>
                           )}
                         </div>
                       </div>

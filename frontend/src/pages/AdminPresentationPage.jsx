@@ -1,4 +1,27 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { createRoot } from "react-dom/client";
+
+function Bullet({ color, children }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+      <div style={{ width: 6, height: 6, borderRadius: 3, background: color, marginTop: 8, flexShrink: 0 }} />
+      <span style={{ fontSize: "clamp(13px, 1.5vw, 17px)", color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{children}</span>
+    </div>
+  );
+}
+
+function FeatureCard({ title, desc }) {
+  return (
+    <div style={{
+      padding: "14px 18px", borderRadius: 14,
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+    }}>
+      <div style={{ fontSize: "clamp(13px, 1.5vw, 16px)", fontWeight: 600, color: "#fff", marginBottom: 3 }}>{title}</div>
+      <div style={{ fontSize: "clamp(11px, 1.2vw, 14px)", color: "rgba(255,255,255,0.3)", lineHeight: 1.4 }}>{desc}</div>
+    </div>
+  );
+}
 
 const slides = [
   // 1 — Title
@@ -28,206 +51,174 @@ const slides = [
     ),
   },
 
-  // 2 — The Problem
+  // 2 — Content-first event pages
   {
-    bg: "#05040a",
+    bg: "radial-gradient(ellipse at 60% 40%, rgba(192,192,192,0.06) 0%, transparent 60%), #05040a",
     render: () => (
-      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", padding: "0 10%" }}>
-        <div style={{ fontSize: "clamp(14px, 1.8vw, 20px)", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 16 }}>
-          The problem
-        </div>
-        <div style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, maxWidth: 800 }}>
-          Hosting events is chaotic.
-        </div>
-        <div style={{ fontSize: "clamp(16px, 2vw, 22px)", color: "rgba(255,255,255,0.4)", marginTop: 20, lineHeight: 1.6, maxWidth: 700 }}>
-          Scattered guest lists in spreadsheets. No idea who showed up. Manual check-ins. Zero insight into what's working.
-        </div>
-      </div>
-    ),
-  },
-
-  // 3 — The Solution
-  {
-    bg: "radial-gradient(ellipse at 60% 50%, rgba(192,192,192,0.08) 0%, transparent 60%), #05040a",
-    render: () => (
-      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", padding: "0 10%" }}>
-        <div style={{ fontSize: "clamp(14px, 1.8vw, 20px)", color: "rgba(192,192,192,0.5)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 16 }}>
-          The solution
-        </div>
-        <div style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, maxWidth: 800 }}>
-          One platform. <br />
-          <span style={{ background: "linear-gradient(135deg, #e8e8e8, #a8a8a8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            Every event.
-          </span>
-        </div>
-        <div style={{ fontSize: "clamp(16px, 2vw, 22px)", color: "rgba(255,255,255,0.4)", marginTop: 20, lineHeight: 1.6, maxWidth: 700 }}>
-          PullUp handles your event page, RSVPs, guest list, live check-in, and analytics — all in one place.
-        </div>
-      </div>
-    ),
-  },
-
-  // 4 — Create
-  {
-    bg: "#05040a",
-    render: () => (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 8%", gap: "8%" }}>
-        <div style={{ flex: 1, maxWidth: 500 }}>
-          <div style={{ fontSize: "clamp(12px, 1.5vw, 16px)", color: "rgba(16,185,129,0.7)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
-            Create
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 6%", gap: "5%" }}>
+        <div style={{ flex: 1, maxWidth: 520 }}>
+          <div style={{ fontSize: "clamp(12px, 1.4vw, 16px)", color: "rgba(192,192,192,0.5)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
+            Event pages
           </div>
-          <div style={{ fontSize: "clamp(26px, 3.5vw, 44px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 20 }}>
-            Beautiful event pages in minutes
+          <div style={{ fontSize: "clamp(26px, 3.5vw, 44px)", fontWeight: 700, color: "#fff", lineHeight: 1.15, marginBottom: 20 }}>
+            Content first. <br />
+            <span style={{ color: "rgba(255,255,255,0.4)" }}>Not template first.</span>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {["Customizable event pages with media galleries", "Capacity management with smart waitlists", "Paid or free ticketing with Stripe", "Dinner seatings with time slot management"].map((t, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                <div style={{ width: 6, height: 6, borderRadius: 3, background: "rgba(16,185,129,0.5)", marginTop: 8, flexShrink: 0 }} />
-                <span style={{ fontSize: "clamp(14px, 1.6vw, 18px)", color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{t}</span>
-              </div>
-            ))}
+          <div style={{ fontSize: "clamp(13px, 1.5vw, 17px)", color: "rgba(255,255,255,0.35)", lineHeight: 1.6, marginBottom: 24, maxWidth: 460 }}>
+            Every event page is built around your content. Photos, video, text sections — arranged exactly how you want. No rigid templates. Your event, your story.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <Bullet color="rgba(192,192,192,0.4)">Drag-and-drop sections — media, text, details in any order</Bullet>
+            <Bullet color="rgba(192,192,192,0.4)">Full-bleed photo and video galleries</Bullet>
+            <Bullet color="rgba(192,192,192,0.4)">Custom title styling — fonts, alignment, overlay controls</Bullet>
+            <Bullet color="rgba(192,192,192,0.4)">Mobile-optimized out of the box</Bullet>
           </div>
         </div>
+        {/* Phone mockup */}
         <div style={{
-          flex: 1, maxWidth: 400, aspectRatio: "9/16", borderRadius: 24,
-          background: "linear-gradient(180deg, rgba(16,185,129,0.08) 0%, rgba(16,185,129,0.02) 100%)",
-          border: "1px solid rgba(16,185,129,0.15)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: "48px", color: "rgba(16,185,129,0.2)",
+          flex: "0 0 auto", width: "clamp(180px, 22vw, 260px)", aspectRatio: "9/19", borderRadius: "clamp(20px, 3vw, 36px)",
+          background: "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          display: "flex", flexDirection: "column", overflow: "hidden",
         }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "clamp(40px, 5vw, 64px)" }}>+</div>
-            <div style={{ fontSize: "clamp(12px, 1.3vw, 16px)", marginTop: 8, color: "rgba(16,185,129,0.3)" }}>Event Page</div>
+          <div style={{ height: "45%", background: "linear-gradient(180deg, rgba(192,192,192,0.08), transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: "60%", height: "60%", borderRadius: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }} />
+          </div>
+          <div style={{ padding: "0 12%", flex: 1 }}>
+            <div style={{ height: 8, width: "70%", borderRadius: 4, background: "rgba(255,255,255,0.1)", marginBottom: 6 }} />
+            <div style={{ height: 6, width: "50%", borderRadius: 3, background: "rgba(255,255,255,0.05)", marginBottom: 16 }} />
+            <div style={{ height: 5, width: "100%", borderRadius: 3, background: "rgba(255,255,255,0.03)", marginBottom: 4 }} />
+            <div style={{ height: 5, width: "90%", borderRadius: 3, background: "rgba(255,255,255,0.03)", marginBottom: 4 }} />
+            <div style={{ height: 5, width: "60%", borderRadius: 3, background: "rgba(255,255,255,0.03)", marginBottom: 16 }} />
+            <div style={{ height: 28, borderRadius: 8, background: "linear-gradient(135deg, rgba(192,192,192,0.15), rgba(192,192,192,0.08))" }} />
           </div>
         </div>
       </div>
     ),
   },
 
-  // 5 — Manage
+  // 3 — Event creation deep dive
   {
     bg: "#05040a",
     render: () => (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 8%", gap: "8%" }}>
-        <div style={{
-          flex: 1, maxWidth: 400, aspectRatio: "4/3", borderRadius: 20,
-          background: "rgba(59,130,246,0.04)",
-          border: "1px solid rgba(59,130,246,0.12)",
-          padding: "clamp(16px, 3vw, 32px)", display: "flex", flexDirection: "column", justifyContent: "center",
-        }}>
-          {["Sarah + 2", "Marcus + 1", "Elena + 3", "David", "Julia + 1"].map((name, i) => (
-            <div key={i} style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "8px 12px", borderRadius: 8, marginBottom: 4,
-              background: i < 3 ? "rgba(16,185,129,0.06)" : "transparent",
-            }}>
-              <span style={{ fontSize: "clamp(12px, 1.3vw, 15px)", color: i < 3 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.3)" }}>{name}</span>
-              <span style={{
-                fontSize: "clamp(9px, 1vw, 11px)", padding: "2px 8px", borderRadius: 999, fontWeight: 600,
-                background: i < 3 ? "rgba(16,185,129,0.15)" : "rgba(245,158,11,0.15)",
-                color: i < 3 ? "#10b981" : "#f59e0b",
-              }}>
-                {i < 3 ? "ARRIVED" : "CONFIRMED"}
-              </span>
-            </div>
-          ))}
+      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", padding: "0 8%" }}>
+        <div style={{ fontSize: "clamp(12px, 1.4vw, 16px)", color: "rgba(16,185,129,0.7)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
+          Create
         </div>
-        <div style={{ flex: 1, maxWidth: 500 }}>
-          <div style={{ fontSize: "clamp(12px, 1.5vw, 16px)", color: "rgba(59,130,246,0.7)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
-            Manage
-          </div>
-          <div style={{ fontSize: "clamp(26px, 3.5vw, 44px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 20 }}>
-            Real-time guest management
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {["Live check-in counter at the door", "Team roles — owner, admin, editor, reception", "VIP invite links with personal tracking", "CRM across all your events"].map((t, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                <div style={{ width: 6, height: 6, borderRadius: 3, background: "rgba(59,130,246,0.5)", marginTop: 8, flexShrink: 0 }} />
-                <span style={{ fontSize: "clamp(14px, 1.6vw, 18px)", color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{t}</span>
-              </div>
-            ))}
-          </div>
+        <div style={{ fontSize: "clamp(24px, 3.5vw, 42px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 28 }}>
+          Everything you need. Nothing you don't.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(clamp(200px, 28vw, 320px), 1fr))", gap: 10, maxWidth: 1000 }}>
+          <FeatureCard title="Smart capacity" desc="Set cocktail and dinner capacity separately. Automatic waitlist when full — guests get notified when spots open." />
+          <FeatureCard title="Dinner seatings" desc="Time-slot based dinner management. Guests pick their slot. Per-slot capacity limits. Overflow rules you control." />
+          <FeatureCard title="Paid ticketing" desc="Stripe-powered payments. Set your price, currency, and let guests pay at RSVP. Revenue tracked in analytics." />
+          <FeatureCard title="Plus-ones" desc="Control how many guests each person can bring. Party size tracked through RSVP, check-in, and analytics." />
+          <FeatureCard title="Approval flow" desc="Optionally require manual approval before confirming RSVPs. You decide who gets in." />
+          <FeatureCard title="Instant waitlist" desc="Skip confirmations entirely — everyone lands on the waitlist. Release spots on your terms." />
         </div>
       </div>
     ),
   },
 
-  // 6 — Analyze
+  // 4 — Live check-in
   {
     bg: "#05040a",
     render: () => (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 8%", gap: "8%" }}>
-        <div style={{ flex: 1, maxWidth: 500 }}>
-          <div style={{ fontSize: "clamp(12px, 1.5vw, 16px)", color: "rgba(251,191,36,0.7)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
-            Analyze
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 6%", gap: "5%" }}>
+        {/* Check-in mockup */}
+        <div style={{
+          flex: "0 0 auto", width: "clamp(200px, 24vw, 300px)", borderRadius: 20,
+          background: "rgba(16,185,129,0.03)",
+          border: "1px solid rgba(16,185,129,0.1)",
+          padding: "clamp(16px, 2.5vw, 28px)",
+        }}>
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: "clamp(14px, 1.6vw, 18px)", fontWeight: 700, color: "#fff" }}>Sarah Chen</div>
+            <div style={{ fontSize: "clamp(11px, 1.1vw, 13px)", color: "rgba(255,255,255,0.3)", marginTop: 2 }}>3 guests expected</div>
           </div>
-          <div style={{ fontSize: "clamp(26px, 3.5vw, 44px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 20 }}>
-            Know what's working
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 16 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 20, fontWeight: 600 }}>-</div>
+            <div style={{ fontSize: "clamp(28px, 3.5vw, 36px)", fontWeight: 700, color: "#fff" }}>2<span style={{ fontSize: "0.5em", color: "rgba(255,255,255,0.3)" }}>/3</span></div>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 20, fontWeight: 600 }}>+</div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {["Traffic sources — see where guests discover you", "Conversion funnel — views to RSVPs to arrivals", "Email campaign tracking with open & click rates", "Partner CTA performance metrics"].map((t, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                <div style={{ width: 6, height: 6, borderRadius: 3, background: "rgba(251,191,36,0.5)", marginTop: 8, flexShrink: 0 }} />
-                <span style={{ fontSize: "clamp(14px, 1.6vw, 18px)", color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{t}</span>
-              </div>
-            ))}
+          <div style={{ height: 36, borderRadius: 10, background: "linear-gradient(135deg, rgba(16,185,129,0.8), rgba(5,150,105,0.8))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "clamp(12px, 1.3vw, 14px)", fontWeight: 700 }}>
+            Check in 2/3
           </div>
         </div>
-        <div style={{
-          flex: 1, maxWidth: 400, aspectRatio: "4/3", borderRadius: 20,
-          background: "rgba(251,191,36,0.03)",
-          border: "1px solid rgba(251,191,36,0.1)",
-          padding: "clamp(16px, 3vw, 32px)", display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 6,
-        }}>
-          {/* Mini chart bars */}
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: "60%", padding: "0 8px" }}>
-            {[35, 50, 40, 70, 55, 80, 65, 90, 75, 100, 60, 85].map((h, i) => (
-              <div key={i} style={{
-                flex: 1, borderRadius: 3,
-                height: `${h}%`,
-                background: `rgba(251,191,36,${0.15 + (h / 100) * 0.35})`,
-              }} />
-            ))}
+        <div style={{ flex: 1, maxWidth: 480 }}>
+          <div style={{ fontSize: "clamp(12px, 1.4vw, 16px)", color: "rgba(16,185,129,0.7)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
+            At the door
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "0 8px" }}>
-            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.15)" }}>Views</span>
-            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.15)" }}>by source, per day</span>
+          <div style={{ fontSize: "clamp(24px, 3.5vw, 42px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 20 }}>
+            Check-in that<br />just works
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <Bullet color="rgba(16,185,129,0.5)">Search guests instantly — tap to check in</Bullet>
+            <Bullet color="rgba(16,185,129,0.5)">Track party sizes — know exactly who arrived out of how many</Bullet>
+            <Bullet color="rgba(16,185,129,0.5)">Made a mistake? Tap to undo — adjust the count down</Bullet>
+            <Bullet color="rgba(16,185,129,0.5)">Reception role — give door staff check-in access without editing power</Bullet>
+            <Bullet color="rgba(16,185,129,0.5)">Works on any phone — no app install needed</Bullet>
           </div>
         </div>
       </div>
     ),
   },
 
-  // 7 — How it works
+  // 5 — CRM
   {
-    bg: "radial-gradient(ellipse at 50% 50%, rgba(192,192,192,0.06) 0%, transparent 60%), #05040a",
+    bg: "radial-gradient(ellipse at 30% 50%, rgba(168,85,247,0.06) 0%, transparent 50%), #05040a",
     render: () => (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 8%", textAlign: "center" }}>
-        <div style={{ fontSize: "clamp(14px, 1.8vw, 20px)", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 16 }}>
-          How it works
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 6%", gap: "5%" }}>
+        <div style={{ flex: 1, maxWidth: 480 }}>
+          <div style={{ fontSize: "clamp(12px, 1.4vw, 16px)", color: "rgba(168,85,247,0.7)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
+            CRM
+          </div>
+          <div style={{ fontSize: "clamp(24px, 3.5vw, 42px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 10 }}>
+            Your audience,<br />across every event
+          </div>
+          <div style={{ fontSize: "clamp(13px, 1.5vw, 17px)", color: "rgba(255,255,255,0.35)", lineHeight: 1.6, marginBottom: 24, maxWidth: 420 }}>
+            Every RSVP builds your contact database automatically. See who comes back, who brings friends, and who engages.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <Bullet color="rgba(168,85,247,0.5)">Unified guest profiles — attendance history across all events</Bullet>
+            <Bullet color="rgba(168,85,247,0.5)">See total events attended, party sizes, no-show rate per person</Bullet>
+            <Bullet color="rgba(168,85,247,0.5)">Tag and segment your audience for targeted outreach</Bullet>
+            <Bullet color="rgba(168,85,247,0.5)">Every new event grows your database — zero extra work</Bullet>
+          </div>
         </div>
-        <div style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 48 }}>
-          Three steps. That's it.
-        </div>
-        <div style={{ display: "flex", gap: "clamp(20px, 4vw, 60px)", flexWrap: "wrap", justifyContent: "center" }}>
+        {/* CRM mockup */}
+        <div style={{
+          flex: "0 0 auto", width: "clamp(240px, 30vw, 380px)", borderRadius: 16,
+          background: "rgba(168,85,247,0.03)",
+          border: "1px solid rgba(168,85,247,0.1)",
+          padding: "clamp(12px, 2vw, 20px)",
+        }}>
           {[
-            { step: "1", title: "Create", desc: "Build your event page with all the details", color: "16,185,129" },
-            { step: "2", title: "Share", desc: "Send your link — track every click and RSVP", color: "59,130,246" },
-            { step: "3", title: "Host", desc: "Check in guests live and see real-time analytics", color: "251,191,36" },
-          ].map((s) => (
-            <div key={s.step} style={{ width: "clamp(160px, 22vw, 240px)", textAlign: "center" }}>
+            { name: "Sarah Chen", events: 5, label: "Regular" },
+            { name: "Marcus Lindgren", events: 3, label: "Active" },
+            { name: "Elena Rodriguez", events: 1, label: "New" },
+            { name: "David Kim", events: 8, label: "VIP" },
+            { name: "Julia Svensson", events: 2, label: "Active" },
+          ].map((p, i) => (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "7px 10px",
+              borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.03)" : "none",
+            }}>
               <div style={{
-                width: "clamp(48px, 6vw, 72px)", height: "clamp(48px, 6vw, 72px)",
-                borderRadius: "50%", margin: "0 auto 16px",
-                background: `rgba(${s.color},0.08)`,
-                border: `1px solid rgba(${s.color},0.2)`,
+                width: 28, height: 28, borderRadius: "50%",
+                background: `rgba(168,85,247,${0.08 + i * 0.04})`,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "clamp(20px, 2.5vw, 28px)", fontWeight: 700, color: `rgba(${s.color},0.7)`,
-              }}>
-                {s.step}
+                fontSize: 11, fontWeight: 600, color: "rgba(168,85,247,0.7)",
+              }}>{p.name[0]}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "clamp(11px, 1.2vw, 13px)", fontWeight: 500, color: "rgba(255,255,255,0.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                <div style={{ fontSize: "clamp(9px, 1vw, 11px)", color: "rgba(255,255,255,0.25)" }}>{p.events} events attended</div>
               </div>
-              <div style={{ fontSize: "clamp(16px, 2vw, 22px)", fontWeight: 700, color: "#fff", marginBottom: 6 }}>{s.title}</div>
-              <div style={{ fontSize: "clamp(12px, 1.4vw, 15px)", color: "rgba(255,255,255,0.35)", lineHeight: 1.5 }}>{s.desc}</div>
+              <span style={{
+                fontSize: 9, padding: "2px 7px", borderRadius: 999, fontWeight: 600,
+                background: p.label === "VIP" ? "rgba(251,191,36,0.15)" : p.label === "Regular" ? "rgba(16,185,129,0.1)" : "rgba(255,255,255,0.05)",
+                color: p.label === "VIP" ? "rgba(251,191,36,0.8)" : p.label === "Regular" ? "rgba(16,185,129,0.6)" : "rgba(255,255,255,0.3)",
+              }}>{p.label}</span>
             </div>
           ))}
         </div>
@@ -235,41 +226,178 @@ const slides = [
     ),
   },
 
-  // 8 — For who
+  // 6 — Email campaigns
   {
     bg: "#05040a",
     render: () => (
-      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", padding: "0 10%" }}>
-        <div style={{ fontSize: "clamp(14px, 1.8vw, 20px)", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 6%", gap: "5%" }}>
+        {/* Email mockup */}
+        <div style={{
+          flex: "0 0 auto", width: "clamp(220px, 26vw, 320px)", borderRadius: 16,
+          background: "rgba(59,130,246,0.03)",
+          border: "1px solid rgba(59,130,246,0.1)",
+          padding: "clamp(14px, 2vw, 22px)",
+        }}>
+          <div style={{ fontSize: "clamp(10px, 1vw, 12px)", color: "rgba(255,255,255,0.2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.1em" }}>Campaign</div>
+          <div style={{ height: 7, width: "80%", borderRadius: 4, background: "rgba(255,255,255,0.08)", marginBottom: 12 }} />
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            {[
+              { label: "Sent", val: "156", color: "rgba(255,255,255,0.5)" },
+              { label: "Opens", val: "52%", color: "rgba(59,130,246,0.7)" },
+              { label: "Clicks", val: "24%", color: "rgba(16,185,129,0.7)" },
+            ].map(s => (
+              <div key={s.label} style={{ flex: 1, textAlign: "center" }}>
+                <div style={{ fontSize: "clamp(14px, 1.8vw, 20px)", fontWeight: 700, color: s.color }}>{s.val}</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.2)" }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 10, fontSize: "clamp(9px, 1vw, 11px)", color: "rgba(255,255,255,0.2)" }}>
+            <div style={{ marginBottom: 4 }}>Segment: Attended 2+ events</div>
+            <div>Tracking: per-recipient opens & clicks</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, maxWidth: 480 }}>
+          <div style={{ fontSize: "clamp(12px, 1.4vw, 16px)", color: "rgba(59,130,246,0.7)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
+            Email campaigns
+          </div>
+          <div style={{ fontSize: "clamp(24px, 3.5vw, 42px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 10 }}>
+            Reach the right people
+          </div>
+          <div style={{ fontSize: "clamp(13px, 1.5vw, 17px)", color: "rgba(255,255,255,0.35)", lineHeight: 1.6, marginBottom: 24, maxWidth: 420 }}>
+            Your CRM data powers targeted campaigns. Segment by attendance history, engagement, or custom tags — then track every open and click.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <Bullet color="rgba(59,130,246,0.5)">Segment audiences — regulars, VIPs, first-timers, no-shows</Bullet>
+            <Bullet color="rgba(59,130,246,0.5)">Per-recipient tracking — who opened, who clicked, who converted</Bullet>
+            <Bullet color="rgba(59,130,246,0.5)">UTM-tagged links — see campaign impact in event analytics</Bullet>
+            <Bullet color="rgba(59,130,246,0.5)">VIP invite emails with personal tracking links</Bullet>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+
+  // 7 — Analytics
+  {
+    bg: "#05040a",
+    render: () => (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 6%", gap: "5%" }}>
+        <div style={{ flex: 1, maxWidth: 480 }}>
+          <div style={{ fontSize: "clamp(12px, 1.4vw, 16px)", color: "rgba(251,191,36,0.7)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
+            Analytics
+          </div>
+          <div style={{ fontSize: "clamp(24px, 3.5vw, 42px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 10 }}>
+            See where your guests<br />come from
+          </div>
+          <div style={{ fontSize: "clamp(13px, 1.5vw, 17px)", color: "rgba(255,255,255,0.35)", lineHeight: 1.6, marginBottom: 24, maxWidth: 420 }}>
+            Every event page tracks traffic sources automatically. Know which Instagram story drove signups. See if your LinkedIn post converted. Compare channels and double down on what works.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <Bullet color="rgba(251,191,36,0.5)">Source detection — Instagram, Facebook, LinkedIn, Google, direct, referral</Bullet>
+            <Bullet color="rgba(251,191,36,0.5)">Daily source breakdown — stacked bars showing channel mix over time</Bullet>
+            <Bullet color="rgba(251,191,36,0.5)">Full funnel — page views to RSVPs to actual arrivals</Bullet>
+            <Bullet color="rgba(251,191,36,0.5)">Device split — know if your audience is mobile or desktop</Bullet>
+          </div>
+        </div>
+        {/* Analytics mockup */}
+        <div style={{
+          flex: "0 0 auto", width: "clamp(240px, 28vw, 360px)", borderRadius: 16,
+          background: "rgba(251,191,36,0.02)",
+          border: "1px solid rgba(251,191,36,0.08)",
+          padding: "clamp(14px, 2vw, 22px)",
+        }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 100, marginBottom: 10 }}>
+            {[
+              { ig: 5, fb: 2, d: 3 }, { ig: 8, fb: 1, d: 4 }, { ig: 3, fb: 3, d: 2 },
+              { ig: 12, fb: 2, d: 5 }, { ig: 6, fb: 4, d: 3 }, { ig: 15, fb: 3, d: 4 },
+              { ig: 10, fb: 2, d: 6 }, { ig: 18, fb: 4, d: 5 }, { ig: 8, fb: 3, d: 4 },
+              { ig: 14, fb: 2, d: 7 },
+            ].map((bar, i) => {
+              const total = bar.ig + bar.fb + bar.d;
+              const maxH = 27; // max total
+              const scale = 100 / maxH;
+              return (
+                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column-reverse", height: "100%" }}>
+                  <div style={{ height: bar.d * scale, background: "rgba(255,255,255,0.15)", borderRadius: "0 0 2px 2px" }} />
+                  <div style={{ height: bar.fb * scale, background: "rgba(59,130,246,0.5)" }} />
+                  <div style={{ height: bar.ig * scale, background: "rgba(225,48,108,0.6)", borderRadius: "2px 2px 0 0" }} />
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 12, fontSize: 9, color: "rgba(255,255,255,0.25)" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 3 }}><span style={{ width: 6, height: 6, borderRadius: 1, background: "rgba(225,48,108,0.6)" }} /> Instagram</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 3 }}><span style={{ width: 6, height: 6, borderRadius: 1, background: "rgba(59,130,246,0.5)" }} /> Facebook</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 3 }}><span style={{ width: 6, height: 6, borderRadius: 1, background: "rgba(255,255,255,0.15)" }} /> Direct</span>
+          </div>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", marginTop: 10, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: "clamp(9px, 1vw, 11px)" }}>
+            <span style={{ color: "rgba(255,255,255,0.2)" }}>142 views</span>
+            <span style={{ color: "rgba(16,185,129,0.5)" }}>38 RSVPs</span>
+            <span style={{ color: "rgba(251,191,36,0.5)" }}>27% conversion</span>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+
+  // 8 — Team & roles
+  {
+    bg: "radial-gradient(ellipse at 50% 50%, rgba(192,192,192,0.04) 0%, transparent 60%), #05040a",
+    render: () => (
+      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", padding: "0 8%" }}>
+        <div style={{ fontSize: "clamp(12px, 1.4vw, 16px)", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
+          Collaboration
+        </div>
+        <div style={{ fontSize: "clamp(24px, 3.5vw, 42px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 28 }}>
+          Your team, your rules
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(clamp(200px, 26vw, 300px), 1fr))", gap: 10, maxWidth: 960 }}>
+          {[
+            { role: "Owner", color: "251,191,36", desc: "Full control. Billing, settings, delete. The event is yours." },
+            { role: "Admin", color: "168,85,247", desc: "Everything except billing. Manage guests, edit event, invite team." },
+            { role: "Editor", color: "59,130,246", desc: "Edit event details and manage the guest list. No team access." },
+            { role: "Reception", color: "16,185,129", desc: "Check-in only. Search guests, mark arrivals. Perfect for door staff." },
+            { role: "Analytics", color: "245,158,11", desc: "View-only analytics. Share insights without exposing guest data." },
+          ].map((r) => (
+            <div key={r.role} style={{
+              padding: "14px 18px", borderRadius: 14,
+              background: `rgba(${r.color},0.03)`,
+              border: `1px solid rgba(${r.color},0.1)`,
+            }}>
+              <div style={{ fontSize: "clamp(14px, 1.6vw, 17px)", fontWeight: 700, color: `rgba(${r.color},0.8)`, marginBottom: 4 }}>{r.role}</div>
+              <div style={{ fontSize: "clamp(11px, 1.2vw, 14px)", color: "rgba(255,255,255,0.3)", lineHeight: 1.4 }}>{r.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+
+  // 9 — Built for
+  {
+    bg: "#05040a",
+    render: () => (
+      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", padding: "0 8%" }}>
+        <div style={{ fontSize: "clamp(12px, 1.4vw, 16px)", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 12, fontWeight: 600 }}>
           Built for
         </div>
-        <div style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 32 }}>
+        <div style={{ fontSize: "clamp(24px, 3.5vw, 42px)", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: 28 }}>
           Anyone who hosts.
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(clamp(180px, 25vw, 280px), 1fr))", gap: 12, maxWidth: 900 }}>
-          {[
-            { label: "Nightlife & clubs", desc: "Capacity control, VIP lists, door check-in" },
-            { label: "Private dinners", desc: "Seating management with time slots" },
-            { label: "Brand activations", desc: "Track reach and engagement per channel" },
-            { label: "Community events", desc: "Free RSVPs with waitlist overflow" },
-            { label: "Corporate events", desc: "Team roles and multi-host collaboration" },
-            { label: "Pop-ups & launches", desc: "One-time pages with full analytics" },
-          ].map((item, i) => (
-            <div key={i} style={{
-              padding: "14px 18px", borderRadius: 14,
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}>
-              <div style={{ fontSize: "clamp(14px, 1.6vw, 17px)", fontWeight: 600, color: "#fff", marginBottom: 4 }}>{item.label}</div>
-              <div style={{ fontSize: "clamp(12px, 1.2vw, 14px)", color: "rgba(255,255,255,0.3)", lineHeight: 1.4 }}>{item.desc}</div>
-            </div>
-          ))}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(clamp(200px, 26vw, 300px), 1fr))", gap: 10, maxWidth: 960 }}>
+          <FeatureCard title="Nightlife & clubs" desc="Capacity control, VIP lists, instant waitlist, door check-in with reception role." />
+          <FeatureCard title="Private dinners" desc="Time-slot seatings, per-slot capacity, dietary tracking, intimate guest management." />
+          <FeatureCard title="Brand activations" desc="Track reach per social channel, partner CTA clicks, audience insights." />
+          <FeatureCard title="Community events" desc="Free RSVPs, waitlist overflow, email campaigns to your growing audience." />
+          <FeatureCard title="Corporate events" desc="Multi-host collaboration, granular roles, paid ticketing, revenue tracking." />
+          <FeatureCard title="Pop-ups & launches" desc="One-time pages with full analytics. See what worked after it's over." />
         </div>
       </div>
     ),
   },
 
-  // 9 — CTA
+  // 10 — CTA
   {
     bg: "radial-gradient(ellipse at 50% 60%, rgba(192,192,192,0.1) 0%, transparent 50%), #05040a",
     render: () => (
@@ -287,14 +415,23 @@ const slides = [
         }}>
           Start creating events for free. No credit card required.
         </div>
-        <div style={{
-          padding: "16px 48px", borderRadius: 999,
-          background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-          color: "#111", fontSize: "clamp(14px, 1.8vw, 18px)", fontWeight: 700,
-          letterSpacing: "0.05em", textTransform: "uppercase",
-        }}>
+        <a
+          href="https://pullup.se"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            padding: "16px 48px", borderRadius: 999,
+            background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+            color: "#111", fontSize: "clamp(14px, 1.8vw, 18px)", fontWeight: 700,
+            letterSpacing: "0.05em", textTransform: "uppercase",
+            textDecoration: "none", display: "inline-block",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(192,192,192,0.3)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+        >
           pullup.se
-        </div>
+        </a>
       </div>
     ),
   },
@@ -338,7 +475,6 @@ export function AdminPresentationPage() {
       color: "#fff",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       overflow: "hidden",
-      cursor: "none",
     }}>
       {/* Slide content */}
       <div
@@ -351,41 +487,72 @@ export function AdminPresentationPage() {
         {slide.render()}
       </div>
 
-      {/* Click zones */}
+      {/* Click zones — pointer-events:none on slide content so links still work */}
       <div
         onClick={() => goTo(current - 1)}
-        style={{ position: "absolute", top: 0, left: 0, width: "20%", height: "100%", cursor: current > 0 ? "w-resize" : "default" }}
+        style={{ position: "absolute", top: 50, left: 0, width: "15%", bottom: 50, cursor: current > 0 ? "w-resize" : "default", zIndex: 5 }}
       />
       <div
         onClick={() => goTo(current + 1)}
-        style={{ position: "absolute", top: 0, right: 0, width: "80%", height: "100%", cursor: current < slides.length - 1 ? "e-resize" : "default" }}
+        style={{ position: "absolute", top: 50, right: 0, width: "15%", bottom: 50, cursor: current < slides.length - 1 ? "e-resize" : "default", zIndex: 5 }}
       />
 
-      {/* Progress dots */}
+      {/* Progress dots + export */}
       <div style={{
-        position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)",
-        display: "flex", gap: 6,
+        position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 10, zIndex: 50,
       }}>
-        {slides.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => goTo(i)}
-            style={{
-              width: i === current ? 24 : 6, height: 6, borderRadius: 3,
-              background: i === current ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.15)",
-              border: "none", padding: 0, cursor: "pointer",
-              transition: "all 0.3s ease",
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Slide counter */}
-      <div style={{
-        position: "absolute", bottom: 24, right: 28,
-        fontSize: "12px", color: "rgba(255,255,255,0.15)",
-      }}>
-        {current + 1} / {slides.length}
+        <div style={{ display: "flex", gap: 6 }}>
+          {slides.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              style={{
+                width: i === current ? 24 : 6, height: 6, borderRadius: 3,
+                background: i === current ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.15)",
+                border: "none", padding: 0, cursor: "pointer",
+                transition: "all 0.3s ease",
+              }}
+            />
+          ))}
+        </div>
+        <button
+          className="presentation-no-print"
+          onClick={() => {
+            const printWin = window.open("", "_blank");
+            if (!printWin) return;
+            printWin.document.write(`<!DOCTYPE html><html><head><title>PullUp — Presentation</title><style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { background: #05040a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+              @page { size: landscape; margin: 0; }
+              .slide { width: 100vw; height: 100vh; page-break-after: always; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; overflow: hidden; }
+              .slide:last-child { page-break-after: avoid; }
+            </style></head><body><div id="print-root"></div></body></html>`);
+            printWin.document.close();
+            const root = createRoot(printWin.document.getElementById("print-root"));
+            root.render(
+              slides.map((s, i) => (
+                <div key={i} className="slide" style={{ background: s.bg, color: "#fff" }}>
+                  {s.render()}
+                </div>
+              ))
+            );
+            setTimeout(() => { printWin.print(); }, 500);
+          }}
+          style={{
+            padding: "4px 12px", borderRadius: 999,
+            border: "none",
+            background: "transparent",
+            color: "rgba(255,255,255,0.2)",
+            fontSize: "11px", fontWeight: 500,
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.5)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.2)"; }}
+        >
+          Export PDF
+        </button>
       </div>
 
       {/* CSS animation */}

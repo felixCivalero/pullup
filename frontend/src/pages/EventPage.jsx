@@ -519,6 +519,10 @@ export function EventPage() {
           return { error: "This event is sold out — no more spots available." };
         }
 
+        if (res.status === 409 && err.error === "capacity_exceeded") {
+          return { error: "capacity_exceeded", capacityExceeded: true };
+        }
+
         if (res.status === 409 && err.error === "duplicate") {
           const existingRsvp = err.rsvp || {};
           const partySize = existingRsvp.partySize || 1;

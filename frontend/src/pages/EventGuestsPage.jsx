@@ -178,6 +178,7 @@ export function EventGuestsPage() {
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
   const [searchQuery, setSearchQuery] = useState(""); // Search query for guest name/email
+  const searchInputRef = useRef(null);
   const [showCancelled, setShowCancelled] = useState(false); // Toggle to show/hide cancelled guests
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
 
@@ -187,6 +188,13 @@ export function EventGuestsPage() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Auto-focus search on mobile for fast check-in flow
+  useEffect(() => {
+    if (window.innerWidth < 768 && searchInputRef.current) {
+      setTimeout(() => searchInputRef.current?.focus(), 300);
+    }
+  }, [loading]); // Re-focus after initial load completes
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
   const calendarDropdownRef = useRef(null);
 
@@ -1080,33 +1088,66 @@ export function EventGuestsPage() {
                 padding: "0 20px",
               }}
             >
-              <input
-                type="text"
-                placeholder="Search guests by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "14px 16px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgb(12 10 18 / 10%)",
-                  color: "#fff",
-                  fontSize: "16px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                  transition: "all 0.2s ease",
-                  backdropFilter: "blur(10px)",
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "rgba(192, 192, 192, 0.5)";
-                  e.target.style.background = "rgb(12 10 18 / 15%)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "rgba(255,255,255,0.05)";
-                  e.target.style.background = "rgb(12 10 18 / 10%)";
-                }}
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search guests by name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "14px 16px",
+                    paddingRight: searchQuery ? "44px" : "16px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgb(12 10 18 / 10%)",
+                    color: "#fff",
+                    fontSize: "16px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    transition: "all 0.2s ease",
+                    backdropFilter: "blur(10px)",
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "rgba(192, 192, 192, 0.5)";
+                    e.target.style.background = "rgb(12 10 18 / 15%)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "rgba(255,255,255,0.05)";
+                    e.target.style.background = "rgb(12 10 18 / 10%)";
+                  }}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                      searchInputRef.current?.focus();
+                    }}
+                    style={{
+                      position: "absolute",
+                      right: "8px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "rgba(255,255,255,0.1)",
+                      border: "none",
+                      borderRadius: "8px",
+                      width: "32px",
+                      height: "32px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      color: "rgba(255,255,255,0.5)",
+                      fontSize: "16px",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Show Cancelled Toggle */}
@@ -1853,6 +1894,11 @@ export function EventGuestsPage() {
           guest={pulledUpModalGuest}
           event={event}
           onClose={() => setPulledUpModalGuest(null)}
+          onCheckInComplete={() => {
+            setPulledUpModalGuest(null);
+            setSearchQuery("");
+            setTimeout(() => searchInputRef.current?.focus(), 100);
+          }}
           onSave={async (dinnerPullUpCount, cocktailOnlyPullUpCount) => {
             try {
               const res = await authenticatedFetch(

@@ -4059,8 +4059,8 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
   const alreadyArrived = alreadyCocktails + alreadyDinner;
   const remaining = Math.max(0, totalExpected - alreadyArrived);
 
-  // Counter state — defaults to remaining (max out)
-  const [checkInCount, setCheckInCount] = useState(remaining);
+  // Counter state — defaults to 1 (host taps + to add more)
+  const [checkInCount, setCheckInCount] = useState(Math.min(1, remaining));
   const [loading, setLoading] = useState(false);
 
   async function handleCheckIn() {
@@ -4143,15 +4143,22 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
           </div>
         )}
 
-        {/* Guest name + party size */}
+        {/* Guest name + email + party size */}
         <div style={{ textAlign: "center", marginBottom: "28px" }}>
           <div style={{
             fontSize: isMobileView ? "22px" : "20px",
             fontWeight: 700,
             color: "#fff",
-            marginBottom: "4px",
+            marginBottom: "2px",
           }}>
             {guest.name || "Guest"}
+          </div>
+          <div style={{
+            fontSize: "12px",
+            color: "rgba(255,255,255,0.25)",
+            marginBottom: "4px",
+          }}>
+            {guest.email}
           </div>
           <div style={{
             fontSize: "14px",
@@ -4251,7 +4258,7 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
             transition: "all 0.15s ease",
           }}
         >
-          {loading ? "Checking in..." : `Check in ${checkInCount}`}
+          {loading ? "Checking in..." : `Check in ${checkInCount}/${totalExpected}`}
         </button>
       </div>
     </div>

@@ -750,20 +750,6 @@ export function EventGuestsPage() {
     if (guest.bookingStatus !== "CONFIRMED" && guest.status !== "attending") {
       return;
     }
-    // Skip if everyone already arrived
-    const partySize = guest.partySize || 1;
-    const wantsDinner = guest.wantsDinner || guest.dinner?.enabled || false;
-    const dinnerPartySize = guest.dinnerPartySize || guest.dinner?.partySize || 0;
-    const dinnerConfirmed = guest.dinner?.bookingStatus === "CONFIRMED" || guest.dinnerStatus === "confirmed";
-    const plusOnes = guest.plusOnes ?? 0;
-    const cocktailsMax = wantsDinner && dinnerConfirmed ? plusOnes : partySize;
-    const totalExpected = (wantsDinner && dinnerConfirmed ? dinnerPartySize : 0) + cocktailsMax;
-    const cocktailsPulledUp = guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? 0;
-    const dinnerPulledUp = guest.dinnerPullUpCount ?? guest.pulledUpForDinner ?? 0;
-    const totalArrived = dinnerPulledUp + cocktailsPulledUp;
-    if (totalArrived >= totalExpected) {
-      return;
-    }
     setPulledUpModalGuest(guest);
   }
 
@@ -4061,8 +4047,10 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
   const alreadyArrived = alreadyCocktails + alreadyDinner;
   const remaining = Math.max(0, totalExpected - alreadyArrived);
 
-  // Counter state — defaults to 1 (host taps + to add more)
+  // Counter for checking in additional guests (only if there's room)
   const [checkInCount, setCheckInCount] = useState(Math.min(1, remaining));
+  // Counter for removing already-checked-in guests
+  const [removeCount, setRemoveCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
   async function handleCheckIn() {
@@ -4070,13 +4058,11 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
     setLoading(true);
 
     try {
-      // Distribute the check-in count across cocktails and dinner
       let toDistribute = checkInCount;
       let newCocktails = alreadyCocktails;
       let newDinner = alreadyDinner;
 
       if (wantsDinner && dinnerConfirmed) {
-        // For dinner guests: fill dinner slots first, overflow to cocktails
         const dinnerRemaining = dinnerPartySize - alreadyDinner;
         const dinnerAdd = Math.min(toDistribute, dinnerRemaining);
         newDinner += dinnerAdd;
@@ -4086,7 +4072,6 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
         const cocktailAdd = Math.min(toDistribute, cocktailRemaining);
         newCocktails += cocktailAdd;
       } else {
-        // No dinner: all go to cocktails counter
         const cocktailRemaining = cocktailsMax - alreadyCocktails;
         newCocktails += Math.min(toDistribute, cocktailRemaining);
       }
@@ -4098,6 +4083,39 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
         } else {
           onClose();
         }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRemove() {
+    if (removeCount <= 0) return;
+    setLoading(true);
+
+    try {
+      // Remove from cocktails first, then dinner (reverse of check-in order)
+      let toRemove = removeCount;
+      let newCocktails = alreadyCocktails;
+      let newDinner = alreadyDinner;
+
+      if (wantsDinner && dinnerConfirmed) {
+        // Remove from cocktails first
+        const cocktailRemove = Math.min(toRemove, newCocktails);
+        newCocktails -= cocktailRemove;
+        toRemove -= cocktailRemove;
+        // Then from dinner
+        const dinnerRemove = Math.min(toRemove, newDinner);
+        newDinner -= dinnerRemove;
+      } else {
+        newCocktails = Math.max(0, newCocktails - toRemove);
+      }
+
+      const success = await onSave(newDinner, newCocktails);
+      if (success) {
+        onClose();
       }
     } catch (err) {
       console.error(err);
@@ -4171,97 +4189,232 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
           </div>
         </div>
 
-        {/* Counter */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "16px",
-          marginBottom: "28px",
-        }}>
-          <button
-            type="button"
-            onClick={() => setCheckInCount(Math.max(0, checkInCount - 1))}
-            disabled={checkInCount <= 0}
-            style={{
-              width: btnSize, height: btnSize,
-              borderRadius: "14px",
-              border: "none",
-              background: checkInCount <= 0
-                ? "rgba(255, 255, 255, 0.05)"
-                : "rgba(255, 255, 255, 0.1)",
-              color: checkInCount <= 0
-                ? "rgba(255, 255, 255, 0.2)"
-                : "#fff",
-              fontSize: btnFontSize, fontWeight: 600,
-              cursor: checkInCount <= 0 ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.15s ease",
-              WebkitTapHighlightColor: "transparent",
-            }}
-          >
-            −
-          </button>
+        {/* Remove section — only show when someone is already checked in */}
+        {alreadyArrived > 0 && (
           <div style={{
-            fontSize: counterFontSize,
-            fontWeight: 700,
-            color: "#fff",
-            minWidth: "60px",
-            textAlign: "center",
+            background: "rgba(239, 68, 68, 0.06)",
+            border: "1px solid rgba(239, 68, 68, 0.15)",
+            borderRadius: "16px",
+            padding: "16px",
+            marginBottom: "16px",
           }}>
-            {checkInCount}
+            <div style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "rgba(239, 68, 68, 0.8)",
+              textAlign: "center",
+              marginBottom: "12px",
+            }}>
+              Remove checked-in guests
+            </div>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "16px",
+              marginBottom: removeCount > 0 ? "12px" : "0",
+            }}>
+              <button
+                type="button"
+                onClick={() => setRemoveCount(Math.max(0, removeCount - 1))}
+                disabled={removeCount <= 0}
+                style={{
+                  width: isMobileView ? "52px" : "44px",
+                  height: isMobileView ? "52px" : "44px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: removeCount <= 0
+                    ? "rgba(255, 255, 255, 0.05)"
+                    : "rgba(239, 68, 68, 0.15)",
+                  color: removeCount <= 0
+                    ? "rgba(255, 255, 255, 0.2)"
+                    : "#ef4444",
+                  fontSize: btnFontSize, fontWeight: 600,
+                  cursor: removeCount <= 0 ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.15s ease",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                −
+              </button>
+              <div style={{
+                fontSize: isMobileView ? "28px" : "24px",
+                fontWeight: 700,
+                color: removeCount > 0 ? "#ef4444" : "rgba(255,255,255,0.3)",
+                minWidth: "50px",
+                textAlign: "center",
+              }}>
+                {removeCount}
+              </div>
+              <button
+                type="button"
+                onClick={() => setRemoveCount(Math.min(alreadyArrived, removeCount + 1))}
+                disabled={removeCount >= alreadyArrived}
+                style={{
+                  width: isMobileView ? "52px" : "44px",
+                  height: isMobileView ? "52px" : "44px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: removeCount >= alreadyArrived
+                    ? "rgba(255, 255, 255, 0.05)"
+                    : "rgba(239, 68, 68, 0.15)",
+                  color: removeCount >= alreadyArrived
+                    ? "rgba(255, 255, 255, 0.2)"
+                    : "#ef4444",
+                  fontSize: btnFontSize, fontWeight: 600,
+                  cursor: removeCount >= alreadyArrived ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.15s ease",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                +
+              </button>
+            </div>
+            {removeCount > 0 && (
+              <button
+                type="button"
+                onClick={handleRemove}
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: isMobileView ? "14px" : "12px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                  color: "#fff",
+                  fontSize: isMobileView ? "15px" : "14px",
+                  fontWeight: 700,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.7 : 1,
+                  WebkitTapHighlightColor: "transparent",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {loading ? "Removing..." : `Remove ${removeCount}`}
+              </button>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => setCheckInCount(Math.min(remaining, checkInCount + 1))}
-            disabled={checkInCount >= remaining}
-            style={{
-              width: btnSize, height: btnSize,
-              borderRadius: "14px",
-              border: "none",
-              background: checkInCount >= remaining
-                ? "rgba(255, 255, 255, 0.05)"
-                : "rgba(255, 255, 255, 0.1)",
-              color: checkInCount >= remaining
-                ? "rgba(255, 255, 255, 0.2)"
-                : "#fff",
-              fontSize: btnFontSize, fontWeight: 600,
-              cursor: checkInCount >= remaining ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.15s ease",
-              WebkitTapHighlightColor: "transparent",
-            }}
-          >
-            +
-          </button>
-        </div>
+        )}
 
-        {/* Check in button */}
-        <button
-          type="button"
-          onClick={handleCheckIn}
-          disabled={loading || checkInCount <= 0}
-          style={{
-            width: "100%",
-            padding: isMobileView ? "18px" : "16px",
-            borderRadius: "14px",
-            border: "none",
-            background: checkInCount <= 0
-              ? "rgba(255, 255, 255, 0.05)"
-              : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            color: checkInCount <= 0
-              ? "rgba(255, 255, 255, 0.3)"
-              : "#fff",
-            fontSize: isMobileView ? "17px" : "16px",
-            fontWeight: 700,
-            cursor: loading || checkInCount <= 0 ? "not-allowed" : "pointer",
-            opacity: loading ? 0.7 : 1,
-            WebkitTapHighlightColor: "transparent",
-            transition: "all 0.15s ease",
-          }}
-        >
-          {loading ? "Checking in..." : `Check in ${checkInCount}/${totalExpected}`}
-        </button>
+        {/* Add more section — only show when there's room */}
+        {remaining > 0 && (
+          <>
+            {alreadyArrived > 0 && (
+              <div style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "rgba(16, 185, 129, 0.8)",
+                textAlign: "center",
+                marginBottom: "12px",
+              }}>
+                Check in more
+              </div>
+            )}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "16px",
+              marginBottom: "28px",
+            }}>
+              <button
+                type="button"
+                onClick={() => setCheckInCount(Math.max(0, checkInCount - 1))}
+                disabled={checkInCount <= 0}
+                style={{
+                  width: btnSize, height: btnSize,
+                  borderRadius: "14px",
+                  border: "none",
+                  background: checkInCount <= 0
+                    ? "rgba(255, 255, 255, 0.05)"
+                    : "rgba(255, 255, 255, 0.1)",
+                  color: checkInCount <= 0
+                    ? "rgba(255, 255, 255, 0.2)"
+                    : "#fff",
+                  fontSize: btnFontSize, fontWeight: 600,
+                  cursor: checkInCount <= 0 ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.15s ease",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                −
+              </button>
+              <div style={{
+                fontSize: counterFontSize,
+                fontWeight: 700,
+                color: "#fff",
+                minWidth: "60px",
+                textAlign: "center",
+              }}>
+                {checkInCount}
+              </div>
+              <button
+                type="button"
+                onClick={() => setCheckInCount(Math.min(remaining, checkInCount + 1))}
+                disabled={checkInCount >= remaining}
+                style={{
+                  width: btnSize, height: btnSize,
+                  borderRadius: "14px",
+                  border: "none",
+                  background: checkInCount >= remaining
+                    ? "rgba(255, 255, 255, 0.05)"
+                    : "rgba(255, 255, 255, 0.1)",
+                  color: checkInCount >= remaining
+                    ? "rgba(255, 255, 255, 0.2)"
+                    : "#fff",
+                  fontSize: btnFontSize, fontWeight: 600,
+                  cursor: checkInCount >= remaining ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.15s ease",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                +
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCheckIn}
+              disabled={loading || checkInCount <= 0}
+              style={{
+                width: "100%",
+                padding: isMobileView ? "18px" : "16px",
+                borderRadius: "14px",
+                border: "none",
+                background: checkInCount <= 0
+                  ? "rgba(255, 255, 255, 0.05)"
+                  : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                color: checkInCount <= 0
+                  ? "rgba(255, 255, 255, 0.3)"
+                  : "#fff",
+                fontSize: isMobileView ? "17px" : "16px",
+                fontWeight: 700,
+                cursor: loading || checkInCount <= 0 ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+                WebkitTapHighlightColor: "transparent",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {loading ? "Checking in..." : `Check in ${checkInCount}/${totalExpected}`}
+            </button>
+          </>
+        )}
+
+        {/* If fully checked in and no remaining, just show the remove section above */}
+        {remaining <= 0 && alreadyArrived <= 0 && (
+          <div style={{
+            textAlign: "center",
+            fontSize: "14px",
+            color: "rgba(255,255,255,0.4)",
+            padding: "8px 0",
+          }}>
+            No guests to check in
+          </div>
+        )}
       </div>
     </div>
   );

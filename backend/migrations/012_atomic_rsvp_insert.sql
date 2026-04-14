@@ -15,7 +15,7 @@ CREATE OR REPLACE FUNCTION atomic_rsvp_insert(
   p_dinner_time_slot TEXT,
   p_dinner_party_size INTEGER,
   p_total_guests INTEGER,
-  p_payment_id TEXT,
+  p_payment_id UUID,
   p_payment_status TEXT,
   p_dinner_pull_up_count INTEGER,
   p_cocktail_only_pull_up_count INTEGER,

@@ -82,7 +82,7 @@ import {
 } from "./services/emailService.js";
 import {
   signupConfirmationEmail,
-  reminder8hEmail,
+  reminder24hEmail,
   reservationEmail,
   waitlistOfferEmail,
   refundEmail,
@@ -94,6 +94,7 @@ import {
 } from "./utils/waitlistTokens.js";
 import { processSesEvent } from "./email/events/processSesEvent.js";
 import { handleProviderEvent, enqueueOutbox } from "./email/index.js";
+import { sendEmail as infraSendEmail } from "./email/index.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
 
 // Load environment variables once. NODE_ENV can come from the process
@@ -10084,4 +10085,91 @@ app.listen(PORT, async () => {
       console.error("[Cleanup] Unexpected error:", err.message);
     }
   }, CLEANUP_INTERVAL_MS);
+
+  /* ── 24-hour event reminder emails ────────────────────── */
+  const REMINDER_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+  const REMINDER_WINDOW_MS  = 25 * 60 * 60 * 1000; // 25 hours
+
+  async function sendEventReminders() {
+    try {
+      const { supabase } = await import("./supabase.js");
+      const now = new Date();
+      const windowEnd = new Date(now.getTime() + REMINDER_WINDOW_MS);
+
+      // 1. Find published events starting in the next 25 hours
+      const { data: events, error: eventsErr } = await supabase
+        .from("events")
+        .select("id, title, slug, starts_at, timezone, location, cover_image_url, image_url, host_id")
+        .eq("status", "PUBLISHED")
+        .gt("starts_at", now.toISOString())
+        .lt("starts_at", windowEnd.toISOString());
+
+      if (eventsErr) {
+        console.error("[Reminders] Error fetching events:", eventsErr.message);
+        return;
+      }
+      if (!events || events.length === 0) return;
+
+      for (const event of events) {
+        // 2. Get confirmed RSVPs with person details
+        const { data: rsvps, error: rsvpErr } = await supabase
+          .from("rsvps")
+          .select(`
+            id, person_id,
+            people:person_id ( id, name, email )
+          `)
+          .eq("event_id", event.id)
+          .eq("booking_status", "CONFIRMED");
+
+        if (rsvpErr) {
+          console.error(`[Reminders] Error fetching RSVPs for event ${event.id}:`, rsvpErr.message);
+          continue;
+        }
+        if (!rsvps || rsvps.length === 0) continue;
+
+        // 3. Fetch host branding
+        let hostBrand = {};
+        try {
+          const hostProfile = await getUserProfile(event.host_id);
+          hostBrand = {
+            brandName: hostProfile?.brand || "",
+            brandWebsite: hostProfile?.brandWebsite || "",
+            contactEmail: hostProfile?.contactEmail || "",
+          };
+        } catch {}
+
+        // 4. Send reminder to each guest
+        for (const rsvp of rsvps) {
+          const person = rsvp.people;
+          if (!person?.email) continue;
+
+          const idempotencyKey = `reminder-24h-${event.id}-${person.id}`;
+          try {
+            await infraSendEmail({
+              to: person.email,
+              subject: `"${event.title}" is tomorrow!`,
+              html: reminder24hEmail({
+                name: person.name || "there",
+                eventTitle: event.title,
+                startsAt: event.starts_at,
+                timezone: event.timezone || "",
+                imageUrl: event.cover_image_url || event.image_url || "",
+                location: event.location || "",
+                slug: event.slug || "",
+                frontendUrl: getFrontendUrl(),
+                ...hostBrand,
+              }),
+              idempotencyKey,
+            });
+          } catch (err) {
+            console.error(`[Reminders] Failed to send reminder to ${person.email} for event ${event.id}:`, err.message);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[Reminders] Unexpected error in sendEventReminders:", err.message);
+    }
+  }
+
+  setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
 });

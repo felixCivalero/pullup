@@ -93,8 +93,7 @@ import {
   verifyWaitlistToken,
 } from "./utils/waitlistTokens.js";
 import { processSesEvent } from "./email/events/processSesEvent.js";
-import { handleProviderEvent, enqueueOutbox } from "./email/index.js";
-import { sendEmail as infraSendEmail } from "./email/index.js";
+import { handleProviderEvent, enqueueOutbox, sendEmail as infraSendEmail } from "./email/index.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
 
 // Load environment variables once. NODE_ENV can come from the process

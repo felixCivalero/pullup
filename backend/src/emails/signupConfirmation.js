@@ -221,12 +221,13 @@ ${emailFooter({ message: isWaitlist ? "If spots open up, you'll receive a notifi
 }
 
 /* ══════════════════════════════════════════
-   8-HOUR REMINDER EMAIL
+   24-HOUR REMINDER EMAIL
    ══════════════════════════════════════════ */
-export function reminder8hEmail({
+export function reminder24hEmail({
   name,
   eventTitle,
-  time,
+  startsAt = "",
+  timezone = "",
   imageUrl = "",
   location = "",
   slug = "",
@@ -235,6 +236,7 @@ export function reminder8hEmail({
   brandWebsite = "",
   contactEmail = "",
 }) {
+  const dateFormatted = startsAt ? niceDate(startsAt, timezone) : "";
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
 
   const content = `
@@ -256,7 +258,7 @@ ${imageUrl ? `<!-- Event Image -->
 <!-- Message -->
 <tr><td style="padding:8px 20px;text-align:center;">
   <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
-    Hi ${name}, <strong>${eventTitle}</strong> starts in about 8 hours.
+    Hi ${name}, <strong>${eventTitle}</strong> is tomorrow!
   </p>
 </td></tr>
 
@@ -265,7 +267,7 @@ ${imageUrl ? `<!-- Event Image -->
   <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:rgba(255,255,255,0.04);border:1px solid ${SUBTLE};border-radius:12px;">
     <tr><td style="padding:14px 20px;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation">
-        ${time ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${MUTED};">Start</td><td style="font-size:14px;color:${WHITE};font-weight:600;">${time}</td></tr>` : ""}
+        ${dateFormatted ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${MUTED};">When</td><td style="font-size:14px;color:${WHITE};font-weight:600;">${dateFormatted}</td></tr>` : ""}
         ${location ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${MUTED};">Where</td><td style="font-size:14px;color:${WHITE};font-weight:600;">${location}</td></tr>` : ""}
       </table>
     </td></tr>
@@ -277,7 +279,7 @@ ${imageUrl ? `<!-- Event Image -->
   ${ctaButton(eventUrl, "VIEW EVENT")}
 </td></tr>
 
-${emailFooter({ message: "See you soon!", brandName, brandWebsite, contactEmail, frontendUrl })}`;
+${emailFooter({ message: "See you tomorrow!", brandName, brandWebsite, contactEmail, frontendUrl })}`;
 
   return emailShell(content);
 }

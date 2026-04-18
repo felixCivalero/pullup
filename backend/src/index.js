@@ -10170,5 +10170,5 @@ app.listen(PORT, async () => {
     }
   }
 
-  setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
+  // setInterval(sendEventReminders, REMINDER_INTERVAL_MS); // PAUSED — uncomment to re-enable reminder emails
 });

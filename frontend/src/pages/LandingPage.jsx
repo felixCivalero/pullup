@@ -368,10 +368,6 @@ export function LandingPage() {
           60% { opacity: 0.6; }
           100% { opacity: 0; transform: translateY(6px); }
         }
-        @media (max-width: 720px) {
-          .showcase-grid { grid-template-columns: 1fr !important; }
-          .showcase-grid > * { order: unset !important; }
-        }
       `}</style>
       {/* ─── NAV ─── */}
       <nav

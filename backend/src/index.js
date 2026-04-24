@@ -9401,6 +9401,49 @@ app.post("/t/pageview", async (req, res) => {
   }
 });
 
+// POST /t/event — public, no auth, records a landing-page funnel event.
+// Keyed by the same visitor_id localStorage value used by /t/pageview so the
+// funnel can be joined together in landing_page_events.
+app.post("/t/event", async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { visitorId, eventName, source, deviceType, props } = req.body || {};
+    if (!visitorId || !eventName) {
+      return res.status(400).json({ error: "visitorId and eventName are required" });
+    }
+    // Whitelist: prevents a compromised frontend from flooding the table
+    // with arbitrary event names.
+    const ALLOWED = new Set(["cta_click", "auth_start", "signed_in"]);
+    if (!ALLOWED.has(eventName)) {
+      return res.status(400).json({ error: "unknown eventName" });
+    }
+    // Dedup: same visitor + event within 2s absorbs double-taps.
+    const twoSecAgo = new Date(Date.now() - 2000).toISOString();
+    const { data: recent } = await supabase
+      .from("landing_page_events")
+      .select("id")
+      .eq("visitor_id", visitorId)
+      .eq("event_name", eventName)
+      .gte("created_at", twoSecAgo)
+      .limit(1);
+    if (recent && recent.length > 0) {
+      return res.json({ ok: true, deduplicated: true });
+    }
+    const { error: insertErr } = await supabase.from("landing_page_events").insert({
+      visitor_id: visitorId,
+      event_name: eventName,
+      source: source || null,
+      device_type: deviceType || null,
+      props: props || null,
+    });
+    if (insertErr) throw insertErr;
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[event] error:", err.message);
+    return res.status(500).json({ error: "Failed to record event" });
+  }
+});
+
 // GET /admin/analytics/pageviews — daily page views for a date range
 app.get("/admin/analytics/pageviews", requireAdmin, async (req, res) => {
   try {
@@ -9664,6 +9707,119 @@ app.get("/admin/platform-events/:id/guests", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("[admin/platform-events/guests] error:", err.message);
     return res.status(500).json({ error: "Failed to fetch guests" });
+  }
+});
+
+// ---------------------------
+// Admin: Landing page conversion funnel
+// ---------------------------
+// GET /admin/analytics/landing-funnel?days=14
+// Returns unique-visitor counts for each funnel stage over the period,
+// plus a by-source breakdown so we can see which channels convert.
+//
+// Stages (ordered):
+//   1. view         — unique visitors in landing_page_views
+//   2. cta_click    — clicked the hero or nav CTA
+//   3. auth_start   — submitted email form OR clicked Continue with Google
+//   4. signed_in    — actually made it to /events signed in
+//
+// Same visitor_id is counted at most once per stage, so the numbers are
+// strictly monotonically non-increasing — later stages only count visitors
+// who also hit the earlier ones.
+app.get("/admin/analytics/landing-funnel", requireAdmin, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { days = "14" } = req.query;
+    const numDays = Math.min(Math.max(parseInt(days) || 14, 1), 365);
+
+    const periodEnd = new Date();
+    const periodStart = new Date();
+    periodStart.setDate(periodStart.getDate() - numDays + 1);
+    periodStart.setHours(0, 0, 0, 0);
+
+    const [viewsRes, eventsRes] = await Promise.all([
+      supabase
+        .from("landing_page_views")
+        .select("visitor_id, source")
+        .gte("created_at", periodStart.toISOString())
+        .lte("created_at", periodEnd.toISOString()),
+      supabase
+        .from("landing_page_events")
+        .select("visitor_id, event_name")
+        .gte("created_at", periodStart.toISOString())
+        .lte("created_at", periodEnd.toISOString()),
+    ]);
+
+    if (viewsRes.error) throw viewsRes.error;
+    if (eventsRes.error) throw eventsRes.error;
+
+    const views = viewsRes.data || [];
+    const events = eventsRes.data || [];
+
+    // Build per-stage visitor sets. Enforce monotonic funnel: a visitor
+    // only counts at a later stage if they also hit the earlier ones.
+    const viewers = new Set(views.map((v) => v.visitor_id).filter(Boolean));
+    const visitorSource = {};
+    for (const v of views) {
+      if (!v.visitor_id) continue;
+      // first seen source wins (landing_page_views inserts are ordered by time)
+      if (!(v.visitor_id in visitorSource)) visitorSource[v.visitor_id] = v.source || "direct";
+    }
+
+    const clickers = new Set();
+    const authStarters = new Set();
+    const signedIn = new Set();
+    for (const e of events) {
+      if (!e.visitor_id) continue;
+      if (!viewers.has(e.visitor_id)) continue; // enforce funnel — must have viewed
+      if (e.event_name === "cta_click") clickers.add(e.visitor_id);
+      else if (e.event_name === "auth_start") authStarters.add(e.visitor_id);
+      else if (e.event_name === "signed_in") signedIn.add(e.visitor_id);
+    }
+    // Downstream stages must be subsets of upstream
+    const clickersFinal = clickers;
+    const authStartersFinal = new Set([...authStarters].filter((v) => clickersFinal.has(v)));
+    const signedInFinal = new Set([...signedIn].filter((v) => authStartersFinal.has(v)));
+
+    const stages = [
+      { key: "view", label: "Viewed", count: viewers.size },
+      { key: "cta_click", label: "Clicked CTA", count: clickersFinal.size },
+      { key: "auth_start", label: "Started signup", count: authStartersFinal.size },
+      { key: "signed_in", label: "Signed in", count: signedInFinal.size },
+    ];
+    for (let i = 0; i < stages.length; i++) {
+      const prev = i === 0 ? stages[0].count : stages[i - 1].count;
+      stages[i].pctOfView = stages[0].count > 0
+        ? Math.round((stages[i].count / stages[0].count) * 1000) / 10
+        : 0;
+      stages[i].pctOfPrev = prev > 0
+        ? Math.round((stages[i].count / prev) * 1000) / 10
+        : 0;
+    }
+
+    // By-source breakdown: split each stage by the visitor's first-seen source
+    const sourceOf = (visitorId) => visitorSource[visitorId] || "direct";
+    const bySource = {};
+    const upsert = (src, key) => {
+      if (!bySource[src]) bySource[src] = { view: 0, cta_click: 0, auth_start: 0, signed_in: 0 };
+      bySource[src][key] += 1;
+    };
+    for (const vid of viewers) upsert(sourceOf(vid), "view");
+    for (const vid of clickersFinal) upsert(sourceOf(vid), "cta_click");
+    for (const vid of authStartersFinal) upsert(sourceOf(vid), "auth_start");
+    for (const vid of signedInFinal) upsert(sourceOf(vid), "signed_in");
+    const sources = Object.entries(bySource)
+      .map(([source, counts]) => ({ source, ...counts }))
+      .sort((a, b) => b.view - a.view);
+
+    return res.json({
+      periodDays: numDays,
+      stages,
+      sources,
+    });
+  } catch (err) {
+    console.error("[admin/landing-funnel] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch funnel" });
   }
 });
 

@@ -19,6 +19,7 @@ export function AnalyticsPage() {
   const [pvDays, setPvDays] = useState(30);
   const [pvShowPrevious, setPvShowPrevious] = useState(true);
   const [partnerClicks, setPartnerClicks] = useState(null);
+  const [funnel, setFunnel] = useState(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/");
@@ -57,6 +58,15 @@ export function AnalyticsPage() {
   useEffect(() => {
     if (user) fetchPageviews();
   }, [user, fetchPageviews]);
+
+  // Landing-page conversion funnel — reuses the same day selector as pageviews.
+  useEffect(() => {
+    if (!user) return;
+    authenticatedFetch(`/admin/analytics/landing-funnel?days=${pvDays}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setFunnel(d); })
+      .catch(() => {});
+  }, [user, pvDays]);
 
   useEffect(() => {
     if (!user) return;
@@ -194,6 +204,113 @@ export function AnalyticsPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Landing page conversion funnel */}
+        {funnel && funnel.stages && funnel.stages[0].count > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <SectionLabel>Conversion Funnel</SectionLabel>
+            <div style={{
+              borderRadius: 14,
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              padding: "16px",
+            }}>
+              <div style={{
+                fontSize: 11,
+                color: "rgba(255,255,255,0.4)",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                marginBottom: 12,
+              }}>
+                Landing → account · last {funnel.periodDays}d
+              </div>
+
+              {funnel.stages.map((s, i) => {
+                const widthPct = funnel.stages[0].count > 0
+                  ? Math.max(2, (s.count / funnel.stages[0].count) * 100)
+                  : 0;
+                const isLeak = i > 0 && s.pctOfPrev < 100;
+                return (
+                  <div key={s.key} style={{ marginBottom: i === funnel.stages.length - 1 ? 0 : 10 }}>
+                    <div style={{
+                      display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4,
+                    }}>
+                      <span style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{s.label}</span>
+                      <span style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>{s.count}</span>
+                      <span style={{ flex: 1 }} />
+                      {i > 0 && (
+                        <span style={{
+                          fontSize: 11,
+                          color: isLeak ? "rgba(255,255,255,0.45)" : "rgba(135,211,124,0.8)",
+                        }}>
+                          {s.pctOfPrev}% of previous
+                        </span>
+                      )}
+                      <span style={{
+                        fontSize: 11, color: "rgba(255,255,255,0.35)", minWidth: 46, textAlign: "right",
+                      }}>
+                        {s.pctOfView}% of view
+                      </span>
+                    </div>
+                    <div style={{
+                      height: 8,
+                      borderRadius: 4,
+                      background: "rgba(255,255,255,0.04)",
+                      overflow: "hidden",
+                    }}>
+                      <div style={{
+                        width: `${widthPct}%`,
+                        height: "100%",
+                        background: s.key === "signed_in"
+                          ? "linear-gradient(90deg, rgba(251,191,36,0.9), rgba(251,191,36,0.6))"
+                          : "linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.2))",
+                        transition: "width 0.4s ease",
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+
+              {funnel.sources && funnel.sources.length > 0 && (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{
+                    fontSize: 10, color: "rgba(255,255,255,0.35)",
+                    letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8,
+                  }}>
+                    By source
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {funnel.sources.map((s) => {
+                      const rate = s.view > 0
+                        ? Math.round((s.signed_in / s.view) * 1000) / 10
+                        : 0;
+                      return (
+                        <div key={s.source} style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "5px 10px", borderRadius: 8,
+                          background: "rgba(255,255,255,0.02)",
+                          fontSize: 12,
+                        }}>
+                          <span style={{ color: "rgba(255,255,255,0.65)", flex: 1 }}>{s.source}</span>
+                          <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                            {s.view} → {s.cta_click} → {s.auth_start} → {s.signed_in}
+                          </span>
+                          <span style={{
+                            fontWeight: 600,
+                            color: rate > 0 ? colors.gold : "rgba(255,255,255,0.3)",
+                            minWidth: 46, textAlign: "right",
+                          }}>
+                            {rate}%
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

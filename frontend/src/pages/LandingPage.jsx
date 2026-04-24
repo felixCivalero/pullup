@@ -35,8 +35,8 @@ const LOGOS = [
   // Colour logos (Cliff Barnes orange) and already-white logos (Zoda) render untouched.
   { type: "image", src: "/landing/logos/soho-house.png", alt: "Soho House", invert: true },
   { type: "image", src: "/landing/logos/doberman.png", alt: "EY Doberman", invert: true },
-  { type: "image", src: "/zoda_logotype_white.webp", alt: "Zoda" },
   { type: "image", src: "/landing/logos/cliff-barnes.svg", alt: "Cliff Barnes Bränneri" },
+  { type: "image", src: "/zoda_logotype_white.webp", alt: "Zoda" },
   { type: "image", src: "/landing/logos/showlighters.png", alt: "Showlighters" },
 ];
 

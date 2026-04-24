@@ -390,7 +390,7 @@ export function LandingPage() {
         }
         .logo-marquee-item {
           flex: none;
-          height: 42px;
+          height: 52px;
           display: flex;
           align-items: center;
           justify-content: center;

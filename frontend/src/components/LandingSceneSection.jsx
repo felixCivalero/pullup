@@ -106,6 +106,25 @@ export default function LandingSceneSection({ onSignupClick }) {
         margin: "0 auto",
       }}
     >
+      <style>{`
+        @media (max-width: 720px) {
+          .landing-scene-grid {
+            display: flex !important;
+            grid-template-columns: unset !important;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            gap: 12px;
+            padding: 0 16px;
+            margin: 0 -24px;
+            scrollbar-width: none;
+          }
+          .landing-scene-grid::-webkit-scrollbar { display: none; }
+          .landing-scene-grid > * {
+            flex: 0 0 80%;
+            scroll-snap-align: center;
+          }
+        }
+      `}</style>
       <div
         style={{
           textAlign: "center",

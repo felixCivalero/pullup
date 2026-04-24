@@ -10,10 +10,47 @@ import { colors } from "../theme/colors.js";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
 
 /* ─── helpers ─── */
+
+// Shared with /t/pageview so one persistent id keys every funnel event.
+function getVisitorId() {
+  try {
+    let id = localStorage.getItem("pullup_visitor_id");
+    if (!id) {
+      id = typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem("pullup_visitor_id", id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+// Fire-and-forget. Whitelisted funnel events also POST to /t/event so they
+// land in landing_page_events and show up in admin analytics. Unknown names
+// stay gtag-only so debug pings don't hit the DB.
+const FUNNEL_EVENTS = new Set(["cta_click", "auth_start", "signed_in"]);
 function trackEvent(name, props) {
   try {
     if (window.gtag) window.gtag("event", name, props);
   } catch {}
+  if (!FUNNEL_EVENTS.has(name)) return;
+  try {
+    const visitorId = getVisitorId();
+    if (!visitorId) return;
+    publicFetch("/t/event", {
+      method: "POST",
+      body: JSON.stringify({
+        visitorId,
+        eventName: name,
+        deviceType: typeof window !== "undefined" && window.innerWidth < 768 ? "mobile" : "desktop",
+        props: props || null,
+      }),
+    }).catch(() => {});
+  } catch {
+    // swallow — tracking must never break the page
+  }
 }
 
 const inputStyle = {
@@ -91,8 +128,14 @@ export function LandingPage() {
   const [formError, setFormError] = useState("");
   const [authConsent, setAuthConsent] = useState(false);
 
+  // Pass `location` ("hero" | "nav") so the funnel can attribute which CTA
+  // surface drove the click.
   const handleSignupClick = useCallback(
-    () => (user ? navigate("/events") : setShowAuth(true)),
+    (location) => {
+      trackEvent("cta_click", { location, user_logged_in: !!user });
+      if (user) navigate("/events");
+      else setShowAuth(true);
+    },
     [user, navigate],
   );
 
@@ -215,13 +258,8 @@ export function LandingPage() {
 
   useEffect(() => {
     // Generate or retrieve a persistent visitor ID
-    let visitorId = localStorage.getItem("pullup_visitor_id");
-    if (!visitorId) {
-      visitorId = typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      localStorage.setItem("pullup_visitor_id", visitorId);
-    }
+    const visitorId = getVisitorId();
+    if (!visitorId) return;
     publicFetch("/t/pageview", {
       method: "POST",
       body: JSON.stringify({
@@ -253,6 +291,7 @@ export function LandingPage() {
       search.includes("code=");
     if (justCompletedOAuth) {
       sessionStorage.removeItem("pullup_signin_pending");
+      trackEvent("signed_in", { via: pendingFlag ? "google" : "auto" });
       navigate("/events", { replace: true });
     }
   }, [user, navigate]);
@@ -273,12 +312,14 @@ export function LandingPage() {
       return;
     }
     trackEvent("landing_email_login_submit", { user_logged_in: !!user });
+    trackEvent("auth_start", { method: "email" });
     try {
       setSigningIn(true);
       await signInWithEmailPassword(email.trim(), password);
       authenticatedFetch("/auth/record-consent", { method: "POST" }).catch(
         () => {},
       );
+      trackEvent("signed_in", { via: "email" });
       navigate("/events");
     } catch (error) {
       const msg = (error?.message || "").toLowerCase();
@@ -307,6 +348,7 @@ export function LandingPage() {
       return;
     }
     trackEvent("landing_google_continue_click", { user_logged_in: !!user });
+    trackEvent("auth_start", { method: "google" });
     if (user) {
       navigate("/events");
       return;
@@ -471,7 +513,7 @@ export function LandingPage() {
           </span>
         </div>
         <button
-          onClick={handleSignupClick}
+          onClick={() => handleSignupClick("nav")}
           style={{
             padding: "8px 22px",
             borderRadius: "999px",
@@ -665,7 +707,7 @@ export function LandingPage() {
           </p>
 
           <button
-            onClick={handleSignupClick}
+            onClick={() => handleSignupClick("hero")}
             style={{
               padding: "14px 36px",
               borderRadius: "999px",

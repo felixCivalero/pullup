@@ -330,10 +330,12 @@ export function LandingPage() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        height: "100dvh",
+        display: "flex",
+        flexDirection: "column",
         background: colors.background,
         color: "#fff",
-        overflowX: "hidden",
+        overflow: "hidden",
         position: "relative",
       }}
     >
@@ -441,15 +443,14 @@ export function LandingPage() {
       {/* ─── HERO ─── */}
       <section
         style={{
-          height: "calc(100dvh - 80px)",
-          maxHeight: 720,
-          minHeight: 400,
+          flex: 1,
+          minHeight: 0,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           textAlign: "center",
-          padding: "72px clamp(20px, 5vw, 40px) 48px",
+          padding: "72px clamp(20px, 5vw, 40px) 24px",
           position: "relative",
         }}
       >
@@ -639,73 +640,24 @@ export function LandingPage() {
       <footer
         style={{
           position: "relative",
-          overflow: "hidden",
-          borderTop: "1px solid rgba(255,255,255,0.06)",
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.01) 0%, rgba(255,255,255,0.03) 100%)",
-          padding:
-            "clamp(36px, 6vh, 56px) clamp(16px, 5vw, 40px) clamp(20px, 3vh, 32px)",
+          zIndex: 2,
+          padding: "10px 16px calc(10px + env(safe-area-inset-bottom))",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "clamp(10px, 3vw, 20px)",
+          flexWrap: "wrap",
+          fontSize: 11,
+          color: "rgba(255,255,255,0.25)",
         }}
       >
-        {/* Ambient gold glow */}
-        <div
-          style={{
-            position: "absolute",
-            top: "-40%",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "min(600px, 90vw)",
-            height: 300,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(192,192,192,0.06) 0%, rgba(192,192,192,0.02) 40%, transparent 70%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <div
-          style={{
-            position: "relative",
-            zIndex: 1,
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            paddingTop: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "clamp(12px, 3vw, 24px)",
-            flexWrap: "wrap",
-            fontSize: 11,
-            color: "rgba(255,255,255,0.2)",
-          }}
-        >
-          <span>pullup &copy; {new Date().getFullYear()}</span>
-          <span style={{ opacity: 0.3 }}>&middot;</span>
-          <a
-            href="/privacy"
-            style={{ color: "rgba(255,255,255,0.25)", textDecoration: "none" }}
-          >
-            Privacy
-          </a>
-          <a
-            href="/terms"
-            style={{ color: "rgba(255,255,255,0.25)", textDecoration: "none" }}
-          >
-            Terms
-          </a>
-          <a
-            href="/cookies"
-            style={{ color: "rgba(255,255,255,0.25)", textDecoration: "none" }}
-          >
-            Cookies
-          </a>
-          <span style={{ opacity: 0.3 }}>&middot;</span>
-          <a
-            href="mailto:hello@pullup.se"
-            style={{ color: "rgba(255,255,255,0.25)", textDecoration: "none" }}
-          >
-            hello@pullup.se
-          </a>
-        </div>
+        <span>pullup &copy; {new Date().getFullYear()}</span>
+        <span style={{ opacity: 0.4 }}>&middot;</span>
+        <a href="/privacy" style={{ color: "inherit", textDecoration: "none" }}>Privacy</a>
+        <a href="/terms" style={{ color: "inherit", textDecoration: "none" }}>Terms</a>
+        <a href="/cookies" style={{ color: "inherit", textDecoration: "none" }}>Cookies</a>
+        <span style={{ opacity: 0.4 }}>&middot;</span>
+        <a href="mailto:hello@pullup.se" style={{ color: "inherit", textDecoration: "none" }}>hello@pullup.se</a>
       </footer>
 
       {/* ─── AUTH MODAL ─── */}

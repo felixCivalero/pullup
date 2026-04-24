@@ -4,52 +4,36 @@ const EVENTS = [
   {
     title: "Vernissage: Colors of May",
     meta: "Stockholm · Fri",
-    image: "/landing/scene/scene-1.jpg",
-    unsplashFallback:
-      "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&q=70",
+    image: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&q=70",
   },
   {
     title: "Rooftop listening session",
     meta: "Stockholm · Sat",
-    image: "/landing/scene/scene-2.jpg",
-    unsplashFallback:
-      "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=70",
+    image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=70",
   },
   {
     title: "Late dinner, Södermalm",
     meta: "Stockholm · Sun",
-    image: "/landing/scene/scene-3.jpg",
-    unsplashFallback:
-      "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&q=70",
+    image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&q=70",
   },
   {
     title: "Film screening + Q&A",
     meta: "Göteborg · Thu",
-    image: "/landing/scene/scene-4.jpg",
-    unsplashFallback:
-      "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=70",
+    image: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=70",
   },
   {
     title: "Winter swim + sauna",
     meta: "Malmö · Sat",
-    image: "/landing/scene/scene-5.jpg",
-    unsplashFallback:
-      "https://images.unsplash.com/photo-1540962351504-03099e0a754b?w=800&q=70",
+    image: "https://images.unsplash.com/photo-1540962351504-03099e0a754b?w=800&q=70",
   },
   {
     title: "Studio opening",
     meta: "Stockholm · Fri",
-    image: "/landing/scene/scene-6.jpg",
-    unsplashFallback:
-      "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&q=70",
+    image: "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&q=70",
   },
 ];
 
-// Toggle at runtime if bundled images aren't present — simpler than a build flag
-const USE_UNSPLASH_FALLBACK = true;
-
 function Card({ event }) {
-  const src = USE_UNSPLASH_FALLBACK ? event.unsplashFallback : event.image;
   return (
     <div
       className="landing-scene-card"
@@ -65,7 +49,7 @@ function Card({ event }) {
       <div
         style={{
           aspectRatio: "16 / 10",
-          background: `url(${src}) center/cover no-repeat, rgba(255,255,255,0.04)`,
+          background: `url(${event.image}) center/cover no-repeat, rgba(255,255,255,0.04)`,
         }}
       />
       <div style={{ padding: "12px 14px 14px" }}>
@@ -106,6 +90,7 @@ export default function LandingSceneSection({ onSignupClick }) {
         margin: "0 auto",
       }}
     >
+      {/* margin: 0 -24px below must match the section's horizontal padding (24px) so cards bleed to the viewport edge */}
       <style>{`
         @media (max-width: 720px) {
           .landing-scene-grid {

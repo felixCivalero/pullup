@@ -84,6 +84,11 @@ export function LandingPage() {
   const [formError, setFormError] = useState("");
   const [authConsent, setAuthConsent] = useState(false);
 
+  const handleSignupClick = useCallback(
+    () => (user ? navigate("/events") : setShowAuth(true)),
+    [user, navigate],
+  );
+
   const [scrolled, setScrolled] = useState(false);
 
   const heroRef = useRef(null);
@@ -415,7 +420,7 @@ export function LandingPage() {
           </span>
         </div>
         <button
-          onClick={() => (user ? navigate("/events") : setShowAuth(true))}
+          onClick={handleSignupClick}
           style={{
             padding: "8px 22px",
             borderRadius: "999px",
@@ -611,7 +616,7 @@ export function LandingPage() {
           </p>
 
           <button
-            onClick={() => (user ? navigate("/events") : setShowAuth(true))}
+            onClick={handleSignupClick}
             style={{
               padding: "14px 36px",
               borderRadius: "999px",
@@ -691,7 +696,7 @@ export function LandingPage() {
       </section>
 
       <LandingSceneSection
-        onSignupClick={() => (user ? navigate("/events") : setShowAuth(true))}
+        onSignupClick={handleSignupClick}
       />
 
       {/* ─── FINAL CTA ─── */}
@@ -739,7 +744,7 @@ export function LandingPage() {
           </p>
 
           <button
-            onClick={() => (user ? navigate("/events") : setShowAuth(true))}
+            onClick={handleSignupClick}
             style={{
               padding: "16px 44px",
               borderRadius: "999px",
@@ -1107,7 +1112,7 @@ export function LandingPage() {
       {!showAuth && (
         <LandingStickyMobileCta
           heroRef={heroRef}
-          onSignupClick={() => (user ? navigate("/events") : setShowAuth(true))}
+          onSignupClick={handleSignupClick}
         />
       )}
     </div>

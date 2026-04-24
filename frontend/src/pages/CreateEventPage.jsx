@@ -1090,61 +1090,6 @@ export function CreateEventPage() {
     showToast(`Media added! It will be uploaded when you ${isEditMode ? "save" : "create the event"}.`, "success");
   }
 
-  // Pick up pre-loaded content from landing page DemoEditor
-  useEffect(() => {
-    if (isEditMode) return;
-    try {
-      // Pre-loaded image (cover photo uploaded on landing page)
-      const preloadImage = sessionStorage.getItem("pullup_editor_preload_image");
-      if (preloadImage) {
-        sessionStorage.removeItem("pullup_editor_preload_image");
-        fetch(preloadImage)
-          .then(res => res.blob())
-          .then(blob => {
-            const file = new File([blob], "cover.jpg", { type: blob.type || "image/jpeg" });
-            handleMediaAdd([file]);
-          })
-          .catch(() => {});
-      }
-
-      // Pre-loaded data (title, location, text, spotify, startStep)
-      const preloadRaw = sessionStorage.getItem("pullup_editor_preload_data");
-      if (preloadRaw) {
-        sessionStorage.removeItem("pullup_editor_preload_data");
-        const data = JSON.parse(preloadRaw);
-        if (data.title) setTitle(data.title);
-        if (data.location) setLocation(data.location);
-        // Update sections with preloaded content
-        setSections(prev => {
-          const updated = [...prev];
-          if (data.textContent) {
-            const textIdx = updated.findIndex(s => s.type === "text");
-            if (textIdx >= 0) {
-              updated[textIdx] = { ...updated[textIdx], text: data.textContent };
-            }
-          }
-          if (data.spotifyUrl && !updated.some(s => s.type === "spotify")) {
-            updated.push({ type: "spotify", url: data.spotifyUrl });
-          } else if (data.spotifyUrl) {
-            const spotIdx = updated.findIndex(s => s.type === "spotify");
-            if (spotIdx >= 0) updated[spotIdx] = { ...updated[spotIdx], url: data.spotifyUrl };
-          }
-          return updated;
-        });
-        // Auto-reveal: start on Media (step 1) to show uploaded photo,
-        // pulse the Details tab after 1.2s, then switch to it at 2s
-        if (data.autoRevealDetails) {
-          setCurrentStep(1);
-          setTimeout(() => setDetailsTabPulse(true), 1200);
-          setTimeout(() => {
-            setDetailsTabPulse(false);
-            goToStep(2);
-          }, 2200);
-        }
-      }
-    } catch {}
-  }, []);
-
   function handleMediaRemove(id) {
     // If editing and item is already on server, delete it
     const item = mediaFiles.find((m) => m.id === id);

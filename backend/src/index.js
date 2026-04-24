@@ -10137,7 +10137,23 @@ app.listen(PORT, async () => {
           };
         } catch {}
 
-        // 4. Send reminder to each guest
+        // 4. Resolve cover image to full public URL (DB stores relative paths)
+        let resolvedImageUrl = event.cover_image_url || event.image_url || "";
+        if (resolvedImageUrl && !resolvedImageUrl.startsWith("http")) {
+          try {
+            let imgPath = resolvedImageUrl;
+            if (resolvedImageUrl.includes("event-images/")) {
+              const match = resolvedImageUrl.match(/event-images\/([^?]+)/);
+              if (match) imgPath = match[1];
+            }
+            const { data: { publicUrl } } = supabase.storage.from("event-images").getPublicUrl(imgPath);
+            if (publicUrl) resolvedImageUrl = publicUrl;
+          } catch (e) {
+            console.error(`[Reminders] Error resolving image URL for event ${event.id}:`, e.message);
+          }
+        }
+
+        // 5. Send reminder to each guest
         for (const rsvp of rsvps) {
           const person = rsvp.people;
           if (!person?.email) continue;
@@ -10152,7 +10168,7 @@ app.listen(PORT, async () => {
                 eventTitle: event.title,
                 startsAt: event.starts_at,
                 timezone: event.timezone || "",
-                imageUrl: event.cover_image_url || event.image_url || "",
+                imageUrl: resolvedImageUrl,
                 location: event.location || "",
                 slug: event.slug || "",
                 frontendUrl: getFrontendUrl(),

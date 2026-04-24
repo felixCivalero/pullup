@@ -10,6 +10,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
 import LandingSceneSection from "../components/LandingSceneSection";
+import LandingStickyMobileCta from "../components/LandingStickyMobileCta";
 
 /* ─── helpers ─── */
 function trackEvent(name, props) {
@@ -84,6 +85,8 @@ export function LandingPage() {
   const [authConsent, setAuthConsent] = useState(false);
 
   const [scrolled, setScrolled] = useState(false);
+
+  const heroRef = useRef(null);
 
   /* ─── golden particle canvas ─── */
   const canvasRef = useRef(null);
@@ -444,6 +447,7 @@ export function LandingPage() {
 
       {/* ─── HERO ─── */}
       <section
+        ref={heroRef}
         style={{
           height: "calc(100dvh - 80px)",
           maxHeight: 720,
@@ -1099,6 +1103,11 @@ export function LandingPage() {
           </div>
         </div>
       )}
+
+      <LandingStickyMobileCta
+        heroRef={heroRef}
+        onSignupClick={() => (user ? navigate("/events") : setShowAuth(true))}
+      />
     </div>
   );
 }

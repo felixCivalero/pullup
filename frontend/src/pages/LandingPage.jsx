@@ -1104,10 +1104,12 @@ export function LandingPage() {
         </div>
       )}
 
-      <LandingStickyMobileCta
-        heroRef={heroRef}
-        onSignupClick={() => (user ? navigate("/events") : setShowAuth(true))}
-      />
+      {!showAuth && (
+        <LandingStickyMobileCta
+          heroRef={heroRef}
+          onSignupClick={() => (user ? navigate("/events") : setShowAuth(true))}
+        />
+      )}
     </div>
   );
 }

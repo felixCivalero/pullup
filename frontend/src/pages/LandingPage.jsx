@@ -31,12 +31,13 @@ const inputStyle = {
 const ROTATING_WORDS = ["people", "life", "culture", "art"];
 
 const LOGOS = [
-  { type: "image", src: "/landing/logos/soho-house.png", alt: "Soho House" },
-  { type: "image", src: "/landing/logos/doberman.png", alt: "EY Doberman" },
-  { type: "image", src: "/zoda_logotype_white.webp", alt: "Zoda", noInvert: true },
+  // `invert: true` for dark-on-transparent logos that need to flip to white on the dark bg.
+  // Colour logos (Cliff Barnes orange) and already-white logos (Zoda) render untouched.
+  { type: "image", src: "/landing/logos/soho-house.png", alt: "Soho House", invert: true },
+  { type: "image", src: "/landing/logos/doberman.png", alt: "EY Doberman", invert: true },
+  { type: "image", src: "/zoda_logotype_white.webp", alt: "Zoda" },
   { type: "image", src: "/landing/logos/cliff-barnes.png", alt: "Cliff Barnes Bränneri" },
   { type: "text", label: "SHOWLIGHTERS" },
-  { type: "image", src: "/landing/logos/logo-white.png", alt: "Logo", noInvert: true },
 ];
 
 /* ─── generic reveal wrapper ─── */
@@ -389,21 +390,23 @@ export function LandingPage() {
         }
         .logo-marquee-item {
           flex: none;
-          height: 30px;
+          height: 42px;
           display: flex;
           align-items: center;
           justify-content: center;
-          opacity: 0.55;
+          opacity: 0.75;
           transition: opacity 0.2s;
         }
         .logo-marquee-item:hover {
-          opacity: 0.85;
+          opacity: 1;
         }
         .logo-marquee-item img {
           height: 100%;
           width: auto;
-          filter: brightness(0) invert(1);
           display: block;
+        }
+        .logo-marquee-item img.invert {
+          filter: brightness(0) invert(1);
         }
         .logo-marquee-item .logo-text {
           color: #fff;
@@ -690,7 +693,7 @@ export function LandingPage() {
                 <img
                   src={logo.src}
                   alt={logo.alt}
-                  style={logo.noInvert ? { filter: "none" } : undefined}
+                  className={logo.invert ? "invert" : undefined}
                 />
               ) : (
                 <span className="logo-text">{logo.label}</span>

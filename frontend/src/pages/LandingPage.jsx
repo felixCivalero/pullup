@@ -30,6 +30,15 @@ const inputStyle = {
 
 const ROTATING_WORDS = ["people", "life", "culture", "art"];
 
+const LOGOS = [
+  { type: "image", src: "/landing/logos/soho-house.png", alt: "Soho House" },
+  { type: "image", src: "/landing/logos/doberman.png", alt: "EY Doberman" },
+  { type: "image", src: "/zoda_logotype_white.webp", alt: "Zoda", noInvert: true },
+  { type: "image", src: "/landing/logos/cliff-barnes.png", alt: "Cliff Barnes Bränneri" },
+  { type: "text", label: "SHOWLIGHTERS" },
+  { type: "image", src: "/landing/logos/logo-white.png", alt: "Logo", noInvert: true },
+];
+
 /* ─── generic reveal wrapper ─── */
 function Reveal({ children, delay = 0, y = 24 }) {
   const [ref, visible] = useReveal(0.12);
@@ -361,11 +370,47 @@ export function LandingPage() {
           from { -webkit-transform: translateZ(-0.625em) rotateX(0deg); transform: translateZ(-0.625em) rotateX(0deg); }
           to { -webkit-transform: translateZ(-0.625em) rotateX(-360deg); transform: translateZ(-0.625em) rotateX(-360deg); }
         }
-        @keyframes scroll-chevron {
-          0% { opacity: 0; transform: translateY(-4px); }
-          30% { opacity: 0.6; }
-          60% { opacity: 0.6; }
-          100% { opacity: 0; transform: translateY(6px); }
+        @keyframes logo-marquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        .logo-marquee {
+          overflow: hidden;
+          padding: 14px 0;
+          -webkit-mask-image: linear-gradient(to right, transparent 0, #000 8%, #000 92%, transparent 100%);
+          mask-image: linear-gradient(to right, transparent 0, #000 8%, #000 92%, transparent 100%);
+        }
+        .logo-marquee-track {
+          display: flex;
+          align-items: center;
+          gap: clamp(32px, 6vw, 64px);
+          width: max-content;
+          animation: logo-marquee 38s linear infinite;
+        }
+        .logo-marquee-item {
+          flex: none;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0.55;
+          transition: opacity 0.2s;
+        }
+        .logo-marquee-item:hover {
+          opacity: 0.85;
+        }
+        .logo-marquee-item img {
+          height: 100%;
+          width: auto;
+          filter: brightness(0) invert(1);
+          display: block;
+        }
+        .logo-marquee-item .logo-text {
+          color: #fff;
+          font-size: 14px;
+          font-weight: 700;
+          letter-spacing: 0.22em;
+          white-space: nowrap;
         }
       `}</style>
       {/* ─── NAV ─── */}
@@ -635,6 +680,25 @@ export function LandingPage() {
           </button>
         </div>
       </section>
+
+      {/* ─── TRUST LOGOS MARQUEE ─── */}
+      <div className="logo-marquee" style={{ position: "relative", zIndex: 2 }}>
+        <div className="logo-marquee-track">
+          {[...LOGOS, ...LOGOS].map((logo, i) => (
+            <div className="logo-marquee-item" key={i}>
+              {logo.type === "image" ? (
+                <img
+                  src={logo.src}
+                  alt={logo.alt}
+                  style={logo.noInvert ? { filter: "none" } : undefined}
+                />
+              ) : (
+                <span className="logo-text">{logo.label}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* ─── FOOTER ─── */}
       <footer

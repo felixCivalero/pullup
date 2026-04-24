@@ -233,18 +233,26 @@ export function LandingPage() {
     }).catch(() => {});
   }, []);
 
-  // Don't auto-redirect logged-in users — let them browse the landing page.
-  // EXCEPT: if they just completed an OAuth flow (tokens in URL), send them
-  // straight to the dashboard so they don't have to click Login again.
+  // Don't auto-redirect logged-in users browsing the landing page casually.
+  // But if they JUST signed in from this page, send them to the dashboard.
+  // Three signals that we just completed a sign-in:
+  //   1. OAuth tokens still in the URL (desktop — Supabase hasn't cleaned yet)
+  //   2. OAuth `code=` in query (PKCE flow)
+  //   3. Our own `pullup_signin_pending` flag set right before the OAuth
+  //      redirect (mobile — Supabase scrubs the hash before React sees it,
+  //      so signals 1 and 2 miss; this flag is the reliable path)
   useEffect(() => {
     if (!user) return;
     const hash = window.location.hash || "";
     const search = window.location.search || "";
+    const pendingFlag = sessionStorage.getItem("pullup_signin_pending") === "1";
     const justCompletedOAuth =
+      pendingFlag ||
       hash.includes("access_token") ||
       hash.includes("refresh_token") ||
       search.includes("code=");
     if (justCompletedOAuth) {
+      sessionStorage.removeItem("pullup_signin_pending");
       navigate("/events", { replace: true });
     }
   }, [user, navigate]);
@@ -305,8 +313,13 @@ export function LandingPage() {
     }
     try {
       setSigningIn(true);
+      // Flag picked up by the user-state useEffect when we return signed in,
+      // so the dashboard redirect works even if Supabase has already scrubbed
+      // the OAuth tokens from the URL (common on mobile Safari).
+      sessionStorage.setItem("pullup_signin_pending", "1");
       await signInWithGoogle("/events");
     } catch {
+      sessionStorage.removeItem("pullup_signin_pending");
       setFormError("Google sign-in failed. Please try again.");
       setSigningIn(false);
     }

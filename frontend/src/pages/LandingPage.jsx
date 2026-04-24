@@ -635,6 +635,23 @@ export function LandingPage() {
           >
             Create your account <ArrowRight size={18} />
           </button>
+          <a
+            href="#live-on-pullup"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById("live-on-pullup")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            style={{
+              display: "inline-block",
+              marginTop: 16,
+              color: "rgba(255,255,255,0.6)",
+              fontSize: 14,
+              textDecoration: "none",
+              letterSpacing: "0.02em",
+            }}
+          >
+            see what's happening ↓
+          </a>
         </div>
 
         {/* ─── Scroll indicator ─── */}

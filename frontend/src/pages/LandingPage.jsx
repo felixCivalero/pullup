@@ -633,7 +633,7 @@ export function LandingPage() {
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
-            Create your first event <ArrowRight size={18} />
+            Create your account <ArrowRight size={18} />
           </button>
         </div>
 
@@ -695,7 +695,7 @@ export function LandingPage() {
                 color: "transparent",
               }}
             >
-              Start building.
+              Pullup.
             </span>
           </h2>
           <p
@@ -740,7 +740,7 @@ export function LandingPage() {
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
-            Create your first event <ArrowRight size={18} />
+            Create your account <ArrowRight size={18} />
           </button>
         </section>
       </Reveal>

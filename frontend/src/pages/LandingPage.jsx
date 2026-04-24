@@ -4,13 +4,10 @@ import {
   ArrowRight,
   X,
   Sparkles,
-  ChevronDown,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
-import LandingSceneSection from "../components/LandingSceneSection";
-import LandingStickyMobileCta from "../components/LandingStickyMobileCta";
 
 /* ─── helpers ─── */
 function trackEvent(name, props) {
@@ -91,7 +88,6 @@ export function LandingPage() {
 
   const [scrolled, setScrolled] = useState(false);
 
-  const heroRef = useRef(null);
 
   /* ─── golden particle canvas ─── */
   const canvasRef = useRef(null);
@@ -331,14 +327,6 @@ export function LandingPage() {
     </svg>
   );
 
-  const sp = {
-    padding: "clamp(40px, 6vh, 72px) clamp(16px, 5vw, 40px)",
-    maxWidth: 1100,
-    margin: "0 auto",
-    width: "100%",
-    boxSizing: "border-box",
-  };
-
   return (
     <div
       style={{
@@ -452,7 +440,6 @@ export function LandingPage() {
 
       {/* ─── HERO ─── */}
       <section
-        ref={heroRef}
         style={{
           height: "calc(100dvh - 80px)",
           maxHeight: 720,
@@ -645,136 +632,8 @@ export function LandingPage() {
           >
             Create your account <ArrowRight size={18} />
           </button>
-          <a
-            href="#live-on-pullup"
-            onClick={(e) => {
-              e.preventDefault();
-              document.getElementById("live-on-pullup")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            style={{
-              display: "inline-block",
-              marginTop: 16,
-              color: "rgba(255,255,255,0.6)",
-              fontSize: 14,
-              textDecoration: "none",
-              letterSpacing: "0.02em",
-            }}
-          >
-            see what's happening ↓
-          </a>
-        </div>
-
-        {/* ─── Scroll indicator ─── */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 24,
-            left: "50%",
-            transform: "translateX(-50%)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            opacity: scrolled ? 0 : 1,
-            transition: "opacity 0.4s",
-            pointerEvents: "none",
-            zIndex: 2,
-          }}
-        >
-          {[0, 1, 2].map((i) => (
-            <ChevronDown
-              key={i}
-              size={22}
-              color="#fff"
-              style={{
-                opacity: 0,
-                animation: `scroll-chevron 1.8s ease-in-out ${i * 0.2}s infinite`,
-                marginTop: i > 0 ? -8 : 0,
-              }}
-            />
-          ))}
         </div>
       </section>
-
-      <LandingSceneSection
-        onSignupClick={handleSignupClick}
-      />
-
-      {/* ─── FINAL CTA ─── */}
-      <Reveal>
-        <section
-          style={{
-            ...sp,
-            textAlign: "center",
-            paddingBottom: "clamp(48px, 8vh, 80px)",
-          }}
-        >
-          <h2
-            style={{
-              fontSize: "clamp(24px, 5vw, 38px)",
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              marginBottom: 12,
-            }}
-          >
-            Yes.{" "}
-            <span
-              style={{
-                background: colors.gradientPrimary,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-                color: "transparent",
-              }}
-            >
-              Pullup.
-            </span>
-          </h2>
-          <p
-            style={{
-              fontSize: "clamp(14px, 2.5vw, 17px)",
-              color: "rgba(255,255,255,0.5)",
-              marginBottom: 24,
-              maxWidth: 440,
-              marginLeft: "auto",
-              marginRight: "auto",
-              lineHeight: 1.5,
-            }}
-          >
-            Your next event is already in your head. Put it out there.
-          </p>
-
-          <button
-            onClick={handleSignupClick}
-            style={{
-              padding: "16px 44px",
-              borderRadius: "999px",
-              border: "none",
-              background: colors.gradientPrimary,
-              color: "#111",
-              fontSize: 17,
-              fontWeight: 700,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              boxShadow: "0 8px 32px rgba(192,192,192,0.18)",
-              transition: "box-shadow 0.3s, transform 0.3s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow =
-                "0 8px 32px rgba(192,192,192,0.18), 0 0 28px rgba(251,191,36,0.25), 0 0 56px rgba(251,191,36,0.1)";
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow =
-                "0 8px 32px rgba(192,192,192,0.18)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            Create your account <ArrowRight size={18} />
-          </button>
-        </section>
-      </Reveal>
 
       {/* ─── FOOTER ─── */}
       <footer
@@ -1109,12 +968,6 @@ export function LandingPage() {
         </div>
       )}
 
-      {!showAuth && (
-        <LandingStickyMobileCta
-          heroRef={heroRef}
-          onSignupClick={handleSignupClick}
-        />
-      )}
     </div>
   );
 }

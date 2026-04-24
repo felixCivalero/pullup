@@ -9,6 +9,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
+import LandingSceneSection from "../components/LandingSceneSection";
 
 /* ─── helpers ─── */
 function trackEvent(name, props) {
@@ -684,6 +685,10 @@ export function LandingPage() {
           ))}
         </div>
       </section>
+
+      <LandingSceneSection
+        onSignupClick={() => (user ? navigate("/events") : setShowAuth(true))}
+      />
 
       {/* ─── FINAL CTA ─── */}
       <Reveal>

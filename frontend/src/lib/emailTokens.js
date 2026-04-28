@@ -26,16 +26,15 @@ export function tokensToLabels(text, tokens = TOKENS) {
 }
 
 // Convert display value (with [Label]) → stored value (with {{token}}).
-// Used when reading an input's value back into state.
+// Skip any [Label] immediately followed by `(` so markdown-style links
+// (e.g. `[click here](https://...)`) are preserved as-is.
 export function labelsToTokens(text, tokens = TOKENS) {
   if (typeof text !== "string" || !text) return text || "";
-  // Build a regex that matches any [Label] from the token list, longest-first
-  // so multi-word labels match before any prefix.
   const sorted = [...tokens].sort((a, b) => b.label.length - a.label.length);
   let out = text;
   for (const t of sorted) {
     const escaped = t.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    out = out.replace(new RegExp(`\\[${escaped}\\]`, "g"), `{{${t.key}}}`);
+    out = out.replace(new RegExp(`\\[${escaped}\\](?!\\()`, "g"), `{{${t.key}}}`);
   }
   return out;
 }
@@ -64,4 +63,35 @@ export function applyTokens(text, ctx) {
     const k = key.toLowerCase();
     return Object.prototype.hasOwnProperty.call(ctx, k) ? ctx[k] : "";
   });
+}
+
+export function isAllowedUrl(url) {
+  return typeof url === "string" && /^(https?:|mailto:)/i.test(url.trim());
+}
+
+// Parse a string into an array of segments — either { type: "text", text }
+// or { type: "link", label, url, safe }. Used by the canvas to render
+// tokens + [label](url) links as React nodes.
+export function parseInlineSegments(text, ctx) {
+  const substituted = applyTokens(text || "", ctx);
+  const linkRe = /\[([^\]\n]+)\]\(([^)\s]+)\)/g;
+  const out = [];
+  let lastIdx = 0;
+  let m;
+  while ((m = linkRe.exec(substituted)) !== null) {
+    if (m.index > lastIdx) {
+      out.push({ type: "text", text: substituted.slice(lastIdx, m.index) });
+    }
+    const safe = isAllowedUrl(m[2]);
+    if (safe) {
+      out.push({ type: "link", label: m[1], url: m[2].trim() });
+    } else {
+      out.push({ type: "text", text: m[0] });
+    }
+    lastIdx = m.index + m[0].length;
+  }
+  if (lastIdx < substituted.length) {
+    out.push({ type: "text", text: substituted.slice(lastIdx) });
+  }
+  return out;
 }

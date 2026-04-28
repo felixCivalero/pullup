@@ -299,6 +299,76 @@ function testEmptyGreetingOmitsParagraph() {
 }
 testEmptyGreetingOmitsParagraph();
 
+function testLinkSyntaxRenders() {
+  console.log("🧪 [label](url) renders as <a href>");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "text", style: "paragraph", text: "Maila mig på [alex](mailto:alex@cliff.se) tack!" }],
+      signoff: "",
+    },
+    person: { name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes('href="mailto:alex@cliff.se"'), "mailto href present");
+  assert(html.includes(">alex</a>"), "label rendered as link text");
+  assert(html.includes("Maila mig på "), "surrounding text preserved");
+  assert(html.includes(" tack!"), "trailing text preserved");
+}
+testLinkSyntaxRenders();
+
+function testHttpLinksWork() {
+  console.log("🧪 https links render");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "text", style: "paragraph", text: "See [our site](https://pullup.se)." }],
+      signoff: "",
+    },
+    person: { name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes('href="https://pullup.se"'), "https href present");
+  assert(html.includes(">our site</a>"), "label rendered");
+}
+testHttpLinksWork();
+
+function testUnsafeSchemesRejected() {
+  console.log("🧪 javascript:/data: schemes are NOT rendered as <a>");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "text", style: "paragraph", text: "click [me](javascript:alert(1))" }],
+      signoff: "",
+    },
+    person: { name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(!html.includes("<a"), "no anchor tag emitted");
+  assert(!/href\s*=/.test(html), "no href attribute emitted");
+}
+testUnsafeSchemesRejected();
+
+function testLinksWorkWithTokens() {
+  console.log("🧪 token + link in same text resolves");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "text", style: "paragraph", text: "Hi {{first_name}}, [reply here](mailto:a@b.se)" }],
+      signoff: "",
+    },
+    person: { name: "Felix Civalero" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("Hi Felix,"), "token resolved");
+  assert(html.includes('href="mailto:a@b.se"'), "link rendered");
+}
+testLinksWorkWithTokens();
+
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
   process.exit(1);

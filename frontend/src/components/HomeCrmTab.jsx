@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Loader2,
   Search,
   Download,
   Upload,
-  Mail,
   Users,
   CircleDollarSign,
   CreditCard,
@@ -51,8 +49,7 @@ function formatCurrency(amount, currency = "SEK") {
 
 const PAGE_SIZE = 20;
 
-export function CrmTab() {
-  const navigate = useNavigate();
+export function CrmTab({ onSegmentChange }) {
   const { showToast } = useToast();
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -142,22 +139,21 @@ export function CrmTab() {
     return () => { cancelled = true; };
   }, [searchQuery, filters, page, showToast, events, baselineTotal]);
 
-  // Open "Send campaign" modal and load concrete recipients for current segment
-  function openSendModal() {
-    if (!total) {
-      showToast("There are no contacts in this view to send to.", "error");
-      return;
-    }
-    const params = new URLSearchParams();
-    if (searchQuery) params.append("search", searchQuery);
-    if (filters.attendedEventIds && Array.isArray(filters.attendedEventIds) && filters.attendedEventIds.length > 0) {
-      params.append("attendedEventIds", filters.attendedEventIds.join(","));
-    }
-    if (filters.hasDinner !== undefined) {
-      params.append("hasDinner", filters.hasDinner.toString());
-    }
-    navigate(`/crm/compose?${params.toString()}`);
-  }
+  // Push current segment selection up to the parent (CrmPage). Runs whenever
+  // search, filters, or total change so the Email tab + Send button stay in sync.
+  useEffect(() => {
+    if (!onSegmentChange) return;
+    const filterCriteria = {
+      search: searchQuery || undefined,
+      attendedEventIds:
+        filters.attendedEventIds && filters.attendedEventIds.length > 0
+          ? filters.attendedEventIds
+          : undefined,
+      hasDinner: filters.hasDinner !== undefined ? filters.hasDinner : undefined,
+      eventsAttendedMin: 0,
+    };
+    onSegmentChange({ filterCriteria, total });
+  }, [searchQuery, filters, total, onSegmentChange]);
 
   // Load detailed touchpoints (campaign history etc.) for a single person
   async function loadPersonDetails(personId) {
@@ -741,45 +737,8 @@ export function CrmTab() {
               </div>
             </div>
 
-            {/* Segment CTA */}
-            <div
-              style={{
-                marginLeft: "auto",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                type="button"
-                onClick={openSendModal}
-                style={{
-                  padding: "9px 20px",
-                  borderRadius: "10px",
-                  border: "none",
-                  background: total
-                    ? "linear-gradient(135deg, rgba(34,197,94,0.25), rgba(34,197,94,0.12))"
-                    : "rgba(255,255,255,0.04)",
-                  color: total ? "#4ade80" : "rgba(255,255,255,0.3)",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  cursor: total ? "pointer" : "not-allowed",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  boxShadow: total
-                    ? "0 0 0 1px rgba(34,197,94,0.3), 0 4px 12px rgba(0,0,0,0.3)"
-                    : "none",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                <SilverIcon as={Mail} size={16} />
-                Compose for {total ? total.toLocaleString() : 0} {total === 1 ? "recipient" : "recipients"} →
-              </button>
-            </div>
           </div>{" "}
-          {/* End filters + CTA row */}
+          {/* End filters row */}
         </div>
 
         {/* Saved Views Tabs */}

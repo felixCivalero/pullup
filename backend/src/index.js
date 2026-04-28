@@ -5361,6 +5361,15 @@ function validateFollowupTemplateContent(tc) {
       if (b.width !== undefined && (typeof b.width !== "number" || b.width < 25 || b.width > 100)) return `block ${i}: width must be 25-100`;
       if (b.align !== undefined && !["left", "center", "right"].includes(b.align)) return `block ${i}: align must be left/center/right`;
       if (b.aspectRatio !== undefined && !["original", "banner", "square", "portrait"].includes(b.aspectRatio)) return `block ${i}: aspectRatio must be original/banner/square/portrait`;
+    } else if (b.type === "socials") {
+      if (!Array.isArray(b.links)) return `block ${i}: socials.links must be an array`;
+      for (let j = 0; j < b.links.length; j += 1) {
+        const l = b.links[j];
+        if (!l || typeof l !== "object") return `block ${i}: socials.links[${j}] not an object`;
+        if (typeof l.label !== "string" || l.label.trim() === "") return `block ${i}: socials.links[${j}].label required`;
+        if (typeof l.url !== "string" || !/^https?:\/\//i.test(l.url)) return `block ${i}: socials.links[${j}].url must be http(s)`;
+      }
+      if (b.align !== undefined && !["left", "center", "right"].includes(b.align)) return `block ${i}: align must be left/center/right`;
     } else if (b.type === "button") {
       if (typeof b.text !== "string" || b.text.trim() === "") return `block ${i}: button text required`;
       if (typeof b.url !== "string" || !/^https?:\/\//.test(b.url)) return `block ${i}: button url must be http(s)`;

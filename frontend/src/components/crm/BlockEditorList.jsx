@@ -1,15 +1,17 @@
-import { Type, Image as ImageIcon, MousePointerClick, Aperture } from "lucide-react";
+import { Type, Image as ImageIcon, MousePointerClick, Aperture, AtSign } from "lucide-react";
 import TextBlockEditor from "./blocks/TextBlockEditor";
 import ImageBlockEditor from "./blocks/ImageBlockEditor";
 import ButtonBlockEditor from "./blocks/ButtonBlockEditor";
+import SocialsBlockEditor from "./blocks/SocialsBlockEditor";
 
-const TYPE_LABEL = { text: "Text", image: "Image", button: "Button" };
+const TYPE_LABEL = { text: "Text", image: "Image", button: "Button", socials: "Socials" };
 
 const ADD_ITEMS = [
   { type: "text", icon: Type, label: "Text" },
   { type: "image", icon: ImageIcon, label: "Image" },
   { type: "logo", icon: Aperture, label: "Logo" },
   { type: "button", icon: MousePointerClick, label: "Button" },
+  { type: "socials", icon: AtSign, label: "Socials" },
 ];
 
 export default function BlockEditorList({ blocks, onChange, tokens, hoveredKey, setHoveredKey }) {
@@ -37,6 +39,7 @@ export default function BlockEditorList({ blocks, onChange, tokens, hoveredKey, 
       // width, centered, no aspect-ratio crop. Same editor controls.
       logo: { type: "image", url: "", alt: "Logo", source: "logo", width: 30, align: "center", aspectRatio: "original" },
       button: { type: "button", text: "", url: "", caption: null, size: 100, align: "center", bgColor: "#d4af37" },
+      socials: { type: "socials", links: [], align: "center" },
     };
     onChange([...blocks, blanks[type]]);
   }
@@ -94,6 +97,7 @@ export default function BlockEditorList({ blocks, onChange, tokens, hoveredKey, 
             {block.type === "text" && <TextBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} tokens={tokens} />}
             {block.type === "image" && <ImageBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} />}
             {block.type === "button" && <ButtonBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} tokens={tokens} />}
+            {block.type === "socials" && <SocialsBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} />}
           </div>
         );
       })}

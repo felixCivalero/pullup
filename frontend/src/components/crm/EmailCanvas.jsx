@@ -329,6 +329,19 @@ function CanvasBlock({ block, t, inline, theme }) {
       />
     );
   }
+  if (block.type === "socials" && Array.isArray(block.links) && block.links.length > 0) {
+    const align = block.align === "center" || block.align === "right" ? block.align : (block.align === "left" ? "left" : "center");
+    return (
+      <div style={{ textAlign: align, margin: "20px 0", fontSize: 13, color: theme.text }}>
+        {block.links.map((l, i) => (
+          <span key={l.key || i}>
+            {i > 0 && <span style={{ margin: "0 8px", color: theme.muted }}>·</span>}
+            <a href={l.url} onClick={(e) => e.preventDefault()} style={{ color: theme.link, textDecoration: "none", fontWeight: 500 }}>{l.label}</a>
+          </span>
+        ))}
+      </div>
+    );
+  }
   if (block.type === "button" && block.url && block.text) {
     const sizeNum = typeof block.size === "number"
       ? block.size

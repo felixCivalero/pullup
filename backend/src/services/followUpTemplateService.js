@@ -168,6 +168,16 @@ function renderBlock(b, t) {
     }
     return `<img src="${escapeAttr(b.url)}" alt="${escapeAttr(t(b.alt || ""))}" style="display:block;width:${widthPct}%;max-width:${maxW}px;height:auto;margin:16px ${marginRight} 16px ${marginLeft};border-radius:8px;" />`;
   }
+  if (b.type === "socials" && Array.isArray(b.links) && b.links.length > 0) {
+    const align = textAlign(b.align);
+    const valid = b.links.filter((l) => l && typeof l.url === "string" && /^https?:\/\//i.test(l.url) && l.label);
+    if (valid.length === 0) return "";
+    const sep = `<span class="pu-muted" style="margin:0 8px;color:rgba(12,10,18,0.4);">·</span>`;
+    const items = valid.map((l) =>
+      `<a class="pu-link" href="${escapeAttr(l.url)}" style="color:#0670DB;text-decoration:none;font-weight:500;">${escapeHtml(l.label)}</a>`
+    );
+    return `<div class="pu-text" style="text-align:${align};margin:20px 0;font-size:13px;color:#0c0a12;">${items.join(sep)}</div>`;
+  }
   if (b.type === "button" && b.url && b.text) {
     const captionRaw = b.caption ? t(b.caption) : "";
     const align = b.align === "left" || b.align === "right" ? b.align : "center";

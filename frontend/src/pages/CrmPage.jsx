@@ -530,10 +530,11 @@ export function CrmPage() {
         effectiveRecipientCount={segmentSelection.total}
         sendingStats={sendingStats}
         sendingErrorMessage={sendingErrorMessage}
-        selectedEvent={selectedEvent}
-        subjectLine={
-          selectedTemplate === "followup" ? followupSubject : eventSubject
-        }
+        selectedEvent={selectedTemplate === "followup" ? followupEvent : selectedEvent}
+        templateType={selectedTemplate}
+        subjectLine={selectedTemplate === "followup" ? followupSubject : eventSubject}
+        previewText={selectedTemplate === "followup" ? followupPreviewText : eventPreviewText}
+        blocks={selectedTemplate === "followup" ? followupBlocks : eventBlocks}
         onClose={() => setIsConfirmSendOpen(false)}
         onConfirmSend={handleConfirmSend}
       />

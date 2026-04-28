@@ -48,10 +48,17 @@ export default function EmailPanel({
           }}
           style={inputStyle}
         >
+          <option value="">— select template —</option>
           <option value="event">Event email template</option>
           <option value="followup">Follow-up email</option>
         </select>
       </Field>
+
+      {!selectedTemplate && (
+        <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", fontSize: 12, opacity: 0.6, lineHeight: 1.5 }}>
+          Pick a template above to start composing.
+        </div>
+      )}
 
       {selectedTemplate === "event" && (
         <>

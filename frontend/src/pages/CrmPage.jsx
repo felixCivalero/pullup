@@ -37,7 +37,7 @@ export function CrmPage() {
 
   // Composer state — event template
   const [events, setEvents] = useState([]);
-  const [selectedTemplate, setSelectedTemplate] = useState("event");
+  const [selectedTemplate, setSelectedTemplate] = useState("");
   const [selectedEventId, setSelectedEventId] = useState("");
   const [subjectLine, setSubjectLine] = useState("");
   const [headlineText, setHeadlineText] = useState("");
@@ -114,6 +114,11 @@ export function CrmPage() {
     if (segmentSelection.total === 0) {
       showToast("No recipients in this segment.", "error");
       setActiveTab("segment");
+      return;
+    }
+    if (!selectedTemplate) {
+      showToast("Pick a template first.", "error");
+      setActiveTab("email");
       return;
     }
     if (selectedTemplate === "event" && !selectedEventId) {

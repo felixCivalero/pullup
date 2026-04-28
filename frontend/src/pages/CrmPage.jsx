@@ -4,11 +4,12 @@ import { useToast } from "../components/Toast";
 import { useAuth } from "../contexts/AuthContext";
 import { CrmTab } from "../components/HomeCrmTab";
 import EmailPanel from "../components/crm/EmailPanel";
+import EmailCanvas from "../components/crm/EmailCanvas";
 import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
 
 const TABS = [
   { id: "segment", label: "Segment" },
-  { id: "email", label: "Email" },
+  { id: "email", label: "Design" },
 ];
 
 function deriveFirstName(user) {
@@ -25,7 +26,6 @@ export function CrmPage() {
   const { showToast } = useToast();
   const { user } = useAuth();
   const currentUserFirstName = useMemo(() => deriveFirstName(user), [user]);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   const [activeTab, setActiveTab] = useState("segment");
 
@@ -47,7 +47,7 @@ export function CrmPage() {
   const [introNote, setIntroNote] = useState("");
   const [signoffText, setSignoffText] = useState("");
 
-  // Composer state — follow-up template (independent so switching template
+  // Composer state — follow-up template (independent so switching templates
   // doesn't lose either side's edits)
   const [followupEventId, setFollowupEventId] = useState("");
   const [followupSubject, setFollowupSubject] = useState("");
@@ -66,14 +66,6 @@ export function CrmPage() {
 
   const cancelledRef = useRef(false);
   useEffect(() => () => { cancelledRef.current = true; }, []);
-
-  useEffect(() => {
-    function handleMouseMove(e) {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    }
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
 
   const selectedEvent = useMemo(
     () => events.find((e) => e.id === selectedEventId) || null,
@@ -97,7 +89,6 @@ export function CrmPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEventId, selectedTemplate]);
 
-  // Load events for the event-content dropdown
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -117,6 +108,7 @@ export function CrmPage() {
   function handleSendClick() {
     if (segmentSelection.total === 0) {
       showToast("No recipients in this segment.", "error");
+      setActiveTab("segment");
       return;
     }
     if (selectedTemplate === "event" && !selectedEventId) {
@@ -277,55 +269,45 @@ export function CrmPage() {
     <div
       className="page-with-header"
       style={{
-        minHeight: "100vh",
-        position: "relative",
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
         background:
-          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
-        paddingBottom: "clamp(20px, 5vw, 40px)",
+          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.06) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.05) 0%, transparent 50%), #05040a",
       }}
     >
+      <style>{`
+        @media (max-width: 900px) {
+          .crm-split { flex-direction: column !important; }
+          .crm-rail { width: 100% !important; min-width: 0 !important; max-width: none !important; border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.06) !important; max-height: 60vh; }
+          .crm-canvas { padding: 12px !important; }
+        }
+      `}</style>
+
       <div
+        className="crm-split"
         style={{
-          position: "fixed",
-          width: "600px",
-          height: "600px",
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, rgba(192, 192, 192, 0.08) 0%, transparent 70%)",
-          left: mousePosition.x - 300,
-          top: mousePosition.y - 300,
-          pointerEvents: "none",
-          transition: "all 0.3s ease-out",
-          zIndex: 1,
+          flex: 1,
+          display: "flex",
+          minHeight: 0,
         }}
-      />
-
-      <div
-        className="responsive-container responsive-container-wide"
-        style={{ position: "relative", zIndex: 2 }}
       >
-        <style>{`
-          @media (max-width: 767px) {
-            .responsive-container-wide { padding: 12px !important; }
-            .responsive-container-wide .responsive-card {
-              padding: 16px !important;
-              border-radius: 16px !important;
-            }
-          }
-        `}</style>
-
-        <div
-          className="responsive-card"
+        {/* LEFT RAIL: tab strip + tab content + sticky footer */}
+        <aside
+          className="crm-rail"
           style={{
-            background: "rgba(12, 10, 18, 0.6)",
-            backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255,255,255,0.05)",
+            width: "440px",
+            minWidth: "440px",
+            maxWidth: "440px",
             display: "flex",
             flexDirection: "column",
-            minHeight: "calc(100vh - 80px)",
+            borderRight: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(12, 10, 18, 0.55)",
+            backdropFilter: "blur(10px)",
+            minHeight: 0,
           }}
         >
-          {/* Tab strip */}
+          {/* Tab strip — modeled on CreateEventPage's top tab bar */}
           <div
             style={{
               position: "sticky",
@@ -333,9 +315,8 @@ export function CrmPage() {
               zIndex: 10,
               background: "rgba(12, 10, 18, 0.95)",
               backdropFilter: "blur(12px)",
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
               flexShrink: 0,
-              marginBottom: "20px",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
             }}
           >
             <div style={{ display: "flex", position: "relative" }}>
@@ -359,7 +340,6 @@ export function CrmPage() {
                       textTransform: "uppercase",
                       color: active ? "#fff" : "rgba(255,255,255,0.3)",
                       transition: "color 0.2s ease",
-                      position: "relative",
                     }}
                   >
                     {tab.label}
@@ -380,61 +360,56 @@ export function CrmPage() {
             </div>
           </div>
 
-          {/* Tab content */}
-          <div style={{ flex: 1, minHeight: 0 }}>
+          {/* Tab content — scrolls independently */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
             <div style={{ display: activeTab === "segment" ? "block" : "none" }}>
               <CrmTab onSegmentChange={setSegmentSelection} />
             </div>
             {activeTab === "email" && (
-              <div style={{ padding: "0 4px" }}>
-                <EmailPanel
-                  events={events}
-                  selectedTemplate={selectedTemplate}
-                  setSelectedTemplate={setSelectedTemplate}
-                  selectedEventId={selectedEventId}
-                  setSelectedEventId={setSelectedEventId}
-                  selectedEvent={selectedEvent}
-                  subjectLine={subjectLine}
-                  setSubjectLine={setSubjectLine}
-                  headlineText={headlineText}
-                  setHeadlineText={setHeadlineText}
-                  introQuote={introQuote}
-                  setIntroQuote={setIntroQuote}
-                  introBody={introBody}
-                  setIntroBody={setIntroBody}
-                  introGreeting={introGreeting}
-                  setIntroGreeting={setIntroGreeting}
-                  introNote={introNote}
-                  setIntroNote={setIntroNote}
-                  signoffText={signoffText}
-                  setSignoffText={setSignoffText}
-                  selectedEventIdForFollowup={followupEventId}
-                  setSelectedEventIdForFollowup={setFollowupEventId}
-                  followupSubject={followupSubject}
-                  setFollowupSubject={setFollowupSubject}
-                  followupPreviewText={followupPreviewText}
-                  setFollowupPreviewText={setFollowupPreviewText}
-                  followupBlocks={followupBlocks}
-                  setFollowupBlocks={setFollowupBlocks}
-                  followupSignoff={followupSignoff}
-                  setFollowupSignoff={setFollowupSignoff}
-                  currentUserFirstName={currentUserFirstName}
-                />
-              </div>
+              <EmailPanel
+                events={events}
+                selectedTemplate={selectedTemplate}
+                setSelectedTemplate={setSelectedTemplate}
+                selectedEventId={selectedEventId}
+                setSelectedEventId={setSelectedEventId}
+                selectedEvent={selectedEvent}
+                subjectLine={subjectLine}
+                setSubjectLine={setSubjectLine}
+                headlineText={headlineText}
+                setHeadlineText={setHeadlineText}
+                introQuote={introQuote}
+                setIntroQuote={setIntroQuote}
+                introBody={introBody}
+                setIntroBody={setIntroBody}
+                introGreeting={introGreeting}
+                setIntroGreeting={setIntroGreeting}
+                introNote={introNote}
+                setIntroNote={setIntroNote}
+                signoffText={signoffText}
+                setSignoffText={setSignoffText}
+                selectedEventIdForFollowup={followupEventId}
+                setSelectedEventIdForFollowup={setFollowupEventId}
+                followupSubject={followupSubject}
+                setFollowupSubject={setFollowupSubject}
+                followupPreviewText={followupPreviewText}
+                setFollowupPreviewText={setFollowupPreviewText}
+                followupBlocks={followupBlocks}
+                setFollowupBlocks={setFollowupBlocks}
+                followupSignoff={followupSignoff}
+                setFollowupSignoff={setFollowupSignoff}
+              />
             )}
           </div>
 
-          {/* Sticky footer */}
+          {/* Sticky footer at bottom of rail */}
           <div
             style={{
-              position: "sticky",
-              bottom: 0,
+              flexShrink: 0,
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               gap: "12px",
               padding: "12px 16px",
-              marginTop: "20px",
               borderTop: "1px solid rgba(255,255,255,0.08)",
               background: "rgba(12,10,18,0.95)",
               backdropFilter: "blur(8px)",
@@ -449,14 +424,14 @@ export function CrmPage() {
               onClick={handleSendClick}
               disabled={sendDisabled}
               style={{
-                padding: "10px 20px",
+                padding: "10px 18px",
                 borderRadius: "10px",
                 border: "none",
                 background: sendDisabled
                   ? "rgba(34,197,94,0.12)"
                   : "linear-gradient(135deg, rgba(34,197,94,0.35), rgba(34,197,94,0.18))",
                 color: sendDisabled ? "rgba(255,255,255,0.3)" : "#4ade80",
-                fontSize: "14px",
+                fontSize: "13px",
                 fontWeight: 600,
                 cursor: sendDisabled ? "not-allowed" : "pointer",
                 boxShadow: sendDisabled
@@ -468,7 +443,37 @@ export function CrmPage() {
               Send campaign →
             </button>
           </div>
-        </div>
+        </aside>
+
+        {/* RIGHT PANE: always-visible email canvas */}
+        <main
+          className="crm-canvas"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: "24px",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <EmailCanvas
+            selectedTemplate={selectedTemplate}
+            selectedEvent={selectedEvent}
+            subjectLine={subjectLine}
+            headlineText={headlineText}
+            introQuote={introQuote}
+            introBody={introBody}
+            introGreeting={introGreeting}
+            introNote={introNote}
+            signoffText={signoffText}
+            followupSubject={followupSubject}
+            followupPreviewText={followupPreviewText}
+            followupBlocks={followupBlocks}
+            followupSignoff={followupSignoff}
+            currentUserFirstName={currentUserFirstName}
+          />
+        </main>
       </div>
 
       <ConfirmSendDialog

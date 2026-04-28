@@ -5,6 +5,15 @@
 import { useMemo } from "react";
 import { applyTokens, buildPreviewContext, parseInlineSegments } from "../../lib/emailTokens";
 
+function canvasReadableTextColor(hex) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.6 ? "#0c0a12" : "#ffffff";
+}
+
 // Render a string with tokens + [label](url) links into React nodes.
 function InlineRich({ text, ctx }) {
   const segments = parseInlineSegments(text || "", ctx);
@@ -274,12 +283,17 @@ function CanvasBlock({ block, t, inline }) {
     );
   }
   if (block.type === "button" && block.url && block.text) {
+    const size = block.size || "medium";
+    const padding = size === "small" ? "8px 16px" : size === "large" ? "16px 32px" : "12px 24px";
+    const fontSize = size === "small" ? 12 : size === "large" ? 16 : 14;
+    const bg = /^#[0-9a-f]{6}$/i.test(block.bgColor || "") ? block.bgColor : "#d4af37";
+    const fg = canvasReadableTextColor(bg);
     return (
       <div style={{ textAlign: "center", margin: "20px 0 0" }}>
         <a
           href={block.url}
           onClick={(e) => e.preventDefault()}
-          style={{ display: "inline-block", padding: "12px 24px", background: "#d4af37", color: "#0c0a12", textDecoration: "none", borderRadius: 8, fontWeight: 600 }}
+          style={{ display: "inline-block", padding, background: bg, color: fg, textDecoration: "none", borderRadius: 8, fontWeight: 600, fontSize }}
         >
           {t(block.text)}
         </a>

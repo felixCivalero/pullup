@@ -112,6 +112,7 @@ export async function sendCampaignInBatches(
                   event,
                   templateContent: campaign.templateContent,
                   person,
+                  unsubscribeUrl,
                 });
 
             // Record CRM-level send (campaign_sends)

@@ -7487,12 +7487,13 @@ app.post("/admin/newsletter/send", requireAdmin, async (req, res) => {
       }
     }
 
-    // Render template HTML once (same content for all subscribers)
-    let baseHtmlBody = htmlBody || null;
-    let finalTextBody = textBody || null;
+    // Per-subscriber unsubscribe URLs require rendering inside the loop;
+    // shared content is precomputed here, the renderer is called below.
+    const finalTextBody = textBody || null;
 
+    let eventTemplateContent = null;
     if (templateType === "event" && event) {
-      const content = {
+      eventTemplateContent = {
         heroImageUrl: templateContent.heroImageUrl || event.coverImageUrl || event.imageUrl || "",
         headline: templateContent.headline || event.title || "",
         introQuote: templateContent.introQuote || "",
@@ -7505,22 +7506,43 @@ app.post("/admin/newsletter/send", requireAdmin, async (req, res) => {
         ctaLabel: templateContent.ctaLabel || "TO EVENT",
         ctaUrl: templateContent.ctaUrl || undefined,
       };
-
-      baseHtmlBody = renderEventEmailTemplate({
-        event,
-        templateContent: content,
-        person: null,
-      });
     }
 
-    if (templateType === "weekly_happenings") {
-      baseHtmlBody = renderWeeklyHappeningsTemplate({
-        events: Array.isArray(templateContent.events) ? templateContent.events : [],
-        templateContent: {
+    const weeklyEventsList = templateType === "weekly_happenings" && Array.isArray(templateContent.events)
+      ? templateContent.events
+      : null;
+    const weeklyContent = templateType === "weekly_happenings"
+      ? {
           headline: templateContent.headline || "This Week in Stockholm",
           body: templateContent.body || "",
-        },
-      });
+        }
+      : null;
+
+    // Frontend URL for the newsletter-side unsubscribe page
+    const frontendBaseUrl = isDevelopment
+      ? "http://localhost:5173"
+      : (process.env.FRONTEND_URL || "https://pullup.se");
+
+    function renderForSubscriber(subscriber) {
+      const unsubscribeUrl = subscriber.unsubscribe_token
+        ? `${frontendBaseUrl}/newsletter?token=${encodeURIComponent(subscriber.unsubscribe_token)}&intent=unsubscribe`
+        : null;
+      if (templateType === "event" && event) {
+        return renderEventEmailTemplate({
+          event,
+          templateContent: eventTemplateContent,
+          person: null,
+          unsubscribeUrl,
+        });
+      }
+      if (templateType === "weekly_happenings") {
+        return renderWeeklyHappeningsTemplate({
+          events: weeklyEventsList || [],
+          templateContent: weeklyContent,
+          unsubscribeUrl,
+        });
+      }
+      return htmlBody || null;
     }
 
     // Import tracking link rewriter (additive — wraps links + injects open pixel)
@@ -7544,11 +7566,15 @@ app.post("/admin/newsletter/send", requireAdmin, async (req, res) => {
           continue;
         }
 
+        // Render per-subscriber so each recipient's unsubscribe URL carries
+        // their own newsletter token.
+        const perRecipientHtml = renderForSubscriber(subscriber);
+
         // Enqueue first to get the tracking_id from the outbox row
         const outboxRow = await enqueueOutbox({
           toEmail: subscriber.email,
           subject,
-          htmlBody: baseHtmlBody,
+          htmlBody: perRecipientHtml,
           textBody: finalTextBody,
           campaignSendId: null,
           idempotencyKey: `${campaignId}:${subscriber.id}`,
@@ -7556,9 +7582,9 @@ app.post("/admin/newsletter/send", requireAdmin, async (req, res) => {
         });
 
         // Add per-subscriber tracking (unique open pixel + click redirects)
-        if (addTracking && outboxRow?.tracking_id && baseHtmlBody) {
+        if (addTracking && outboxRow?.tracking_id && perRecipientHtml) {
           try {
-            const trackedHtml = addTracking(baseHtmlBody, {
+            const trackedHtml = addTracking(perRecipientHtml, {
               trackingId: outboxRow.tracking_id,
               baseUrl: backendBaseUrl,
               campaignTag,

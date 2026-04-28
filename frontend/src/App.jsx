@@ -3,6 +3,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { NewsletterPage } from "./pages/NewsletterPage";
 import { HomePage } from "./pages/HomePage";
 import { CrmPage } from "./pages/CrmPage";
+import CrmComposerPage from "./pages/CrmComposerPage";
 import { CreateEventPage } from "./pages/CreateEventPage";
 import { EventPage } from "./pages/EventPage";
 import { RsvpSuccessPage } from "./pages/RsvpSuccessPage";
@@ -62,6 +63,7 @@ function App() {
           <Route path="/events" element={<HomePage />} />
           <Route path="/analytics" element={<HostAnalyticsPage />} />
           <Route path="/crm" element={<CrmPage />} />
+          <Route path="/crm/compose" element={<CrmComposerPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/discover" element={<DiscoverPage />} />
           <Route path="/admin/analytics" element={<AnalyticsPage />} />

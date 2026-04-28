@@ -10517,10 +10517,23 @@ app.listen(PORT, async () => {
           }
         }
 
-        // 5. Send reminder to each guest
+        // 5. Send reminder to each guest. Reminders are transactional — the
+        // recipient explicitly RSVP'd to this event — so we do NOT filter by
+        // people.marketing_unsubscribed_at. We do still expose the unsubscribe
+        // link in the footer so they can opt out of future marketing.
+        const { ensureUnsubscribeToken } = await import("./data.js");
+        const frontendBase = getFrontendUrl();
         for (const rsvp of rsvps) {
           const person = rsvp.people;
           if (!person?.email) continue;
+
+          let unsubscribeUrl = "";
+          try {
+            const token = await ensureUnsubscribeToken(person.id);
+            unsubscribeUrl = `${frontendBase}/u/${token}`;
+          } catch (e) {
+            console.error(`[Reminders] Failed to mint unsubscribe token for ${person.email}:`, e.message);
+          }
 
           const idempotencyKey = `reminder-24h-${event.id}-${person.id}`;
           try {
@@ -10535,7 +10548,8 @@ app.listen(PORT, async () => {
                 imageUrl: resolvedImageUrl,
                 location: event.location || "",
                 slug: event.slug || "",
-                frontendUrl: getFrontendUrl(),
+                frontendUrl: frontendBase,
+                unsubscribeUrl,
                 ...hostBrand,
               }),
               idempotencyKey,

@@ -67,7 +67,7 @@ function badge(text, { bg = "rgba(245,158,11,0.15)", border = "rgba(245,158,11,0
 }
 
 /* ── Footer with host branding ── */
-function emailFooter({ message = "", brandName = "", brandWebsite = "", contactEmail = "", frontendUrl = "" } = {}) {
+function emailFooter({ message = "", brandName = "", brandWebsite = "", contactEmail = "", frontendUrl = "", unsubscribeUrl = "" } = {}) {
   // Build footer links: prefer host branding, fall back to just the event link (no PullUp branding)
   const parts = [];
   if (message) parts.push(message);
@@ -77,6 +77,10 @@ function emailFooter({ message = "", brandName = "", brandWebsite = "", contactE
     parts.push(`<br><a href="${brandWebsite}" target="_blank" style="color:rgba(255,255,255,0.4);text-decoration:none;">${displayUrl}</a>`);
   } else if (brandName) {
     parts.push(`<br>${brandName}`);
+  }
+  if (unsubscribeUrl) {
+    // #ses:no-track keeps it out of click tracking so /u/:token gets a direct hit
+    parts.push(`<br><a href="${unsubscribeUrl}#ses:no-track" style="color:rgba(255,255,255,0.3);text-decoration:underline;">Unsubscribe from marketing emails</a>`);
   }
 
   return `<!-- Footer -->
@@ -235,6 +239,7 @@ export function reminder24hEmail({
   brandName = "",
   brandWebsite = "",
   contactEmail = "",
+  unsubscribeUrl = "",
 }) {
   const dateFormatted = startsAt ? niceDate(startsAt, timezone) : "";
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
@@ -279,7 +284,7 @@ ${imageUrl ? `<!-- Event Image -->
   ${ctaButton(eventUrl, "VIEW EVENT")}
 </td></tr>
 
-${emailFooter({ message: "See you tomorrow!", brandName, brandWebsite, contactEmail, frontendUrl })}`;
+${emailFooter({ message: "See you tomorrow!", brandName, brandWebsite, contactEmail, frontendUrl, unsubscribeUrl })}`;
 
   return emailShell(content);
 }

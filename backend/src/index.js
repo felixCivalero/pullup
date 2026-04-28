@@ -48,6 +48,7 @@ import {
   updateVipInvite,
   getVipInvitesForEvent,
   deleteEvent,
+  listHostEventImageGallery,
 } from "./data.js";
 
 import { requireAuth, optionalAuth, requireAdmin } from "./middleware/auth.js";
@@ -6370,6 +6371,17 @@ app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Error uploading event image:", error);
     res.status(500).json({ error: "Failed to upload event image" });
+  }
+});
+
+// GET /host/crm/event-image-gallery - List host's event cover/media images for the picker
+app.get("/host/crm/event-image-gallery", requireAuth, async (req, res) => {
+  try {
+    const items = await listHostEventImageGallery(req.user.id, { limit: 200 });
+    return res.json({ items });
+  } catch (err) {
+    console.error("Event-image gallery error:", err);
+    return res.status(500).json({ error: "Failed to load gallery" });
   }
 });
 

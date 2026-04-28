@@ -30,7 +30,6 @@ export default function EmailCanvas({
   const previewCtx = useMemo(
     () => buildPreviewContext({
       currentUserFirstName,
-      currentUserLastName: "",
       event: isFollowup ? followupEvent : selectedEvent,
     }),
     [currentUserFirstName, isFollowup, followupEvent, selectedEvent],

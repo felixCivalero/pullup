@@ -18,8 +18,6 @@ export default function FollowUpComposer({
   setGreeting,
   blocks,
   setBlocks,
-  signoff,
-  setSignoff,
 }) {
   const tokens = availableTokens({ hasEvent: Boolean(selectedEventId) });
 
@@ -59,9 +57,6 @@ export default function FollowUpComposer({
           />
         </Field>
         <BlockEditorList blocks={blocks} onChange={setBlocks} tokens={tokens} />
-        <Field label="Signoff">
-          <TokenizedInput multiline rows={3} value={signoff} onChange={setSignoff} tokens={tokens} enableLinks placeholder={"With love,\nThe Spring Salon"} />
-        </Field>
       </Section>
     </div>
   );

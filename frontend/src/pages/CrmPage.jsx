@@ -54,7 +54,6 @@ export function CrmPage() {
   const [followupPreviewText, setFollowupPreviewText] = useState("");
   const [followupGreeting, setFollowupGreeting] = useState("Hi {{first_name}},");
   const [followupBlocks, setFollowupBlocks] = useState([]);
-  const [followupSignoff, setFollowupSignoff] = useState("");
 
   const [isConfirmSendOpen, setIsConfirmSendOpen] = useState(false);
   const [sendStage, setSendStage] = useState("confirm");
@@ -170,7 +169,6 @@ export function CrmPage() {
               previewText: followupPreviewText,
               greeting: followupGreeting,
               blocks: followupBlocks,
-              signoff: followupSignoff,
             },
             filterCriteria,
           }
@@ -404,8 +402,6 @@ export function CrmPage() {
                 setFollowupGreeting={setFollowupGreeting}
                 followupBlocks={followupBlocks}
                 setFollowupBlocks={setFollowupBlocks}
-                followupSignoff={followupSignoff}
-                setFollowupSignoff={setFollowupSignoff}
               />
             )}
           </div>
@@ -481,7 +477,6 @@ export function CrmPage() {
             followupPreviewText={followupPreviewText}
             followupGreeting={followupGreeting}
             followupBlocks={followupBlocks}
-            followupSignoff={followupSignoff}
             currentUserFirstName={currentUserFirstName}
           />
         </main>

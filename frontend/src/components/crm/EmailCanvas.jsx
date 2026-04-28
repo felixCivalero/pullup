@@ -45,7 +45,6 @@ export default function EmailCanvas({
   followupPreviewText,
   followupGreeting,
   followupBlocks,
-  followupSignoff,
   currentUserFirstName,
 }) {
   const isFollowup = selectedTemplate === "followup";
@@ -71,7 +70,6 @@ export default function EmailCanvas({
           <FollowupBody
             greeting={followupGreeting}
             blocks={followupBlocks}
-            signoff={followupSignoff}
             t={t}
             inline={inline}
           />
@@ -229,7 +227,7 @@ function EventBody({
   );
 }
 
-function FollowupBody({ greeting, blocks, signoff, t, inline }) {
+function FollowupBody({ greeting, blocks, t, inline }) {
   const greetingRendered = greeting !== undefined ? greeting : "Hi {{first_name}},";
   return (
     <div>
@@ -244,9 +242,6 @@ function FollowupBody({ greeting, blocks, signoff, t, inline }) {
         </div>
       )}
       {(blocks || []).map((b, i) => <CanvasBlock key={i} block={b} t={t} inline={inline} />)}
-      {signoff && (
-        <p style={{ margin: "24px 0 0", color: "#fff" }}>{inline(signoff)}</p>
-      )}
     </div>
   );
 }

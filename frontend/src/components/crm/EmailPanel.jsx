@@ -36,8 +36,6 @@ export default function EmailPanel({
   setFollowupGreeting,
   followupBlocks,
   setFollowupBlocks,
-  followupSignoff,
-  setFollowupSignoff,
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -159,8 +157,6 @@ export default function EmailPanel({
           setGreeting={setFollowupGreeting}
           blocks={followupBlocks}
           setBlocks={setFollowupBlocks}
-          signoff={followupSignoff}
-          setSignoff={setFollowupSignoff}
         />
       )}
     </div>

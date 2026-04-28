@@ -1,3 +1,5 @@
+import TokenizedInput from "../TokenizedInput";
+
 export default function TextBlockEditor({ block, onChange }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -17,21 +19,15 @@ export default function TextBlockEditor({ block, onChange }) {
           Heading
         </button>
       </div>
-      <textarea
-        value={block.text}
-        onChange={(e) => onChange({ ...block, text: e.target.value })}
+      <TokenizedInput
+        multiline={block.style !== "heading"}
         rows={block.style === "heading" ? 1 : 4}
+        value={block.text}
+        onChange={(text) => onChange({ ...block, text })}
         placeholder={block.style === "heading" ? "Heading text…" : "Write a paragraph…"}
         style={{
-          width: "100%",
-          padding: "10px 12px",
-          borderRadius: "10px",
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(12,10,18,0.8)",
-          color: "#fff",
           fontSize: block.style === "heading" ? "18px" : "14px",
           fontWeight: block.style === "heading" ? 700 : 400,
-          resize: "vertical",
         }}
       />
     </div>

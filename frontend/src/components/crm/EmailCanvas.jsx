@@ -2,6 +2,9 @@
 // email exactly as a recipient would see it, branching on the active template.
 // Pure presentational: takes all state via props, no editing.
 
+import { useMemo } from "react";
+import { applyTokens, buildPreviewContext } from "../../lib/emailTokens";
+
 export default function EmailCanvas({
   selectedTemplate,
   // Event template
@@ -14,6 +17,7 @@ export default function EmailCanvas({
   introNote,
   signoffText,
   // Follow-up template
+  followupEvent,
   followupSubject,
   followupPreviewText,
   followupBlocks,
@@ -22,11 +26,21 @@ export default function EmailCanvas({
 }) {
   const isFollowup = selectedTemplate === "followup";
 
+  const previewCtx = useMemo(
+    () => buildPreviewContext({
+      currentUserFirstName,
+      currentUserLastName: "",
+      event: isFollowup ? followupEvent : selectedEvent,
+    }),
+    [currentUserFirstName, isFollowup, followupEvent, selectedEvent],
+  );
+  const t = (s) => applyTokens(s, previewCtx);
+
   return (
     <div style={canvasOuterStyle}>
       <InboxHeader
-        subject={isFollowup ? followupSubject : subjectLine}
-        previewText={isFollowup ? followupPreviewText : ""}
+        subject={t(isFollowup ? followupSubject : subjectLine)}
+        previewText={t(isFollowup ? followupPreviewText : "")}
       />
       <div style={emailFrameStyle}>
         {isFollowup ? (
@@ -34,6 +48,7 @@ export default function EmailCanvas({
             blocks={followupBlocks}
             signoff={followupSignoff}
             currentUserFirstName={currentUserFirstName}
+            t={t}
           />
         ) : (
           <EventBody
@@ -189,7 +204,7 @@ function EventBody({
   );
 }
 
-function FollowupBody({ blocks, signoff, currentUserFirstName }) {
+function FollowupBody({ blocks, signoff, currentUserFirstName, t }) {
   return (
     <div>
       <p style={{ margin: "0 0 12px", color: "#fff" }}>
@@ -200,23 +215,23 @@ function FollowupBody({ blocks, signoff, currentUserFirstName }) {
           Add blocks in the Email tab to fill the body.
         </div>
       )}
-      {(blocks || []).map((b, i) => <CanvasBlock key={i} block={b} />)}
+      {(blocks || []).map((b, i) => <CanvasBlock key={i} block={b} t={t} />)}
       {signoff && (
-        <p style={{ margin: "24px 0 0", whiteSpace: "pre-wrap", color: "#fff" }}>{signoff}</p>
+        <p style={{ margin: "24px 0 0", whiteSpace: "pre-wrap", color: "#fff" }}>{t(signoff)}</p>
       )}
     </div>
   );
 }
 
-function CanvasBlock({ block }) {
+function CanvasBlock({ block, t }) {
   if (block.type === "text" && block.style === "heading") {
-    return <h2 style={{ fontSize: 22, fontWeight: 700, margin: "16px 0 8px", color: "#fff" }}>{block.text}</h2>;
+    return <h2 style={{ fontSize: 22, fontWeight: 700, margin: "16px 0 8px", color: "#fff" }}>{t(block.text)}</h2>;
   }
   if (block.type === "text") {
-    return <p style={{ margin: "0 0 12px", whiteSpace: "pre-wrap", lineHeight: 1.5, color: "#fff" }}>{block.text}</p>;
+    return <p style={{ margin: "0 0 12px", whiteSpace: "pre-wrap", lineHeight: 1.5, color: "#fff" }}>{t(block.text)}</p>;
   }
   if (block.type === "image" && block.url) {
-    return <img src={block.url} alt={block.alt || ""} style={{ display: "block", width: "100%", maxWidth: "100%", borderRadius: 8, margin: "16px 0" }} />;
+    return <img src={block.url} alt={t(block.alt || "")} style={{ display: "block", width: "100%", maxWidth: "100%", borderRadius: 8, margin: "16px 0" }} />;
   }
   if (block.type === "button" && block.url && block.text) {
     return (
@@ -226,10 +241,10 @@ function CanvasBlock({ block }) {
           onClick={(e) => e.preventDefault()}
           style={{ display: "inline-block", padding: "12px 24px", background: "#d4af37", color: "#0c0a12", textDecoration: "none", borderRadius: 8, fontWeight: 600 }}
         >
-          {block.text}
+          {t(block.text)}
         </a>
         {block.caption && (
-          <p style={{ textAlign: "center", fontSize: 12, opacity: 0.7, margin: "6px 0 18px" }}>{block.caption}</p>
+          <p style={{ textAlign: "center", fontSize: 12, opacity: 0.7, margin: "6px 0 18px" }}>{t(block.caption)}</p>
         )}
       </div>
     );

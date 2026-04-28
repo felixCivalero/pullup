@@ -72,6 +72,11 @@ export function CrmPage() {
     [events, selectedEventId],
   );
 
+  const followupEvent = useMemo(
+    () => events.find((e) => e.id === followupEventId) || null,
+    [events, followupEventId],
+  );
+
   // Auto-populate event-template fields when an event is selected
   useEffect(() => {
     if (selectedTemplate === "event" && selectedEvent) {
@@ -467,6 +472,7 @@ export function CrmPage() {
             introGreeting={introGreeting}
             introNote={introNote}
             signoffText={signoffText}
+            followupEvent={followupEvent}
             followupSubject={followupSubject}
             followupPreviewText={followupPreviewText}
             followupBlocks={followupBlocks}

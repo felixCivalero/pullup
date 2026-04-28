@@ -21,3 +21,6 @@ frontend/.env.production
 frontend/dist
 frontend/node_modules
 discord-bot/node_modules
+
+# Git worktrees
+.worktrees/

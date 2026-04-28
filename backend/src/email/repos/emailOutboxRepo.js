@@ -149,6 +149,22 @@ export function markRetrying(
   });
 }
 
+// Count of rows sent today (UTC midnight to UTC midnight). Used by the
+// outbox worker to enforce a daily provider quota. Returns 0 if the
+// query fails so a transient DB error never blocks sending.
+export async function countSentSinceUtc(sinceIso) {
+  const { count, error } = await supabase
+    .from("email_outbox")
+    .select("id", { count: "exact", head: true })
+    .in("status", ["sent", "delivered"])
+    .gte("sent_at", sinceIso);
+  if (error) {
+    console.error("[emailOutboxRepo] countSentSinceUtc error", error);
+    return 0;
+  }
+  return count ?? 0;
+}
+
 export async function findByProviderMessageId(providerMessageId) {
   if (!providerMessageId) return null;
   const { data, error } = await supabase

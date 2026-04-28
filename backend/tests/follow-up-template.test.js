@@ -100,6 +100,65 @@ function testButtonWithoutCaption() {
 }
 testButtonWithoutCaption();
 
+function testGreeting() {
+  console.log("🧪 greeting prefixes body with first name");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: { subject: "s", previewText: "", blocks: [], signoff: "" },
+    person: { first_name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("Hi Sam,"), "uses first name");
+}
+testGreeting();
+
+function testGreetingFallback() {
+  console.log("🧪 greeting falls back when first name missing");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: { subject: "s", previewText: "", blocks: [], signoff: "" },
+    person: {},
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("Hi there,"), "uses fallback");
+}
+testGreetingFallback();
+
+function testSignoff() {
+  console.log("🧪 signoff renders with newlines preserved");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: { subject: "s", previewText: "", blocks: [], signoff: "With love,\nThe Salon" },
+    person: { first_name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("With love,"), "signoff line 1");
+  assert(html.includes("The Salon"), "signoff line 2");
+  assert(html.includes("<br"), "newline becomes <br>");
+}
+testSignoff();
+
+function testUnknownBlockSkipped() {
+  console.log("🧪 unknown block types are skipped, not thrown");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s",
+      previewText: "",
+      blocks: [
+        { type: "text", style: "paragraph", text: "ok" },
+        { type: "future-block", payload: 42 },
+      ],
+      signoff: "",
+    },
+    person: { first_name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("ok"), "known block still rendered");
+  assert(!html.includes("future-block"), "unknown block not rendered");
+}
+testUnknownBlockSkipped();
+
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
   process.exit(1);

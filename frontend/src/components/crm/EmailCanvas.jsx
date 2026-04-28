@@ -2,8 +2,16 @@
 // email exactly as a recipient would see it, branching on the active template.
 // Pure presentational: takes all state via props, no editing.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { applyTokens, buildPreviewContext, parseInlineSegments } from "../../lib/emailTokens";
+
+// Theme palettes for the canvas preview. Mirrors the actual email shell:
+// light is the default that recipients see in most inboxes; dark is what
+// recipients on prefers-color-scheme: dark see (Apple Mail, iOS Mail, etc.).
+const THEMES = {
+  light: { body: "#ffffff", text: "#0c0a12", muted: "rgba(12,10,18,0.55)", border: "rgba(0,0,0,0.08)", link: "#0670DB" },
+  dark: { body: "#0c0a12", text: "#ffffff", muted: "rgba(255,255,255,0.55)", border: "rgba(255,255,255,0.1)", link: "#74b6ff" },
+};
 
 function canvasReadableTextColor(hex) {
   const h = hex.replace("#", "");
@@ -15,7 +23,7 @@ function canvasReadableTextColor(hex) {
 }
 
 // Render a string with tokens + [label](url) links into React nodes.
-function InlineRich({ text, ctx }) {
+function InlineRich({ text, ctx, theme }) {
   const segments = parseInlineSegments(text || "", ctx);
   return (
     <>
@@ -25,7 +33,7 @@ function InlineRich({ text, ctx }) {
             key={i}
             href={seg.url}
             onClick={(e) => e.preventDefault()}
-            style={{ color: "#d4af37", textDecoration: "underline" }}
+            style={{ color: theme.link, textDecoration: "underline" }}
           >
             {seg.label}
           </a>
@@ -63,6 +71,11 @@ export default function EmailCanvas({
   const activeGreeting = isFollowup ? followupGreeting : eventGreeting;
   const activeBlocks = isFollowup ? followupBlocks : eventBlocks;
 
+  // Default to light — matches what most recipients see in their inbox.
+  // Toggle lets the host preview the dark variant too.
+  const [theme, setTheme] = useState("light");
+  const palette = THEMES[theme];
+
   const previewCtx = useMemo(
     () => buildPreviewContext({
       currentUserFirstName,
@@ -71,7 +84,7 @@ export default function EmailCanvas({
     [currentUserFirstName, activeEvent],
   );
   const t = (s) => applyTokens(s, previewCtx);
-  const inline = (s) => <InlineRich text={s} ctx={previewCtx} />;
+  const inline = (s) => <InlineRich text={s} ctx={previewCtx} theme={palette} />;
 
   if (!isFollowup && !isEvent) {
     return (
@@ -87,8 +100,13 @@ export default function EmailCanvas({
 
   return (
     <div style={canvasOuterStyle}>
-      <InboxHeader subject={t(activeSubject)} previewText={t(activePreview)} />
-      <div style={emailFrameStyle}>
+      <InboxHeader
+        subject={t(activeSubject)}
+        previewText={t(activePreview)}
+        theme={theme}
+        onThemeToggle={() => setTheme(theme === "light" ? "dark" : "light")}
+      />
+      <div style={{ ...emailFrameStyle, background: palette.body, color: palette.text }}>
         <div style={emailBodyStyle}>
         {activeEvent ? (
           <FollowupBody
@@ -97,20 +115,21 @@ export default function EmailCanvas({
             t={t}
             inline={inline}
             hoveredKey={hoveredKey}
+            theme={palette}
           />
         ) : (
           <div style={{ padding: 40, textAlign: "center", opacity: 0.4, fontSize: 14 }}>
             Pick an event in the Email tab to start composing.
           </div>
         )}
-        <EmailFooter />
+        <EmailFooter theme={palette} />
         </div>
       </div>
     </div>
   );
 }
 
-function InboxHeader({ subject, previewText }) {
+function InboxHeader({ subject, previewText, theme, onThemeToggle }) {
   return (
     <div
       style={{
@@ -119,31 +138,56 @@ function InboxHeader({ subject, previewText }) {
         background: "rgba(20,16,30,0.7)",
         border: "1px solid rgba(255,255,255,0.06)",
         borderBottom: "none",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
       }}
     >
-      <div style={{ fontSize: "11px", opacity: 0.5, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-        Subject
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: "11px", opacity: 0.5, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          Subject
+        </div>
+        <div style={{ fontSize: "15px", fontWeight: 600, color: "#fff" }}>
+          {subject || <span style={{ opacity: 0.4 }}>(no subject)</span>}
+        </div>
+        {previewText && (
+          <div style={{ fontSize: "12px", opacity: 0.55, marginTop: 4 }}>{previewText}</div>
+        )}
       </div>
-      <div style={{ fontSize: "15px", fontWeight: 600, color: "#fff" }}>
-        {subject || <span style={{ opacity: 0.4 }}>(no subject)</span>}
-      </div>
-      {previewText && (
-        <div style={{ fontSize: "12px", opacity: 0.55, marginTop: 4 }}>{previewText}</div>
-      )}
+      <button
+        type="button"
+        onClick={onThemeToggle}
+        title={`Preview as ${theme === "light" ? "dark" : "light"} mode`}
+        style={{
+          flexShrink: 0,
+          padding: "6px 10px",
+          borderRadius: 999,
+          border: "1px solid rgba(255,255,255,0.12)",
+          background: "rgba(255,255,255,0.04)",
+          color: "rgba(255,255,255,0.75)",
+          fontSize: 11,
+          fontWeight: 500,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          cursor: "pointer",
+        }}
+      >
+        {theme === "light" ? "Light" : "Dark"} ↻
+      </button>
     </div>
   );
 }
 
-function EmailFooter() {
+function EmailFooter({ theme }) {
   return (
     <div
       style={{
         marginTop: 32,
         paddingTop: 20,
-        borderTop: "2px solid rgba(255,255,255,0.08)",
+        borderTop: `1px solid ${theme.border}`,
         fontSize: 12,
         textAlign: "center",
-        opacity: 0.5,
+        color: theme.muted,
         lineHeight: 1.6,
       }}
     >
@@ -152,7 +196,7 @@ function EmailFooter() {
         <br />
         Want to change how you receive these emails?
         <br />
-        You can <a href="#" onClick={(e) => e.preventDefault()} style={{ color: "#0670DB", textDecoration: "underline" }}>unsubscribe from this list</a>.
+        You can <a href="#" onClick={(e) => e.preventDefault()} style={{ color: theme.link, textDecoration: "underline" }}>unsubscribe from this list</a>.
       </p>
       <p style={{ margin: "12px 0 0" }}>
         Pullup.se
@@ -166,25 +210,25 @@ function EmailFooter() {
 }
 
 
-function FollowupBody({ greeting, blocks, t, inline, hoveredKey }) {
+function FollowupBody({ greeting, blocks, t, inline, hoveredKey, theme }) {
   const greetingRendered = greeting !== undefined ? greeting : "Hi {{first_name}},";
   return (
     <div>
       {greetingRendered && (
         <Highlightable hovered={hoveredKey === "greeting"}>
-          <p style={{ margin: "0 0 12px", color: "#fff" }}>
+          <p style={{ margin: "0 0 12px", color: theme.text }}>
             {inline(greetingRendered)}
           </p>
         </Highlightable>
       )}
       {(blocks || []).length === 0 && (
-        <div style={{ padding: 24, textAlign: "center", opacity: 0.4, fontSize: 13, border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8 }}>
+        <div style={{ padding: 24, textAlign: "center", opacity: 0.4, fontSize: 13, border: `1px dashed ${theme.border}`, borderRadius: 8 }}>
           Add blocks in the Email tab to fill the body.
         </div>
       )}
       {(blocks || []).map((b, i) => (
         <Highlightable key={i} hovered={hoveredKey === `block-${i}`}>
-          <CanvasBlock block={b} t={t} inline={inline} />
+          <CanvasBlock block={b} t={t} inline={inline} theme={theme} />
         </Highlightable>
       ))}
     </div>
@@ -210,12 +254,12 @@ function Highlightable({ hovered, children }) {
   );
 }
 
-function CanvasBlock({ block, t, inline }) {
+function CanvasBlock({ block, t, inline, theme }) {
   if (block.type === "text" && block.style === "heading") {
-    return <h2 style={{ fontSize: 22, fontWeight: 700, margin: "16px 0 8px", color: "#fff" }}>{inline(block.text)}</h2>;
+    return <h2 style={{ fontSize: 22, fontWeight: 700, margin: "16px 0 8px", color: theme.text }}>{inline(block.text)}</h2>;
   }
   if (block.type === "text") {
-    return <p style={{ margin: "0 0 12px", lineHeight: 1.5, color: "#fff" }}>{inline(block.text)}</p>;
+    return <p style={{ margin: "0 0 12px", lineHeight: 1.5, color: theme.text }}>{inline(block.text)}</p>;
   }
   if (block.type === "image" && block.url) {
     const widthPct = Math.max(25, Math.min(100, Number(block.width) || 100));

@@ -170,13 +170,13 @@ function renderBlock(b, t) {
   }
   if (b.type === "socials" && Array.isArray(b.links) && b.links.length > 0) {
     const align = textAlign(b.align);
-    const valid = b.links.filter((l) => l && typeof l.url === "string" && /^https?:\/\//i.test(l.url) && l.label);
+    const valid = b.links.filter((l) => l && typeof l.url === "string" && /^https?:\/\//i.test(l.url) && SOCIAL_ICONS[l.key]);
     if (valid.length === 0) return "";
-    const sep = `<span class="pu-muted" style="margin:0 8px;color:rgba(12,10,18,0.4);">·</span>`;
-    const items = valid.map((l) =>
-      `<a class="pu-link" href="${escapeAttr(l.url)}" style="color:#0670DB;text-decoration:none;font-weight:500;">${escapeHtml(l.label)}</a>`
-    );
-    return `<div class="pu-text" style="text-align:${align};margin:20px 0;font-size:13px;color:#0c0a12;">${items.join(sep)}</div>`;
+    const items = valid.map((l) => {
+      const icon = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;">${SOCIAL_ICONS[l.key]}</svg>`;
+      return `<a href="${escapeAttr(l.url)}" aria-label="${escapeAttr(l.label || l.key)}" title="${escapeAttr(l.label || l.key)}" style="display:inline-block;padding:6px 10px;color:inherit;text-decoration:none;">${icon}</a>`;
+    });
+    return `<div class="pu-text" style="text-align:${align};margin:20px 0;color:#0c0a12;">${items.join("")}</div>`;
   }
   if (b.type === "button" && b.url && b.text) {
     const captionRaw = b.caption ? t(b.caption) : "";
@@ -212,6 +212,20 @@ const ASPECT_RATIO_CSS = {
 function textAlign(v) {
   return v === "center" || v === "right" ? v : "left";
 }
+
+// Inline SVG glyphs for the social platforms — lucide-style outlines so
+// each icon inherits currentColor from its parent <a>. The pu-text class
+// on the wrapper flips that color across light/dark mode automatically.
+// Email clients that strip SVG (Gmail web) fall back to the link being
+// clickable but visually empty; the aria-label/title still describe it.
+const SOCIAL_ICONS = {
+  instagram: '<rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>',
+  spotify:   '<circle cx="12" cy="12" r="10"/><path d="M7.5 9.5C10.5 8.5 14 8.5 17 10"/><path d="M8 12.5c2.5-.8 5.5-.8 8 .5"/><path d="M8.5 15.5c2-.5 4-.5 6 .3"/>',
+  tiktok:    '<path d="M9 7v10a3 3 0 1 1-3-3"/><path d="M15 3v3a4 4 0 0 0 4 4"/>',
+  soundcloud:'<path d="M3 14v4"/><path d="M5 12v6"/><path d="M7 11v7"/><path d="M9 9v9"/><path d="M11 11v7"/><path d="M13 8v10a3 3 0 0 0 3 3h3a4 4 0 0 0 0-8h-1a5 5 0 0 0-5-5z"/>',
+  youtube:   '<rect x="2" y="6" width="20" height="12" rx="3" ry="3"/><polygon points="10,9 16,12 10,15" fill="currentColor" stroke="none"/>',
+  website:   '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+};
 
 function clampPercent(v) {
   const n = Number(v);

@@ -2,7 +2,7 @@ import TextBlockEditor from "./blocks/TextBlockEditor";
 import ImageBlockEditor from "./blocks/ImageBlockEditor";
 import ButtonBlockEditor from "./blocks/ButtonBlockEditor";
 
-export default function BlockEditorList({ blocks, onChange }) {
+export default function BlockEditorList({ blocks, onChange, tokens }) {
   function updateBlock(idx, next) {
     const copy = [...blocks];
     copy[idx] = next;
@@ -44,9 +44,9 @@ export default function BlockEditorList({ blocks, onChange }) {
           }}
         >
           <div style={{ flex: 1 }}>
-            {block.type === "text" && <TextBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} />}
+            {block.type === "text" && <TextBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} tokens={tokens} />}
             {block.type === "image" && <ImageBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} />}
-            {block.type === "button" && <ButtonBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} />}
+            {block.type === "button" && <ButtonBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} tokens={tokens} />}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             <button type="button" onClick={() => moveBlock(idx, -1)} style={iconBtn} disabled={idx === 0}>↑</button>

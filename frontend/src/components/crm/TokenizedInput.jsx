@@ -1,9 +1,10 @@
 // TokenizedInput — wraps a controlled <input> or <textarea> and renders a
-// pill row of token buttons beneath it. Clicking a pill inserts the
-// `{{token}}` at the current cursor position.
+// pill row of token buttons beneath. The visible value shows friendly
+// labels like [First name] while the stored value carries {{first_name}}
+// machinery; conversion happens at the input boundary.
 
 import { useRef } from "react";
-import { TOKENS } from "../../lib/emailTokens";
+import { TOKENS, tokensToLabels, labelsToTokens } from "../../lib/emailTokens";
 
 export default function TokenizedInput({
   value,
@@ -15,21 +16,25 @@ export default function TokenizedInput({
   tokens = TOKENS,
 }) {
   const ref = useRef(null);
+  const display = tokensToLabels(value, tokens);
 
-  function insertToken(key) {
+  function handleChange(nextDisplay) {
+    onChange(labelsToTokens(nextDisplay, tokens));
+  }
+
+  function insertToken(label) {
     const el = ref.current;
-    const tokenStr = `{{${key}}}`;
+    const insert = `[${label}]`;
     if (!el) {
-      onChange((value || "") + tokenStr);
+      handleChange(display + insert);
       return;
     }
-    const start = el.selectionStart ?? value.length;
-    const end = el.selectionEnd ?? value.length;
-    const next = value.slice(0, start) + tokenStr + value.slice(end);
-    onChange(next);
-    // Restore cursor after the inserted token on next tick.
+    const start = el.selectionStart ?? display.length;
+    const end = el.selectionEnd ?? display.length;
+    const next = display.slice(0, start) + insert + display.slice(end);
+    handleChange(next);
     requestAnimationFrame(() => {
-      const pos = start + tokenStr.length;
+      const pos = start + insert.length;
       el.focus();
       el.setSelectionRange(pos, pos);
     });
@@ -44,25 +49,27 @@ export default function TokenizedInput({
     <div>
       <Tag
         ref={ref}
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
+        value={display}
+        onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
         {...elProps}
       />
-      <div style={pillRowStyle}>
-        {tokens.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onMouseDown={(e) => e.preventDefault()} /* keep focus on input */
-            onClick={() => insertToken(t.key)}
-            style={pillStyle}
-            title={`Insert {{${t.key}}}`}
-          >
-            + {t.label}
-          </button>
-        ))}
-      </div>
+      {tokens.length > 0 && (
+        <div style={pillRowStyle}>
+          {tokens.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()} /* keep focus on input */
+              onClick={() => insertToken(t.label)}
+              style={pillStyle}
+              title={`Insert [${t.label}]`}
+            >
+              + {t.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 
 import BlockEditorList from "./BlockEditorList";
 import TokenizedInput from "./TokenizedInput";
+import { availableTokens } from "../../lib/emailTokens";
 
 export default function FollowUpComposer({
   events,
@@ -19,6 +20,8 @@ export default function FollowUpComposer({
   signoff,
   setSignoff,
 }) {
+  const tokens = availableTokens({ hasEvent: Boolean(selectedEventId) });
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
       <Field label="Associate with event (for analytics)">
@@ -34,10 +37,10 @@ export default function FollowUpComposer({
         </select>
       </Field>
       <Field label="Subject">
-        <TokenizedInput value={subject} onChange={setSubject} placeholder="Subject line…" />
+        <TokenizedInput value={subject} onChange={setSubject} tokens={tokens} placeholder="Subject line…" />
       </Field>
       <Field label="Preview text (preheader)">
-        <TokenizedInput value={previewText} onChange={setPreviewText} placeholder="Inbox preview snippet…" />
+        <TokenizedInput value={previewText} onChange={setPreviewText} tokens={tokens} placeholder="Inbox preview snippet…" />
       </Field>
       <Field label="Greeting (auto-personalized per recipient)">
         <TokenizedInput
@@ -45,12 +48,13 @@ export default function FollowUpComposer({
           rows={2}
           value={greeting}
           onChange={setGreeting}
-          placeholder="Hi {{first_name}},"
+          tokens={tokens}
+          placeholder="Hi [First name],"
         />
       </Field>
-      <BlockEditorList blocks={blocks} onChange={setBlocks} />
+      <BlockEditorList blocks={blocks} onChange={setBlocks} tokens={tokens} />
       <Field label="Signoff">
-        <TokenizedInput multiline rows={3} value={signoff} onChange={setSignoff} placeholder={"With love,\nThe Spring Salon"} />
+        <TokenizedInput multiline rows={3} value={signoff} onChange={setSignoff} tokens={tokens} placeholder={"With love,\nThe Spring Salon"} />
       </Field>
     </div>
   );

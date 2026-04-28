@@ -3,6 +3,7 @@ import { getEmailCampaign, updateEmailCampaignStatus } from "../data.js";
 import { getPeopleWithFilters, recordEmailSend } from "../data.js";
 import { findEventById } from "../data.js";
 import { addCampaignToPeople } from "../data.js";
+import { ensureUnsubscribeToken } from "../data.js";
 import { enqueueOutbox } from "../email/index.js";
 import { renderEventEmailTemplate } from "./emailTemplateService.js";
 import { renderFollowUpEmailTemplate } from "./followUpTemplateService.js";
@@ -52,7 +53,7 @@ export async function sendCampaignInBatches(
       : "http://localhost:3001";
 
     // 3. Get all recipients using filterCriteria
-    const { people, total } = await getPeopleWithFilters(
+    const { people } = await getPeopleWithFilters(
       campaign.userId,
       campaign.filterCriteria,
       "created_at",
@@ -61,7 +62,15 @@ export async function sendCampaignInBatches(
       0
     );
 
-    if (people.length === 0) {
+    // Filter out anyone who has unsubscribed from marketing. We keep their row
+    // intact (history, RSVPs) but skip them at send time.
+    const eligible = people.filter((p) => !p.marketing_unsubscribed_at);
+    const skippedUnsubscribed = people.length - eligible.length;
+    if (skippedUnsubscribed > 0) {
+      console.log(`[campaignSender] Skipping ${skippedUnsubscribed} unsubscribed recipients`);
+    }
+
+    if (eligible.length === 0) {
       await updateEmailCampaignStatus(campaignId, "sent", {
         totalSent: 0,
         totalFailed: 0,
@@ -69,24 +78,35 @@ export async function sendCampaignInBatches(
       return { sent: 0, failed: 0, total: 0 };
     }
 
+    // Frontend URL for the public unsubscribe page
+    const frontendBaseUrl = process.env.NODE_ENV === "production"
+      ? (process.env.FRONTEND_URL || "https://pullup.se")
+      : "http://localhost:5173";
+
     // 4. Process in batches
     let totalSent = 0;
     let totalFailed = 0;
     const errors = [];
 
-    for (let i = 0; i < people.length; i += batchSize) {
-      const batch = people.slice(i, i + batchSize);
+    for (let i = 0; i < eligible.length; i += batchSize) {
+      const batch = eligible.slice(i, i + batchSize);
       const batchPromises = [];
 
       for (const person of batch) {
         const sendPromise = (async () => {
           try {
+            // Mint (or fetch) the per-recipient unsubscribe token so the
+            // footer link resolves to /u/:token on the frontend.
+            const unsubscribeToken = await ensureUnsubscribeToken(person.id);
+            const unsubscribeUrl = `${frontendBaseUrl}/u/${unsubscribeToken}`;
+
             const html = campaign.templateType === "followup"
               ? renderFollowUpEmailTemplate({
                   templateContent: campaign.templateContent,
                   person,
                   event: event || null,
                   baseUrl: backendBaseUrl,
+                  unsubscribeUrl,
                 })
               : renderEventEmailTemplate({
                   event,
@@ -166,7 +186,7 @@ export async function sendCampaignInBatches(
       await addCampaignToPeople(personIds, campaignId);
 
       // Delay before next batch (except for last batch)
-      if (i + batchSize < people.length) {
+      if (i + batchSize < eligible.length) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }

@@ -1,5 +1,6 @@
 // backend/src/data.js
 
+import crypto from "node:crypto";
 import { supabase } from "./supabase.js";
 import { logger } from "./logger.js";
 
@@ -4457,6 +4458,49 @@ export async function addCampaignToPeople(personIds, campaignId) {
   }
 
   return { updated, errors };
+}
+
+// ---------------------------
+// CRM marketing unsubscribe
+// ---------------------------
+// We never delete people who unsubscribe — a timestamp + token pair lets
+// them re-subscribe later via the same link, and hosts retain full event
+// history. Tokens are minted lazily on first send.
+
+export async function ensureUnsubscribeToken(personId) {
+  const { data, error } = await supabase
+    .from("people")
+    .select("marketing_unsubscribe_token")
+    .eq("id", personId)
+    .single();
+  if (error) throw error;
+  if (data?.marketing_unsubscribe_token) return data.marketing_unsubscribe_token;
+  const token = crypto.randomBytes(24).toString("hex");
+  const { error: updateError } = await supabase
+    .from("people")
+    .update({ marketing_unsubscribe_token: token })
+    .eq("id", personId);
+  if (updateError) throw updateError;
+  return token;
+}
+
+export async function findPersonByUnsubscribeToken(token) {
+  if (!token || typeof token !== "string") return null;
+  const { data, error } = await supabase
+    .from("people")
+    .select("id, email, name, marketing_unsubscribed_at")
+    .eq("marketing_unsubscribe_token", token)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+export async function setMarketingUnsubscribed(personId, unsubscribed) {
+  const { error } = await supabase
+    .from("people")
+    .update({ marketing_unsubscribed_at: unsubscribed ? new Date().toISOString() : null })
+    .eq("id", personId);
+  if (error) throw error;
 }
 
 // ---------------------------

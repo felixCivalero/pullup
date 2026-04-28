@@ -63,7 +63,7 @@ function renderInline(text, t) {
   return result;
 }
 
-export function renderFollowUpEmailTemplate({ templateContent, person, event /*, baseUrl */ }) {
+export function renderFollowUpEmailTemplate({ templateContent, person, event, unsubscribeUrl /*, baseUrl */ }) {
   const blocks = Array.isArray(templateContent.blocks) ? templateContent.blocks : [];
   const ctx = buildTokenContext({ person, event });
   const t = (s) => applyTokens(s, ctx);
@@ -87,7 +87,18 @@ export function renderFollowUpEmailTemplate({ templateContent, person, event /*,
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(t(templateContent.previewText))}</div>`
     : "";
 
-  return `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0c0a12;color:#fff;padding:24px;">${previewText}<div style="max-width:600px;margin:0 auto;">${greeting}${body}${signoffHtml}</div></body></html>`;
+  // Footer with the per-recipient unsubscribe link. The link is required for
+  // CAN-SPAM/GDPR compliance and the campaignSender filters out anyone who
+  // has clicked it. Marked ses:no-track so click tracking doesn't redirect
+  // through the tracker (one-click unsubscribe needs a direct hop).
+  const footer = unsubscribeUrl
+    ? `<div style="margin-top:32px;padding-top:20px;border-top:2px solid rgba(255,255,255,0.08);font-size:12px;text-align:center;opacity:0.5;line-height:1.6;">
+        <p style="margin:0;">You are receiving this email because you opted in via our site.<br>Want to change how you receive these emails?<br>You can <a href="${escapeAttr(unsubscribeUrl)}#ses:no-track" style="color:#0670DB;text-decoration:underline;">unsubscribe from this list</a>.</p>
+        <p style="margin:12px 0 0;">Pullup.se<br>Lorensbergsgatan 3b<br>117 33, Stockholm</p>
+      </div>`
+    : "";
+
+  return `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0c0a12;color:#fff;padding:24px;">${previewText}<div style="max-width:600px;margin:0 auto;">${greeting}${body}${signoffHtml}${footer}</div></body></html>`;
 }
 
 function renderBlock(b, t) {

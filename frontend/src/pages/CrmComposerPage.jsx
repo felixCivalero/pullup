@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { authenticatedFetch } from "../lib/api.js";
 import { useToast } from "../components/Toast";
@@ -35,6 +35,11 @@ export default function CrmComposerPage() {
   const [sendingCampaignId, setSendingCampaignId] = useState(null);
   const [sendingStats, setSendingStats] = useState({ totalRecipients: 0, totalSent: 0, totalFailed: 0 });
   const [sendingErrorMessage, setSendingErrorMessage] = useState("");
+
+  const cancelledRef = useRef(false);
+  useEffect(() => {
+    return () => { cancelledRef.current = true; };
+  }, []);
 
   const selectedEvent = useMemo(
     () => events.find((e) => e.id === selectedEventId) || null,
@@ -130,11 +135,13 @@ export default function CrmComposerPage() {
 
   async function handleConfirmSend() {
     if (!selectedEventId) {
+      if (cancelledRef.current) return;
       setSendStage("error");
       setSendingErrorMessage("No event selected.");
       return;
     }
 
+    if (cancelledRef.current) return;
     setSendStage("sending");
     setSendingErrorMessage("");
 
@@ -182,6 +189,7 @@ export default function CrmComposerPage() {
       }
 
       const { campaignId, totalRecipients } = await createRes.json();
+      if (cancelledRef.current) return;
       setSendingCampaignId(campaignId);
       setSendingStats((prev) => ({
         ...prev,
@@ -194,6 +202,7 @@ export default function CrmComposerPage() {
         `/host/crm/campaigns/${campaignId}/send`,
         { method: "POST" },
       );
+      if (cancelledRef.current) return;
       if (!sendRes.ok) {
         const errJson = await sendRes.json().catch(() => ({}));
         throw new Error(errJson.message || "Failed to start sending");
@@ -205,7 +214,9 @@ export default function CrmComposerPage() {
 
       // eslint-disable-next-line no-constant-condition
       while (true) {
+        if (cancelledRef.current) return;
         if (attempts >= maxAttempts) {
+          if (cancelledRef.current) return;
           setSendStage("error");
           setSendingErrorMessage(
             "Timed out while waiting for campaign to finish.",
@@ -224,18 +235,22 @@ export default function CrmComposerPage() {
         }
 
         const statusJson = await statusRes.json();
+        if (cancelledRef.current) return;
 
-        setSendingStats({
-          totalRecipients: statusJson.totalRecipients || 0,
-          totalSent: statusJson.totalSent || 0,
-          totalFailed: statusJson.totalFailed || 0,
-        });
+        setSendingStats((prev) => ({
+          ...prev,
+          totalRecipients: statusJson.totalRecipients ?? prev.totalRecipients,
+          totalSent: statusJson.totalSent ?? prev.totalSent,
+          totalFailed: statusJson.totalFailed ?? prev.totalFailed,
+        }));
 
         if (statusJson.status === "sent") {
+          if (cancelledRef.current) return;
           setSendStage("success");
           return;
         }
         if (statusJson.status === "failed") {
+          if (cancelledRef.current) return;
           setSendStage("error");
           setSendingErrorMessage("The email provider reported a failure.");
           return;
@@ -244,6 +259,7 @@ export default function CrmComposerPage() {
       }
     } catch (error) {
       console.error("Error sending campaign:", error);
+      if (cancelledRef.current) return;
       setSendStage("error");
       setSendingErrorMessage(
         error.message || "Unexpected error while sending campaign.",

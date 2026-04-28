@@ -275,10 +275,12 @@ function Highlightable({ hoverKey, hovered, children }) {
 
 function CanvasBlock({ block, t, inline, theme }) {
   if (block.type === "text" && block.style === "heading") {
-    return <h2 style={{ fontSize: 22, fontWeight: 700, margin: "16px 0 8px", color: theme.text }}>{inline(block.text)}</h2>;
+    const textAlign = block.align === "center" || block.align === "right" ? block.align : "left";
+    return <h2 style={{ fontSize: 22, fontWeight: 700, margin: "16px 0 8px", color: theme.text, textAlign }}>{inline(block.text)}</h2>;
   }
   if (block.type === "text") {
-    return <p style={{ margin: "0 0 12px", lineHeight: 1.5, color: theme.text }}>{inline(block.text)}</p>;
+    const textAlign = block.align === "center" || block.align === "right" ? block.align : "left";
+    return <p style={{ margin: "0 0 12px", lineHeight: 1.5, color: theme.text, textAlign }}>{inline(block.text)}</p>;
   }
   if (block.type === "image" && block.url) {
     const widthPct = Math.max(25, Math.min(100, Number(block.width) || 100));

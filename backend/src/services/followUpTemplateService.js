@@ -145,10 +145,12 @@ export function renderFollowUpEmailTemplate({ templateContent, person, event, un
 function renderBlock(b, t) {
   if (!b || typeof b !== "object") return "";
   if (b.type === "text" && b.style === "heading") {
-    return `<h2 class="pu-heading" style="font-size:22px;font-weight:700;margin:16px 0 8px;color:#0c0a12;">${renderInline(b.text || "", t)}</h2>`;
+    const align = textAlign(b.align);
+    return `<h2 class="pu-heading" style="font-size:22px;font-weight:700;margin:16px 0 8px;color:#0c0a12;text-align:${align};">${renderInline(b.text || "", t)}</h2>`;
   }
   if (b.type === "text" && b.style === "paragraph") {
-    return `<p class="pu-text" style="margin:0 0 12px;line-height:1.5;color:#0c0a12;">${renderInline(b.text || "", t)}</p>`;
+    const align = textAlign(b.align);
+    return `<p class="pu-text" style="margin:0 0 12px;line-height:1.5;color:#0c0a12;text-align:${align};">${renderInline(b.text || "", t)}</p>`;
   }
   if (b.type === "image" && b.url) {
     const widthPct = clampPercent(b.width);
@@ -195,6 +197,10 @@ const ASPECT_RATIO_CSS = {
   square: "1/1",
   portrait: "4/5",
 };
+
+function textAlign(v) {
+  return v === "center" || v === "right" ? v : "left";
+}
 
 function clampPercent(v) {
   const n = Number(v);

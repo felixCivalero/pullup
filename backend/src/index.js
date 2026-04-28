@@ -5354,6 +5354,7 @@ function validateFollowupTemplateContent(tc) {
     if (b.type === "text") {
       if (b.style !== "heading" && b.style !== "paragraph") return `block ${i}: invalid text style`;
       if (typeof b.text !== "string") return `block ${i}: text must be a string`;
+      if (b.align !== undefined && !["left", "center", "right"].includes(b.align)) return `block ${i}: align must be left/center/right`;
     } else if (b.type === "image") {
       if (typeof b.url !== "string" || !/^https?:\/\//.test(b.url)) return `block ${i}: image url must be http(s)`;
       if (b.alt !== undefined && typeof b.alt !== "string") return `block ${i}: alt must be a string`;

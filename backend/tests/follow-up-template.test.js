@@ -159,6 +159,92 @@ function testUnknownBlockSkipped() {
 }
 testUnknownBlockSkipped();
 
+function testTokenSubstitutionInTextBlock() {
+  console.log("🧪 {{first_name}} resolves in text blocks");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "text", style: "paragraph", text: "Welcome {{first_name}}!" }],
+      signoff: "",
+    },
+    person: { first_name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("Welcome Sam!"), "first_name substituted");
+  assert(!html.includes("{{first_name}}"), "no raw token left");
+}
+testTokenSubstitutionInTextBlock();
+
+function testEventTokensResolve() {
+  console.log("🧪 {{event_title}} and {{event_date}} resolve from event");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "text", style: "heading", text: "{{event_title}} on {{event_date}}" }],
+      signoff: "",
+    },
+    person: { first_name: "Sam" },
+    event: { title: "Spring Salon", starts_at: "2026-05-15T19:00:00Z" },
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("Spring Salon"), "event_title substituted");
+  assert(html.includes("May") || html.includes("15"), "event_date formatted");
+}
+testEventTokensResolve();
+
+function testTokensInButtonAndSignoff() {
+  console.log("🧪 tokens resolve in button text/caption and signoff");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "button", text: "Hi {{first_name}}", url: "https://x.com", caption: "for {{last_name}}" }],
+      signoff: "Thanks {{first_name}} {{last_name}}",
+    },
+    person: { first_name: "Sam", last_name: "Lee" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("Hi Sam"), "button text token resolved");
+  assert(html.includes("for Lee"), "caption token resolved");
+  assert(html.includes("Thanks Sam Lee"), "signoff tokens resolved");
+}
+testTokensInButtonAndSignoff();
+
+function testMissingTokenFallback() {
+  console.log("🧪 missing token data falls back to empty string");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "text", style: "paragraph", text: "Hi {{last_name}}!" }],
+      signoff: "",
+    },
+    person: { first_name: "Sam" }, // no last_name
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("Hi !"), "missing token resolves to empty");
+  assert(!html.includes("{{last_name}}"), "no raw token left");
+}
+testMissingTokenFallback();
+
+function testTokensEscapedSafely() {
+  console.log("🧪 token values are HTML-escaped");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "text", style: "paragraph", text: "Hello {{first_name}}" }],
+      signoff: "",
+    },
+    person: { first_name: "<script>x</script>" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(!html.includes("<script>x</script>"), "raw script tag not present");
+  assert(html.includes("&lt;script&gt;"), "token value escaped");
+}
+testTokensEscapedSafely();
+
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
   process.exit(1);

@@ -2,6 +2,7 @@
 // <EmailCanvas /> on the right; this is the form on the left.
 
 import BlockEditorList from "./BlockEditorList";
+import TokenizedInput from "./TokenizedInput";
 
 export default function FollowUpComposer({
   events,
@@ -31,17 +32,17 @@ export default function FollowUpComposer({
         </select>
       </Field>
       <Field label="Subject">
-        <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} style={inputStyle} placeholder="Subject line…" />
+        <TokenizedInput value={subject} onChange={setSubject} placeholder="Subject line…" />
       </Field>
       <Field label="Preview text (preheader)">
-        <input type="text" value={previewText} onChange={(e) => setPreviewText(e.target.value)} style={inputStyle} placeholder="Inbox preview snippet…" />
+        <TokenizedInput value={previewText} onChange={setPreviewText} placeholder="Inbox preview snippet…" />
       </Field>
       <div style={{ padding: "10px 12px", background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "10px", fontSize: "12px", opacity: 0.85 }}>
-        Greeting: <strong>Hi [recipient first name],</strong> — auto-personalized.
+        Greeting: <strong>Hi {"{{first_name}}"},</strong> — auto-personalized.
       </div>
       <BlockEditorList blocks={blocks} onChange={setBlocks} />
       <Field label="Signoff">
-        <textarea value={signoff} onChange={(e) => setSignoff(e.target.value)} rows={3} style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }} placeholder={"With love,\nThe Spring Salon"} />
+        <TokenizedInput multiline rows={3} value={signoff} onChange={setSignoff} placeholder={"With love,\nThe Spring Salon"} />
       </Field>
     </div>
   );

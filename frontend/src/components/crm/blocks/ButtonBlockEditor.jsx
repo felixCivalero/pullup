@@ -1,27 +1,34 @@
+import TokenizedInput from "../TokenizedInput";
+
 export default function ButtonBlockEditor({ block, onChange }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <input
-        type="text"
-        value={block.text}
-        onChange={(e) => onChange({ ...block, text: e.target.value })}
-        placeholder="Button text (e.g., Get 20% off)"
-        style={inputStyle}
-      />
-      <input
-        type="url"
-        value={block.url}
-        onChange={(e) => onChange({ ...block, url: e.target.value })}
-        placeholder="https://..."
-        style={inputStyle}
-      />
-      <input
-        type="text"
-        value={block.caption || ""}
-        onChange={(e) => onChange({ ...block, caption: e.target.value || null })}
-        placeholder="Caption (optional, e.g., Code: THANKYOU20 — valid through May 15)"
-        style={inputStyle}
-      />
+      <div>
+        <label style={labelStyle}>Button text</label>
+        <TokenizedInput
+          value={block.text}
+          onChange={(text) => onChange({ ...block, text })}
+          placeholder="Get 20% off"
+        />
+      </div>
+      <div>
+        <label style={labelStyle}>URL</label>
+        <input
+          type="url"
+          value={block.url}
+          onChange={(e) => onChange({ ...block, url: e.target.value })}
+          placeholder="https://..."
+          style={inputStyle}
+        />
+      </div>
+      <div>
+        <label style={labelStyle}>Caption (optional)</label>
+        <TokenizedInput
+          value={block.caption || ""}
+          onChange={(caption) => onChange({ ...block, caption: caption || null })}
+          placeholder="Code: THANKYOU20 — valid through May 15"
+        />
+      </div>
       <div style={{ textAlign: "center", padding: "12px", background: "rgba(255,255,255,0.04)", borderRadius: "10px" }}>
         <a
           href={block.url || "#"}
@@ -55,4 +62,14 @@ const inputStyle = {
   background: "rgba(12,10,18,0.8)",
   color: "#fff",
   fontSize: "14px",
+  boxSizing: "border-box",
+};
+
+const labelStyle = {
+  display: "block",
+  fontSize: "10px",
+  opacity: 0.6,
+  marginBottom: "4px",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
 };

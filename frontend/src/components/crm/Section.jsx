@@ -10,9 +10,9 @@ const VARIANTS = {
     label: "rgba(147,197,253,0.7)",
   },
   content: {
-    background: "rgba(212,175,55,0.04)",
-    border: "1px solid rgba(212,175,55,0.16)",
-    label: "rgba(212,175,55,0.7)",
+    background: "rgba(255,255,255,0.02)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    label: "rgba(255,255,255,0.45)",
   },
 };
 

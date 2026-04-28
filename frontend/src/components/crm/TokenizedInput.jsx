@@ -208,9 +208,9 @@ const pillRowStyle = {
 const pillStyle = {
   padding: "4px 10px",
   borderRadius: "999px",
-  border: "1px solid rgba(212,175,55,0.25)",
-  background: "rgba(212,175,55,0.08)",
-  color: "#d4af37",
+  border: "1px solid rgba(163,230,53,0.35)",
+  background: "rgba(163,230,53,0.1)",
+  color: "#a3e635",
   fontSize: "11px",
   fontWeight: 500,
   cursor: "pointer",

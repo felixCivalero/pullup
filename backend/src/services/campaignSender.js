@@ -5,6 +5,7 @@ import { findEventById } from "../data.js";
 import { addCampaignToPeople } from "../data.js";
 import { enqueueOutbox } from "../email/index.js";
 import { renderEventEmailTemplate } from "./emailTemplateService.js";
+import { renderFollowUpEmailTemplate } from "./followUpTemplateService.js";
 import { addTracking } from "../email/tracking/linkRewriter.js";
 
 /**
@@ -40,6 +41,8 @@ export async function sendCampaignInBatches(
       if (!event) {
         throw new Error("Event not found");
       }
+    } else if (campaign.templateType === "followup" && campaign.eventId) {
+      event = await findEventById(campaign.eventId);
     }
 
     // Generate campaign tag for tracking
@@ -78,11 +81,18 @@ export async function sendCampaignInBatches(
       for (const person of batch) {
         const sendPromise = (async () => {
           try {
-            const html = renderEventEmailTemplate({
-              event,
-              templateContent: campaign.templateContent,
-              person,
-            });
+            const html = campaign.templateType === "followup"
+              ? renderFollowUpEmailTemplate({
+                  templateContent: campaign.templateContent,
+                  person,
+                  event: event || null,
+                  baseUrl: backendBaseUrl,
+                })
+              : renderEventEmailTemplate({
+                  event,
+                  templateContent: campaign.templateContent,
+                  person,
+                });
 
             // Record CRM-level send (campaign_sends)
             const campaignSend = await recordEmailSend({

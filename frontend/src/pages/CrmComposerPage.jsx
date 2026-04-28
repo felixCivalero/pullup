@@ -2,16 +2,29 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { authenticatedFetch } from "../lib/api.js";
 import { useToast } from "../components/Toast";
+import { useAuth } from "../contexts/AuthContext";
 import ComposerSidebar from "../components/crm/ComposerSidebar";
 import SegmentPanel from "../components/crm/SegmentPanel";
 import EmailPanel from "../components/crm/EmailPanel";
 import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
 
+function deriveFirstName(user) {
+  if (!user) return "";
+  const meta = user.user_metadata || {};
+  if (meta.first_name) return String(meta.first_name).trim();
+  const full = meta.full_name || meta.name || "";
+  if (full) return String(full).trim().split(/\s+/)[0] || "";
+  if (user.email) return String(user.email).split("@")[0];
+  return "";
+}
+
 export default function CrmComposerPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const searchParamsString = searchParams.toString();
+  const currentUserFirstName = useMemo(() => deriveFirstName(user), [user]);
 
   const [activeSection, setActiveSection] = useState("segment");
 
@@ -26,6 +39,14 @@ export default function CrmComposerPage() {
   const [introGreeting, setIntroGreeting] = useState("");
   const [introNote, setIntroNote] = useState("");
   const [signoffText, setSignoffText] = useState("");
+
+  // Follow-up template state (independent from event-template fields so
+  // switching templates doesn't lose either side's edits)
+  const [followupEventId, setFollowupEventId] = useState("");
+  const [followupSubject, setFollowupSubject] = useState("");
+  const [followupPreviewText, setFollowupPreviewText] = useState("");
+  const [followupBlocks, setFollowupBlocks] = useState([]);
+  const [followupSignoff, setFollowupSignoff] = useState("");
 
   const [segmentRecipients, setSegmentRecipients] = useState([]);
   const [excludedRecipientIds, setExcludedRecipientIds] = useState(() => new Set());
@@ -126,6 +147,16 @@ export default function CrmComposerPage() {
       showToast("Choose an event for the email content.", "error");
       return;
     }
+    if (selectedTemplate === "followup") {
+      if (!followupSubject.trim()) {
+        showToast("Subject is required.", "error");
+        return;
+      }
+      if (followupBlocks.length === 0) {
+        showToast("Add at least one block.", "error");
+        return;
+      }
+    }
     setSendStage("confirm");
     setSendingCampaignId(null);
     setSendingStats({ totalRecipients: effectiveRecipientCount, totalSent: 0, totalFailed: 0 });
@@ -138,7 +169,8 @@ export default function CrmComposerPage() {
   // recover an in-flight campaign after navigation away. Acceptable today;
   // revisit if users frequently navigate away during sends.
   async function handleConfirmSend() {
-    if (!selectedEventId) {
+    const isFollowup = selectedTemplate === "followup";
+    if (!isFollowup && !selectedEventId) {
       if (cancelledRef.current) return;
       setSendStage("error");
       setSendingErrorMessage("No event selected.");
@@ -162,23 +194,36 @@ export default function CrmComposerPage() {
     };
 
     try {
-      const campaignData = {
-        templateType: selectedTemplate,
-        eventId: selectedEventId,
-        subject:
-          subjectLine ||
-          (selectedEvent ? `You're invited to ${selectedEvent.title}.` : ""),
-        templateContent: {
-          headline: headlineText || selectedEvent?.title || "",
-          introQuote: introQuote || "",
-          introBody: introBody || "",
-          introGreeting: introGreeting || "",
-          introNote: introNote || "",
-          signoffText: signoffText || "",
-          ctaLabel: "TO EVENT",
-        },
-        filterCriteria,
-      };
+      const campaignData = isFollowup
+        ? {
+            templateType: "followup",
+            eventId: followupEventId || null,
+            subject: followupSubject,
+            templateContent: {
+              subject: followupSubject,
+              previewText: followupPreviewText,
+              blocks: followupBlocks,
+              signoff: followupSignoff,
+            },
+            filterCriteria,
+          }
+        : {
+            templateType: selectedTemplate,
+            eventId: selectedEventId,
+            subject:
+              subjectLine ||
+              (selectedEvent ? `You're invited to ${selectedEvent.title}.` : ""),
+            templateContent: {
+              headline: headlineText || selectedEvent?.title || "",
+              introQuote: introQuote || "",
+              introBody: introBody || "",
+              introGreeting: introGreeting || "",
+              introNote: introNote || "",
+              signoffText: signoffText || "",
+              ctaLabel: "TO EVENT",
+            },
+            filterCriteria,
+          };
 
       // 1) Create campaign
       const createRes = await authenticatedFetch("/host/crm/campaigns", {
@@ -333,6 +378,17 @@ export default function CrmComposerPage() {
               setIntroNote={setIntroNote}
               signoffText={signoffText}
               setSignoffText={setSignoffText}
+              selectedEventIdForFollowup={followupEventId}
+              setSelectedEventIdForFollowup={setFollowupEventId}
+              followupSubject={followupSubject}
+              setFollowupSubject={setFollowupSubject}
+              followupPreviewText={followupPreviewText}
+              setFollowupPreviewText={setFollowupPreviewText}
+              followupBlocks={followupBlocks}
+              setFollowupBlocks={setFollowupBlocks}
+              followupSignoff={followupSignoff}
+              setFollowupSignoff={setFollowupSignoff}
+              currentUserFirstName={currentUserFirstName}
             />
           )}
         </main>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { colors } from "../../theme/colors";
+import FollowUpComposer from "./FollowUpComposer";
 
 export default function EmailPanel({
   events,
@@ -22,6 +23,18 @@ export default function EmailPanel({
   setIntroNote,
   signoffText,
   setSignoffText,
+  // Follow-up template props
+  selectedEventIdForFollowup,
+  setSelectedEventIdForFollowup,
+  followupSubject,
+  setFollowupSubject,
+  followupPreviewText,
+  setFollowupPreviewText,
+  followupBlocks,
+  setFollowupBlocks,
+  followupSignoff,
+  setFollowupSignoff,
+  currentUserFirstName,
 }) {
   const [editingField, setEditingField] = useState(null);
 
@@ -58,9 +71,26 @@ export default function EmailPanel({
           }}
         >
           <option value="event">Event email template</option>
-          {/* Future templates can be added here */}
+          <option value="followup">Follow-up email</option>
         </select>
       </div>
+
+      {selectedTemplate === "followup" && (
+        <FollowUpComposer
+          events={events}
+          selectedEventId={selectedEventIdForFollowup}
+          setSelectedEventId={setSelectedEventIdForFollowup}
+          subject={followupSubject}
+          setSubject={setFollowupSubject}
+          previewText={followupPreviewText}
+          setPreviewText={setFollowupPreviewText}
+          blocks={followupBlocks}
+          setBlocks={setFollowupBlocks}
+          signoff={followupSignoff}
+          setSignoff={setFollowupSignoff}
+          currentUserFirstName={currentUserFirstName}
+        />
+      )}
 
       {selectedTemplate === "event" && (
         <div style={{ marginBottom: "16px" }}>

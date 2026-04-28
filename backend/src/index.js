@@ -5403,6 +5403,9 @@ app.post("/host/crm/campaigns", requireAuth, async (req, res) => {
     }
 
     if (templateType === "followup") {
+      if (!eventId) {
+        return res.status(400).json({ error: "eventId is required for follow-up campaigns" });
+      }
       const err = validateFollowupTemplateContent(templateContent);
       if (err) {
         return res.status(400).json({ error: "Invalid templateContent", message: err });

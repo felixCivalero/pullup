@@ -76,12 +76,18 @@ export default function EmailCanvas({
       />
       <div style={emailFrameStyle}>
         {isFollowup ? (
-          <FollowupBody
-            greeting={followupGreeting}
-            blocks={followupBlocks}
-            t={t}
-            inline={inline}
-          />
+          followupEvent ? (
+            <FollowupBody
+              greeting={followupGreeting}
+              blocks={followupBlocks}
+              t={t}
+              inline={inline}
+            />
+          ) : (
+            <div style={{ padding: 40, textAlign: "center", opacity: 0.4, fontSize: 14 }}>
+              Pick the event this follow-up is for in the Email tab.
+            </div>
+          )
         ) : (
           <EventBody
             selectedEvent={selectedEvent}

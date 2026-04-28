@@ -6373,6 +6373,37 @@ app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
   }
 });
 
+// POST /host/crm/follow-up-images - Upload an image for a follow-up campaign block
+app.post("/host/crm/follow-up-images", requireAuth, async (req, res) => {
+  try {
+    const { imageData } = req.body;
+    if (!imageData || typeof imageData !== "string") {
+      return res.status(400).json({ error: "imageData is required" });
+    }
+    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+    if (buffer.length > 2 * 1024 * 1024) {
+      return res.status(400).json({ error: "Image must be under 2MB" });
+    }
+    const mimeMatch = imageData.match(/data:image\/(\w+);base64/);
+    const extension = mimeMatch ? mimeMatch[1] : "png";
+    const fileName = `crm/${req.user.id}/${crypto.randomUUID()}.${extension}`;
+    const { supabase } = await import("./supabase.js");
+    const { error } = await supabase.storage
+      .from("event-images")
+      .upload(fileName, buffer, { contentType: `image/${extension}`, upsert: false });
+    if (error) {
+      console.error("CRM image upload error:", error);
+      return res.status(500).json({ error: "Failed to upload image" });
+    }
+    const { data: { publicUrl } } = supabase.storage.from("event-images").getPublicUrl(fileName);
+    return res.json({ url: publicUrl });
+  } catch (err) {
+    console.error("CRM image upload exception:", err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
 // ---------------------------
 // PROTECTED: Upload event media (image/video/gif) for carousel
 // ---------------------------

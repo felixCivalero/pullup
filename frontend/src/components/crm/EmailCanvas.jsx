@@ -55,6 +55,7 @@ export default function EmailCanvas({
   followupGreeting,
   followupBlocks,
   currentUserFirstName,
+  hoveredKey,
 }) {
   const isFollowup = selectedTemplate === "followup";
   const isEvent = selectedTemplate === "event";
@@ -95,6 +96,7 @@ export default function EmailCanvas({
               blocks={followupBlocks}
               t={t}
               inline={inline}
+              hoveredKey={hoveredKey}
             />
           ) : (
             <div style={{ padding: 40, textAlign: "center", opacity: 0.4, fontSize: 14 }}>
@@ -255,21 +257,46 @@ function EventBody({
   );
 }
 
-function FollowupBody({ greeting, blocks, t, inline }) {
+function FollowupBody({ greeting, blocks, t, inline, hoveredKey }) {
   const greetingRendered = greeting !== undefined ? greeting : "Hi {{first_name}},";
   return (
     <div>
       {greetingRendered && (
-        <p style={{ margin: "0 0 12px", color: "#fff" }}>
-          {inline(greetingRendered)}
-        </p>
+        <Highlightable hovered={hoveredKey === "greeting"}>
+          <p style={{ margin: "0 0 12px", color: "#fff" }}>
+            {inline(greetingRendered)}
+          </p>
+        </Highlightable>
       )}
       {(blocks || []).length === 0 && (
         <div style={{ padding: 24, textAlign: "center", opacity: 0.4, fontSize: 13, border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8 }}>
           Add blocks in the Email tab to fill the body.
         </div>
       )}
-      {(blocks || []).map((b, i) => <CanvasBlock key={i} block={b} t={t} inline={inline} />)}
+      {(blocks || []).map((b, i) => (
+        <Highlightable key={i} hovered={hoveredKey === `block-${i}`}>
+          <CanvasBlock block={b} t={t} inline={inline} />
+        </Highlightable>
+      ))}
+    </div>
+  );
+}
+
+// Wraps a section in the canvas with a lime-green outline when its sibling
+// row in the editor rail is being hovered. Mirrors the CreateEventPage pattern.
+function Highlightable({ hovered, children }) {
+  return (
+    <div
+      style={{
+        borderRadius: 4,
+        outline: hovered
+          ? "1px solid rgba(163, 230, 53, 0.5)"
+          : "1px solid transparent",
+        outlineOffset: 4,
+        transition: "outline-color 0.15s ease",
+      }}
+    >
+      {children}
     </div>
   );
 }

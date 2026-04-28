@@ -36,6 +36,8 @@ export default function EmailPanel({
   setFollowupGreeting,
   followupBlocks,
   setFollowupBlocks,
+  hoveredKey,
+  setHoveredKey,
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -164,6 +166,8 @@ export default function EmailPanel({
           setGreeting={setFollowupGreeting}
           blocks={followupBlocks}
           setBlocks={setFollowupBlocks}
+          hoveredKey={hoveredKey}
+          setHoveredKey={setHoveredKey}
         />
       )}
     </div>

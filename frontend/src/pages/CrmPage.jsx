@@ -28,6 +28,9 @@ export function CrmPage() {
   const currentUserFirstName = useMemo(() => deriveFirstName(user), [user]);
 
   const [activeTab, setActiveTab] = useState("segment");
+  // Mirrors the CreateEventPage hover-section pattern: editor row hover →
+  // outline the matching part in the canvas. Key is "greeting" or `block-${i}`.
+  const [hoveredKey, setHoveredKey] = useState(null);
 
   // Segment selection pushed up by HomeCrmTab whenever filters/total change
   const [segmentSelection, setSegmentSelection] = useState({
@@ -413,6 +416,8 @@ export function CrmPage() {
                 setFollowupGreeting={setFollowupGreeting}
                 followupBlocks={followupBlocks}
                 setFollowupBlocks={setFollowupBlocks}
+                hoveredKey={hoveredKey}
+                setHoveredKey={setHoveredKey}
               />
             )}
           </div>
@@ -488,6 +493,7 @@ export function CrmPage() {
             followupPreviewText={followupPreviewText}
             followupGreeting={followupGreeting}
             followupBlocks={followupBlocks}
+            hoveredKey={hoveredKey}
             currentUserFirstName={currentUserFirstName}
           />
         </main>

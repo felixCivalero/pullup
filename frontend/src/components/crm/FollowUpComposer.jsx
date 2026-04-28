@@ -18,6 +18,8 @@ export default function FollowUpComposer({
   setGreeting,
   blocks,
   setBlocks,
+  hoveredKey,
+  setHoveredKey,
 }) {
   const hasEvent = Boolean(selectedEventId);
   const tokens = availableTokens({ hasEvent });
@@ -59,7 +61,12 @@ export default function FollowUpComposer({
           </Section>
 
           <Section label="Content" variant="content">
-            <Field label="Greeting (auto-personalized per recipient)">
+            <HoverCard
+              hovered={hoveredKey === "greeting"}
+              onMouseEnter={() => setHoveredKey?.("greeting")}
+              onMouseLeave={() => setHoveredKey?.(null)}
+              label="Greeting"
+            >
               <TokenizedInput
                 multiline
                 rows={2}
@@ -69,8 +76,17 @@ export default function FollowUpComposer({
                 enableLinks
                 placeholder="Hi [First name],"
               />
-            </Field>
-            <BlockEditorList blocks={blocks} onChange={setBlocks} tokens={tokens} />
+              <div style={{ fontSize: 10, opacity: 0.45, marginTop: 6 }}>
+                Auto-personalized per recipient.
+              </div>
+            </HoverCard>
+            <BlockEditorList
+              blocks={blocks}
+              onChange={setBlocks}
+              tokens={tokens}
+              hoveredKey={hoveredKey}
+              setHoveredKey={setHoveredKey}
+            />
           </Section>
         </>
       )}
@@ -84,6 +100,31 @@ function Field({ label, children }) {
       <label style={{ display: "block", fontSize: "11px", opacity: 0.7, marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
         {label}
       </label>
+      {children}
+    </div>
+  );
+}
+
+// Mirrors the CreateEventPage section card: gray bg, lime hover border,
+// small uppercase type label at top.
+function HoverCard({ hovered, onMouseEnter, onMouseLeave, label, children }) {
+  return (
+    <div
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{
+        padding: "14px 16px",
+        background: "rgba(255,255,255,0.04)",
+        border: hovered
+          ? "1px solid rgba(163, 230, 53, 0.5)"
+          : "1px solid rgba(255,255,255,0.1)",
+        borderRadius: 12,
+        transition: "border-color 0.15s ease",
+      }}
+    >
+      <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.25)", marginBottom: 8, userSelect: "none" }}>
+        {label}
+      </div>
       {children}
     </div>
   );

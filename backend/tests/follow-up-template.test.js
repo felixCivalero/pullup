@@ -44,6 +44,25 @@ function testHeadingBlock() {
 }
 testHeadingBlock();
 
+function testImageBlock() {
+  console.log("🧪 image block renders <img> with alt and url");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s",
+      previewText: "",
+      blocks: [{ type: "image", url: "https://cdn.example.com/x.png", alt: "Salon", source: "upload" }],
+      signoff: "",
+    },
+    person: { first_name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("<img "), "contains <img");
+  assert(html.includes("https://cdn.example.com/x.png"), "contains url");
+  assert(html.includes('alt="Salon"'), "contains alt text");
+}
+testImageBlock();
+
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
   process.exit(1);

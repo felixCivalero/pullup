@@ -138,10 +138,17 @@ export default function CrmComposerPage() {
     setSendStage("sending");
     setSendingErrorMessage("");
 
-    const filterCriteria = Object.fromEntries(searchParams.entries());
-    const recipientIds = segmentRecipients
-      .filter((p) => !excludedRecipientIds.has(p.id))
-      .map((p) => p.id);
+    const filterCriteria = {
+      search: searchParams.get("search") || undefined,
+      attendedEventIds: searchParams.get("attendedEventIds")
+        ? searchParams.get("attendedEventIds").split(",")
+        : undefined,
+      hasDinner: searchParams.get("hasDinner") === "true" ? true : undefined,
+      eventsAttendedMin: searchParams.has("eventsAttendedMin")
+        ? Number(searchParams.get("eventsAttendedMin"))
+        : 0,
+      excludePersonIds: Array.from(excludedRecipientIds),
+    };
 
     try {
       const campaignData = {
@@ -160,7 +167,6 @@ export default function CrmComposerPage() {
           ctaLabel: "TO EVENT",
         },
         filterCriteria,
-        recipientIds,
       };
 
       // 1) Create campaign

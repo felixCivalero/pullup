@@ -289,6 +289,7 @@ export function CrmPage() {
       className="page-with-header"
       style={{
         height: "100vh",
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         background:

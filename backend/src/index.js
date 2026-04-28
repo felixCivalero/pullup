@@ -9005,6 +9005,8 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
 
         let opensSet = new Set();
         let clicksSet = new Set();
+        // Per-tracking-id breakdown: tracking_id -> array of { link_label, link_url }
+        const clicksByTracking = new Map();
         if (allTrackingIds.length > 0) {
           const { data: openRows } = await sb
             .from("email_opens")
@@ -9014,9 +9016,13 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
 
           const { data: clickRows } = await sb
             .from("email_clicks")
-            .select("tracking_id")
+            .select("tracking_id, link_url, link_label")
             .in("tracking_id", allTrackingIds);
-          for (const c of (clickRows || [])) clicksSet.add(c.tracking_id);
+          for (const c of (clickRows || [])) {
+            clicksSet.add(c.tracking_id);
+            if (!clicksByTracking.has(c.tracking_id)) clicksByTracking.set(c.tracking_id, []);
+            clicksByTracking.get(c.tracking_id).push({ link_url: c.link_url, link_label: c.link_label });
+          }
         }
 
         // Count page views and RSVPs per campaign using utm_campaign
@@ -9040,19 +9046,21 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
           }
         }
 
-        // Batch-fetch campaign names
+        // Batch-fetch campaign names + template_type
         const campaignIds = Object.keys(campaignMap)
           .filter(t => t.startsWith("host_campaign_"))
           .map(t => t.replace("host_campaign_", ""));
         let campaignNameMap = {};
+        let campaignTemplateTypeMap = {};
         if (campaignIds.length > 0) {
           try {
             const { data: campaignRows } = await sb
               .from("campaign_campaigns")
-              .select("id, name, subject")
+              .select("id, name, subject, template_type")
               .in("id", campaignIds);
             for (const row of (campaignRows || [])) {
               campaignNameMap[row.id] = row.name || row.subject || `host_campaign_${row.id}`;
+              campaignTemplateTypeMap[row.id] = row.template_type || "event";
             }
           } catch {}
         }
@@ -9065,14 +9073,32 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
           const rsvps = campaignRsvpMap[tag] || 0;
 
           let name = tag;
+          let templateType = "event";
           if (tag.startsWith("host_campaign_")) {
             const cId = tag.replace("host_campaign_", "");
             if (campaignNameMap[cId]) name = campaignNameMap[cId];
+            if (campaignTemplateTypeMap[cId]) templateType = campaignTemplateTypeMap[cId];
           }
+
+          // Per-link breakdown across this campaign's recipients
+          const linkMap = new Map();
+          for (const tid of data.trackingIds) {
+            const rows = clicksByTracking.get(tid) || [];
+            for (const r of rows) {
+              const label = r.link_label || "";
+              const url = r.link_url || "";
+              const key = label + "|" + url;
+              const existing = linkMap.get(key) || { linkLabel: label, linkUrl: url, clicks: 0 };
+              existing.clicks += 1;
+              linkMap.set(key, existing);
+            }
+          }
+          const linkBreakdown = Array.from(linkMap.values()).sort((a, b) => b.clicks - a.clicks);
 
           campaigns.push({
             tag,
             name,
+            templateType,
             sent: data.sent,
             opened,
             clicked,
@@ -9082,6 +9108,7 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
             clickRate: opened > 0 ? Math.round((clicked / opened) * 1000) / 10 : 0,
             visitRate: clicked > 0 ? Math.round((visited / clicked) * 1000) / 10 : 0,
             conversionRate: visited > 0 ? Math.round((rsvps / visited) * 1000) / 10 : 0,
+            linkBreakdown,
           });
         }
         campaigns.sort((a, b) => b.sent - a.sent);

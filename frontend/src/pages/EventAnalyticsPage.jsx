@@ -672,15 +672,30 @@ function CampaignCard({ campaign: c }) {
     { label: "Visited", value: c.visited, rate: c.visitRate, color: "rgba(74,222,128,0.7)" },
     { label: "RSVP'd", value: c.rsvps, rate: c.conversionRate, color: "rgba(251,191,36,0.8)" },
   ];
+  const isFollowup = c.templateType === "followup";
+  const badgeBg = isFollowup ? "rgba(212,175,55,0.18)" : "rgba(139,92,246,0.18)";
+  const badgeFg = isFollowup ? "#d4af37" : "#c4b5fd";
 
   return (
     <div style={{
       padding: "12px 14px", borderRadius: 12,
       background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)",
     }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ fontSize: "13px", fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {c.name}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 8 }}>
+        <div style={{ fontSize: "13px", fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{
+            display: "inline-block",
+            padding: "2px 8px",
+            fontSize: 10,
+            fontWeight: 600,
+            borderRadius: 999,
+            background: badgeBg,
+            color: badgeFg,
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            flex: "0 0 auto",
+          }}>{isFollowup ? "Follow-up" : "Event"}</span>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 2, marginBottom: 8 }}>
@@ -710,6 +725,21 @@ function CampaignCard({ campaign: c }) {
           </div>
         ))}
       </div>
+      {Array.isArray(c.linkBreakdown) && c.linkBreakdown.length > 0 && (
+        <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>Links</div>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {c.linkBreakdown.slice(0, 5).map((row, i) => (
+              <li key={i} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontSize: 11 }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: 8, color: "rgba(255,255,255,0.7)" }}>
+                  {row.linkLabel || row.linkUrl}
+                </span>
+                <span style={{ color: "rgba(139,92,246,0.9)", fontWeight: 600 }}>{row.clicks}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

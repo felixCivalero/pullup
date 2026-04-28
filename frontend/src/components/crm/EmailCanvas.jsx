@@ -3,35 +3,38 @@
 // Pure presentational: takes all state via props, no editing.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Instagram, Cloud, Youtube, Globe } from "lucide-react";
+import { Cloud, Globe } from "lucide-react";
 import { applyTokens, buildPreviewContext, parseInlineSegments } from "../../lib/emailTokens";
 
-// Brand-mark SVGs for platforms whose lucide equivalents (Music, Video)
-// don't read as the actual brand. These match the backend renderer's
-// SOCIAL_ICONS paths byte-for-byte so the canvas previews exactly what
-// recipients receive.
-function SpotifyIcon({ size = 22 }) {
+// Match the backend renderer's SOCIAL_ICONS paths byte-for-byte so the
+// canvas previews exactly what recipients receive. Filled brand marks
+// inherit currentColor (theme-adaptive light/dark).
+const wrapStyle = { verticalAlign: "middle", display: "inline-block" };
+
+function FilledIcon({ size, d }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: "middle", display: "inline-block" }}>
-      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12A12 12 0 0 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={wrapStyle}>
+      <path d={d} />
     </svg>
   );
 }
 
-function TiktokIcon({ size = 22 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: "middle", display: "inline-block" }}>
-      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V8.55a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.84-.18Z" />
-    </svg>
-  );
-}
+const INSTAGRAM_PATH = "M12 2.16c3.2 0 3.58.012 4.85.07 1.17.054 1.81.249 2.23.413.56.218.96.477 1.38.896.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.81-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.81-.25-2.23-.41-.56-.22-.96-.48-1.38-.9-.42-.42-.68-.82-.9-1.38-.16-.42-.36-1.06-.41-2.23-.06-1.27-.07-1.65-.07-4.85s.01-3.58.07-4.85c.05-1.17.25-1.81.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 5.78.13 4.91.33 4.14.63a5.88 5.88 0 0 0-2.13 1.38A5.88 5.88 0 0 0 .63 4.14C.33 4.9.13 5.78.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.06 1.28.26 2.15.56 2.91a5.88 5.88 0 0 0 1.38 2.13 5.88 5.88 0 0 0 2.13 1.38c.77.3 1.64.5 2.91.56C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c1.28-.06 2.15-.26 2.91-.56a5.88 5.88 0 0 0 2.13-1.38 5.88 5.88 0 0 0 1.38-2.13c.3-.77.5-1.64.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.28-.26-2.15-.56-2.91a5.88 5.88 0 0 0-1.38-2.13A5.88 5.88 0 0 0 19.86.63c-.77-.3-1.64-.5-2.91-.56C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 1 0 0 12.32 6.16 6.16 0 0 0 0-12.32zm0 10.16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.41-11.85a1.44 1.44 0 1 0 0 2.88 1.44 1.44 0 0 0 0-2.88z";
+const SPOTIFY_PATH = "M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12A12 12 0 0 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z";
+const TIKTOK_PATH = "M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V8.55a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.84-.18Z";
+const YOUTUBE_PATH = "M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z";
+
+function InstagramFilled({ size = 22 }) { return <FilledIcon size={size} d={INSTAGRAM_PATH} />; }
+function SpotifyIcon({ size = 22 })     { return <FilledIcon size={size} d={SPOTIFY_PATH} />; }
+function TiktokIcon({ size = 22 })      { return <FilledIcon size={size} d={TIKTOK_PATH} />; }
+function YoutubeFilled({ size = 22 })   { return <FilledIcon size={size} d={YOUTUBE_PATH} />; }
 
 const SOCIAL_ICON_COMPONENTS = {
-  instagram: Instagram,
+  instagram: InstagramFilled,
   spotify: SpotifyIcon,
   tiktok: TiktokIcon,
   soundcloud: Cloud,
-  youtube: Youtube,
+  youtube: YoutubeFilled,
   website: Globe,
 };
 
@@ -374,7 +377,16 @@ function CanvasBlock({ block, t, inline, theme }) {
               onClick={(e) => e.preventDefault()}
               title={l.label}
               aria-label={l.label}
-              style={{ display: "inline-block", padding: "6px 10px", color: "inherit", textDecoration: "none" }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 36,
+                height: 36,
+                margin: "0 4px",
+                color: "inherit",
+                textDecoration: "none",
+              }}
             >
               <Icon size={22} strokeWidth={1.7} />
             </a>

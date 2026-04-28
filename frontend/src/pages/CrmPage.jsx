@@ -65,6 +65,27 @@ export function CrmPage() {
   // outline the matching part in the canvas. Key is "greeting" or `block-${i}`.
   const [hoveredKey, setHoveredKey] = useState(null);
 
+  // Phone-size guard: composing/sending campaigns from a phone is awkward
+  // (long forms, image picker, color picker, real-time preview). Below
+  // 768px we hide the Email tab, canvas, and send footer — host can still
+  // browse + filter their audience but is told to open on desktop to send.
+  const [isPhone, setIsPhone] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia
+      ? window.matchMedia("(max-width: 767px)").matches
+      : false,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const handler = (e) => {
+      setIsPhone(e.matches);
+      if (e.matches) setActiveTab("segment"); // bounce off the Email tab
+    };
+    handler(mq);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   // Segment selection pushed up by HomeCrmTab whenever filters/total change
   const [segmentSelection, setSegmentSelection] = useState({
     filterCriteria: { eventsAttendedMin: 0 },
@@ -376,7 +397,7 @@ export function CrmPage() {
             }}
           >
             <div style={{ display: "flex", position: "relative" }}>
-              {TABS.map((tab) => {
+              {(isPhone ? TABS.filter((t) => t.id === "segment") : TABS).map((tab) => {
                 const active = activeTab === tab.id;
                 return (
                   <button
@@ -406,8 +427,10 @@ export function CrmPage() {
                 style={{
                   position: "absolute",
                   bottom: 0,
-                  left: `${TABS.findIndex((t) => t.id === activeTab) * (100 / TABS.length)}%`,
-                  width: `${100 / TABS.length}%`,
+                  left: isPhone
+                    ? "0%"
+                    : `${TABS.findIndex((t) => t.id === activeTab) * (100 / TABS.length)}%`,
+                  width: isPhone ? "100%" : `${100 / TABS.length}%`,
                   height: "2px",
                   background: "linear-gradient(90deg, rgba(192,192,192,0.6), rgba(232,232,232,0.4))",
                   transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -421,7 +444,19 @@ export function CrmPage() {
             <div style={{ display: activeTab === "segment" ? "block" : "none" }}>
               <CrmTab onSegmentChange={setSegmentSelection} />
             </div>
-            {activeTab === "email" && (
+            {isPhone && (
+              <div style={phoneNoteStyle}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
+                  Composing emails is desktop-only
+                </div>
+                <div style={{ fontSize: 12, lineHeight: 1.5, opacity: 0.75 }}>
+                  Building campaigns needs more screen space — open PullUp on
+                  your laptop to design and send. From your phone you can still
+                  browse and filter your audience.
+                </div>
+              </div>
+            )}
+            {!isPhone && activeTab === "email" && (
               <EmailPanel
                 events={events}
                 selectedTemplate={selectedTemplate}
@@ -458,11 +493,12 @@ export function CrmPage() {
             )}
           </div>
 
-          {/* Sticky footer at bottom of rail */}
+          {/* Sticky footer at bottom of rail — hidden on phone since
+              composing/sending isn't available there */}
           <div
             style={{
               flexShrink: 0,
-              display: "flex",
+              display: isPhone ? "none" : "flex",
               alignItems: "center",
               justifyContent: "space-between",
               gap: "12px",
@@ -502,7 +538,7 @@ export function CrmPage() {
           </div>
         </aside>
 
-        {/* RIGHT PANE: always-visible email canvas */}
+        {/* RIGHT PANE: always-visible email canvas — hidden on phone */}
         <main
           className="crm-canvas"
           style={{
@@ -510,7 +546,7 @@ export function CrmPage() {
             minWidth: 0,
             padding: "24px",
             overflow: "hidden",
-            display: "flex",
+            display: isPhone ? "none" : "flex",
             flexDirection: "column",
           }}
         >
@@ -551,3 +587,12 @@ export function CrmPage() {
     </div>
   );
 }
+
+const phoneNoteStyle = {
+  padding: "14px 16px",
+  marginBottom: 16,
+  borderRadius: 12,
+  background: "rgba(96,165,250,0.06)",
+  border: "1px solid rgba(96,165,250,0.18)",
+  color: "rgba(255,255,255,0.85)",
+};

@@ -53,7 +53,7 @@ function renderInline(text, t) {
   while ((m = linkRe.exec(substituted)) !== null) {
     result += escapeHtml(substituted.slice(lastIdx, m.index)).replace(/\n/g, "<br>");
     if (isAllowedUrl(m[2])) {
-      result += `<a href="${escapeAttr(m[2].trim())}" style="color:#d4af37;text-decoration:underline;">${escapeHtml(m[1])}</a>`;
+      result += `<a class="pu-link" href="${escapeAttr(m[2].trim())}" style="color:#0670DB;text-decoration:underline;">${escapeHtml(m[1])}</a>`;
     } else {
       result += escapeHtml(m[0]).replace(/\n/g, "<br>");
     }
@@ -61,6 +61,47 @@ function renderInline(text, t) {
   }
   result += escapeHtml(substituted.slice(lastIdx)).replace(/\n/g, "<br>");
   return result;
+}
+
+// Adaptive shell — light by default (matches inbox norms), with
+// prefers-color-scheme: dark overrides for clients that report dark mode.
+// Targeted via class names because most email clients keep <style> in head
+// but strip it from body; classes also let us flip text/footer colors
+// without changing inline button/link choices the host made.
+function emailShell(innerHtml) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<style>
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  body { margin:0; padding:0; }
+  .pu-body { background:#ffffff; color:#0c0a12; }
+  .pu-text, .pu-heading, .pu-greeting, .pu-signoff { color:#0c0a12; }
+  .pu-footer { color:rgba(12,10,18,0.55); border-top-color:rgba(0,0,0,0.08) !important; }
+  .pu-footer a { color:#0670DB; }
+  .pu-link { color:#0670DB; }
+
+  @media (prefers-color-scheme: dark) {
+    body, .pu-body { background:#0c0a12 !important; color:#ffffff !important; }
+    .pu-text, .pu-heading, .pu-greeting, .pu-signoff { color:#ffffff !important; }
+    .pu-footer { color:rgba(255,255,255,0.55) !important; border-top-color:rgba(255,255,255,0.1) !important; }
+    .pu-footer a, .pu-link { color:#74b6ff !important; }
+  }
+  /* Outlook.com / hotmail dark-mode hooks */
+  [data-ogsc] body, [data-ogsc] .pu-body { background:#0c0a12 !important; color:#ffffff !important; }
+  [data-ogsc] .pu-text, [data-ogsc] .pu-heading, [data-ogsc] .pu-greeting, [data-ogsc] .pu-signoff { color:#ffffff !important; }
+  [data-ogsc] .pu-footer { color:rgba(255,255,255,0.55) !important; }
+  [data-ogsc] .pu-footer a, [data-ogsc] .pu-link { color:#74b6ff !important; }
+</style>
+</head>
+<body class="pu-body" style="background:#ffffff;color:#0c0a12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;">
+${innerHtml}
+</body>
+</html>`;
 }
 
 export function renderFollowUpEmailTemplate({ templateContent, person, event, unsubscribeUrl /*, baseUrl */ }) {
@@ -74,13 +115,13 @@ export function renderFollowUpEmailTemplate({ templateContent, person, event, un
     ? templateContent.greeting
     : "Hi {{first_name}},";
   const greeting = greetingRaw
-    ? `<p style="margin:0 0 12px;">${renderInline(greetingRaw, t)}</p>`
+    ? `<p class="pu-greeting" style="margin:0 0 12px;color:#0c0a12;">${renderInline(greetingRaw, t)}</p>`
     : "";
 
   const body = blocks.map((b) => renderBlock(b, t)).filter(Boolean).join("");
 
   const signoffHtml = templateContent.signoff
-    ? `<p style="margin:24px 0 0;">${renderInline(templateContent.signoff, t)}</p>`
+    ? `<p class="pu-signoff" style="margin:24px 0 0;color:#0c0a12;">${renderInline(templateContent.signoff, t)}</p>`
     : "";
 
   const previewText = templateContent.previewText
@@ -92,22 +133,22 @@ export function renderFollowUpEmailTemplate({ templateContent, person, event, un
   // has clicked it. Marked ses:no-track so click tracking doesn't redirect
   // through the tracker (one-click unsubscribe needs a direct hop).
   const footer = unsubscribeUrl
-    ? `<div style="margin-top:32px;padding-top:20px;border-top:2px solid rgba(255,255,255,0.08);font-size:12px;text-align:center;opacity:0.5;line-height:1.6;">
+    ? `<div class="pu-footer" style="margin-top:32px;padding-top:20px;border-top:1px solid rgba(0,0,0,0.08);font-size:12px;text-align:center;line-height:1.6;color:rgba(12,10,18,0.55);">
         <p style="margin:0;">You are receiving this email because you opted in via our site.<br>Want to change how you receive these emails?<br>You can <a href="${escapeAttr(unsubscribeUrl)}#ses:no-track" style="color:#0670DB;text-decoration:underline;">unsubscribe from this list</a>.</p>
         <p style="margin:12px 0 0;">Pullup.se<br>Lorensbergsgatan 3b<br>117 33, Stockholm</p>
       </div>`
     : "";
 
-  return `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0c0a12;color:#fff;padding:24px;">${previewText}<div style="max-width:600px;margin:0 auto;">${greeting}${body}${signoffHtml}${footer}</div></body></html>`;
+  return emailShell(`${previewText}<div style="max-width:600px;margin:0 auto;">${greeting}${body}${signoffHtml}${footer}</div>`);
 }
 
 function renderBlock(b, t) {
   if (!b || typeof b !== "object") return "";
   if (b.type === "text" && b.style === "heading") {
-    return `<h2 style="font-size:22px;font-weight:700;margin:16px 0 8px;">${renderInline(b.text || "", t)}</h2>`;
+    return `<h2 class="pu-heading" style="font-size:22px;font-weight:700;margin:16px 0 8px;color:#0c0a12;">${renderInline(b.text || "", t)}</h2>`;
   }
   if (b.type === "text" && b.style === "paragraph") {
-    return `<p style="margin:0 0 12px;line-height:1.5;">${renderInline(b.text || "", t)}</p>`;
+    return `<p class="pu-text" style="margin:0 0 12px;line-height:1.5;color:#0c0a12;">${renderInline(b.text || "", t)}</p>`;
   }
   if (b.type === "image" && b.url) {
     const widthPct = clampPercent(b.width);

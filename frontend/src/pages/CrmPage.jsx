@@ -47,6 +47,40 @@ function defaultGreetingBlock() {
   return { type: "text", style: "paragraph", text: "Hi {{first_name}},", align: "left" };
 }
 
+const HTTP_RE = /^https?:\/\//i;
+const SOCIAL_LABELS = {
+  instagram: "Instagram", spotify: "Spotify", tiktok: "TikTok",
+  soundcloud: "SoundCloud", youtube: "YouTube", website: "Website",
+};
+
+// Pre-flight block validation matching the backend rules. Returns a
+// human-readable error string or null. Catches invalid URLs in social
+// links, buttons, and images BEFORE the user clicks Send so they don't
+// see a 400 from the server.
+function validateBlocksClient(blocks) {
+  if (!Array.isArray(blocks)) return null;
+  for (let i = 0; i < blocks.length; i += 1) {
+    const b = blocks[i];
+    if (!b || typeof b !== "object") continue;
+    const pos = `Block ${i + 1}`;
+    if (b.type === "image" && b.url && !HTTP_RE.test(b.url)) {
+      return `${pos} (image): URL must start with http:// or https://`;
+    }
+    if (b.type === "button") {
+      if (!b.text || !b.text.trim()) return `${pos} (button): text is required`;
+      if (!b.url || !HTTP_RE.test(b.url)) return `${pos} (button): URL must start with http:// or https://`;
+    }
+    if (b.type === "socials" && Array.isArray(b.links)) {
+      for (const l of b.links) {
+        if (l && l.url && !HTTP_RE.test(l.url)) {
+          return `${pos} (socials): ${SOCIAL_LABELS[l.key] || l.key} link must start with http:// or https://`;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 const TABS = [
   { id: "segment", label: "Segment" },
   { id: "email", label: "Design" },
@@ -191,6 +225,12 @@ export function CrmPage() {
         setActiveTab("email");
         return;
       }
+      const blockErr = validateBlocksClient(eventBlocks);
+      if (blockErr) {
+        showToast(blockErr, "error");
+        setActiveTab("email");
+        return;
+      }
     }
     if (selectedTemplate === "followup") {
       if (!followupEventId) {
@@ -205,6 +245,12 @@ export function CrmPage() {
       }
       if (followupBlocks.length === 0) {
         showToast("Add at least one block.", "error");
+        setActiveTab("email");
+        return;
+      }
+      const blockErr = validateBlocksClient(followupBlocks);
+      if (blockErr) {
+        showToast(blockErr, "error");
         setActiveTab("email");
         return;
       }
@@ -564,6 +610,7 @@ export function CrmPage() {
         sendingStats={sendingStats}
         sendingErrorMessage={sendingErrorMessage}
         selectedEvent={selectedTemplate === "followup" ? followupEvent : selectedEvent}
+        currentUserFirstName={currentUserFirstName}
         templateType={selectedTemplate}
         subjectLine={selectedTemplate === "followup" ? followupSubject : eventSubject}
         previewText={selectedTemplate === "followup" ? followupPreviewText : eventPreviewText}

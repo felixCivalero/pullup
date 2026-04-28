@@ -18,10 +18,14 @@ function buildTokenContext({ person, event }) {
   // to "there" so the default greeting still reads naturally when name is empty.
   const fullName = (person?.name || "").trim();
   const firstWord = fullName ? fullName.split(/\s+/)[0] : "";
+  // Event objects from data.js are mapped to camelCase (startsAt, not
+  // starts_at). Fall back to the snake_case key so this also works if a
+  // raw DB row is ever passed in.
+  const startsAt = event?.startsAt || event?.starts_at;
   return {
     first_name: firstWord || "there",
     event_title: (event?.title || "").trim(),
-    event_date: formatEventDate(event?.starts_at),
+    event_date: formatEventDate(startsAt),
   };
 }
 

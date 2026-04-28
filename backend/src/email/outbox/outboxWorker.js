@@ -4,6 +4,7 @@ import {
   EMAIL_SEND_RATE_PER_SEC,
   EMAIL_MAX_RETRIES,
   EMAIL_WORKER_BATCH_SIZE,
+  EMAIL_DAILY_LIMIT,
 } from "../config.js";
 import { getActiveProvider } from "../providers/providerRouter.js";
 import { sendEmailViaSes } from "../providers/sesProvider.js";
@@ -17,11 +18,13 @@ import {
   markFailed,
   markSuppressed,
   markRetrying,
+  countSentSinceUtc,
 } from "../repos/emailOutboxRepo.js";
 import { isSuppressed } from "../repos/emailSuppressionsRepo.js";
 import { getRetryDelaySeconds } from "./retryPolicy.js";
 import { throttle } from "./rateLimiter.js";
 import { insertEvent } from "../repos/emailEventsRepo.js";
+import { startOfTodayUtc, nextSendWindowUtc } from "./quotaGuard.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -67,6 +70,7 @@ export async function processBatch({
       failed: 0,
       suppressed: 0,
       retrying: 0,
+      deferred: 0,
     };
   }
 
@@ -74,6 +78,18 @@ export async function processBatch({
   let failed = 0;
   let suppressed = 0;
   let retrying = 0;
+  let deferred = 0;
+
+  // Daily quota guard. If EMAIL_DAILY_LIMIT > 0 we read today's sent
+  // count once at the start of the batch (cheap; small numbers on free
+  // tier). Each successful send increments the local counter so we
+  // don't requery per row. A row hitting the limit is parked until the
+  // next UTC midnight + jitter — NOT counted as a failed attempt, so
+  // EMAIL_MAX_RETRIES stays for real delivery problems.
+  let sentTodayCount = 0;
+  if (EMAIL_DAILY_LIMIT > 0) {
+    sentTodayCount = await countSentSinceUtc(startOfTodayUtc().toISOString());
+  }
 
   for (const row of claimed) {
     const category = row.category || "transactional";
@@ -86,6 +102,19 @@ export async function processBatch({
       if (suppression.suppressed) {
         await markSuppressed(row.id);
         suppressed += 1;
+        continue;
+      }
+
+      // Daily-quota check — defer to tomorrow without burning an attempt.
+      if (EMAIL_DAILY_LIMIT > 0 && sentTodayCount >= EMAIL_DAILY_LIMIT) {
+        const sendAfter = nextSendWindowUtc();
+        await markRetrying(row.id, {
+          attempts: row.attempts || 0,
+          sendAfter,
+          errorCode: "DAILY_QUOTA_REACHED",
+          errorMessage: `Daily limit (${EMAIL_DAILY_LIMIT}) reached; deferred to ${sendAfter.toISOString()}`,
+        });
+        deferred += 1;
         continue;
       }
 
@@ -144,6 +173,7 @@ export async function processBatch({
         providerMessageId: result.messageId,
       });
       sent += 1;
+      sentTodayCount += 1;
     } catch (error) {
       console.error(
         "[outboxWorker] Error sending email for row",
@@ -205,6 +235,7 @@ export async function processBatch({
     failed,
     suppressed,
     retrying,
+    deferred,
   };
 }
 

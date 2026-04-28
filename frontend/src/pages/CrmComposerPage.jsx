@@ -133,6 +133,10 @@ export default function CrmComposerPage() {
     setIsConfirmSendOpen(true);
   }
 
+  // NOTE: cancelledRef stops local state updates if the page unmounts mid-send,
+  // but the server-side campaign keeps running. There is currently no UI to
+  // recover an in-flight campaign after navigation away. Acceptable today;
+  // revisit if users frequently navigate away during sends.
   async function handleConfirmSend() {
     if (!selectedEventId) {
       if (cancelledRef.current) return;
@@ -159,7 +163,7 @@ export default function CrmComposerPage() {
 
     try {
       const campaignData = {
-        templateType: "event",
+        templateType: selectedTemplate,
         eventId: selectedEventId,
         subject:
           subjectLine ||

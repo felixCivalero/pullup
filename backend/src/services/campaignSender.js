@@ -8,6 +8,7 @@ import { enqueueOutbox } from "../email/index.js";
 import { renderEventEmailTemplate } from "./emailTemplateService.js";
 import { renderFollowUpEmailTemplate } from "./followUpTemplateService.js";
 import { addTracking } from "../email/tracking/linkRewriter.js";
+import { sanitizeBlockUrls } from "./imageUrlSanitizer.js";
 
 /**
  * Send campaign in batches
@@ -83,6 +84,13 @@ export async function sendCampaignInBatches(
       ? (process.env.FRONTEND_URL || "https://pullup.se")
       : "http://localhost:5173";
 
+    // Strip expiring tokens from any image URLs in the block payload —
+    // host might send hours after composing.
+    const sanitizedTemplateContent = {
+      ...campaign.templateContent,
+      blocks: sanitizeBlockUrls(campaign.templateContent?.blocks),
+    };
+
     // 4. Process in batches
     let totalSent = 0;
     let totalFailed = 0;
@@ -103,10 +111,10 @@ export async function sendCampaignInBatches(
             // Block-based campaigns (any templateType with a blocks[] in
             // templateContent) go through the unified renderer. Legacy event
             // campaigns without blocks fall back to the static event template.
-            const useBlockRenderer = Array.isArray(campaign.templateContent?.blocks);
+            const useBlockRenderer = Array.isArray(sanitizedTemplateContent?.blocks);
             const html = useBlockRenderer
               ? renderFollowUpEmailTemplate({
-                  templateContent: campaign.templateContent,
+                  templateContent: sanitizedTemplateContent,
                   person,
                   event: event || null,
                   baseUrl: backendBaseUrl,
@@ -114,7 +122,7 @@ export async function sendCampaignInBatches(
                 })
               : renderEventEmailTemplate({
                   event,
-                  templateContent: campaign.templateContent,
+                  templateContent: sanitizedTemplateContent,
                   person,
                   unsubscribeUrl,
                 });

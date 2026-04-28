@@ -89,6 +89,7 @@ export default function EmailCanvas({
     <div style={canvasOuterStyle}>
       <InboxHeader subject={t(activeSubject)} previewText={t(activePreview)} />
       <div style={emailFrameStyle}>
+        <div style={emailBodyStyle}>
         {activeEvent ? (
           <FollowupBody
             greeting={activeGreeting}
@@ -103,6 +104,7 @@ export default function EmailCanvas({
           </div>
         )}
         <EmailFooter />
+        </div>
       </div>
     </div>
   );
@@ -220,6 +222,28 @@ function CanvasBlock({ block, t, inline }) {
     const align = block.align === "left" || block.align === "right" ? block.align : "center";
     const marginLeft = align === "left" ? "0" : "auto";
     const marginRight = align === "right" ? "0" : "auto";
+    const aspect = ASPECT_CSS[block.aspectRatio];
+    if (aspect) {
+      return (
+        <div
+          style={{
+            display: "block",
+            width: `${widthPct}%`,
+            maxWidth: "100%",
+            aspectRatio: aspect,
+            overflow: "hidden",
+            borderRadius: 8,
+            margin: `16px ${marginRight} 16px ${marginLeft}`,
+          }}
+        >
+          <img
+            src={block.url}
+            alt={t(block.alt || "")}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+        </div>
+      );
+    }
     return (
       <img
         src={block.url}
@@ -283,3 +307,12 @@ const emailFrameStyle = {
   borderTop: "none",
   color: "#fff",
 };
+
+// Email body in real clients caps at 600px; mirror that in the preview so
+// hosts see the actual scale (a 100% image renders 600px, not full pane).
+const emailBodyStyle = {
+  maxWidth: 600,
+  margin: "0 auto",
+};
+
+const ASPECT_CSS = { banner: "16 / 9", square: "1 / 1", portrait: "4 / 5" };

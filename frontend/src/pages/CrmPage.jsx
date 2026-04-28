@@ -15,7 +15,9 @@ function buildDefaultEventBlocks(event) {
   const blocks = [];
   const hero = event.coverImageUrl || event.imageUrl;
   if (hero) {
-    blocks.push({ type: "image", url: hero, alt: event.title || "", source: "event-gallery", width: 100, align: "center" });
+    // Default cover to a 16:9 banner crop — event covers are typically
+    // portrait and would otherwise dominate the email vertically.
+    blocks.push({ type: "image", url: hero, alt: event.title || "", source: "event-gallery", width: 100, align: "center", aspectRatio: "banner" });
   }
   if (event.title) {
     blocks.push({ type: "text", style: "heading", text: event.title });

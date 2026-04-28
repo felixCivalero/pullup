@@ -114,7 +114,15 @@ function renderBlock(b, t) {
     const align = b.align === "left" || b.align === "right" ? b.align : "center";
     const marginLeft = align === "left" ? "0" : "auto";
     const marginRight = align === "right" ? "0" : "auto";
-    return `<img src="${escapeAttr(b.url)}" alt="${escapeAttr(t(b.alt || ""))}" style="display:block;width:${widthPct}%;max-width:${Math.round(600 * widthPct / 100)}px;height:auto;margin:16px ${marginRight} 16px ${marginLeft};border-radius:8px;" />`;
+    const ratio = ASPECT_RATIO_CSS[b.aspectRatio];
+    const maxW = Math.round(600 * widthPct / 100);
+    if (ratio) {
+      // Crop via aspect-ratio container with object-fit: cover. Modern email
+      // clients (Gmail web/iOS Mail/Apple Mail) honor aspect-ratio; legacy
+      // clients will fall through to natural height — acceptable degradation.
+      return `<div style="display:block;width:${widthPct}%;max-width:${maxW}px;aspect-ratio:${ratio};overflow:hidden;margin:16px ${marginRight} 16px ${marginLeft};border-radius:8px;"><img src="${escapeAttr(b.url)}" alt="${escapeAttr(t(b.alt || ""))}" style="width:100%;height:100%;object-fit:cover;display:block;" /></div>`;
+    }
+    return `<img src="${escapeAttr(b.url)}" alt="${escapeAttr(t(b.alt || ""))}" style="display:block;width:${widthPct}%;max-width:${maxW}px;height:auto;margin:16px ${marginRight} 16px ${marginLeft};border-radius:8px;" />`;
   }
   if (b.type === "button" && b.url && b.text) {
     const captionRaw = b.caption ? t(b.caption) : "";
@@ -140,6 +148,12 @@ function escapeHtml(s) {
 }
 
 function escapeAttr(s) { return escapeHtml(s); }
+
+const ASPECT_RATIO_CSS = {
+  banner: "16/9",
+  square: "1/1",
+  portrait: "4/5",
+};
 
 function clampPercent(v) {
   const n = Number(v);

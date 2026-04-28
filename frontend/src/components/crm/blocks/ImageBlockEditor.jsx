@@ -9,6 +9,14 @@ import { authenticatedFetch } from "../../../lib/api.js";
 
 const DEFAULT_WIDTH = 100;
 const DEFAULT_ALIGN = "center";
+const DEFAULT_RATIO = "original";
+
+const RATIO_OPTIONS = [
+  { v: "original", label: "Original" },
+  { v: "banner", label: "16:9" },
+  { v: "square", label: "1:1" },
+  { v: "portrait", label: "4:5" },
+];
 
 export default function ImageBlockEditor({ block, onChange }) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -190,6 +198,25 @@ export default function ImageBlockEditor({ block, onChange }) {
               })}
             </div>
           </div>
+
+          <div style={fieldGroupStyle}>
+            <div style={fieldLabelStyle}><span>Crop</span></div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {RATIO_OPTIONS.map((opt) => {
+                const active = (block.aspectRatio ?? DEFAULT_RATIO) === opt.v;
+                return (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => onChange({ ...block, aspectRatio: opt.v })}
+                    style={ratioBtnStyle(active)}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </>
       )}
 
@@ -314,6 +341,18 @@ const alignBtnStyle = (active) => ({
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+});
+
+const ratioBtnStyle = (active) => ({
+  flex: 1,
+  padding: "6px 0",
+  borderRadius: 6,
+  border: `1px solid ${active ? "rgba(212,175,55,0.5)" : "rgba(255,255,255,0.1)"}`,
+  background: active ? "rgba(212,175,55,0.15)" : "rgba(12,10,18,0.6)",
+  color: active ? "#d4af37" : "rgba(255,255,255,0.7)",
+  cursor: "pointer",
+  fontSize: 11,
+  fontWeight: active ? 600 : 500,
 });
 
 const altInputStyle = {

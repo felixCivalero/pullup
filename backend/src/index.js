@@ -5359,6 +5359,7 @@ function validateFollowupTemplateContent(tc) {
       if (b.alt !== undefined && typeof b.alt !== "string") return `block ${i}: alt must be a string`;
       if (b.width !== undefined && (typeof b.width !== "number" || b.width < 25 || b.width > 100)) return `block ${i}: width must be 25-100`;
       if (b.align !== undefined && !["left", "center", "right"].includes(b.align)) return `block ${i}: align must be left/center/right`;
+      if (b.aspectRatio !== undefined && !["original", "banner", "square", "portrait"].includes(b.aspectRatio)) return `block ${i}: aspectRatio must be original/banner/square/portrait`;
     } else if (b.type === "button") {
       if (typeof b.text !== "string" || b.text.trim() === "") return `block ${i}: button text required`;
       if (typeof b.url !== "string" || !/^https?:\/\//.test(b.url)) return `block ${i}: button url must be http(s)`;

@@ -31,7 +31,7 @@ export default function BlockEditorList({ blocks, onChange, tokens, hoveredKey, 
   function addBlock(type) {
     const blanks = {
       text: { type: "text", style: "paragraph", text: "" },
-      image: { type: "image", url: "", alt: "", source: null, width: 100, align: "center" },
+      image: { type: "image", url: "", alt: "", source: null, width: 100, align: "center", aspectRatio: "original" },
       button: { type: "button", text: "", url: "", caption: null, size: 100, align: "center", bgColor: "#d4af37" },
     };
     onChange([...blocks, blanks[type]]);

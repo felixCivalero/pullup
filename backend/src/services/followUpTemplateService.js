@@ -114,8 +114,9 @@ export function renderFollowUpEmailTemplate({ templateContent, person, event, un
   const greetingRaw = templateContent.greeting !== undefined
     ? templateContent.greeting
     : "Hi {{first_name}},";
+  const greetingAlign = textAlign(templateContent.greetingAlign);
   const greeting = greetingRaw
-    ? `<p class="pu-greeting" style="margin:0 0 12px;color:#0c0a12;">${renderInline(greetingRaw, t)}</p>`
+    ? `<p class="pu-greeting" style="margin:0 0 12px;color:#0c0a12;text-align:${greetingAlign};">${renderInline(greetingRaw, t)}</p>`
     : "";
 
   const body = blocks.map((b) => renderBlock(b, t)).filter(Boolean).join("");

@@ -52,12 +52,14 @@ export default function EmailCanvas({
   eventSubject,
   eventPreviewText,
   eventGreeting,
+  eventGreetingAlign,
   eventBlocks,
   // Follow-up template
   followupEvent,
   followupSubject,
   followupPreviewText,
   followupGreeting,
+  followupGreetingAlign,
   followupBlocks,
   currentUserFirstName,
   hoveredKey,
@@ -69,6 +71,7 @@ export default function EmailCanvas({
   const activeSubject = isFollowup ? followupSubject : eventSubject;
   const activePreview = isFollowup ? followupPreviewText : eventPreviewText;
   const activeGreeting = isFollowup ? followupGreeting : eventGreeting;
+  const activeGreetingAlign = isFollowup ? followupGreetingAlign : eventGreetingAlign;
   const activeBlocks = isFollowup ? followupBlocks : eventBlocks;
 
   // Default to light — matches what most recipients see in their inbox.
@@ -127,6 +130,7 @@ export default function EmailCanvas({
         {activeEvent ? (
           <FollowupBody
             greeting={activeGreeting}
+            greetingAlign={activeGreetingAlign}
             blocks={activeBlocks}
             t={t}
             inline={inline}
@@ -226,13 +230,14 @@ function EmailFooter({ theme }) {
 }
 
 
-function FollowupBody({ greeting, blocks, t, inline, hoveredKey, theme }) {
+function FollowupBody({ greeting, greetingAlign, blocks, t, inline, hoveredKey, theme }) {
   const greetingRendered = greeting !== undefined ? greeting : "Hi {{first_name}},";
+  const gAlign = greetingAlign === "center" || greetingAlign === "right" ? greetingAlign : "left";
   return (
     <div>
       {greetingRendered && (
         <Highlightable hoverKey="greeting" hovered={hoveredKey === "greeting"}>
-          <p style={{ margin: "0 0 12px", color: theme.text }}>
+          <p style={{ margin: "0 0 12px", color: theme.text, textAlign: gAlign }}>
             {inline(greetingRendered)}
           </p>
         </Highlightable>

@@ -1,6 +1,7 @@
 // FollowUpComposer — controls-only. The recipient's-eye preview lives in
 // <EmailCanvas /> on the right; this is the form on the left.
 
+import { AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import BlockEditorList from "./BlockEditorList";
 import TokenizedInput from "./TokenizedInput";
 import Section from "./Section";
@@ -16,6 +17,8 @@ export default function FollowUpComposer({
   setPreviewText,
   greeting,
   setGreeting,
+  greetingAlign,
+  setGreetingAlign,
   blocks,
   setBlocks,
   hoveredKey,
@@ -75,6 +78,27 @@ export default function FollowUpComposer({
                 enableLinks
                 placeholder="Hi [First name],"
               />
+              <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+                {[
+                  { v: "left", icon: AlignLeft, label: "Left" },
+                  { v: "center", icon: AlignCenter, label: "Center" },
+                  { v: "right", icon: AlignRight, label: "Right" },
+                ].map((opt) => {
+                  const Icon = opt.icon;
+                  const active = (greetingAlign || "left") === opt.v;
+                  return (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => setGreetingAlign?.(opt.v)}
+                      title={opt.label}
+                      style={greetingAlignBtnStyle(active)}
+                    >
+                      <Icon size={14} />
+                    </button>
+                  );
+                })}
+              </div>
               <div style={{ fontSize: 10, opacity: 0.45, marginTop: 6 }}>
                 Auto-personalized per recipient.
               </div>
@@ -128,6 +152,19 @@ function HoverCard({ hovered, onMouseEnter, onMouseLeave, label, children }) {
     </div>
   );
 }
+
+const greetingAlignBtnStyle = (active) => ({
+  flex: 1,
+  padding: "6px 0",
+  borderRadius: 6,
+  border: `1px solid ${active ? "rgba(212,175,55,0.5)" : "rgba(255,255,255,0.1)"}`,
+  background: active ? "rgba(212,175,55,0.15)" : "rgba(12,10,18,0.6)",
+  color: active ? "#d4af37" : "rgba(255,255,255,0.7)",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+});
 
 const inputStyle = {
   width: "100%",

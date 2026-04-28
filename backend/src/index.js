@@ -5379,6 +5379,7 @@ function validateFollowupTemplateContent(tc) {
   }
   if (tc.signoff !== undefined && typeof tc.signoff !== "string") return "signoff must be a string";
   if (tc.greeting !== undefined && typeof tc.greeting !== "string") return "greeting must be a string";
+  if (tc.greetingAlign !== undefined && !["left", "center", "right"].includes(tc.greetingAlign)) return "greetingAlign must be left/center/right";
   return null;
 }
 

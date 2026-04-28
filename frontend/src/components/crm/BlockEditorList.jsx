@@ -22,7 +22,7 @@ export default function BlockEditorList({ blocks, onChange, tokens }) {
   function addBlock(type) {
     const blanks = {
       text: { type: "text", style: "paragraph", text: "" },
-      image: { type: "image", url: "", alt: "", source: null },
+      image: { type: "image", url: "", alt: "", source: null, width: 100, align: "center" },
       button: { type: "button", text: "", url: "", caption: null },
     };
     onChange([...blocks, blanks[type]]);

@@ -259,7 +259,24 @@ function CanvasBlock({ block, t, inline }) {
     return <p style={{ margin: "0 0 12px", lineHeight: 1.5, color: "#fff" }}>{inline(block.text)}</p>;
   }
   if (block.type === "image" && block.url) {
-    return <img src={block.url} alt={t(block.alt || "")} style={{ display: "block", width: "100%", maxWidth: "100%", borderRadius: 8, margin: "16px 0" }} />;
+    const widthPct = Math.max(25, Math.min(100, Number(block.width) || 100));
+    const align = block.align === "left" || block.align === "right" ? block.align : "center";
+    const marginLeft = align === "left" ? "0" : "auto";
+    const marginRight = align === "right" ? "0" : "auto";
+    return (
+      <img
+        src={block.url}
+        alt={t(block.alt || "")}
+        style={{
+          display: "block",
+          width: `${widthPct}%`,
+          maxWidth: "100%",
+          height: "auto",
+          borderRadius: 8,
+          margin: `16px ${marginRight} 16px ${marginLeft}`,
+        }}
+      />
+    );
   }
   if (block.type === "button" && block.url && block.text) {
     return (

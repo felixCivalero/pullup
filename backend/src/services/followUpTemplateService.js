@@ -110,7 +110,11 @@ function renderBlock(b, t) {
     return `<p style="margin:0 0 12px;line-height:1.5;">${renderInline(b.text || "", t)}</p>`;
   }
   if (b.type === "image" && b.url) {
-    return `<img src="${escapeAttr(b.url)}" alt="${escapeAttr(t(b.alt || ""))}" style="display:block;width:100%;max-width:600px;height:auto;margin:16px auto;border-radius:8px;" />`;
+    const widthPct = clampPercent(b.width);
+    const align = b.align === "left" || b.align === "right" ? b.align : "center";
+    const marginLeft = align === "left" ? "0" : "auto";
+    const marginRight = align === "right" ? "0" : "auto";
+    return `<img src="${escapeAttr(b.url)}" alt="${escapeAttr(t(b.alt || ""))}" style="display:block;width:${widthPct}%;max-width:${Math.round(600 * widthPct / 100)}px;height:auto;margin:16px ${marginRight} 16px ${marginLeft};border-radius:8px;" />`;
   }
   if (b.type === "button" && b.url && b.text) {
     const captionRaw = b.caption ? t(b.caption) : "";
@@ -132,3 +136,9 @@ function escapeHtml(s) {
 }
 
 function escapeAttr(s) { return escapeHtml(s); }
+
+function clampPercent(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 100;
+  return Math.max(25, Math.min(100, Math.round(n)));
+}

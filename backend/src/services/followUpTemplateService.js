@@ -121,7 +121,10 @@ function renderBlock(b, t) {
     const caption = captionRaw
       ? `<p class="caption-block" style="text-align:center;font-size:12px;opacity:0.7;margin:6px 0 18px;">${escapeHtml(captionRaw)}</p>`
       : "";
-    return `<div style="text-align:center;margin:20px 0 0;"><a href="${escapeAttr(b.url)}" style="display:inline-block;padding:12px 24px;background:#d4af37;color:#0c0a12;text-decoration:none;border-radius:8px;font-weight:600;">${escapeHtml(t(b.text))}</a></div>${caption}`;
+    const { padding, fontSize } = buttonSizeStyle(b.size);
+    const bg = isHexColor(b.bgColor) ? b.bgColor : "#d4af37";
+    const fg = readableTextColor(bg);
+    return `<div style="text-align:center;margin:20px 0 0;"><a href="${escapeAttr(b.url)}" style="display:inline-block;padding:${padding};background:${bg};color:${fg};text-decoration:none;border-radius:8px;font-weight:600;font-size:${fontSize}px;">${escapeHtml(t(b.text))}</a></div>${caption}`;
   }
   return "";
 }
@@ -141,4 +144,25 @@ function clampPercent(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return 100;
   return Math.max(25, Math.min(100, Math.round(n)));
+}
+
+function buttonSizeStyle(size) {
+  if (size === "small") return { padding: "8px 16px", fontSize: 12 };
+  if (size === "large") return { padding: "16px 32px", fontSize: 16 };
+  return { padding: "12px 24px", fontSize: 14 }; // medium / default
+}
+
+function isHexColor(s) {
+  return typeof s === "string" && /^#[0-9a-f]{6}$/i.test(s);
+}
+
+// Pick black or white text based on perceived luminance so it stays readable
+// across whatever background the host picks.
+function readableTextColor(hex) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.6 ? "#0c0a12" : "#ffffff";
 }

@@ -5363,6 +5363,8 @@ function validateFollowupTemplateContent(tc) {
       if (typeof b.text !== "string" || b.text.trim() === "") return `block ${i}: button text required`;
       if (typeof b.url !== "string" || !/^https?:\/\//.test(b.url)) return `block ${i}: button url must be http(s)`;
       if (b.caption !== undefined && b.caption !== null && typeof b.caption !== "string") return `block ${i}: caption must be string or null`;
+      if (b.size !== undefined && !["small", "medium", "large"].includes(b.size)) return `block ${i}: size must be small/medium/large`;
+      if (b.bgColor !== undefined && b.bgColor !== null && !/^#[0-9a-f]{6}$/i.test(b.bgColor)) return `block ${i}: bgColor must be #RRGGBB hex`;
     } else {
       return `block ${i}: unknown type "${b.type}"`;
     }

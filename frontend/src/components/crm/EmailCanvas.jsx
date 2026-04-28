@@ -84,15 +84,11 @@ export default function EmailCanvas({
   selectedEvent,
   eventSubject,
   eventPreviewText,
-  eventGreeting,
-  eventGreetingAlign,
   eventBlocks,
   // Follow-up template
   followupEvent,
   followupSubject,
   followupPreviewText,
-  followupGreeting,
-  followupGreetingAlign,
   followupBlocks,
   currentUserFirstName,
   hoveredKey,
@@ -103,8 +99,6 @@ export default function EmailCanvas({
   const activeEvent = isFollowup ? followupEvent : selectedEvent;
   const activeSubject = isFollowup ? followupSubject : eventSubject;
   const activePreview = isFollowup ? followupPreviewText : eventPreviewText;
-  const activeGreeting = isFollowup ? followupGreeting : eventGreeting;
-  const activeGreetingAlign = isFollowup ? followupGreetingAlign : eventGreetingAlign;
   const activeBlocks = isFollowup ? followupBlocks : eventBlocks;
 
   // Default to light — matches what most recipients see in their inbox.
@@ -162,8 +156,6 @@ export default function EmailCanvas({
         <div style={emailBodyStyle}>
         {activeEvent ? (
           <FollowupBody
-            greeting={activeGreeting}
-            greetingAlign={activeGreetingAlign}
             blocks={activeBlocks}
             t={t}
             inline={inline}
@@ -263,18 +255,9 @@ function EmailFooter({ theme }) {
 }
 
 
-function FollowupBody({ greeting, greetingAlign, blocks, t, inline, hoveredKey, theme }) {
-  const greetingRendered = greeting !== undefined ? greeting : "Hi {{first_name}},";
-  const gAlign = greetingAlign === "center" || greetingAlign === "right" ? greetingAlign : "left";
+function FollowupBody({ blocks, t, inline, hoveredKey, theme }) {
   return (
     <div>
-      {greetingRendered && (
-        <Highlightable hoverKey="greeting" hovered={hoveredKey === "greeting"}>
-          <p style={{ margin: "0 0 12px", color: theme.text, textAlign: gAlign }}>
-            {inline(greetingRendered)}
-          </p>
-        </Highlightable>
-      )}
       {(blocks || []).length === 0 && (
         <div style={{ padding: 24, textAlign: "center", opacity: 0.4, fontSize: 13, border: `1px dashed ${theme.border}`, borderRadius: 8 }}>
           Add blocks in the Email tab to fill the body.

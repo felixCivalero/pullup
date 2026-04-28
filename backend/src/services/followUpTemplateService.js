@@ -8,11 +8,16 @@ export function renderFollowUpEmailTemplate({ templateContent /*, person, event,
       if (b.type === "text" && b.style === "paragraph") {
         return `<p>${escapeHtml(b.text || "")}</p>`;
       }
+      if (b.type === "image" && b.url) {
+        return `<img src="${escapeAttr(b.url)}" alt="${escapeAttr(b.alt || "")}" style="display:block;width:100%;max-width:600px;height:auto;margin:16px auto;border-radius:8px;" />`;
+      }
       return "";
     })
     .join("");
   return `<html><body>${body}</body></html>`;
 }
+
+function escapeAttr(s) { return escapeHtml(s); }
 
 function escapeHtml(s) {
   return String(s)

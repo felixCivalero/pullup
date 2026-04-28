@@ -1,39 +1,22 @@
+import { AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import TokenizedInput from "../TokenizedInput";
 
 const DEFAULT_BG = "#d4af37";
-const DEFAULT_SIZE = "medium";
+const DEFAULT_SIZE = 100;
+const DEFAULT_ALIGN = "center";
 
-const SIZE_OPTIONS = [
-  { v: "small", label: "Small" },
-  { v: "medium", label: "Medium" },
-  { v: "large", label: "Large" },
+const ALIGN_OPTIONS = [
+  { v: "left", icon: AlignLeft, label: "Left" },
+  { v: "center", icon: AlignCenter, label: "Center" },
+  { v: "right", icon: AlignRight, label: "Right" },
 ];
-
-const PRESET_COLORS = ["#d4af37", "#ffffff", "#0c0a12", "#8b5cf6", "#ec4899", "#22c55e", "#3b82f6", "#ef4444"];
 
 function isHex(s) { return typeof s === "string" && /^#[0-9a-f]{6}$/i.test(s); }
 
-function readableTextColor(hex) {
-  if (!isHex(hex)) return "#0c0a12";
-  const h = hex.slice(1);
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return lum > 0.6 ? "#0c0a12" : "#ffffff";
-}
-
-function previewSize(size) {
-  if (size === "small") return { padding: "8px 16px", fontSize: 12 };
-  if (size === "large") return { padding: "16px 32px", fontSize: 16 };
-  return { padding: "12px 24px", fontSize: 14 };
-}
-
 export default function ButtonBlockEditor({ block, onChange, tokens }) {
   const bg = isHex(block.bgColor) ? block.bgColor : DEFAULT_BG;
-  const size = block.size || DEFAULT_SIZE;
-  const sizeStyle = previewSize(size);
-  const fg = readableTextColor(bg);
+  const size = typeof block.size === "number" ? block.size : DEFAULT_SIZE;
+  const align = block.align || DEFAULT_ALIGN;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -67,18 +50,36 @@ export default function ButtonBlockEditor({ block, onChange, tokens }) {
       </div>
 
       <div style={fieldGroupStyle}>
-        <div style={fieldLabelStyle}><span>Size</span></div>
+        <div style={fieldLabelStyle}>
+          <span>Size</span>
+          <span style={{ opacity: 0.6 }}>{size}%</span>
+        </div>
+        <input
+          type="range"
+          min={50}
+          max={150}
+          step={5}
+          value={size}
+          onChange={(e) => onChange({ ...block, size: Number(e.target.value) })}
+          style={{ width: "100%", accentColor: "#d4af37" }}
+        />
+      </div>
+
+      <div style={fieldGroupStyle}>
+        <div style={fieldLabelStyle}><span>Align</span></div>
         <div style={{ display: "flex", gap: 4 }}>
-          {SIZE_OPTIONS.map((opt) => {
-            const active = size === opt.v;
+          {ALIGN_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            const active = align === opt.v;
             return (
               <button
                 key={opt.v}
                 type="button"
-                onClick={() => onChange({ ...block, size: opt.v })}
-                style={segmentBtnStyle(active)}
+                onClick={() => onChange({ ...block, align: opt.v })}
+                title={opt.label}
+                style={alignBtnStyle(active)}
               >
-                {opt.label}
+                <Icon size={14} />
               </button>
             );
           })}
@@ -90,65 +91,31 @@ export default function ButtonBlockEditor({ block, onChange, tokens }) {
           <span>Background color</span>
           <span style={{ opacity: 0.6, fontFamily: "monospace" }}>{bg.toUpperCase()}</span>
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          {PRESET_COLORS.map((c) => {
-            const active = c.toLowerCase() === bg.toLowerCase();
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => onChange({ ...block, bgColor: c })}
-                title={c}
-                style={swatchStyle(c, active)}
-              />
-            );
-          })}
-          <label style={{ display: "inline-flex", alignItems: "center", marginLeft: 4, cursor: "pointer" }}>
-            <input
-              type="color"
-              value={bg}
-              onChange={(e) => onChange({ ...block, bgColor: e.target.value })}
-              style={{
-                width: 28, height: 28, border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: 6, padding: 0, background: "transparent", cursor: "pointer",
-              }}
-            />
-          </label>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="color"
+            value={bg}
+            onChange={(e) => onChange({ ...block, bgColor: e.target.value })}
+            style={{
+              width: 36, height: 36,
+              border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: 8, padding: 0, background: "transparent", cursor: "pointer",
+            }}
+          />
           <input
             type="text"
             value={bg}
             onChange={(e) => {
-              const v = e.target.value.startsWith("#") ? e.target.value : `#${e.target.value}`;
+              const raw = e.target.value.trim();
+              const v = raw.startsWith("#") ? raw : `#${raw}`;
               onChange({ ...block, bgColor: v });
             }}
-            style={{
-              ...inputStyle, width: 90, fontFamily: "monospace", fontSize: 12, padding: "6px 8px",
-            }}
             placeholder="#d4af37"
+            style={{
+              ...inputStyle, flex: 1, fontFamily: "monospace", fontSize: 13, padding: "8px 10px",
+            }}
           />
         </div>
-      </div>
-
-      <div style={{ textAlign: "center", padding: "12px", background: "rgba(255,255,255,0.04)", borderRadius: "10px" }}>
-        <a
-          href={block.url || "#"}
-          onClick={(e) => e.preventDefault()}
-          style={{
-            display: "inline-block",
-            padding: sizeStyle.padding,
-            background: bg,
-            color: fg,
-            textDecoration: "none",
-            borderRadius: "8px",
-            fontWeight: 600,
-            fontSize: sizeStyle.fontSize,
-          }}
-        >
-          {block.text || "Button preview"}
-        </a>
-        {block.caption && (
-          <div style={{ marginTop: "6px", fontSize: "11px", opacity: 0.7 }}>{block.caption}</div>
-        )}
       </div>
     </div>
   );
@@ -194,27 +161,15 @@ const fieldLabelStyle = {
   color: "rgba(255,255,255,0.65)",
 };
 
-const segmentBtnStyle = (active) => ({
+const alignBtnStyle = (active) => ({
   flex: 1,
-  padding: "6px 8px",
+  padding: "6px 0",
   borderRadius: 6,
   border: `1px solid ${active ? "rgba(212,175,55,0.5)" : "rgba(255,255,255,0.1)"}`,
   background: active ? "rgba(212,175,55,0.15)" : "rgba(12,10,18,0.6)",
   color: active ? "#d4af37" : "rgba(255,255,255,0.7)",
   cursor: "pointer",
-  fontSize: 12,
-  fontWeight: active ? 600 : 500,
-});
-
-const swatchStyle = (color, active) => ({
-  width: 28,
-  height: 28,
-  borderRadius: "50%",
-  border: active
-    ? "2px solid #d4af37"
-    : "1px solid rgba(255,255,255,0.15)",
-  background: color,
-  padding: 0,
-  cursor: "pointer",
-  boxShadow: active ? "0 0 0 2px rgba(212,175,55,0.25)" : "none",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
 });

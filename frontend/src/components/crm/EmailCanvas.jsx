@@ -2,7 +2,7 @@
 // email exactly as a recipient would see it, branching on the active template.
 // Pure presentational: takes all state via props, no editing.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { applyTokens, buildPreviewContext, parseInlineSegments } from "../../lib/emailTokens";
 
 // Theme palettes for the canvas preview. Mirrors the actual email shell:
@@ -76,6 +76,22 @@ export default function EmailCanvas({
   const [theme, setTheme] = useState("light");
   const palette = THEMES[theme];
 
+  // Auto-scroll the preview so whatever the host is hovering in the rail
+  // floats up near the top of the canvas viewport. Mirrors the
+  // CreateEventPage / EventPreview behavior.
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    if (!hoveredKey || !scrollRef.current) return;
+    const container = scrollRef.current;
+    const el = container.querySelector(`[data-hover-key="${hoveredKey}"]`);
+    if (!el) return;
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const offsetInContainer = elRect.top - containerRect.top + container.scrollTop;
+    const target = offsetInContainer - containerRect.height * 0.3;
+    container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+  }, [hoveredKey]);
+
   const previewCtx = useMemo(
     () => buildPreviewContext({
       currentUserFirstName,
@@ -106,7 +122,7 @@ export default function EmailCanvas({
         theme={theme}
         onThemeToggle={() => setTheme(theme === "light" ? "dark" : "light")}
       />
-      <div style={{ ...emailFrameStyle, background: palette.body, color: palette.text }}>
+      <div ref={scrollRef} style={{ ...emailFrameStyle, background: palette.body, color: palette.text }}>
         <div style={emailBodyStyle}>
         {activeEvent ? (
           <FollowupBody
@@ -215,7 +231,7 @@ function FollowupBody({ greeting, blocks, t, inline, hoveredKey, theme }) {
   return (
     <div>
       {greetingRendered && (
-        <Highlightable hovered={hoveredKey === "greeting"}>
+        <Highlightable hoverKey="greeting" hovered={hoveredKey === "greeting"}>
           <p style={{ margin: "0 0 12px", color: theme.text }}>
             {inline(greetingRendered)}
           </p>
@@ -227,7 +243,7 @@ function FollowupBody({ greeting, blocks, t, inline, hoveredKey, theme }) {
         </div>
       )}
       {(blocks || []).map((b, i) => (
-        <Highlightable key={i} hovered={hoveredKey === `block-${i}`}>
+        <Highlightable key={i} hoverKey={`block-${i}`} hovered={hoveredKey === `block-${i}`}>
           <CanvasBlock block={b} t={t} inline={inline} theme={theme} />
         </Highlightable>
       ))}
@@ -236,10 +252,13 @@ function FollowupBody({ greeting, blocks, t, inline, hoveredKey, theme }) {
 }
 
 // Wraps a section in the canvas with a lime-green outline when its sibling
-// row in the editor rail is being hovered. Mirrors the CreateEventPage pattern.
-function Highlightable({ hovered, children }) {
+// row in the editor rail is being hovered. The data-hover-key attribute is
+// what the auto-scroll effect targets via querySelector. Mirrors the
+// CreateEventPage / EventPreview pattern.
+function Highlightable({ hoverKey, hovered, children }) {
   return (
     <div
+      data-hover-key={hoverKey}
       style={{
         borderRadius: 4,
         outline: hovered

@@ -1,4 +1,4 @@
-import { Type, Image as ImageIcon, MousePointerClick } from "lucide-react";
+import { Type, Image as ImageIcon, MousePointerClick, Aperture } from "lucide-react";
 import TextBlockEditor from "./blocks/TextBlockEditor";
 import ImageBlockEditor from "./blocks/ImageBlockEditor";
 import ButtonBlockEditor from "./blocks/ButtonBlockEditor";
@@ -8,6 +8,7 @@ const TYPE_LABEL = { text: "Text", image: "Image", button: "Button" };
 const ADD_ITEMS = [
   { type: "text", icon: Type, label: "Text" },
   { type: "image", icon: ImageIcon, label: "Image" },
+  { type: "logo", icon: Aperture, label: "Logo" },
   { type: "button", icon: MousePointerClick, label: "Button" },
 ];
 
@@ -32,6 +33,9 @@ export default function BlockEditorList({ blocks, onChange, tokens, hoveredKey, 
     const blanks = {
       text: { type: "text", style: "paragraph", text: "", align: "left" },
       image: { type: "image", url: "", alt: "", source: null, width: 100, align: "center", aspectRatio: "original" },
+      // Logo is just an image block with logo-friendly defaults: smaller
+      // width, centered, no aspect-ratio crop. Same editor controls.
+      logo: { type: "image", url: "", alt: "Logo", source: "logo", width: 30, align: "center", aspectRatio: "original" },
       button: { type: "button", text: "", url: "", caption: null, size: 100, align: "center", bgColor: "#d4af37" },
     };
     onChange([...blocks, blanks[type]]);

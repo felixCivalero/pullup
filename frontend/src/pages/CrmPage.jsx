@@ -80,6 +80,7 @@ export function CrmPage() {
   const [eventSubject, setEventSubject] = useState("");
   const [eventPreviewText, setEventPreviewText] = useState("");
   const [eventGreeting, setEventGreeting] = useState("Hi {{first_name}},");
+  const [eventGreetingAlign, setEventGreetingAlign] = useState("left");
   const [eventBlocks, setEventBlocks] = useState([]);
 
   // Composer state — follow-up template (independent so switching templates
@@ -88,6 +89,7 @@ export function CrmPage() {
   const [followupSubject, setFollowupSubject] = useState("");
   const [followupPreviewText, setFollowupPreviewText] = useState("");
   const [followupGreeting, setFollowupGreeting] = useState("Hi {{first_name}},");
+  const [followupGreetingAlign, setFollowupGreetingAlign] = useState("left");
   const [followupBlocks, setFollowupBlocks] = useState([]);
 
   const [isConfirmSendOpen, setIsConfirmSendOpen] = useState(false);
@@ -221,6 +223,7 @@ export function CrmPage() {
               subject: followupSubject,
               previewText: followupPreviewText,
               greeting: followupGreeting,
+              greetingAlign: followupGreetingAlign,
               blocks: followupBlocks,
             },
             filterCriteria,
@@ -233,6 +236,7 @@ export function CrmPage() {
               subject: eventSubject,
               previewText: eventPreviewText,
               greeting: eventGreeting,
+              greetingAlign: eventGreetingAlign,
               blocks: eventBlocks,
             },
             filterCriteria,
@@ -431,6 +435,8 @@ export function CrmPage() {
                 setEventPreviewText={setEventPreviewText}
                 eventGreeting={eventGreeting}
                 setEventGreeting={setEventGreeting}
+                eventGreetingAlign={eventGreetingAlign}
+                setEventGreetingAlign={setEventGreetingAlign}
                 eventBlocks={eventBlocks}
                 setEventBlocks={setEventBlocks}
                 // Follow-up template props
@@ -442,6 +448,8 @@ export function CrmPage() {
                 setFollowupPreviewText={setFollowupPreviewText}
                 followupGreeting={followupGreeting}
                 setFollowupGreeting={setFollowupGreeting}
+                followupGreetingAlign={followupGreetingAlign}
+                setFollowupGreetingAlign={setFollowupGreetingAlign}
                 followupBlocks={followupBlocks}
                 setFollowupBlocks={setFollowupBlocks}
                 hoveredKey={hoveredKey}
@@ -512,11 +520,13 @@ export function CrmPage() {
             eventSubject={eventSubject}
             eventPreviewText={eventPreviewText}
             eventGreeting={eventGreeting}
+            eventGreetingAlign={eventGreetingAlign}
             eventBlocks={eventBlocks}
             followupEvent={followupEvent}
             followupSubject={followupSubject}
             followupPreviewText={followupPreviewText}
             followupGreeting={followupGreeting}
+            followupGreetingAlign={followupGreetingAlign}
             followupBlocks={followupBlocks}
             hoveredKey={hoveredKey}
             currentUserFirstName={currentUserFirstName}

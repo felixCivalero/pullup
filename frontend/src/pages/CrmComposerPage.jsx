@@ -10,6 +10,7 @@ export default function CrmComposerPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
+  const searchParamsString = searchParams.toString();
 
   const [activeSection, setActiveSection] = useState("segment");
 
@@ -113,7 +114,7 @@ export default function CrmComposerPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [searchParams, showToast]);
+  }, [searchParamsString, showToast]);
 
   function handleSendClick() {
     if (effectiveRecipientCount === 0) {

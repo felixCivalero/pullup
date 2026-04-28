@@ -63,6 +63,43 @@ function testImageBlock() {
 }
 testImageBlock();
 
+function testButtonBlock() {
+  console.log("🧪 button block renders <a> button + optional caption");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s",
+      previewText: "",
+      blocks: [{ type: "button", text: "Get 20% off", url: "https://example.com/redeem", caption: "Code: THANKYOU20" }],
+      signoff: "",
+    },
+    person: { first_name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("Get 20% off"), "button text present");
+  assert(html.includes("https://example.com/redeem"), "button url present");
+  assert(html.includes('href="https://example.com/redeem"'), "is an <a> with href");
+  assert(html.includes("Code: THANKYOU20"), "caption present when set");
+}
+testButtonBlock();
+
+function testButtonWithoutCaption() {
+  console.log("🧪 button block omits caption when null");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s",
+      previewText: "",
+      blocks: [{ type: "button", text: "Click", url: "https://example.com", caption: null }],
+      signoff: "",
+    },
+    person: { first_name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(!html.includes("caption-block"), "no caption div when caption is null");
+}
+testButtonWithoutCaption();
+
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
   process.exit(1);

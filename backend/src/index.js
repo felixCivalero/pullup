@@ -5343,6 +5343,31 @@ app.delete("/host/crm/views/:viewId", requireAuth, async (req, res) => {
 // PROTECTED: Email Campaigns (requires auth)
 // ---------------------------
 
+function validateFollowupTemplateContent(tc) {
+  if (!tc || typeof tc !== "object") return "templateContent must be an object";
+  if (tc.previewText !== undefined && typeof tc.previewText !== "string") return "previewText must be a string";
+  if (!Array.isArray(tc.blocks)) return "blocks must be an array";
+  for (let i = 0; i < tc.blocks.length; i += 1) {
+    const b = tc.blocks[i];
+    if (!b || typeof b !== "object") return `block ${i}: not an object`;
+    if (b.type === "text") {
+      if (b.style !== "heading" && b.style !== "paragraph") return `block ${i}: invalid text style`;
+      if (typeof b.text !== "string") return `block ${i}: text must be a string`;
+    } else if (b.type === "image") {
+      if (typeof b.url !== "string" || !/^https?:\/\//.test(b.url)) return `block ${i}: image url must be http(s)`;
+      if (b.alt !== undefined && typeof b.alt !== "string") return `block ${i}: alt must be a string`;
+    } else if (b.type === "button") {
+      if (typeof b.text !== "string" || b.text.trim() === "") return `block ${i}: button text required`;
+      if (typeof b.url !== "string" || !/^https?:\/\//.test(b.url)) return `block ${i}: button url must be http(s)`;
+      if (b.caption !== undefined && b.caption !== null && typeof b.caption !== "string") return `block ${i}: caption must be string or null`;
+    } else {
+      return `block ${i}: unknown type "${b.type}"`;
+    }
+  }
+  if (tc.signoff !== undefined && typeof tc.signoff !== "string") return "signoff must be a string";
+  return null;
+}
+
 // POST /host/crm/campaigns - Create email campaign
 app.post("/host/crm/campaigns", requireAuth, async (req, res) => {
   try {
@@ -5363,6 +5388,15 @@ app.post("/host/crm/campaigns", requireAuth, async (req, res) => {
       return res
         .status(400)
         .json({ error: "Event ID is required for event campaigns" });
+    }
+
+    if (templateType === "followup") {
+      const err = validateFollowupTemplateContent(templateContent);
+      if (err) {
+        return res.status(400).json({ error: "Invalid templateContent", message: err });
+      }
+    } else if (templateType !== "event") {
+      return res.status(400).json({ error: `Unknown templateType: ${templateType}` });
     }
 
     // Get event for name generation

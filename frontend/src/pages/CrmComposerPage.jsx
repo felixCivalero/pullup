@@ -5,6 +5,7 @@ import { useToast } from "../components/Toast";
 import ComposerSidebar from "../components/crm/ComposerSidebar";
 import SegmentPanel from "../components/crm/SegmentPanel";
 import EmailPanel from "../components/crm/EmailPanel";
+import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
 
 export default function CrmComposerPage() {
   const navigate = useNavigate();
@@ -29,15 +30,10 @@ export default function CrmComposerPage() {
   const [segmentRecipients, setSegmentRecipients] = useState([]);
   const [excludedRecipientIds, setExcludedRecipientIds] = useState(() => new Set());
 
-  // eslint-disable-next-line no-unused-vars
   const [isConfirmSendOpen, setIsConfirmSendOpen] = useState(false);
-  // eslint-disable-next-line no-unused-vars
   const [sendStage, setSendStage] = useState("confirm");
-  // eslint-disable-next-line no-unused-vars
   const [sendingCampaignId, setSendingCampaignId] = useState(null);
-  // eslint-disable-next-line no-unused-vars
   const [sendingStats, setSendingStats] = useState({ totalRecipients: 0, totalSent: 0, totalFailed: 0 });
-  // eslint-disable-next-line no-unused-vars
   const [sendingErrorMessage, setSendingErrorMessage] = useState("");
 
   const selectedEvent = useMemo(
@@ -126,8 +122,127 @@ export default function CrmComposerPage() {
       return;
     }
     setSendStage("confirm");
+    setSendingCampaignId(null);
+    setSendingStats({ totalRecipients: effectiveRecipientCount, totalSent: 0, totalFailed: 0 });
     setSendingErrorMessage("");
     setIsConfirmSendOpen(true);
+  }
+
+  async function handleConfirmSend() {
+    if (!selectedEventId) {
+      setSendStage("error");
+      setSendingErrorMessage("No event selected.");
+      return;
+    }
+
+    setSendStage("sending");
+    setSendingErrorMessage("");
+
+    const filterCriteria = Object.fromEntries(searchParams.entries());
+    const recipientIds = segmentRecipients
+      .filter((p) => !excludedRecipientIds.has(p.id))
+      .map((p) => p.id);
+
+    try {
+      const campaignData = {
+        templateType: "event",
+        eventId: selectedEventId,
+        subject:
+          subjectLine ||
+          (selectedEvent ? `You're invited to ${selectedEvent.title}.` : ""),
+        templateContent: {
+          headline: headlineText || selectedEvent?.title || "",
+          introQuote: introQuote || "",
+          introBody: introBody || "",
+          introGreeting: introGreeting || "",
+          introNote: introNote || "",
+          signoffText: signoffText || "",
+          ctaLabel: "TO EVENT",
+        },
+        filterCriteria,
+        recipientIds,
+      };
+
+      // 1) Create campaign
+      const createRes = await authenticatedFetch("/host/crm/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(campaignData),
+      });
+
+      if (!createRes.ok) {
+        const errJson = await createRes.json().catch(() => ({}));
+        throw new Error(errJson.message || "Failed to create campaign");
+      }
+
+      const { campaignId, totalRecipients } = await createRes.json();
+      setSendingCampaignId(campaignId);
+      setSendingStats((prev) => ({
+        ...prev,
+        totalRecipients:
+          totalRecipients != null ? totalRecipients : prev.totalRecipients,
+      }));
+
+      // 2) Start sending
+      const sendRes = await authenticatedFetch(
+        `/host/crm/campaigns/${campaignId}/send`,
+        { method: "POST" },
+      );
+      if (!sendRes.ok) {
+        const errJson = await sendRes.json().catch(() => ({}));
+        throw new Error(errJson.message || "Failed to start sending");
+      }
+
+      // 3) Poll status until "sent" or "failed"
+      let attempts = 0;
+      const maxAttempts = 60; // ~2 minutes at 2s intervals
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (attempts >= maxAttempts) {
+          setSendStage("error");
+          setSendingErrorMessage(
+            "Timed out while waiting for campaign to finish.",
+          );
+          return;
+        }
+
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        const statusRes = await authenticatedFetch(
+          `/host/crm/campaigns/${campaignId}`,
+        );
+        if (!statusRes.ok) {
+          continue;
+        }
+
+        const statusJson = await statusRes.json();
+
+        setSendingStats({
+          totalRecipients: statusJson.totalRecipients || 0,
+          totalSent: statusJson.totalSent || 0,
+          totalFailed: statusJson.totalFailed || 0,
+        });
+
+        if (statusJson.status === "sent") {
+          setSendStage("success");
+          return;
+        }
+        if (statusJson.status === "failed") {
+          setSendStage("error");
+          setSendingErrorMessage("The email provider reported a failure.");
+          return;
+        }
+        // statuses "queued" or "sending" -> keep polling
+      }
+    } catch (error) {
+      console.error("Error sending campaign:", error);
+      setSendStage("error");
+      setSendingErrorMessage(
+        error.message || "Unexpected error while sending campaign.",
+      );
+    }
   }
 
   return (
@@ -229,7 +344,17 @@ export default function CrmComposerPage() {
         </button>
       </footer>
 
-      {/* TODO Task 6: render the existing isConfirmSendOpen confirm dialog here. */}
+      <ConfirmSendDialog
+        isOpen={isConfirmSendOpen}
+        sendStage={sendStage}
+        effectiveRecipientCount={effectiveRecipientCount}
+        sendingStats={sendingStats}
+        sendingErrorMessage={sendingErrorMessage}
+        selectedEvent={selectedEvent}
+        subjectLine={subjectLine}
+        onClose={() => setIsConfirmSendOpen(false)}
+        onConfirmSend={handleConfirmSend}
+      />
     </div>
   );
 }

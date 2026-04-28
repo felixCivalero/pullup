@@ -122,6 +122,11 @@ export function CrmPage() {
       return;
     }
     if (selectedTemplate === "followup") {
+      if (!followupEventId) {
+        showToast("Pick the event this follow-up is for.", "error");
+        setActiveTab("email");
+        return;
+      }
       if (!followupSubject.trim()) {
         showToast("Subject is required.", "error");
         setActiveTab("email");
@@ -145,7 +150,8 @@ export function CrmPage() {
 
   async function handleConfirmSend() {
     const isFollowup = selectedTemplate === "followup";
-    if (!isFollowup && !selectedEventId) {
+    const requiredEventId = isFollowup ? followupEventId : selectedEventId;
+    if (!requiredEventId) {
       if (cancelledRef.current) return;
       setSendStage("error");
       setSendingErrorMessage("No event selected.");
@@ -162,7 +168,7 @@ export function CrmPage() {
       const campaignData = isFollowup
         ? {
             templateType: "followup",
-            eventId: followupEventId || null,
+            eventId: followupEventId,
             subject: followupSubject,
             templateContent: {
               subject: followupSubject,

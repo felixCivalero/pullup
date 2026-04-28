@@ -19,45 +19,61 @@ export default function FollowUpComposer({
   blocks,
   setBlocks,
 }) {
-  const tokens = availableTokens({ hasEvent: Boolean(selectedEventId) });
+  const hasEvent = Boolean(selectedEventId);
+  const tokens = availableTokens({ hasEvent });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      <Section label="Setup" variant="setup">
-        <Field label="Associate with event (for analytics)">
+      <Section label="Event" variant="setup">
+        <Field label="Which event is this follow-up for?">
           <select
             value={selectedEventId}
             onChange={(e) => setSelectedEventId(e.target.value)}
             style={inputStyle}
           >
-            <option value="">— none —</option>
+            <option value="">— choose an event —</option>
             {events.map((ev) => (
               <option key={ev.id} value={ev.id}>{ev.title}</option>
             ))}
           </select>
         </Field>
-        <Field label="Subject">
-          <TokenizedInput value={subject} onChange={setSubject} tokens={tokens} placeholder="Subject line…" />
-        </Field>
-        <Field label="Preview text (preheader)">
-          <TokenizedInput value={previewText} onChange={setPreviewText} tokens={tokens} placeholder="Inbox preview snippet…" />
-        </Field>
+        {!hasEvent && (
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
+            A follow-up email is always about something that happened. Pick the
+            event so we can personalize <code style={{ color: "#d4af37" }}>{"{{event_title}}"}</code> /
+            <code style={{ color: "#d4af37" }}>{"{{event_date}}"}</code> and link
+            recipients back to it in analytics.
+          </div>
+        )}
       </Section>
 
-      <Section label="Content" variant="content">
-        <Field label="Greeting (auto-personalized per recipient)">
-          <TokenizedInput
-            multiline
-            rows={2}
-            value={greeting}
-            onChange={setGreeting}
-            tokens={tokens}
-            enableLinks
-            placeholder="Hi [First name],"
-          />
-        </Field>
-        <BlockEditorList blocks={blocks} onChange={setBlocks} tokens={tokens} />
-      </Section>
+      {hasEvent && (
+        <>
+          <Section label="Setup" variant="setup">
+            <Field label="Subject">
+              <TokenizedInput value={subject} onChange={setSubject} tokens={tokens} placeholder="Subject line…" />
+            </Field>
+            <Field label="Preview text (preheader)">
+              <TokenizedInput value={previewText} onChange={setPreviewText} tokens={tokens} placeholder="Inbox preview snippet…" />
+            </Field>
+          </Section>
+
+          <Section label="Content" variant="content">
+            <Field label="Greeting (auto-personalized per recipient)">
+              <TokenizedInput
+                multiline
+                rows={2}
+                value={greeting}
+                onChange={setGreeting}
+                tokens={tokens}
+                enableLinks
+                placeholder="Hi [First name],"
+              />
+            </Field>
+            <BlockEditorList blocks={blocks} onChange={setBlocks} tokens={tokens} />
+          </Section>
+        </>
+      )}
     </div>
   );
 }

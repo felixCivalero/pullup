@@ -2,6 +2,9 @@ export function renderFollowUpEmailTemplate({ templateContent /*, person, event,
   const blocks = templateContent.blocks || [];
   const body = blocks
     .map((b) => {
+      if (b.type === "text" && b.style === "heading") {
+        return `<h2 style="font-size:22px;font-weight:700;margin:16px 0 8px;">${escapeHtml(b.text || "")}</h2>`;
+      }
       if (b.type === "text" && b.style === "paragraph") {
         return `<p>${escapeHtml(b.text || "")}</p>`;
       }

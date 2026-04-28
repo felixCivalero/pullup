@@ -3,7 +3,30 @@
 // Pure presentational: takes all state via props, no editing.
 
 import { useMemo } from "react";
-import { applyTokens, buildPreviewContext } from "../../lib/emailTokens";
+import { applyTokens, buildPreviewContext, parseInlineSegments } from "../../lib/emailTokens";
+
+// Render a string with tokens + [label](url) links into React nodes.
+function InlineRich({ text, ctx }) {
+  const segments = parseInlineSegments(text || "", ctx);
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === "link" ? (
+          <a
+            key={i}
+            href={seg.url}
+            onClick={(e) => e.preventDefault()}
+            style={{ color: "#d4af37", textDecoration: "underline" }}
+          >
+            {seg.label}
+          </a>
+        ) : (
+          <span key={i} style={{ whiteSpace: "pre-wrap" }}>{seg.text}</span>
+        ),
+      )}
+    </>
+  );
+}
 
 export default function EmailCanvas({
   selectedTemplate,
@@ -35,6 +58,7 @@ export default function EmailCanvas({
     [currentUserFirstName, isFollowup, followupEvent, selectedEvent],
   );
   const t = (s) => applyTokens(s, previewCtx);
+  const inline = (s) => <InlineRich text={s} ctx={previewCtx} />;
 
   return (
     <div style={canvasOuterStyle}>
@@ -49,6 +73,7 @@ export default function EmailCanvas({
             blocks={followupBlocks}
             signoff={followupSignoff}
             t={t}
+            inline={inline}
           />
         ) : (
           <EventBody
@@ -204,13 +229,13 @@ function EventBody({
   );
 }
 
-function FollowupBody({ greeting, blocks, signoff, t }) {
+function FollowupBody({ greeting, blocks, signoff, t, inline }) {
   const greetingRendered = greeting !== undefined ? greeting : "Hi {{first_name}},";
   return (
     <div>
       {greetingRendered && (
-        <p style={{ margin: "0 0 12px", color: "#fff", whiteSpace: "pre-wrap" }}>
-          {t(greetingRendered)}
+        <p style={{ margin: "0 0 12px", color: "#fff" }}>
+          {inline(greetingRendered)}
         </p>
       )}
       {(blocks || []).length === 0 && (
@@ -218,20 +243,20 @@ function FollowupBody({ greeting, blocks, signoff, t }) {
           Add blocks in the Email tab to fill the body.
         </div>
       )}
-      {(blocks || []).map((b, i) => <CanvasBlock key={i} block={b} t={t} />)}
+      {(blocks || []).map((b, i) => <CanvasBlock key={i} block={b} t={t} inline={inline} />)}
       {signoff && (
-        <p style={{ margin: "24px 0 0", whiteSpace: "pre-wrap", color: "#fff" }}>{t(signoff)}</p>
+        <p style={{ margin: "24px 0 0", color: "#fff" }}>{inline(signoff)}</p>
       )}
     </div>
   );
 }
 
-function CanvasBlock({ block, t }) {
+function CanvasBlock({ block, t, inline }) {
   if (block.type === "text" && block.style === "heading") {
-    return <h2 style={{ fontSize: 22, fontWeight: 700, margin: "16px 0 8px", color: "#fff" }}>{t(block.text)}</h2>;
+    return <h2 style={{ fontSize: 22, fontWeight: 700, margin: "16px 0 8px", color: "#fff" }}>{inline(block.text)}</h2>;
   }
   if (block.type === "text") {
-    return <p style={{ margin: "0 0 12px", whiteSpace: "pre-wrap", lineHeight: 1.5, color: "#fff" }}>{t(block.text)}</p>;
+    return <p style={{ margin: "0 0 12px", lineHeight: 1.5, color: "#fff" }}>{inline(block.text)}</p>;
   }
   if (block.type === "image" && block.url) {
     return <img src={block.url} alt={t(block.alt || "")} style={{ display: "block", width: "100%", maxWidth: "100%", borderRadius: 8, margin: "16px 0" }} />;

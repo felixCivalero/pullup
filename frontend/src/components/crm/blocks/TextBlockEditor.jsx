@@ -25,6 +25,7 @@ export default function TextBlockEditor({ block, onChange, tokens }) {
         value={block.text}
         onChange={(text) => onChange({ ...block, text })}
         tokens={tokens}
+        enableLinks
         placeholder={block.style === "heading" ? "Heading text…" : "Write a paragraph…"}
         style={{
           fontSize: block.style === "heading" ? "18px" : "14px",

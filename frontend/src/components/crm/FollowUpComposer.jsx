@@ -49,12 +49,13 @@ export default function FollowUpComposer({
           value={greeting}
           onChange={setGreeting}
           tokens={tokens}
+          enableLinks
           placeholder="Hi [First name],"
         />
       </Field>
       <BlockEditorList blocks={blocks} onChange={setBlocks} tokens={tokens} />
       <Field label="Signoff">
-        <TokenizedInput multiline rows={3} value={signoff} onChange={setSignoff} tokens={tokens} placeholder={"With love,\nThe Spring Salon"} />
+        <TokenizedInput multiline rows={3} value={signoff} onChange={setSignoff} tokens={tokens} enableLinks placeholder={"With love,\nThe Spring Salon"} />
       </Field>
     </div>
   );

@@ -109,14 +109,12 @@ export function renderFollowUpEmailTemplate({ templateContent, person, event, un
   const ctx = buildTokenContext({ person, event });
   const t = (s) => applyTokens(s, ctx);
 
-  // Greeting: undefined → use default "Hi {{first_name}},"; "" → no greeting line;
-  // any other string → render that (with token substitution + inline links).
-  const greetingRaw = templateContent.greeting !== undefined
-    ? templateContent.greeting
-    : "Hi {{first_name}},";
-  const greetingAlign = textAlign(templateContent.greetingAlign);
-  const greeting = greetingRaw
-    ? `<p class="pu-greeting" style="margin:0 0 12px;color:#0c0a12;text-align:${greetingAlign};">${renderInline(greetingRaw, t)}</p>`
+  // Greeting is now just a regular text block prepended to the blocks
+  // array (host can move/delete it). Legacy templateContent.greeting is
+  // still honored as a prepended paragraph for in-flight campaigns from
+  // before the refactor.
+  const legacyGreeting = templateContent.greeting !== undefined && templateContent.greeting
+    ? `<p class="pu-text" style="margin:0 0 12px;color:#0c0a12;text-align:${textAlign(templateContent.greetingAlign)};">${renderInline(templateContent.greeting, t)}</p>`
     : "";
 
   const body = blocks.map((b) => renderBlock(b, t)).filter(Boolean).join("");
@@ -140,7 +138,7 @@ export function renderFollowUpEmailTemplate({ templateContent, person, event, un
       </div>`
     : "";
 
-  return emailShell(`${previewText}<div style="max-width:600px;margin:0 auto;">${greeting}${body}${signoffHtml}${footer}</div>`);
+  return emailShell(`${previewText}<div style="max-width:600px;margin:0 auto;">${legacyGreeting}${body}${signoffHtml}${footer}</div>`);
 }
 
 function renderBlock(b, t) {

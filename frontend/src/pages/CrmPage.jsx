@@ -11,8 +11,8 @@ import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
 // Build a sensible default block list when an event is picked for the
 // "Event email template" — host can then edit / reorder / extend.
 function buildDefaultEventBlocks(event) {
-  if (!event) return [];
-  const blocks = [];
+  if (!event) return [defaultGreetingBlock()];
+  const blocks = [defaultGreetingBlock()];
   const hero = event.coverImageUrl || event.imageUrl;
   if (hero) {
     // Default cover to a 16:9 banner crop — event covers are typically
@@ -38,6 +38,13 @@ function buildDefaultEventBlocks(event) {
     blocks.push({ type: "button", text: "View event", url: getEventUrl(event.slug), caption: null, size: 100, align: "center", bgColor: "#d4af37" });
   }
   return blocks;
+}
+
+// Greeting is just a regular paragraph block — host can move/delete/edit
+// it like any other block. {{first_name}} resolves to the recipient's
+// first name (falls back to "there").
+function defaultGreetingBlock() {
+  return { type: "text", style: "paragraph", text: "Hi {{first_name}},", align: "left" };
 }
 
 const TABS = [
@@ -100,8 +107,6 @@ export function CrmPage() {
   const [selectedEventId, setSelectedEventId] = useState("");
   const [eventSubject, setEventSubject] = useState("");
   const [eventPreviewText, setEventPreviewText] = useState("");
-  const [eventGreeting, setEventGreeting] = useState("Hi {{first_name}},");
-  const [eventGreetingAlign, setEventGreetingAlign] = useState("left");
   const [eventBlocks, setEventBlocks] = useState([]);
 
   // Composer state — follow-up template (independent so switching templates
@@ -109,9 +114,7 @@ export function CrmPage() {
   const [followupEventId, setFollowupEventId] = useState("");
   const [followupSubject, setFollowupSubject] = useState("");
   const [followupPreviewText, setFollowupPreviewText] = useState("");
-  const [followupGreeting, setFollowupGreeting] = useState("Hi {{first_name}},");
-  const [followupGreetingAlign, setFollowupGreetingAlign] = useState("left");
-  const [followupBlocks, setFollowupBlocks] = useState([]);
+  const [followupBlocks, setFollowupBlocks] = useState([defaultGreetingBlock()]);
 
   const [isConfirmSendOpen, setIsConfirmSendOpen] = useState(false);
   const [sendStage, setSendStage] = useState("confirm");
@@ -243,8 +246,6 @@ export function CrmPage() {
             templateContent: {
               subject: followupSubject,
               previewText: followupPreviewText,
-              greeting: followupGreeting,
-              greetingAlign: followupGreetingAlign,
               blocks: followupBlocks,
             },
             filterCriteria,
@@ -256,8 +257,6 @@ export function CrmPage() {
             templateContent: {
               subject: eventSubject,
               previewText: eventPreviewText,
-              greeting: eventGreeting,
-              greetingAlign: eventGreetingAlign,
               blocks: eventBlocks,
             },
             filterCriteria,
@@ -468,10 +467,6 @@ export function CrmPage() {
                 setEventSubject={setEventSubject}
                 eventPreviewText={eventPreviewText}
                 setEventPreviewText={setEventPreviewText}
-                eventGreeting={eventGreeting}
-                setEventGreeting={setEventGreeting}
-                eventGreetingAlign={eventGreetingAlign}
-                setEventGreetingAlign={setEventGreetingAlign}
                 eventBlocks={eventBlocks}
                 setEventBlocks={setEventBlocks}
                 // Follow-up template props
@@ -481,10 +476,6 @@ export function CrmPage() {
                 setFollowupSubject={setFollowupSubject}
                 followupPreviewText={followupPreviewText}
                 setFollowupPreviewText={setFollowupPreviewText}
-                followupGreeting={followupGreeting}
-                setFollowupGreeting={setFollowupGreeting}
-                followupGreetingAlign={followupGreetingAlign}
-                setFollowupGreetingAlign={setFollowupGreetingAlign}
                 followupBlocks={followupBlocks}
                 setFollowupBlocks={setFollowupBlocks}
                 hoveredKey={hoveredKey}
@@ -555,14 +546,10 @@ export function CrmPage() {
             selectedEvent={selectedEvent}
             eventSubject={eventSubject}
             eventPreviewText={eventPreviewText}
-            eventGreeting={eventGreeting}
-            eventGreetingAlign={eventGreetingAlign}
             eventBlocks={eventBlocks}
             followupEvent={followupEvent}
             followupSubject={followupSubject}
             followupPreviewText={followupPreviewText}
-            followupGreeting={followupGreeting}
-            followupGreetingAlign={followupGreetingAlign}
             followupBlocks={followupBlocks}
             hoveredKey={hoveredKey}
             currentUserFirstName={currentUserFirstName}

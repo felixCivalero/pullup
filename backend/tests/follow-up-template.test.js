@@ -100,29 +100,10 @@ function testButtonWithoutCaption() {
 }
 testButtonWithoutCaption();
 
-function testGreeting() {
-  console.log("🧪 greeting prefixes body with first name");
-  const html = renderFollowUpEmailTemplate({
-    templateContent: { subject: "s", previewText: "", blocks: [], signoff: "" },
-    person: { name: "Sam" },
-    event: null,
-    baseUrl: "https://example.com",
-  });
-  assert(html.includes("Hi Sam,"), "uses first name");
-}
-testGreeting();
-
-function testGreetingFallback() {
-  console.log("🧪 greeting falls back when first name missing");
-  const html = renderFollowUpEmailTemplate({
-    templateContent: { subject: "s", previewText: "", blocks: [], signoff: "" },
-    person: {},
-    event: null,
-    baseUrl: "https://example.com",
-  });
-  assert(html.includes("Hi there,"), "uses fallback");
-}
-testGreetingFallback();
+// (Removed testGreeting + testGreetingFallback — greeting is now just a
+// regular text block in the blocks array; no auto-injection. Token
+// substitution + first_name fallback to "there" are still covered by
+// testFirstNameFromFullName + testTokenSubstitutionInTextBlock.)
 
 function testSignoff() {
   console.log("🧪 signoff renders with newlines preserved");

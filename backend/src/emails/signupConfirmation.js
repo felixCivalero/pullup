@@ -1,6 +1,11 @@
 /**
- * Branded PullUp signup confirmation & waitlist emails.
- * Matches the dark / gold VIP-invite style.
+ * Branded PullUp transactional emails (signup confirmation, waitlist,
+ * reservation, VIP invite, 24h reminder).
+ *
+ * Default visual is dark / gold (the PullUp aesthetic). The shell's
+ * <style> block adds prefers-color-scheme: light overrides so recipients
+ * in light-mode inboxes (the majority) get a clean white version that
+ * doesn't fight with surrounding emails. Gold accents stay constant.
  */
 
 const PULLUP_BG = "#05040a";
@@ -39,11 +44,35 @@ function outlookCalUrl({ title, startsAt, endsAt, location, slug, frontendUrl })
 
 /* ── Shared layout wrapper ── */
 function emailShell(content) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"></head>
-<body style="margin:0;padding:0;background:${PULLUP_BG};color:${WHITE};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;">
-<table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:${PULLUP_BG};">
+  return `<!DOCTYPE html><html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<style>
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  /* Default styles already set inline (dark). These rules flip the email
+     to a light variant when the recipient's client reports light mode —
+     keeps PullUp branded for dark-mode users while looking native in
+     the white inboxes the majority sees. Class selectors with !important
+     win over inline styles when the rule applies. */
+  @media (prefers-color-scheme: light) {
+    body.pu-shell, table.pu-shell { background: #ffffff !important; color: #0c0a12 !important; }
+    .pu-text, .pu-shell h1, .pu-shell h2, .pu-shell h3 { color: #0c0a12 !important; }
+    .pu-shell p { color: rgba(12,10,18,0.85) !important; }
+    .pu-muted, .pu-shell .pu-muted { color: rgba(12,10,18,0.55) !important; }
+    .pu-shell hr, .pu-shell [data-divider], .pu-shell td[style*="border-top"] { border-top-color: rgba(0,0,0,0.08) !important; }
+    .pu-subtle-bg { background: rgba(0,0,0,0.03) !important; border-color: rgba(0,0,0,0.08) !important; }
+    /* Buttons + badges keep their inline colors — they're branded gold,
+       which works as an accent on either background. */
+  }
+</style>
+</head>
+<body class="pu-shell" style="margin:0;padding:0;background:${PULLUP_BG};color:${WHITE};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" class="pu-shell" style="background:${PULLUP_BG};">
 <tr><td align="center" style="padding:20px 16px;">
-<table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;background:${PULLUP_BG};">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" class="pu-shell" style="max-width:520px;background:${PULLUP_BG};">
 ${content}
 </table>
 </td></tr>
@@ -84,8 +113,8 @@ function emailFooter({ message = "", brandName = "", brandWebsite = "", contactE
   }
 
   return `<!-- Footer -->
-<tr><td style="padding:24px 0 8px;border-top:1px solid rgba(255,255,255,0.06);">
-  <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);text-align:center;line-height:1.6;">
+<tr><td data-divider style="padding:24px 0 8px;border-top:1px solid rgba(255,255,255,0.06);">
+  <p class="pu-muted" style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);text-align:center;line-height:1.6;">
     ${parts.join("")}
   </p>
 </td></tr>`;
@@ -154,7 +183,7 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
@@ -257,7 +286,7 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Message -->
@@ -328,7 +357,7 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
@@ -423,7 +452,7 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
@@ -499,7 +528,7 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
@@ -556,7 +585,7 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->

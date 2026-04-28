@@ -9,8 +9,21 @@
     <meta
       content="telephone=no,address=no,email=no,date=no,url=no"
       name="format-detection" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="supported-color-schemes" content="light dark" />
+    <style>
+      :root { color-scheme: light dark; supported-color-schemes: light dark; }
+      /* Light-mode adapt: flips dark inline backgrounds + white text to a
+         light variant so this newsletter doesn't fight a white inbox.
+         Class selectors with !important win over the hardcoded inline. */
+      @media (prefers-color-scheme: light) {
+        body.pu-shell, body.pu-shell table { background-color: #ffffff !important; color: #0c0a12 !important; }
+        body.pu-shell h1, body.pu-shell h2, body.pu-shell h3, body.pu-shell p, body.pu-shell span, body.pu-shell td { color: #0c0a12 !important; }
+        body.pu-shell a { color: #0670DB !important; }
+      }
+    </style>
   </head>
-  <body style="margin:0;padding:0;background-color:#05040a;">
+  <body class="pu-shell" style="margin:0;padding:0;background-color:#05040a;">
     <!--$--><!--html--><!--head--><!--body-->
     <table
       border="0"

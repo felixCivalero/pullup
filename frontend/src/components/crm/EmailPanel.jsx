@@ -31,6 +31,8 @@ export default function EmailPanel({
   setFollowupSubject,
   followupPreviewText,
   setFollowupPreviewText,
+  followupGreeting,
+  setFollowupGreeting,
   followupBlocks,
   setFollowupBlocks,
   followupSignoff,
@@ -150,6 +152,8 @@ export default function EmailPanel({
           setSubject={setFollowupSubject}
           previewText={followupPreviewText}
           setPreviewText={setFollowupPreviewText}
+          greeting={followupGreeting}
+          setGreeting={setFollowupGreeting}
           blocks={followupBlocks}
           setBlocks={setFollowupBlocks}
           signoff={followupSignoff}

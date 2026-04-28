@@ -52,6 +52,7 @@ export function CrmPage() {
   const [followupEventId, setFollowupEventId] = useState("");
   const [followupSubject, setFollowupSubject] = useState("");
   const [followupPreviewText, setFollowupPreviewText] = useState("");
+  const [followupGreeting, setFollowupGreeting] = useState("Hi {{first_name}},");
   const [followupBlocks, setFollowupBlocks] = useState([]);
   const [followupSignoff, setFollowupSignoff] = useState("");
 
@@ -167,6 +168,7 @@ export function CrmPage() {
             templateContent: {
               subject: followupSubject,
               previewText: followupPreviewText,
+              greeting: followupGreeting,
               blocks: followupBlocks,
               signoff: followupSignoff,
             },
@@ -398,6 +400,8 @@ export function CrmPage() {
                 setFollowupSubject={setFollowupSubject}
                 followupPreviewText={followupPreviewText}
                 setFollowupPreviewText={setFollowupPreviewText}
+                followupGreeting={followupGreeting}
+                setFollowupGreeting={setFollowupGreeting}
                 followupBlocks={followupBlocks}
                 setFollowupBlocks={setFollowupBlocks}
                 followupSignoff={followupSignoff}
@@ -475,6 +479,7 @@ export function CrmPage() {
             followupEvent={followupEvent}
             followupSubject={followupSubject}
             followupPreviewText={followupPreviewText}
+            followupGreeting={followupGreeting}
             followupBlocks={followupBlocks}
             followupSignoff={followupSignoff}
             currentUserFirstName={currentUserFirstName}

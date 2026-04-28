@@ -12,6 +12,8 @@ export default function FollowUpComposer({
   setSubject,
   previewText,
   setPreviewText,
+  greeting,
+  setGreeting,
   blocks,
   setBlocks,
   signoff,
@@ -37,9 +39,15 @@ export default function FollowUpComposer({
       <Field label="Preview text (preheader)">
         <TokenizedInput value={previewText} onChange={setPreviewText} placeholder="Inbox preview snippet…" />
       </Field>
-      <div style={{ padding: "10px 12px", background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "10px", fontSize: "12px", opacity: 0.85 }}>
-        Greeting: <strong>Hi {"{{first_name}}"},</strong> — auto-personalized.
-      </div>
+      <Field label="Greeting (auto-personalized per recipient)">
+        <TokenizedInput
+          multiline
+          rows={2}
+          value={greeting}
+          onChange={setGreeting}
+          placeholder="Hi {{first_name}},"
+        />
+      </Field>
       <BlockEditorList blocks={blocks} onChange={setBlocks} />
       <Field label="Signoff">
         <TokenizedInput multiline rows={3} value={signoff} onChange={setSignoff} placeholder={"With love,\nThe Spring Salon"} />

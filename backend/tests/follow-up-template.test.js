@@ -245,6 +245,42 @@ function testTokensEscapedSafely() {
 }
 testTokensEscapedSafely();
 
+function testEditableGreetingWithTokens() {
+  console.log("🧪 custom greeting renders with token substitution");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [],
+      signoff: "",
+      greeting: "Welcome back, {{first_name}}!",
+    },
+    person: { first_name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("Welcome back, Sam!"), "custom greeting + token");
+  assert(!html.includes("Hi Sam"), "default greeting not used");
+}
+testEditableGreetingWithTokens();
+
+function testEmptyGreetingOmitsParagraph() {
+  console.log("🧪 explicit empty greeting renders no greeting line");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "text", style: "paragraph", text: "Body text" }],
+      signoff: "",
+      greeting: "",
+    },
+    person: { first_name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(!html.includes("Hi Sam"), "no default greeting");
+  assert(html.includes("Body text"), "body still renders");
+}
+testEmptyGreetingOmitsParagraph();
+
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
   process.exit(1);

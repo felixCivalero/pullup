@@ -13,8 +13,11 @@ function formatEventDate(starts_at) {
 }
 
 function buildTokenContext({ person, event }) {
+  const firstName = (person?.first_name || "").trim();
   return {
-    first_name: (person?.first_name || "").trim(),
+    // first_name falls back to "there" so the default greeting reads naturally
+    // for recipients without a captured first name. Other tokens stay empty.
+    first_name: firstName || "there",
     last_name: (person?.last_name || "").trim(),
     event_title: (event?.title || "").trim(),
     event_date: formatEventDate(event?.starts_at),
@@ -34,8 +37,14 @@ export function renderFollowUpEmailTemplate({ templateContent, person, event /*,
   const ctx = buildTokenContext({ person, event });
   const t = (s) => applyTokens(s, ctx);
 
-  const firstName = ctx.first_name;
-  const greeting = `<p style="margin:0 0 12px;">Hi ${firstName ? escapeHtml(firstName) : "there"},</p>`;
+  // Greeting: undefined → use default "Hi {{first_name}},"; "" → no greeting line;
+  // any other string → render that (with token substitution).
+  const greetingRaw = templateContent.greeting !== undefined
+    ? templateContent.greeting
+    : "Hi {{first_name}},";
+  const greeting = greetingRaw
+    ? `<p style="margin:0 0 12px;">${escapeHtml(t(greetingRaw)).replace(/\n/g, "<br>")}</p>`
+    : "";
 
   const body = blocks.map((b) => renderBlock(b, t)).filter(Boolean).join("");
 

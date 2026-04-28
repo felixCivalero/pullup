@@ -20,6 +20,7 @@ export default function EmailCanvas({
   followupEvent,
   followupSubject,
   followupPreviewText,
+  followupGreeting,
   followupBlocks,
   followupSignoff,
   currentUserFirstName,
@@ -45,9 +46,9 @@ export default function EmailCanvas({
       <div style={emailFrameStyle}>
         {isFollowup ? (
           <FollowupBody
+            greeting={followupGreeting}
             blocks={followupBlocks}
             signoff={followupSignoff}
-            currentUserFirstName={currentUserFirstName}
             t={t}
           />
         ) : (
@@ -204,12 +205,15 @@ function EventBody({
   );
 }
 
-function FollowupBody({ blocks, signoff, currentUserFirstName, t }) {
+function FollowupBody({ greeting, blocks, signoff, t }) {
+  const greetingRendered = greeting !== undefined ? greeting : "Hi {{first_name}},";
   return (
     <div>
-      <p style={{ margin: "0 0 12px", color: "#fff" }}>
-        Hi {currentUserFirstName || "there"},
-      </p>
+      {greetingRendered && (
+        <p style={{ margin: "0 0 12px", color: "#fff", whiteSpace: "pre-wrap" }}>
+          {t(greetingRendered)}
+        </p>
+      )}
       {(blocks || []).length === 0 && (
         <div style={{ padding: 24, textAlign: "center", opacity: 0.4, fontSize: 13, border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8 }}>
           Add blocks in the Email tab to fill the body.

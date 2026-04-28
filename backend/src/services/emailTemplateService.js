@@ -54,7 +54,7 @@ function loadEmailTemplate() {
  * @param {Object} params.person - Person data (for personalization, optional)
  * @returns {string} HTML email content
  */
-export function renderEventEmailTemplate({ event, templateContent, person }) {
+export function renderEventEmailTemplate({ event, templateContent, person, unsubscribeUrl }) {
   let html = loadEmailTemplate();
 
   // Generate CTA URL (allow override from templateContent)
@@ -98,8 +98,11 @@ export function renderEventEmailTemplate({ event, templateContent, person }) {
     // CTA label (if the template uses it)
     "{{{cta_label}}}": templateContent.ctaLabel || "TO EVENT",
 
-    // Resend unsubscribe URL (Resend will replace this automatically)
-    "{{{RESEND_UNSUBSCRIBE_URL}}}": "{{{RESEND_UNSUBSCRIBE_URL}}}",
+    // Per-recipient PullUp unsubscribe (#ses:no-track keeps it out of click
+    // tracking so /u/:token gets a direct hit). Falls back to "#" in non-send
+    // contexts (e.g. preview); the renderer is invoked at send time with the
+    // real URL.
+    "{{{RESEND_UNSUBSCRIBE_URL}}}": unsubscribeUrl ? `${unsubscribeUrl}#ses:no-track` : "#",
   };
 
   // Perform replacements
@@ -165,7 +168,7 @@ function loadWeeklyHappeningsTemplate() {
  * @param {Object} params.templateContent - { headline, body }
  * @returns {string} HTML email content
  */
-export function renderWeeklyHappeningsTemplate({ events, templateContent }) {
+export function renderWeeklyHappeningsTemplate({ events, templateContent, unsubscribeUrl }) {
   let html = loadWeeklyHappeningsTemplate();
 
   const headlineText =
@@ -274,8 +277,9 @@ export function renderWeeklyHappeningsTemplate({ events, templateContent }) {
     "{{{headline_text}}}": (headlineText || "").replace(/\n/g, "<br>"),
     "{{{intro_body}}}": (introBody || "").replace(/\n/g, "<br>"),
     "{{{events_html}}}": eventsHtml,
-    // Keep Resend unsubscribe placeholder as-is (Resend replaces it)
-    "{{{RESEND_UNSUBSCRIBE_URL}}}": "{{{RESEND_UNSUBSCRIBE_URL}}}",
+    // Per-recipient PullUp unsubscribe (#ses:no-track keeps it out of click
+    // tracking). Falls back to "#" if caller didn't supply one (preview).
+    "{{{RESEND_UNSUBSCRIBE_URL}}}": unsubscribeUrl ? `${unsubscribeUrl}#ses:no-track` : "#",
   };
 
   for (const [key, value] of Object.entries(replacements)) {

@@ -4106,7 +4106,7 @@ export async function getNewsletterSubscribers({
 } = {}) {
   const { data, error, count } = await supabase
     .from("newsletter_subscriptions")
-    .select("id, email, user_id, status, interests", { count: "exact" })
+    .select("id, email, user_id, status, interests, unsubscribe_token", { count: "exact" })
     .eq("status", status)
     .limit(limit);
 

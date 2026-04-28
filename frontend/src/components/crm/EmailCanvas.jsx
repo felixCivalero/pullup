@@ -57,6 +57,7 @@ export default function EmailCanvas({
   currentUserFirstName,
 }) {
   const isFollowup = selectedTemplate === "followup";
+  const isEvent = selectedTemplate === "event";
 
   const previewCtx = useMemo(
     () => buildPreviewContext({
@@ -67,6 +68,18 @@ export default function EmailCanvas({
   );
   const t = (s) => applyTokens(s, previewCtx);
   const inline = (s) => <InlineRich text={s} ctx={previewCtx} />;
+
+  if (!isFollowup && !isEvent) {
+    return (
+      <div style={canvasOuterStyle}>
+        <div style={{ ...emailFrameStyle, borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+          <div style={{ opacity: 0.4, fontSize: 14, padding: 40 }}>
+            Pick a template in the Email tab to start composing.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={canvasOuterStyle}>

@@ -2,13 +2,20 @@
 // happens directly via the dropzone in ImageBlockEditor; this modal is now
 // single-purpose (event covers + media), no tab strip.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { authenticatedFetch } from "../../lib/api.js";
 
 export default function ImagePickerModal({ isOpen, onSelect, onClose }) {
   const [gallery, setGallery] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // URLs whose <img> failed to load — hide them from the grid
+  const [brokenUrls, setBrokenUrls] = useState(() => new Set());
+
+  const visibleGallery = useMemo(
+    () => gallery.filter((g) => !brokenUrls.has(g.url)),
+    [gallery, brokenUrls],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -60,13 +67,13 @@ export default function ImagePickerModal({ isOpen, onSelect, onClose }) {
 
         <div style={{ overflowY: "auto", flex: 1 }}>
           {loading && <div style={{ opacity: 0.7 }}>Loading…</div>}
-          {!loading && gallery.length === 0 && (
+          {!loading && visibleGallery.length === 0 && (
             <div style={{ opacity: 0.7 }}>
               No images yet — your events have no cover images or media.
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "8px" }}>
-            {gallery.map((item, i) => (
+            {visibleGallery.map((item, i) => (
               <button
                 key={`${item.url}-${i}`}
                 type="button"
@@ -74,7 +81,17 @@ export default function ImagePickerModal({ isOpen, onSelect, onClose }) {
                 style={{ padding: 0, border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", overflow: "hidden", cursor: "pointer", background: "transparent" }}
                 title={`${item.eventTitle} — ${item.kind}`}
               >
-                <img src={item.url} alt="" style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }} />
+                <img
+                  src={item.url}
+                  alt=""
+                  style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }}
+                  onError={() => setBrokenUrls((prev) => {
+                    if (prev.has(item.url)) return prev;
+                    const next = new Set(prev);
+                    next.add(item.url);
+                    return next;
+                  })}
+                />
                 <div style={{ padding: "6px 8px", fontSize: "11px", color: "#fff", textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.eventTitle}</div>
               </button>
             ))}

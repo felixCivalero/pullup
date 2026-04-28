@@ -4520,7 +4520,7 @@ export async function listHostEventImageGallery(userId, { limit = 200 } = {}) {
   if (eventIds.length > 0) {
     const { data: mediaRows, error: mediaError } = await supabase
       .from("event_media")
-      .select("id, event_id, storage_path, created_at")
+      .select("id, event_id, media_type, storage_path, thumbnail_path, created_at")
       .in("event_id", eventIds);
     if (mediaError) throw mediaError;
     media = mediaRows || [];
@@ -4544,8 +4544,14 @@ export async function listHostEventImageGallery(userId, { limit = 200 } = {}) {
   for (const m of media) {
     const ev = (events || []).find((e) => e.id === m.event_id);
     if (!ev) continue;
-    const url = pathToPublicUrl(m.storage_path);
-    if (url) items.push({ url, eventId: ev.id, eventTitle: ev.title, kind: "media", addedAt: m.created_at });
+    // For videos, the storage_path is the mp4/mov — use the thumbnail_path
+    // instead so we render an image. Skip rows that have neither (corrupted
+    // or pre-thumbnail uploads — they can't render in the picker).
+    const isVideo = m.media_type === "video";
+    const sourcePath = isVideo ? m.thumbnail_path : (m.storage_path || m.thumbnail_path);
+    if (!sourcePath) continue;
+    const url = pathToPublicUrl(sourcePath);
+    if (url) items.push({ url, eventId: ev.id, eventTitle: ev.title, kind: isVideo ? "video-thumb" : "media", addedAt: m.created_at });
   }
   return items.sort((a, b) => (b.addedAt || "").localeCompare(a.addedAt || ""));
 }

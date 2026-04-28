@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { applyTokens, buildPreviewContext } from "../../lib/emailTokens";
 
 const TYPE_COUNT_LABELS = {
   text: { singular: "text block", plural: "text blocks" },
@@ -25,6 +26,7 @@ export default function ConfirmSendDialog({
   sendingStats,
   sendingErrorMessage,
   selectedEvent,
+  currentUserFirstName,
   templateType,
   subjectLine,
   previewText,
@@ -35,6 +37,12 @@ export default function ConfirmSendDialog({
   if (!isOpen) return null;
   const isFollowup = templateType === "followup";
   const blockSummary = summarizeBlocks(blocks);
+  // Resolve tokens so the host sees a real subject ("You're invited to
+  // Hallon Spritz") instead of the literal "{{event_title}}" in the
+  // preview text row.
+  const ctx = buildPreviewContext({ currentUserFirstName, event: selectedEvent });
+  const resolvedSubject = applyTokens(subjectLine || "", ctx);
+  const resolvedPreviewText = applyTokens(previewText || "", ctx);
 
   return createPortal(
     <div
@@ -76,8 +84,8 @@ export default function ConfirmSendDialog({
               {selectedEvent && (
                 <Row label="Event">{selectedEvent.title}</Row>
               )}
-              {subjectLine && <Row label="Subject">{subjectLine}</Row>}
-              {previewText && <Row label="Preview text">{previewText}</Row>}
+              {resolvedSubject && <Row label="Subject">{resolvedSubject}</Row>}
+              {resolvedPreviewText && <Row label="Preview text">{resolvedPreviewText}</Row>}
               {blockSummary && <Row label="Body">{blockSummary}</Row>}
             </div>
 

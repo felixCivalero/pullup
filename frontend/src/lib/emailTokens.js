@@ -47,13 +47,15 @@ function formatEventDate(starts_at) {
 }
 
 // Build the substitution context used in the live preview. Uses the current
-// host as a stand-in for first_name and the selected follow-up event for
-// event_title/event_date.
+// host as a stand-in for first_name and the selected event for
+// event_title/event_date. Frontend event objects are camelCase (startsAt);
+// fall back to snake_case for safety.
 export function buildPreviewContext({ currentUserFirstName, event }) {
+  const startsAt = event?.startsAt || event?.starts_at;
   return {
     first_name: (currentUserFirstName || "").trim() || "there",
     event_title: (event?.title || "").trim() || "[event title]",
-    event_date: formatEventDate(event?.starts_at) || "[event date]",
+    event_date: formatEventDate(startsAt) || "[event date]",
   };
 }
 

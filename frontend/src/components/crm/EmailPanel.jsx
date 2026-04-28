@@ -2,6 +2,7 @@
 // is active. The actual email preview lives in <EmailCanvas /> on the right.
 
 import FollowUpComposer from "./FollowUpComposer";
+import Section from "./Section";
 
 export default function EmailPanel({
   events,
@@ -56,25 +57,22 @@ export default function EmailPanel({
 
       {selectedTemplate === "event" && (
         <>
-          <Field label="Event content">
-            <select
-              value={selectedEventId}
-              onChange={(e) => {
-                setSelectedEventId(e.target.value);
-              }}
-              style={inputStyle}
-            >
-              <option value="">Choose event to use as email content</option>
-              {events.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.title}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          {selectedEvent && (
-            <>
+          <Section label="Setup" variant="setup">
+            <Field label="Event content">
+              <select
+                value={selectedEventId}
+                onChange={(e) => setSelectedEventId(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">Choose event to use as email content</option>
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {selectedEvent && (
               <Field label="Subject line">
                 <input
                   type="text"
@@ -84,6 +82,11 @@ export default function EmailPanel({
                   style={inputStyle}
                 />
               </Field>
+            )}
+          </Section>
+
+          {selectedEvent && (
+            <Section label="Content" variant="content">
               <Field label="Headline">
                 <input
                   type="text"
@@ -138,7 +141,7 @@ export default function EmailPanel({
                   style={inputStyle}
                 />
               </Field>
-            </>
+            </Section>
           )}
         </>
       )}

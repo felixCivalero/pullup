@@ -134,7 +134,7 @@ function EmailFooter() {
         <br />
         Want to change how you receive these emails?
         <br />
-        You can <span style={{ color: "#0670DB", textDecoration: "underline" }}>unsubscribe from this list</span>.
+        You can <a href="#" onClick={(e) => e.preventDefault()} style={{ color: "#0670DB", textDecoration: "underline" }}>unsubscribe from this list</a>.
       </p>
       <p style={{ margin: "12px 0 0" }}>
         Pullup.se

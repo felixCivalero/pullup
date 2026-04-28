@@ -369,6 +369,33 @@ function testLinksWorkWithTokens() {
 }
 testLinksWorkWithTokens();
 
+function testUnsubscribeFooterRenders() {
+  console.log("🧪 unsubscribeUrl appears in footer with no-track marker");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: { subject: "s", previewText: "", blocks: [], signoff: "" },
+    person: { name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+    unsubscribeUrl: "https://app.example.com/u/abc123",
+  });
+  assert(html.includes("https://app.example.com/u/abc123"), "url present");
+  assert(html.includes("ses:no-track"), "no-track marker present so click tracker skips it");
+  assert(html.includes("unsubscribe from this list"), "footer copy present");
+}
+testUnsubscribeFooterRenders();
+
+function testNoFooterWithoutUnsubscribeUrl() {
+  console.log("🧪 footer omitted when unsubscribeUrl missing (e.g. preview)");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: { subject: "s", previewText: "", blocks: [], signoff: "" },
+    person: { name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(!html.includes("unsubscribe"), "no footer rendered without url");
+}
+testNoFooterWithoutUnsubscribeUrl();
+
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
   process.exit(1);

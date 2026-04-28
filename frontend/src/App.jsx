@@ -3,6 +3,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { NewsletterPage } from "./pages/NewsletterPage";
 import { HomePage } from "./pages/HomePage";
 import { CrmPage } from "./pages/CrmPage";
+import { UnsubscribePage } from "./pages/UnsubscribePage";
 import { CreateEventPage } from "./pages/CreateEventPage";
 import { EventPage } from "./pages/EventPage";
 import { RsvpSuccessPage } from "./pages/RsvpSuccessPage";
@@ -38,6 +39,7 @@ function App() {
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/cookies" element={<CookiesPage />} />
+        <Route path="/u/:token" element={<UnsubscribePage />} />
         <Route
           path="/e/:slug"
           element={

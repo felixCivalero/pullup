@@ -6915,6 +6915,51 @@ app.delete("/host/profile/logo", requireAuth, async (req, res) => {
 });
 
 // ---------------------------
+// PUBLIC: CRM marketing unsubscribe (per-recipient token)
+// ---------------------------
+// Token is generated lazily in campaignSender; this endpoint flips
+// people.marketing_unsubscribed_at without requiring auth — the token
+// itself is the auth. Recipients can re-subscribe from the same page.
+
+app.get("/u/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { findPersonByUnsubscribeToken } = await import("./data.js");
+    const person = await findPersonByUnsubscribeToken(token);
+    if (!person) {
+      return res.status(404).json({ error: "Invalid or expired link" });
+    }
+    res.json({
+      id: person.id,
+      email: person.email,
+      name: person.name,
+      isUnsubscribed: Boolean(person.marketing_unsubscribed_at),
+      unsubscribedAt: person.marketing_unsubscribed_at,
+    });
+  } catch (err) {
+    console.error("[unsubscribe] lookup error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+app.post("/u/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const subscribed = req.body?.subscribed === true;
+    const { findPersonByUnsubscribeToken, setMarketingUnsubscribed } = await import("./data.js");
+    const person = await findPersonByUnsubscribeToken(token);
+    if (!person) {
+      return res.status(404).json({ error: "Invalid or expired link" });
+    }
+    await setMarketingUnsubscribed(person.id, !subscribed);
+    res.json({ ok: true, isUnsubscribed: !subscribed });
+  } catch (err) {
+    console.error("[unsubscribe] toggle error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ---------------------------
 // PUBLIC: Newsletter subscription & unsubscribe
 // ---------------------------
 

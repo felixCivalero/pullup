@@ -1,6 +1,6 @@
 import TokenizedInput from "../TokenizedInput";
 
-export default function ButtonBlockEditor({ block, onChange }) {
+export default function ButtonBlockEditor({ block, onChange, tokens }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div>
@@ -8,6 +8,7 @@ export default function ButtonBlockEditor({ block, onChange }) {
         <TokenizedInput
           value={block.text}
           onChange={(text) => onChange({ ...block, text })}
+          tokens={tokens}
           placeholder="Get 20% off"
         />
       </div>
@@ -26,6 +27,7 @@ export default function ButtonBlockEditor({ block, onChange }) {
         <TokenizedInput
           value={block.caption || ""}
           onChange={(caption) => onChange({ ...block, caption: caption || null })}
+          tokens={tokens}
           placeholder="Code: THANKYOU20 — valid through May 15"
         />
       </div>

@@ -1,6 +1,6 @@
 import TokenizedInput from "../TokenizedInput";
 
-export default function TextBlockEditor({ block, onChange }) {
+export default function TextBlockEditor({ block, onChange, tokens }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ display: "flex", gap: "8px" }}>
@@ -24,6 +24,7 @@ export default function TextBlockEditor({ block, onChange }) {
         rows={block.style === "heading" ? 1 : 4}
         value={block.text}
         onChange={(text) => onChange({ ...block, text })}
+        tokens={tokens}
         placeholder={block.style === "heading" ? "Heading text…" : "Write a paragraph…"}
         style={{
           fontSize: block.style === "heading" ? "18px" : "14px",

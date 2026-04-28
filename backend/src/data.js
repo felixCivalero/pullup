@@ -4458,3 +4458,50 @@ export async function addCampaignToPeople(personIds, campaignId) {
 
   return { updated, errors };
 }
+
+// ---------------------------
+// CRM follow-up image gallery
+// ---------------------------
+export async function listHostEventImageGallery(userId, { limit = 200 } = {}) {
+  const { data: events, error } = await supabase
+    .from("events")
+    .select("id, title, image_url, cover_image_url, created_at")
+    .eq("host_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+
+  const eventIds = (events || []).map((e) => e.id);
+  let media = [];
+  if (eventIds.length > 0) {
+    const { data: mediaRows, error: mediaError } = await supabase
+      .from("event_media")
+      .select("id, event_id, storage_path, created_at")
+      .in("event_id", eventIds);
+    if (mediaError) throw mediaError;
+    media = mediaRows || [];
+  }
+
+  function pathToPublicUrl(p) {
+    if (!p) return null;
+    if (p.startsWith("http")) return p;
+    const cleaned = p.replace(/^.*event-images\//, "");
+    return supabase.storage.from("event-images").getPublicUrl(cleaned).data.publicUrl;
+  }
+
+  const items = [];
+  for (const ev of events || []) {
+    const cover = ev.cover_image_url || ev.image_url;
+    if (cover) {
+      const url = pathToPublicUrl(cover);
+      if (url) items.push({ url, eventId: ev.id, eventTitle: ev.title, kind: "cover", addedAt: ev.created_at });
+    }
+  }
+  for (const m of media) {
+    const ev = (events || []).find((e) => e.id === m.event_id);
+    if (!ev) continue;
+    const url = pathToPublicUrl(m.storage_path);
+    if (url) items.push({ url, eventId: ev.id, eventTitle: ev.title, kind: "media", addedAt: m.created_at });
+  }
+  return items.sort((a, b) => (b.addedAt || "").localeCompare(a.addedAt || ""));
+}

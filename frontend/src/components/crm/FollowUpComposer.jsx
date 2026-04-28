@@ -20,6 +20,8 @@ export default function FollowUpComposer({
   setBlocks,
   hoveredKey,
   setHoveredKey,
+  eventGateLabel = "Which event is this follow-up for?",
+  eventGateHint = "A follow-up email is always about something that happened. Pick the event so we can personalize {{event_title}} / {{event_date}} and link recipients back to it in analytics.",
 }) {
   const hasEvent = Boolean(selectedEventId);
   const tokens = availableTokens({ hasEvent });
@@ -27,7 +29,7 @@ export default function FollowUpComposer({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
       <Section label="Event" variant="setup">
-        <Field label="Which event is this follow-up for?">
+        <Field label={eventGateLabel}>
           <select
             value={selectedEventId}
             onChange={(e) => setSelectedEventId(e.target.value)}
@@ -41,10 +43,7 @@ export default function FollowUpComposer({
         </Field>
         {!hasEvent && (
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
-            A follow-up email is always about something that happened. Pick the
-            event so we can personalize <code style={{ color: "#d4af37" }}>{"{{event_title}}"}</code> /
-            <code style={{ color: "#d4af37" }}>{"{{event_date}}"}</code> and link
-            recipients back to it in analytics.
+            {eventGateHint}
           </div>
         )}
       </Section>

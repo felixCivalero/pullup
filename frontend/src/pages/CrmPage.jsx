@@ -2,10 +2,41 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../contexts/AuthContext";
+import { getEventUrl } from "../lib/urlUtils.js";
 import { CrmTab } from "../components/HomeCrmTab";
 import EmailPanel from "../components/crm/EmailPanel";
 import EmailCanvas from "../components/crm/EmailCanvas";
 import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
+
+// Build a sensible default block list when an event is picked for the
+// "Event email template" — host can then edit / reorder / extend.
+function buildDefaultEventBlocks(event) {
+  if (!event) return [];
+  const blocks = [];
+  const hero = event.coverImageUrl || event.imageUrl;
+  if (hero) {
+    blocks.push({ type: "image", url: hero, alt: event.title || "", source: "event-gallery", width: 100, align: "center" });
+  }
+  if (event.title) {
+    blocks.push({ type: "text", style: "heading", text: event.title });
+  }
+  const meta = [];
+  if (event.startsAt) {
+    const d = new Date(event.startsAt);
+    if (!isNaN(d.getTime())) {
+      meta.push(d.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }));
+    }
+  }
+  if (event.location) meta.push(event.location);
+  if (meta.length) blocks.push({ type: "text", style: "paragraph", text: meta.join(" · ") });
+  if (event.description) {
+    blocks.push({ type: "text", style: "paragraph", text: event.description.trim() });
+  }
+  if (event.slug) {
+    blocks.push({ type: "button", text: "View event", url: getEventUrl(event.slug), caption: null, size: 100, align: "center", bgColor: "#d4af37" });
+  }
+  return blocks;
+}
 
 const TABS = [
   { id: "segment", label: "Segment" },
@@ -38,17 +69,16 @@ export function CrmPage() {
     total: 0,
   });
 
-  // Composer state — event template
   const [events, setEvents] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState("");
+
+  // Composer state — event template (block-based; defaults populated from
+  // the event when picked, then host can edit / reorder freely)
   const [selectedEventId, setSelectedEventId] = useState("");
-  const [subjectLine, setSubjectLine] = useState("");
-  const [headlineText, setHeadlineText] = useState("");
-  const [introQuote, setIntroQuote] = useState("");
-  const [introBody, setIntroBody] = useState("");
-  const [introGreeting, setIntroGreeting] = useState("");
-  const [introNote, setIntroNote] = useState("");
-  const [signoffText, setSignoffText] = useState("");
+  const [eventSubject, setEventSubject] = useState("");
+  const [eventPreviewText, setEventPreviewText] = useState("");
+  const [eventGreeting, setEventGreeting] = useState("Hi {{first_name}},");
+  const [eventBlocks, setEventBlocks] = useState([]);
 
   // Composer state — follow-up template (independent so switching templates
   // doesn't lose either side's edits)
@@ -80,20 +110,13 @@ export function CrmPage() {
     [events, followupEventId],
   );
 
-  // Auto-populate event-template fields when an event is selected
+  // Auto-populate event-template subject + blocks when an event is selected.
+  // Re-runs on event change — switching events regenerates the block defaults
+  // (host loses customization but gets fresh, accurate content for the new event).
   useEffect(() => {
-    if (selectedTemplate === "event" && selectedEvent) {
-      setHeadlineText(selectedEvent.title || "");
-      setSubjectLine(`You're invited to ${selectedEvent.title}.`);
-      const bodyText = selectedEvent.description
-        ? selectedEvent.description.trim()
-        : "Skriv om du vill komma så får du länk till gästlistan!";
-      setIntroBody(bodyText);
-      setIntroGreeting("");
-      setSignoffText("");
-      setIntroQuote("");
-      setIntroNote("");
-    }
+    if (selectedTemplate !== "event" || !selectedEvent) return;
+    setEventSubject(`You're invited to ${selectedEvent.title}.`);
+    setEventBlocks(buildDefaultEventBlocks(selectedEvent));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEventId, selectedTemplate]);
 
@@ -124,10 +147,22 @@ export function CrmPage() {
       setActiveTab("email");
       return;
     }
-    if (selectedTemplate === "event" && !selectedEventId) {
-      showToast("Choose an event for the email content.", "error");
-      setActiveTab("email");
-      return;
+    if (selectedTemplate === "event") {
+      if (!selectedEventId) {
+        showToast("Choose an event for the email content.", "error");
+        setActiveTab("email");
+        return;
+      }
+      if (!eventSubject.trim()) {
+        showToast("Subject is required.", "error");
+        setActiveTab("email");
+        return;
+      }
+      if (eventBlocks.length === 0) {
+        showToast("Add at least one block.", "error");
+        setActiveTab("email");
+        return;
+      }
     }
     if (selectedTemplate === "followup") {
       if (!followupEventId) {
@@ -173,6 +208,8 @@ export function CrmPage() {
     const filterCriteria = segmentSelection.filterCriteria || {};
 
     try {
+      // Both templates now share a block-based payload shape. Backend
+      // routes both to the block renderer.
       const campaignData = isFollowup
         ? {
             templateType: "followup",
@@ -187,21 +224,14 @@ export function CrmPage() {
             filterCriteria,
           }
         : {
-            templateType: selectedTemplate,
+            templateType: "event",
             eventId: selectedEventId,
-            subject:
-              subjectLine ||
-              (selectedEvent
-                ? `You're invited to ${selectedEvent.title}.`
-                : ""),
+            subject: eventSubject,
             templateContent: {
-              headline: headlineText || selectedEvent?.title || "",
-              introQuote: introQuote || "",
-              introBody: introBody || "",
-              introGreeting: introGreeting || "",
-              introNote: introNote || "",
-              signoffText: signoffText || "",
-              ctaLabel: "TO EVENT",
+              subject: eventSubject,
+              previewText: eventPreviewText,
+              greeting: eventGreeting,
+              blocks: eventBlocks,
             },
             filterCriteria,
           };
@@ -390,23 +420,18 @@ export function CrmPage() {
                 events={events}
                 selectedTemplate={selectedTemplate}
                 setSelectedTemplate={setSelectedTemplate}
+                // Event template props
                 selectedEventId={selectedEventId}
                 setSelectedEventId={setSelectedEventId}
-                selectedEvent={selectedEvent}
-                subjectLine={subjectLine}
-                setSubjectLine={setSubjectLine}
-                headlineText={headlineText}
-                setHeadlineText={setHeadlineText}
-                introQuote={introQuote}
-                setIntroQuote={setIntroQuote}
-                introBody={introBody}
-                setIntroBody={setIntroBody}
-                introGreeting={introGreeting}
-                setIntroGreeting={setIntroGreeting}
-                introNote={introNote}
-                setIntroNote={setIntroNote}
-                signoffText={signoffText}
-                setSignoffText={setSignoffText}
+                eventSubject={eventSubject}
+                setEventSubject={setEventSubject}
+                eventPreviewText={eventPreviewText}
+                setEventPreviewText={setEventPreviewText}
+                eventGreeting={eventGreeting}
+                setEventGreeting={setEventGreeting}
+                eventBlocks={eventBlocks}
+                setEventBlocks={setEventBlocks}
+                // Follow-up template props
                 selectedEventIdForFollowup={followupEventId}
                 setSelectedEventIdForFollowup={setFollowupEventId}
                 followupSubject={followupSubject}
@@ -482,13 +507,10 @@ export function CrmPage() {
           <EmailCanvas
             selectedTemplate={selectedTemplate}
             selectedEvent={selectedEvent}
-            subjectLine={subjectLine}
-            headlineText={headlineText}
-            introQuote={introQuote}
-            introBody={introBody}
-            introGreeting={introGreeting}
-            introNote={introNote}
-            signoffText={signoffText}
+            eventSubject={eventSubject}
+            eventPreviewText={eventPreviewText}
+            eventGreeting={eventGreeting}
+            eventBlocks={eventBlocks}
             followupEvent={followupEvent}
             followupSubject={followupSubject}
             followupPreviewText={followupPreviewText}
@@ -508,7 +530,7 @@ export function CrmPage() {
         sendingErrorMessage={sendingErrorMessage}
         selectedEvent={selectedEvent}
         subjectLine={
-          selectedTemplate === "followup" ? followupSubject : subjectLine
+          selectedTemplate === "followup" ? followupSubject : eventSubject
         }
         onClose={() => setIsConfirmSendOpen(false)}
         onConfirmSend={handleConfirmSend}

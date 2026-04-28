@@ -5402,15 +5402,19 @@ app.post("/host/crm/campaigns", requireAuth, async (req, res) => {
         .json({ error: "Event ID is required for event campaigns" });
     }
 
-    if (templateType === "followup") {
-      if (!eventId) {
+    if (templateType === "followup" || templateType === "event") {
+      if (templateType === "followup" && !eventId) {
         return res.status(400).json({ error: "eventId is required for follow-up campaigns" });
       }
-      const err = validateFollowupTemplateContent(templateContent);
-      if (err) {
-        return res.status(400).json({ error: "Invalid templateContent", message: err });
+      // Block-based payloads (both event and followup) share validation.
+      // Legacy event campaigns without blocks bypass this check.
+      if (Array.isArray(templateContent?.blocks)) {
+        const err = validateFollowupTemplateContent(templateContent);
+        if (err) {
+          return res.status(400).json({ error: "Invalid templateContent", message: err });
+        }
       }
-    } else if (templateType !== "event") {
+    } else {
       return res.status(400).json({ error: `Unknown templateType: ${templateType}` });
     }
 

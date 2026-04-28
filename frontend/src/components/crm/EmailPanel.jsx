@@ -1,31 +1,26 @@
-// EmailPanel — controls-only. Renders form fields for whichever template
-// is active. The actual email preview lives in <EmailCanvas /> on the right.
+// EmailPanel — controls-only. Both event and follow-up templates use the
+// same block-based composer; the difference is the starting block defaults
+// (event template auto-populates from the chosen event in CrmPage). The
+// actual email preview lives in <EmailCanvas /> on the right.
 
 import FollowUpComposer from "./FollowUpComposer";
-import Section from "./Section";
 
 export default function EmailPanel({
   events,
   selectedTemplate,
   setSelectedTemplate,
+  // Event template
   selectedEventId,
   setSelectedEventId,
-  selectedEvent,
-  subjectLine,
-  setSubjectLine,
-  headlineText,
-  setHeadlineText,
-  introQuote,
-  setIntroQuote,
-  introBody,
-  setIntroBody,
-  introGreeting,
-  setIntroGreeting,
-  introNote,
-  setIntroNote,
-  signoffText,
-  setSignoffText,
-  // Follow-up template props
+  eventSubject,
+  setEventSubject,
+  eventPreviewText,
+  setEventPreviewText,
+  eventGreeting,
+  setEventGreeting,
+  eventBlocks,
+  setEventBlocks,
+  // Follow-up template
   selectedEventIdForFollowup,
   setSelectedEventIdForFollowup,
   followupSubject,
@@ -44,10 +39,7 @@ export default function EmailPanel({
       <Field label="Template">
         <select
           value={selectedTemplate}
-          onChange={(e) => {
-            setSelectedTemplate(e.target.value);
-            if (e.target.value !== "event") setSelectedEventId("");
-          }}
+          onChange={(e) => setSelectedTemplate(e.target.value)}
           style={inputStyle}
         >
           <option value="">— select template —</option>
@@ -63,94 +55,23 @@ export default function EmailPanel({
       )}
 
       {selectedTemplate === "event" && (
-        <>
-          <Section label="Setup" variant="setup">
-            <Field label="Event content">
-              <select
-                value={selectedEventId}
-                onChange={(e) => setSelectedEventId(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="">Choose event to use as email content</option>
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.title}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {selectedEvent && (
-              <Field label="Subject line">
-                <input
-                  type="text"
-                  value={subjectLine}
-                  onChange={(e) => setSubjectLine(e.target.value)}
-                  placeholder={`You're invited to ${selectedEvent.title}.`}
-                  style={inputStyle}
-                />
-              </Field>
-            )}
-          </Section>
-
-          {selectedEvent && (
-            <Section label="Content" variant="content">
-              <Field label="Headline">
-                <input
-                  type="text"
-                  value={headlineText}
-                  onChange={(e) => setHeadlineText(e.target.value)}
-                  placeholder={selectedEvent.title}
-                  style={inputStyle}
-                />
-              </Field>
-              <Field label="Quote / hook">
-                <input
-                  type="text"
-                  value={introQuote}
-                  onChange={(e) => setIntroQuote(e.target.value)}
-                  placeholder='E.g. "Ett gratiserbjudande faller från ovan"'
-                  style={inputStyle}
-                />
-              </Field>
-              <Field label="Body">
-                <textarea
-                  value={introBody}
-                  onChange={(e) => setIntroBody(e.target.value)}
-                  rows={3}
-                  placeholder="Body text…"
-                  style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }}
-                />
-              </Field>
-              <Field label="Greeting (after divider)">
-                <input
-                  type="text"
-                  value={introGreeting}
-                  onChange={(e) => setIntroGreeting(e.target.value)}
-                  placeholder="Optional greeting"
-                  style={inputStyle}
-                />
-              </Field>
-              <Field label="Credits / note">
-                <input
-                  type="text"
-                  value={introNote}
-                  onChange={(e) => setIntroNote(e.target.value)}
-                  placeholder='E.g. "Mask och foto av @partillejohnny"'
-                  style={inputStyle}
-                />
-              </Field>
-              <Field label="Signoff">
-                <input
-                  type="text"
-                  value={signoffText}
-                  onChange={(e) => setSignoffText(e.target.value)}
-                  placeholder="Optional signoff"
-                  style={inputStyle}
-                />
-              </Field>
-            </Section>
-          )}
-        </>
+        <FollowUpComposer
+          events={events}
+          selectedEventId={selectedEventId}
+          setSelectedEventId={setSelectedEventId}
+          subject={eventSubject}
+          setSubject={setEventSubject}
+          previewText={eventPreviewText}
+          setPreviewText={setEventPreviewText}
+          greeting={eventGreeting}
+          setGreeting={setEventGreeting}
+          blocks={eventBlocks}
+          setBlocks={setEventBlocks}
+          hoveredKey={hoveredKey}
+          setHoveredKey={setHoveredKey}
+          eventGateLabel="Which event is this invitation for?"
+          eventGateHint="Pick the event so we can pre-fill the email with its image, title, date, location, and description. Edit and rearrange after."
+        />
       )}
 
       {selectedTemplate === "followup" && (

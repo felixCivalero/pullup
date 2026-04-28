@@ -100,7 +100,11 @@ export async function sendCampaignInBatches(
             const unsubscribeToken = await ensureUnsubscribeToken(person.id);
             const unsubscribeUrl = `${frontendBaseUrl}/u/${unsubscribeToken}`;
 
-            const html = campaign.templateType === "followup"
+            // Block-based campaigns (any templateType with a blocks[] in
+            // templateContent) go through the unified renderer. Legacy event
+            // campaigns without blocks fall back to the static event template.
+            const useBlockRenderer = Array.isArray(campaign.templateContent?.blocks);
+            const html = useBlockRenderer
               ? renderFollowUpEmailTemplate({
                   templateContent: campaign.templateContent,
                   person,

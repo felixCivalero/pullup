@@ -39,15 +39,12 @@ function InlineRich({ text, ctx }) {
 
 export default function EmailCanvas({
   selectedTemplate,
-  // Event template
+  // Event template (now block-based, mirrors followup)
   selectedEvent,
-  subjectLine,
-  headlineText,
-  introQuote,
-  introBody,
-  introGreeting,
-  introNote,
-  signoffText,
+  eventSubject,
+  eventPreviewText,
+  eventGreeting,
+  eventBlocks,
   // Follow-up template
   followupEvent,
   followupSubject,
@@ -60,12 +57,18 @@ export default function EmailCanvas({
   const isFollowup = selectedTemplate === "followup";
   const isEvent = selectedTemplate === "event";
 
+  const activeEvent = isFollowup ? followupEvent : selectedEvent;
+  const activeSubject = isFollowup ? followupSubject : eventSubject;
+  const activePreview = isFollowup ? followupPreviewText : eventPreviewText;
+  const activeGreeting = isFollowup ? followupGreeting : eventGreeting;
+  const activeBlocks = isFollowup ? followupBlocks : eventBlocks;
+
   const previewCtx = useMemo(
     () => buildPreviewContext({
       currentUserFirstName,
-      event: isFollowup ? followupEvent : selectedEvent,
+      event: activeEvent,
     }),
-    [currentUserFirstName, isFollowup, followupEvent, selectedEvent],
+    [currentUserFirstName, activeEvent],
   );
   const t = (s) => applyTokens(s, previewCtx);
   const inline = (s) => <InlineRich text={s} ctx={previewCtx} />;
@@ -84,35 +87,20 @@ export default function EmailCanvas({
 
   return (
     <div style={canvasOuterStyle}>
-      <InboxHeader
-        subject={t(isFollowup ? followupSubject : subjectLine)}
-        previewText={t(isFollowup ? followupPreviewText : "")}
-      />
+      <InboxHeader subject={t(activeSubject)} previewText={t(activePreview)} />
       <div style={emailFrameStyle}>
-        {isFollowup ? (
-          followupEvent ? (
-            <FollowupBody
-              greeting={followupGreeting}
-              blocks={followupBlocks}
-              t={t}
-              inline={inline}
-              hoveredKey={hoveredKey}
-            />
-          ) : (
-            <div style={{ padding: 40, textAlign: "center", opacity: 0.4, fontSize: 14 }}>
-              Pick the event this follow-up is for in the Email tab.
-            </div>
-          )
-        ) : (
-          <EventBody
-            selectedEvent={selectedEvent}
-            headlineText={headlineText}
-            introQuote={introQuote}
-            introBody={introBody}
-            introGreeting={introGreeting}
-            introNote={introNote}
-            signoffText={signoffText}
+        {activeEvent ? (
+          <FollowupBody
+            greeting={activeGreeting}
+            blocks={activeBlocks}
+            t={t}
+            inline={inline}
+            hoveredKey={hoveredKey}
           />
+        ) : (
+          <div style={{ padding: 40, textAlign: "center", opacity: 0.4, fontSize: 14 }}>
+            Pick an event in the Email tab to start composing.
+          </div>
         )}
         <EmailFooter />
       </div>
@@ -175,87 +163,6 @@ function EmailFooter() {
   );
 }
 
-function EventBody({
-  selectedEvent,
-  headlineText,
-  introQuote,
-  introBody,
-  introGreeting,
-  introNote,
-  signoffText,
-}) {
-  if (!selectedEvent) {
-    return (
-      <div style={{ padding: 40, textAlign: "center", opacity: 0.4, fontSize: 14 }}>
-        Pick an event in the Email tab to fill the template.
-      </div>
-    );
-  }
-  const heroUrl = selectedEvent.coverImageUrl || selectedEvent.imageUrl;
-  return (
-    <div>
-      {heroUrl && (
-        <div style={{ width: "100%", aspectRatio: "4/5", overflow: "hidden", borderRadius: "8px 8px 0 0", marginBottom: 16 }}>
-          <img
-            src={heroUrl}
-            alt={selectedEvent.title}
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          />
-        </div>
-      )}
-      <div style={{ padding: "0 4px" }}>
-        <h1 style={{ margin: 0, padding: "12px 0", fontSize: 28, lineHeight: 1.3, fontWeight: 600, textAlign: "center", color: "#fff" }}>
-          {headlineText || selectedEvent.title}
-        </h1>
-        {introQuote && (
-          <div style={{ padding: "8px 12px", fontSize: 15, textAlign: "center", fontStyle: "italic", opacity: 0.9 }}>
-            &quot;{introQuote}&quot;
-          </div>
-        )}
-        {introBody && (
-          <p style={{ margin: 0, padding: "8px 12px", fontSize: 15, textAlign: "center", opacity: 0.85 }}>
-            {introBody}
-          </p>
-        )}
-        <hr style={{ border: 0, borderTop: "1px solid rgba(255,255,255,0.1)", margin: "16px 0" }} />
-        {introGreeting && (
-          <p style={{ margin: 0, padding: "8px 12px", fontSize: 15, textAlign: "center", opacity: 0.85 }}>
-            {introGreeting}
-          </p>
-        )}
-        {introNote && (
-          <div style={{ margin: 0, padding: "8px 12px", fontSize: 13, textAlign: "center", opacity: 0.7 }}>
-            {introNote}
-          </div>
-        )}
-        <div style={{ textAlign: "center", margin: "20px 0" }}>
-          <button
-            type="button"
-            disabled
-            style={{
-              padding: "10px 24px",
-              borderRadius: 999,
-              border: "1px solid rgba(192,192,192,0.4)",
-              background: "linear-gradient(135deg,rgba(255,255,255,0.92),rgba(220,220,220,0.85))",
-              color: "#05040a",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "default",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
-            }}
-          >
-            TO EVENT
-          </button>
-        </div>
-        {signoffText && (
-          <p style={{ margin: 0, padding: "16px 12px 8px", fontSize: 15, textAlign: "center", opacity: 0.85 }}>
-            {signoffText}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function FollowupBody({ greeting, blocks, t, inline, hoveredKey }) {
   const greetingRendered = greeting !== undefined ? greeting : "Hi {{first_name}},";

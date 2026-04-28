@@ -3,9 +3,12 @@
 // ImagePickerModal for "choose from your events" gallery.
 
 import { useRef, useState } from "react";
-import { Upload, Image as ImageIcon, X } from "lucide-react";
+import { Upload, Image as ImageIcon, X, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import ImagePickerModal from "../ImagePickerModal";
 import { authenticatedFetch } from "../../../lib/api.js";
+
+const DEFAULT_WIDTH = 100;
+const DEFAULT_ALIGN = "center";
 
 export default function ImageBlockEditor({ block, onChange }) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -146,6 +149,50 @@ export default function ImageBlockEditor({ block, onChange }) {
         )}
       </div>
 
+      {block.url && (
+        <>
+          <div style={fieldGroupStyle}>
+            <div style={fieldLabelStyle}>
+              <span>Size</span>
+              <span style={{ opacity: 0.6 }}>{block.width ?? DEFAULT_WIDTH}%</span>
+            </div>
+            <input
+              type="range"
+              min={25}
+              max={100}
+              step={5}
+              value={block.width ?? DEFAULT_WIDTH}
+              onChange={(e) => onChange({ ...block, width: Number(e.target.value) })}
+              style={{ width: "100%", accentColor: "#d4af37" }}
+            />
+          </div>
+          <div style={fieldGroupStyle}>
+            <div style={fieldLabelStyle}><span>Align</span></div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[
+                { v: "left", icon: AlignLeft, label: "Left" },
+                { v: "center", icon: AlignCenter, label: "Center" },
+                { v: "right", icon: AlignRight, label: "Right" },
+              ].map((opt) => {
+                const Icon = opt.icon;
+                const active = (block.align ?? DEFAULT_ALIGN) === opt.v;
+                return (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => onChange({ ...block, align: opt.v })}
+                    title={opt.label}
+                    style={alignBtnStyle(active)}
+                  >
+                    <Icon size={14} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
       <input
         type="text"
         value={block.alt || ""}
@@ -235,6 +282,39 @@ const ghostBtnStyle = {
   fontSize: 12,
   cursor: "pointer",
 };
+
+const fieldGroupStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  padding: "8px 10px",
+  borderRadius: 8,
+  background: "rgba(255,255,255,0.02)",
+  border: "1px solid rgba(255,255,255,0.06)",
+};
+
+const fieldLabelStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  color: "rgba(255,255,255,0.65)",
+};
+
+const alignBtnStyle = (active) => ({
+  flex: 1,
+  padding: "6px 0",
+  borderRadius: 6,
+  border: `1px solid ${active ? "rgba(212,175,55,0.5)" : "rgba(255,255,255,0.1)"}`,
+  background: active ? "rgba(212,175,55,0.15)" : "rgba(12,10,18,0.6)",
+  color: active ? "#d4af37" : "rgba(255,255,255,0.7)",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+});
 
 const altInputStyle = {
   width: "100%",

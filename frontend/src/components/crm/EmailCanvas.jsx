@@ -3,7 +3,20 @@
 // Pure presentational: takes all state via props, no editing.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Instagram, Music, Video, Cloud, Youtube, Globe } from "lucide-react";
 import { applyTokens, buildPreviewContext, parseInlineSegments } from "../../lib/emailTokens";
+
+// Same key set as the backend renderer (followUpTemplateService.js
+// SOCIAL_ICONS); the icons are visual stand-ins so the canvas matches
+// what the email actually emits.
+const SOCIAL_ICON_COMPONENTS = {
+  instagram: Instagram,
+  spotify: Music,
+  tiktok: Video,
+  soundcloud: Cloud,
+  youtube: Youtube,
+  website: Globe,
+};
 
 // Theme palettes for the canvas preview. Mirrors the actual email shell:
 // light is the default that recipients see in most inboxes; dark is what
@@ -331,14 +344,25 @@ function CanvasBlock({ block, t, inline, theme }) {
   }
   if (block.type === "socials" && Array.isArray(block.links) && block.links.length > 0) {
     const align = block.align === "center" || block.align === "right" ? block.align : (block.align === "left" ? "left" : "center");
+    const valid = block.links.filter((l) => l && l.url && SOCIAL_ICON_COMPONENTS[l.key]);
+    if (valid.length === 0) return null;
     return (
-      <div style={{ textAlign: align, margin: "20px 0", fontSize: 13, color: theme.text }}>
-        {block.links.map((l, i) => (
-          <span key={l.key || i}>
-            {i > 0 && <span style={{ margin: "0 8px", color: theme.muted }}>·</span>}
-            <a href={l.url} onClick={(e) => e.preventDefault()} style={{ color: theme.link, textDecoration: "none", fontWeight: 500 }}>{l.label}</a>
-          </span>
-        ))}
+      <div style={{ textAlign: align, margin: "20px 0", color: theme.text }}>
+        {valid.map((l) => {
+          const Icon = SOCIAL_ICON_COMPONENTS[l.key];
+          return (
+            <a
+              key={l.key}
+              href={l.url}
+              onClick={(e) => e.preventDefault()}
+              title={l.label}
+              aria-label={l.label}
+              style={{ display: "inline-block", padding: "6px 10px", color: "inherit", textDecoration: "none" }}
+            >
+              <Icon size={22} strokeWidth={1.7} />
+            </a>
+          );
+        })}
       </div>
     );
   }

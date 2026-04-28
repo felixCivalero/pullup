@@ -118,13 +118,14 @@ function renderBlock(b, t) {
   }
   if (b.type === "button" && b.url && b.text) {
     const captionRaw = b.caption ? t(b.caption) : "";
+    const align = b.align === "left" || b.align === "right" ? b.align : "center";
     const caption = captionRaw
-      ? `<p class="caption-block" style="text-align:center;font-size:12px;opacity:0.7;margin:6px 0 18px;">${escapeHtml(captionRaw)}</p>`
+      ? `<p class="caption-block" style="text-align:${align};font-size:12px;opacity:0.7;margin:6px 0 18px;">${escapeHtml(captionRaw)}</p>`
       : "";
     const { padding, fontSize } = buttonSizeStyle(b.size);
     const bg = isHexColor(b.bgColor) ? b.bgColor : "#d4af37";
     const fg = readableTextColor(bg);
-    return `<div style="text-align:center;margin:20px 0 0;"><a href="${escapeAttr(b.url)}" style="display:inline-block;padding:${padding};background:${bg};color:${fg};text-decoration:none;border-radius:8px;font-weight:600;font-size:${fontSize}px;">${escapeHtml(t(b.text))}</a></div>${caption}`;
+    return `<div style="text-align:${align};margin:20px 0 0;"><a href="${escapeAttr(b.url)}" style="display:inline-block;padding:${padding};background:${bg};color:${fg};text-decoration:none;border-radius:8px;font-weight:600;font-size:${fontSize}px;">${escapeHtml(t(b.text))}</a></div>${caption}`;
   }
   return "";
 }
@@ -146,10 +147,20 @@ function clampPercent(v) {
   return Math.max(25, Math.min(100, Math.round(n)));
 }
 
+// Numeric size is a percentage scale (50-150) applied to a base padding
+// (12 24) and font (14). Tolerates legacy string values for safety.
 function buttonSizeStyle(size) {
-  if (size === "small") return { padding: "8px 16px", fontSize: 12 };
-  if (size === "large") return { padding: "16px 32px", fontSize: 16 };
-  return { padding: "12px 24px", fontSize: 14 }; // medium / default
+  let pct;
+  if (typeof size === "number") pct = size;
+  else if (size === "small") pct = 75;
+  else if (size === "large") pct = 130;
+  else pct = 100;
+  pct = Math.max(50, Math.min(150, pct));
+  const scale = pct / 100;
+  const padY = Math.max(6, Math.round(12 * scale));
+  const padX = Math.max(12, Math.round(24 * scale));
+  const fontSize = Math.max(11, Math.round(14 * scale));
+  return { padding: `${padY}px ${padX}px`, fontSize };
 }
 
 function isHexColor(s) {

@@ -283,22 +283,28 @@ function CanvasBlock({ block, t, inline }) {
     );
   }
   if (block.type === "button" && block.url && block.text) {
-    const size = block.size || "medium";
-    const padding = size === "small" ? "8px 16px" : size === "large" ? "16px 32px" : "12px 24px";
-    const fontSize = size === "small" ? 12 : size === "large" ? 16 : 14;
+    const sizeNum = typeof block.size === "number"
+      ? block.size
+      : block.size === "small" ? 75 : block.size === "large" ? 130 : 100;
+    const pct = Math.max(50, Math.min(150, sizeNum));
+    const scale = pct / 100;
+    const padY = Math.max(6, Math.round(12 * scale));
+    const padX = Math.max(12, Math.round(24 * scale));
+    const fontSize = Math.max(11, Math.round(14 * scale));
+    const align = block.align === "left" || block.align === "right" ? block.align : "center";
     const bg = /^#[0-9a-f]{6}$/i.test(block.bgColor || "") ? block.bgColor : "#d4af37";
     const fg = canvasReadableTextColor(bg);
     return (
-      <div style={{ textAlign: "center", margin: "20px 0 0" }}>
+      <div style={{ textAlign: align, margin: "20px 0 0" }}>
         <a
           href={block.url}
           onClick={(e) => e.preventDefault()}
-          style={{ display: "inline-block", padding, background: bg, color: fg, textDecoration: "none", borderRadius: 8, fontWeight: 600, fontSize }}
+          style={{ display: "inline-block", padding: `${padY}px ${padX}px`, background: bg, color: fg, textDecoration: "none", borderRadius: 8, fontWeight: 600, fontSize }}
         >
           {t(block.text)}
         </a>
         {block.caption && (
-          <p style={{ textAlign: "center", fontSize: 12, opacity: 0.7, margin: "6px 0 18px" }}>{t(block.caption)}</p>
+          <p style={{ textAlign: align, fontSize: 12, opacity: 0.7, margin: "6px 0 18px" }}>{t(block.caption)}</p>
         )}
       </div>
     );

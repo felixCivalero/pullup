@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { authenticatedFetch } from "../../lib/authenticatedFetch";
+import { authenticatedFetch } from "../../lib/api.js";
 
 export default function ImagePickerModal({ isOpen, onSelect, onClose }) {
   const [tab, setTab] = useState(() => localStorage.getItem("crm.imagePicker.tab") || "upload");

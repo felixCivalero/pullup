@@ -5513,6 +5513,37 @@ app.get("/host/crm/campaigns/:campaignId", requireAuth, async (req, res) => {
       return res.status(404).json({ error: "Campaign not found" });
     }
 
+    // Per-link click breakdown — join email_clicks to email_outbox via tracking_id,
+    // filter by the same campaign_tag the sender writes (`host_campaign_${id}`).
+    const { supabase } = await import("./supabase.js");
+    const campaignTag = `host_campaign_${campaign.id}`;
+    let linkBreakdown = [];
+    try {
+      const { data: outboxRows = [] } = await supabase
+        .from("email_outbox")
+        .select("tracking_id")
+        .eq("campaign_tag", campaignTag);
+      const trackingIds = outboxRows.map((r) => r.tracking_id).filter(Boolean);
+      if (trackingIds.length > 0) {
+        const { data: clickRows = [] } = await supabase
+          .from("email_clicks")
+          .select("link_url, link_label")
+          .in("tracking_id", trackingIds);
+        const map = new Map();
+        for (const r of clickRows || []) {
+          const label = r.link_label || "";
+          const url = r.link_url || "";
+          const key = label + "|" + url;
+          const existing = map.get(key) || { linkLabel: label, linkUrl: url, clicks: 0 };
+          existing.clicks += 1;
+          map.set(key, existing);
+        }
+        linkBreakdown = Array.from(map.values()).sort((a, b) => b.clicks - a.clicks);
+      }
+    } catch (err) {
+      console.error("[campaign-detail] linkBreakdown query failed:", err.message);
+    }
+
     res.json({
       id: campaign.id,
       name: campaign.name,
@@ -5523,6 +5554,7 @@ app.get("/host/crm/campaigns/:campaignId", requireAuth, async (req, res) => {
       totalFailed: campaign.totalFailed,
       createdAt: campaign.createdAt,
       sentAt: campaign.sentAt,
+      linkBreakdown,
     });
   } catch (error) {
     console.error("Error fetching campaign:", error);

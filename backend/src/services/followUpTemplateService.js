@@ -13,12 +13,13 @@ function formatEventDate(starts_at) {
 }
 
 function buildTokenContext({ person, event }) {
-  const firstName = (person?.first_name || "").trim();
+  // The people table stores a single `name` field; derive first_name as the
+  // first whitespace-separated word ("Felix Civalero" → "Felix"). Falls back
+  // to "there" so the default greeting still reads naturally when name is empty.
+  const fullName = (person?.name || "").trim();
+  const firstWord = fullName ? fullName.split(/\s+/)[0] : "";
   return {
-    // first_name falls back to "there" so the default greeting reads naturally
-    // for recipients without a captured first name. Other tokens stay empty.
-    first_name: firstName || "there",
-    last_name: (person?.last_name || "").trim(),
+    first_name: firstWord || "there",
     event_title: (event?.title || "").trim(),
     event_date: formatEventDate(event?.starts_at),
   };

@@ -15,7 +15,7 @@ function testParagraphBlock() {
       blocks: [{ type: "text", style: "paragraph", text: "Hello world" }],
       signoff: "",
     },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -35,7 +35,7 @@ function testHeadingBlock() {
       blocks: [{ type: "text", style: "heading", text: "Thanks!" }],
       signoff: "",
     },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -53,7 +53,7 @@ function testImageBlock() {
       blocks: [{ type: "image", url: "https://cdn.example.com/x.png", alt: "Salon", source: "upload" }],
       signoff: "",
     },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -72,7 +72,7 @@ function testButtonBlock() {
       blocks: [{ type: "button", text: "Get 20% off", url: "https://example.com/redeem", caption: "Code: THANKYOU20" }],
       signoff: "",
     },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -92,7 +92,7 @@ function testButtonWithoutCaption() {
       blocks: [{ type: "button", text: "Click", url: "https://example.com", caption: null }],
       signoff: "",
     },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -104,7 +104,7 @@ function testGreeting() {
   console.log("🧪 greeting prefixes body with first name");
   const html = renderFollowUpEmailTemplate({
     templateContent: { subject: "s", previewText: "", blocks: [], signoff: "" },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -128,7 +128,7 @@ function testSignoff() {
   console.log("🧪 signoff renders with newlines preserved");
   const html = renderFollowUpEmailTemplate({
     templateContent: { subject: "s", previewText: "", blocks: [], signoff: "With love,\nThe Salon" },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -150,7 +150,7 @@ function testUnknownBlockSkipped() {
       ],
       signoff: "",
     },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -167,7 +167,7 @@ function testTokenSubstitutionInTextBlock() {
       blocks: [{ type: "text", style: "paragraph", text: "Welcome {{first_name}}!" }],
       signoff: "",
     },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -184,7 +184,7 @@ function testEventTokensResolve() {
       blocks: [{ type: "text", style: "heading", text: "{{event_title}} on {{event_date}}" }],
       signoff: "",
     },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: { title: "Spring Salon", starts_at: "2026-05-15T19:00:00Z" },
     baseUrl: "https://example.com",
   });
@@ -198,35 +198,52 @@ function testTokensInButtonAndSignoff() {
   const html = renderFollowUpEmailTemplate({
     templateContent: {
       subject: "s", previewText: "",
-      blocks: [{ type: "button", text: "Hi {{first_name}}", url: "https://x.com", caption: "for {{last_name}}" }],
-      signoff: "Thanks {{first_name}} {{last_name}}",
+      blocks: [{ type: "button", text: "Hi {{first_name}}", url: "https://x.com", caption: "From {{first_name}}" }],
+      signoff: "Thanks {{first_name}}",
     },
-    person: { first_name: "Sam", last_name: "Lee" },
+    person: { name: "Sam Lee" },
     event: null,
     baseUrl: "https://example.com",
   });
   assert(html.includes("Hi Sam"), "button text token resolved");
-  assert(html.includes("for Lee"), "caption token resolved");
-  assert(html.includes("Thanks Sam Lee"), "signoff tokens resolved");
+  assert(html.includes("From Sam"), "caption token resolved");
+  assert(html.includes("Thanks Sam"), "signoff tokens resolved");
 }
 testTokensInButtonAndSignoff();
 
-function testMissingTokenFallback() {
-  console.log("🧪 missing token data falls back to empty string");
+function testFirstNameFromFullName() {
+  console.log("🧪 first_name takes the first whitespace-separated word");
   const html = renderFollowUpEmailTemplate({
     templateContent: {
       subject: "s", previewText: "",
-      blocks: [{ type: "text", style: "paragraph", text: "Hi {{last_name}}!" }],
+      blocks: [{ type: "text", style: "paragraph", text: "Hi {{first_name}}!" }],
       signoff: "",
     },
-    person: { first_name: "Sam" }, // no last_name
+    person: { name: "Felix Civalero" },
     event: null,
     baseUrl: "https://example.com",
   });
-  assert(html.includes("Hi !"), "missing token resolves to empty");
-  assert(!html.includes("{{last_name}}"), "no raw token left");
+  assert(html.includes("Hi Felix!"), "uses first word only");
+  assert(!html.includes("Civalero"), "drops last name");
 }
-testMissingTokenFallback();
+testFirstNameFromFullName();
+
+function testUnknownTokenResolvesEmpty() {
+  console.log("🧪 unknown token resolves to empty string");
+  const html = renderFollowUpEmailTemplate({
+    templateContent: {
+      subject: "s", previewText: "",
+      blocks: [{ type: "text", style: "paragraph", text: "Hi {{nonexistent}}!" }],
+      signoff: "",
+    },
+    person: { name: "Sam" },
+    event: null,
+    baseUrl: "https://example.com",
+  });
+  assert(html.includes("Hi !"), "unknown token becomes empty");
+  assert(!html.includes("{{nonexistent}}"), "no raw token left");
+}
+testUnknownTokenResolvesEmpty();
 
 function testTokensEscapedSafely() {
   console.log("🧪 token values are HTML-escaped");
@@ -236,7 +253,7 @@ function testTokensEscapedSafely() {
       blocks: [{ type: "text", style: "paragraph", text: "Hello {{first_name}}" }],
       signoff: "",
     },
-    person: { first_name: "<script>x</script>" },
+    person: { name: "<script>x</script>" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -245,6 +262,7 @@ function testTokensEscapedSafely() {
 }
 testTokensEscapedSafely();
 
+// (was testMissingTokenFallback — replaced by testUnknownTokenResolvesEmpty)
 function testEditableGreetingWithTokens() {
   console.log("🧪 custom greeting renders with token substitution");
   const html = renderFollowUpEmailTemplate({
@@ -254,7 +272,7 @@ function testEditableGreetingWithTokens() {
       signoff: "",
       greeting: "Welcome back, {{first_name}}!",
     },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });
@@ -272,7 +290,7 @@ function testEmptyGreetingOmitsParagraph() {
       signoff: "",
       greeting: "",
     },
-    person: { first_name: "Sam" },
+    person: { name: "Sam" },
     event: null,
     baseUrl: "https://example.com",
   });

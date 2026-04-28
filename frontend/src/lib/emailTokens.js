@@ -3,7 +3,6 @@
 
 export const TOKENS = [
   { key: "first_name", label: "First name", scope: "person" },
-  { key: "last_name", label: "Last name", scope: "person" },
   { key: "event_title", label: "Event title", scope: "event" },
   { key: "event_date", label: "Event date", scope: "event" },
 ];
@@ -49,12 +48,11 @@ function formatEventDate(starts_at) {
 }
 
 // Build the substitution context used in the live preview. Uses the current
-// host as a stand-in for first/last name and the selected follow-up event
-// for event_title/event_date.
-export function buildPreviewContext({ currentUserFirstName, currentUserLastName, event }) {
+// host as a stand-in for first_name and the selected follow-up event for
+// event_title/event_date.
+export function buildPreviewContext({ currentUserFirstName, event }) {
   return {
     first_name: (currentUserFirstName || "").trim() || "there",
-    last_name: (currentUserLastName || "").trim(),
     event_title: (event?.title || "").trim() || "[event title]",
     event_date: formatEventDate(event?.starts_at) || "[event date]",
   };

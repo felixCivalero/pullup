@@ -29,6 +29,7 @@ const STATUS_COLORS = {
   won: { bg: "rgba(34,197,94,0.15)", text: "#4ade80", border: "rgba(34,197,94,0.3)" },
   lost: { bg: "rgba(239,68,68,0.15)", text: "#f87171", border: "rgba(239,68,68,0.3)" },
   churned: { bg: "rgba(107,114,128,0.15)", text: "#9ca3af", border: "rgba(107,114,128,0.3)" },
+  user: { bg: "rgba(20,184,166,0.15)", text: "#5eead4", border: "rgba(20,184,166,0.3)" },
 };
 
 const SOURCE_OPTIONS = ["cold", "referral", "inbound", "event", "other"];
@@ -247,11 +248,12 @@ export function SalesPage() {
     display: "block",
   };
 
-  // Stats
+  // Stats — lead-only counts exclude auto-surfaced users; signedUp counts all profiles.
+  const realLeads = leads.filter((l) => !l.is_user_only);
   const stats = {
-    total: leads.length,
-    active: leads.filter((l) => !["won", "lost", "churned"].includes(l.status)).length,
-    won: leads.filter((l) => l.status === "won").length,
+    total: realLeads.length,
+    active: realLeads.filter((l) => !["won", "lost", "churned"].includes(l.status)).length,
+    won: realLeads.filter((l) => l.status === "won").length,
     signedUp: leads.filter((l) => l.profile).length,
   };
 
@@ -465,7 +467,7 @@ export function SalesPage() {
             flexWrap: "wrap",
           }}
         >
-          {["all", ...STATUS_OPTIONS].map((s) => (
+          {["all", "user", ...STATUS_OPTIONS].map((s) => (
             <button
               key={s}
               onClick={() => setFilter(s)}
@@ -919,7 +921,8 @@ export function SalesPage() {
                             </div>
                           )}
 
-                          {/* Quick status change */}
+                          {/* Quick status change (lead-only) */}
+                          {!lead.is_user_only && (
                           <div
                             style={{
                               display: "flex",
@@ -958,6 +961,7 @@ export function SalesPage() {
                               </button>
                             ))}
                           </div>
+                          )}
 
                           {/* Actions */}
                           <div
@@ -969,6 +973,7 @@ export function SalesPage() {
                               borderTop: "1px solid rgba(255,255,255,0.06)",
                             }}
                           >
+                            {!lead.is_user_only && (
                             <button
                               onClick={() => {
                                 setEditingId(lead.id);
@@ -995,6 +1000,7 @@ export function SalesPage() {
                             >
                               Edit
                             </button>
+                            )}
                             {lead.profile && (
                               <button
                                 onClick={() =>
@@ -1019,6 +1025,7 @@ export function SalesPage() {
                                 <ExternalLink size={11} /> View Account
                               </button>
                             )}
+                            {!lead.is_user_only && (
                             <button
                               onClick={() => handleDelete(lead.id)}
                               style={{
@@ -1037,6 +1044,7 @@ export function SalesPage() {
                             >
                               <Trash2 size={11} /> Delete
                             </button>
+                            )}
                           </div>
                         </div>
                       )}

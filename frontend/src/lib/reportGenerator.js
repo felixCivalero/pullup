@@ -82,8 +82,15 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
         ${s.rate !== undefined ? `<span style="font-size:9px;color:rgba(255,255,255,0.3);min-width:30px;text-align:right;">${s.rate}%</span>` : `<span style="min-width:30px;"></span>`}
       </div>`;
     }).join("");
+    const isFollowup = c.templateType === "followup";
+    const badgeBg = isFollowup ? "rgba(212,175,55,0.18)" : "rgba(139,92,246,0.18)";
+    const badgeFg = isFollowup ? "#d4af37" : "#c4b5fd";
+    const badgeLabel = isFollowup ? "Follow-up" : "Event";
     return `<div style="padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);">
-      <div style="font-size:11px;font-weight:600;color:#fff;margin-bottom:6px;">${escHtml(c.name)}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        <span style="font-size:8px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:${badgeBg};color:${badgeFg};flex-shrink:0;">${badgeLabel}</span>
+        <div style="font-size:11px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(c.name)}</div>
+      </div>
       <div style="display:flex;flex-direction:column;gap:3px;">${bars}</div>
     </div>`;
   }).join("") : `<div style="font-size:11px;color:rgba(255,255,255,0.25);">No campaigns sent in this period</div>`;

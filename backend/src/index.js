@@ -10261,6 +10261,97 @@ app.get("/admin/sales/leads", requireAdmin, async (req, res) => {
       };
     });
 
+    // Also surface signed-up users who don't have a sales_leads row yet,
+    // so admins can see real product users (events created, last login, etc.)
+    // without first manually adding them as a lead.
+    // Only when the status filter is "all" or "user" — other filters target real lead statuses.
+    const wantsUsers = !status || status === "all" || status === "user";
+    if (wantsUsers) {
+      const linkedProfileIds = new Set(
+        enriched.map((l) => l.profile_id).filter(Boolean)
+      );
+
+      // Fetch every profile + their event counts (independent of which leads exist).
+      const { data: allProfiles } = await supabase
+        .from("profiles")
+        .select("id, name, brand, contact_email, mobile_number, created_at, last_login_at, login_count");
+
+      const orphanProfiles = (allProfiles || []).filter(
+        (p) => !linkedProfileIds.has(p.id)
+      );
+
+      if (orphanProfiles.length) {
+        // Event counts for orphans
+        const orphanIds = orphanProfiles.map((p) => p.id);
+        const { data: orphanEvents } = await supabase
+          .from("events")
+          .select("host_id")
+          .in("host_id", orphanIds);
+        const orphanEventCounts = {};
+        (orphanEvents || []).forEach((e) => {
+          orphanEventCounts[e.host_id] = (orphanEventCounts[e.host_id] || 0) + 1;
+        });
+
+        // Backfill emails from auth.users where profiles.contact_email is empty.
+        const missingEmailIds = orphanProfiles
+          .filter((p) => !p.contact_email)
+          .map((p) => p.id);
+        const authEmailById = {};
+        if (missingEmailIds.length) {
+          const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+          (authData?.users || []).forEach((u) => {
+            if (u.email) authEmailById[u.id] = u.email;
+          });
+        }
+
+        for (const p of orphanProfiles) {
+          const email = p.contact_email || authEmailById[p.id] || null;
+          enriched.push({
+            id: `user:${p.id}`,
+            is_user_only: true,
+            name: p.name || p.brand || (email ? email.split("@")[0] : "Unknown"),
+            company: p.brand || null,
+            email,
+            phone: p.mobile_number || null,
+            status: "user",
+            notes: null,
+            city: null,
+            source: null,
+            profile_id: p.id,
+            profile: {
+              id: p.id,
+              name: p.name,
+              brand: p.brand,
+              created_at: p.created_at,
+              last_login_at: p.last_login_at,
+              login_count: p.login_count,
+            },
+            event_count: orphanEventCounts[p.id] || 0,
+            last_sign_in_at: p.last_login_at || null,
+            sign_in_count: p.login_count || 0,
+            created_at: p.created_at,
+            updated_at: p.created_at,
+            created_by: null,
+            updated_by: null,
+            created_by_name: null,
+            updated_by_name: null,
+          });
+        }
+      }
+
+      // When the user explicitly filters to "user", drop the real leads.
+      if (status === "user") {
+        return res.json(enriched.filter((l) => l.is_user_only));
+      }
+
+      // Sort: most-recent activity first. Users use created_at, leads use updated_at.
+      enriched.sort((a, b) => {
+        const ad = new Date(a.updated_at || a.created_at || 0).getTime();
+        const bd = new Date(b.updated_at || b.created_at || 0).getTime();
+        return bd - ad;
+      });
+    }
+
     return res.json(enriched);
   } catch (err) {
     console.error("[sales] list error:", err.message);

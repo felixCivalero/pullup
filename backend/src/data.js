@@ -14,39 +14,29 @@ function slugify(text) {
     .trim()
     .replace(/[\s_]+/g, "-")
     .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-// Helper: Ensure unique slug in database
-async function ensureUniqueSlug(baseSlug) {
-  let slug = baseSlug;
-  let counter = 2;
+// Charset omits visually-confusing chars (0/o, 1/i/l) — 31 chars, 4-length = ~923k values.
+const SLUG_SUFFIX_CHARSET = "abcdefghjkmnpqrstuvwxyz23456789";
+const SLUG_SUFFIX_LEN = 4;
 
-  // Check if slug exists in database
-  while (true) {
-    const { data, error } = await supabase
-      .from("events")
-      .select("id")
-      .eq("slug", slug)
-      .single();
-
-    // If no data found, slug is unique
-    if (error && error.code === "PGRST116") {
-      break;
-    }
-
-    // If error (other than not found), throw
-    if (error && error.code !== "PGRST116") {
-      console.error("Error checking slug uniqueness:", error);
-      throw new Error("Failed to check slug uniqueness");
-    }
-
-    // Slug exists, try next
-    slug = `${baseSlug}-${counter}`;
-    counter += 1;
+function randomSlugSuffix() {
+  const bytes = crypto.randomBytes(SLUG_SUFFIX_LEN);
+  let out = "";
+  for (let i = 0; i < SLUG_SUFFIX_LEN; i += 1) {
+    out += SLUG_SUFFIX_CHARSET[bytes[i] % SLUG_SUFFIX_CHARSET.length];
   }
+  return out;
+}
 
-  return slug;
+// Build a slug guaranteed to be ~unique by appending a short random suffix to the base.
+// The DB has UNIQUE(events.slug); on the astronomically-unlikely collision the caller
+// must retry with a fresh suffix.
+function buildSlug(title) {
+  const base = slugify(title || "event") || "event";
+  return `${base}-${randomSlugSuffix()}`;
 }
 
 // Helper: Map database event to application format
@@ -812,12 +802,9 @@ export async function createEvent({
     status = "PUBLISHED";
   }
 
-  const baseSlug = slugify(title || "event");
-  const slug = await ensureUniqueSlug(baseSlug);
-
   const eventData = {
     hostId, // Set host_id from authenticated user
-    slug,
+    slug: buildSlug(title),
     title,
     description,
     location,
@@ -888,11 +875,22 @@ export async function createEvent({
   // Remove createdVia and status if they're not in the database schema yet
   // This provides backward compatibility during migration
   // The database defaults will handle these if columns exist
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("events")
     .insert(dbData)
     .select()
     .single();
+
+  // Slug collision (unique violation): regenerate suffix and retry once.
+  if (error && error.code === "23505" && /slug/i.test(error.message || "")) {
+    console.warn("Slug collision on create, retrying with fresh suffix");
+    dbData.slug = buildSlug(title);
+    ({ data, error } = await supabase
+      .from("events")
+      .insert(dbData)
+      .select()
+      .single());
+  }
 
   if (error) {
     console.error("Error creating event:", error);

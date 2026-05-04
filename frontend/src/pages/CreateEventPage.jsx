@@ -34,8 +34,14 @@ import {
   AlignRight,
   Type,
   Trash2,
+  Phone,
+  Building2,
+  Cake,
+  AtSign,
+  MessageSquare,
 } from "lucide-react";
 import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
+import { FaXTwitter, FaLinkedinIn } from "react-icons/fa6";
 import { EventPreview } from "../components/EventPreview";
 import { VideoPlayer } from "../components/MediaCarousel";
 import { RsvpForm } from "../components/RsvpForm";
@@ -277,6 +283,228 @@ function getQuickDateOptions() {
   return options;
 }
 
+// ─── RSVP form-fields builder ───────────────────────────────────────
+// Custom fields collected at RSVP time. Name + email are always required
+// and rendered separately by RsvpForm — this builder controls everything else.
+const FORM_FIELD_PRESETS = [
+  { type: "instagram", label: "Instagram", placeholder: "Your Instagram username",        iconKey: "instagram", color: "#E1306C" },
+  { type: "phone",     label: "Phone",     placeholder: "Phone number",                   iconKey: "phone",     color: "#a3e635" },
+  { type: "twitter",   label: "X",         placeholder: "Your X username",                iconKey: "twitter",   color: "#fff"    },
+  { type: "tiktok",    label: "TikTok",    placeholder: "Your TikTok username",           iconKey: "tiktok",    color: "#69C9D0" },
+  { type: "linkedin",  label: "LinkedIn",  placeholder: "LinkedIn profile URL",           iconKey: "linkedin",  color: "#0A66C2" },
+  { type: "company",   label: "Company",   placeholder: "Company / where you work",       iconKey: "company",   color: "#c0c0c0" },
+  { type: "birthday",  label: "Birthday",  placeholder: "Birthday",                       iconKey: "birthday",  color: "#f59e0b", inputType: "date" },
+  { type: "custom",    label: "Custom",    placeholder: "Your answer",                    iconKey: "custom",    color: "#a3e635" },
+];
+
+function FormFieldIcon({ iconKey, size = 16, color = "rgba(255,255,255,0.55)" }) {
+  const map = {
+    name: AtSign,
+    email: AtSign,
+    instagram: FaInstagram,
+    twitter: FaXTwitter,
+    tiktok: FaTiktok,
+    linkedin: FaLinkedinIn,
+    phone: Phone,
+    company: Building2,
+    birthday: Cake,
+    custom: MessageSquare,
+  };
+  const Icon = map[iconKey] || MessageSquare;
+  return <Icon size={size} style={{ color, flexShrink: 0 }} />;
+}
+
+function makeFieldId() {
+  return "ff_" + Math.random().toString(36).slice(2, 10);
+}
+
+function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
+  const addPreset = (preset) => {
+    setFields([
+      ...fields,
+      {
+        id: makeFieldId(),
+        type: preset.type,
+        label: preset.type === "custom" ? "" : preset.label,
+        placeholder: preset.placeholder || "",
+        required: false,
+        inputType: preset.inputType || "text",
+        iconKey: preset.iconKey,
+      },
+    ]);
+  };
+
+  const updateField = (idx, patch) => {
+    setFields(fields.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
+  };
+
+  const removeField = (idx) => {
+    setFields(fields.filter((_, i) => i !== idx));
+  };
+
+  const moveField = (from, to) => {
+    if (to < 0 || to >= fields.length) return;
+    const next = [...fields];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    setFields(next);
+  };
+
+  const lockedRowStyle = {
+    display: "flex", alignItems: "center", gap: "10px",
+    padding: "10px 12px", borderRadius: "10px",
+    border: "1px solid rgba(255,255,255,0.05)",
+    background: "rgba(20, 16, 30, 0.25)",
+    opacity: 0.85,
+  };
+
+  return (
+    <div>
+      <h3 style={{
+        fontSize: "11px", fontWeight: 700, marginBottom: "10px",
+        opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.1em",
+      }}>
+        Form Fields
+      </h3>
+
+      {/* Locked: Name + Email */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "8px" }}>
+        <div style={lockedRowStyle}>
+          <FormFieldIcon iconKey="name" />
+          <div style={{ flex: 1, fontSize: "13px", color: "rgba(255,255,255,0.85)" }}>Full name</div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Required</div>
+        </div>
+        <div style={lockedRowStyle}>
+          <FormFieldIcon iconKey="email" />
+          <div style={{ flex: 1, fontSize: "13px", color: "rgba(255,255,255,0.85)" }}>Email</div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Required</div>
+        </div>
+      </div>
+
+      {/* Custom fields list */}
+      {fields.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
+          {fields.map((f, i) => (
+            <div
+              key={f.id}
+              draggable
+              onDragStart={() => setDragIndex(i)}
+              onDragOver={(e) => { e.preventDefault(); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragIndex === null || dragIndex === i) return;
+                moveField(dragIndex, i);
+                setDragIndex(null);
+              }}
+              onDragEnd={() => setDragIndex(null)}
+              style={{
+                display: "flex", flexDirection: "column", gap: "6px",
+                padding: "8px 10px", borderRadius: "10px",
+                border: "1px solid rgba(255,255,255,0.06)",
+                background: dragIndex === i ? "rgba(163,230,53,0.06)" : "rgba(20, 16, 30, 0.35)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255,255,255,0.4)", cursor: "grab" }}>
+                  <GripVertical size={14} />
+                  <FormFieldIcon iconKey={f.iconKey} />
+                </span>
+                <input
+                  value={f.label}
+                  onChange={(e) => updateField(i, { label: e.target.value })}
+                  placeholder={f.type === "custom" ? "Field heading (e.g. Allergies)" : "Heading"}
+                  style={{
+                    flex: 1, background: "transparent", border: "none", outline: "none",
+                    color: "#fff", fontSize: "13px", padding: "2px 0",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => updateField(i, { required: !f.required })}
+                  style={{
+                    fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.12em",
+                    padding: "4px 8px", borderRadius: "6px",
+                    border: f.required ? "1px solid rgba(163,230,53,0.4)" : "1px solid rgba(255,255,255,0.08)",
+                    background: f.required ? "rgba(163,230,53,0.12)" : "transparent",
+                    color: f.required ? "#a3e635" : "rgba(255,255,255,0.4)",
+                    cursor: "pointer", fontWeight: 600,
+                  }}
+                >
+                  {f.required ? "Required" : "Optional"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeField(i)}
+                  title="Remove field"
+                  style={{
+                    background: "none", border: "none", color: "rgba(255,255,255,0.3)",
+                    cursor: "pointer", padding: "4px", display: "flex", alignItems: "center",
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              {f.type === "custom" && (
+                <div style={{ paddingLeft: "26px" }}>
+                  <input
+                    value={f.placeholder || ""}
+                    onChange={(e) => updateField(i, { placeholder: e.target.value })}
+                    placeholder="Placeholder shown inside the field"
+                    style={{
+                      width: "100%", background: "transparent", border: "none", outline: "none",
+                      color: "rgba(255,255,255,0.7)", fontSize: "12px", padding: "2px 0",
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add field grid */}
+      <div style={{
+        borderRadius: "12px", border: "1px dashed rgba(255,255,255,0.12)",
+        background: "rgba(12, 10, 18, 0.6)", padding: "10px 8px 8px",
+      }}>
+        <div style={{ fontSize: "11px", fontWeight: 500, color: "rgba(255,255,255,0.3)", textAlign: "center", marginBottom: "8px" }}>
+          Add field
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "2px" }}>
+          {FORM_FIELD_PRESETS.map((preset) => (
+            <button
+              key={preset.type}
+              type="button"
+              onClick={() => addPreset(preset)}
+              style={{
+                display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
+                padding: "10px 2px 8px", background: "transparent", border: "none", borderRadius: "8px",
+                cursor: "pointer", transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                const iconWrap = e.currentTarget.querySelector("[data-ff-icon]");
+                if (iconWrap) iconWrap.style.opacity = "1";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                const iconWrap = e.currentTarget.querySelector("[data-ff-icon]");
+                if (iconWrap) iconWrap.style.opacity = "0.55";
+              }}
+            >
+              <span data-ff-icon style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "20px", opacity: 0.55, transition: "opacity 0.15s ease" }}>
+                <FormFieldIcon iconKey={preset.iconKey} size={18} color={preset.color} />
+              </span>
+              <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap" }}>{preset.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CreateEventPage() {
   const navigate = useNavigate();
   const { id: editEventId } = useParams(); // present when editing
@@ -293,7 +521,8 @@ export function CreateEventPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // After OAuth redirect: check for pendingPublish flag and auto-resume
+  // After OAuth redirect: pick up the pendingPublish flag and auto-resume.
+  // Profile is guaranteed complete by onboarding, so no profile gate here.
   useEffect(() => {
     if (!user || isEditMode) return;
     try {
@@ -301,27 +530,9 @@ export function CreateEventPage() {
       if (!raw) return;
       const draft = JSON.parse(raw);
       if (draft.pendingPublish) {
-        // Clear the flag
         draft.pendingPublish = false;
         localStorage.setItem("pullup_event_draft", JSON.stringify(draft));
-        // Check if profile is complete
-        (async () => {
-          try {
-            const res = await authenticatedFetch("/host/profile");
-            if (res.ok) {
-              const profile = await res.json();
-              if (profile.brand?.trim() && profile.contactEmail?.trim()) {
-                setPendingPublishAfterAuth(true);
-              } else {
-                setShowPublishAuth(true);
-              }
-            } else {
-              setShowPublishAuth(true);
-            }
-          } catch {
-            setShowPublishAuth(true);
-          }
-        })();
+        setPendingPublishAfterAuth(true);
       }
     } catch {}
   }, [user, isEditMode]);
@@ -456,6 +667,8 @@ export function CreateEventPage() {
   const [spotify, setSpotify] = useState(draft?.spotify || "");
   const [tiktok, setTiktok] = useState(draft?.tiktok || "");
   const [soundcloud, setSoundcloud] = useState(draft?.soundcloud || "");
+  const [formFields, setFormFields] = useState(draft?.formFields || []);
+  const [formFieldDragIndex, setFormFieldDragIndex] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -661,6 +874,7 @@ export function CreateEventPage() {
           dinnerOverflowAction, dinnerBookingEmail, hideDinnerRemaining,
           dinnerSlotsConfig,
           instagram, spotify, tiktok, soundcloud,
+          formFields,
           currentStep,
           _savedAt: Date.now(),
         };
@@ -678,6 +892,7 @@ export function CreateEventPage() {
     dinnerOverflowAction, dinnerBookingEmail, hideDinnerRemaining,
     dinnerSlotsConfig,
     instagram, spotify, tiktok, soundcloud,
+    formFields,
     currentStep, detailsColor, detailsGradient, detailsGradientEnabled,
   ]);
 
@@ -867,6 +1082,9 @@ export function CreateEventPage() {
         setSpotify(ev.spotify || "");
         setTiktok(ev.tiktok || "");
         setSoundcloud(ev.soundcloud || "");
+
+        // Custom RSVP form fields
+        setFormFields(Array.isArray(ev.formFields) ? ev.formFields : []);
 
         // Media settings
         const ms = ev.mediaSettings || {};
@@ -1173,20 +1391,6 @@ export function CreateEventPage() {
       return;
     }
 
-    // Profile gate: check if profile is complete
-    if (!isEditMode) {
-      try {
-        const profileRes = await authenticatedFetch("/host/profile");
-        if (profileRes.ok) {
-          const profile = await profileRes.json();
-          if (!profile.brand?.trim() || !profile.contactEmail?.trim()) {
-            setShowPublishAuth(true);
-            return;
-          }
-        }
-      } catch {}
-    }
-
     setLoading(true);
 
     try {
@@ -1293,6 +1497,7 @@ export function CreateEventPage() {
         spotify: sections.find(s => s.type === "socials")?.spotify || "",
         tiktok: sections.find(s => s.type === "socials")?.tiktok || "",
         soundcloud: sections.find(s => s.type === "socials")?.soundcloud || "",
+        formFields: (formFields || []).filter(f => f && f.id && (f.label || "").trim()),
         location,
         locationLat: locationLat || null,
         locationLng: locationLng || null,
@@ -1704,7 +1909,7 @@ export function CreateEventPage() {
                 {[
                   { num: 1, label: "Media" },
                   { num: 2, label: "Details" },
-                  { num: 3, label: "Settings" },
+                  { num: 3, label: "Form" },
                   { num: 5, label: "Tickets" },
                 ].map((tab) => (
                   <button
@@ -3540,14 +3745,14 @@ export function CreateEventPage() {
               </div>
             </div>
 
-            {/* === STEP 4 (tab position): SETTINGS === */}
+            {/* === STEP 4 (tab position): FORM === */}
             <div
               style={{
                 display: currentStep === 3 ? "block" : "none",
               }}
             >
 
-            {/* Event Settings Section */}
+            {/* Form Section */}
             <div>
               <div
                 style={{
@@ -3559,11 +3764,19 @@ export function CreateEventPage() {
                   marginBottom: "20px",
                 }}
               >
-                EVENT SETTINGS
+                FORM
               </div>
 
+              {/* RSVP form fields builder */}
+              <FormFieldsBuilder
+                fields={formFields}
+                setFields={setFormFields}
+                dragIndex={formFieldDragIndex}
+                setDragIndex={setFormFieldDragIndex}
+              />
+
               {/* event options */}
-              <div style={{ marginBottom: "16px" }}>
+              <div style={{ marginTop: "28px", marginBottom: "16px" }}>
                 <h3
                   style={{
                     fontSize: "11px",
@@ -4427,6 +4640,7 @@ export function CreateEventPage() {
                       hideDinnerRemaining: hideDinnerRemaining,
                       maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
                       timezone: timezone,
+                      formFields,
                     }}
                     previewSlots={previewDinnerSlots}
                     onSubmit={async () => {
@@ -4527,6 +4741,7 @@ export function CreateEventPage() {
                   waitlistEnabled: waitlistEnabled,
                   hideDinnerRemaining: hideDinnerRemaining,
                   maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
+                  formFields,
                 }}
                 previewSlots={previewDinnerSlots}
                 onSubmit={async () => {

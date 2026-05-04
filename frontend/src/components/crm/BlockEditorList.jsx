@@ -1,10 +1,18 @@
-import { Type, Image as ImageIcon, MousePointerClick, Aperture, AtSign } from "lucide-react";
+import { Type, Image as ImageIcon, MousePointerClick, Aperture, AtSign, Calendar, Compass } from "lucide-react";
 import TextBlockEditor from "./blocks/TextBlockEditor";
 import ImageBlockEditor from "./blocks/ImageBlockEditor";
 import ButtonBlockEditor from "./blocks/ButtonBlockEditor";
 import SocialsBlockEditor from "./blocks/SocialsBlockEditor";
+import EventCardBlockEditor from "./blocks/EventCardBlockEditor";
 
-const TYPE_LABEL = { text: "Text", image: "Image", button: "Button", socials: "Socials" };
+const TYPE_LABEL = {
+  text: "Text",
+  image: "Image",
+  button: "Button",
+  socials: "Socials",
+  pullup_event: "PullUp event",
+  discover_event: "Discover event",
+};
 
 const ADD_ITEMS = [
   { type: "text", icon: Type, label: "Text" },
@@ -12,9 +20,23 @@ const ADD_ITEMS = [
   { type: "logo", icon: Aperture, label: "Logo" },
   { type: "button", icon: MousePointerClick, label: "Button" },
   { type: "socials", icon: AtSign, label: "Socials" },
+  // Admin-only embeds — surface even on the host CRM since hosts can pick
+  // their own events too. (Discover is admin-data, but admins co-host the
+  // host CRM in practice; the picker simply won't show non-public data.)
+  { type: "pullup_event", icon: Calendar, label: "PullUp event", adminOnly: false },
+  { type: "discover_event", icon: Compass, label: "Discover event", adminOnly: true },
 ];
 
-export default function BlockEditorList({ blocks, onChange, tokens, hoveredKey, setHoveredKey }) {
+export default function BlockEditorList({
+  blocks,
+  onChange,
+  tokens,
+  hoveredKey,
+  setHoveredKey,
+  // Hide admin-only embeds (e.g. Discover events) when the host CRM
+  // mounts this component — host doesn't need that source.
+  hideAdminBlocks = false,
+}) {
   function updateBlock(idx, next) {
     const copy = [...blocks];
     copy[idx] = next;
@@ -38,11 +60,23 @@ export default function BlockEditorList({ blocks, onChange, tokens, hoveredKey, 
       // Logo is just an image block with logo-friendly defaults: smaller
       // width, centered, no aspect-ratio crop. Same editor controls.
       logo: { type: "image", url: "", alt: "Logo", source: "logo", width: 30, align: "center", aspectRatio: "original" },
-      button: { type: "button", text: "", url: "", caption: null, size: 100, align: "center", bgColor: "#d4af37" },
+      // Prefilled placeholder text + URL so the button is immediately
+      // visible in the preview the moment admin clicks Add. They can edit
+      // both fields right after — much better than staring at a blank
+      // canvas wondering if the button was added.
+      button: { type: "button", text: "View event", url: "https://pullup.se", caption: null, size: 100, align: "center", bgColor: "#d4af37" },
       socials: { type: "socials", links: [], align: "center" },
+      // Empty event-card blocks open the picker on first edit — title is
+      // empty so the editor renders the dashed "Pick an event" prompt.
+      pullup_event: { type: "pullup_event", eventId: null, title: "", imageUrl: null, startsAt: null, location: null, url: null, spotifyUrl: null },
+      discover_event: { type: "discover_event", eventId: null, title: "", imageUrl: null, startsAt: null, location: null, url: null, spotifyUrl: null },
     };
     onChange([...blocks, blanks[type]]);
   }
+
+  const visibleAddItems = hideAdminBlocks
+    ? ADD_ITEMS.filter((item) => !item.adminOnly)
+    : ADD_ITEMS;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -98,14 +132,17 @@ export default function BlockEditorList({ blocks, onChange, tokens, hoveredKey, 
             {block.type === "image" && <ImageBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} />}
             {block.type === "button" && <ButtonBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} tokens={tokens} />}
             {block.type === "socials" && <SocialsBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} />}
+            {(block.type === "pullup_event" || block.type === "discover_event") && (
+              <EventCardBlockEditor block={block} onChange={(b) => updateBlock(idx, b)} />
+            )}
           </div>
         );
       })}
       {/* Add-block tray — mirrors the "Add section" UI in CreateEventPage */}
       <div style={addTrayStyle}>
         <div style={addTrayTitleStyle}>Add section</div>
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${ADD_ITEMS.length}, 1fr)`, gap: 2 }}>
-          {ADD_ITEMS.map((item) => {
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleAddItems.length}, 1fr)`, gap: 2 }}>
+          {visibleAddItems.map((item) => {
             const Icon = item.icon;
             return (
               <button

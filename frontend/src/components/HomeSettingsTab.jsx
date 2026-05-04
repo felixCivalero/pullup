@@ -9,6 +9,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { SettingsProfileSection } from "./SettingsProfileSection.jsx";
 
 export function SettingsTab({ user, setUser, onSave, showToast }) {
   const navigate = useNavigate();
@@ -187,6 +188,14 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
           color: rgba(255,255,255,0.3);
         }
       `}</style>
+
+      {/* PROFILE */}
+      <SettingsProfileSection
+        user={user}
+        setUser={setUser}
+        onSave={onSave}
+        showToast={showToast}
+      />
 
       {/* INTEGRATIONS */}
       <SettingsSection

@@ -1,9 +1,29 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
 import { TrendingUp, TrendingDown, Minus, Monitor, Smartphone } from "lucide-react";
+import { DateRangePicker } from "../components/DateRangePicker.jsx";
+
+// Past-only quick ranges for the analytics date picker. Replaces the old
+// 7/14/30/90-button row so admin gets the full calendar UX with custom
+// ranges + the common presets.
+function buildLastDays(n) {
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  const start = new Date();
+  start.setDate(start.getDate() - n + 1);
+  start.setHours(0, 0, 0, 0);
+  return [start, end];
+}
+const ANALYTICS_QUICK_RANGES = [
+  { label: "Last 7 days", getRange: () => buildLastDays(7) },
+  { label: "Last 14 days", getRange: () => buildLastDays(14) },
+  { label: "Last 30 days", getRange: () => buildLastDays(30) },
+  { label: "Last 60 days", getRange: () => buildLastDays(60) },
+  { label: "Last 90 days", getRange: () => buildLastDays(90) },
+];
 
 export function AnalyticsPage() {
   const { user, loading } = useAuth();
@@ -16,23 +36,46 @@ export function AnalyticsPage() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [pageviews, setPageviews] = useState(null);
-  const [pvDays, setPvDays] = useState(30);
-  const [pvShowPrevious, setPvShowPrevious] = useState(true);
+  // Single date range drives every time-bound query on this page. Default:
+  // last 30 days. Admin picks via the DateRangePicker at the top.
+  const [dateRange, setDateRange] = useState(() => {
+    const [s, e] = buildLastDays(30);
+    return { startDate: s, endDate: e };
+  });
+  const rangeQuery = useMemo(() => {
+    if (!dateRange.startDate || !dateRange.endDate) return "";
+    return `startDate=${dateRange.startDate.toISOString()}&endDate=${dateRange.endDate.toISOString()}`;
+  }, [dateRange]);
+  const periodDays = useMemo(() => {
+    if (!dateRange.startDate || !dateRange.endDate) return 30;
+    return Math.max(
+      1,
+      Math.round(
+        (dateRange.endDate.getTime() - dateRange.startDate.getTime()) / 86400000,
+      ),
+    );
+  }, [dateRange]);
   const [partnerClicks, setPartnerClicks] = useState(null);
   const [funnel, setFunnel] = useState(null);
+  const [activitySeries, setActivitySeries] = useState(null);
+  const [signupsSeries, setSignupsSeries] = useState(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/");
   }, [loading, user, navigate]);
 
+  // Overview + campaigns now follow the date picker too — every campaign
+  // KPI on the page is scoped to the chosen window. When the picker moves,
+  // we close any expanded detail (its tag may not exist in the new window)
+  // and refetch.
   useEffect(() => {
     if (!user) return;
     async function fetchAll() {
       setCampaignsLoading(true);
       try {
         const [overviewRes, campaignsRes] = await Promise.all([
-          authenticatedFetch("/admin/analytics/overview"),
-          authenticatedFetch("/admin/analytics/campaigns"),
+          authenticatedFetch(`/admin/analytics/overview?${rangeQuery}`),
+          authenticatedFetch(`/admin/analytics/campaigns?${rangeQuery}`),
         ]);
         if (overviewRes.ok) setOverview(await overviewRes.json());
         if (campaignsRes.ok) {
@@ -45,36 +88,54 @@ export function AnalyticsPage() {
         setCampaignsLoading(false);
       }
     }
+    setSelectedCampaign(null);
+    setDetail(null);
     fetchAll();
-  }, [user]);
+  }, [user, rangeQuery]);
 
-  const fetchPageviews = useCallback(async () => {
-    try {
-      const res = await authenticatedFetch(`/admin/analytics/pageviews?page=landing&days=${pvDays}`);
-      if (res.ok) setPageviews(await res.json());
-    } catch {}
-  }, [pvDays]);
-
-  useEffect(() => {
-    if (user) fetchPageviews();
-  }, [user, fetchPageviews]);
-
-  // Landing-page conversion funnel — reuses the same day selector as pageviews.
+  // Every time-bound query on this page is keyed off `rangeQuery` so the
+  // date picker drives the whole view in lockstep. Aggregate snapshots
+  // (overview, campaigns) are intentionally NOT range-bound — they're
+  // all-time inventory views, not time-series.
   useEffect(() => {
     if (!user) return;
-    authenticatedFetch(`/admin/analytics/landing-funnel?days=${pvDays}`)
+    authenticatedFetch(`/admin/analytics/pageviews?page=landing&${rangeQuery}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setPageviews(d); })
+      .catch(() => {});
+  }, [user, rangeQuery]);
+
+  useEffect(() => {
+    if (!user) return;
+    authenticatedFetch(`/admin/analytics/landing-funnel?${rangeQuery}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d) setFunnel(d); })
       .catch(() => {});
-  }, [user, pvDays]);
+  }, [user, rangeQuery]);
 
   useEffect(() => {
     if (!user) return;
-    authenticatedFetch("/admin/analytics/partner-clicks?days=90")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setPartnerClicks(d); })
+    authenticatedFetch(`/admin/analytics/activity-series?${rangeQuery}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setActivitySeries(d); })
       .catch(() => {});
-  }, [user]);
+  }, [user, rangeQuery]);
+
+  useEffect(() => {
+    if (!user) return;
+    authenticatedFetch(`/admin/analytics/signups-series?${rangeQuery}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setSignupsSeries(d); })
+      .catch(() => {});
+  }, [user, rangeQuery]);
+
+  useEffect(() => {
+    if (!user) return;
+    authenticatedFetch(`/admin/analytics/partner-clicks?${rangeQuery}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setPartnerClicks(d); })
+      .catch(() => {});
+  }, [user, rangeQuery]);
 
   async function loadDetail(tag) {
     if (selectedCampaign === tag) {
@@ -122,13 +183,32 @@ export function AnalyticsPage() {
     >
       <div style={{ maxWidth: 800, margin: "0 auto" }}>
         {/* Header */}
-        <div style={{ marginBottom: "clamp(16px, 3vw, 24px)" }}>
-          <h1 style={{ margin: 0, fontSize: "clamp(20px, 5vw, 26px)", fontWeight: 700, color: colors.text }}>
-            Analytics
-          </h1>
-          <p style={{ margin: "4px 0 0", fontSize: "13px", color: colors.textSubtle }}>
-            Newsletter campaign performance and engagement.
-          </p>
+        <div
+          style={{
+            marginBottom: "clamp(16px, 3vw, 24px)",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h1 style={{ margin: 0, fontSize: "clamp(20px, 5vw, 26px)", fontWeight: 700, color: colors.text }}>
+              Analytics
+            </h1>
+            <p style={{ margin: "4px 0 0", fontSize: "13px", color: colors.textSubtle }}>
+              Activity, funnel and campaigns — bound to the date range below.
+            </p>
+          </div>
+          <DateRangePicker
+            startDate={dateRange.startDate}
+            endDate={dateRange.endDate}
+            onChange={(s, e) => setDateRange({ startDate: s, endDate: e })}
+            allowPast
+            blockFuture
+            quickRanges={ANALYTICS_QUICK_RANGES}
+          />
         </div>
 
         {/* Landing Page Views */}
@@ -136,25 +216,8 @@ export function AnalyticsPage() {
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <SectionLabel>Landing Page — pullup.se</SectionLabel>
-              <div style={{ display: "flex", gap: 4 }}>
-                {[7, 14, 30, 90].map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => setPvDays(d)}
-                    style={{
-                      padding: "3px 10px",
-                      borderRadius: "999px",
-                      border: pvDays === d ? "1px solid rgba(255,255,255,0.2)" : "1px solid transparent",
-                      background: pvDays === d ? "rgba(255,255,255,0.1)" : "transparent",
-                      color: pvDays === d ? "#fff" : "rgba(255,255,255,0.35)",
-                      fontSize: "11px",
-                      fontWeight: pvDays === d ? 600 : 400,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {d}d
-                  </button>
-                ))}
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                last {periodDays}d
               </div>
             </div>
 
@@ -179,11 +242,24 @@ export function AnalyticsPage() {
               )}
             </div>
 
-            {/* Stacked bar chart */}
+            {/* Stacked bar chart — sources by day, with daily signups
+                overlaid as a line on the right axis. Lets us read traffic
+                shape and signup yield in one chart. */}
             {pageviews.daily && pageviews.daily.length > 0 && (
               <LandingDailyChart
                 daily={pageviews.daily}
                 allSources={[...new Set((pageviews.sources || []).map(s => s.source))]}
+                lineOverlay={
+                  signupsSeries?.buckets?.length > 0
+                    ? {
+                        label: "New users",
+                        color: "#fbbf24",
+                        byDate: Object.fromEntries(
+                          signupsSeries.buckets.map((b) => [b.date, b.signups]),
+                        ),
+                      }
+                    : null
+                }
               />
             )}
 
@@ -310,6 +386,66 @@ export function AnalyticsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Activity over time — events created (bars) + RSVPs collected
+            per day (line). Sits between Conversion Funnel and Partner
+            Clicks: after the funnel snapshot, this is the natural next
+            question — "are hosts publishing and is the list growing?". */}
+        {activitySeries && activitySeries.buckets?.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <SectionLabel>Activity</SectionLabel>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                Events created &middot; emails collected · last {activitySeries.periodDays}d
+              </div>
+            </div>
+            <div
+              style={{
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                padding: 16,
+              }}
+            >
+              {(() => {
+                const totalEvents = activitySeries.buckets.reduce((s, b) => s + (b.eventsCreated || 0), 0);
+                const totalRsvps = activitySeries.buckets.reduce((s, b) => s + (b.rsvps || 0), 0);
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 24,
+                      flexWrap: "wrap",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span style={{ fontSize: 24, fontWeight: 700, color: "#4ade80" }}>
+                        {totalEvents.toLocaleString()}
+                      </span>
+                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+                        events created
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span style={{ fontSize: 24, fontWeight: 700, color: "#fbbf24" }}>
+                        {totalRsvps.toLocaleString()}
+                      </span>
+                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+                        emails collected (RSVPs)
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+              <TimeSeriesChart
+                buckets={activitySeries.buckets}
+                bars={{ key: "eventsCreated", label: "Events created", color: "rgba(74,222,128,0.7)" }}
+                line={{ key: "rsvps", label: "Emails collected", color: "#fbbf24" }}
+              />
             </div>
           </div>
         )}
@@ -844,19 +980,39 @@ function DeviceDonut({ mobile, desktop }) {
   );
 }
 
-function LandingDailyChart({ daily, allSources }) {
+function LandingDailyChart({ daily, allSources, lineOverlay }) {
   const [hoverDay, setHoverDay] = useState(null);
 
   const maxDailyViews = Math.max(...daily.map(d => d.views), 1);
   const step = Math.max(1, Math.floor(daily.length / 7));
   const xLabels = daily.map((_, i) => i).filter(i => i % step === 0 || i === daily.length - 1);
 
+  // Right-axis scale for the optional line overlay (e.g. daily signups).
+  // Independent of the bar scale so a line of small numbers stays visible
+  // even when the views axis is large.
+  const lineByDate = lineOverlay?.byDate || null;
+  const lineValues = lineByDate
+    ? daily.map((d) => Number(lineByDate[d.date] || 0))
+    : [];
+  const maxLine = lineByDate ? Math.max(1, ...lineValues) : 1;
+
   const W = 720, H = 160;
-  const PAD = { top: 10, right: 8, bottom: 24, left: 36 };
+  const PAD = { top: 10, right: lineOverlay ? 36 : 8, bottom: 24, left: 36 };
   const chartW = W - PAD.left - PAD.right;
   const chartH = H - PAD.top - PAD.bottom;
   const niceMax = Math.ceil(maxDailyViews / (maxDailyViews > 20 ? 10 : maxDailyViews > 5 ? 5 : 1)) * (maxDailyViews > 20 ? 10 : maxDailyViews > 5 ? 5 : 1) || 1;
   const barWidth = Math.max(3, (chartW / daily.length) * 0.7);
+
+  const linePoints = lineByDate
+    ? daily
+        .map((d, i) => {
+          const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
+          const v = Number(lineByDate[d.date] || 0);
+          const y = PAD.top + chartH - (v / maxLine) * chartH;
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(" ")
+    : "";
 
   return (
     <div style={{
@@ -876,6 +1032,18 @@ function LandingDailyChart({ daily, allSources }) {
               <line x1={PAD.left} y1={y} x2={PAD.left + chartW} y2={y}
                 stroke="rgba(255,255,255,0.06)" strokeDasharray="4,4" />
               <text x={PAD.left - 6} y={y + 3} textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize="10">{val}</text>
+              {lineOverlay && (
+                <text
+                  x={PAD.left + chartW + 6}
+                  y={y + 3}
+                  textAnchor="start"
+                  fill={lineOverlay.color}
+                  opacity={0.55}
+                  fontSize="10"
+                >
+                  {Math.round(maxLine * f)}
+                </text>
+              )}
             </g>
           );
         })}
@@ -907,6 +1075,36 @@ function LandingDailyChart({ daily, allSources }) {
             </g>
           );
         })}
+
+        {/* Optional line overlay (e.g. daily signups). Drawn after bars so
+            it sits on top, with its own scale on the right axis. */}
+        {lineOverlay && linePoints && (
+          <>
+            <polyline
+              points={linePoints}
+              fill="none"
+              stroke={lineOverlay.color}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            {daily.map((d, i) => {
+              const v = Number(lineByDate[d.date] || 0);
+              const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
+              const y = PAD.top + chartH - (v / maxLine) * chartH;
+              return (
+                <circle
+                  key={`lp-${d.date}`}
+                  cx={x}
+                  cy={y}
+                  r={1.6}
+                  fill={lineOverlay.color}
+                  opacity={0.85}
+                />
+              );
+            })}
+          </>
+        )}
 
         {/* Hover line */}
         {hoverDay !== null && (
@@ -942,6 +1140,30 @@ function LandingDailyChart({ daily, allSources }) {
             {new Date(daily[hoverDay].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
           </div>
           <div style={{ color: "rgba(255,255,255,0.5)" }}>{daily[hoverDay].views} unique visitors</div>
+          {lineOverlay && (
+            <div
+              style={{
+                color: lineOverlay.color,
+                marginTop: 1,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <div
+                style={{
+                  width: 10,
+                  height: 2,
+                  background: lineOverlay.color,
+                  flexShrink: 0,
+                }}
+              />
+              <span>
+                {lineOverlay.label}:{" "}
+                {Number(lineByDate[daily[hoverDay].date] || 0)}
+              </span>
+            </div>
+          )}
           {Object.entries(daily[hoverDay].bySource || {}).sort((a, b) => b[1] - a[1]).map(([src, count]) => (
             <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
               <div style={{ width: 5, height: 5, borderRadius: 1, background: getLandingSourceColor(src), flexShrink: 0 }} />
@@ -952,7 +1174,7 @@ function LandingDailyChart({ daily, allSources }) {
       )}
 
       {/* Legend */}
-      {allSources.length > 0 && (
+      {(allSources.length > 0 || lineOverlay) && (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8, paddingLeft: PAD.left }}>
           {allSources.map(src => (
             <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
@@ -960,8 +1182,334 @@ function LandingDailyChart({ daily, allSources }) {
               {src}
             </div>
           ))}
+          {lineOverlay && (
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10px", color: "rgba(255,255,255,0.5)" }}>
+              <div style={{ width: 14, height: 2, background: lineOverlay.color }} />
+              {lineOverlay.label}
+            </div>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * TimeSeriesChart — bars + line, two-axis SVG chart.
+ *
+ * Lightweight by design: no external chart library, no canvas, just SVG
+ * primitives so it stays consistent with the rest of the page's styling
+ * and renders crisply at any size.
+ *
+ * Props:
+ *   buckets: [{ date: "YYYY-MM-DD", ...metricKeys }]
+ *   bars: { key, label, color }     – left axis, daily bar values
+ *   line: { key, label, color }     – right axis, can be cumulative
+ */
+// Build dedupe-aware integer ticks for a Y-axis. Without this, tiny maxes
+// like 2 produce duplicates ("0, 1, 1, 2, 2") because each fractional
+// step rounds to the same integer. We compute the unique sorted set of
+// integer values across the fractions [0, 0.25, 0.5, 0.75, 1] so the
+// axis always reads cleanly regardless of scale.
+function buildTicks(max) {
+  const fractions = [0, 0.25, 0.5, 0.75, 1];
+  const seen = new Set();
+  const ticks = [];
+  for (const f of fractions) {
+    const v = Math.round(max * f);
+    if (seen.has(v)) continue;
+    seen.add(v);
+    ticks.push({ value: v, fraction: max > 0 ? v / max : 0 });
+  }
+  return ticks.sort((a, b) => a.value - b.value);
+}
+
+function TimeSeriesChart({ buckets, bars, line, height = 180 }) {
+  const [hoverIndex, setHoverIndex] = useState(null);
+
+  if (!buckets || buckets.length === 0) return null;
+
+  const W = 720;
+  const H = height;
+  const padL = 30;
+  const padR = 36;
+  const padT = 12;
+  const padB = 28;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+
+  const barValues = buckets.map((b) => Number(b[bars.key] || 0));
+  const lineValues = buckets.map((b) => Number(b[line.key] || 0));
+  const maxBar = Math.max(1, ...barValues);
+  const maxLine = Math.max(1, ...lineValues);
+
+  const barSlot = innerW / buckets.length;
+  const barWidth = Math.max(2, Math.min(barSlot - 2, 18));
+
+  const linePoints = buckets
+    .map((b, i) => {
+      const x = padL + i * barSlot + barSlot / 2;
+      const y = padT + innerH - (Number(b[line.key] || 0) / maxLine) * innerH;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  // Sparse x-axis date labels: ~5 across the period
+  const labelCount = Math.min(5, buckets.length);
+  const labelEvery = Math.max(1, Math.ceil(buckets.length / labelCount));
+
+  const barTicks = buildTicks(maxBar);
+  const lineTicks = buildTicks(maxLine);
+
+  function fmtDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
+  const hover = hoverIndex !== null ? buckets[hoverIndex] : null;
+  const hoverX =
+    hoverIndex !== null ? padL + hoverIndex * barSlot + barSlot / 2 : 0;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        style={{ width: "100%", height, display: "block" }}
+        onMouseLeave={() => setHoverIndex(null)}
+      >
+        {/* Grid + bar axis labels (left) */}
+        {barTicks.map((t) => {
+          const y = padT + innerH - t.fraction * innerH;
+          return (
+            <g key={`bt-${t.value}`}>
+              <line
+                x1={padL}
+                x2={W - padR}
+                y1={y}
+                y2={y}
+                stroke="rgba(255,255,255,0.05)"
+                strokeWidth={1}
+              />
+              <text
+                x={padL - 4}
+                y={y + 3}
+                textAnchor="end"
+                fill="rgba(255,255,255,0.3)"
+                fontSize={9}
+              >
+                {t.value.toLocaleString()}
+              </text>
+            </g>
+          );
+        })}
+        {/* Line axis labels (right) — separate set so scales don't conflict */}
+        {lineTicks.map((t) => {
+          const y = padT + innerH - t.fraction * innerH;
+          return (
+            <text
+              key={`lt-${t.value}`}
+              x={W - padR + 4}
+              y={y + 3}
+              textAnchor="start"
+              fill={line.color}
+              opacity={0.55}
+              fontSize={9}
+            >
+              {t.value.toLocaleString()}
+            </text>
+          );
+        })}
+
+        {/* Bars */}
+        {buckets.map((b, i) => {
+          const v = Number(b[bars.key] || 0);
+          const h = (v / maxBar) * innerH;
+          const x = padL + i * barSlot + (barSlot - barWidth) / 2;
+          const y = padT + innerH - h;
+          return (
+            <rect
+              key={b.date}
+              x={x}
+              y={y}
+              width={barWidth}
+              height={h}
+              rx={2}
+              fill={bars.color}
+            />
+          );
+        })}
+
+        {/* Line */}
+        <polyline
+          points={linePoints}
+          fill="none"
+          stroke={line.color}
+          strokeWidth={2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {buckets.map((b, i) => {
+          const x = padL + i * barSlot + barSlot / 2;
+          const y =
+            padT + innerH - (Number(b[line.key] || 0) / maxLine) * innerH;
+          return (
+            <circle
+              key={`p-${b.date}`}
+              cx={x}
+              cy={y}
+              r={1.6}
+              fill={line.color}
+              opacity={0.85}
+            />
+          );
+        })}
+
+        {/* Hover guide line */}
+        {hoverIndex !== null && (
+          <line
+            x1={hoverX}
+            x2={hoverX}
+            y1={padT}
+            y2={padT + innerH}
+            stroke="rgba(255,255,255,0.18)"
+            strokeWidth={1}
+          />
+        )}
+
+        {/* Per-day hit-rect for hover */}
+        {buckets.map((b, i) => (
+          <rect
+            key={`hit-${b.date}`}
+            x={padL + i * barSlot}
+            y={padT}
+            width={barSlot}
+            height={innerH}
+            fill="transparent"
+            style={{ cursor: "crosshair" }}
+            onMouseEnter={() => setHoverIndex(i)}
+          />
+        ))}
+
+        {/* X-axis date labels */}
+        {buckets.map((b, i) => {
+          if (i % labelEvery !== 0 && i !== buckets.length - 1) return null;
+          const x = padL + i * barSlot + barSlot / 2;
+          return (
+            <text
+              key={`l-${b.date}`}
+              x={x}
+              y={H - 8}
+              textAnchor="middle"
+              fill="rgba(255,255,255,0.35)"
+              fontSize={9}
+            >
+              {fmtDate(b.date)}
+            </text>
+          );
+        })}
+      </svg>
+
+      {/* Hover tooltip — rendered as a positioned div so it floats clear of
+          the SVG and reads at the same size regardless of viewBox scaling. */}
+      {hover && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${(hoverX / W) * 100}%`,
+            top: 8,
+            transform: `translateX(${hoverIndex > buckets.length * 0.65 ? "calc(-100% - 10px)" : "10px"})`,
+            background: "rgba(15,12,25,0.95)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 8,
+            padding: "8px 12px",
+            fontSize: 12,
+            color: "#fff",
+            lineHeight: 1.6,
+            backdropFilter: "blur(12px)",
+            pointerEvents: "none",
+            zIndex: 10,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>
+            {fmtDate(hover.date)}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: "rgba(255,255,255,0.75)",
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: bars.color,
+                display: "inline-block",
+              }}
+            />
+            {bars.label}: {Number(hover[bars.key] || 0).toLocaleString()}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: "rgba(255,255,255,0.75)",
+            }}
+          >
+            <span
+              style={{
+                width: 12,
+                height: 2,
+                background: line.color,
+                display: "inline-block",
+              }}
+            />
+            {line.label}: {Number(hover[line.key] || 0).toLocaleString()}
+          </div>
+        </div>
+      )}
+
+      {/* Legend */}
+      <div
+        style={{
+          display: "flex",
+          gap: 16,
+          fontSize: 11,
+          color: "rgba(255,255,255,0.55)",
+          marginTop: 6,
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 2,
+              background: bars.color,
+              display: "inline-block",
+            }}
+          />
+          {bars.label}
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span
+            style={{
+              width: 14,
+              height: 2,
+              background: line.color,
+              display: "inline-block",
+            }}
+          />
+          {line.label}
+        </span>
+      </div>
     </div>
   );
 }

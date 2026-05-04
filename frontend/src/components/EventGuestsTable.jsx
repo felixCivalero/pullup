@@ -134,7 +134,7 @@ export function EventGuestsTable({
               <>
                 <SortableHeader
                   column="cocktailList"
-                  label="Cocktail List"
+                  label="List"
                   sortColumn={sortColumn}
                   sortDirection={sortDirection}
                   onSort={onSort}

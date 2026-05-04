@@ -185,6 +185,7 @@ export async function mapEventFromDb(dbEvent) {
     mediaSettings: dbEvent.media_settings || {},
     titleSettings: dbEvent.title_settings || null,
     sections: dbEvent.sections || [],
+    formFields: dbEvent.form_fields || [],
     hideLocation: dbEvent.hide_location || false,
     hideDate: dbEvent.hide_date || false,
     instantWaitlist: dbEvent.instant_waitlist || false,
@@ -721,6 +722,7 @@ function mapEventToDb(eventData) {
   if (eventData.mediaSettings !== undefined) dbData.media_settings = eventData.mediaSettings;
   if (eventData.titleSettings !== undefined) dbData.title_settings = eventData.titleSettings;
   if (eventData.sections !== undefined) dbData.sections = eventData.sections;
+  if (eventData.formFields !== undefined) dbData.form_fields = eventData.formFields;
   if (eventData.hideLocation !== undefined) dbData.hide_location = eventData.hideLocation;
   if (eventData.hideDate !== undefined) dbData.hide_date = eventData.hideDate;
   if (eventData.instantWaitlist !== undefined) dbData.instant_waitlist = eventData.instantWaitlist;
@@ -787,6 +789,9 @@ export async function createEvent({
 
   // Sections (event builder blocks)
   sections,
+
+  // Custom RSVP form fields
+  formFields,
 }) {
   if (!hostId) {
     throw new Error("hostId is required to create an event");
@@ -860,6 +865,7 @@ export async function createEvent({
     tiktok,
     soundcloud,
     sections: Array.isArray(sections) ? sections : [],
+    formFields: Array.isArray(formFields) ? formFields : [],
   };
 
   const dbData = mapEventToDb(eventData);
@@ -2408,6 +2414,7 @@ function mapRsvpFromDb(dbRsvp, person = null) {
     waitlistLinkExpiresAt: dbRsvp.waitlist_link_expires_at,
     waitlistLinkUsedAt: dbRsvp.waitlist_link_used_at,
     waitlistLinkToken: dbRsvp.waitlist_link_token,
+    customAnswers: dbRsvp.custom_answers || {},
     createdAt: dbRsvp.created_at,
     updatedAt: dbRsvp.updated_at,
     // Enrich with person data if provided
@@ -2489,6 +2496,8 @@ function mapRsvpToDb(rsvpData) {
     dbData.waitlist_link_token = rsvpData.waitlistLinkToken;
   if (rsvpData.isVip !== undefined) dbData.is_vip = rsvpData.isVip;
   if (rsvpData.visitorId !== undefined) dbData.visitor_id = rsvpData.visitorId;
+  if (rsvpData.customAnswers !== undefined)
+    dbData.custom_answers = rsvpData.customAnswers || {};
   return dbData;
 }
 
@@ -2556,6 +2565,7 @@ export async function addRsvp({
   isVip = false,
   visitorId = null,
   joinWaitlist = false,
+  customAnswers = null,
 }) {
   const event = await findEventBySlug(slug);
   if (!event) return { error: "not_found" };
@@ -2877,6 +2887,24 @@ export async function addRsvp({
   // Check if the atomic function rejected the insert (capacity exceeded, user didn't opt in)
   if (atomicResult && atomicResult.rejected) {
     return { error: "capacity_exceeded", event };
+  }
+
+  // Persist custom form-field answers if any (atomic_rsvp_insert RPC doesn't take this param yet)
+  if (
+    customAnswers &&
+    typeof customAnswers === "object" &&
+    Object.keys(customAnswers).length > 0 &&
+    atomicResult?.id
+  ) {
+    const { error: updateErr } = await supabase
+      .from("rsvps")
+      .update({ custom_answers: customAnswers })
+      .eq("id", atomicResult.id);
+    if (updateErr) {
+      console.error("Failed to persist custom_answers:", updateErr);
+    } else {
+      atomicResult.custom_answers = customAnswers;
+    }
   }
 
   const rsvp = mapRsvpFromDb(atomicResult, person);
@@ -4021,11 +4049,28 @@ export async function getUserProfile(userId) {
   return profile;
 }
 
-// Create default profile
+// Create default profile.
+//
+// Runs the first time getUserProfile() is called for a freshly authenticated
+// user. We use this moment for two pieces of housekeeping:
+//
+//   1. Seed contact_email from the auth user's email so it's not null on
+//      first load.
+//   2. Auto-link any sales_leads rows that were tracking this email before
+//      the user signed up. This preserves sales pipeline state (status,
+//      notes, source attribution) across the prospect → user transition,
+//      and prevents the admin sales view from showing both the original
+//      lead row AND a duplicate auto-surfaced "user" row for the same person.
 export async function createDefaultProfile(userId) {
-  // Get user email from auth.users via service role
-  // Note: We can't use admin API from client, so we'll get basic info from the request
-  // For now, we'll create a minimal profile and let the user update it
+  // Pull the auth user's email — service-role only, OK in this backend.
+  let authEmail = null;
+  try {
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+    authEmail = authUser?.user?.email?.toLowerCase().trim() || null;
+  } catch (err) {
+    console.warn("[createDefaultProfile] auth lookup failed:", err.message);
+  }
+
   const defaultProfile = {
     id: userId,
     name: null,
@@ -4043,7 +4088,7 @@ export async function createDefaultProfile(userId) {
     },
     brand_website: null,
     brand_logo_url: null,
-    contact_email: null,
+    contact_email: authEmail,
     additional_emails: [],
     third_party_accounts: [],
     is_admin: false,
@@ -4056,6 +4101,28 @@ export async function createDefaultProfile(userId) {
     .single();
 
   if (error) throw error;
+
+  // Auto-link unlinked sales_leads with this email. Lead emails are stored
+  // lowercase (POST /admin/sales/leads normalizes), so an exact match works.
+  // Matching with .is("profile_id", null) keeps idempotency — admin manual
+  // links won't be overwritten by re-signup of a different user.
+  if (authEmail) {
+    try {
+      await supabase
+        .from("sales_leads")
+        .update({
+          profile_id: userId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("email", authEmail)
+        .is("profile_id", null);
+    } catch (err) {
+      // Non-fatal: GET /admin/sales/leads still runs an email-based
+      // auto-match as a fallback when the admin views the page.
+      console.warn("[createDefaultProfile] sales link failed:", err.message);
+    }
+  }
+
   return mapProfileFromDb(data);
 }
 
@@ -4141,6 +4208,8 @@ function mapProfileFromDb(dbProfile) {
     name: dbProfile.name || "",
     brand: dbProfile.brand || "",
     bio: dbProfile.bio || "",
+    city: dbProfile.city || "",
+    visitorId: dbProfile.visitor_id || null,
     profilePicture: dbProfile.profile_picture_url || null,
     mobileNumber: dbProfile.mobile_number || "",
     brandingLinks: dbProfile.branding_links || {
@@ -4169,6 +4238,14 @@ function mapProfileToDb(profile) {
   if (profile.name !== undefined) dbProfile.name = profile.name;
   if (profile.brand !== undefined) dbProfile.brand = profile.brand;
   if (profile.bio !== undefined) dbProfile.bio = profile.bio;
+  if (profile.city !== undefined) dbProfile.city = profile.city;
+  // Stamp visitor_id only on first capture so a returning user from a
+  // different device doesn't overwrite the earlier (more meaningful)
+  // pre-signup visitor cookie. The frontend only sends it during
+  // onboarding finalize, so this defensive guard is belt-and-braces.
+  if (profile.visitorId !== undefined && profile.visitorId !== null) {
+    dbProfile.visitor_id = profile.visitorId;
+  }
   if (profile.profilePicture !== undefined)
     dbProfile.profile_picture_url = profile.profilePicture;
   if (profile.mobileNumber !== undefined)

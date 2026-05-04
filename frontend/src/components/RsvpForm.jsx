@@ -43,6 +43,11 @@ export function RsvpForm({
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [capacityExceeded, setCapacityExceeded] = useState(false);
+  const [customAnswers, setCustomAnswers] = useState({});
+
+  const customFields = Array.isArray(event?.formFields)
+    ? event.formFields.filter((f) => f && f.id && (f.label || "").trim())
+    : [];
 
   useEffect(() => {
     if (document.activeElement && document.activeElement.blur) {
@@ -185,6 +190,17 @@ export function RsvpForm({
       return;
     }
 
+    // Required custom fields
+    for (const f of customFields) {
+      if (f.required) {
+        const val = (customAnswers[f.id] || "").trim();
+        if (!val) {
+          setError(`${f.label} is required`);
+          return;
+        }
+      }
+    }
+
     if (wantsDinner && !dinnerTimeSlot) {
       setError("Please select a dinner time");
       return;
@@ -202,6 +218,11 @@ export function RsvpForm({
 
     if (onSubmit) {
       try {
+        const trimmedAnswers = {};
+        for (const f of customFields) {
+          const val = (customAnswers[f.id] || "").trim();
+          if (val) trimmedAnswers[f.id] = val;
+        }
         const result = await onSubmit({
           email: isVipInvite ? (vipOffer.invite?.email || "").trim() : email.trim(),
           name: name.trim() || null,
@@ -210,6 +231,7 @@ export function RsvpForm({
           dinnerTimeSlot: wantsDinner ? dinnerTimeSlot : null,
           dinnerPartySize: wantsDinner ? dinnerSeats : null,
           marketingOptIn,
+          customAnswers: trimmedAnswers,
         });
         if (result && result.error) {
           if (result.capacityExceeded) {
@@ -328,14 +350,17 @@ export function RsvpForm({
       onTouchStart={(e) => { if (e.touches.length > 1) e.preventDefault(); }}
     >
       {/* Email & Name */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "20px" }}>
-        <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <label style={fieldLabelStyle}>
+            Email<span style={requiredMarkStyle}>*</span>
+          </label>
           <input
             type="email"
             required
             value={email}
             onChange={(e) => { if (!isVipInvite) { setEmail(e.target.value); setError(""); } }}
-            placeholder="Email"
+            placeholder="you@example.com"
             disabled={loading}
             readOnly={isVipInvite}
             autoComplete="email"
@@ -351,16 +376,50 @@ export function RsvpForm({
             </div>
           )}
         </div>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Full name"
-          required
-          disabled={loading}
-          autoComplete="name"
-          style={inputStyle}
-        />
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <label style={fieldLabelStyle}>
+            Full name<span style={requiredMarkStyle}>*</span>
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your full name"
+            required
+            disabled={loading}
+            autoComplete="name"
+            style={inputStyle}
+          />
+        </div>
+        {customFields.map((f) => {
+          const inputType =
+            f.type === "phone" ? "tel" :
+            f.type === "birthday" ? "date" :
+            (f.inputType || "text");
+          const placeholder =
+            f.placeholder || (f.type === "custom" ? "Placeholder" : f.label);
+          return (
+            <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={fieldLabelStyle}>
+                {f.label}{f.required && <span style={requiredMarkStyle}>*</span>}
+              </label>
+              <input
+                type={inputType}
+                value={customAnswers[f.id] || ""}
+                onChange={(e) => setCustomAnswers((prev) => ({ ...prev, [f.id]: e.target.value }))}
+                placeholder={placeholder}
+                disabled={loading}
+                required={!!f.required}
+                autoComplete={
+                  f.type === "phone" ? "tel" :
+                  f.type === "company" ? "organization" :
+                  "off"
+                }
+                style={inputStyle}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {/* Party options block */}
@@ -536,7 +595,7 @@ export function RsvpForm({
                   Bring friends
                 </div>
                 <div style={{ fontSize: "11px", opacity: 0.4, marginTop: "2px" }}>
-                  Up to {maxPlusOnes}{wantsDinner ? " · cocktails only" : ""}
+                  Up to {maxPlusOnes}{wantsDinner ? " · list only" : ""}
                 </div>
               </div>
               <InlineStepper
@@ -550,35 +609,45 @@ export function RsvpForm({
         </div>
       )}
 
-      {/* Party summary — list breakdown */}
-      {!isPaidEvent && (
+      {/* Party summary — only when guest can bring extras or there's dinner */}
+      {!isPaidEvent && (event?.dinnerEnabled || maxPlusOnes > 0) && (
         <div style={{
-          padding: "0 0 16px",
+          padding: "10px 12px",
           marginBottom: "16px",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+          borderRadius: "8px",
+          background: "rgba(255,255,255,0.025)",
+          border: "1px solid rgba(255,255,255,0.04)",
         }}>
           <div style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: (wantsDinner && dinnerCount > 0) || cocktailsOnlyCount > 0 ? "8px" : 0,
+            marginBottom: (wantsDinner && dinnerCount > 0) || cocktailsOnlyCount > 0 ? "6px" : 0,
           }}>
-            <span style={{ opacity: 0.4, fontSize: "14px" }}>Your party</span>
-            <span style={{ fontWeight: 600, fontSize: "14px" }}>
+            <span style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.1em",
+              color: "rgba(255,255,255,0.4)",
+            }}>
+              Total
+            </span>
+            <span style={{ fontWeight: 600, fontSize: "13px", color: "rgba(255,255,255,0.85)" }}>
               {totalPartySize} {totalPartySize === 1 ? "person" : "people"}
             </span>
           </div>
           {((wantsDinner && dinnerCount > 0) || cocktailsOnlyCount > 0) && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
               {wantsDinner && dinnerCount > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", opacity: 0.4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", opacity: 0.45 }}>
                   <span>Dinner</span>
                   <span>{dinnerCount} {dinnerCount === 1 ? "seat" : "seats"}</span>
                 </div>
               )}
               {cocktailsOnlyCount > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", opacity: 0.4 }}>
-                  <span>{wantsDinner ? "Cocktails only" : "Extra guests"}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", opacity: 0.45 }}>
+                  <span>{wantsDinner ? "List only" : "Extra guests"}</span>
                   <span>{cocktailsOnlyCount}</span>
                 </div>
               )}
@@ -947,6 +1016,19 @@ const inputStyle = {
   WebkitAppearance: "none",
   appearance: "none",
   fontFamily: "inherit",
+};
+
+const fieldLabelStyle = {
+  fontSize: "11px",
+  fontWeight: 600,
+  color: "rgba(255,255,255,0.55)",
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+};
+
+const requiredMarkStyle = {
+  color: "#ef4444",
+  marginLeft: "4px",
 };
 
 function submitButtonStyle(disabled) {

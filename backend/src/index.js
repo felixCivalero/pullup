@@ -1464,6 +1464,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       marketingOptIn = false, // NEW: opt-in to newsletter from RSVP form
       visitorId = null, // Links browsing session to RSVP
       joinWaitlist = false, // If true, join waitlist when event is full
+      customAnswers = {}, // Answers to event-defined custom form fields
     } = req.body;
 
     if (!email && !vipToken) {
@@ -1628,6 +1629,34 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       }
     }
 
+    // Validate custom form fields against event's required form fields
+    let resolvedCustomAnswers = {};
+    if (!existingWaitlistRsvp) {
+      const eventForFields = await findEventBySlug(slug);
+      const fields = Array.isArray(eventForFields?.formFields)
+        ? eventForFields.formFields
+        : [];
+      const incoming =
+        customAnswers && typeof customAnswers === "object" ? customAnswers : {};
+      const missing = [];
+      for (const f of fields) {
+        if (!f || !f.id) continue;
+        const val = incoming[f.id];
+        const trimmed = typeof val === "string" ? val.trim() : "";
+        if (f.required && !trimmed) {
+          missing.push(f.label || f.id);
+        }
+        if (trimmed) resolvedCustomAnswers[f.id] = trimmed.slice(0, 1000);
+      }
+      if (missing.length > 0) {
+        return res.status(400).json({
+          error: "missing_required_fields",
+          message: `Please fill in: ${missing.join(", ")}`,
+          fields: missing,
+        });
+      }
+    }
+
     // For waitlist upgrades, use existing RSVP details (all fields locked)
     const rsvpData = existingWaitlistRsvp
       ? {
@@ -1654,6 +1683,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           isVip: !!vipInvite,
           visitorId: visitorId || null,
           joinWaitlist: !!joinWaitlist,
+          customAnswers: resolvedCustomAnswers,
         };
 
     const result = await addRsvp(rsvpData);
@@ -2384,6 +2414,10 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     }
 
     // If user opted in to marketing, upsert into newsletter_subscriptions
+    // AND mirror the consent flag onto people.marketing_consent so the
+    // admin email audience ("Opted in only") sees them. The terms/privacy
+    // checkbox on the RSVP form is treated as marketing opt-in for
+    // PullUp's purposes — every guest who RSVP'd has explicitly agreed.
     if (marketingOptIn === true && result.rsvp?.email) {
       try {
         const { supabase } = await import("./supabase.js");
@@ -2407,6 +2441,25 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             },
             { onConflict: "email" }
           );
+
+        // Set marketing_consent on the master people row(s) — only when not
+        // already set, so we don't overwrite an admin-set false.
+        await supabase
+          .from("people")
+          .update({
+            marketing_consent: true,
+            marketing_consent_at: rsvpNow,
+          })
+          .eq("email", rsvpEmail)
+          .is("marketing_consent", null);
+        await supabase
+          .from("people")
+          .update({
+            marketing_consent: true,
+            marketing_consent_at: rsvpNow,
+          })
+          .eq("email", rsvpEmail)
+          .eq("marketing_consent", false);
       } catch (nlErr) {
         console.error("[rsvp] Failed to upsert newsletter subscription:", nlErr);
         // Don't block the RSVP on newsletter failure
@@ -5347,6 +5400,10 @@ app.delete("/host/crm/views/:viewId", requireAuth, async (req, res) => {
 function validateFollowupTemplateContent(tc) {
   if (!tc || typeof tc !== "object") return "templateContent must be an object";
   if (tc.previewText !== undefined && typeof tc.previewText !== "string") return "previewText must be a string";
+  if (tc.fromName !== undefined && tc.fromName !== null) {
+    if (typeof tc.fromName !== "string") return "fromName must be a string";
+    if (tc.fromName.length > 80) return "fromName too long (max 80 chars)";
+  }
   if (!Array.isArray(tc.blocks)) return "blocks must be an array";
   for (let i = 0; i < tc.blocks.length; i += 1) {
     const b = tc.blocks[i];
@@ -5382,6 +5439,33 @@ function validateFollowupTemplateContent(tc) {
       }
       if (b.bgColor !== undefined && b.bgColor !== null && !/^#[0-9a-f]{6}$/i.test(b.bgColor)) return `block ${i}: bgColor must be #RRGGBB hex`;
       if (b.align !== undefined && !["left", "center", "right"].includes(b.align)) return `block ${i}: align must be left/center/right`;
+    } else if (b.type === "pullup_event" || b.type === "discover_event") {
+      // Event-card snapshot block. Two shapes accepted:
+      //   1. Multi-event:  { events: [{ title, imageUrl, url, spotifyUrl, ... }, ...] }
+      //   2. Legacy single: top-level { title, imageUrl, url, spotifyUrl, ... }
+      if (b.layout !== undefined && !["big", "grid2", "list"].includes(b.layout)) {
+        return `block ${i}: layout must be big | grid2 | list`;
+      }
+      function checkOne(ev, prefix) {
+        if (!ev || typeof ev !== "object") return `${prefix}: must be an object`;
+        if (typeof ev.title !== "string" || ev.title.trim() === "") return `${prefix}: title required`;
+        if (ev.imageUrl !== undefined && ev.imageUrl !== null && ev.imageUrl !== "" && !/^https?:\/\//i.test(ev.imageUrl)) return `${prefix}: imageUrl must be http(s)`;
+        if (ev.url !== undefined && ev.url !== null && ev.url !== "" && !/^https?:\/\//i.test(ev.url)) return `${prefix}: url must be http(s)`;
+        if (ev.spotifyUrl !== undefined && ev.spotifyUrl !== null && ev.spotifyUrl !== "" && !/^https?:\/\//i.test(ev.spotifyUrl)) return `${prefix}: spotifyUrl must be http(s)`;
+        if (ev.hostedBy !== undefined && ev.hostedBy !== null && typeof ev.hostedBy !== "string") return `${prefix}: hostedBy must be a string`;
+        return null;
+      }
+      if (Array.isArray(b.events)) {
+        if (b.events.length === 0) return `block ${i}: at least one event required`;
+        if (b.events.length > 12) return `block ${i}: too many events (max 12)`;
+        for (let j = 0; j < b.events.length; j += 1) {
+          const err = checkOne(b.events[j], `block ${i}.events[${j}]`);
+          if (err) return err;
+        }
+      } else {
+        const err = checkOne(b, `block ${i}`);
+        if (err) return err;
+      }
     } else {
       return `block ${i}: unknown type "${b.type}"`;
     }
@@ -6243,6 +6327,12 @@ app.get("/host/profile", requireAuth, async (req, res) => {
 // ---------------------------
 app.put("/host/profile", requireAuth, async (req, res) => {
   try {
+    // Ensure the profile row exists. updateUserProfile is plain UPDATE — for
+    // a brand-new user finishing onboarding, the row may not have been
+    // lazy-created yet, which would silently no-op the save. getUserProfile
+    // creates the default row if missing AND back-links any matching
+    // sales_leads by email at the same time.
+    await getUserProfile(req.user.id);
     const updates = req.body;
     const updated = await updateUserProfile(req.user.id, updates);
     res.json(updated);
@@ -7766,23 +7856,32 @@ app.get("/admin/newsletter/weekly-events", requireAdmin, async (req, res) => {
 // Newsletter Analytics (admin)
 // ---------------------------
 
-// GET /admin/analytics/overview — aggregate stats
+// GET /admin/analytics/overview — aggregate stats over a date range.
+// Range comes from the admin date picker via resolveAnalyticsRange. We
+// restrict campaigns to those SENT in the range (created_at on outbox);
+// opens/clicks attributed to those sends count regardless of when they
+// fired, which matches how email marketing dashboards typically work.
 app.get("/admin/analytics/overview", requireAdmin, async (req, res) => {
   try {
     const { supabase: sb } = await import("./supabase.js");
+    const { periodStart, periodEnd } = resolveAnalyticsRange(req);
 
-    // Get all campaign outbox rows (scoped to campaign emails only)
     const { data: outboxRows } = await sb
       .from("email_outbox")
       .select("id, tracking_id, campaign_tag")
-      .not("campaign_tag", "is", null);
+      .not("campaign_tag", "is", null)
+      .gte("created_at", periodStart.toISOString())
+      .lte("created_at", periodEnd.toISOString());
 
     const allOutbox = outboxRows || [];
     const totalSent = allOutbox.length;
     const totalCampaigns = new Set(allOutbox.map(r => r.campaign_tag)).size;
     const campaignTrackingIds = allOutbox.map(r => r.tracking_id);
 
-    // Fetch opens and clicks scoped to campaign tracking_ids
+    // Fetch opens and clicks scoped to campaign tracking_ids in this range.
+    // Top-link aggregation must use the SAME tracking_id scope so "Top
+    // event views" reflects only the campaigns sent in the picker's
+    // window — otherwise it leaks lifetime clicks into a windowed view.
     const [opensRes, clicksRes, topLinksRes] = await Promise.all([
       campaignTrackingIds.length > 0
         ? sb.from("email_opens").select("tracking_id").in("tracking_id", campaignTrackingIds)
@@ -7790,7 +7889,9 @@ app.get("/admin/analytics/overview", requireAdmin, async (req, res) => {
       campaignTrackingIds.length > 0
         ? sb.from("email_clicks").select("tracking_id").in("tracking_id", campaignTrackingIds)
         : Promise.resolve({ data: [] }),
-      sb.from("email_clicks").select("link_url, link_label").limit(5000),
+      campaignTrackingIds.length > 0
+        ? sb.from("email_clicks").select("link_url, link_label").in("tracking_id", campaignTrackingIds)
+        : Promise.resolve({ data: [] }),
     ]);
 
     const uniqueOpens = new Set((opensRes.data || []).map(o => o.tracking_id)).size;
@@ -7889,16 +7990,20 @@ app.get("/admin/analytics/overview", requireAdmin, async (req, res) => {
   }
 });
 
-// GET /admin/analytics/campaigns — list all campaigns with open/click stats
+// GET /admin/analytics/campaigns — list campaigns sent in the date range
+// with open/click stats. Filtered by outbox.created_at so admin can scope
+// the campaign list to the same window the rest of the page is showing.
 app.get("/admin/analytics/campaigns", requireAdmin, async (req, res) => {
   try {
     const { supabase: sb } = await import("./supabase.js");
+    const { periodStart, periodEnd } = resolveAnalyticsRange(req);
 
-    // Get all distinct campaign_tags with their send counts
     const { data: campaigns, error } = await sb
       .from("email_outbox")
       .select("campaign_tag, id, tracking_id, status, created_at")
       .not("campaign_tag", "is", null)
+      .gte("created_at", periodStart.toISOString())
+      .lte("created_at", periodEnd.toISOString())
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -8606,13 +8711,27 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
     }
     const allSlugs = Object.values(eventSlugMap);
 
-    // Fetch outbox rows for newsletter campaigns and VIP campaigns in period
-    const { data: outboxRows } = await sb
-      .from("email_outbox")
-      .select("id, tracking_id, to_email, campaign_tag, status, created_at")
-      .like("campaign_tag", "host_campaign_%")
-      .gte("created_at", periodStart.toISOString())
-      .lte("created_at", periodEnd.toISOString());
+    // Restrict campaigns to those THIS host actually sent. Without this,
+    // every host saw the union of every host's campaigns because the
+    // campaign_tag prefix is shared platform-wide. Look up the user's
+    // own campaign ids first, build the matching tag list, then scope
+    // the outbox query to those tags only.
+    const { data: ownedCampaigns } = await sb
+      .from("email_campaigns")
+      .select("id")
+      .eq("user_id", req.user.id);
+    const ownedTagList = (ownedCampaigns || []).map(
+      (c) => `host_campaign_${c.id}`,
+    );
+
+    const { data: outboxRows } = ownedTagList.length === 0
+      ? { data: [] }
+      : await sb
+          .from("email_outbox")
+          .select("id, tracking_id, to_email, campaign_tag, status, created_at")
+          .in("campaign_tag", ownedTagList)
+          .gte("created_at", periodStart.toISOString())
+          .lte("created_at", periodEnd.toISOString());
 
     // Build campaign data if we have outbox rows
     let campaigns = [];
@@ -9650,7 +9769,13 @@ app.post("/t/event", async (req, res) => {
     }
     // Whitelist: prevents a compromised frontend from flooding the table
     // with arbitrary event names.
-    const ALLOWED = new Set(["cta_click", "auth_start", "signed_in"]);
+    const ALLOWED = new Set([
+      "cta_click",
+      "onboarding_step_view",
+      "onboarding_skip",
+      "auth_start",
+      "signed_in",
+    ]);
     if (!ALLOWED.has(eventName)) {
       return res.status(400).json({ error: "unknown eventName" });
     }
@@ -9685,14 +9810,10 @@ app.post("/t/event", async (req, res) => {
 app.get("/admin/analytics/pageviews", requireAdmin, async (req, res) => {
   try {
     const { supabase } = await import("./supabase.js");
-    const { days = "30" } = req.query;
-    const numDays = Math.min(parseInt(days) || 30, 365);
+    const { periodStart, periodEnd, days: numDays } = resolveAnalyticsRange(req);
 
-    const periodEnd = new Date();
-    const periodStart = new Date();
-    periodStart.setDate(periodStart.getDate() - numDays + 1);
-    periodStart.setHours(0, 0, 0, 0);
-
+    // Previous period of equal length, immediately before the current range,
+    // so the change-indicator math compares like-for-like.
     const prevEnd = new Date(periodStart.getTime() - 1);
     const prevStart = new Date(prevEnd);
     prevStart.setDate(prevStart.getDate() - numDays + 1);
@@ -9866,7 +9987,7 @@ app.get("/admin/platform-events", requireAdmin, async (req, res) => {
     const now = new Date().toISOString();
     let query = sb
       .from("events")
-      .select("id, slug, title, starts_at, ends_at, location, status, host_id, total_capacity, cocktail_capacity, ticket_type, created_at")
+      .select("id, slug, title, starts_at, ends_at, location, status, host_id, total_capacity, cocktail_capacity, ticket_type, created_at, admin_tags")
       .order("starts_at", { ascending: filter === "upcoming" });
 
     if (filter === "upcoming") {
@@ -9922,7 +10043,9 @@ app.get("/admin/platform-events", requireAdmin, async (req, res) => {
         createdAt: ev.created_at,
         capacity,
         confirmedGuests: rsvpCountMap[ev.id] || 0,
-        host: host ? { name: host.name, brand: host.brand, email: host.contact_email } : null,
+        adminTags: Array.isArray(ev.admin_tags) ? ev.admin_tags : [],
+        hostId: ev.host_id || null,
+        host: host ? { id: host.id, name: host.name, brand: host.brand, email: host.contact_email } : null,
       };
     });
 
@@ -9930,6 +10053,40 @@ app.get("/admin/platform-events", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("[admin/platform-events] error:", err.message);
     return res.status(500).json({ error: "Failed to fetch events" });
+  }
+});
+
+// Admin: PATCH /admin/platform-events/:id/tags — set internal classification
+// tags for an event. Admin-only metadata; never exposed to hosts or guests.
+// Body: { tags: string[] }  (also accepts comma-separated string for convenience)
+app.patch("/admin/platform-events/:id/tags", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+    const { id } = req.params;
+    const raw = req.body?.tags;
+    let tags = [];
+    if (Array.isArray(raw)) {
+      tags = raw;
+    } else if (typeof raw === "string") {
+      tags = raw.split(",");
+    }
+    tags = tags
+      .map((t) => (typeof t === "string" ? t.trim().toLowerCase() : ""))
+      .filter(Boolean);
+    // Dedupe, cap to 32 tags per event so a stray paste can't blow the row up.
+    tags = [...new Set(tags)].slice(0, 32);
+
+    const { data, error } = await sb
+      .from("events")
+      .update({ admin_tags: tags })
+      .eq("id", id)
+      .select("id, admin_tags")
+      .single();
+    if (error) throw error;
+    return res.json({ id: data.id, adminTags: data.admin_tags || [] });
+  } catch (err) {
+    console.error("[admin/platform-events/tags] error:", err.message);
+    return res.status(500).json({ error: "Failed to update tags" });
   }
 });
 
@@ -9966,13 +10123,7 @@ app.get("/admin/platform-events/:id/guests", requireAdmin, async (req, res) => {
 app.get("/admin/analytics/landing-funnel", requireAdmin, async (req, res) => {
   try {
     const { supabase } = await import("./supabase.js");
-    const { days = "14" } = req.query;
-    const numDays = Math.min(Math.max(parseInt(days) || 14, 1), 365);
-
-    const periodEnd = new Date();
-    const periodStart = new Date();
-    periodStart.setDate(periodStart.getDate() - numDays + 1);
-    periodStart.setHours(0, 0, 0, 0);
+    const { periodStart, periodEnd, days: numDays } = resolveAnalyticsRange(req);
 
     const [viewsRes, eventsRes] = await Promise.all([
       supabase
@@ -9982,7 +10133,7 @@ app.get("/admin/analytics/landing-funnel", requireAdmin, async (req, res) => {
         .lte("created_at", periodEnd.toISOString()),
       supabase
         .from("landing_page_events")
-        .select("visitor_id, event_name")
+        .select("visitor_id, event_name, props")
         .gte("created_at", periodStart.toISOString())
         .lte("created_at", periodEnd.toISOString()),
     ]);
@@ -10004,25 +10155,42 @@ app.get("/admin/analytics/landing-funnel", requireAdmin, async (req, res) => {
     }
 
     const clickers = new Set();
+    // 3 onboarding step buckets: 0 = Name, 1 = Brand, 2 = Auth screen.
+    const stepViews = [new Set(), new Set(), new Set()];
     const authStarters = new Set();
     const signedIn = new Set();
     for (const e of events) {
       if (!e.visitor_id) continue;
       if (!viewers.has(e.visitor_id)) continue; // enforce funnel — must have viewed
       if (e.event_name === "cta_click") clickers.add(e.visitor_id);
-      else if (e.event_name === "auth_start") authStarters.add(e.visitor_id);
+      else if (e.event_name === "onboarding_step_view") {
+        const step = Number(e.props?.step);
+        if (Number.isInteger(step) && step >= 0 && step < stepViews.length) {
+          stepViews[step].add(e.visitor_id);
+        }
+      } else if (e.event_name === "auth_start") authStarters.add(e.visitor_id);
       else if (e.event_name === "signed_in") signedIn.add(e.visitor_id);
     }
-    // Downstream stages must be subsets of upstream
+    // Strict monotonic funnel — every downstream stage is a subset of the
+    // immediately upstream stage. This prevents traffic from outside the
+    // onboarding flow (e.g. PublishAuthModal sign-ins from /create, or old
+    // pre-redesign auth events still in the 30-day window) from inflating
+    // counts below the auth-screen step.
     const clickersFinal = clickers;
-    const authStartersFinal = new Set([...authStarters].filter((v) => clickersFinal.has(v)));
+    const step0Final = new Set([...stepViews[0]].filter((v) => clickersFinal.has(v)));
+    const step1Final = new Set([...stepViews[1]].filter((v) => step0Final.has(v)));
+    const step2Final = new Set([...stepViews[2]].filter((v) => step1Final.has(v)));
+    const authStartersFinal = new Set([...authStarters].filter((v) => step2Final.has(v)));
     const signedInFinal = new Set([...signedIn].filter((v) => authStartersFinal.has(v)));
 
     const stages = [
-      { key: "view", label: "Viewed", count: viewers.size },
+      { key: "view", label: "Viewed landing", count: viewers.size },
       { key: "cta_click", label: "Clicked CTA", count: clickersFinal.size },
-      { key: "auth_start", label: "Started signup", count: authStartersFinal.size },
-      { key: "signed_in", label: "Signed in", count: signedInFinal.size },
+      { key: "step_name", label: "Step 1 · Name", count: step0Final.size },
+      { key: "step_brand", label: "Step 2 · Brand", count: step1Final.size },
+      { key: "step_auth", label: "Step 3 · Claim it", count: step2Final.size },
+      { key: "auth_start", label: "Pressed sign-in", count: authStartersFinal.size },
+      { key: "signed_in", label: "Account created", count: signedInFinal.size },
     ];
     for (let i = 0; i < stages.length; i++) {
       const prev = i === 0 ? stages[0].count : stages[i - 1].count;
@@ -10060,23 +10228,473 @@ app.get("/admin/analytics/landing-funnel", requireAdmin, async (req, res) => {
   }
 });
 
+// Resolve a query-string date range for any admin-analytics endpoint.
+// Accepts either:
+//   ?startDate=ISO&endDate=ISO   (preferred — driven by the date picker)
+//   ?days=N                       (fallback — legacy callers)
+// Falls back to last-30-days if neither is provided. Always returns
+// midnight-local-anchored start/end so daily buckets line up cleanly.
+function resolveAnalyticsRange(req) {
+  let periodStart;
+  let periodEnd;
+  if (req.query.startDate && req.query.endDate) {
+    periodStart = new Date(req.query.startDate);
+    periodEnd = new Date(req.query.endDate);
+  } else {
+    const days = Math.min(
+      Math.max(parseInt(req.query.days) || 30, 1),
+      365,
+    );
+    periodEnd = new Date();
+    periodStart = new Date();
+    periodStart.setDate(periodStart.getDate() - days + 1);
+  }
+  periodStart.setHours(0, 0, 0, 0);
+  periodEnd.setHours(23, 59, 59, 999);
+  const days = Math.max(
+    1,
+    Math.round((periodEnd.getTime() - periodStart.getTime()) / 86400000),
+  );
+  return { periodStart, periodEnd, days };
+}
+
+// ---------------------------
+// Admin Email Broadcast — platform-wide marketing email sends.
+// Mirrors /host/crm/* shape so the admin email page can clone the host
+// CRM layout exactly. Audience is the entire `people` table minus host
+// accounts and unsubscribers; tag is `admin_broadcast_<id>` so analytics
+// flows naturally into the existing email tracking surface.
+// ---------------------------
+
+// GET /admin/email/event-options — pullup events OR discover events for the
+// admin email picker modal. Source determines which table we read from;
+// both come back as a unified card-shape so the frontend block editor and
+// the email renderer can treat them identically.
+app.get("/admin/email/event-options", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+    const source = req.query.source === "discover" ? "discover" : "pullup";
+    const search = (req.query.q || "").trim().toLowerCase();
+    const frontendBaseUrl =
+      process.env.NODE_ENV === "production"
+        ? process.env.FRONTEND_URL || "https://pullup.se"
+        : "http://localhost:5173";
+
+    if (source === "discover") {
+      const { data, error } = await sb
+        .from("stockholm_events")
+        .select(
+          "id, title, image_url, starts_at, location, url, spotify_url, status, category, source",
+        )
+        .order("starts_at", { ascending: false })
+        .limit(300);
+      if (error) throw error;
+      const events = (data || [])
+        .filter(
+          (e) => !search || (e.title || "").toLowerCase().includes(search),
+        )
+        .map((e) => ({
+          id: e.id,
+          title: e.title || "Untitled",
+          imageUrl: e.image_url || null,
+          startsAt: e.starts_at || null,
+          location: e.location || null,
+          url: e.url || null,
+          spotifyUrl: e.spotify_url || null,
+          // Discover events don't have admin_tags; surface category as a
+          // single-element tag list so the filter chips work for both
+          // sources uniformly.
+          tags: e.category ? [String(e.category).toLowerCase()] : [],
+          // hostedBy comes from the scrape source name (e.g. "soho-house").
+          hostedBy: e.source || null,
+          source: "discover",
+        }));
+      return res.json({ events });
+    }
+
+    const { data, error } = await sb
+      .from("events")
+      .select(
+        "id, slug, title, cover_image_url, image_url, starts_at, location, spotify, admin_tags, host_id, sections",
+      )
+      .order("starts_at", { ascending: false })
+      .limit(300);
+    if (error) throw error;
+
+    // Resolve PullUp event images from storage paths AND look up host
+    // brand/name so the email card can show "Hosted by ...".
+    function resolveEventImage(raw) {
+      if (!raw) return null;
+      if (raw.startsWith("http")) return raw;
+      try {
+        const { data: { publicUrl } } = sb.storage
+          .from("event-images")
+          .getPublicUrl(raw);
+        return publicUrl || null;
+      } catch {
+        return null;
+      }
+    }
+
+    const hostIds = [...new Set((data || []).map((e) => e.host_id).filter(Boolean))];
+    const hostMap = {};
+    if (hostIds.length) {
+      try {
+        const { data: hosts } = await sb
+          .from("profiles")
+          .select("id, name, brand")
+          .in("id", hostIds);
+        for (const h of hosts || []) {
+          hostMap[h.id] = h.brand || h.name || null;
+        }
+      } catch {
+        // Optional enrichment.
+      }
+    }
+
+    // Sections is a jsonb array on each event. The actual rich data —
+    // Spotify links, host name, music links — is buried in there as
+    // typed sub-blocks. Walk it to surface what we need for the email
+    // card. Falls back to event/profile columns when sections are empty.
+    function extractFromSections(sections) {
+      if (!Array.isArray(sections)) return {};
+      let spotify = null;
+      let hostedBy = null;
+      for (const s of sections) {
+        if (!s || typeof s !== "object") continue;
+        if (s.type === "spotify" && typeof s.url === "string") {
+          spotify = spotify || s.url;
+        }
+        if (s.type === "socials" && typeof s.spotify === "string" && s.spotify.trim()) {
+          spotify = spotify || s.spotify;
+        }
+        if (s.type === "hostedby" && typeof s.name === "string" && s.name.trim()) {
+          hostedBy = hostedBy || s.name.trim();
+        }
+      }
+      return { spotify, hostedBy };
+    }
+
+    const events = (data || [])
+      .filter((e) => !search || (e.title || "").toLowerCase().includes(search))
+      .map((e) => {
+        const fromSections = extractFromSections(e.sections);
+        return {
+          id: e.id,
+          title: e.title || "Untitled",
+          imageUrl: resolveEventImage(e.cover_image_url || e.image_url),
+          startsAt: e.starts_at || null,
+          location: e.location || null,
+          url: e.slug ? `${frontendBaseUrl}/e/${e.slug}` : null,
+          // Sections-derived value wins because hosts configure per-event
+          // music there. Top-level spotify column is a legacy fallback.
+          spotifyUrl: fromSections.spotify || e.spotify || null,
+          tags: Array.isArray(e.admin_tags) ? e.admin_tags : [],
+          // Hosted-by section (admin-set per-event) takes precedence over
+          // the host's profile brand/name. This avoids showing
+          // placeholder strings when a profile.brand isn't set yet.
+          hostedBy:
+            fromSections.hostedBy ||
+            (e.host_id ? hostMap[e.host_id] || null : null),
+          source: "pullup",
+        };
+      });
+    return res.json({ events });
+  } catch (err) {
+    console.error("[admin/email/event-options] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch event options" });
+  }
+});
+
+// GET /admin/email/audience — total + sample of platform emails matching
+// the given filters. Used for the audience tab's live count display.
+app.get("/admin/email/audience", requireAdmin, async (req, res) => {
+  try {
+    const { getAdminAudience } = await import("./services/adminBroadcastSender.js");
+
+    // attendedEventTags arrives as a comma-separated string in the URL
+    // (e.g. ?attendedEventTags=dinner,art) — split + lowercase it.
+    const tagsParam = req.query.attendedEventTags;
+    const attendedEventTags = tagsParam
+      ? String(tagsParam)
+          .split(",")
+          .map((t) => t.trim().toLowerCase())
+          .filter(Boolean)
+      : [];
+
+    const filterCriteria = {
+      excludeHosts: req.query.excludeHosts !== "false",
+      marketingConsent: req.query.marketingConsent || "any",
+      importSource: req.query.importSource || null,
+      minEventsAttended: Number(req.query.minEventsAttended) || 0,
+      hasPaid: req.query.hasPaid === "true",
+      minTotalSpend: Number(req.query.minTotalSpend) || 0,
+      joinedAfter: req.query.joinedAfter || null,
+      attendedEventTags,
+    };
+    const audience = await getAdminAudience(filterCriteria);
+    return res.json({
+      total: audience.length,
+      filterCriteria,
+      sample: audience.slice(0, 30).map((p) => ({
+        id: p.id,
+        email: p.email,
+        name: p.name,
+        marketingConsent: p.marketing_consent,
+        paymentCount: p.payment_count || 0,
+        totalSpend: p.total_spend || 0,
+        importSource: p.import_source || null,
+      })),
+    });
+  } catch (err) {
+    console.error("[admin/email/audience] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch audience" });
+  }
+});
+
+// GET /admin/email/tag-options — list of every admin_tag in use across
+// the platform's events, sorted by frequency. Powers the "interested in"
+// chip cloud in the admin email segmenter so admins know what tags are
+// even available before trying to segment by them.
+app.get("/admin/email/tag-options", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+    const { data, error } = await sb
+      .from("events")
+      .select("admin_tags")
+      .not("admin_tags", "is", null);
+    if (error) throw error;
+    const counts = {};
+    for (const row of data || []) {
+      for (const t of row.admin_tags || []) {
+        if (typeof t !== "string") continue;
+        const norm = t.trim().toLowerCase();
+        if (!norm) continue;
+        counts[norm] = (counts[norm] || 0) + 1;
+      }
+    }
+    const tags = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag, count]) => ({ tag, count }));
+    return res.json({ tags });
+  } catch (err) {
+    console.error("[admin/email/tag-options] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch tag options" });
+  }
+});
+
+// POST /admin/email/campaigns — create a draft broadcast campaign.
+app.post("/admin/email/campaigns", requireAdmin, async (req, res) => {
+  try {
+    const { subject, templateContent = {}, filterCriteria = {} } = req.body;
+    if (!subject) return res.status(400).json({ error: "Subject is required" });
+    if (!Array.isArray(templateContent.blocks) || templateContent.blocks.length === 0) {
+      return res.status(400).json({ error: "At least one block is required" });
+    }
+
+    const { getAdminAudience } = await import("./services/adminBroadcastSender.js");
+    const audience = await getAdminAudience(filterCriteria);
+
+    const { createEmailCampaign } = await import("./data.js");
+    const campaign = await createEmailCampaign({
+      userId: req.user.id,
+      name: `Admin Broadcast — ${new Date().toLocaleDateString()}`,
+      templateType: "admin_broadcast",
+      eventId: null,
+      subject,
+      templateContent,
+      filterCriteria,
+      totalRecipients: audience.length,
+    });
+
+    return res.status(201).json({
+      campaignId: campaign.id,
+      totalRecipients: audience.length,
+      status: campaign.status,
+    });
+  } catch (err) {
+    console.error("[admin/email/campaigns] create error:", err.message);
+    return res.status(500).json({ error: "Failed to create broadcast" });
+  }
+});
+
+// POST /admin/email/campaigns/:id/send — kick off async send.
+app.post("/admin/email/campaigns/:id/send", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { getEmailCampaign } = await import("./data.js");
+    const campaign = await getEmailCampaign(id, req.user.id);
+    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+    if (campaign.status === "sent") {
+      return res.status(400).json({ error: "Already sent" });
+    }
+    const { sendAdminBroadcastInBatches } = await import(
+      "./services/adminBroadcastSender.js"
+    );
+    sendAdminBroadcastInBatches(id, req.user.id).catch((err) => {
+      console.error("[admin/email/send] background error:", err);
+    });
+    return res.json({ message: "Sending started", campaignId: id, status: "sending" });
+  } catch (err) {
+    console.error("[admin/email/send] error:", err.message);
+    return res.status(500).json({ error: "Failed to start send" });
+  }
+});
+
+// GET /admin/email/campaigns/:id — status polling for the send dialog.
+app.get("/admin/email/campaigns/:id", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { getEmailCampaign } = await import("./data.js");
+    const campaign = await getEmailCampaign(id, req.user.id);
+    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+    return res.json({
+      id: campaign.id,
+      status: campaign.status,
+      totalRecipients: campaign.totalRecipients,
+      totalSent: campaign.totalSent,
+      totalFailed: campaign.totalFailed,
+    });
+  } catch (err) {
+    console.error("[admin/email/status] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch status" });
+  }
+});
+
+// ---------------------------
+// Admin: Activity time-series — events CREATED per day (bars) + RSVPs
+// collected per day (line). The two velocity KPIs: are hosts publishing,
+// are guests engaging across the platform.
+//
+// Bars are keyed by events.created_at (publication moment) — not
+// starts_at — because the question we're answering is "are users
+// creating events", not "are there events scheduled to occur today".
+//
+// "Emails collected" counts every RSVP row created that day across every
+// event on PullUp. We deliberately don't dedupe by email — each RSVP is
+// an email-submission event regardless of whether that person has RSVP'd
+// before. (For unique contact-list growth there's the `people` table,
+// but raw RSVP volume is the truer engagement signal.)
+// ---------------------------
+app.get("/admin/analytics/activity-series", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+    const { periodStart, periodEnd, days } = resolveAnalyticsRange(req);
+
+    const [eventsRes, rsvpsRes] = await Promise.all([
+      sb
+        .from("events")
+        .select("created_at")
+        .gte("created_at", periodStart.toISOString())
+        .lte("created_at", periodEnd.toISOString()),
+      sb
+        .from("rsvps")
+        .select("created_at")
+        .gte("created_at", periodStart.toISOString())
+        .lte("created_at", periodEnd.toISOString()),
+    ]);
+
+    const eventCounts = {};
+    for (const e of eventsRes.data || []) {
+      const d = (e.created_at || "").slice(0, 10);
+      if (d) eventCounts[d] = (eventCounts[d] || 0) + 1;
+    }
+
+    const rsvpCounts = {};
+    for (const r of rsvpsRes.data || []) {
+      const d = (r.created_at || "").slice(0, 10);
+      if (d) rsvpCounts[d] = (rsvpCounts[d] || 0) + 1;
+    }
+
+    const buckets = [];
+    for (
+      let t = periodStart.getTime();
+      t <= periodEnd.getTime();
+      t += 24 * 60 * 60 * 1000
+    ) {
+      const d = new Date(t).toISOString().slice(0, 10);
+      buckets.push({
+        date: d,
+        eventsCreated: eventCounts[d] || 0,
+        rsvps: rsvpCounts[d] || 0,
+      });
+    }
+
+    return res.json({ periodDays: days, buckets });
+  } catch (err) {
+    console.error("[activity-series] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch activity series" });
+  }
+});
+
+// ---------------------------
+// Admin: New-account signups time-series. Pairs with the landing-page
+// conversion funnel — answers "how many people actually finished signup
+// each day?". Bars for daily count, a cumulative line for momentum.
+// ---------------------------
+app.get("/admin/analytics/signups-series", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+    const { periodStart, periodEnd, days } = resolveAnalyticsRange(req);
+
+    const { data: profiles } = await sb
+      .from("profiles")
+      .select("created_at")
+      .gte("created_at", periodStart.toISOString())
+      .lte("created_at", periodEnd.toISOString());
+
+    const { count: preCount } = await sb
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .lt("created_at", periodStart.toISOString());
+
+    const dailyCounts = {};
+    for (const p of profiles || []) {
+      const d = (p.created_at || "").slice(0, 10);
+      if (d) dailyCounts[d] = (dailyCounts[d] || 0) + 1;
+    }
+
+    let cumulative = preCount || 0;
+    const buckets = [];
+    for (
+      let t = periodStart.getTime();
+      t <= periodEnd.getTime();
+      t += 24 * 60 * 60 * 1000
+    ) {
+      const d = new Date(t).toISOString().slice(0, 10);
+      const daily = dailyCounts[d] || 0;
+      cumulative += daily;
+      buckets.push({
+        date: d,
+        signups: daily,
+        cumulativeSignups: cumulative,
+      });
+    }
+
+    return res.json({
+      periodDays: days,
+      preCumulativeSignups: preCount || 0,
+      buckets,
+    });
+  } catch (err) {
+    console.error("[signups-series] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch signups series" });
+  }
+});
+
 // ---------------------------
 // Admin: Partner CTA click analytics
 // ---------------------------
 app.get("/admin/analytics/partner-clicks", requireAdmin, async (req, res) => {
   try {
     const { supabase } = await import("./supabase.js");
-    const { days = "30" } = req.query;
-    const numDays = Math.min(parseInt(days) || 30, 365);
-
-    const since = new Date();
-    since.setDate(since.getDate() - numDays + 1);
-    since.setHours(0, 0, 0, 0);
+    const { periodStart, periodEnd, days: numDays } = resolveAnalyticsRange(req);
 
     const { data: clicks, error } = await supabase
       .from("partner_clicks")
       .select("id, partner_slug, event_id, placement, clicked_at, ip_address")
-      .gte("clicked_at", since.toISOString())
+      .gte("clicked_at", periodStart.toISOString())
+      .lte("clicked_at", periodEnd.toISOString())
       .order("clicked_at", { ascending: false });
 
     if (error) throw error;
@@ -10150,6 +10768,335 @@ app.get("/admin/analytics/partner-clicks", requireAdmin, async (req, res) => {
 // ---------------------------
 // Sales Leads (admin CRM)
 // ---------------------------
+
+// GET /admin/crm/hosts — customer-understanding view.
+//
+// One row per profile (every signed-up user) enriched with everything we
+// know about how they use PullUp: events created, capacity patterns,
+// confirmed-guest totals, hosting frequency, the admin-set tag distribution
+// across their events, plus their sales pipeline state if any.
+//
+// Designed for the new /admin/crm page that replaces the per-lead /admin/sales
+// lens with a per-host one. Keeps the existing sales_leads table as the
+// source of truth for pipeline status / notes / source / internal sales
+// contact info; all of that surfaces here as `sales: { ... }`.
+app.get("/admin/crm/hosts", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+
+    const [profilesRes, eventsRes, leadsRes] = await Promise.all([
+      sb
+        .from("profiles")
+        .select(
+          "id, name, brand, contact_email, mobile_number, city, visitor_id, created_at, last_login_at, login_count",
+        ),
+      sb
+        .from("events")
+        .select(
+          "id, host_id, title, slug, starts_at, total_capacity, cocktail_capacity, admin_tags, dinner_enabled, food_capacity, ticket_type, ticket_price, ticket_currency, require_approval",
+        ),
+      sb
+        .from("sales_leads")
+        .select(
+          "id, profile_id, name, email, status, source, notes, city, phone, company, priority, created_at",
+        ),
+    ]);
+
+    if (profilesRes.error) throw profilesRes.error;
+    if (eventsRes.error) throw eventsRes.error;
+    if (leadsRes.error) throw leadsRes.error;
+
+    const profiles = profilesRes.data || [];
+    const events = eventsRes.data || [];
+    const leads = leadsRes.data || [];
+
+    // RSVP, VIP, and team-host counts per event.
+    const eventIds = events.map((e) => e.id);
+    const rsvpsByEvent = {};
+    const vipCountByEvent = {};
+    const hostCountByEvent = {};
+    if (eventIds.length) {
+      const [rsvpsRes, vipRes, ehRes] = await Promise.all([
+        sb
+          .from("rsvps")
+          .select("event_id, party_size, total_guests, booking_status, status")
+          .in("event_id", eventIds),
+        sb.from("vip_invites").select("event_id").in("event_id", eventIds),
+        sb.from("event_hosts").select("event_id").in("event_id", eventIds),
+      ]);
+      for (const r of rsvpsRes.data || []) {
+        if (
+          r.booking_status === "CONFIRMED" ||
+          r.booking_status === "PENDING_PAYMENT" ||
+          r.status === "attending"
+        ) {
+          rsvpsByEvent[r.event_id] =
+            (rsvpsByEvent[r.event_id] || 0) +
+            (r.total_guests ?? r.party_size ?? 1);
+        }
+      }
+      for (const v of vipRes.data || []) {
+        vipCountByEvent[v.event_id] = (vipCountByEvent[v.event_id] || 0) + 1;
+      }
+      for (const h of ehRes.data || []) {
+        hostCountByEvent[h.event_id] = (hostCountByEvent[h.event_id] || 0) + 1;
+      }
+    }
+
+    // Email backfill from auth.users for profiles that haven't set
+    // contact_email explicitly (most users today).
+    const authEmails = {};
+    try {
+      const { data: au } = await sb.auth.admin.listUsers({ perPage: 1000 });
+      for (const u of au?.users || []) {
+        if (u.email) authEmails[u.id] = u.email;
+      }
+    } catch {
+      // listUsers can fail in some environments; fall through gracefully.
+    }
+
+    // Pre-signup engagement signal: how many times did this person hit
+    // the landing page before they signed up? Keyed by visitor_id which
+    // we capture on the profile during onboarding finalize. We aggregate
+    // total visits + first/last visit dates per known visitor_id.
+    const visitorIds = profiles
+      .map((p) => p.visitor_id)
+      .filter(Boolean);
+    const landingByVisitor = {};
+    if (visitorIds.length) {
+      try {
+        const { data: views } = await sb
+          .from("landing_page_views")
+          .select("visitor_id, created_at")
+          .in("visitor_id", visitorIds);
+        for (const v of views || []) {
+          if (!v.visitor_id) continue;
+          const slot =
+            landingByVisitor[v.visitor_id] ||
+            (landingByVisitor[v.visitor_id] = {
+              count: 0,
+              first: v.created_at,
+              last: v.created_at,
+            });
+          slot.count += 1;
+          if (!slot.first || v.created_at < slot.first) slot.first = v.created_at;
+          if (!slot.last || v.created_at > slot.last) slot.last = v.created_at;
+        }
+      } catch {
+        // Optional enrichment — safe to fall through.
+      }
+    }
+
+    const eventsByHost = {};
+    for (const e of events) {
+      if (!e.host_id) continue;
+      if (!eventsByHost[e.host_id]) eventsByHost[e.host_id] = [];
+      eventsByHost[e.host_id].push(e);
+    }
+
+    const leadByProfile = {};
+    for (const l of leads) {
+      if (l.profile_id) leadByProfile[l.profile_id] = l;
+    }
+
+    const now = Date.now();
+    const MS_PER_MONTH = 1000 * 60 * 60 * 24 * 30;
+
+    const hosts = profiles.map((p) => {
+      const evList = eventsByHost[p.id] || [];
+      const total = evList.length;
+      const upcoming = evList.filter(
+        (e) => new Date(e.starts_at).getTime() >= now,
+      ).length;
+      const past = total - upcoming;
+
+      const dates = evList
+        .map((e) => new Date(e.starts_at).getTime())
+        .filter((t) => Number.isFinite(t));
+      const firstEventAt = dates.length
+        ? new Date(Math.min(...dates)).toISOString()
+        : null;
+      const lastEventAt = dates.length
+        ? new Date(Math.max(...dates)).toISOString()
+        : null;
+
+      const capacities = evList
+        .map((e) => Number(e.total_capacity || e.cocktail_capacity || 0))
+        .filter((c) => c > 0);
+      const totalCapacity = capacities.reduce((a, b) => a + b, 0);
+      const avgCapacity = capacities.length
+        ? Math.round(totalCapacity / capacities.length)
+        : 0;
+
+      const totalConfirmedGuests = evList.reduce(
+        (sum, e) => sum + (rsvpsByEvent[e.id] || 0),
+        0,
+      );
+
+      // Frequency: events per month over their active span. Floor at 1 month
+      // so a host with one event today doesn't read as "30 events/month".
+      let monthsActive = 1;
+      if (firstEventAt) {
+        const span = (now - new Date(firstEventAt).getTime()) / MS_PER_MONTH;
+        monthsActive = Math.max(1, Math.round(span));
+      }
+      const frequencyPerMonth =
+        total > 0 ? Math.round((total / monthsActive) * 10) / 10 : 0;
+
+      // Tag distribution across all their events. Top 10 only — the long
+      // tail isn't useful in a row view.
+      const tagCounts = {};
+      for (const e of evList) {
+        for (const t of e.admin_tags || []) {
+          tagCounts[t] = (tagCounts[t] || 0) + 1;
+        }
+      }
+      const topTags = Object.entries(tagCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([tag, count]) => ({ tag, count }));
+
+      const lead = leadByProfile[p.id];
+
+      // Activity tier — useful filter chip on the frontend.
+      let activity = "lurker";
+      if (total >= 5) activity = "repeat";
+      else if (total >= 1) activity = "active";
+
+      const landing = p.visitor_id ? landingByVisitor[p.visitor_id] : null;
+
+      return {
+        id: p.id,
+        name: p.name || null,
+        brand: p.brand || null,
+        email: p.contact_email || authEmails[p.id] || null,
+        phone: p.mobile_number || null,
+        city: p.city || null,
+        createdAt: p.created_at,
+        lastLoginAt: p.last_login_at || null,
+        loginCount: p.login_count || 0,
+        activity,
+        landing: landing
+          ? {
+              visits: landing.count,
+              firstVisitAt: landing.first,
+              lastVisitAt: landing.last,
+            }
+          : null,
+        sales: lead
+          ? {
+              leadId: lead.id,
+              status: lead.status,
+              source: lead.source,
+              notes: lead.notes,
+              priority: lead.priority || "normal",
+              internalCity: lead.city,
+              internalPhone: lead.phone,
+              internalCompany: lead.company,
+            }
+          : null,
+        events: {
+          total,
+          upcoming,
+          past,
+          firstEventAt,
+          lastEventAt,
+          totalCapacity,
+          avgCapacity,
+          totalConfirmedGuests,
+          frequencyPerMonth,
+          // Compact list for the expanded panel — full details available via
+          // /admin/platform-events when needed. Surfaces lightweight
+          // feature signals (dinner / VIP / team / ticket / approval) so
+          // admin can read each event's shape at a glance.
+          list: evList
+            .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at))
+            .map((e) => ({
+              id: e.id,
+              slug: e.slug,
+              title: e.title,
+              startsAt: e.starts_at,
+              capacity: e.total_capacity || e.cocktail_capacity || 0,
+              confirmedGuests: rsvpsByEvent[e.id] || 0,
+              adminTags: Array.isArray(e.admin_tags) ? e.admin_tags : [],
+              dinnerEnabled: !!e.dinner_enabled,
+              dinnerSeats: Number(e.food_capacity || 0),
+              vipCount: vipCountByEvent[e.id] || 0,
+              teamCount: hostCountByEvent[e.id] || 0,
+              ticketType: e.ticket_type || "free",
+              ticketPrice: e.ticket_price || 0,
+              ticketCurrency: e.ticket_currency || null,
+              requireApproval: !!e.require_approval,
+            })),
+        },
+        topTags,
+      };
+    });
+
+    // Surface unlinked sales_leads (manual prospects who haven't signed up
+    // yet) as synthetic rows so the CRM is a single pane for the entire
+    // pipeline. They get id "lead:<uuid>" and isLead=true so the frontend
+    // knows to expose the full identity-edit form for them. When they
+    // eventually sign up, createDefaultProfile() back-links them by email
+    // and they merge into a profile row automatically.
+    for (const l of leads) {
+      if (l.profile_id) continue; // already attached to a profile row above
+      hosts.push({
+        id: `lead:${l.id}`,
+        isLead: true,
+        name: l.name || null,
+        brand: l.company || null,
+        email: l.email || null,
+        phone: l.phone || null,
+        city: l.city || null,
+        createdAt: l.created_at || null,
+        lastLoginAt: null,
+        loginCount: 0,
+        activity: "lurker",
+        landing: null,
+        sales: {
+          leadId: l.id,
+          status: l.status,
+          source: l.source,
+          notes: l.notes,
+          priority: l.priority || "normal",
+          internalCity: l.city,
+          internalPhone: l.phone,
+          internalCompany: l.company,
+        },
+        events: {
+          total: 0,
+          upcoming: 0,
+          past: 0,
+          firstEventAt: null,
+          lastEventAt: null,
+          totalCapacity: 0,
+          avgCapacity: 0,
+          totalConfirmedGuests: 0,
+          frequencyPerMonth: 0,
+          list: [],
+        },
+        topTags: [],
+      });
+    }
+
+    // Default sort: last event desc, then last login, then created desc.
+    hosts.sort((a, b) => {
+      const ta = new Date(
+        a.events.lastEventAt || a.lastLoginAt || a.createdAt || 0,
+      ).getTime();
+      const tb = new Date(
+        b.events.lastEventAt || b.lastLoginAt || b.createdAt || 0,
+      ).getTime();
+      return tb - ta;
+    });
+
+    return res.json({ hosts });
+  } catch (err) {
+    console.error("[admin/crm/hosts] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch CRM hosts" });
+  }
+});
 
 // GET /admin/sales/leads — list all leads with linked profile + event counts
 app.get("/admin/sales/leads", requireAdmin, async (req, res) => {
@@ -10363,7 +11310,7 @@ app.get("/admin/sales/leads", requireAdmin, async (req, res) => {
 app.post("/admin/sales/leads", requireAdmin, async (req, res) => {
   try {
     const { supabase } = await import("./supabase.js");
-    const { name, company, email, phone, status, notes, city, source } = req.body;
+    const { name, company, email, phone, status, notes, city, source, priority } = req.body;
     if (!name) return res.status(400).json({ error: "name is required" });
 
     const { data, error } = await supabase
@@ -10377,6 +11324,7 @@ app.post("/admin/sales/leads", requireAdmin, async (req, res) => {
         notes: notes || null,
         city: city || null,
         source: source || null,
+        priority: priority || "normal",
         created_by: req.user.id,
         updated_by: req.user.id,
       })
@@ -10391,20 +11339,163 @@ app.post("/admin/sales/leads", requireAdmin, async (req, res) => {
   }
 });
 
-// PATCH /admin/sales/leads/:id — update a lead
+// PATCH /admin/sales/leads/:id — update a lead.
+//
+// Accepts two ID forms:
+//   - real UUIDs       → updates the existing sales_leads row.
+//   - "user:<uuid>"    → synthetic ID for an auto-surfaced profile row that
+//                        doesn't have a sales_leads record yet. Lazily creates
+//                        the row tied to the profile_id and applies the
+//                        admin-internal updates. This is how "edit any user"
+//                        works without forcing admins to manually add leads
+//                        for every signup.
+//
+// For user-linked rows (profile_id present) we restrict updates to truly
+// internal fields (status/source/notes/phone/city/company) — never name or
+// email, since those belong to the user's profile and admin overrides would
+// silently diverge from what the user sees in /settings.
 app.patch("/admin/sales/leads/:id", requireAdmin, async (req, res) => {
   try {
     const { supabase } = await import("./supabase.js");
     const { id } = req.params;
-    const allowed = ["name", "company", "email", "phone", "status", "notes", "city", "source"];
+
+    // Fields admin may set on a fully-unlinked lead row.
+    const ALL_FIELDS = [
+      "name",
+      "company",
+      "email",
+      "phone",
+      "status",
+      "notes",
+      "city",
+      "source",
+      "priority",
+    ];
+    // For profile-linked rows we LOCK the fields the user controls
+    // themselves: name (profile.name), email (auth + profile.contact_email),
+    // and brand (profile.brand — admin sees this as "company" on the lead).
+    // The user-set values in /settings are the source of truth; admin must
+    // never silently override them.
+    //
+    // Phone and city ARE admin-editable on linked rows (the user can't
+    // change those in /settings) — but to keep the CRM display honest we
+    // mirror those edits to the user's profile so /admin/crm and the user's
+    // own data stay in sync. Status / source / notes / priority are pure
+    // sales-internal and never touch the profile.
+    const USER_OWNED = ["name", "email", "company"];
+    const ADMIN_LINKED_ALLOWED = ALL_FIELDS.filter(
+      (f) => !USER_OWNED.includes(f),
+    );
+    const MIRROR_TO_PROFILE = ["phone", "city"]; // not user-owned but lives on profile too
+
+    async function mirrorToProfile(profileId, body) {
+      const profileUpdates = {};
+      if (body.phone !== undefined)
+        profileUpdates.mobile_number = body.phone || null;
+      if (body.city !== undefined) profileUpdates.city = body.city || null;
+      if (Object.keys(profileUpdates).length === 0) return;
+      try {
+        await supabase
+          .from("profiles")
+          .update(profileUpdates)
+          .eq("id", profileId);
+      } catch (err) {
+        console.warn("[sales] profile mirror failed:", err.message);
+      }
+    }
+
+    const userOnlyMatch = /^user:([0-9a-f-]{36})$/i.exec(id);
+    if (userOnlyMatch) {
+      const profileId = userOnlyMatch[1];
+      const updates = {};
+      for (const key of ADMIN_LINKED_ALLOWED) {
+        if (req.body[key] !== undefined) updates[key] = req.body[key];
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, name, brand, contact_email")
+        .eq("id", profileId)
+        .single();
+
+      let seedEmail = profile?.contact_email || null;
+      if (!seedEmail) {
+        try {
+          const { data: authUser } = await supabase.auth.admin.getUserById(profileId);
+          seedEmail = authUser?.user?.email || null;
+        } catch {}
+      }
+
+      // Mirror phone/city to the profile so the value renders consistently.
+      await mirrorToProfile(profileId, req.body);
+
+      const { data: existing } = await supabase
+        .from("sales_leads")
+        .select("id")
+        .eq("profile_id", profileId)
+        .maybeSingle();
+
+      if (existing) {
+        updates.updated_at = new Date().toISOString();
+        updates.updated_by = req.user.id;
+        const { data, error } = await supabase
+          .from("sales_leads")
+          .update(updates)
+          .eq("id", existing.id)
+          .select()
+          .single();
+        if (error) throw error;
+        return res.json(data);
+      }
+
+      const { data, error } = await supabase
+        .from("sales_leads")
+        .insert({
+          // Identity columns are seeded from the profile and never from
+          // req.body — defense against client tampering on user-owned fields.
+          name:
+            profile?.name ||
+            profile?.brand ||
+            (seedEmail ? seedEmail.split("@")[0] : "User"),
+          company: profile?.brand || null,
+          email: seedEmail,
+          status: updates.status || "new",
+          source: updates.source || null,
+          notes: updates.notes || null,
+          phone: updates.phone || null,
+          city: updates.city || null,
+          priority: updates.priority || "normal",
+          profile_id: profileId,
+          created_by: req.user.id,
+          updated_by: req.user.id,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return res.status(201).json(data);
+    }
+
+    // Real lead row path. Determine whether it's profile-linked and apply
+    // the matching allowlist + profile mirror.
+    const { data: existing } = await supabase
+      .from("sales_leads")
+      .select("profile_id")
+      .eq("id", id)
+      .single();
+    const isUserLinked = !!existing?.profile_id;
+    const allowed = isUserLinked ? ADMIN_LINKED_ALLOWED : ALL_FIELDS;
+
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
-    // Normalize email to lowercase
     if (updates.email) updates.email = updates.email.toLowerCase().trim();
     updates.updated_at = new Date().toISOString();
     updates.updated_by = req.user.id;
+
+    if (isUserLinked) {
+      await mirrorToProfile(existing.profile_id, req.body);
+    }
 
     const { data, error } = await supabase
       .from("sales_leads")
@@ -10421,11 +11512,17 @@ app.patch("/admin/sales/leads/:id", requireAdmin, async (req, res) => {
   }
 });
 
-// DELETE /admin/sales/leads/:id — remove a lead
+// DELETE /admin/sales/leads/:id — remove a lead.
+// Synthetic "user:<uuid>" IDs are auto-surfaced rows with no underlying
+// sales_leads record — there's nothing to delete, so reject explicitly so
+// the UI doesn't pretend it succeeded.
 app.delete("/admin/sales/leads/:id", requireAdmin, async (req, res) => {
   try {
     const { supabase } = await import("./supabase.js");
     const { id } = req.params;
+    if (/^user:/i.test(id)) {
+      return res.status(400).json({ error: "Cannot delete an auto-surfaced user row." });
+    }
     const { error } = await supabase.from("sales_leads").delete().eq("id", id);
     if (error) throw error;
     return res.json({ success: true });

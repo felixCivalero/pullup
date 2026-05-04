@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
-import { Users, MapPin, Calendar, ChevronDown, ChevronUp, ExternalLink, Clock } from "lucide-react";
+import { Users, MapPin, Calendar, ChevronDown, ChevronUp, ExternalLink, Clock, Tag } from "lucide-react";
 
 function getEventStatus(ev) {
   const now = new Date();
@@ -29,6 +29,8 @@ export function AdminEventsPage() {
   const [expandedEvent, setExpandedEvent] = useState(null);
   const [guests, setGuests] = useState(null);
   const [guestsLoading, setGuestsLoading] = useState(false);
+  const [tagsInput, setTagsInput] = useState("");
+  const [tagsSaving, setTagsSaving] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate("/");
@@ -60,6 +62,8 @@ export function AdminEventsPage() {
       return;
     }
     setExpandedEvent(eventId);
+    const ev = events.find((e) => e.id === eventId);
+    setTagsInput((ev?.adminTags || []).join(", "));
     setGuestsLoading(true);
     try {
       const res = await authenticatedFetch(`/admin/platform-events/${eventId}/guests`);
@@ -71,6 +75,30 @@ export function AdminEventsPage() {
       setGuests([]);
     } finally {
       setGuestsLoading(false);
+    }
+  }
+
+  async function saveTags(eventId) {
+    setTagsSaving(true);
+    try {
+      const res = await authenticatedFetch(
+        `/admin/platform-events/${eventId}/tags`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ tags: tagsInput }),
+        },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === eventId ? { ...e, adminTags: data.adminTags || [] } : e,
+          ),
+        );
+        setTagsInput((data.adminTags || []).join(", "));
+      }
+    } finally {
+      setTagsSaving(false);
     }
   }
 
@@ -167,6 +195,27 @@ export function AdminEventsPage() {
                               {ev.host.name || ev.host.email}{ev.host.brand ? ` · ${ev.host.brand}` : ""}
                             </span>
                           )}
+                          {ev.adminTags?.slice(0, 3).map((t) => (
+                            <span
+                              key={t}
+                              style={{
+                                fontSize: "10px",
+                                color: "rgba(251,191,36,0.85)",
+                                padding: "1px 7px",
+                                borderRadius: "999px",
+                                background: "rgba(251,191,36,0.06)",
+                                border: "1px solid rgba(251,191,36,0.18)",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {t}
+                            </span>
+                          ))}
+                          {ev.adminTags?.length > 3 && (
+                            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)" }}>
+                              +{ev.adminTags.length - 3}
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.3)", marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
                           {ev.location && (
@@ -222,6 +271,104 @@ export function AdminEventsPage() {
                         >
                           <ExternalLink size={10} /> View event
                         </a>
+                      </div>
+
+                      {/* Internal tags — admin-only classification of the event.
+                          Comma-separated input; backend normalizes (lowercase,
+                          trim, dedupe, cap 32) on save. Surfaces as pills on
+                          the row above, and aggregates per-host in the
+                          forthcoming admin CRM. */}
+                      <div
+                        style={{
+                          marginBottom: 12,
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          background: "rgba(251,191,36,0.04)",
+                          border: "1px solid rgba(251,191,36,0.12)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            marginBottom: 6,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: "rgba(251,191,36,0.8)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                          }}
+                        >
+                          <Tag size={11} /> Internal tags
+                          <span
+                            style={{
+                              marginLeft: "auto",
+                              fontWeight: 400,
+                              textTransform: "none",
+                              letterSpacing: 0,
+                              color: "rgba(255,255,255,0.35)",
+                            }}
+                          >
+                            comma separated · admin only
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={tagsInput}
+                            onChange={(e) => setTagsInput(e.target.value)}
+                            placeholder="dinner, networking, art, fashion..."
+                            style={{
+                              flex: 1,
+                              padding: "8px 12px",
+                              borderRadius: 8,
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              background: "rgba(12,10,20,0.7)",
+                              color: "#fff",
+                              fontSize: 13,
+                              outline: "none",
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                saveTags(ev.id);
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => saveTags(ev.id)}
+                            disabled={
+                              tagsSaving ||
+                              tagsInput === (ev.adminTags || []).join(", ")
+                            }
+                            style={{
+                              padding: "8px 16px",
+                              borderRadius: 8,
+                              border: "none",
+                              background:
+                                tagsSaving ||
+                                tagsInput === (ev.adminTags || []).join(", ")
+                                  ? "rgba(255,255,255,0.06)"
+                                  : "rgba(251,191,36,0.2)",
+                              color:
+                                tagsSaving ||
+                                tagsInput === (ev.adminTags || []).join(", ")
+                                  ? "rgba(255,255,255,0.3)"
+                                  : "#fbbf24",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor:
+                                tagsSaving ||
+                                tagsInput === (ev.adminTags || []).join(", ")
+                                  ? "default"
+                                  : "pointer",
+                            }}
+                          >
+                            {tagsSaving ? "Saving…" : "Save"}
+                          </button>
+                        </div>
                       </div>
 
                       {guestsLoading ? (

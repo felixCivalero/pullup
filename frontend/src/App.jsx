@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { LandingPage } from "./pages/LandingPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
+import { LoginPage } from "./pages/LoginPage";
 import { NewsletterPage } from "./pages/NewsletterPage";
 import { HomePage } from "./pages/HomePage";
 import { CrmPage } from "./pages/CrmPage";
@@ -15,9 +17,10 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
 import { DiscoverPage } from "./pages/DiscoverPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
-import { SalesPage } from "./pages/SalesPage";
 import { IdeasPage } from "./pages/IdeasPage";
 import { AdminEventsPage } from "./pages/AdminEventsPage";
+import { AdminCrmPage } from "./pages/AdminCrmPage";
+import { AdminEmailPage } from "./pages/AdminEmailPage";
 import { AdminPresentationPage } from "./pages/AdminPresentationPage";
 import { EventAnalyticsPage } from "./pages/EventAnalyticsPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
@@ -35,6 +38,8 @@ function App() {
       <Routes>
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/start" element={<OnboardingPage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/newsletter" element={<NewsletterPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
@@ -68,9 +73,13 @@ function App() {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/discover" element={<DiscoverPage />} />
           <Route path="/admin/analytics" element={<AnalyticsPage />} />
-          <Route path="/admin/sales" element={<SalesPage />} />
+          {/* /admin/sales was folded into /admin/crm — keep the URL as a
+              redirect so old bookmarks and admin links still work. */}
+          <Route path="/admin/sales" element={<Navigate to="/admin/crm" replace />} />
           <Route path="/admin/ideas" element={<IdeasPage />} />
           <Route path="/admin/events" element={<AdminEventsPage />} />
+          <Route path="/admin/crm" element={<AdminCrmPage />} />
+          <Route path="/admin/email" element={<AdminEmailPage />} />
           <Route path="/admin/presentation" element={<AdminPresentationPage />} />
           {/* Backwards-compat: /home currently points to events */}
           <Route path="/home" element={<HomePage />} />

@@ -16,6 +16,8 @@ export default function FollowUpComposer({
   setSubject,
   previewText,
   setPreviewText,
+  fromName,
+  setFromName,
   blocks,
   setBlocks,
   hoveredKey,
@@ -51,6 +53,18 @@ export default function FollowUpComposer({
       {hasEvent && (
         <>
           <Section label="Setup" variant="setup">
+            {setFromName && (
+              <Field label="Sender name (in inbox)">
+                <input
+                  type="text"
+                  value={fromName || ""}
+                  onChange={(e) => setFromName(e.target.value)}
+                  placeholder="Your brand"
+                  maxLength={80}
+                  style={inputStyle}
+                />
+              </Field>
+            )}
             <Field label="Subject">
               <TokenizedInput value={subject} onChange={setSubject} tokens={tokens} placeholder="Subject line…" />
             </Field>

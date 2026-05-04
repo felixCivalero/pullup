@@ -782,7 +782,7 @@ export function RsvpSuccessPage() {
                         size={18}
                         style={{ display: "flex", alignItems: "center" }}
                       />
-                      <span>Cocktails</span>
+                      <span>List</span>
                       <Badge
                         variant={
                           booking.bookingStatus === "CONFIRMED"
@@ -852,7 +852,7 @@ export function RsvpSuccessPage() {
                     <ModalOrDrawer
                       isOpen={showCocktailsCalendarMenu}
                       onClose={() => setShowCocktailsCalendarMenu(false)}
-                      title="Add Cocktails to Calendar"
+                      title="Add to Calendar"
                     >
                       <div
                         style={{

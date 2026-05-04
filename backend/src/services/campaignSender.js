@@ -5,6 +5,21 @@ import { findEventById } from "../data.js";
 import { addCampaignToPeople } from "../data.js";
 import { ensureUnsubscribeToken } from "../data.js";
 import { enqueueOutbox } from "../email/index.js";
+import { SES_FROM_EMAIL } from "../email/config.js";
+
+// Build a "Name <addr>" From header from a display name. The address part
+// always comes from SES_FROM_EMAIL — sender display name is the only thing
+// host/admin can override per-campaign (better open rates without exposing
+// the domain config).
+export function buildFromHeader(displayName) {
+  const m = SES_FROM_EMAIL.match(/<([^>]+)>/);
+  const address = m ? m[1] : SES_FROM_EMAIL;
+  if (displayName && typeof displayName === "string" && displayName.trim()) {
+    const safe = displayName.replace(/["\r\n]/g, "").trim();
+    return `"${safe}" <${address}>`;
+  }
+  return SES_FROM_EMAIL;
+}
 import { renderEventEmailTemplate } from "./emailTemplateService.js";
 import { renderFollowUpEmailTemplate } from "./followUpTemplateService.js";
 import { addTracking } from "../email/tracking/linkRewriter.js";
@@ -91,6 +106,10 @@ export async function sendCampaignInBatches(
       blocks: sanitizeBlockUrls(campaign.templateContent?.blocks),
     };
 
+    // Per-campaign sender display name. Falls back to the SES default
+    // when host hasn't set one. The actual address never changes.
+    const fromHeader = buildFromHeader(sanitizedTemplateContent?.fromName);
+
     // 4. Process in batches
     let totalSent = 0;
     let totalFailed = 0;
@@ -140,6 +159,7 @@ export async function sendCampaignInBatches(
 
             // Enqueue into delivery outbox with campaign tag
             const outboxRow = await enqueueOutbox({
+              fromEmail: fromHeader,
               toEmail: person.email,
               subject: campaign.subject,
               htmlBody: html,

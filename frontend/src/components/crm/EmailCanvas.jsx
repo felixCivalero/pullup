@@ -154,7 +154,11 @@ export default function EmailCanvas({
       />
       <div ref={scrollRef} style={{ ...emailFrameStyle, background: palette.body, color: palette.text }}>
         <div style={emailBodyStyle}>
-        {activeEvent ? (
+        {/* Render blocks whenever there are any. The host CRM normally
+            requires an event for the followup template, but admin
+            broadcasts have no event coupling — so as long as the
+            composer has at least one block, we render the preview. */}
+        {(activeBlocks && activeBlocks.length > 0) || activeEvent ? (
           <FollowupBody
             blocks={activeBlocks}
             t={t}
@@ -164,7 +168,7 @@ export default function EmailCanvas({
           />
         ) : (
           <div style={{ padding: 40, textAlign: "center", opacity: 0.4, fontSize: 14 }}>
-            Pick an event in the Email tab to start composing.
+            Add a section in the Design tab to start composing.
           </div>
         )}
         <EmailFooter theme={palette} />
@@ -254,6 +258,248 @@ function EmailFooter({ theme }) {
   );
 }
 
+
+// Spotify pill SVG inlined so we don't import the lucide brand icons.
+function SpotifyMini({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12A12 12 0 0 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z" />
+    </svg>
+  );
+}
+
+function fmtMeta(ev) {
+  let dateLine = "";
+  if (ev.startsAt) {
+    const d = new Date(ev.startsAt);
+    if (!isNaN(d.getTime())) {
+      dateLine = d.toLocaleString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+  }
+  return [dateLine, ev.location].filter(Boolean).join(" · ");
+}
+
+// Theme-aware event-card style helpers. In dark mode we lift the card
+// off the body with a subtle elevated surface, dim border, and invert
+// the View button so it pops against the dark background.
+function getCardSurface(theme) {
+  const isDark = theme.body && theme.body.toLowerCase().startsWith("#0c");
+  return {
+    bg: isDark ? "#161422" : "#ffffff",
+    border: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+    title: theme.text,
+    meta: theme.muted,
+    host: isDark ? "rgba(255,255,255,0.5)" : "rgba(12,10,18,0.55)",
+    imgBg: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+    ctaBg: isDark ? "#ffffff" : "#0c0a12",
+    ctaFg: isDark ? "#0c0a12" : "#ffffff",
+  };
+}
+
+// Compact card for the 2-per-row layout. Smaller hero, shorter copy,
+// stacked CTA + Spotify under condensed meta.
+function CompactEventCard({ ev, theme }) {
+  const meta = fmtMeta(ev);
+  const s = getCardSurface(theme);
+  return (
+    <div
+      style={{
+        border: `1px solid ${s.border}`,
+        borderRadius: 10,
+        background: s.bg,
+        overflow: "hidden",
+      }}
+    >
+      {ev.imageUrl && (
+        <div style={{ width: "100%", aspectRatio: "16/9", background: s.imgBg, overflow: "hidden" }}>
+          <img
+            src={ev.imageUrl}
+            alt={ev.title || ""}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+        </div>
+      )}
+      <div style={{ padding: "10px 12px 12px" }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: s.title,
+            lineHeight: 1.3,
+            marginBottom: 3,
+            overflow: "hidden",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+          }}
+        >
+          {ev.title || "Untitled"}
+        </div>
+        {meta && (
+          <div style={{ fontSize: 11, color: s.meta, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {meta}
+          </div>
+        )}
+        {ev.hostedBy && (
+          <div style={{ fontSize: 11, color: s.host, marginBottom: 6 }}>
+            Hosted by {ev.hostedBy}
+          </div>
+        )}
+        {(ev.url || (ev.spotifyUrl && /^https?:\/\//i.test(ev.spotifyUrl))) && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+            {ev.url && (
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "7px 12px",
+                  background: s.ctaBg,
+                  color: s.ctaFg,
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  fontSize: 11,
+                }}
+              >
+                View →
+              </span>
+            )}
+            {ev.spotifyUrl && /^https?:\/\//i.test(ev.spotifyUrl) && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "6px 10px",
+                  background: "#1DB954",
+                  color: "#ffffff",
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  fontSize: 11,
+                  lineHeight: 1,
+                }}
+              >
+                <SpotifyMini size={11} /> Spotify
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// List card — horizontal row with a small thumbnail. Densest layout.
+function ListEventCard({ ev, theme }) {
+  const meta = fmtMeta(ev);
+  const s = getCardSurface(theme);
+  return (
+    <div
+      style={{
+        display: "flex",
+        border: `1px solid ${s.border}`,
+        borderRadius: 10,
+        background: s.bg,
+        overflow: "hidden",
+        alignItems: "stretch",
+      }}
+    >
+      <div
+        style={{
+          width: 90,
+          minWidth: 90,
+          height: 90,
+          background: s.imgBg,
+          flexShrink: 0,
+          overflow: "hidden",
+          alignSelf: "stretch",
+        }}
+      >
+        {ev.imageUrl && (
+          <img
+            src={ev.imageUrl}
+            alt={ev.title || ""}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+        )}
+      </div>
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          padding: "10px 14px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          gap: 2,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: s.title,
+            lineHeight: 1.3,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {ev.title || "Untitled"}
+        </div>
+        {meta && (
+          <div style={{ fontSize: 11.5, color: s.meta, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {meta}
+          </div>
+        )}
+        {ev.hostedBy && (
+          <div style={{ fontSize: 11, color: s.host, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            Hosted by {ev.hostedBy}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", padding: "0 12px", gap: 6, flexShrink: 0 }}>
+        {ev.url && (
+          <span
+            style={{
+              display: "inline-block",
+              padding: "7px 14px",
+              background: s.ctaBg,
+              color: s.ctaFg,
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: 11,
+            }}
+          >
+            View →
+          </span>
+        )}
+        {ev.spotifyUrl && /^https?:\/\//i.test(ev.spotifyUrl) && (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "7px 11px",
+              background: "#1DB954",
+              color: "#ffffff",
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: 11,
+              lineHeight: 1,
+            }}
+          >
+            <SpotifyMini size={11} /> Spotify
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function FollowupBody({ blocks, t, inline, hoveredKey, theme }) {
   return (
@@ -373,6 +619,143 @@ function CanvasBlock({ block, t, inline, theme }) {
             >
               <Icon size={22} strokeWidth={1.7} />
             </a>
+          );
+        })}
+      </div>
+    );
+  }
+  // Event-card blocks (PullUp + Discover share the same shape). A block
+  // can hold multiple events — render them stacked. Legacy single-event
+  // blocks (title at top level) are coerced into a one-element list so
+  // we can keep one render path.
+  if (block.type === "pullup_event" || block.type === "discover_event") {
+    const layout = block.layout || "big";
+    const items = Array.isArray(block.events)
+      ? block.events
+      : block.title || block.url
+        ? [
+            {
+              title: block.title,
+              imageUrl: block.imageUrl,
+              startsAt: block.startsAt,
+              location: block.location,
+              url: block.url,
+              spotifyUrl: block.spotifyUrl,
+            },
+          ]
+        : [];
+    if (items.length === 0) return null;
+
+    if (layout === "list") {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "20px 0" }}>
+          {items.map((ev, i) => (
+            <ListEventCard key={i} ev={ev} theme={theme} />
+          ))}
+        </div>
+      );
+    }
+    if (layout === "grid2") {
+      const rows = [];
+      for (let i = 0; i < items.length; i += 2) {
+        rows.push([items[i], items[i + 1]]);
+      }
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "20px 0" }}>
+          {rows.map((pair, i) => (
+            <div key={i} style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <CompactEventCard ev={pair[0]} theme={theme} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {pair[1] ? <CompactEventCard ev={pair[1]} theme={theme} /> : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    const surface = getCardSurface(theme);
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, margin: "20px 0" }}>
+        {items.map((ev, i) => {
+          const meta = fmtMeta(ev);
+          return (
+            <div
+              key={i}
+              style={{
+                border: `1px solid ${surface.border}`,
+                borderRadius: 10,
+                background: surface.bg,
+                overflow: "hidden",
+              }}
+            >
+              {ev.imageUrl && (
+                <div style={{ width: "100%", aspectRatio: "16/9", background: surface.imgBg, overflow: "hidden" }}>
+                  <img
+                    src={ev.imageUrl}
+                    alt={ev.title || ""}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
+                </div>
+              )}
+              <div style={{ padding: "14px 18px 18px" }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: surface.title, lineHeight: 1.3, marginBottom: 4 }}>
+                  {ev.title || "Untitled"}
+                </div>
+                {meta && (
+                  <div style={{ fontSize: 13, color: surface.meta, marginBottom: 4 }}>{meta}</div>
+                )}
+                {ev.hostedBy && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: surface.host,
+                      marginBottom: 8,
+                    }}
+                  >
+                    Hosted by {ev.hostedBy}
+                  </div>
+                )}
+                {(ev.url || (ev.spotifyUrl && /^https?:\/\//i.test(ev.spotifyUrl))) && (
+                  <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {ev.url && (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "10px 20px",
+                          background: surface.ctaBg,
+                          color: surface.ctaFg,
+                          borderRadius: 8,
+                          fontWeight: 600,
+                          fontSize: 13,
+                        }}
+                      >
+                        View event →
+                      </span>
+                    )}
+                    {ev.spotifyUrl && /^https?:\/\//i.test(ev.spotifyUrl) && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "9px 14px 9px 12px",
+                          background: "#1DB954",
+                          color: "#ffffff",
+                          borderRadius: 8,
+                          fontWeight: 600,
+                          fontSize: 13,
+                          lineHeight: 1,
+                        }}
+                      >
+                        <SpotifyMini size={13} /> Spotify
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           );
         })}
       </div>

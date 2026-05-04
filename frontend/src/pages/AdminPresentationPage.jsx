@@ -109,7 +109,7 @@ const slides = [
           Everything you need. Nothing you don't.
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(clamp(200px, 28vw, 320px), 1fr))", gap: 10, maxWidth: 1000 }}>
-          <FeatureCard title="Smart capacity" desc="Set cocktail and dinner capacity separately. Automatic waitlist when full — guests get notified when spots open." />
+          <FeatureCard title="Smart capacity" desc="Set list and dinner capacity separately. Automatic waitlist when full — guests get notified when spots open." />
           <FeatureCard title="Dinner seatings" desc="Time-slot based dinner management. Guests pick their slot. Per-slot capacity limits. Overflow rules you control." />
           <FeatureCard title="Paid ticketing" desc="Stripe-powered payments. Set your price, currency, and let guests pay at RSVP. Revenue tracked in analytics." />
           <FeatureCard title="Plus-ones" desc="Control how many guests each person can bring. Party size tracked through RSVP, check-in, and analytics." />

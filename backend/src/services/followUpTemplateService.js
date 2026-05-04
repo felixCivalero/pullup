@@ -89,17 +89,32 @@ function emailShell(innerHtml) {
   .pu-footer a { color:#0670DB; }
   .pu-link { color:#0670DB; }
 
+  /* Event card surface — light by default, lifted dark surface in dark
+     mode so cards don't read as plain white blocks on a black email. */
+  .pu-event-card { background:#ffffff !important; border-color:rgba(0,0,0,0.08) !important; }
+  .pu-event-meta { color:rgba(12,10,18,0.65) !important; }
+  .pu-event-host { color:rgba(12,10,18,0.55) !important; }
+  .pu-event-cta { background:#0c0a12 !important; color:#ffffff !important; }
+
   @media (prefers-color-scheme: dark) {
     body, .pu-body { background:#0c0a12 !important; color:#ffffff !important; }
     .pu-text, .pu-heading, .pu-greeting, .pu-signoff { color:#ffffff !important; }
     .pu-footer { color:rgba(255,255,255,0.55) !important; border-top-color:rgba(255,255,255,0.1) !important; }
     .pu-footer a, .pu-link { color:#74b6ff !important; }
+    .pu-event-card { background:#161422 !important; border-color:rgba(255,255,255,0.08) !important; }
+    .pu-event-meta { color:rgba(255,255,255,0.65) !important; }
+    .pu-event-host { color:rgba(255,255,255,0.5) !important; }
+    .pu-event-cta { background:#ffffff !important; color:#0c0a12 !important; }
   }
   /* Outlook.com / hotmail dark-mode hooks */
   [data-ogsc] body, [data-ogsc] .pu-body { background:#0c0a12 !important; color:#ffffff !important; }
   [data-ogsc] .pu-text, [data-ogsc] .pu-heading, [data-ogsc] .pu-greeting, [data-ogsc] .pu-signoff { color:#ffffff !important; }
   [data-ogsc] .pu-footer { color:rgba(255,255,255,0.55) !important; }
   [data-ogsc] .pu-footer a, [data-ogsc] .pu-link { color:#74b6ff !important; }
+  [data-ogsc] .pu-event-card { background:#161422 !important; border-color:rgba(255,255,255,0.08) !important; }
+  [data-ogsc] .pu-event-meta { color:rgba(255,255,255,0.65) !important; }
+  [data-ogsc] .pu-event-host { color:rgba(255,255,255,0.5) !important; }
+  [data-ogsc] .pu-event-cta { background:#ffffff !important; color:#0c0a12 !important; }
 </style>
 </head>
 <body class="pu-body" style="background:#ffffff;color:#0c0a12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;">
@@ -183,6 +198,121 @@ function renderBlock(b, t) {
     });
     return `<div class="pu-text" style="text-align:${align};margin:20px 0;color:#0c0a12;">${items.join("")}</div>`;
   }
+  // PullUp + Discover event cards. A block can carry multiple events
+  // (events[]); we also support the legacy shape where event fields live
+  // at the top level. Three layouts:
+  //   big   — full-width hero card stack (default)
+  //   grid2 — two compact cards per row
+  //   list  — horizontal thumbnail rows
+  // Email clients are picky about layout primitives so the multi-column
+  // layouts use <table> and inline styles only.
+  if (b.type === "pullup_event" || b.type === "discover_event") {
+    const layout = b.layout === "grid2" || b.layout === "list" ? b.layout : "big";
+    const items = Array.isArray(b.events)
+      ? b.events
+      : b.title || b.url
+        ? [
+            {
+              title: b.title,
+              imageUrl: b.imageUrl,
+              startsAt: b.startsAt,
+              location: b.location,
+              url: b.url,
+              spotifyUrl: b.spotifyUrl,
+            },
+          ]
+        : [];
+    if (items.length === 0) return "";
+
+    if (layout === "list") {
+      return items.map(renderListCard).join("");
+    }
+    if (layout === "grid2") {
+      const rows = [];
+      for (let i = 0; i < items.length; i += 2) {
+        const a = renderGrid2Card(items[i]);
+        const c = items[i + 1] ? renderGrid2Card(items[i + 1]) : "&nbsp;";
+        rows.push(
+          `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;margin:8px 0;border-collapse:separate;"><tr>
+            <td valign="top" width="50%" style="width:50%;padding-right:6px;vertical-align:top;">${a}</td>
+            <td valign="top" width="50%" style="width:50%;padding-left:6px;vertical-align:top;">${c}</td>
+          </tr></table>`,
+        );
+      }
+      return rows.join("");
+    }
+
+    return items
+      .map((ev) => {
+        const safeTitle = escapeHtml(ev.title || "");
+        const safeImage = ev.imageUrl ? escapeAttr(ev.imageUrl) : null;
+        const safeUrl = ev.url ? escapeAttr(ev.url) : null;
+        const safeSpotify =
+          ev.spotifyUrl && /^https?:\/\//i.test(ev.spotifyUrl)
+            ? escapeAttr(ev.spotifyUrl)
+            : null;
+        const safeHostedBy = ev.hostedBy ? escapeHtml(ev.hostedBy) : null;
+
+        let dateLine = "";
+        if (ev.startsAt) {
+          const d = new Date(ev.startsAt);
+          if (!isNaN(d.getTime())) {
+            dateLine = d.toLocaleString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            });
+          }
+        }
+        const meta = [dateLine, ev.location]
+          .filter(Boolean)
+          .map(escapeHtml)
+          .join(" · ");
+
+        const imgHtml = safeImage
+          ? `<a href="${safeUrl || "#"}" style="display:block;text-decoration:none;"><div style="display:block;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:10px 10px 0 0;background:rgba(0,0,0,0.04);"><img src="${safeImage}" alt="${escapeAttr(ev.title || "")}" style="width:100%;height:100%;object-fit:cover;display:block;" /></div></a>`
+          : "";
+
+        const hostedByHtml = safeHostedBy
+          ? `<div class="pu-event-host" style="font-size:12px;margin:0 0 8px;">Hosted by ${safeHostedBy}</div>`
+          : "";
+
+        // Buttons row: View event CTA + Spotify button side-by-side.
+        // Use a small flex via inline-block so older email clients still
+        // render side-by-side reasonably. CTA uses the .pu-event-cta
+        // class so it inverts in dark mode (white-on-black inverted to
+        // black-on-white) instead of disappearing into a dark body.
+        const ctaHtml = safeUrl
+          ? `<a href="${safeUrl}" class="pu-event-cta" style="display:inline-block;padding:10px 20px;background:#0c0a12;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;vertical-align:middle;">View event →</a>`
+          : "";
+
+        const spotifyBtn = safeSpotify
+          ? `<a href="${safeSpotify}" style="display:inline-block;margin-left:8px;padding:9px 14px 9px 12px;background:#1DB954;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;line-height:1;vertical-align:middle;">
+              <span style="display:inline-block;vertical-align:middle;line-height:1;margin-right:6px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="display:inline-block;vertical-align:middle;"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12A12 12 0 0 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+              </span>
+              <span style="vertical-align:middle;">Spotify</span>
+            </a>`
+          : "";
+
+        const buttonsRow = ctaHtml || spotifyBtn
+          ? `<div style="margin-top:10px;">${ctaHtml}${spotifyBtn}</div>`
+          : "";
+
+        return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="pu-event-card" style="margin:8px 0;width:100%;max-width:600px;border:1px solid rgba(0,0,0,0.08);border-radius:10px;background:#ffffff;border-collapse:separate;overflow:hidden;">
+          <tr><td style="padding:0;">${imgHtml}</td></tr>
+          <tr><td style="padding:14px 18px 18px;">
+            <div class="pu-heading" style="font-size:18px;font-weight:700;margin:0 0 4px;line-height:1.3;">${safeTitle}</div>
+            ${meta ? `<div class="pu-event-meta" style="font-size:13px;margin:0 0 4px;">${meta}</div>` : ""}
+            ${hostedByHtml}
+            ${buttonsRow}
+          </td></tr>
+        </table>`;
+      })
+      .join("");
+  }
   if (b.type === "button" && b.url && b.text) {
     const captionRaw = b.caption ? t(b.caption) : "";
     const align = b.align === "left" || b.align === "right" ? b.align : "center";
@@ -195,6 +325,96 @@ function renderBlock(b, t) {
     return `<div style="text-align:${align};margin:20px 0 0;"><a href="${escapeAttr(b.url)}" style="display:inline-block;padding:${padding};background:${bg};color:${fg};text-decoration:none;border-radius:8px;font-weight:600;font-size:${fontSize}px;">${escapeHtml(t(b.text))}</a></div>${caption}`;
   }
   return "";
+}
+
+// Helpers shared by the three event-card layouts. Each returns the
+// inner HTML for one event in that layout's specific shape.
+function fmtMetaLine(ev) {
+  let dateLine = "";
+  if (ev.startsAt) {
+    const d = new Date(ev.startsAt);
+    if (!isNaN(d.getTime())) {
+      dateLine = d.toLocaleString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+  }
+  return [dateLine, ev.location].filter(Boolean).map(escapeHtml).join(" · ");
+}
+
+function spotifyButtonHtml(url, { compact = false } = {}) {
+  if (!url || !/^https?:\/\//i.test(url)) return "";
+  const safe = escapeAttr(url);
+  const padding = compact ? "6px 10px" : "9px 14px 9px 12px";
+  const fontSize = compact ? 11 : 13;
+  const iconSize = compact ? 11 : 13;
+  return `<a href="${safe}" style="display:inline-block;margin-left:8px;padding:${padding};background:#1DB954;color:#ffffff;text-decoration:none;border-radius:${compact ? 6 : 8}px;font-weight:600;font-size:${fontSize}px;line-height:1;vertical-align:middle;">
+    <span style="display:inline-block;vertical-align:middle;line-height:1;margin-right:6px;">
+      <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="currentColor" style="display:inline-block;vertical-align:middle;"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12A12 12 0 0 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+    </span>
+    <span style="vertical-align:middle;">Spotify</span>
+  </a>`;
+}
+
+function renderGrid2Card(ev) {
+  const safeTitle = escapeHtml(ev.title || "");
+  const safeImage = ev.imageUrl ? escapeAttr(ev.imageUrl) : null;
+  const safeUrl = ev.url ? escapeAttr(ev.url) : null;
+  const safeHostedBy = ev.hostedBy ? escapeHtml(ev.hostedBy) : null;
+  const meta = fmtMetaLine(ev);
+
+  const imgHtml = safeImage
+    ? `<a href="${safeUrl || "#"}" style="display:block;text-decoration:none;"><div style="display:block;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:10px 10px 0 0;background:rgba(0,0,0,0.04);"><img src="${safeImage}" alt="${escapeAttr(ev.title || "")}" style="width:100%;height:100%;object-fit:cover;display:block;" /></div></a>`
+    : "";
+
+  const ctaHtml = safeUrl
+    ? `<a href="${safeUrl}" class="pu-event-cta" style="display:inline-block;padding:7px 12px;background:#0c0a12;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:11px;vertical-align:middle;">View →</a>`
+    : "";
+  const spotifyBtn = spotifyButtonHtml(ev.spotifyUrl, { compact: true });
+  const buttons = ctaHtml || spotifyBtn ? `<div style="margin-top:8px;">${ctaHtml}${spotifyBtn}</div>` : "";
+
+  return `<div class="pu-event-card" style="border:1px solid rgba(0,0,0,0.08);border-radius:10px;background:#ffffff;overflow:hidden;">
+    ${imgHtml}
+    <div style="padding:10px 12px 12px;">
+      <div class="pu-heading" style="font-size:14px;font-weight:700;line-height:1.3;margin:0 0 3px;">${safeTitle}</div>
+      ${meta ? `<div class="pu-event-meta" style="font-size:11px;margin:0 0 2px;">${meta}</div>` : ""}
+      ${safeHostedBy ? `<div class="pu-event-host" style="font-size:11px;margin:0;">Hosted by ${safeHostedBy}</div>` : ""}
+      ${buttons}
+    </div>
+  </div>`;
+}
+
+function renderListCard(ev) {
+  const safeTitle = escapeHtml(ev.title || "");
+  const safeImage = ev.imageUrl ? escapeAttr(ev.imageUrl) : null;
+  const safeUrl = ev.url ? escapeAttr(ev.url) : null;
+  const safeHostedBy = ev.hostedBy ? escapeHtml(ev.hostedBy) : null;
+  const meta = fmtMetaLine(ev);
+
+  const ctaHtml = safeUrl
+    ? `<a href="${safeUrl}" class="pu-event-cta" style="display:inline-block;padding:7px 14px;background:#0c0a12;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:11px;vertical-align:middle;">View →</a>`
+    : "";
+  const spotifyBtn = spotifyButtonHtml(ev.spotifyUrl, { compact: true });
+
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="pu-event-card" style="margin:6px 0;width:100%;max-width:600px;border:1px solid rgba(0,0,0,0.08);border-radius:10px;background:#ffffff;border-collapse:separate;overflow:hidden;">
+    <tr>
+      <td width="90" valign="middle" style="width:90px;background:rgba(0,0,0,0.04);padding:0;">
+        ${safeImage ? `<a href="${safeUrl || "#"}" style="display:block;text-decoration:none;"><img src="${safeImage}" alt="${escapeAttr(ev.title || "")}" style="display:block;width:90px;height:90px;object-fit:cover;" /></a>` : ""}
+      </td>
+      <td valign="middle" style="padding:10px 14px;">
+        <div class="pu-heading" style="font-size:14px;font-weight:700;line-height:1.3;margin:0 0 2px;">${safeTitle}</div>
+        ${meta ? `<div class="pu-event-meta" style="font-size:11.5px;margin:0;">${meta}</div>` : ""}
+        ${safeHostedBy ? `<div class="pu-event-host" style="font-size:11px;margin:2px 0 0;">Hosted by ${safeHostedBy}</div>` : ""}
+      </td>
+      <td valign="middle" align="right" style="padding:10px 12px;white-space:nowrap;">
+        ${ctaHtml}${spotifyBtn}
+      </td>
+    </tr>
+  </table>`;
 }
 
 function escapeHtml(s) {

@@ -252,6 +252,31 @@ export function validateRsvpData(req, res, next) {
     }
   }
 
+  // Custom answers validation (optional, must be a plain object of string values)
+  if (req.body.customAnswers !== undefined && req.body.customAnswers !== null) {
+    if (
+      typeof req.body.customAnswers !== "object" ||
+      Array.isArray(req.body.customAnswers)
+    ) {
+      errors.push("customAnswers must be an object");
+    } else {
+      for (const [k, v] of Object.entries(req.body.customAnswers)) {
+        if (typeof k !== "string" || k.length > 64) {
+          errors.push("customAnswers keys must be short strings");
+          break;
+        }
+        if (v !== null && v !== undefined && typeof v !== "string") {
+          errors.push("customAnswers values must be strings");
+          break;
+        }
+        if (typeof v === "string" && v.length > 1000) {
+          errors.push("customAnswers values must be under 1000 chars");
+          break;
+        }
+      }
+    }
+  }
+
   if (errors.length > 0) {
     return res.status(400).json({
       error: "Validation failed",

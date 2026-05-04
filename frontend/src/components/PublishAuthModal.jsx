@@ -31,41 +31,31 @@ const GoogleIcon = (
 );
 
 /**
- * PublishAuthModal — two-step modal:
- *   Step 1: Authenticate (email/password or Google)
- *   Step 2: Capture brand name + contact email, then auto-publish
+ * PublishAuthModal — single-step auth gate.
+ * Profile completeness is now guaranteed by the onboarding flow at /start,
+ * so we no longer collect brand/contactEmail inside this modal.
  *
  * Props:
  *   onClose        — dismiss modal
- *   onProfileReady — called with { brand, contactEmail } when profile is saved; parent should proceed to publish
+ *   onProfileReady — called once auth succeeds; parent proceeds to publish
  */
 export function PublishAuthModal({ onClose, onProfileReady }) {
   const { signInWithGoogle, signInWithEmailPassword, user } = useAuth();
 
-  // Auth step state
+  // Auth state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authConsent, setAuthConsent] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Profile step state
-  const [brand, setBrand] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [profileError, setProfileError] = useState("");
-  const [profileStepReady, setProfileStepReady] = useState(false);
-
-  // Determine which step to show
-  const showProfileStep = !!user && !profileStepReady;
   const showAuthStep = !user;
 
-  // Pre-fill contact email when user authenticates
+  // Once we have a session (e.g. user just signed in via email/password),
+  // the parent can publish — the modal has nothing else to do.
   useEffect(() => {
-    if (user?.email && !contactEmail) {
-      setContactEmail(user.email);
-    }
-  }, [user]);
+    if (user) onProfileReady?.({});
+  }, [user, onProfileReady]);
 
   // ── Auth handlers ──
 
@@ -121,41 +111,6 @@ export function PublishAuthModal({ onClose, onProfileReady }) {
     } catch {
       setFormError("Google sign-in failed. Please try again.");
       setSigningIn(false);
-    }
-  };
-
-  // ── Profile handler ──
-
-  const handleProfileSubmit = async (e) => {
-    e.preventDefault();
-    if (savingProfile) return;
-    setProfileError("");
-    if (!brand.trim()) {
-      setProfileError("Brand / arranger name is required.");
-      return;
-    }
-    if (!contactEmail.trim()) {
-      setProfileError("Contact email is required.");
-      return;
-    }
-    try {
-      setSavingProfile(true);
-      const res = await authenticatedFetch("/host/profile", {
-        method: "PUT",
-        body: JSON.stringify({
-          brand: brand.trim(),
-          contactEmail: contactEmail.trim(),
-        }),
-      });
-      if (!res.ok) {
-        throw new Error("Failed to save profile");
-      }
-      setProfileStepReady(true);
-      onProfileReady({ brand: brand.trim(), contactEmail: contactEmail.trim() });
-    } catch (err) {
-      setProfileError(err?.message || "Failed to save. Please try again.");
-    } finally {
-      setSavingProfile(false);
     }
   };
 
@@ -290,57 +245,6 @@ export function PublishAuthModal({ onClose, onProfileReady }) {
           </>
         )}
 
-        {/* ── STEP 2: BRAND NAME ── */}
-        {showProfileStep && (
-          <>
-            <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, textAlign: "center" }}>
-              Almost there
-            </h2>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", textAlign: "center", marginBottom: 24 }}>
-              Add your brand name to publish your event
-            </p>
-
-            <form onSubmit={handleProfileSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }} htmlFor="publish-brand">Brand / Arranger name</label>
-                <input
-                  id="publish-brand"
-                  type="text" required autoFocus
-                  value={brand} onChange={(e) => setBrand(e.target.value)}
-                  placeholder="Your brand or name"
-                  style={inputStyle}
-                />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }} htmlFor="publish-contact-email">Contact email</label>
-                <input
-                  id="publish-contact-email"
-                  type="email" required
-                  value={contactEmail} onChange={(e) => setContactEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  style={inputStyle}
-                />
-              </div>
-              <button
-                type="submit" disabled={savingProfile}
-                style={{
-                  width: "100%", padding: "14px 0", borderRadius: "999px", border: "none",
-                  background: colors.gradientGold, color: "#111",
-                  fontSize: 14, fontWeight: 700,
-                  cursor: savingProfile ? "wait" : "pointer",
-                  opacity: savingProfile ? 0.7 : 1, marginTop: 4,
-                }}
-              >
-                {savingProfile ? "Publishing..." : "Publish event"}
-              </button>
-              {profileError && (
-                <div style={{ fontSize: 12, color: "rgba(255,119,119,0.95)", textAlign: "center" }}>
-                  {profileError}
-                </div>
-              )}
-            </form>
-          </>
-        )}
       </div>
     </div>
   );

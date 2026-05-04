@@ -523,6 +523,11 @@ export function SalesPage() {
               const isExpanded = expandedId === lead.id;
               const isEditing = editingId === lead.id;
               const sc = STATUS_COLORS[lead.status] || STATUS_COLORS.new;
+              // user-linked = either the row is auto-surfaced from a profile,
+              // or it's a real lead with a linked profile_id. In both cases
+              // name/email belong to the user (set in /settings) and admin
+              // edits should stay limited to internal sales fields.
+              const isUserLinked = !!(lead.is_user_only || lead.profile_id);
 
               return (
                 <div
@@ -672,6 +677,25 @@ export function SalesPage() {
                       {isEditing ? (
                         /* Edit mode */
                         <div style={{ paddingTop: 8 }}>
+                          {isUserLinked && (
+                            <div
+                              style={{
+                                marginBottom: 10,
+                                padding: "8px 12px",
+                                borderRadius: 8,
+                                background: "rgba(96,165,250,0.06)",
+                                border: "1px solid rgba(96,165,250,0.18)",
+                                fontSize: 12,
+                                color: "rgba(255,255,255,0.7)",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              <strong style={{ color: "#60a5fa" }}>Internal admin fields only.</strong>{" "}
+                              Name and email come from{" "}
+                              {lead.profile?.name || lead.name || "the user's"} profile and stay in sync with
+                              what they set in /settings. You can update sales pipeline data here.
+                            </div>
+                          )}
                           <div
                             style={{
                               display: "grid",
@@ -680,15 +704,90 @@ export function SalesPage() {
                             }}
                           >
                             <div>
-                              <label style={labelStyle}>Name</label>
+                              <label style={labelStyle}>
+                                Name
+                                {isUserLinked && (
+                                  <span
+                                    style={{
+                                      marginLeft: 6,
+                                      fontWeight: 500,
+                                      textTransform: "none",
+                                      letterSpacing: 0,
+                                      color: "rgba(255,255,255,0.3)",
+                                    }}
+                                  >
+                                    from profile
+                                  </span>
+                                )}
+                              </label>
                               <input
-                                style={inputStyle}
-                                value={editForm.name ?? ""}
+                                style={{
+                                  ...inputStyle,
+                                  ...(isUserLinked
+                                    ? {
+                                        opacity: 0.55,
+                                        cursor: "not-allowed",
+                                        background: "rgba(255,255,255,0.02)",
+                                      }
+                                    : null),
+                                }}
+                                disabled={isUserLinked}
+                                value={
+                                  isUserLinked
+                                    ? lead.profile?.name || lead.name || ""
+                                    : editForm.name ?? ""
+                                }
                                 onChange={(e) =>
-                                  setEditForm({
-                                    ...editForm,
-                                    name: e.target.value,
-                                  })
+                                  isUserLinked
+                                    ? null
+                                    : setEditForm({
+                                        ...editForm,
+                                        name: e.target.value,
+                                      })
+                                }
+                              />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>
+                                Email
+                                {isUserLinked && (
+                                  <span
+                                    style={{
+                                      marginLeft: 6,
+                                      fontWeight: 500,
+                                      textTransform: "none",
+                                      letterSpacing: 0,
+                                      color: "rgba(255,255,255,0.3)",
+                                    }}
+                                  >
+                                    from profile
+                                  </span>
+                                )}
+                              </label>
+                              <input
+                                style={{
+                                  ...inputStyle,
+                                  ...(isUserLinked
+                                    ? {
+                                        opacity: 0.55,
+                                        cursor: "not-allowed",
+                                        background: "rgba(255,255,255,0.02)",
+                                      }
+                                    : null),
+                                }}
+                                disabled={isUserLinked}
+                                value={
+                                  isUserLinked
+                                    ? lead.email || ""
+                                    : editForm.email ?? ""
+                                }
+                                onChange={(e) =>
+                                  isUserLinked
+                                    ? null
+                                    : setEditForm({
+                                        ...editForm,
+                                        email: e.target.value,
+                                      })
                                 }
                               />
                             </div>
@@ -701,19 +800,6 @@ export function SalesPage() {
                                   setEditForm({
                                     ...editForm,
                                     company: e.target.value,
-                                  })
-                                }
-                              />
-                            </div>
-                            <div>
-                              <label style={labelStyle}>Email</label>
-                              <input
-                                style={inputStyle}
-                                value={editForm.email ?? ""}
-                                onChange={(e) =>
-                                  setEditForm({
-                                    ...editForm,
-                                    email: e.target.value,
                                   })
                                 }
                               />
@@ -921,8 +1007,8 @@ export function SalesPage() {
                             </div>
                           )}
 
-                          {/* Quick status change (lead-only) */}
-                          {!lead.is_user_only && (
+                          {/* Quick status change — works on user-linked rows
+                              too; PATCH lazily creates the sales_lead row. */}
                           <div
                             style={{
                               display: "flex",
@@ -961,7 +1047,6 @@ export function SalesPage() {
                               </button>
                             ))}
                           </div>
-                          )}
 
                           {/* Actions */}
                           <div
@@ -973,7 +1058,6 @@ export function SalesPage() {
                               borderTop: "1px solid rgba(255,255,255,0.06)",
                             }}
                           >
-                            {!lead.is_user_only && (
                             <button
                               onClick={() => {
                                 setEditingId(lead.id);
@@ -985,7 +1069,7 @@ export function SalesPage() {
                                   city: lead.city || "",
                                   source: lead.source || "",
                                   notes: lead.notes || "",
-                                  status: lead.status,
+                                  status: lead.status === "user" ? "new" : lead.status,
                                 });
                               }}
                               style={{
@@ -1000,7 +1084,6 @@ export function SalesPage() {
                             >
                               Edit
                             </button>
-                            )}
                             {lead.profile && (
                               <button
                                 onClick={() =>

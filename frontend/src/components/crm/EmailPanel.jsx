@@ -18,6 +18,8 @@ export default function EmailPanel({
   setEventPreviewText,
   eventBlocks,
   setEventBlocks,
+  eventFromName,
+  setEventFromName,
   // Follow-up template
   selectedEventIdForFollowup,
   setSelectedEventIdForFollowup,
@@ -27,6 +29,8 @@ export default function EmailPanel({
   setFollowupPreviewText,
   followupBlocks,
   setFollowupBlocks,
+  followupFromName,
+  setFollowupFromName,
   hoveredKey,
   setHoveredKey,
 }) {
@@ -59,6 +63,8 @@ export default function EmailPanel({
           setSubject={setEventSubject}
           previewText={eventPreviewText}
           setPreviewText={setEventPreviewText}
+          fromName={eventFromName}
+          setFromName={setEventFromName}
           blocks={eventBlocks}
           setBlocks={setEventBlocks}
           hoveredKey={hoveredKey}
@@ -77,6 +83,8 @@ export default function EmailPanel({
           setSubject={setFollowupSubject}
           previewText={followupPreviewText}
           setPreviewText={setFollowupPreviewText}
+          fromName={followupFromName}
+          setFromName={setFollowupFromName}
           blocks={followupBlocks}
           setBlocks={setFollowupBlocks}
           hoveredKey={hoveredKey}

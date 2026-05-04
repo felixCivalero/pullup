@@ -1,17 +1,11 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
-import { useAuth } from "../contexts/AuthContext";
-
 import { EventsTab } from "../components/HomeEventsTab";
-
 import { authenticatedFetch } from "../lib/api.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
 export function HomePage() {
-  const navigate = useNavigate();
   const { showToast } = useToast();
-  const { user: authUser } = useAuth();
 
   const [upcomingEvents, setUpcomingEvents] = useState(null);
   const [pastEvents, setPastEvents] = useState(null);
@@ -19,111 +13,9 @@ export function HomePage() {
   const [loadingPast, setLoadingPast] = useState(false);
   const [pastLoaded, setPastLoaded] = useState(false);
   const [networkError, setNetworkError] = useState(false);
-  const [user, setUser] = useState(null);
-  const [profileLoading, setProfileLoading] = useState(true);
 
   const [eventFilter, setEventFilter] = useState("upcoming"); // "upcoming" | "past"
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-
-  // Load profile from API
-  useEffect(() => {
-    async function loadProfile() {
-      if (!authUser) {
-        setProfileLoading(false);
-        return;
-      }
-
-      try {
-        const res = await authenticatedFetch("/host/profile");
-        if (res.ok) {
-          const profile = await res.json();
-
-          // Migrate localStorage data if profile is empty and localStorage has data
-          const stored = localStorage.getItem("pullup_user");
-          if (stored && (!profile.name || !profile.brand)) {
-            try {
-              const parsed = JSON.parse(stored);
-              // Merge localStorage data with profile
-              const migratedProfile = {
-                ...profile,
-                name: profile.name || parsed.name || "",
-                brand: profile.brand || parsed.brand || "",
-                bio: profile.bio || parsed.bio || "",
-                profilePicture:
-                  profile.profilePicture || parsed.profilePicture || null,
-                brandingLinks: profile.brandingLinks ||
-                  parsed.brandingLinks || {
-                    instagram: "",
-                    x: "",
-                    youtube: "",
-                    tiktok: "",
-                    linkedin: "",
-                    website: "",
-                  },
-                emails: profile.emails || parsed.emails || [],
-                mobileNumber: profile.mobileNumber || parsed.mobileNumber || "",
-                thirdPartyAccounts:
-                  profile.thirdPartyAccounts || parsed.thirdPartyAccounts || [],
-              };
-
-              // Save migrated data to Supabase
-              const saveRes = await authenticatedFetch("/host/profile", {
-                method: "PUT",
-                body: JSON.stringify(migratedProfile),
-              });
-
-              if (saveRes.ok) {
-                const saved = await saveRes.json();
-                setUser(saved);
-                // Clear localStorage after successful migration
-                localStorage.removeItem("pullup_user");
-              } else {
-                setUser(profile);
-              }
-            } catch (migrationError) {
-              console.error("Migration error:", migrationError);
-              setUser(profile);
-            }
-          } else {
-            setUser(profile);
-          }
-        } else {
-          console.error("Failed to load profile");
-          setUser(null);
-        }
-      } catch (error) {
-        console.error("Failed to load profile:", error);
-        setUser(null);
-      } finally {
-        setProfileLoading(false);
-      }
-    }
-
-    loadProfile();
-  }, [authUser]);
-
-  // Save profile to API when user updates (debounced)
-  const handleSaveProfile = async (updates) => {
-    if (!authUser) return;
-
-    try {
-      const res = await authenticatedFetch("/host/profile", {
-        method: "PUT",
-        body: JSON.stringify(updates),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setUser(updated);
-        window.dispatchEvent(new Event("profileUpdated"));
-        return true;
-      } else {
-        throw new Error("Failed to save profile");
-      }
-    } catch (error) {
-      console.error("Failed to save profile:", error);
-      throw error;
-    }
-  };
 
   useEffect(() => {
     function handleMouseMove(e) {
@@ -181,7 +73,7 @@ export function HomePage() {
     loadPastEvents();
   }, [eventFilter, pastLoaded, loadingPast, showToast]);
 
-  if (loadingUpcoming || profileLoading || !user) {
+  if (loadingUpcoming) {
     return (
       <div
         className="page-with-header"
@@ -298,16 +190,12 @@ export function HomePage() {
             border: "1px solid rgba(255,255,255,0.05)",
           }}
         >
-          {/* Events content */}
           <EventsTab
             upcomingEvents={upcomingEvents || []}
             pastEvents={pastEvents || []}
             eventFilter={eventFilter}
             setEventFilter={setEventFilter}
             loadingPast={loadingPast}
-            user={user}
-            setUser={setUser}
-            onSaveProfile={handleSaveProfile}
             showToast={showToast}
             onDeleteEvent={(eventId) => {
               setUpcomingEvents((prev) => prev?.filter((e) => e.id !== eventId) || []);

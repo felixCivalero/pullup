@@ -142,7 +142,7 @@ export function EventOverviewStats({
           <div style={{ position: "relative" }}>
             <StatCard
               icon={<SilverIcon as={Wine} size={24} />}
-              label="Cocktail Capacity"
+              label="List Capacity"
               value={`${stats.cocktailsOnly}/${cocktailCapacity}`}
               color={cocktailOverCapacity > 0 ? "#f59e0b" : "#f59e0b"}
             />

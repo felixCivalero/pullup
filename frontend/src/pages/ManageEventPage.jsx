@@ -2654,7 +2654,7 @@ export function ManageEventPage() {
                             {/* capacity */}
                             <OptionRow
                               icon={<SilverIcon as={Users} size={20} />}
-                              label="Cocktail capacity"
+                              label="List capacity"
                               right={
                                 <input
                                   type="number"

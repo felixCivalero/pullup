@@ -1370,7 +1370,7 @@ export function EventGuestsPage() {
                         <>
                           <SortableHeader
                             column="cocktailList"
-                            label="Cocktail List"
+                            label="List"
                             sortColumn={sortColumn}
                             sortDirection={sortDirection}
                             onSort={handleSort}
@@ -2650,7 +2650,7 @@ function DinnerStatusBadge({ status }) {
       color: "#f472b6",
     },
     cocktails: {
-      label: "Cocktails",
+      label: "List",
       icon: <SilverIcon as={Wine} size={12} />,
       bg: "rgba(245, 158, 11, 0.2)",
       border: "rgba(245, 158, 11, 0.5)",
@@ -3546,7 +3546,7 @@ function EditGuestModal({
                       color: pulledUpForCocktails !== null ? "#f59e0b" : "#fff",
                     }}
                   >
-                    <SilverIcon as={Wine} size={18} /> Cocktails
+                    <SilverIcon as={Wine} size={18} /> List
                   </span>
                 </label>
                 {pulledUpForCocktails !== null && (
@@ -3896,7 +3896,7 @@ function EditGuestModal({
                 {capacityCheck.willExceedCocktail &&
                   !capacityCheck.willExceedDinner && (
                     <div>
-                      Confirming this guest will put the event over cocktail
+                      Confirming this guest will put the event over list
                       capacity by {capacityCheck.cocktailOverBy} guest
                       {capacityCheck.cocktailOverBy === 1 ? "" : "s"}.
                     </div>
@@ -3912,7 +3912,7 @@ function EditGuestModal({
                 {capacityCheck.willExceedCocktail &&
                   capacityCheck.willExceedDinner && (
                     <div>
-                      Confirming this guest will put both cocktails and dinner
+                      Confirming this guest will put both list and dinner
                       over their current capacities.
                     </div>
                   )}

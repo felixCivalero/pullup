@@ -142,6 +142,23 @@ export function CrmPage() {
   const [eventSubject, setEventSubject] = useState("");
   const [eventPreviewText, setEventPreviewText] = useState("");
   const [eventBlocks, setEventBlocks] = useState([]);
+  // Per-template "From" display name. Defaults to host's brand or first name
+  // for both templates so out-of-the-box emails feel personal in the inbox.
+  const defaultFromName = useMemo(() => {
+    const meta = user?.user_metadata || {};
+    if (meta.brand) return String(meta.brand).trim();
+    if (meta.full_name) return String(meta.full_name).trim();
+    return currentUserFirstName || "PullUp";
+  }, [user, currentUserFirstName]);
+  const [eventFromName, setEventFromName] = useState("");
+  const [followupFromName, setFollowupFromName] = useState("");
+  // Seed the From-name fields from the resolved default once the user
+  // record is hydrated (only if the host hasn't typed anything yet).
+  useEffect(() => {
+    if (!eventFromName && defaultFromName) setEventFromName(defaultFromName);
+    if (!followupFromName && defaultFromName) setFollowupFromName(defaultFromName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultFromName]);
 
   // Composer state — follow-up template (independent so switching templates
   // doesn't lose either side's edits)
@@ -292,6 +309,7 @@ export function CrmPage() {
             templateContent: {
               subject: followupSubject,
               previewText: followupPreviewText,
+              fromName: followupFromName || null,
               blocks: followupBlocks,
             },
             filterCriteria,
@@ -303,6 +321,7 @@ export function CrmPage() {
             templateContent: {
               subject: eventSubject,
               previewText: eventPreviewText,
+              fromName: eventFromName || null,
               blocks: eventBlocks,
             },
             filterCriteria,
@@ -515,6 +534,8 @@ export function CrmPage() {
                 setEventPreviewText={setEventPreviewText}
                 eventBlocks={eventBlocks}
                 setEventBlocks={setEventBlocks}
+                eventFromName={eventFromName}
+                setEventFromName={setEventFromName}
                 // Follow-up template props
                 selectedEventIdForFollowup={followupEventId}
                 setSelectedEventIdForFollowup={setFollowupEventId}
@@ -524,6 +545,8 @@ export function CrmPage() {
                 setFollowupPreviewText={setFollowupPreviewText}
                 followupBlocks={followupBlocks}
                 setFollowupBlocks={setFollowupBlocks}
+                followupFromName={followupFromName}
+                setFollowupFromName={setFollowupFromName}
                 hoveredKey={hoveredKey}
                 setHoveredKey={setHoveredKey}
               />

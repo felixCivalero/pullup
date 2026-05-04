@@ -1,69 +1,11 @@
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  ArrowRight,
-  X,
-  Sparkles,
-} from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { colors } from "../theme/colors.js";
-import { authenticatedFetch, publicFetch } from "../lib/api.js";
-
-/* ─── helpers ─── */
-
-// Shared with /t/pageview so one persistent id keys every funnel event.
-function getVisitorId() {
-  try {
-    let id = localStorage.getItem("pullup_visitor_id");
-    if (!id) {
-      id = typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      localStorage.setItem("pullup_visitor_id", id);
-    }
-    return id;
-  } catch {
-    return null;
-  }
-}
-
-// Fire-and-forget. Whitelisted funnel events also POST to /t/event so they
-// land in landing_page_events and show up in admin analytics. Unknown names
-// stay gtag-only so debug pings don't hit the DB.
-const FUNNEL_EVENTS = new Set(["cta_click", "auth_start", "signed_in"]);
-function trackEvent(name, props) {
-  try {
-    if (window.gtag) window.gtag("event", name, props);
-  } catch {}
-  if (!FUNNEL_EVENTS.has(name)) return;
-  try {
-    const visitorId = getVisitorId();
-    if (!visitorId) return;
-    publicFetch("/t/event", {
-      method: "POST",
-      body: JSON.stringify({
-        visitorId,
-        eventName: name,
-        deviceType: typeof window !== "undefined" && window.innerWidth < 768 ? "mobile" : "desktop",
-        props: props || null,
-      }),
-    }).catch(() => {});
-  } catch {
-    // swallow — tracking must never break the page
-  }
-}
-
-const inputStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "13px 16px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#fff",
-  fontSize: "14px",
-  outline: "none",
-};
+import { publicFetch } from "../lib/api.js";
+import { trackEvent, getVisitorId } from "../lib/analytics.js";
+import { ParticleField } from "../components/ParticleField";
 
 const ROTATING_WORDS = ["people", "life", "culture", "art"];
 
@@ -72,6 +14,7 @@ const LOGOS = [
   // Colour logos (Cliff Barnes orange) and already-white logos (Zoda) render untouched.
   { type: "image", src: "/landing/logos/soho-house.png", alt: "Soho House", invert: true },
   { type: "image", src: "/landing/logos/doberman.png", alt: "EY Doberman", invert: true },
+  { type: "image", src: "/landing/logos/spybar.png", alt: "Spy Bar" },
   { type: "image", src: "/landing/logos/cliff-barnes.svg", alt: "Cliff Barnes Bränneri" },
   { type: "image", src: "/zoda_logotype_white.webp", alt: "Zoda" },
   { type: "image", src: "/landing/logos/showlighters.png", alt: "Showlighters" },
@@ -119,142 +62,20 @@ function useReveal(threshold = 0.15) {
 /* ─── component ─── */
 export function LandingPage() {
   const navigate = useNavigate();
-  const { signInWithGoogle, signInWithEmailPassword, user } = useAuth();
+  const { user } = useAuth();
 
-  const [showAuth, setShowAuth] = useState(false);
-  const [signingIn, setSigningIn] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [formError, setFormError] = useState("");
-  const [authConsent, setAuthConsent] = useState(false);
-
-  // Pass `location` ("hero" | "nav") so the funnel can attribute which CTA
-  // surface drove the click.
-  const handleSignupClick = useCallback(
-    (location) => {
-      trackEvent("cta_click", { location, user_logged_in: !!user });
-      if (user) navigate("/events");
-      else setShowAuth(true);
-    },
-    [user, navigate],
-  );
+  // Hero CTA goes to onboarding for new users; existing users skip ahead
+  // to the dashboard. Nav CTA always goes to /login (returning users).
+  const handleHeroCta = () => {
+    trackEvent("cta_click", { location: "hero", user_logged_in: !!user });
+    navigate(user ? "/events" : "/start");
+  };
+  const handleNavCta = () => {
+    trackEvent("cta_click", { location: "nav", user_logged_in: !!user });
+    navigate(user ? "/events" : "/login");
+  };
 
   const [scrolled, setScrolled] = useState(false);
-
-
-  /* ─── golden particle canvas ─── */
-  const canvasRef = useRef(null);
-  const particlesRef = useRef([]);
-  const mouseRef = useRef({ x: -1, y: -1 });
-  const lastSpawnRef = useRef(0);
-  const rafRef = useRef(null);
-
-  const GLYPHS = ["♪", "♫", "♬", "✦", "✧", "·"];
-
-  const spawnParticle = useCallback((x, y) => {
-    const glyph = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
-    const isNote = glyph === "♪" || glyph === "♫" || glyph === "♬";
-    particlesRef.current.push({
-      x: x + (Math.random() - 0.5) * 40,
-      y: y + (Math.random() - 0.5) * 40,
-      vx: (Math.random() - 0.5) * 0.3,
-      vy: -(0.3 + Math.random() * 0.5),
-      life: 1,
-      decay: 0.008 + Math.random() * 0.008,
-      size: isNote ? 10 + Math.random() * 8 : 3 + Math.random() * 3,
-      glyph,
-      rotation: (Math.random() - 0.5) * 0.6,
-      rotSpeed: (Math.random() - 0.5) * 0.02,
-    });
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = document.documentElement.scrollHeight;
-    };
-    resize();
-    window.addEventListener("resize", resize);
-
-    // Re-measure canvas height when content changes (images load, etc.)
-    const resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(document.documentElement);
-
-    const onMouseMove = (e) => {
-      mouseRef.current = { x: e.clientX, y: e.clientY + window.scrollY };
-    };
-
-    window.addEventListener("mousemove", onMouseMove, { passive: true });
-
-    const animate = () => {
-      const now = Date.now();
-      const { x, y } = mouseRef.current;
-
-      // Spawn particles on mouse move (throttled)
-      if (x >= 0 && now - lastSpawnRef.current > 60) {
-        const count = 1 + Math.floor(Math.random() * 2);
-        for (let i = 0; i < count; i++) spawnParticle(x, y);
-        lastSpawnRef.current = now;
-      }
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const particles = particlesRef.current;
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.rotation += p.rotSpeed;
-        p.life -= p.decay;
-
-        if (p.life <= 0) {
-          particles.splice(i, 1);
-          continue;
-        }
-
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.rotation);
-        ctx.globalAlpha = p.life * 0.45;
-
-        if (p.glyph === "·") {
-          // Small dot particle
-          ctx.beginPath();
-          ctx.arc(0, 0, p.size * 0.5, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(251, 191, 36, ${p.life * 0.6})`;
-          ctx.fill();
-        } else {
-          // Text glyph (music notes, stars)
-          ctx.font = `${p.size}px serif`;
-          ctx.fillStyle = `rgba(251, 191, 36, ${p.life * 0.5})`;
-          ctx.shadowColor = "rgba(251, 191, 36, 0.3)";
-          ctx.shadowBlur = 8;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(p.glyph, 0, 0);
-        }
-        ctx.restore();
-      }
-
-      // Cap particles to prevent memory issues
-      if (particles.length > 80) particles.splice(0, particles.length - 80);
-
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("mousemove", onMouseMove);
-      resizeObserver.disconnect();
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [spawnParticle]);
 
   useEffect(() => {
     // Generate or retrieve a persistent visitor ID
@@ -302,96 +123,6 @@ export function LandingPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  /* ─── auth ─── */
-  const handleEmailPasswordSubmit = async (e) => {
-    e.preventDefault();
-    if (signingIn) return;
-    setFormError("");
-    if (!authConsent) {
-      setFormError("You must agree to the terms and privacy policy.");
-      return;
-    }
-    trackEvent("landing_email_login_submit", { user_logged_in: !!user });
-    trackEvent("auth_start", { method: "email" });
-    try {
-      setSigningIn(true);
-      await signInWithEmailPassword(email.trim(), password);
-      authenticatedFetch("/auth/record-consent", { method: "POST" }).catch(
-        () => {},
-      );
-      trackEvent("signed_in", { via: "email" });
-      navigate("/events");
-    } catch (error) {
-      const msg = (error?.message || "").toLowerCase();
-      let friendly = "Something went wrong. Please try again.";
-      if (msg.includes("email not confirmed"))
-        friendly = "Check your email to confirm your account, then come back.";
-      else if (msg.includes("invalid login credentials"))
-        friendly = "Incorrect email or password.";
-      else if (msg.includes("rate limit"))
-        friendly = "Too many attempts. Wait a moment, then try again.";
-      else if (msg.includes("already registered"))
-        friendly =
-          'This email uses another sign-in method. Try "Continue with Google".';
-      else if (msg.includes("password")) friendly = error.message;
-      setFormError(friendly);
-    } finally {
-      setSigningIn(false);
-    }
-  };
-
-  const handleGoogleContinue = async () => {
-    if (signingIn) return;
-    setFormError("");
-    if (!authConsent) {
-      setFormError("You must agree to the terms and privacy policy.");
-      return;
-    }
-    trackEvent("landing_google_continue_click", { user_logged_in: !!user });
-    trackEvent("auth_start", { method: "google" });
-    if (user) {
-      navigate("/events");
-      return;
-    }
-    try {
-      setSigningIn(true);
-      // Flag picked up by the user-state useEffect when we return signed in,
-      // so the dashboard redirect works even if Supabase has already scrubbed
-      // the OAuth tokens from the URL (common on mobile Safari).
-      sessionStorage.setItem("pullup_signin_pending", "1");
-      await signInWithGoogle("/events");
-    } catch {
-      sessionStorage.removeItem("pullup_signin_pending");
-      setFormError("Google sign-in failed. Please try again.");
-      setSigningIn(false);
-    }
-  };
-
-  const GoogleIcon = (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 48 48"
-      style={{ width: 18, height: 18, display: "block" }}
-    >
-      <path
-        fill="#EA4335"
-        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.61l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.4 5.38 2.56 13.22l7.98 6.2C12.48 13.02 17.74 9.5 24 9.5z"
-      />
-      <path
-        fill="#34A853"
-        d="M46.98 24.55c0-1.64-.15-3.21-.43-4.74H24v9.02h12.94c-.56 2.9-2.26 5.36-4.82 7.02l7.66 5.94C44.54 37.89 46.98 31.76 46.98 24.55z"
-      />
-      <path
-        fill="#4A90E2"
-        d="M10.54 28.42a10.5 10.5 0 0 1-.55-3.17c0-1.1.2-2.16.55-3.17l-7.98-6.2A23.86 23.86 0 0 0 0 25.25c0 3.8.9 7.39 2.56 10.62l7.98-6.2z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M24 47.5c6.48 0 11.93-2.13 15.9-5.79l-7.66-5.94C30.62 37.48 27.61 38.5 24 38.5c-6.26 0-11.52-3.52-13.46-8.92l-7.98 6.2C6.4 42.62 14.62 47.5 24 47.5z"
-      />
-    </svg>
-  );
-
   return (
     <div
       style={{
@@ -404,19 +135,7 @@ export function LandingPage() {
         position: "relative",
       }}
     >
-      {/* ─── Particle canvas ─── */}
-      <canvas
-        ref={canvasRef}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      />
+      <ParticleField zIndex={1} />
       <style>{`
         @-webkit-keyframes spinCube {
           from { -webkit-transform: translateZ(-0.625em) rotateX(0deg); transform: translateZ(-0.625em) rotateX(0deg); }
@@ -513,7 +232,7 @@ export function LandingPage() {
           </span>
         </div>
         <button
-          onClick={() => handleSignupClick("nav")}
+          onClick={handleNavCta}
           style={{
             padding: "8px 22px",
             borderRadius: "999px",
@@ -707,7 +426,7 @@ export function LandingPage() {
           </p>
 
           <button
-            onClick={() => handleSignupClick("hero")}
+            onClick={handleHeroCta}
             style={{
               padding: "14px 36px",
               borderRadius: "999px",
@@ -782,265 +501,6 @@ export function LandingPage() {
         <a href="mailto:hello@pullup.se" style={{ color: "inherit", textDecoration: "none" }}>hello@pullup.se</a>
       </footer>
 
-      {/* ─── AUTH MODAL ─── */}
-      {showAuth && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.7)",
-            backdropFilter: "blur(8px)",
-            padding: 20,
-          }}
-          onClick={() => setShowAuth(false)}
-        >
-          <div
-            style={{
-              maxWidth: 380,
-              width: "100%",
-              borderRadius: 24,
-              background:
-                "linear-gradient(145deg, rgba(11,10,20,0.98), rgba(17,15,30,0.99))",
-              boxShadow:
-                "0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08)",
-              padding: "clamp(24px, 4vw, 36px)",
-              position: "relative",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowAuth(false)}
-              style={{
-                position: "absolute",
-                top: 16,
-                right: 16,
-                background: "none",
-                border: "none",
-                color: "rgba(255,255,255,0.5)",
-                cursor: "pointer",
-                padding: 4,
-              }}
-            >
-              <X size={20} />
-            </button>
-
-            <h2
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                marginBottom: 4,
-                textAlign: "center",
-              }}
-            >
-              Enter{" "}
-              <span
-                style={{
-                  background: colors.gradientGold,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}
-              >
-                pullup
-              </span>
-            </h2>
-            <p
-              style={{
-                fontSize: 13,
-                color: "rgba(255,255,255,0.5)",
-                textAlign: "center",
-                marginBottom: 24,
-              }}
-            >
-              Sign in or create your account
-            </p>
-
-            <form
-              onSubmit={handleEmailPasswordSubmit}
-              style={{ display: "flex", flexDirection: "column", gap: 14 }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label
-                  style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}
-                  htmlFor="auth-email"
-                >
-                  Email
-                </label>
-                <input
-                  id="auth-email"
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  style={inputStyle}
-                />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label
-                  style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}
-                  htmlFor="auth-password"
-                >
-                  Password
-                </label>
-                <input
-                  id="auth-password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Your password"
-                  style={inputStyle}
-                />
-              </div>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontSize: 12,
-                  color: "rgba(255,255,255,0.45)",
-                  cursor: "pointer",
-                  marginTop: 2,
-                  minHeight: 44,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={authConsent}
-                  onChange={(e) => setAuthConsent(e.target.checked)}
-                  style={{
-                    accentColor: "#fbbf24",
-                    flexShrink: 0,
-                    width: 18,
-                    height: 18,
-                  }}
-                />
-                <span>
-                  I agree to the{" "}
-                  <a
-                    href="/terms"
-                    target="_blank"
-                    rel="noopener"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      color: "rgba(255,255,255,0.65)",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    terms
-                  </a>{" "}
-                  and{" "}
-                  <a
-                    href="/privacy"
-                    target="_blank"
-                    rel="noopener"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      color: "rgba(255,255,255,0.65)",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    privacy policy
-                  </a>
-                </span>
-              </label>
-              <button
-                type="submit"
-                disabled={signingIn}
-                style={{
-                  width: "100%",
-                  padding: "14px 0",
-                  borderRadius: "999px",
-                  border: "none",
-                  background: colors.gradientGold,
-                  color: "#111",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: signingIn ? "wait" : "pointer",
-                  opacity: signingIn ? 0.7 : 1,
-                  marginTop: 4,
-                }}
-              >
-                {signingIn ? "Entering..." : "Enter pullup"}
-              </button>
-              {formError && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "rgba(255,119,119,0.95)",
-                    textAlign: "center",
-                  }}
-                >
-                  {formError}
-                </div>
-              )}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  margin: "4px 0",
-                }}
-              >
-                <div
-                  style={{
-                    flex: 1,
-                    height: 1,
-                    background: "rgba(255,255,255,0.06)",
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: 11,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.16em",
-                    color: "rgba(255,255,255,0.35)",
-                  }}
-                >
-                  or
-                </span>
-                <div
-                  style={{
-                    flex: 1,
-                    height: 1,
-                    background: "rgba(255,255,255,0.06)",
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={handleGoogleContinue}
-                disabled={signingIn}
-                style={{
-                  width: "100%",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(0,0,0,0.16)",
-                  background: "#fff",
-                  padding: "12px 14px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 10,
-                  cursor: signingIn ? "wait" : "pointer",
-                  color: "#3c4043",
-                  fontSize: 14,
-                  fontWeight: 500,
-                }}
-              >
-                {GoogleIcon}
-                <span>Continue with Google</span>
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   );

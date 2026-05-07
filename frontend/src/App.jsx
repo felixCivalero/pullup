@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { LandingPage } from "./pages/LandingPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { NewsletterPage } from "./pages/NewsletterPage";
 import { HomePage } from "./pages/HomePage";
 import { CrmPage } from "./pages/CrmPage";
@@ -40,6 +42,8 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/start" element={<OnboardingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/newsletter" element={<NewsletterPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />

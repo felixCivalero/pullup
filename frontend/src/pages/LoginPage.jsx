@@ -139,6 +139,7 @@ export function LoginPage() {
             redirectTo="/events"
             submitLabel="Log in"
             trackingPrefix="login"
+            showForgotPassword
             onSuccess={() => navigate("/events", { replace: true })}
           />
         </div>

@@ -13,7 +13,7 @@ import { useAuth } from "../contexts/AuthContext";
 import BlockEditorList from "../components/crm/BlockEditorList";
 import EmailCanvas from "../components/crm/EmailCanvas";
 import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
-import { Users, Filter, Check } from "lucide-react";
+import { Users, Filter, Check, Search, X } from "lucide-react";
 import { colors } from "../theme/colors.js";
 
 const TABS = [
@@ -93,6 +93,11 @@ export function AdminEmailPage() {
     minEventsAttended: 0,
     hasPaid: false,
     attendedEventTags: [],
+    // Specific-event filter — admin picks individual events from a
+    // typeahead. Each entry is {id, title, startsAt} so the UI can
+    // render chips without re-fetching event metadata.
+    attendedEvents: [],
+    attendedEventLogic: "or",
   });
   const [audience, setAudience] = useState({ total: 0, sample: [] });
   const [audienceLoading, setAudienceLoading] = useState(true);
@@ -108,6 +113,13 @@ export function AdminEmailPage() {
     if (filters.hasPaid) q.set("hasPaid", "true");
     if (Array.isArray(filters.attendedEventTags) && filters.attendedEventTags.length > 0) {
       q.set("attendedEventTags", filters.attendedEventTags.join(","));
+    }
+    if (Array.isArray(filters.attendedEvents) && filters.attendedEvents.length > 0) {
+      q.set(
+        "attendedEventIds",
+        filters.attendedEvents.map((e) => e.id).join(","),
+      );
+      if (filters.attendedEventLogic === "and") q.set("attendedEventLogic", "and");
     }
     return q.toString();
   }, [filters]);
@@ -207,13 +219,21 @@ export function AdminEmailPage() {
     setSendingErrorMessage("");
 
     try {
+      // Backend reads attendedEventIds (string[]) — strip the UI-only
+      // event objects in attendedEvents before persisting the criteria.
+      const { attendedEvents = [], ...rest } = filters;
+      const persistedCriteria = {
+        ...rest,
+        attendedEventIds: attendedEvents.map((e) => e.id),
+      };
+
       const createRes = await authenticatedFetch("/admin/email/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subject,
           templateContent: { subject, previewText, fromName, blocks },
-          filterCriteria: filters,
+          filterCriteria: persistedCriteria,
         }),
       });
       if (!createRes.ok) {
@@ -507,6 +527,21 @@ function AdminAudienceTab({ filters, setFilters, audience, loading, tagOptions }
     });
   }
 
+  function addEvent(evt) {
+    setFilters((f) => {
+      const current = Array.isArray(f.attendedEvents) ? f.attendedEvents : [];
+      if (current.some((e) => e.id === evt.id)) return f;
+      return { ...f, attendedEvents: [...current, evt] };
+    });
+  }
+
+  function removeEvent(eventId) {
+    setFilters((f) => ({
+      ...f,
+      attendedEvents: (f.attendedEvents || []).filter((e) => e.id !== eventId),
+    }));
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div
@@ -771,6 +806,22 @@ function AdminAudienceTab({ filters, setFilters, audience, loading, tagOptions }
         </div>
       )}
 
+      {/* Specific-event typeahead — narrow to people who attended one or
+          more particular events. Dropdown stays hidden until the admin
+          starts typing, so the empty state isn't a giant event list. */}
+      <AttendedEventsFilter
+        selected={filters.attendedEvents || []}
+        logic={filters.attendedEventLogic || "or"}
+        onAdd={addEvent}
+        onRemove={removeEvent}
+        onToggleLogic={() =>
+          setFilters((f) => ({
+            ...f,
+            attendedEventLogic: f.attendedEventLogic === "and" ? "or" : "and",
+          }))
+        }
+      />
+
       {/* Sample of who's in */}
       {audience.sample?.length > 0 && (
         <div>
@@ -878,6 +929,361 @@ function pillStyle(active, accent = "#a3e635") {
     whiteSpace: "nowrap",
     transition: "all 0.12s ease",
   };
+}
+
+// Typeahead picker for filtering by specific events the audience has
+// attended. Hits /admin/email/event-options?source=pullup&q=… on every
+// keystroke (debounced). Results are hidden until the user types — that
+// "blank state" is intentional, the admin asked for it.
+function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  // Empty query gets handled by handleQueryChange — the dropdown is
+  // already closed and there's nothing to fetch. Effect only runs when
+  // there's a non-empty query to debounce.
+  const trimmedQuery = query.trim();
+  useEffect(() => {
+    if (!trimmedQuery) return;
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      authenticatedFetch(
+        `/admin/email/event-options?source=pullup&q=${encodeURIComponent(trimmedQuery)}`,
+      )
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (cancelled) return;
+          setResults((d?.events || []).slice(0, 10));
+          setSearching(false);
+        })
+        .catch(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [trimmedQuery]);
+
+  function handleQueryChange(value) {
+    setQuery(value);
+    if (!value.trim()) {
+      setResults([]);
+      setOpen(false);
+      setSearching(false);
+      return;
+    }
+    setOpen(true);
+    setSearching(true);
+  }
+
+  // Close dropdown on outside click.
+  useEffect(() => {
+    function handleClick(e) {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const selectedIds = new Set(selected.map((e) => e.id));
+  const visibleResults = results.filter((r) => !selectedIds.has(r.id));
+
+  return (
+    <div
+      style={{
+        padding: 16,
+        background: "rgba(255,255,255,0.02)",
+        border: "1px solid rgba(255,255,255,0.06)",
+        borderRadius: 12,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 6,
+          gap: 8,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            color: "rgba(255,255,255,0.5)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
+        >
+          Attended specific events
+        </div>
+        {selected.length >= 2 && (
+          <button
+            type="button"
+            onClick={onToggleLogic}
+            title={
+              logic === "and"
+                ? "Currently: people who attended ALL selected events"
+                : "Currently: people who attended ANY of the selected events"
+            }
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "3px 10px",
+              borderRadius: 999,
+              fontSize: 10,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              cursor: "pointer",
+              border:
+                logic === "and"
+                  ? "1px solid rgba(244,114,182,0.4)"
+                  : "1px solid rgba(96,165,250,0.4)",
+              background:
+                logic === "and"
+                  ? "rgba(244,114,182,0.12)"
+                  : "rgba(96,165,250,0.12)",
+              color: logic === "and" ? "#f472b6" : "#60a5fa",
+            }}
+          >
+            {logic === "and" ? "all of" : "any of"}
+          </button>
+        )}
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          color: "rgba(255,255,255,0.45)",
+          marginBottom: 10,
+          lineHeight: 1.5,
+        }}
+      >
+        Start typing an event name. Pick one or more; we'll only include
+        people who RSVP'd to{" "}
+        {selected.length >= 2
+          ? logic === "and"
+            ? "every"
+            : "any"
+          : "the selected"}{" "}
+        event{selected.length >= 2 ? "s" : ""}.
+      </div>
+
+      {/* Selected chips */}
+      {selected.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            gap: 5,
+            flexWrap: "wrap",
+            marginBottom: 10,
+          }}
+        >
+          {selected.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              onClick={() => onRemove(e.id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "5px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+                border: "1px solid rgba(96,165,250,0.4)",
+                background: "rgba(96,165,250,0.12)",
+                color: "#60a5fa",
+                whiteSpace: "nowrap",
+                maxWidth: "100%",
+              }}
+              title={e.title}
+            >
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 220,
+                }}
+              >
+                {e.title}
+              </span>
+              <X size={11} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Search input + dropdown */}
+      <div ref={containerRef} style={{ position: "relative" }}>
+        <div
+          style={{
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          <Search
+            size={13}
+            style={{
+              position: "absolute",
+              left: 11,
+              color: "rgba(255,255,255,0.35)",
+              pointerEvents: "none",
+            }}
+          />
+          <input
+            value={query}
+            onChange={(e) => handleQueryChange(e.target.value)}
+            onFocus={() => {
+              if (query.trim()) setOpen(true);
+            }}
+            placeholder="Search events…"
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "10px 12px 10px 32px",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(12, 10, 20, 0.7)",
+              color: "#fff",
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+        </div>
+
+        {open && query.trim() && (
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              left: 0,
+              right: 0,
+              maxHeight: 280,
+              overflowY: "auto",
+              background: "rgba(18, 15, 28, 0.98)",
+              backdropFilter: "blur(14px)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 10,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+              zIndex: 20,
+            }}
+          >
+            {searching && visibleResults.length === 0 && (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.45)",
+                }}
+              >
+                Searching…
+              </div>
+            )}
+            {!searching && visibleResults.length === 0 && (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.45)",
+                }}
+              >
+                No matching events.
+              </div>
+            )}
+            {visibleResults.map((evt) => {
+              const dateLabel = evt.startsAt
+                ? new Date(evt.startsAt).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : null;
+              return (
+                <button
+                  key={evt.id}
+                  type="button"
+                  onClick={() => {
+                    onAdd({
+                      id: evt.id,
+                      title: evt.title,
+                      startsAt: evt.startsAt,
+                    });
+                    setQuery("");
+                    setOpen(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    gap: 2,
+                    width: "100%",
+                    padding: "9px 12px",
+                    background: "transparent",
+                    border: "none",
+                    borderBottom: "1px solid rgba(255,255,255,0.04)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "background 0.12s ease",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "rgba(255,255,255,0.04)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                >
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "#fff",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: "100%",
+                    }}
+                  >
+                    {evt.title}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "rgba(255,255,255,0.4)",
+                      display: "flex",
+                      gap: 8,
+                    }}
+                  >
+                    {dateLabel && <span>{dateLabel}</span>}
+                    {evt.location && (
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          maxWidth: 200,
+                        }}
+                      >
+                        · {evt.location}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ToggleRow({ label, description, value, onToggle }) {

@@ -42,6 +42,12 @@ import { buildFromHeader } from "./campaignSender.js";
 //                         anyone who's RSVP'd to at least one event
 //                         tagged with one of these. The "what kind of
 //                         events do they like" segmenter Felix asked for.
+//   attendedEventIds    — string[] of specific event UUIDs. Combined with
+//                         attendedEventLogic to support both "people who
+//                         came to event A or B" cohorts and tighter "came
+//                         to A AND B" repeat-attendee cohorts.
+//   attendedEventLogic  — 'or' | 'and' (default 'or'). Only used when
+//                         attendedEventIds is non-empty.
 export async function getAdminAudience(filterCriteria = {}) {
   const {
     excludeHosts = true,
@@ -52,6 +58,8 @@ export async function getAdminAudience(filterCriteria = {}) {
     minTotalSpend = 0,
     joinedAfter = null,
     attendedEventTags = [],
+    attendedEventIds = [],
+    attendedEventLogic = "or",
   } = filterCriteria;
 
   let hostEmails = new Set();
@@ -99,7 +107,8 @@ export async function getAdminAudience(filterCriteria = {}) {
   // no behavioral filter is active.
   const needsBehavioral =
     Number(minEventsAttended) > 0 ||
-    (Array.isArray(attendedEventTags) && attendedEventTags.length > 0);
+    (Array.isArray(attendedEventTags) && attendedEventTags.length > 0) ||
+    (Array.isArray(attendedEventIds) && attendedEventIds.length > 0);
 
   if (needsBehavioral && eligible.length > 0) {
     // Pull ALL rsvps + tagged events without an .in() filter on person_id —
@@ -149,6 +158,23 @@ export async function getAdminAudience(filterCriteria = {}) {
       eligible = eligible.filter((p) => {
         const eids = eventsByPerson[p.id] || [];
         return eids.some((eid) => (tagsByEvent[eid] || []).some((t) => wanted.has(t)));
+      });
+    }
+
+    // Specific-event filter — admin picks individual events from the
+    // typeahead. OR keeps people who attended any of them; AND keeps
+    // people who attended every one.
+    if (Array.isArray(attendedEventIds) && attendedEventIds.length > 0) {
+      const wantedIds = new Set(attendedEventIds);
+      const useAnd = String(attendedEventLogic).toLowerCase() === "and";
+      eligible = eligible.filter((p) => {
+        const attended = new Set(eventsByPerson[p.id] || []);
+        if (useAnd) {
+          for (const id of wantedIds) if (!attended.has(id)) return false;
+          return true;
+        }
+        for (const id of wantedIds) if (attended.has(id)) return true;
+        return false;
       });
     }
   }

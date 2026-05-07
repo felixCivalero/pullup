@@ -10422,6 +10422,19 @@ app.get("/admin/email/audience", requireAdmin, async (req, res) => {
           .filter(Boolean)
       : [];
 
+    // Specific-event filter — comma-separated UUIDs from the typeahead.
+    const idsParam = req.query.attendedEventIds;
+    const attendedEventIds = idsParam
+      ? String(idsParam)
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    const attendedEventLogic =
+      String(req.query.attendedEventLogic).toLowerCase() === "and"
+        ? "and"
+        : "or";
+
     const filterCriteria = {
       excludeHosts: req.query.excludeHosts !== "false",
       marketingConsent: req.query.marketingConsent || "any",
@@ -10431,6 +10444,8 @@ app.get("/admin/email/audience", requireAdmin, async (req, res) => {
       minTotalSpend: Number(req.query.minTotalSpend) || 0,
       joinedAfter: req.query.joinedAfter || null,
       attendedEventTags,
+      attendedEventIds,
+      attendedEventLogic,
     };
     const audience = await getAdminAudience(filterCriteria);
     return res.json({

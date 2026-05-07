@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { trackEvent } from "../lib/analytics.js";
@@ -62,6 +63,7 @@ export function AuthCard({
   submitLabel = "Enter pullup",
   trackingPrefix = "auth",
   funnelTrack = false,
+  showForgotPassword = false,
 }) {
   const { signInWithGoogle, signInWithEmailPassword } = useAuth();
   const [email, setEmail] = useState("");
@@ -211,6 +213,23 @@ export function AuthCard({
         placeholder="Password"
         style={inputStyle}
       />
+
+      {showForgotPassword && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -4 }}>
+          <Link
+            to="/forgot-password"
+            state={{ email: email.trim() }}
+            onClick={() => trackEvent(`${trackingPrefix}_forgot_password_click`)}
+            style={{
+              fontSize: 12,
+              color: "rgba(255,255,255,0.55)",
+              textDecoration: "none",
+            }}
+          >
+            Forgot password?
+          </Link>
+        </div>
+      )}
 
       <label
         style={{

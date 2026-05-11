@@ -12,12 +12,17 @@ const ROTATING_WORDS = ["people", "life", "culture", "art"];
 const LOGOS = [
   // `invert: true` for dark-on-transparent logos that need to flip to white on the dark bg.
   // Colour logos (Cliff Barnes orange) and already-white logos (Zoda) render untouched.
-  { type: "image", src: "/landing/logos/soho-house.png", alt: "Soho House", invert: true },
-  { type: "image", src: "/landing/logos/doberman.png", alt: "EY Doberman", invert: true },
-  { type: "image", src: "/landing/logos/spybar.png", alt: "Spy Bar" },
-  { type: "image", src: "/landing/logos/cliff-barnes.svg", alt: "Cliff Barnes Bränneri" },
-  { type: "image", src: "/zoda_logotype_white.webp", alt: "Zoda" },
-  { type: "image", src: "/landing/logos/showlighters.png", alt: "Showlighters" },
+  // `width`/`height` are intrinsic dimensions — set so the browser reserves the right
+  // aspect-ratio slot before the image loads, keeping the marquee track width stable.
+  { type: "image", src: "/landing/logos/soho-house.png", alt: "Soho House", invert: true, width: 280, height: 179 },
+  { type: "image", src: "/landing/logos/doberman.png", alt: "EY Doberman", invert: true, width: 705, height: 139 },
+  { type: "image", src: "/landing/logos/spybar.png", alt: "Spy Bar", width: 389, height: 80 },
+  { type: "image", src: "/landing/logos/cliff-barnes.svg", alt: "Cliff Barnes Bränneri", width: 408, height: 176 },
+  { type: "image", src: "/zoda_logotype_white.webp", alt: "Zoda", width: 1600, height: 541 },
+  { type: "image", src: "/landing/logos/showlighters.png", alt: "Showlighters", width: 3830, height: 2267 },
+  // Square logos get a `boost` so they don't read as tiny next to the wide wordmarks.
+  { type: "image", src: "/landing/logos/hendricks-gin.png", alt: "Hendrick's Gin", invert: true, width: 160, height: 160, boost: 1.7 },
+  { type: "image", src: "/landing/logos/jagermeister.png", alt: "Jägermeister", invert: true, width: 160, height: 160, boost: 1.7 },
 ];
 
 /* ─── generic reveal wrapper ─── */
@@ -160,11 +165,11 @@ export function LandingPage() {
           align-items: center;
           gap: clamp(32px, 6vw, 64px);
           width: max-content;
-          animation: logo-marquee 38s linear infinite;
+          animation: logo-marquee 8s linear infinite;
         }
         .logo-marquee-item {
           flex: none;
-          height: 52px;
+          height: 28px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -462,11 +467,19 @@ export function LandingPage() {
       <div className="logo-marquee" style={{ position: "relative", zIndex: 2 }}>
         <div className="logo-marquee-track">
           {[...LOGOS, ...LOGOS].map((logo, i) => (
-            <div className="logo-marquee-item" key={i}>
+            <div
+              className="logo-marquee-item"
+              key={i}
+              style={logo.boost ? { height: `${28 * logo.boost}px` } : undefined}
+            >
               {logo.type === "image" ? (
                 <img
                   src={logo.src}
                   alt={logo.alt}
+                  width={logo.width}
+                  height={logo.height}
+                  decoding="async"
+                  loading="eager"
                   className={logo.invert ? "invert" : undefined}
                 />
               ) : (

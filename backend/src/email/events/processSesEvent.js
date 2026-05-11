@@ -11,19 +11,22 @@ import {
 import { upsertSuppression } from "../repos/emailSuppressionsRepo.js";
 import { supabase } from "../../supabase.js";
 
-async function updateCampaignSendDeliveryStatus(campaignSendId, status) {
+async function updateCampaignSendDeliveryStatus(campaignSendId, status, extra = {}) {
   if (!campaignSendId) return;
-  const fields = {
-    delivery_status: status,
-    delivery_status_updated_at: new Date().toISOString(),
-  };
+  const now = new Date().toISOString();
+  const fields = { status, updated_at: now };
+  if (status === "delivered") fields.delivered_at = now;
+  else if (status === "bounced") fields.bounced_at = now;
+  else if (status === "complaint") fields.complained_at = now;
+  if (extra.errorMessage) fields.error_message = extra.errorMessage;
+
   const { error } = await supabase
     .from("campaign_sends")
     .update(fields)
     .eq("id", campaignSendId);
   if (error) {
     console.error(
-      "[processSesEvent] Failed to update campaign_sends.delivery_status",
+      "[processSesEvent] Failed to update campaign_sends status",
       error,
     );
   }
@@ -128,6 +131,7 @@ export async function processSesEvent(notification) {
     await updateCampaignSendDeliveryStatus(
       outboxRow.campaign_send_id,
       "bounced",
+      { errorMessage: [bounceType, bounce.bounceSubType].filter(Boolean).join(": ") || null },
     );
 
     const recipients = bounce.bouncedRecipients || [];
@@ -152,6 +156,7 @@ export async function processSesEvent(notification) {
     await updateCampaignSendDeliveryStatus(
       outboxRow.campaign_send_id,
       "complaint",
+      { errorMessage: complaint.complaintFeedbackType || null },
     );
 
     const recipients = complaint.complainedRecipients || [];

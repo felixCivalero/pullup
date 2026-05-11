@@ -20,6 +20,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
+import { AutoTagButton, AutoTagFlashStyle } from "../components/crm/AutoTagButton.jsx";
 
 const STATUS_COLORS = {
   new: { bg: "rgba(59,130,246,0.12)", text: "#60a5fa", border: "rgba(59,130,246,0.25)" },
@@ -205,11 +206,13 @@ function parseDraftTags(s) {
   ];
 }
 
-function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags }) {
+function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTagging, newTags, flashKey }) {
   const tagsString = (ev.adminTags || []).join(", ");
   const currentDraft = draft !== undefined ? draft : tagsString;
   const dirty = currentDraft !== tagsString;
   const draftSet = new Set(parseDraftTags(currentDraft));
+  const newTagSet = newTags || new Set();
+  const currentTags = ev.adminTags || [];
 
   function toggleTag(tag) {
     const current = parseDraftTags(currentDraft);
@@ -220,14 +223,20 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags }) {
   }
   return (
     <div
+      key={flashKey ? `flash-${flashKey}` : ev.id}
+      className={flashKey ? "autotag-flash" : undefined}
       style={{
         padding: "10px 12px",
         borderRadius: 10,
         background: "rgba(255,255,255,0.02)",
-        border: "1px solid rgba(255,255,255,0.04)",
+        border: isTagging
+          ? "1px solid rgba(251,191,36,0.5)"
+          : "1px solid rgba(255,255,255,0.04)",
+        boxShadow: isTagging ? "0 0 0 2px rgba(251,191,36,0.15)" : "none",
         display: "flex",
         flexDirection: "column",
         gap: 8,
+        transition: "border-color 0.25s, box-shadow 0.25s",
       }}
     >
       <div
@@ -283,6 +292,43 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags }) {
           {ev.capacity > 0 && <span style={{ opacity: 0.5 }}>/{ev.capacity}</span>}
         </span>
       </div>
+
+      {/* Visible tag pills — primary tag display. Tags freshly added by AI
+          animate in with a brief gold flash. */}
+      {(currentTags.length > 0 || isTagging) && (
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 17 }}>
+          {isTagging && currentTags.length === 0 && (
+            <span style={{ fontSize: 10, color: "rgba(251,191,36,0.8)", fontStyle: "italic" }}>
+              Generating tags…
+            </span>
+          )}
+          {currentTags.map((tag) => {
+            const isNew = newTagSet.has(tag);
+            return (
+              <span
+                key={tag}
+                className={isNew ? "autotag-tag-new" : undefined}
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  background: isNew ? "rgba(251,191,36,0.22)" : "rgba(251,191,36,0.10)",
+                  color: isNew ? "#fde68a" : "rgba(251,191,36,0.85)",
+                  border: isNew
+                    ? "1px solid rgba(251,191,36,0.55)"
+                    : "1px solid rgba(251,191,36,0.18)",
+                  textTransform: "lowercase",
+                  letterSpacing: "0.02em",
+                  boxShadow: isNew ? "0 0 8px rgba(251,191,36,0.35)" : "none",
+                }}
+              >
+                {tag}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {/* Tag input — admin classifies the event, count rolls into the
           host's top-tag distribution above. */}
@@ -437,6 +483,11 @@ export function AdminCrmPage() {
   // independently and saves don't trip over each other.
   const [eventTagDrafts, setEventTagDrafts] = useState({});
   const [savingEventTagId, setSavingEventTagId] = useState(null);
+  // Tracks event IDs whose row is currently being AI-tagged (shows a spinner +
+  // gold pulse) and which tags on each event are fresh (animate in).
+  const [taggingEventId, setTaggingEventId] = useState(null);
+  const [flashedEventIds, setFlashedEventIds] = useState({});
+  const [newTagsByEventId, setNewTagsByEventId] = useState({});
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({
     name: "",
@@ -472,6 +523,50 @@ export function AdminCrmPage() {
     if (!user) return;
     fetchHosts();
   }, [user]);
+
+  // Flat event list across all hosts — fed to AutoTagButton so it can walk
+  // every event sequentially. Each entry keeps the parent host id so the
+  // tagged-callback can patch the right host row.
+  const allEvents = useMemo(() => {
+    const out = [];
+    for (const h of hosts) {
+      for (const ev of h.events.list || []) {
+        out.push({ id: ev.id, title: ev.title || "Untitled", adminTags: ev.adminTags || [], hostId: h.id });
+      }
+    }
+    return out;
+  }, [hosts]);
+
+  // Merge the AI-generated tags into hosts state + trigger row flash + remember
+  // which tags are fresh so they can animate in.
+  function handleEventTagged({ eventId, adminTags, generatedTags }) {
+    setHosts((prev) =>
+      prev.map((h) => {
+        const hasEvent = (h.events.list || []).some((e) => e.id === eventId);
+        if (!hasEvent) return h;
+        const updatedList = h.events.list.map((ev) =>
+          ev.id === eventId ? { ...ev, adminTags } : ev,
+        );
+        return {
+          ...h,
+          events: { ...h.events, list: updatedList },
+          topTags: recomputeTopTags(updatedList),
+        };
+      }),
+    );
+    setNewTagsByEventId((prev) => ({ ...prev, [eventId]: new Set(generatedTags || []) }));
+    setFlashedEventIds((prev) => ({ ...prev, [eventId]: Date.now() }));
+    setTaggingEventId(null);
+    // Clear the "new tag" highlight after the animation finishes so further
+    // edits don't keep them gold.
+    setTimeout(() => {
+      setNewTagsByEventId((prev) => {
+        const next = { ...prev };
+        delete next[eventId];
+        return next;
+      });
+    }, 2500);
+  }
 
   // Aggregate the entire tag universe by walking every event's adminTags
   // (not host topTags, which is server-capped at 10). Used both for the
@@ -773,30 +868,38 @@ export function AdminCrmPage() {
               one place. Leads auto-link by email when they sign up.
             </p>
           </div>
-          <button
-            onClick={() => setShowAdd((v) => !v)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "10px 16px",
-              borderRadius: 999,
-              border: "1px solid rgba(251,191,36,0.35)",
-              background: showAdd
-                ? "rgba(251,191,36,0.18)"
-                : "rgba(251,191,36,0.08)",
-              color: "#fbbf24",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              flexShrink: 0,
-            }}
-          >
-            {showAdd ? <X size={14} /> : <Plus size={14} />}
-            {showAdd ? "Close" : "Add lead"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+            <AutoTagButton
+              events={allEvents}
+              endpoint={(id) => `/admin/platform-events/${id}/auto-tag`}
+              onEventStart={(id) => setTaggingEventId(id)}
+              onEventTagged={handleEventTagged}
+            />
+            <button
+              onClick={() => setShowAdd((v) => !v)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "10px 16px",
+                borderRadius: 999,
+                border: "1px solid rgba(251,191,36,0.35)",
+                background: showAdd
+                  ? "rgba(251,191,36,0.18)"
+                  : "rgba(251,191,36,0.08)",
+                color: "#fbbf24",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {showAdd ? <X size={14} /> : <Plus size={14} />}
+              {showAdd ? "Close" : "Add lead"}
+            </button>
+          </div>
         </div>
+        {AutoTagFlashStyle}
 
         {showAdd && (
           <form
@@ -1941,6 +2044,9 @@ export function AdminCrmPage() {
                                 onSave={() => saveEventTags(ev.id, h.id)}
                                 saving={savingEventTagId === ev.id}
                                 knownTags={knownTagNames}
+                                isTagging={taggingEventId === ev.id}
+                                newTags={newTagsByEventId[ev.id]}
+                                flashKey={flashedEventIds[ev.id]}
                               />
                             ))}
                             {h.events.list.length > 12 && (

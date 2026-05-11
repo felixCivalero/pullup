@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Loader2,
   Search,
@@ -12,12 +12,14 @@ import {
   Check,
   Clock,
   FileEdit,
+  Tag,
 } from "lucide-react";
 import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { getEventUrl } from "../lib/urlUtils.js";
 import { colors } from "../theme/colors.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { AutoTagButton, AutoTagFlashStyle } from "./crm/AutoTagButton.jsx";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -72,6 +74,13 @@ export function CrmTab({ onSegmentChange }) {
   const [personDetails, setPersonDetails] = useState({});
   const [showAllEventsByPerson, setShowAllEventsByPerson] = useState({});
 
+  // Auto-tagging state — drives the per-event "watch it work" animation
+  // inside the event filter dropdown. Tags persist on the events themselves
+  // so they're visible after the run.
+  const [taggingEventId, setTaggingEventId] = useState(null);
+  const [newTagsByEventId, setNewTagsByEventId] = useState({});
+  const [flashedEventIds, setFlashedEventIds] = useState({});
+
   // Load people with filters
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +97,18 @@ export function CrmTab({ onSegmentChange }) {
           filters.attendedEventIds.length > 0
         ) {
           params.append("attendedEventIds", filters.attendedEventIds.join(","));
+        }
+
+        // Event tag filter: AI-generated tags that classify event type
+        if (
+          filters.attendedEventTags &&
+          Array.isArray(filters.attendedEventTags) &&
+          filters.attendedEventTags.length > 0
+        ) {
+          params.append(
+            "attendedEventTags",
+            filters.attendedEventTags.join(","),
+          );
         }
 
         // Dinner filter: true = only guests who had dinner, undefined = no filter
@@ -148,6 +169,10 @@ export function CrmTab({ onSegmentChange }) {
       attendedEventIds:
         filters.attendedEventIds && filters.attendedEventIds.length > 0
           ? filters.attendedEventIds
+          : undefined,
+      attendedEventTags:
+        filters.attendedEventTags && filters.attendedEventTags.length > 0
+          ? filters.attendedEventTags
           : undefined,
       hasDinner: filters.hasDinner !== undefined ? filters.hasDinner : undefined,
       eventsAttendedMin: 0,
@@ -280,6 +305,44 @@ export function CrmTab({ onSegmentChange }) {
       setPage(0); // Reset to first page when view changes
     }
   }, [activeView]);
+
+  // Flatten the host's event admin_tags into a frequency-sorted vocabulary —
+  // drives the tag filter chip cloud below the event dropdown.
+  const tagVocabulary = useMemo(() => {
+    const counts = {};
+    for (const ev of events) {
+      for (const t of ev.adminTags || []) {
+        if (typeof t !== "string") continue;
+        counts[t] = (counts[t] || 0) + 1;
+      }
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag, count]) => ({ tag, count }));
+  }, [events]);
+
+  // Patch local events state when AI returns new tags for one of them.
+  function handleEventTagged({ eventId, adminTags, generatedTags }) {
+    setEvents((prev) =>
+      prev.map((ev) => (ev.id === eventId ? { ...ev, adminTags } : ev)),
+    );
+    setNewTagsByEventId((prev) => ({ ...prev, [eventId]: new Set(generatedTags || []) }));
+    setFlashedEventIds((prev) => ({ ...prev, [eventId]: Date.now() }));
+    setTaggingEventId(null);
+    setTimeout(() => {
+      setNewTagsByEventId((prev) => {
+        const next = { ...prev };
+        delete next[eventId];
+        return next;
+      });
+    }, 2500);
+  }
+
+  function handleAutoTagStart(eventId) {
+    setTaggingEventId(eventId);
+    // Pop the dropdown open so the host can actually see the rows updating.
+    setShowEventDropdown(true);
+  }
 
   const handleImportCsv = async () => {
     if (!importFile) {
@@ -504,25 +567,35 @@ export function CrmTab({ onSegmentChange }) {
                 Filter contacts below to define who receives your next email
               </div>
             </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "baseline",
-                gap: "6px",
-                background: "rgba(34, 197, 94, 0.08)",
-                border: "1px solid rgba(34, 197, 94, 0.2)",
-                borderRadius: "999px",
-                padding: "5px 14px",
-              }}
-            >
-              <span style={{ fontSize: "18px", fontWeight: 700, color: "#4ade80" }}>
-                {total.toLocaleString()}
-              </span>
-              <span style={{ fontSize: "12px", opacity: 0.6 }}>
-                {total === 1 ? "recipient" : "recipients"}
-              </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <AutoTagButton
+                events={events}
+                endpoint={(id) => `/events/${id}/auto-tag`}
+                onEventStart={handleAutoTagStart}
+                onEventTagged={handleEventTagged}
+                label="Auto-tag events"
+              />
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: "6px",
+                  background: "rgba(34, 197, 94, 0.08)",
+                  border: "1px solid rgba(34, 197, 94, 0.2)",
+                  borderRadius: "999px",
+                  padding: "5px 14px",
+                }}
+              >
+                <span style={{ fontSize: "18px", fontWeight: 700, color: "#4ade80" }}>
+                  {total.toLocaleString()}
+                </span>
+                <span style={{ fontSize: "12px", opacity: 0.6 }}>
+                  {total === 1 ? "recipient" : "recipients"}
+                </span>
+              </div>
             </div>
           </div>
+          {AutoTagFlashStyle}
 
           {/* Divider */}
           <div style={{ height: "1px", background: "rgba(255,255,255,0.06)" }} />
@@ -612,38 +685,82 @@ export function CrmTab({ onSegmentChange }) {
                   {events.map((event) => {
                     const selectedIds = filters.attendedEventIds || [];
                     const checked = selectedIds.includes(event.id);
+                    const isTagging = taggingEventId === event.id;
+                    const flashKey = flashedEventIds[event.id];
+                    const newTagSet = newTagsByEventId[event.id] || new Set();
+                    const eventTags = event.adminTags || [];
                     return (
                       <label
                         key={event.id}
+                        className={flashKey ? "autotag-flash" : undefined}
                         style={{
                           display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          padding: "6px 4px",
+                          flexDirection: "column",
+                          gap: "4px",
+                          padding: "8px 6px",
                           fontSize: "13px",
                           cursor: "pointer",
+                          borderRadius: 6,
+                          border: isTagging
+                            ? "1px solid rgba(251,191,36,0.5)"
+                            : "1px solid transparent",
+                          transition: "border-color 0.25s",
                         }}
                       >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            const current = filters.attendedEventIds || [];
-                            let next;
-                            if (e.target.checked) {
-                              next = [...current, event.id];
-                            } else {
-                              next = current.filter((id) => id !== event.id);
-                            }
-                            setFilters((prev) => ({
-                              ...prev,
-                              attendedEventIds: next.length ? next : undefined,
-                            }));
-                            setPage(0);
-                          }}
-                          style={{ margin: 0 }}
-                        />
-                        <span style={{ opacity: 0.9 }}>{event.title}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const current = filters.attendedEventIds || [];
+                              let next;
+                              if (e.target.checked) {
+                                next = [...current, event.id];
+                              } else {
+                                next = current.filter((id) => id !== event.id);
+                              }
+                              setFilters((prev) => ({
+                                ...prev,
+                                attendedEventIds: next.length ? next : undefined,
+                              }));
+                              setPage(0);
+                            }}
+                            style={{ margin: 0 }}
+                          />
+                          <span style={{ opacity: 0.9, flex: 1, minWidth: 0 }}>{event.title}</span>
+                        </div>
+                        {(eventTags.length > 0 || isTagging) && (
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 24 }}>
+                            {isTagging && eventTags.length === 0 && (
+                              <span style={{ fontSize: 10, color: "rgba(251,191,36,0.85)", fontStyle: "italic" }}>
+                                Generating tags…
+                              </span>
+                            )}
+                            {eventTags.map((tag) => {
+                              const isNew = newTagSet.has(tag);
+                              return (
+                                <span
+                                  key={tag}
+                                  className={isNew ? "autotag-tag-new" : undefined}
+                                  style={{
+                                    padding: "1px 7px",
+                                    borderRadius: 999,
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    background: isNew ? "rgba(251,191,36,0.22)" : "rgba(251,191,36,0.10)",
+                                    color: isNew ? "#fde68a" : "rgba(251,191,36,0.85)",
+                                    border: isNew
+                                      ? "1px solid rgba(251,191,36,0.55)"
+                                      : "1px solid rgba(251,191,36,0.18)",
+                                    boxShadow: isNew ? "0 0 6px rgba(251,191,36,0.35)" : "none",
+                                  }}
+                                >
+                                  {tag}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </label>
                     );
                   })}
@@ -739,6 +856,95 @@ export function CrmTab({ onSegmentChange }) {
 
           </div>{" "}
           {/* End filters row */}
+
+          {/* Filter by event-tag (admin_tags). Multi-select; OR semantics —
+              any selected tag matches. Driven by the host's own event tag
+              vocabulary so the chips reflect their actual events. */}
+          {tagVocabulary.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+                alignItems: "center",
+                paddingTop: 2,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10,
+                  color: "rgba(255,255,255,0.45)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  marginRight: 4,
+                }}
+              >
+                <Tag size={10} style={{ color: "rgba(251,191,36,0.7)" }} />
+                Event tags:
+              </span>
+              {tagVocabulary.map(({ tag, count }) => {
+                const selected = (filters.attendedEventTags || []).includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      const current = filters.attendedEventTags || [];
+                      const next = selected
+                        ? current.filter((t) => t !== tag)
+                        : [...current, tag];
+                      setFilters((prev) => ({
+                        ...prev,
+                        attendedEventTags: next.length ? next : undefined,
+                      }));
+                      setPage(0);
+                    }}
+                    style={{
+                      padding: "3px 9px",
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: selected
+                        ? "1px solid rgba(251,191,36,0.6)"
+                        : "1px solid rgba(255,255,255,0.1)",
+                      background: selected ? "rgba(251,191,36,0.22)" : "rgba(255,255,255,0.03)",
+                      color: selected ? "#fde68a" : "rgba(255,255,255,0.75)",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    {tag}
+                    <span style={{ opacity: 0.5, fontSize: 10, fontWeight: 500 }}>{count}</span>
+                  </button>
+                );
+              })}
+              {(filters.attendedEventTags || []).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilters((prev) => ({ ...prev, attendedEventTags: undefined }));
+                    setPage(0);
+                  }}
+                  style={{
+                    padding: "3px 9px",
+                    borderRadius: 999,
+                    fontSize: 10,
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "transparent",
+                    color: "rgba(255,255,255,0.5)",
+                    cursor: "pointer",
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Saved Views Tabs */}
@@ -1066,6 +1272,16 @@ export function CrmTab({ onSegmentChange }) {
                 params.append(
                   "attendedEventIds",
                   filters.attendedEventIds.join(","),
+                );
+              }
+              if (
+                filters.attendedEventTags &&
+                Array.isArray(filters.attendedEventTags) &&
+                filters.attendedEventTags.length > 0
+              ) {
+                params.append(
+                  "attendedEventTags",
+                  filters.attendedEventTags.join(","),
                 );
               }
               if (filters.hasDinner !== undefined) {

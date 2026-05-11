@@ -185,6 +185,7 @@ export async function mapEventFromDb(dbEvent) {
     mediaSettings: dbEvent.media_settings || {},
     titleSettings: dbEvent.title_settings || null,
     sections: dbEvent.sections || [],
+    adminTags: Array.isArray(dbEvent.admin_tags) ? dbEvent.admin_tags : [],
     formFields: dbEvent.form_fields || [],
     hideLocation: dbEvent.hide_location || false,
     hideDate: dbEvent.hide_date || false,
@@ -1627,6 +1628,45 @@ export async function getPeopleWithFilters(
   const filteredUserEvents = eventIds
     .map((id) => userEventsMap.get(id))
     .filter(Boolean);
+
+  // attendedEventTags: resolve to the host's events whose admin_tags overlap
+  // with the requested tags. Result narrows attendedEventIds (intersect if
+  // both are provided, replace if only tags are provided).
+  if (
+    Array.isArray(filters.attendedEventTags) &&
+    filters.attendedEventTags.length > 0
+  ) {
+    const requestedTags = filters.attendedEventTags
+      .map((t) => (typeof t === "string" ? t.trim().toLowerCase() : ""))
+      .filter(Boolean);
+    if (requestedTags.length > 0) {
+      const { data: taggedEvents, error: tagErr } = await supabase
+        .from("events")
+        .select("id")
+        .in("id", eventIds)
+        .overlaps("admin_tags", requestedTags);
+      if (tagErr) {
+        console.error("[CRM Filter] tag resolve error:", tagErr.message);
+        return { people: [], total: 0 };
+      }
+      const matchingIds = (taggedEvents || []).map((e) => e.id);
+      if (matchingIds.length === 0) {
+        console.log("[CRM Filter] No events matched requested tags:", requestedTags);
+        return { people: [], total: 0 };
+      }
+      if (filters.attendedEventIds && filters.attendedEventIds.length > 0) {
+        const explicit = filters.attendedEventIds.map((id) => String(id));
+        filters.attendedEventIds = matchingIds.filter((id) =>
+          explicit.includes(String(id)),
+        );
+        if (filters.attendedEventIds.length === 0) {
+          return { people: [], total: 0 };
+        }
+      } else {
+        filters.attendedEventIds = matchingIds;
+      }
+    }
+  }
 
   // Debug: Log event titles to help identify specific events
   if (filters.attendedEventId) {

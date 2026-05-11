@@ -4806,6 +4806,7 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
       hasStripeCustomerId,
       attendedEventId,
       attendedEventIds,
+      attendedEventTags,
       hasDinner,
       attendanceStatus,
       eventsAttendedMin,
@@ -4831,6 +4832,7 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
       hasStripeCustomerId !== undefined ||
       attendedEventId ||
       attendedEventIds ||
+      attendedEventTags ||
       hasDinner !== undefined ||
       attendanceStatus ||
       eventsAttendedMin ||
@@ -4859,6 +4861,9 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
         attendedEventId,
         attendedEventIds: attendedEventIds
           ? attendedEventIds.split(",")
+          : undefined,
+        attendedEventTags: attendedEventTags
+          ? attendedEventTags.split(",")
           : undefined,
         hasDinner: hasDinner !== undefined ? hasDinner === "true" : undefined,
         attendanceStatus,
@@ -4954,6 +4959,7 @@ app.get("/host/crm/people/export", requireAuth, async (req, res) => {
       hasStripeCustomerId,
       attendedEventId,
       attendedEventIds,
+      attendedEventTags,
       hasDinner,
       attendanceStatus,
       eventsAttendedMin,
@@ -4977,6 +4983,7 @@ app.get("/host/crm/people/export", requireAuth, async (req, res) => {
       hasStripeCustomerId !== undefined ||
       attendedEventId ||
       attendedEventIds ||
+      attendedEventTags ||
       hasDinner !== undefined ||
       attendanceStatus ||
       eventsAttendedMin ||
@@ -5005,6 +5012,9 @@ app.get("/host/crm/people/export", requireAuth, async (req, res) => {
         attendedEventId,
         attendedEventIds: attendedEventIds
           ? attendedEventIds.split(",")
+          : undefined,
+        attendedEventTags: attendedEventTags
+          ? attendedEventTags.split(",")
           : undefined,
         hasDinner: hasDinner !== undefined ? hasDinner === "true" : undefined,
         attendanceStatus,
@@ -10087,6 +10097,100 @@ app.patch("/admin/platform-events/:id/tags", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("[admin/platform-events/tags] error:", err.message);
     return res.status(500).json({ error: "Failed to update tags" });
+  }
+});
+
+// Admin: POST /admin/platform-events/:id/auto-tag — let Claude generate tags
+// for an event and merge them with whatever's already there. Never destroys
+// manual edits.
+app.post("/admin/platform-events/:id/auto-tag", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+    const { generateTagsForEvent, getTagVocabulary, mergeTags } = await import(
+      "./services/aiTaggingService.js"
+    );
+
+    const { id } = req.params;
+    const { data: dbEvent, error: fetchErr } = await sb
+      .from("events")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (fetchErr || !dbEvent) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = await mapEventFromDb(dbEvent);
+    const vocabulary = await getTagVocabulary(sb);
+    const generated = await generateTagsForEvent(event, vocabulary);
+    const merged = mergeTags(event.adminTags, generated);
+
+    const { data, error } = await sb
+      .from("events")
+      .update({ admin_tags: merged })
+      .eq("id", id)
+      .select("id, admin_tags")
+      .single();
+    if (error) throw error;
+
+    return res.json({
+      id: data.id,
+      adminTags: data.admin_tags || [],
+      generatedTags: generated,
+      addedCount: (data.admin_tags || []).length - (event.adminTags || []).length,
+    });
+  } catch (err) {
+    console.error("[admin/platform-events/auto-tag] error:", err.message);
+    return res.status(500).json({ error: err.message || "Auto-tag failed" });
+  }
+});
+
+// Host: POST /events/:id/auto-tag — host-facing version of the same flow.
+// Ownership-gated: the requester must be a host of the event.
+app.post("/events/:id/auto-tag", requireAuth, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+    const { generateTagsForEvent, getTagVocabulary, mergeTags } = await import(
+      "./services/aiTaggingService.js"
+    );
+
+    const { id } = req.params;
+    const userEventIds = await getUserEventIds(req.user.id);
+    if (!userEventIds.includes(id)) {
+      return res.status(403).json({ error: "Not a host of this event" });
+    }
+
+    const { data: dbEvent, error: fetchErr } = await sb
+      .from("events")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (fetchErr || !dbEvent) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = await mapEventFromDb(dbEvent);
+    const vocabulary = await getTagVocabulary(sb);
+    const generated = await generateTagsForEvent(event, vocabulary);
+    const merged = mergeTags(event.adminTags, generated);
+
+    const { data, error } = await sb
+      .from("events")
+      .update({ admin_tags: merged })
+      .eq("id", id)
+      .select("id, admin_tags")
+      .single();
+    if (error) throw error;
+
+    return res.json({
+      id: data.id,
+      adminTags: data.admin_tags || [],
+      generatedTags: generated,
+      addedCount: (data.admin_tags || []).length - (event.adminTags || []).length,
+    });
+  } catch (err) {
+    console.error("[events/auto-tag] error:", err.message);
+    return res.status(500).json({ error: err.message || "Auto-tag failed" });
   }
 });
 

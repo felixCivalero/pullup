@@ -82,11 +82,91 @@ export function CrmTab({ onSegmentChange }) {
   const [newTagsByEventId, setNewTagsByEventId] = useState({});
   const [flashedEventIds, setFlashedEventIds] = useState({});
 
-  // Load people with filters
+  // Filter index — lightweight {id, eventIds, hadDinner} per contact loaded
+  // once on mount. Drives instant client-side count updates while filters
+  // change; the paginated /people fetch refreshes the visible rows in the
+  // background. Cleared and refetched whenever a write/migration would
+  // make it stale (currently only on mount; events/people don't mutate in
+  // ways that affect filtering during a session).
+  const [filterIndex, setFilterIndex] = useState(null);
+  // True only while a server-driven /people fetch is in flight. Distinct
+  // from the count-loading state, which is instant once filterIndex loads.
+  const [listLoading, setListLoading] = useState(false);
+
+  // Per-event admin_tags map, derived from events. Used by the client-side
+  // filter to evaluate attendedEventTags without hitting the server.
+  const tagsByEventId = useMemo(() => {
+    const m = new Map();
+    for (const e of events) {
+      m.set(e.id, new Set(e.adminTags || []));
+    }
+    return m;
+  }, [events]);
+
+  // Pure client-side filter — operates on the lightweight index plus the
+  // tag map derived from events. Returns the count of people who match
+  // the supplied filters. Used to drive the live recipient badge.
+  const optimisticTotal = useMemo(() => {
+    if (!filterIndex) return null;
+    const wantEventIds = (filters.attendedEventIds || []).length > 0
+      ? new Set(filters.attendedEventIds)
+      : null;
+    const wantTags = (filters.attendedEventTags || []).length > 0
+      ? new Set(filters.attendedEventTags)
+      : null;
+    const wantDinner = filters.hasDinner === true;
+    let count = 0;
+    for (const p of filterIndex) {
+      if (wantEventIds && !p.eventIds.some((id) => wantEventIds.has(id))) continue;
+      if (wantTags) {
+        let ok = false;
+        for (const eid of p.eventIds) {
+          const tags = tagsByEventId.get(eid);
+          if (!tags) continue;
+          for (const t of tags) {
+            if (wantTags.has(t)) { ok = true; break; }
+          }
+          if (ok) break;
+        }
+        if (!ok) continue;
+      }
+      if (wantDinner && !p.hadDinner) continue;
+      count += 1;
+    }
+    return count;
+  }, [filterIndex, filters, tagsByEventId]);
+
+  // Fetch the filter index once on mount. Tiny payload; failure is
+  // non-fatal — we just fall back to the server-driven total.
   useEffect(() => {
     let cancelled = false;
+    authenticatedFetch("/host/crm/people-filter-index")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        setFilterIndex(Array.isArray(d.index) ? d.index : []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load people with filters. Debounced so a burst of filter clicks fires
+  // one server request, not N. The recipient count badge updates instantly
+  // from the client-side filterIndex while we wait — see optimisticTotal.
+  useEffect(() => {
+    let cancelled = false;
+    let timer = null;
+    const isFirstLoad = total === 0 && people.length === 0;
+    // First load runs immediately so the page doesn't sit empty; subsequent
+    // filter changes get debounced so rapid toggling stays responsive.
+    const delay = isFirstLoad ? 0 : 200;
+
     async function loadPeople() {
-      setLoading(true);
+      if (cancelled) return;
+      setListLoading(true);
+      if (isFirstLoad) setLoading(true);
       try {
         const params = new URLSearchParams();
         if (searchQuery) params.append("search", searchQuery);
@@ -132,11 +212,6 @@ export function CrmTab({ onSegmentChange }) {
         if (!res.ok) throw new Error("Failed to load people");
         const data = await res.json();
         if (cancelled) return;
-        console.log(
-          `[CRM] Received ${data.people?.length || 0} people for page ${
-            page + 1
-          } (total: ${data.total || 0})`,
-        );
         const nextTotal = data.total || 0;
         setPeople(data.people || []);
         setTotal(nextTotal);
@@ -154,12 +229,20 @@ export function CrmTab({ onSegmentChange }) {
         console.error(err);
         showToast("Failed to load contacts", "error");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setListLoading(false);
+          setLoading(false);
+        }
       }
     }
-    loadPeople();
-    return () => { cancelled = true; };
-  }, [searchQuery, filters, page, showToast, events, baselineTotal]);
+
+    timer = setTimeout(loadPeople, delay);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, filters, page]);
 
   // Push current segment selection up to the parent (CrmPage). Runs whenever
   // search, filters, or total change so the Email tab + Send button stay in sync.
@@ -178,8 +261,11 @@ export function CrmTab({ onSegmentChange }) {
       hasDinner: filters.hasDinner !== undefined ? filters.hasDinner : undefined,
       eventsAttendedMin: 0,
     };
-    onSegmentChange({ filterCriteria, total });
-  }, [searchQuery, filters, total, onSegmentChange]);
+    // Prefer optimisticTotal when available so the email composer's
+    // "Send to N recipients" reflects filter changes instantly, matching
+    // the live count badge above.
+    onSegmentChange({ filterCriteria, total: optimisticTotal ?? total });
+  }, [searchQuery, filters, total, optimisticTotal, onSegmentChange]);
 
   // Load detailed touchpoints (campaign history etc.) for a single person
   async function loadPersonDetails(personId) {
@@ -580,28 +666,41 @@ export function CrmTab({ onSegmentChange }) {
               <div
                 style={{
                   display: "flex",
-                  alignItems: "baseline",
-                  gap: "6px",
+                  alignItems: "center",
+                  gap: "8px",
                   background: "rgba(34, 197, 94, 0.10)",
                   border: "1px solid rgba(34, 197, 94, 0.28)",
                   borderRadius: "999px",
                   padding: "5px 14px",
+                  transition: "opacity 0.15s ease",
                 }}
               >
-                <span
-                  style={{
-                    fontFamily:
-                      "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                    fontSize: "17px",
-                    fontWeight: 600,
-                    color: "#4ade80",
-                  }}
-                >
-                  {total.toLocaleString()}
-                </span>
-                <span style={{ fontSize: "11.5px", opacity: 0.55, letterSpacing: "0.02em" }}>
-                  {total === 1 ? "recipient" : "recipients"}
-                </span>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <span
+                    style={{
+                      fontFamily:
+                        "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                      fontSize: "17px",
+                      fontWeight: 600,
+                      color: "#4ade80",
+                      transition: "color 0.15s ease",
+                    }}
+                  >
+                    {(optimisticTotal ?? total).toLocaleString()}
+                  </span>
+                  <span style={{ fontSize: "11.5px", opacity: 0.55, letterSpacing: "0.02em" }}>
+                    {(optimisticTotal ?? total) === 1 ? "recipient" : "recipients"}
+                  </span>
+                </div>
+                {listLoading && (
+                  <Loader2
+                    size={11}
+                    style={{
+                      color: "rgba(74,222,128,0.7)",
+                      animation: "crm-spin 0.9s linear infinite",
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -1326,6 +1425,9 @@ export function CrmTab({ onSegmentChange }) {
               display: "flex",
               flexDirection: "column",
               gap: "12px",
+              opacity: listLoading ? 0.55 : 1,
+              transition: "opacity 0.18s ease",
+              pointerEvents: listLoading ? "none" : "auto",
             }}
           >
             {people.map((person) => {

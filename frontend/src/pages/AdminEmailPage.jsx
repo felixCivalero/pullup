@@ -109,6 +109,25 @@ export function AdminEmailPage() {
   const [audienceLoading, setAudienceLoading] = useState(true);
   const [tagOptions, setTagOptions] = useState([]);
 
+  // Per-send manual exclusions. Lives outside `filters` so it doesn't
+  // mix with the segmentation criteria — emails added here get stripped
+  // at send time only. Keyed by lowercased email to survive UI re-fetches.
+  const [excludedEmails, setExcludedEmails] = useState(() => new Set());
+  function toggleExclude(email) {
+    const key = String(email || "").toLowerCase().trim();
+    if (!key) return;
+    setExcludedEmails((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // Expand the sample list from the default 30 to the full audience.
+  // Triggers a refetch with limit=all so backend returns everyone.
+  const [showAll, setShowAll] = useState(false);
+
   const filterQuery = useMemo(() => {
     const q = new URLSearchParams();
     q.set("source", filters.audienceSource);
@@ -139,8 +158,10 @@ export function AdminEmailPage() {
         q.set("hostLeadStatuses", filters.hostLeadStatuses.join(","));
     }
 
+    if (showAll) q.set("limit", "all");
+
     return q.toString();
-  }, [filters]);
+  }, [filters, showAll]);
 
   // Fetch the tag universe once on mount so the chip cloud has options
   // even before any filter is active.
@@ -199,8 +220,13 @@ export function AdminEmailPage() {
     [],
   );
 
+  // Effective audience after manual exclusions are subtracted client-side.
+  // The backend re-applies the same exclusion list at send time, so this
+  // is just the UI count — the canonical filtering happens server-side.
+  const effectiveTotal = Math.max(0, audience.total - excludedEmails.size);
+
   function handleSendClick() {
-    if (audience.total === 0) {
+    if (effectiveTotal === 0) {
       showToast("No recipients in this segment.", "error");
       setActiveTab("segment");
       return;
@@ -223,7 +249,7 @@ export function AdminEmailPage() {
     }
     setSendStage("confirm");
     setSendingStats({
-      totalRecipients: audience.total,
+      totalRecipients: effectiveTotal,
       totalSent: 0,
       totalFailed: 0,
     });
@@ -243,6 +269,7 @@ export function AdminEmailPage() {
       const persistedCriteria = {
         ...rest,
         attendedEventIds: attendedEvents.map((e) => e.id),
+        excludedEmails: Array.from(excludedEmails),
       };
 
       const createRes = await authenticatedFetch("/admin/email/campaigns", {
@@ -323,7 +350,7 @@ export function AdminEmailPage() {
     }
   }
 
-  const sendDisabled = audience.total === 0;
+  const sendDisabled = effectiveTotal === 0;
 
   return (
     <div
@@ -429,6 +456,12 @@ export function AdminEmailPage() {
                 audience={audience}
                 loading={audienceLoading}
                 tagOptions={tagOptions}
+                excludedEmails={excludedEmails}
+                onToggleExclude={toggleExclude}
+                onClearExclusions={() => setExcludedEmails(new Set())}
+                effectiveTotal={effectiveTotal}
+                showAll={showAll}
+                onToggleShowAll={() => setShowAll((v) => !v)}
               />
             )}
             {!isPhone && activeTab === "email" && (
@@ -464,8 +497,13 @@ export function AdminEmailPage() {
             }}
           >
             <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
-              {audience.total.toLocaleString()}{" "}
-              {audience.total === 1 ? "recipient" : "recipients"}
+              {effectiveTotal.toLocaleString()}{" "}
+              {effectiveTotal === 1 ? "recipient" : "recipients"}
+              {excludedEmails.size > 0 && (
+                <span style={{ color: "rgba(251,146,60,0.85)", marginLeft: 6 }}>
+                  · {excludedEmails.size} excluded
+                </span>
+              )}
             </div>
             <button
               type="button"
@@ -519,7 +557,7 @@ export function AdminEmailPage() {
       <ConfirmSendDialog
         isOpen={isConfirmSendOpen}
         sendStage={sendStage}
-        effectiveRecipientCount={audience.total}
+        effectiveRecipientCount={effectiveTotal}
         sendingStats={sendingStats}
         sendingErrorMessage={sendingErrorMessage}
         selectedEvent={null}
@@ -536,7 +574,19 @@ export function AdminEmailPage() {
 }
 
 // ─── Audience tab ──────────────────────────────────────────────────────
-function AdminAudienceTab({ filters, setFilters, audience, loading, tagOptions }) {
+function AdminAudienceTab({
+  filters,
+  setFilters,
+  audience,
+  loading,
+  tagOptions,
+  excludedEmails,
+  onToggleExclude,
+  onClearExclusions,
+  effectiveTotal,
+  showAll,
+  onToggleShowAll,
+}) {
   function toggleTag(tag) {
     setFilters((f) => {
       const next = Array.isArray(f.attendedEventTags) ? [...f.attendedEventTags] : [];
@@ -597,16 +647,50 @@ function AdminAudienceTab({ filters, setFilters, audience, loading, tagOptions }
         <div
           style={{ fontSize: 32, fontWeight: 700, color: "#fff", lineHeight: 1 }}
         >
-          {loading ? "…" : audience.total.toLocaleString()}
+          {loading ? "…" : effectiveTotal.toLocaleString()}
         </div>
         <div
           style={{
             fontSize: 12,
             color: "rgba(255,255,255,0.55)",
             marginTop: 4,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexWrap: "wrap",
           }}
         >
           unique emails across the entire pullup platform
+          {excludedEmails.size > 0 && (
+            <span
+              style={{
+                color: "#fb923c",
+                fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              · {excludedEmails.size} manually excluded
+              <button
+                type="button"
+                onClick={onClearExclusions}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "rgba(251,146,60,0.7)",
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  cursor: "pointer",
+                  padding: "0 4px",
+                  textDecoration: "underline",
+                }}
+              >
+                clear
+              </button>
+            </span>
+          )}
         </div>
       </div>
 
@@ -854,86 +938,182 @@ function AdminAudienceTab({ filters, setFilters, audience, loading, tagOptions }
         <div>
           <div
             style={{
-              fontSize: 11,
-              color: "rgba(255,255,255,0.4)",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
               marginBottom: 8,
+              gap: 8,
             }}
           >
-            Sample · first 30
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {audience.sample.map((p) => (
-              <div
-                key={p.id}
+            <div
+              style={{
+                fontSize: 11,
+                color: "rgba(255,255,255,0.4)",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+              }}
+            >
+              {showAll
+                ? `All ${audience.total.toLocaleString()} recipients`
+                : `Sample · first ${audience.sample.length}`}
+            </div>
+            {audience.total > audience.sample.length && !showAll && (
+              <button
+                type="button"
+                onClick={onToggleShowAll}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  background: "rgba(255,255,255,0.02)",
-                  fontSize: 12,
+                  background: "none",
+                  border: "none",
+                  color: "#60a5fa",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  cursor: "pointer",
+                  padding: 0,
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
+                Show all {audience.total.toLocaleString()} →
+              </button>
+            )}
+            {showAll && (
+              <button
+                type="button"
+                onClick={onToggleShowAll}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Collapse ←
+              </button>
+            )}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              maxHeight: showAll ? 480 : "none",
+              overflowY: showAll ? "auto" : "visible",
+              paddingRight: showAll ? 4 : 0,
+            }}
+          >
+            {audience.sample.map((p) => {
+              const emailKey = (p.email || "").toLowerCase().trim();
+              const isExcluded = excludedEmails.has(emailKey);
+              return (
+                <div
+                  key={`${p.source || "contact"}:${p.id}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    background: isExcluded
+                      ? "rgba(251,146,60,0.05)"
+                      : "rgba(255,255,255,0.02)",
+                    border: isExcluded
+                      ? "1px solid rgba(251,146,60,0.2)"
+                      : "1px solid transparent",
+                    opacity: isExcluded ? 0.55 : 1,
+                    fontSize: 12,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        color: "#fff",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        textDecoration: isExcluded ? "line-through" : "none",
+                      }}
+                    >
+                      {p.name || p.email.split("@")[0]}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "rgba(255,255,255,0.35)",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        textDecoration: isExcluded ? "line-through" : "none",
+                      }}
+                    >
+                      {p.email}
+                    </div>
+                  </div>
+                  {p.source === "host" ? (
+                    <span style={{
+                      fontSize: 9,
+                      color: "#60a5fa",
+                      padding: "1px 6px",
+                      borderRadius: 999,
+                      background: "rgba(96,165,250,0.1)",
+                      border: "1px solid rgba(96,165,250,0.25)",
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                    }}>
+                      Host · {p.eventCount} event{p.eventCount === 1 ? "" : "s"}
+                    </span>
+                  ) : (
+                    <>
+                      {p.marketingConsent && (
+                        <span style={{
+                          fontSize: 9, color: "#4ade80", padding: "1px 6px",
+                          borderRadius: 999, background: "rgba(74,222,128,0.1)",
+                          border: "1px solid rgba(74,222,128,0.25)",
+                          letterSpacing: "0.05em", textTransform: "uppercase",
+                        }}>Opted in</span>
+                      )}
+                      {p.paymentCount > 0 && (
+                        <span style={{
+                          fontSize: 11, color: "rgba(251,191,36,0.85)", whiteSpace: "nowrap",
+                        }}>
+                          {p.paymentCount} pay{p.paymentCount !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onToggleExclude(p.email)}
+                    title={isExcluded ? "Re-include" : "Exclude from this send"}
                     style={{
-                      color: "#fff",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      width: 22,
+                      height: 22,
+                      flexShrink: 0,
+                      borderRadius: 999,
+                      border: isExcluded
+                        ? "1px solid rgba(74,222,128,0.4)"
+                        : "1px solid rgba(255,255,255,0.12)",
+                      background: isExcluded
+                        ? "rgba(74,222,128,0.12)"
+                        : "transparent",
+                      color: isExcluded ? "#4ade80" : "rgba(255,255,255,0.5)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                      transition: "all 0.12s ease",
                     }}
                   >
-                    {p.name || p.email.split("@")[0]}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "rgba(255,255,255,0.35)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {p.email}
-                  </div>
+                    {isExcluded ? <Check size={12} /> : <X size={12} />}
+                  </button>
                 </div>
-                {p.source === "host" ? (
-                  <span style={{
-                    fontSize: 9,
-                    color: "#60a5fa",
-                    padding: "1px 6px",
-                    borderRadius: 999,
-                    background: "rgba(96,165,250,0.1)",
-                    border: "1px solid rgba(96,165,250,0.25)",
-                    letterSpacing: "0.05em",
-                    textTransform: "uppercase",
-                  }}>
-                    Host · {p.eventCount} event{p.eventCount === 1 ? "" : "s"}
-                  </span>
-                ) : (
-                  <>
-                    {p.marketingConsent && (
-                      <span style={{
-                        fontSize: 9, color: "#4ade80", padding: "1px 6px",
-                        borderRadius: 999, background: "rgba(74,222,128,0.1)",
-                        border: "1px solid rgba(74,222,128,0.25)",
-                        letterSpacing: "0.05em", textTransform: "uppercase",
-                      }}>Opted in</span>
-                    )}
-                    {p.paymentCount > 0 && (
-                      <span style={{
-                        fontSize: 11, color: "rgba(251,191,36,0.85)", whiteSpace: "nowrap",
-                      }}>
-                        {p.paymentCount} pay{p.paymentCount !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

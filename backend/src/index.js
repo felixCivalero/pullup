@@ -10600,12 +10600,30 @@ app.get("/admin/email/audience", requireAdmin, async (req, res) => {
       hostEventCount,
       hostAccountAge,
       hostLeadStatuses,
+      excludedEmails: req.query.excludedEmails
+        ? String(req.query.excludedEmails)
+            .split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean)
+        : [],
     };
     const audience = await getAdminAudience(filterCriteria);
+
+    // limit=all (or anything > 30) returns the full audience in the sample.
+    // Default 30 keeps the lightweight count-card use case fast.
+    const limitParam = String(req.query.limit || "").toLowerCase();
+    const showAll = limitParam === "all";
+    const sampleSize = showAll
+      ? audience.length
+      : Math.min(Number(limitParam) || 30, audience.length);
+    const sampleRows = showAll
+      ? audience
+      : balancedSample(audience, sampleSize);
+
     return res.json({
       total: audience.length,
       filterCriteria,
-      sample: balancedSample(audience, 30).map((p) => ({
+      sample: sampleRows.map((p) => ({
         id: p.id,
         email: p.email,
         name: p.name,

@@ -358,7 +358,12 @@ export async function sendAdminBroadcastInBatches(
     }
     await updateEmailCampaignStatus(campaignId, "sending");
 
-    const campaignTag = `admin_broadcast_${campaignId}`;
+    const sendMode = campaign.filterCriteria?.sendMode === "internal"
+      ? "internal"
+      : "broadcast";
+    const campaignTag = sendMode === "internal"
+      ? `admin_internal_${campaignId}`
+      : `admin_broadcast_${campaignId}`;
     const backendBaseUrl =
       process.env.NODE_ENV === "production"
         ? process.env.BACKEND_URL || "https://pullup.se/api"
@@ -391,8 +396,29 @@ export async function sendAdminBroadcastInBatches(
       const batch = eligible.slice(i, i + batchSize);
       const batchPromises = batch.map(async (person) => {
         try {
-          const unsubscribeToken = await ensureUnsubscribeToken(person.id);
-          const unsubscribeUrl = `${frontendBaseUrl}/u/${unsubscribeToken}`;
+          let personId = person.id;
+          if (person._source === "host") {
+            const { data: upserted } = await supabase
+              .from("people")
+              .upsert(
+                {
+                  email: person.email,
+                  name: person.name || null,
+                  import_source: "host_account",
+                },
+                { onConflict: "email" },
+              )
+              .select("id")
+              .single();
+            if (upserted?.id) personId = upserted.id;
+          }
+
+          const unsubscribeToken = sendMode === "internal"
+            ? null
+            : await ensureUnsubscribeToken(personId);
+          const unsubscribeUrl = unsubscribeToken
+            ? `${frontendBaseUrl}/u/${unsubscribeToken}`
+            : null;
 
           const html = renderFollowUpEmailTemplate({
             templateContent: sanitizedTemplateContent,
@@ -403,7 +429,7 @@ export async function sendAdminBroadcastInBatches(
           });
 
           const campaignSend = await recordEmailSend({
-            personId: person.id,
+            personId,
             campaignId: campaign.id,
             email: person.email,
             subject: campaign.subject,
@@ -417,8 +443,8 @@ export async function sendAdminBroadcastInBatches(
             htmlBody: html,
             textBody: null,
             campaignSendId: campaignSend?.id || null,
-            idempotencyKey: `${campaign.id}:${person.id}`,
-            category: "newsletter",
+            idempotencyKey: `${campaign.id}:${personId}`,
+            category: sendMode === "internal" ? "transactional" : "newsletter",
             campaignTag,
           });
 

@@ -86,6 +86,28 @@ console.log("🧪 broadcast mode drops marketing_consent=false; internal keeps t
   assert(internal.length === 2, "internal keeps both");
 }
 
+console.log("🧪 hostEventTags filters hosts by tags of events they created");
+{
+  const result = applyHostFilters(
+    [
+      host({ id: "dinner",   event_tags: ["dinner", "supper-club"] }),
+      host({ id: "art",      event_tags: ["art", "exhibition"] }),
+      host({ id: "untagged", event_tags: [] }),
+    ],
+    { hostEventTags: ["dinner"], now: FIXED_NOW },
+  );
+  assert(result.length === 1 && result[0].id === "dinner", "only dinner host retained");
+}
+
+console.log("🧪 hostEventTags is case-insensitive");
+{
+  const result = applyHostFilters(
+    [host({ id: "h", event_tags: ["Dinner"] })],
+    { hostEventTags: ["DINNER"], now: FIXED_NOW },
+  );
+  assert(result.length === 1, "case-insensitive match");
+}
+
 console.log("🧪 dedupHostsWinning: host record beats contact record on the same email");
 {
   const hosts    = [{ id: "h1", email: "x@x.com", name: "From Host"    }];

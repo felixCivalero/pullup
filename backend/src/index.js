@@ -10583,6 +10583,14 @@ app.get("/admin/email/audience", requireAdmin, async (req, res) => {
           .filter(Boolean)
       : [];
 
+    const hostEventTagsParam = req.query.hostEventTags;
+    const hostEventTags = hostEventTagsParam
+      ? String(hostEventTagsParam)
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
+      : [];
+
     const filterCriteria = {
       audienceSource,
       sendMode,
@@ -10600,6 +10608,7 @@ app.get("/admin/email/audience", requireAdmin, async (req, res) => {
       hostEventCount,
       hostAccountAge,
       hostLeadStatuses,
+      hostEventTags,
       excludedEmails: req.query.excludedEmails
         ? String(req.query.excludedEmails)
             .split(",")
@@ -10671,6 +10680,34 @@ app.get("/admin/email/tag-options", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("[admin/email/tag-options] error:", err.message);
     return res.status(500).json({ error: "Failed to fetch tag options" });
+  }
+});
+
+// GET /admin/email/host-lead-options — distinct sales_leads.status values
+// for leads linked to a host profile, with counts. Powers the "pipeline"
+// chip cloud in the host filters so admin can see what stages exist.
+app.get("/admin/email/host-lead-options", requireAdmin, async (req, res) => {
+  try {
+    const { supabase: sb } = await import("./supabase.js");
+    const { data, error } = await sb
+      .from("sales_leads")
+      .select("status")
+      .not("profile_id", "is", null)
+      .not("status", "is", null);
+    if (error) throw error;
+    const counts = {};
+    for (const row of data || []) {
+      const s = (row.status || "").trim();
+      if (!s) continue;
+      counts[s] = (counts[s] || 0) + 1;
+    }
+    const statuses = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([status, count]) => ({ status, count }));
+    return res.json({ statuses });
+  } catch (err) {
+    console.error("[admin/email/host-lead-options] error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch lead options" });
   }
 });
 

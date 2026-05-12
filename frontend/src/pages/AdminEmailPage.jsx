@@ -15,6 +15,7 @@ import EmailCanvas from "../components/crm/EmailCanvas";
 import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
 import { Users, Filter, Check, Search, X } from "lucide-react";
 import { colors } from "../theme/colors.js";
+import { SegmentedControl, ChipCloud, FilterGroup } from "../components/crm/SegmentControls.jsx";
 
 const TABS = [
   { id: "segment", label: "Segment" },
@@ -1208,174 +1209,6 @@ function pillStyle(active, accent = "#a3e635") {
   };
 }
 
-// Segmented control with a sliding indicator. Low-key, monochrome track,
-// accent-tinted thumb. Used for single-select host filters where the
-// option set is small and stable.
-function SegmentedControl({ value, options, onChange, accent = "#fff" }) {
-  const idx = Math.max(0, options.findIndex((o) => String(o.key) === String(value)));
-  const widthPct = 100 / options.length;
-  return (
-    <div
-      role="tablist"
-      style={{
-        position: "relative",
-        display: "flex",
-        padding: 3,
-        background: "rgba(255,255,255,0.03)",
-        borderRadius: 10,
-        border: "1px solid rgba(255,255,255,0.05)",
-      }}
-    >
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: 3,
-          bottom: 3,
-          left: `calc(${idx * widthPct}% + 3px)`,
-          width: `calc(${widthPct}% - 6px)`,
-          borderRadius: 7,
-          background: `linear-gradient(135deg, ${accent}26, ${accent}14)`,
-          border: `1px solid ${accent}40`,
-          transition: "left 0.22s cubic-bezier(0.4, 0, 0.2, 1)",
-          pointerEvents: "none",
-        }}
-      />
-      {options.map((o) => {
-        const active = String(value) === String(o.key);
-        return (
-          <button
-            key={String(o.key)}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(o.key)}
-            style={{
-              flex: 1,
-              position: "relative",
-              padding: "7px 0",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 11.5,
-              fontWeight: active ? 600 : 500,
-              letterSpacing: "0.01em",
-              color: active ? "#fff" : "rgba(255,255,255,0.5)",
-              transition: "color 0.18s ease",
-              zIndex: 1,
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// Multi-select chip cloud — same chip styling as the contact "Interested
-// in" cloud, but exposed as a reusable building block. `getCount` is
-// optional and renders an inline mono count next to the label.
-function ChipCloud({ items, selected, onToggle, accent = "#fff", emptyLabel }) {
-  const selectedSet = new Set((selected || []).map((s) => String(s).toLowerCase()));
-  if (!items || items.length === 0) {
-    return (
-      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>
-        {emptyLabel || "Nothing to show yet."}
-      </div>
-    );
-  }
-  return (
-    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-      {items.map(({ key, label, count }) => {
-        const k = String(key).toLowerCase();
-        const active = selectedSet.has(k);
-        return (
-          <button
-            key={k}
-            type="button"
-            onClick={() => onToggle(key)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              padding: "5px 11px",
-              borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 500,
-              cursor: "pointer",
-              border: active
-                ? `1px solid ${accent}66`
-                : "1px solid rgba(255,255,255,0.08)",
-              background: active
-                ? `${accent}1c`
-                : "rgba(255,255,255,0.02)",
-              color: active ? "#fff" : "rgba(255,255,255,0.55)",
-              whiteSpace: "nowrap",
-              transition: "all 0.14s ease",
-            }}
-          >
-            {label}
-            {typeof count === "number" && (
-              <span
-                style={{
-                  fontFamily:
-                    "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                  fontSize: 10,
-                  color: active ? `${accent}` : "rgba(255,255,255,0.35)",
-                  opacity: 0.85,
-                }}
-              >
-                {count}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// Group header used inside HostFiltersCard. Adds a status dot that fills
-// in when the group has an active (non-default) value.
-function HostFilterGroup({ label, active, accent, children }) {
-  return (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 8,
-        }}
-      >
-        <span
-          aria-hidden
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: 999,
-            background: active ? accent : "rgba(255,255,255,0.14)",
-            boxShadow: active ? `0 0 0 3px ${accent}1a` : "none",
-            transition: "all 0.18s ease",
-          }}
-        />
-        <span
-          style={{
-            fontSize: 11,
-            color: active ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.5)",
-            letterSpacing: "0.04em",
-            fontWeight: 500,
-          }}
-        >
-          {label}
-        </span>
-      </div>
-      {children}
-    </div>
-  );
-}
-
 function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [] }) {
   const accountStates = [
     { key: "any",          label: "any" },
@@ -1516,34 +1349,34 @@ function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [
         )}
       </div>
 
-      <HostFilterGroup label="account state" active={stateActive} accent={accentState}>
+      <FilterGroup label="account state" active={stateActive} accent={accentState}>
         <SegmentedControl
           value={filters.hostAccountState}
           options={accountStates}
           accent={accentState}
           onChange={(v) => setFilters((f) => ({ ...f, hostAccountState: v }))}
         />
-      </HostFilterGroup>
+      </FilterGroup>
 
-      <HostFilterGroup label="events created" active={countActive} accent={accentEvents}>
+      <FilterGroup label="events created" active={countActive} accent={accentEvents}>
         <SegmentedControl
           value={filters.hostEventCount}
           options={eventCounts}
           accent={accentEvents}
           onChange={(v) => setFilters((f) => ({ ...f, hostEventCount: v }))}
         />
-      </HostFilterGroup>
+      </FilterGroup>
 
-      <HostFilterGroup label="account age" active={ageActive} accent={accentAge}>
+      <FilterGroup label="account age" active={ageActive} accent={accentAge}>
         <SegmentedControl
           value={filters.hostAccountAge}
           options={accountAges}
           accent={accentAge}
           onChange={(v) => setFilters((f) => ({ ...f, hostAccountAge: v }))}
         />
-      </HostFilterGroup>
+      </FilterGroup>
 
-      <HostFilterGroup label="pipeline" active={leadsActive} accent={accentLeads}>
+      <FilterGroup label="pipeline" active={leadsActive} accent={accentLeads}>
         <ChipCloud
           items={leadOptions.map((l) => ({ key: l.status, label: l.status, count: l.count }))}
           selected={filters.hostLeadStatuses}
@@ -1551,9 +1384,9 @@ function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [
           accent={accentLeads}
           emptyLabel="No leads in pipeline yet."
         />
-      </HostFilterGroup>
+      </FilterGroup>
 
-      <HostFilterGroup label="event vibe" active={tagsActive} accent={accentTags}>
+      <FilterGroup label="event vibe" active={tagsActive} accent={accentTags}>
         <div
           style={{
             fontSize: 11,
@@ -1573,7 +1406,7 @@ function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [
           accent={accentTags}
           emptyLabel="No event tags yet."
         />
-      </HostFilterGroup>
+      </FilterGroup>
     </div>
   );
 }

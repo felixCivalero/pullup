@@ -20,6 +20,7 @@ import { getEventUrl } from "../lib/urlUtils.js";
 import { colors } from "../theme/colors.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { AutoTagButton, AutoTagFlashStyle } from "./crm/AutoTagButton.jsx";
+import { SegmentedControl, ChipCloud, FilterGroup } from "./crm/SegmentControls.jsx";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -515,18 +516,19 @@ export function CrmTab({ onSegmentChange }) {
         <div
           style={{
             marginTop: "8px",
-            padding: "16px 18px 14px",
-            background: "rgba(20, 16, 30, 0.7)",
-            borderRadius: "16px",
-            border: "1px solid rgba(34, 197, 94, 0.3)",
+            padding: "18px 20px 16px",
+            background:
+              "linear-gradient(180deg, rgba(20, 16, 30, 0.78), rgba(20, 16, 30, 0.62))",
+            borderRadius: "18px",
+            border: "1px solid rgba(34, 197, 94, 0.28)",
             boxShadow:
-              "0 0 0 1px rgba(34,197,94,0.12), 0 14px 40px rgba(0,0,0,0.55)",
+              "0 0 0 1px rgba(34,197,94,0.10), 0 14px 40px rgba(0,0,0,0.55)",
             display: "flex",
             flexDirection: "column",
-            gap: "12px",
+            gap: "18px",
           }}
         >
-          {/* Segment heading + recipient count */}
+          {/* Segment heading + recipient count + auto-tag */}
           <div
             style={{
               display: "flex",
@@ -536,7 +538,7 @@ export function CrmTab({ onSegmentChange }) {
               flexWrap: "wrap",
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
               <div
                 style={{
                   fontSize: "14px",
@@ -555,16 +557,16 @@ export function CrmTab({ onSegmentChange }) {
                   display: "inline-block",
                   boxShadow: "0 0 6px rgba(34,197,94,0.5)",
                 }} />
-                Email audience
+                email audience
               </div>
               <div
                 style={{
                   fontSize: "12px",
-                  opacity: 0.5,
+                  opacity: 0.45,
                   paddingLeft: "16px",
                 }}
               >
-                Filter contacts below to define who receives your next email
+                tune the filters below to define who receives your next send
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
@@ -573,23 +575,31 @@ export function CrmTab({ onSegmentChange }) {
                 endpoint={(id) => `/events/${id}/auto-tag`}
                 onEventStart={handleAutoTagStart}
                 onEventTagged={handleEventTagged}
-                label="Auto-tag events"
+                label="auto-tag events"
               />
               <div
                 style={{
                   display: "flex",
                   alignItems: "baseline",
                   gap: "6px",
-                  background: "rgba(34, 197, 94, 0.08)",
-                  border: "1px solid rgba(34, 197, 94, 0.2)",
+                  background: "rgba(34, 197, 94, 0.10)",
+                  border: "1px solid rgba(34, 197, 94, 0.28)",
                   borderRadius: "999px",
                   padding: "5px 14px",
                 }}
               >
-                <span style={{ fontSize: "18px", fontWeight: 700, color: "#4ade80" }}>
+                <span
+                  style={{
+                    fontFamily:
+                      "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                    fontSize: "17px",
+                    fontWeight: 600,
+                    color: "#4ade80",
+                  }}
+                >
                   {total.toLocaleString()}
                 </span>
-                <span style={{ fontSize: "12px", opacity: 0.6 }}>
+                <span style={{ fontSize: "11.5px", opacity: 0.55, letterSpacing: "0.02em" }}>
                   {total === 1 ? "recipient" : "recipients"}
                 </span>
               </div>
@@ -599,352 +609,294 @@ export function CrmTab({ onSegmentChange }) {
 
           {/* Divider */}
           <div style={{ height: "1px", background: "rgba(255,255,255,0.06)" }} />
-          {/* Filters + CTA row */}
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "16px",
-              alignItems: "center",
-            }}
-          >
-            {/* Event attending multi-select dropdown */}
-            <div
-              style={{
-                minWidth: "220px",
-                flex: "1 1 220px",
-                position: "relative",
-              }}
-            >
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "11px",
-                  opacity: 0.5,
-                  marginBottom: "4px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                Filter by event
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowEventDropdown((open) => !open)}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(12, 10, 18, 0.8)",
-                  color: "#fff",
-                  fontSize: "13px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  cursor: "pointer",
-                }}
-              >
-                <span style={{ opacity: 0.85 }}>
-                  {filters.attendedEventIds &&
-                  Array.isArray(filters.attendedEventIds) &&
-                  filters.attendedEventIds.length > 0
-                    ? `${filters.attendedEventIds.length} event${
-                        filters.attendedEventIds.length > 1 ? "s" : ""
-                      } selected`
-                    : "All events"}
-                </span>
-                <span
-                  style={{
-                    marginLeft: "8px",
-                    fontSize: "10px",
-                    opacity: 0.7,
-                  }}
-                >
-                  ▼
-                </span>
-              </button>
-              {showEventDropdown && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    marginTop: 6,
-                    zIndex: 10,
-                    background: "rgba(12, 10, 18, 0.98)",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    padding: "8px",
-                    maxHeight: "220px",
-                    overflowY: "auto",
-                    minWidth: "100%",
-                    boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
-                  }}
-                >
-                  {events.map((event) => {
-                    const selectedIds = filters.attendedEventIds || [];
-                    const checked = selectedIds.includes(event.id);
-                    const isTagging = taggingEventId === event.id;
-                    const flashKey = flashedEventIds[event.id];
-                    const newTagSet = newTagsByEventId[event.id] || new Set();
-                    const eventTags = event.adminTags || [];
-                    return (
-                      <label
-                        key={event.id}
-                        className={flashKey ? "autotag-flash" : undefined}
+
+          {(() => {
+            const eventActive = (filters.attendedEventIds || []).length > 0;
+            const dinnerActive = filters.hasDinner === true;
+            const tagsActive = (filters.attendedEventTags || []).length > 0;
+            const activeCount =
+              Number(eventActive) + Number(dinnerActive) + Number(tagsActive);
+            const clearAll = () => {
+              setFilters((prev) => ({
+                ...prev,
+                attendedEventIds: undefined,
+                hasDinner: undefined,
+                attendedEventTags: undefined,
+              }));
+              setPage(0);
+            };
+            return (
+              <>
+                {activeCount > 0 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      marginTop: -4,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily:
+                          "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                        fontSize: 10.5,
+                        color: "#fff",
+                        padding: "2px 8px",
+                        borderRadius: 999,
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                      }}
+                    >
+                      {activeCount} active
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearAll}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: 10.5,
+                        letterSpacing: "0.06em",
+                        textTransform: "lowercase",
+                        cursor: "pointer",
+                        padding: 0,
+                        textDecoration: "underline",
+                        textUnderlineOffset: 3,
+                      }}
+                    >
+                      clear all
+                    </button>
+                  </div>
+                )}
+
+                <FilterGroup label="filter by event" active={eventActive} accent="#60a5fa">
+                  <div style={{ position: "relative" }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowEventDropdown((open) => !open)}
+                      style={{
+                        width: "100%",
+                        padding: "9px 14px",
+                        borderRadius: 10,
+                        border: eventActive
+                          ? "1px solid rgba(96,165,250,0.4)"
+                          : "1px solid rgba(255,255,255,0.08)",
+                        background: eventActive
+                          ? "rgba(96,165,250,0.06)"
+                          : "rgba(255,255,255,0.03)",
+                        color: "#fff",
+                        fontSize: "12.5px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        cursor: "pointer",
+                        transition: "all 0.16s ease",
+                      }}
+                    >
+                      <span style={{ opacity: eventActive ? 0.95 : 0.7 }}>
+                        {eventActive
+                          ? `${filters.attendedEventIds.length} event${
+                              filters.attendedEventIds.length > 1 ? "s" : ""
+                            } selected`
+                          : "all events"}
+                      </span>
+                      <span
                         style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "4px",
-                          padding: "8px 6px",
-                          fontSize: "13px",
-                          cursor: "pointer",
-                          borderRadius: 6,
-                          border: isTagging
-                            ? "1px solid rgba(251,191,36,0.5)"
-                            : "1px solid transparent",
-                          transition: "border-color 0.25s",
+                          marginLeft: 8,
+                          fontSize: 10,
+                          opacity: 0.5,
+                          transform: showEventDropdown ? "rotate(180deg)" : "none",
+                          transition: "transform 0.18s ease",
                         }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              const current = filters.attendedEventIds || [];
-                              let next;
-                              if (e.target.checked) {
-                                next = [...current, event.id];
-                              } else {
-                                next = current.filter((id) => id !== event.id);
-                              }
-                              setFilters((prev) => ({
-                                ...prev,
-                                attendedEventIds: next.length ? next : undefined,
-                              }));
+                        ▾
+                      </span>
+                    </button>
+                    {showEventDropdown && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 6px)",
+                          left: 0,
+                          right: 0,
+                          zIndex: 10,
+                          background: "rgba(12, 10, 18, 0.98)",
+                          borderRadius: 10,
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          padding: 8,
+                          maxHeight: 240,
+                          overflowY: "auto",
+                          boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
+                        }}
+                      >
+                        {events.map((event) => {
+                          const selectedIds = filters.attendedEventIds || [];
+                          const checked = selectedIds.includes(event.id);
+                          const isTagging = taggingEventId === event.id;
+                          const flashKey = flashedEventIds[event.id];
+                          const newTagSet = newTagsByEventId[event.id] || new Set();
+                          const eventTags = event.adminTags || [];
+                          return (
+                            <label
+                              key={event.id}
+                              className={flashKey ? "autotag-flash" : undefined}
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 4,
+                                padding: "8px 6px",
+                                fontSize: 13,
+                                cursor: "pointer",
+                                borderRadius: 6,
+                                border: isTagging
+                                  ? "1px solid rgba(251,191,36,0.5)"
+                                  : "1px solid transparent",
+                                transition: "border-color 0.25s",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    const current = filters.attendedEventIds || [];
+                                    const next = e.target.checked
+                                      ? [...current, event.id]
+                                      : current.filter((id) => id !== event.id);
+                                    setFilters((prev) => ({
+                                      ...prev,
+                                      attendedEventIds: next.length ? next : undefined,
+                                    }));
+                                    setPage(0);
+                                  }}
+                                  style={{ margin: 0 }}
+                                />
+                                <span style={{ opacity: 0.9, flex: 1, minWidth: 0 }}>{event.title}</span>
+                              </div>
+                              {(eventTags.length > 0 || isTagging) && (
+                                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 24 }}>
+                                  {isTagging && eventTags.length === 0 && (
+                                    <span style={{ fontSize: 10, color: "rgba(251,191,36,0.85)", fontStyle: "italic" }}>
+                                      generating tags…
+                                    </span>
+                                  )}
+                                  {eventTags.map((tag) => {
+                                    const isNew = newTagSet.has(tag);
+                                    return (
+                                      <span
+                                        key={tag}
+                                        className={isNew ? "autotag-tag-new" : undefined}
+                                        style={{
+                                          padding: "1px 7px",
+                                          borderRadius: 999,
+                                          fontSize: 10,
+                                          fontWeight: 600,
+                                          background: isNew ? "rgba(251,191,36,0.22)" : "rgba(251,191,36,0.10)",
+                                          color: isNew ? "#fde68a" : "rgba(251,191,36,0.85)",
+                                          border: isNew
+                                            ? "1px solid rgba(251,191,36,0.55)"
+                                            : "1px solid rgba(251,191,36,0.18)",
+                                          boxShadow: isNew ? "0 0 6px rgba(251,191,36,0.35)" : "none",
+                                        }}
+                                      >
+                                        {tag}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </label>
+                          );
+                        })}
+                        {eventActive && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilters((prev) => ({ ...prev, attendedEventIds: undefined }));
                               setPage(0);
                             }}
-                            style={{ margin: 0 }}
-                          />
-                          <span style={{ opacity: 0.9, flex: 1, minWidth: 0 }}>{event.title}</span>
-                        </div>
-                        {(eventTags.length > 0 || isTagging) && (
-                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 24 }}>
-                            {isTagging && eventTags.length === 0 && (
-                              <span style={{ fontSize: 10, color: "rgba(251,191,36,0.85)", fontStyle: "italic" }}>
-                                Generating tags…
-                              </span>
-                            )}
-                            {eventTags.map((tag) => {
-                              const isNew = newTagSet.has(tag);
-                              return (
-                                <span
-                                  key={tag}
-                                  className={isNew ? "autotag-tag-new" : undefined}
-                                  style={{
-                                    padding: "1px 7px",
-                                    borderRadius: 999,
-                                    fontSize: 10,
-                                    fontWeight: 600,
-                                    background: isNew ? "rgba(251,191,36,0.22)" : "rgba(251,191,36,0.10)",
-                                    color: isNew ? "#fde68a" : "rgba(251,191,36,0.85)",
-                                    border: isNew
-                                      ? "1px solid rgba(251,191,36,0.55)"
-                                      : "1px solid rgba(251,191,36,0.18)",
-                                    boxShadow: isNew ? "0 0 6px rgba(251,191,36,0.35)" : "none",
-                                  }}
-                                >
-                                  {tag}
-                                </span>
-                              );
-                            })}
-                          </div>
+                            style={{
+                              marginTop: 6,
+                              width: "100%",
+                              padding: "6px 10px",
+                              borderRadius: 6,
+                              border: "none",
+                              background: "rgba(255,255,255,0.06)",
+                              color: "rgba(255,255,255,0.7)",
+                              fontSize: 11.5,
+                              letterSpacing: "0.04em",
+                              textTransform: "lowercase",
+                              cursor: "pointer",
+                            }}
+                          >
+                            clear selection
+                          </button>
                         )}
-                      </label>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => {
+                      </div>
+                    )}
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup label="only dinner guests" active={dinnerActive} accent="#4ade80">
+                  <SegmentedControl
+                    value={dinnerActive ? "yes" : "no"}
+                    options={[
+                      { key: "no", label: "no" },
+                      { key: "yes", label: "yes" },
+                    ]}
+                    accent="#4ade80"
+                    onChange={(v) => {
                       setFilters((prev) => ({
                         ...prev,
-                        attendedEventIds: undefined,
+                        hasDinner: v === "yes" ? true : undefined,
                       }));
                       setPage(0);
                     }}
-                    style={{
-                      marginTop: "6px",
-                      width: "100%",
-                      padding: "6px 10px",
-                      borderRadius: "6px",
-                      border: "none",
-                      background: "rgba(255,255,255,0.06)",
-                      color: "#fff",
-                      fontSize: "12px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Clear selection
-                  </button>
-                </div>
-              )}
-            </div>
+                  />
+                </FilterGroup>
 
-            {/* Dinner filter: Yes / No (dinners only) */}
-            <div style={{ minWidth: "180px", flex: "0 0 auto" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "11px",
-                  opacity: 0.5,
-                  marginBottom: "4px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                Dinner guests only
-              </label>
-              <div
-                style={{
-                  display: "inline-flex",
-                  borderRadius: "999px",
-                  padding: "3px",
-                  background: "rgba(12, 10, 18, 0.8)",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  gap: "4px",
-                }}
-              >
-                {[
-                  { key: "no", label: "No" },
-                  { key: "yes", label: "Yes" },
-                ].map((option) => {
-                  const isActive =
-                    (option.key === "yes" && filters.hasDinner === true) ||
-                    (option.key === "no" && filters.hasDinner !== true);
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => {
+                {tagVocabulary.length > 0 && (
+                  <FilterGroup label="event vibe" active={tagsActive} accent="#fbbf24">
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "rgba(255,255,255,0.4)",
+                        marginBottom: 8,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      guests of any event tagged with one of these.
+                    </div>
+                    <ChipCloud
+                      items={tagVocabulary.map((t) => ({
+                        key: t.tag,
+                        label: t.tag,
+                        count: t.count,
+                      }))}
+                      selected={filters.attendedEventTags || []}
+                      onToggle={(tag) => {
+                        const current = filters.attendedEventTags || [];
+                        const key = String(tag);
+                        const next = current.includes(key)
+                          ? current.filter((t) => t !== key)
+                          : [...current, key];
                         setFilters((prev) => ({
                           ...prev,
-                          hasDinner: option.key === "yes" ? true : undefined,
+                          attendedEventTags: next.length ? next : undefined,
                         }));
                         setPage(0);
                       }}
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: "999px",
-                        border: "none",
-                        background: isActive
-                          ? "rgba(34, 197, 94, 0.2)"
-                          : "transparent",
-                        color: isActive ? "#4ade80" : "#fff",
-                        fontSize: "11px",
-                        fontWeight: 500,
-                        cursor: "pointer",
-                        minWidth: 40,
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-          </div>{" "}
-          {/* End filters row */}
-
-          {/* Filter by event-tag (admin_tags). Multi-select; OR semantics —
-              any selected tag matches. Driven by the host's own event tag
-              vocabulary so the chips reflect their actual events. */}
-          {tagVocabulary.length > 0 && (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                alignItems: "center",
-                paddingTop: 2,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 10,
-                  color: "rgba(255,255,255,0.45)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  marginRight: 4,
-                }}
-              >
-                <Tag size={10} style={{ color: "rgba(251,191,36,0.7)" }} />
-                Event tags:
-              </span>
-              {tagVocabulary.map(({ tag, count }) => {
-                const selected = (filters.attendedEventTags || []).includes(tag);
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => {
-                      const current = filters.attendedEventTags || [];
-                      const next = selected
-                        ? current.filter((t) => t !== tag)
-                        : [...current, tag];
-                      setFilters((prev) => ({
-                        ...prev,
-                        attendedEventTags: next.length ? next : undefined,
-                      }));
-                      setPage(0);
-                    }}
-                    style={{
-                      padding: "3px 9px",
-                      borderRadius: 999,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      border: selected
-                        ? "1px solid rgba(251,191,36,0.6)"
-                        : "1px solid rgba(255,255,255,0.1)",
-                      background: selected ? "rgba(251,191,36,0.22)" : "rgba(255,255,255,0.03)",
-                      color: selected ? "#fde68a" : "rgba(255,255,255,0.75)",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 5,
-                    }}
-                  >
-                    {tag}
-                    <span style={{ opacity: 0.5, fontSize: 10, fontWeight: 500 }}>{count}</span>
-                  </button>
-                );
-              })}
-              {(filters.attendedEventTags || []).length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilters((prev) => ({ ...prev, attendedEventTags: undefined }));
-                    setPage(0);
-                  }}
-                  style={{
-                    padding: "3px 9px",
-                    borderRadius: 999,
-                    fontSize: 10,
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "transparent",
-                    color: "rgba(255,255,255,0.5)",
-                    cursor: "pointer",
-                  }}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          )}
+                      accent="#fbbf24"
+                      emptyLabel="No event tags yet — run auto-tag first."
+                    />
+                  </FilterGroup>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* Saved Views Tabs */}

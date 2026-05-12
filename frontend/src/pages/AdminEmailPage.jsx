@@ -104,10 +104,12 @@ export function AdminEmailPage() {
     hostEventCount: "any",
     hostAccountAge: "any",
     hostLeadStatuses: [],
+    hostEventTags: [],
   });
   const [audience, setAudience] = useState({ total: 0, sample: [] });
   const [audienceLoading, setAudienceLoading] = useState(true);
   const [tagOptions, setTagOptions] = useState([]);
+  const [leadOptions, setLeadOptions] = useState([]);
 
   // Per-send manual exclusions. Lives outside `filters` so it doesn't
   // mix with the segmentation criteria — emails added here get stripped
@@ -156,6 +158,8 @@ export function AdminEmailPage() {
         q.set("hostAccountAge", filters.hostAccountAge);
       if (filters.hostLeadStatuses?.length > 0)
         q.set("hostLeadStatuses", filters.hostLeadStatuses.join(","));
+      if (filters.hostEventTags?.length > 0)
+        q.set("hostEventTags", filters.hostEventTags.join(","));
     }
 
     if (showAll) q.set("limit", "all");
@@ -163,8 +167,8 @@ export function AdminEmailPage() {
     return q.toString();
   }, [filters, showAll]);
 
-  // Fetch the tag universe once on mount so the chip cloud has options
-  // even before any filter is active.
+  // Fetch the tag universe + lead-status universe once on mount so the
+  // chip clouds have options even before any filter is active.
   useEffect(() => {
     let cancelled = false;
     authenticatedFetch("/admin/email/tag-options")
@@ -172,6 +176,12 @@ export function AdminEmailPage() {
       .then((d) => {
         if (cancelled || !d) return;
         setTagOptions(d.tags || []);
+      });
+    authenticatedFetch("/admin/email/host-lead-options")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        setLeadOptions(d.statuses || []);
       });
     return () => {
       cancelled = true;
@@ -456,6 +466,7 @@ export function AdminEmailPage() {
                 audience={audience}
                 loading={audienceLoading}
                 tagOptions={tagOptions}
+                leadOptions={leadOptions}
                 excludedEmails={excludedEmails}
                 onToggleExclude={toggleExclude}
                 onClearExclusions={() => setExcludedEmails(new Set())}
@@ -580,6 +591,7 @@ function AdminAudienceTab({
   audience,
   loading,
   tagOptions,
+  leadOptions,
   excludedEmails,
   onToggleExclude,
   onClearExclusions,
@@ -930,7 +942,12 @@ function AdminAudienceTab({
       )}
 
       {(filters.audienceSource === "hosts" || filters.audienceSource === "everyone") && (
-        <HostFiltersCard filters={filters} setFilters={setFilters} />
+        <HostFiltersCard
+          filters={filters}
+          setFilters={setFilters}
+          leadOptions={leadOptions || []}
+          tagOptions={tagOptions || []}
+        />
       )}
 
       {/* Sample of who's in */}
@@ -1191,96 +1208,372 @@ function pillStyle(active, accent = "#a3e635") {
   };
 }
 
-function HostFiltersCard({ filters, setFilters }) {
+// Segmented control with a sliding indicator. Low-key, monochrome track,
+// accent-tinted thumb. Used for single-select host filters where the
+// option set is small and stable.
+function SegmentedControl({ value, options, onChange, accent = "#fff" }) {
+  const idx = Math.max(0, options.findIndex((o) => String(o.key) === String(value)));
+  const widthPct = 100 / options.length;
+  return (
+    <div
+      role="tablist"
+      style={{
+        position: "relative",
+        display: "flex",
+        padding: 3,
+        background: "rgba(255,255,255,0.03)",
+        borderRadius: 10,
+        border: "1px solid rgba(255,255,255,0.05)",
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: 3,
+          bottom: 3,
+          left: `calc(${idx * widthPct}% + 3px)`,
+          width: `calc(${widthPct}% - 6px)`,
+          borderRadius: 7,
+          background: `linear-gradient(135deg, ${accent}26, ${accent}14)`,
+          border: `1px solid ${accent}40`,
+          transition: "left 0.22s cubic-bezier(0.4, 0, 0.2, 1)",
+          pointerEvents: "none",
+        }}
+      />
+      {options.map((o) => {
+        const active = String(value) === String(o.key);
+        return (
+          <button
+            key={String(o.key)}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(o.key)}
+            style={{
+              flex: 1,
+              position: "relative",
+              padding: "7px 0",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 11.5,
+              fontWeight: active ? 600 : 500,
+              letterSpacing: "0.01em",
+              color: active ? "#fff" : "rgba(255,255,255,0.5)",
+              transition: "color 0.18s ease",
+              zIndex: 1,
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Multi-select chip cloud — same chip styling as the contact "Interested
+// in" cloud, but exposed as a reusable building block. `getCount` is
+// optional and renders an inline mono count next to the label.
+function ChipCloud({ items, selected, onToggle, accent = "#fff", emptyLabel }) {
+  const selectedSet = new Set((selected || []).map((s) => String(s).toLowerCase()));
+  if (!items || items.length === 0) {
+    return (
+      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>
+        {emptyLabel || "Nothing to show yet."}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+      {items.map(({ key, label, count }) => {
+        const k = String(key).toLowerCase();
+        const active = selectedSet.has(k);
+        return (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onToggle(key)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "5px 11px",
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 500,
+              cursor: "pointer",
+              border: active
+                ? `1px solid ${accent}66`
+                : "1px solid rgba(255,255,255,0.08)",
+              background: active
+                ? `${accent}1c`
+                : "rgba(255,255,255,0.02)",
+              color: active ? "#fff" : "rgba(255,255,255,0.55)",
+              whiteSpace: "nowrap",
+              transition: "all 0.14s ease",
+            }}
+          >
+            {label}
+            {typeof count === "number" && (
+              <span
+                style={{
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                  fontSize: 10,
+                  color: active ? `${accent}` : "rgba(255,255,255,0.35)",
+                  opacity: 0.85,
+                }}
+              >
+                {count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Group header used inside HostFiltersCard. Adds a status dot that fills
+// in when the group has an active (non-default) value.
+function HostFilterGroup({ label, active, accent, children }) {
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 999,
+            background: active ? accent : "rgba(255,255,255,0.14)",
+            boxShadow: active ? `0 0 0 3px ${accent}1a` : "none",
+            transition: "all 0.18s ease",
+          }}
+        />
+        <span
+          style={{
+            fontSize: 11,
+            color: active ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.5)",
+            letterSpacing: "0.04em",
+            fontWeight: 500,
+          }}
+        >
+          {label}
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [] }) {
   const accountStates = [
-    { key: "any",          label: "Any" },
-    { key: "never",        label: "Never signed in" },
-    { key: "inactive30d",  label: "Inactive 30d+" },
-    { key: "recent30d",    label: "Active ≤30d" },
+    { key: "any",          label: "any" },
+    { key: "never",        label: "never" },
+    { key: "inactive30d",  label: "inactive 30d+" },
+    { key: "recent30d",    label: "active ≤30d" },
   ];
   const eventCounts = [
-    { key: "any",      label: "Any" },
-    { key: "exactly0", label: "0 events" },
+    { key: "any",      label: "any" },
+    { key: "exactly0", label: "0" },
     { key: 1,          label: "1+" },
     { key: 3,          label: "3+" },
   ];
   const accountAges = [
-    { key: "any",     label: "Any" },
+    { key: "any",     label: "any" },
     { key: "lte30d",  label: "≤30d" },
     { key: "30to90d", label: "30–90d" },
     { key: "gt90d",   label: ">90d" },
   ];
 
+  const accentState = "#60a5fa"; // blue
+  const accentEvents = "#a3e635"; // lime
+  const accentAge = "#fbbf24";    // amber
+  const accentLeads = "#f472b6";  // pink
+  const accentTags = "#c084fc";   // violet
+
+  const stateActive = filters.hostAccountState && filters.hostAccountState !== "any";
+  const countActive = filters.hostEventCount && filters.hostEventCount !== "any";
+  const ageActive = filters.hostAccountAge && filters.hostAccountAge !== "any";
+  const leadsActive = (filters.hostLeadStatuses || []).length > 0;
+  const tagsActive = (filters.hostEventTags || []).length > 0;
+  const activeCount =
+    Number(stateActive) + Number(countActive) + Number(ageActive) +
+    Number(leadsActive) + Number(tagsActive);
+
+  function toggleLead(status) {
+    setFilters((f) => {
+      const next = Array.isArray(f.hostLeadStatuses) ? [...f.hostLeadStatuses] : [];
+      const i = next.indexOf(status);
+      if (i >= 0) next.splice(i, 1);
+      else next.push(status);
+      return { ...f, hostLeadStatuses: next };
+    });
+  }
+
+  function toggleTag(tag) {
+    setFilters((f) => {
+      const next = Array.isArray(f.hostEventTags) ? [...f.hostEventTags] : [];
+      const key = String(tag).toLowerCase();
+      const i = next.indexOf(key);
+      if (i >= 0) next.splice(i, 1);
+      else next.push(key);
+      return { ...f, hostEventTags: next };
+    });
+  }
+
+  function clearAll() {
+    setFilters((f) => ({
+      ...f,
+      hostAccountState: "any",
+      hostEventCount: "any",
+      hostAccountAge: "any",
+      hostLeadStatuses: [],
+      hostEventTags: [],
+    }));
+  }
+
   return (
-    <div style={{
-      padding: 16,
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.06)",
-      borderRadius: 12,
-      display: "flex",
-      flexDirection: "column",
-      gap: 14,
-    }}>
-      <div style={{
-        fontSize: 11, color: "rgba(255,255,255,0.5)",
-        textTransform: "uppercase", letterSpacing: "0.08em",
-      }}>
-        Host filters
+    <div
+      style={{
+        padding: 18,
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.015))",
+        border: "1px solid rgba(255,255,255,0.07)",
+        borderRadius: 14,
+        display: "flex",
+        flexDirection: "column",
+        gap: 18,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 11,
+            color: "rgba(255,255,255,0.55)",
+            textTransform: "lowercase",
+            letterSpacing: "0.06em",
+          }}
+        >
+          <Filter size={12} />
+          host filters
+          {activeCount > 0 && (
+            <span
+              style={{
+                fontFamily:
+                  "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                fontSize: 10.5,
+                color: "#fff",
+                padding: "2px 7px",
+                borderRadius: 999,
+                background: "rgba(255,255,255,0.07)",
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              {activeCount} active
+            </span>
+          )}
+        </div>
+        {activeCount > 0 && (
+          <button
+            type="button"
+            onClick={clearAll}
+            style={{
+              background: "none",
+              border: "none",
+              color: "rgba(255,255,255,0.5)",
+              fontSize: 10.5,
+              letterSpacing: "0.06em",
+              textTransform: "lowercase",
+              cursor: "pointer",
+              padding: 0,
+              textDecoration: "underline",
+              textUnderlineOffset: 3,
+            }}
+          >
+            clear all
+          </button>
+        )}
       </div>
 
-      <div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontWeight: 500, marginBottom: 6 }}>
-          Account state
-        </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {accountStates.map((o) => {
-            const active = filters.hostAccountState === o.key;
-            return (
-              <button key={o.key} type="button"
-                onClick={() => setFilters((f) => ({ ...f, hostAccountState: o.key }))}
-                style={pillStyle(active, "#60a5fa")}>
-                {o.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <HostFilterGroup label="account state" active={stateActive} accent={accentState}>
+        <SegmentedControl
+          value={filters.hostAccountState}
+          options={accountStates}
+          accent={accentState}
+          onChange={(v) => setFilters((f) => ({ ...f, hostAccountState: v }))}
+        />
+      </HostFilterGroup>
 
-      <div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontWeight: 500, marginBottom: 6 }}>
-          Events created
-        </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {eventCounts.map((o) => {
-            const active = String(filters.hostEventCount) === String(o.key);
-            return (
-              <button key={String(o.key)} type="button"
-                onClick={() => setFilters((f) => ({ ...f, hostEventCount: o.key }))}
-                style={pillStyle(active, "#4ade80")}>
-                {o.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <HostFilterGroup label="events created" active={countActive} accent={accentEvents}>
+        <SegmentedControl
+          value={filters.hostEventCount}
+          options={eventCounts}
+          accent={accentEvents}
+          onChange={(v) => setFilters((f) => ({ ...f, hostEventCount: v }))}
+        />
+      </HostFilterGroup>
 
-      <div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontWeight: 500, marginBottom: 6 }}>
-          Account age
+      <HostFilterGroup label="account age" active={ageActive} accent={accentAge}>
+        <SegmentedControl
+          value={filters.hostAccountAge}
+          options={accountAges}
+          accent={accentAge}
+          onChange={(v) => setFilters((f) => ({ ...f, hostAccountAge: v }))}
+        />
+      </HostFilterGroup>
+
+      <HostFilterGroup label="pipeline" active={leadsActive} accent={accentLeads}>
+        <ChipCloud
+          items={leadOptions.map((l) => ({ key: l.status, label: l.status, count: l.count }))}
+          selected={filters.hostLeadStatuses}
+          onToggle={toggleLead}
+          accent={accentLeads}
+          emptyLabel="No leads in pipeline yet."
+        />
+      </HostFilterGroup>
+
+      <HostFilterGroup label="event vibe" active={tagsActive} accent={accentTags}>
+        <div
+          style={{
+            fontSize: 11,
+            color: "rgba(255,255,255,0.4)",
+            marginBottom: 8,
+            lineHeight: 1.5,
+          }}
+        >
+          Hosts whose own events use any of these tags.
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {accountAges.map((o) => {
-            const active = filters.hostAccountAge === o.key;
-            return (
-              <button key={o.key} type="button"
-                onClick={() => setFilters((f) => ({ ...f, hostAccountAge: o.key }))}
-                style={pillStyle(active, "#fbbf24")}>
-                {o.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+        <ChipCloud
+          items={tagOptions
+            .slice(0, 30)
+            .map((t) => ({ key: t.tag, label: t.tag, count: t.count }))}
+          selected={filters.hostEventTags}
+          onToggle={toggleTag}
+          accent={accentTags}
+          emptyLabel="No event tags yet."
+        />
+      </HostFilterGroup>
     </div>
   );
 }

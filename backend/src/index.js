@@ -10510,6 +10510,18 @@ app.get("/admin/email/event-options", requireAdmin, async (req, res) => {
   }
 });
 
+function balancedSample(rows, max) {
+  const hosts = rows.filter((r) => r._source === "host");
+  const others = rows.filter((r) => r._source !== "host");
+  if (hosts.length === 0 || others.length === 0) return rows.slice(0, max);
+  const half = Math.floor(max / 2);
+  const hostsTake = Math.min(half, hosts.length);
+  const othersTake = Math.min(max - hostsTake, others.length);
+  return [...hosts.slice(0, hostsTake), ...others.slice(0, othersTake)].sort(
+    (a, b) => (a.name || "").localeCompare(b.name || ""),
+  );
+}
+
 // GET /admin/email/audience — total + sample of platform emails matching
 // the given filters. Used for the audience tab's live count display.
 app.get("/admin/email/audience", requireAdmin, async (req, res) => {
@@ -10539,7 +10551,41 @@ app.get("/admin/email/audience", requireAdmin, async (req, res) => {
         ? "and"
         : "or";
 
+    const audienceSource =
+      req.query.source === "hosts" || req.query.source === "everyone"
+        ? req.query.source
+        : "contacts";
+    const sendMode = req.query.sendMode === "internal" ? "internal" : "broadcast";
+
+    const hostAccountState =
+      ["any", "never", "inactive30d", "recent30d"].includes(req.query.hostAccountState)
+        ? req.query.hostAccountState
+        : "any";
+
+    const hostEventCount = (() => {
+      const v = req.query.hostEventCount;
+      if (v === "exactly0") return "exactly0";
+      const n = Number(v);
+      if (n === 1 || n === 3) return n;
+      return "any";
+    })();
+
+    const hostAccountAge =
+      ["any", "lte30d", "30to90d", "gt90d"].includes(req.query.hostAccountAge)
+        ? req.query.hostAccountAge
+        : "any";
+
+    const hostLeadStatusesParam = req.query.hostLeadStatuses;
+    const hostLeadStatuses = hostLeadStatusesParam
+      ? String(hostLeadStatusesParam)
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
     const filterCriteria = {
+      audienceSource,
+      sendMode,
       excludeHosts: req.query.excludeHosts !== "false",
       marketingConsent: req.query.marketingConsent || "any",
       importSource: req.query.importSource || null,
@@ -10550,12 +10596,16 @@ app.get("/admin/email/audience", requireAdmin, async (req, res) => {
       attendedEventTags,
       attendedEventIds,
       attendedEventLogic,
+      hostAccountState,
+      hostEventCount,
+      hostAccountAge,
+      hostLeadStatuses,
     };
     const audience = await getAdminAudience(filterCriteria);
     return res.json({
       total: audience.length,
       filterCriteria,
-      sample: audience.slice(0, 30).map((p) => ({
+      sample: balancedSample(audience, 30).map((p) => ({
         id: p.id,
         email: p.email,
         name: p.name,
@@ -10563,6 +10613,10 @@ app.get("/admin/email/audience", requireAdmin, async (req, res) => {
         paymentCount: p.payment_count || 0,
         totalSpend: p.total_spend || 0,
         importSource: p.import_source || null,
+        source: p._source || "contact",
+        lastLoginAt: p.last_login_at || null,
+        eventCount: p.event_count || 0,
+        leadStatus: p.lead_status || null,
       })),
     });
   } catch (err) {

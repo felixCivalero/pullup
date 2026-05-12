@@ -4912,6 +4912,31 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
   }
 });
 
+// GET /host/crm/people-filter-index — lightweight per-person summary that
+// lets the frontend compute filtered audience size client-side in real time
+// without paying for a full paginated /people round-trip on every click.
+// Returns just what the segment filters need: id, attended event IDs, the
+// admin_tags of those events, and a hadDinner boolean. ~50–150 bytes per
+// person, fine for hosts well into the tens of thousands.
+app.get("/host/crm/people-filter-index", requireAuth, async (req, res) => {
+  try {
+    const people = await getAllPeopleWithStats(req.user.id);
+    const index = people.map((p) => {
+      const eventIds = [];
+      let hadDinner = false;
+      for (const h of p.eventHistory || []) {
+        if (h.eventId) eventIds.push(h.eventId);
+        if (h.wantsDinner) hadDinner = true;
+      }
+      return { id: p.id, eventIds, hadDinner };
+    });
+    return res.json({ index, total: index.length });
+  } catch (error) {
+    console.error("Error building people filter index:", error);
+    return res.status(500).json({ error: "Failed to build filter index" });
+  }
+});
+
 // ---------------------------
 // PROTECTED: Get person details with touchpoints
 // ---------------------------

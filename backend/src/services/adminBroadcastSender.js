@@ -76,29 +76,41 @@ export async function getAdminAudience(filterCriteria = {}) {
     hostEventCount = "any",
     hostAccountAge = "any",
     hostLeadStatuses = [],
+    // Manual per-send exclusions — admin clicked × on specific recipients.
+    excludedEmails = [],
   } = filterCriteria;
 
+  let result;
   if (audienceSource === "hosts") {
-    return getHostAudience({
+    result = await getHostAudience({
       hostAccountState, hostEventCount, hostAccountAge, hostLeadStatuses,
       sendMode,
     });
-  }
-  if (audienceSource === "everyone") {
-    return getEveryoneAudience({
+  } else if (audienceSource === "everyone") {
+    result = await getEveryoneAudience({
       hostAccountState, hostEventCount, hostAccountAge, hostLeadStatuses,
       marketingConsent, importSource, minEventsAttended, hasPaid, minTotalSpend,
       joinedAfter, attendedEventTags, attendedEventIds, attendedEventLogic,
       sendMode,
     });
+  } else {
+    result = await getContactsAudience({
+      excludeHosts, marketingConsent, importSource, minEventsAttended,
+      hasPaid, minTotalSpend, joinedAfter,
+      attendedEventTags, attendedEventIds, attendedEventLogic, sendMode,
+    });
   }
-  // Fall through: existing "contacts" path below.
 
-  return getContactsAudience({
-    excludeHosts, marketingConsent, importSource, minEventsAttended,
-    hasPaid, minTotalSpend, joinedAfter,
-    attendedEventTags, attendedEventIds, attendedEventLogic, sendMode,
-  });
+  if (Array.isArray(excludedEmails) && excludedEmails.length > 0) {
+    const excludeSet = new Set(
+      excludedEmails.map((e) => String(e || "").toLowerCase().trim()).filter(Boolean),
+    );
+    if (excludeSet.size > 0) {
+      result = result.filter((p) => !excludeSet.has((p.email || "").toLowerCase().trim()));
+    }
+  }
+
+  return result;
 }
 
 // Pull every signed-up host from `profiles`, enrich with event counts and

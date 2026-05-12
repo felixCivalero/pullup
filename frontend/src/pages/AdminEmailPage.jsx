@@ -88,6 +88,8 @@ export function AdminEmailPage() {
 
   // Audience filters — direct fields + behavioral signals from rsvps/events.
   const [filters, setFilters] = useState({
+    audienceSource: "contacts",
+    sendMode: "broadcast",
     excludeHosts: true,
     marketingConsent: "any",
     minEventsAttended: 0,
@@ -98,6 +100,10 @@ export function AdminEmailPage() {
     // render chips without re-fetching event metadata.
     attendedEvents: [],
     attendedEventLogic: "or",
+    hostAccountState: "any",
+    hostEventCount: "any",
+    hostAccountAge: "any",
+    hostLeadStatuses: [],
   });
   const [audience, setAudience] = useState({ total: 0, sample: [] });
   const [audienceLoading, setAudienceLoading] = useState(true);
@@ -105,22 +111,34 @@ export function AdminEmailPage() {
 
   const filterQuery = useMemo(() => {
     const q = new URLSearchParams();
-    if (!filters.excludeHosts) q.set("excludeHosts", "false");
-    if (filters.marketingConsent && filters.marketingConsent !== "any")
-      q.set("marketingConsent", filters.marketingConsent);
-    if (Number(filters.minEventsAttended) > 0)
-      q.set("minEventsAttended", String(filters.minEventsAttended));
-    if (filters.hasPaid) q.set("hasPaid", "true");
-    if (Array.isArray(filters.attendedEventTags) && filters.attendedEventTags.length > 0) {
-      q.set("attendedEventTags", filters.attendedEventTags.join(","));
+    q.set("source", filters.audienceSource);
+    q.set("sendMode", filters.sendMode);
+
+    if (filters.audienceSource === "contacts" || filters.audienceSource === "everyone") {
+      if (filters.marketingConsent && filters.marketingConsent !== "any")
+        q.set("marketingConsent", filters.marketingConsent);
+      if (Number(filters.minEventsAttended) > 0)
+        q.set("minEventsAttended", String(filters.minEventsAttended));
+      if (filters.hasPaid) q.set("hasPaid", "true");
+      if (filters.attendedEventTags?.length > 0)
+        q.set("attendedEventTags", filters.attendedEventTags.join(","));
+      if (filters.attendedEvents?.length > 0) {
+        q.set("attendedEventIds", filters.attendedEvents.map((e) => e.id).join(","));
+        if (filters.attendedEventLogic === "and") q.set("attendedEventLogic", "and");
+      }
     }
-    if (Array.isArray(filters.attendedEvents) && filters.attendedEvents.length > 0) {
-      q.set(
-        "attendedEventIds",
-        filters.attendedEvents.map((e) => e.id).join(","),
-      );
-      if (filters.attendedEventLogic === "and") q.set("attendedEventLogic", "and");
+
+    if (filters.audienceSource === "hosts" || filters.audienceSource === "everyone") {
+      if (filters.hostAccountState && filters.hostAccountState !== "any")
+        q.set("hostAccountState", filters.hostAccountState);
+      if (filters.hostEventCount && filters.hostEventCount !== "any")
+        q.set("hostEventCount", String(filters.hostEventCount));
+      if (filters.hostAccountAge && filters.hostAccountAge !== "any")
+        q.set("hostAccountAge", filters.hostAccountAge);
+      if (filters.hostLeadStatuses?.length > 0)
+        q.set("hostLeadStatuses", filters.hostLeadStatuses.join(","));
     }
+
     return q.toString();
   }, [filters]);
 
@@ -425,6 +443,8 @@ export function AdminEmailPage() {
                 setBlocks={setBlocks}
                 hoveredKey={hoveredKey}
                 setHoveredKey={setHoveredKey}
+                sendMode={filters.sendMode}
+                setSendMode={(v) => setFilters((f) => ({ ...f, sendMode: v }))}
               />
             )}
           </div>
@@ -544,6 +564,14 @@ function AdminAudienceTab({ filters, setFilters, audience, loading, tagOptions }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SourceToggle
+        value={filters.audienceSource}
+        onChange={(v) => setFilters((f) => ({
+          ...f,
+          audienceSource: v,
+          sendMode: v === "hosts" ? "internal" : "broadcast",
+        }))}
+      />
       <div
         style={{
           padding: 16,
@@ -582,245 +610,244 @@ function AdminAudienceTab({ filters, setFilters, audience, loading, tagOptions }
         </div>
       </div>
 
-      <div
-        style={{
-          padding: 16,
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: 12,
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            color: "rgba(255,255,255,0.5)",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <Filter size={12} /> Filters
-        </div>
-
-        <ToggleRow
-          label="Exclude host accounts"
-          description="Skip everyone who has signed up. Recommended — your hosts are customers, not a marketing list."
-          value={filters.excludeHosts}
-          onToggle={() =>
-            setFilters((f) => ({ ...f, excludeHosts: !f.excludeHosts }))
-          }
-        />
-
-        <div>
+      {(filters.audienceSource === "contacts" || filters.audienceSource === "everyone") && (
+        <>
           <div
             style={{
-              fontSize: 12,
-              color: "rgba(255,255,255,0.7)",
-              fontWeight: 500,
-              marginBottom: 6,
+              padding: 16,
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
             }}
           >
-            Marketing consent
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {[
-              { key: "any", label: "Any" },
-              { key: "optedIn", label: "Opted in only" },
-            ].map((opt) => {
-              const active = filters.marketingConsent === opt.key;
-              return (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() =>
-                    setFilters((f) => ({ ...f, marketingConsent: opt.key }))
-                  }
-                  style={{
-                    padding: "5px 14px",
-                    borderRadius: 999,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    cursor: "pointer",
-                    border: active
-                      ? "1px solid rgba(74,222,128,0.4)"
-                      : "1px solid rgba(255,255,255,0.08)",
-                    background: active
-                      ? "rgba(74,222,128,0.12)"
-                      : "transparent",
-                    color: active ? "#4ade80" : "rgba(255,255,255,0.4)",
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              color: "rgba(255,255,255,0.4)",
-              marginTop: 6,
-              lineHeight: 1.5,
-            }}
-          >
-            Unsubscribed and do-not-contact people are always excluded.
-          </div>
-        </div>
-      </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "rgba(255,255,255,0.5)",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Filter size={12} /> Filters
+            </div>
 
-      {/* Behavior filters — narrow by what guests have actually done */}
-      <div
-        style={{
-          padding: 16,
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: 12,
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            color: "rgba(255,255,255,0.5)",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-          }}
-        >
-          Behavior
-        </div>
-
-        <div>
-          <div
-            style={{
-              fontSize: 12,
-              color: "rgba(255,255,255,0.7)",
-              fontWeight: 500,
-              marginBottom: 6,
-            }}
-          >
-            Min events attended
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {[
-              { key: 0, label: "Any" },
-              { key: 1, label: "1+" },
-              { key: 3, label: "3+" },
-              { key: 5, label: "5+" },
-              { key: 10, label: "10+" },
-            ].map((opt) => {
-              const active = (filters.minEventsAttended || 0) === opt.key;
-              return (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() =>
-                    setFilters((f) => ({ ...f, minEventsAttended: opt.key }))
-                  }
-                  style={pillStyle(active, "#60a5fa")}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 6, lineHeight: 1.5 }}>
-            Counts every RSVP across the platform — the more, the more engaged.
-          </div>
-        </div>
-
-        <ToggleRow
-          label="Has paid for an event"
-          description="Anyone with at least one Stripe-confirmed payment. Useful for targeting high-intent audiences."
-          value={filters.hasPaid}
-          onToggle={() => setFilters((f) => ({ ...f, hasPaid: !f.hasPaid }))}
-        />
-      </div>
-
-      {/* Event-tag interest — segment by what kind of events guests engage with */}
-      {tagOptions && tagOptions.length > 0 && (
-        <div
-          style={{
-            padding: 16,
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            borderRadius: 12,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              color: "rgba(255,255,255,0.5)",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              marginBottom: 6,
-            }}
-          >
-            Interested in
-          </div>
-          <div
-            style={{
-              fontSize: 12,
-              color: "rgba(255,255,255,0.45)",
-              marginBottom: 10,
-              lineHeight: 1.5,
-            }}
-          >
-            Pick event tags. Anyone who's RSVP'd to at least one event with
-            any of these tags will be included.
-          </div>
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-            {tagOptions.slice(0, 30).map(({ tag, count }) => {
-              const active = (filters.attendedEventTags || []).includes(tag);
-              return (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => toggleTag(tag)}
-                  style={pillStyle(active, "#fbbf24")}
-                >
-                  {tag} <span style={{ opacity: 0.5 }}>{count}</span>
-                </button>
-              );
-            })}
-            {(filters.attendedEventTags || []).length > 0 && (
-              <button
-                type="button"
-                onClick={() =>
-                  setFilters((f) => ({ ...f, attendedEventTags: [] }))
-                }
-                style={pillStyle(false, "rgba(239,68,68,0.6)")}
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.7)",
+                  fontWeight: 500,
+                  marginBottom: 6,
+                }}
               >
-                clear
-              </button>
-            )}
+                Marketing consent
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[
+                  { key: "any", label: "Any" },
+                  { key: "optedIn", label: "Opted in only" },
+                ].map((opt) => {
+                  const active = filters.marketingConsent === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() =>
+                        setFilters((f) => ({ ...f, marketingConsent: opt.key }))
+                      }
+                      style={{
+                        padding: "5px 14px",
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        cursor: "pointer",
+                        border: active
+                          ? "1px solid rgba(74,222,128,0.4)"
+                          : "1px solid rgba(255,255,255,0.08)",
+                        background: active
+                          ? "rgba(74,222,128,0.12)"
+                          : "transparent",
+                        color: active ? "#4ade80" : "rgba(255,255,255,0.4)",
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "rgba(255,255,255,0.4)",
+                  marginTop: 6,
+                  lineHeight: 1.5,
+                }}
+              >
+                Unsubscribed and do-not-contact people are always excluded.
+              </div>
+            </div>
           </div>
-        </div>
+
+          {/* Behavior filters — narrow by what guests have actually done */}
+          <div
+            style={{
+              padding: 16,
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color: "rgba(255,255,255,0.5)",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+              }}
+            >
+              Behavior
+            </div>
+
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.7)",
+                  fontWeight: 500,
+                  marginBottom: 6,
+                }}
+              >
+                Min events attended
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[
+                  { key: 0, label: "Any" },
+                  { key: 1, label: "1+" },
+                  { key: 3, label: "3+" },
+                  { key: 5, label: "5+" },
+                  { key: 10, label: "10+" },
+                ].map((opt) => {
+                  const active = (filters.minEventsAttended || 0) === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() =>
+                        setFilters((f) => ({ ...f, minEventsAttended: opt.key }))
+                      }
+                      style={pillStyle(active, "#60a5fa")}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 6, lineHeight: 1.5 }}>
+                Counts every RSVP across the platform — the more, the more engaged.
+              </div>
+            </div>
+
+            <ToggleRow
+              label="Has paid for an event"
+              description="Anyone with at least one Stripe-confirmed payment. Useful for targeting high-intent audiences."
+              value={filters.hasPaid}
+              onToggle={() => setFilters((f) => ({ ...f, hasPaid: !f.hasPaid }))}
+            />
+          </div>
+
+          {/* Event-tag interest — segment by what kind of events guests engage with */}
+          {tagOptions && tagOptions.length > 0 && (
+            <div
+              style={{
+                padding: 16,
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 12,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "rgba(255,255,255,0.5)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  marginBottom: 6,
+                }}
+              >
+                Interested in
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.45)",
+                  marginBottom: 10,
+                  lineHeight: 1.5,
+                }}
+              >
+                Pick event tags. Anyone who's RSVP'd to at least one event with
+                any of these tags will be included.
+              </div>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                {tagOptions.slice(0, 30).map(({ tag, count }) => {
+                  const active = (filters.attendedEventTags || []).includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      style={pillStyle(active, "#fbbf24")}
+                    >
+                      {tag} <span style={{ opacity: 0.5 }}>{count}</span>
+                    </button>
+                  );
+                })}
+                {(filters.attendedEventTags || []).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFilters((f) => ({ ...f, attendedEventTags: [] }))
+                    }
+                    style={pillStyle(false, "rgba(239,68,68,0.6)")}
+                  >
+                    clear
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Specific-event typeahead — narrow to people who attended one or
+              more particular events. Dropdown stays hidden until the admin
+              starts typing, so the empty state isn't a giant event list. */}
+          <AttendedEventsFilter
+            selected={filters.attendedEvents || []}
+            logic={filters.attendedEventLogic || "or"}
+            onAdd={addEvent}
+            onRemove={removeEvent}
+            onToggleLogic={() =>
+              setFilters((f) => ({
+                ...f,
+                attendedEventLogic: f.attendedEventLogic === "and" ? "or" : "and",
+              }))
+            }
+          />
+        </>
       )}
 
-      {/* Specific-event typeahead — narrow to people who attended one or
-          more particular events. Dropdown stays hidden until the admin
-          starts typing, so the empty state isn't a giant event list. */}
-      <AttendedEventsFilter
-        selected={filters.attendedEvents || []}
-        logic={filters.attendedEventLogic || "or"}
-        onAdd={addEvent}
-        onRemove={removeEvent}
-        onToggleLogic={() =>
-          setFilters((f) => ({
-            ...f,
-            attendedEventLogic: f.attendedEventLogic === "and" ? "or" : "and",
-          }))
-        }
-      />
+      {(filters.audienceSource === "hosts" || filters.audienceSource === "everyone") && (
+        <HostFiltersCard filters={filters} setFilters={setFilters} />
+      )}
 
       {/* Sample of who's in */}
       {audience.sample?.length > 0 && (
@@ -873,39 +900,92 @@ function AdminAudienceTab({ filters, setFilters, audience, loading, tagOptions }
                     {p.email}
                   </div>
                 </div>
-                {p.marketingConsent && (
-                  <span
-                    style={{
-                      fontSize: 9,
-                      color: "#4ade80",
-                      padding: "1px 6px",
-                      borderRadius: 999,
-                      background: "rgba(74,222,128,0.1)",
-                      border: "1px solid rgba(74,222,128,0.25)",
-                      letterSpacing: "0.05em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Opted in
+                {p.source === "host" ? (
+                  <span style={{
+                    fontSize: 9,
+                    color: "#60a5fa",
+                    padding: "1px 6px",
+                    borderRadius: 999,
+                    background: "rgba(96,165,250,0.1)",
+                    border: "1px solid rgba(96,165,250,0.25)",
+                    letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                  }}>
+                    Host · {p.eventCount} event{p.eventCount === 1 ? "" : "s"}
                   </span>
-                )}
-                {p.paymentCount > 0 && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: "rgba(251,191,36,0.85)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {p.paymentCount} pay
-                    {p.paymentCount !== 1 ? "s" : ""}
-                  </span>
+                ) : (
+                  <>
+                    {p.marketingConsent && (
+                      <span style={{
+                        fontSize: 9, color: "#4ade80", padding: "1px 6px",
+                        borderRadius: 999, background: "rgba(74,222,128,0.1)",
+                        border: "1px solid rgba(74,222,128,0.25)",
+                        letterSpacing: "0.05em", textTransform: "uppercase",
+                      }}>Opted in</span>
+                    )}
+                    {p.paymentCount > 0 && (
+                      <span style={{
+                        fontSize: 11, color: "rgba(251,191,36,0.85)", whiteSpace: "nowrap",
+                      }}>
+                        {p.paymentCount} pay{p.paymentCount !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SourceToggle({ value, onChange }) {
+  const opts = [
+    { key: "contacts", label: "Contacts" },
+    { key: "hosts",    label: "Hosts" },
+    { key: "everyone", label: "Everyone" },
+  ];
+  return (
+    <div
+      style={{
+        display: "flex",
+        padding: 3,
+        background: "rgba(255,255,255,0.04)",
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.06)",
+        marginBottom: 12,
+      }}
+    >
+      {opts.map((o) => {
+        const active = value === o.key;
+        return (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => onChange(o.key)}
+            style={{
+              flex: 1,
+              padding: "8px 0",
+              borderRadius: 9,
+              border: "none",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              background: active
+                ? "linear-gradient(135deg, rgba(192,192,192,0.18), rgba(232,232,232,0.10))"
+                : "transparent",
+              color: active ? "#fff" : "rgba(255,255,255,0.45)",
+              transition: "all 0.15s ease",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -929,6 +1009,100 @@ function pillStyle(active, accent = "#a3e635") {
     whiteSpace: "nowrap",
     transition: "all 0.12s ease",
   };
+}
+
+function HostFiltersCard({ filters, setFilters }) {
+  const accountStates = [
+    { key: "any",          label: "Any" },
+    { key: "never",        label: "Never signed in" },
+    { key: "inactive30d",  label: "Inactive 30d+" },
+    { key: "recent30d",    label: "Active ≤30d" },
+  ];
+  const eventCounts = [
+    { key: "any",      label: "Any" },
+    { key: "exactly0", label: "0 events" },
+    { key: 1,          label: "1+" },
+    { key: 3,          label: "3+" },
+  ];
+  const accountAges = [
+    { key: "any",     label: "Any" },
+    { key: "lte30d",  label: "≤30d" },
+    { key: "30to90d", label: "30–90d" },
+    { key: "gt90d",   label: ">90d" },
+  ];
+
+  return (
+    <div style={{
+      padding: 16,
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      borderRadius: 12,
+      display: "flex",
+      flexDirection: "column",
+      gap: 14,
+    }}>
+      <div style={{
+        fontSize: 11, color: "rgba(255,255,255,0.5)",
+        textTransform: "uppercase", letterSpacing: "0.08em",
+      }}>
+        Host filters
+      </div>
+
+      <div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontWeight: 500, marginBottom: 6 }}>
+          Account state
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {accountStates.map((o) => {
+            const active = filters.hostAccountState === o.key;
+            return (
+              <button key={o.key} type="button"
+                onClick={() => setFilters((f) => ({ ...f, hostAccountState: o.key }))}
+                style={pillStyle(active, "#60a5fa")}>
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontWeight: 500, marginBottom: 6 }}>
+          Events created
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {eventCounts.map((o) => {
+            const active = String(filters.hostEventCount) === String(o.key);
+            return (
+              <button key={String(o.key)} type="button"
+                onClick={() => setFilters((f) => ({ ...f, hostEventCount: o.key }))}
+                style={pillStyle(active, "#4ade80")}>
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontWeight: 500, marginBottom: 6 }}>
+          Account age
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {accountAges.map((o) => {
+            const active = filters.hostAccountAge === o.key;
+            return (
+              <button key={o.key} type="button"
+                onClick={() => setFilters((f) => ({ ...f, hostAccountAge: o.key }))}
+                style={pillStyle(active, "#fbbf24")}>
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // Typeahead picker for filtering by specific events the audience has
@@ -1339,6 +1513,57 @@ function ToggleRow({ label, description, value, onToggle }) {
   );
 }
 
+function SendModeSelector({ value, onChange }) {
+  const opts = [
+    { key: "broadcast", label: "Marketing broadcast", hint: "Consent-gated · unsubscribe footer" },
+    { key: "internal",  label: "Internal / transactional", hint: "Skips consent · no footer" },
+  ];
+  return (
+    <div style={{
+      padding: 14,
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      borderRadius: 12,
+      marginBottom: 14,
+    }}>
+      <div style={{
+        fontSize: 11, color: "rgba(255,255,255,0.5)",
+        textTransform: "uppercase", letterSpacing: "0.08em",
+        marginBottom: 10,
+      }}>
+        Send mode
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {opts.map((o) => {
+          const active = value === o.key;
+          return (
+            <button key={o.key} type="button"
+              onClick={() => onChange(o.key)}
+              style={{
+                display: "flex", alignItems: "flex-start", gap: 10,
+                padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                background: active ? "rgba(74,222,128,0.10)" : "rgba(255,255,255,0.02)",
+                border: active ? "1px solid rgba(74,222,128,0.35)" : "1px solid rgba(255,255,255,0.08)",
+                textAlign: "left",
+              }}>
+              <div style={{
+                width: 14, height: 14, borderRadius: 999,
+                border: active ? "1px solid #4ade80" : "1px solid rgba(255,255,255,0.3)",
+                background: active ? "#4ade80" : "transparent",
+                marginTop: 3, flexShrink: 0,
+              }} />
+              <div>
+                <div style={{ fontSize: 12, color: "#fff", fontWeight: 500 }}>{o.label}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{o.hint}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Composer ──────────────────────────────────────────────────────────
 function AdminEmailComposer({
   subject,
@@ -1351,9 +1576,12 @@ function AdminEmailComposer({
   setBlocks,
   hoveredKey,
   setHoveredKey,
+  sendMode,
+  setSendMode,
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <SendModeSelector value={sendMode} onChange={setSendMode} />
       <div
         style={{
           padding: 14,

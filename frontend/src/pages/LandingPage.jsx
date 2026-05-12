@@ -16,7 +16,6 @@ const LOGOS = [
   // aspect-ratio slot before the image loads, keeping the marquee track width stable.
   { type: "image", src: "/landing/logos/soho-house.png", alt: "Soho House", invert: true, width: 280, height: 179 },
   { type: "image", src: "/landing/logos/doberman.png", alt: "EY Doberman", invert: true, width: 705, height: 139 },
-  { type: "image", src: "/landing/logos/spybar.png", alt: "Spy Bar", width: 389, height: 80 },
   { type: "image", src: "/landing/logos/cliff-barnes.svg", alt: "Cliff Barnes Bränneri", width: 408, height: 176 },
   { type: "image", src: "/zoda_logotype_white.webp", alt: "Zoda", width: 1600, height: 541 },
   { type: "image", src: "/landing/logos/showlighters.png", alt: "Showlighters", width: 3830, height: 2267 },
@@ -151,8 +150,8 @@ export function LandingPage() {
           to { -webkit-transform: translateZ(-0.625em) rotateX(-360deg); transform: translateZ(-0.625em) rotateX(-360deg); }
         }
         @keyframes logo-marquee {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
+          from { transform: translate3d(0, 0, 0); }
+          to { transform: translate3d(-50%, 0, 0); }
         }
         .logo-marquee {
           overflow: hidden;
@@ -163,9 +162,16 @@ export function LandingPage() {
         .logo-marquee-track {
           display: flex;
           align-items: center;
-          gap: clamp(32px, 6vw, 64px);
+          gap: 48px;
           width: max-content;
-          animation: logo-marquee 8s linear infinite;
+          animation: logo-marquee 22s linear infinite;
+          will-change: transform;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          transform: translate3d(0, 0, 0);
+        }
+        @media (min-width: 768px) {
+          .logo-marquee-track { gap: 64px; }
         }
         .logo-marquee-item {
           flex: none;

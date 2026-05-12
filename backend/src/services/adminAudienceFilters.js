@@ -7,9 +7,15 @@ export function applyHostFilters(candidates, {
   hostEventCount = "any",
   hostAccountAge = "any",
   hostLeadStatuses = [],
+  hostEventTags = [],
   sendMode = "broadcast",
   now = Date.now(),
 }) {
+  const wantedTags =
+    Array.isArray(hostEventTags) && hostEventTags.length > 0
+      ? new Set(hostEventTags.map((t) => String(t).toLowerCase()))
+      : null;
+
   return candidates.filter((c) => {
     if (hostAccountState === "never" && c.last_login_at) return false;
     if (hostAccountState === "inactive30d") {
@@ -37,6 +43,15 @@ export function applyHostFilters(candidates, {
     if (Array.isArray(hostLeadStatuses) && hostLeadStatuses.length > 0) {
       if (!c.lead_status) return false;
       if (!hostLeadStatuses.includes(c.lead_status)) return false;
+    }
+
+    if (wantedTags) {
+      const candidateTags = Array.isArray(c.event_tags) ? c.event_tags : [];
+      if (candidateTags.length === 0) return false;
+      const has = candidateTags.some((t) =>
+        wantedTags.has(String(t).toLowerCase()),
+      );
+      if (!has) return false;
     }
 
     if (sendMode !== "internal" && c.marketing_consent === false) return false;

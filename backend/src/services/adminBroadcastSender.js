@@ -76,6 +76,7 @@ export async function getAdminAudience(filterCriteria = {}) {
     hostEventCount = "any",
     hostAccountAge = "any",
     hostLeadStatuses = [],
+    hostEventTags = [],
     // Manual per-send exclusions — admin clicked × on specific recipients.
     excludedEmails = [],
   } = filterCriteria;
@@ -84,11 +85,12 @@ export async function getAdminAudience(filterCriteria = {}) {
   if (audienceSource === "hosts") {
     result = await getHostAudience({
       hostAccountState, hostEventCount, hostAccountAge, hostLeadStatuses,
-      sendMode,
+      hostEventTags, sendMode,
     });
   } else if (audienceSource === "everyone") {
     result = await getEveryoneAudience({
       hostAccountState, hostEventCount, hostAccountAge, hostLeadStatuses,
+      hostEventTags,
       marketingConsent, importSource, minEventsAttended, hasPaid, minTotalSpend,
       joinedAfter, attendedEventTags, attendedEventIds, attendedEventLogic,
       sendMode,
@@ -121,6 +123,7 @@ async function getHostAudience({
   hostEventCount = "any",
   hostAccountAge = "any",
   hostLeadStatuses = [],
+  hostEventTags = [],
   sendMode = "broadcast",
 }) {
   const { data: profiles, error: profErr } = await supabase
@@ -142,14 +145,21 @@ async function getHostAudience({
     }
   }
 
+  // Pull events with admin_tags so we can both count events per host and
+  // build a host→tagSet map for the hostEventTags filter.
   const { data: events } = await supabase
     .from("events")
-    .select("host_id")
+    .select("host_id, admin_tags")
     .limit(100000);
   const eventCountByHost = {};
+  const tagsByHost = {};
   for (const e of events || []) {
     if (!e.host_id) continue;
     eventCountByHost[e.host_id] = (eventCountByHost[e.host_id] || 0) + 1;
+    if (Array.isArray(e.admin_tags) && e.admin_tags.length > 0) {
+      if (!tagsByHost[e.host_id]) tagsByHost[e.host_id] = new Set();
+      for (const t of e.admin_tags) tagsByHost[e.host_id].add(t);
+    }
   }
 
   let leadStatusByProfile = {};
@@ -179,6 +189,7 @@ async function getHostAudience({
       created_at: p.created_at,
       event_count: eventCountByHost[p.id] || 0,
       lead_status: leadStatusByProfile[p.id] || null,
+      event_tags: tagsByHost[p.id] ? Array.from(tagsByHost[p.id]) : [],
       _source: "host",
     });
   }
@@ -207,7 +218,8 @@ async function getHostAudience({
   }
 
   return applyHostFilters(candidates, {
-    hostAccountState, hostEventCount, hostAccountAge, hostLeadStatuses, sendMode,
+    hostAccountState, hostEventCount, hostAccountAge, hostLeadStatuses,
+    hostEventTags, sendMode,
   });
 }
 

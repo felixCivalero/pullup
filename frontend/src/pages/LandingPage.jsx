@@ -17,6 +17,7 @@ const LOGOS = [
   { type: "image", src: "/landing/logos/soho-house.png", alt: "Soho House", invert: true, width: 280, height: 179 },
   { type: "image", src: "/landing/logos/doberman.png", alt: "EY Doberman", invert: true, width: 705, height: 139 },
   { type: "image", src: "/landing/logos/cliff-barnes.svg", alt: "Cliff Barnes Bränneri", width: 408, height: 176 },
+  { type: "image", src: "/landing/logos/aperol.png", alt: "Aperol", width: 1280, height: 618 },
   { type: "image", src: "/zoda_logotype_white.webp", alt: "Zoda", width: 1600, height: 541 },
   { type: "image", src: "/landing/logos/showlighters.png", alt: "Showlighters", width: 3830, height: 2267 },
   // Square logos get a `boost` so they don't read as tiny next to the wide wordmarks.

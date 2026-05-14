@@ -135,7 +135,8 @@ export function EventPageContent({
               {section.logo && (
                 <img src={section.logo} alt="" style={{
                   width: "40px", height: "40px", borderRadius: "6px",
-                  objectFit: "cover", flexShrink: 0,
+                  objectFit: "contain", padding: "4px", background: "rgba(255,255,255,0.04)",
+                  flexShrink: 0,
                 }} />
               )}
               <div style={{ flex: 1, minWidth: 0 }}>

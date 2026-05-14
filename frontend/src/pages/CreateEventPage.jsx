@@ -43,6 +43,7 @@ import {
 import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { FaXTwitter, FaLinkedinIn } from "react-icons/fa6";
 import { EventPreview } from "../components/EventPreview";
+import { DesktopEventLayout } from "../components/DesktopEventLayout";
 import { VideoPlayer } from "../components/MediaCarousel";
 import { RsvpForm } from "../components/RsvpForm";
 import { useToast } from "../components/Toast";
@@ -56,7 +57,19 @@ import {
   formatReadableDateTime,
   formatEventTime,
 } from "../lib/dateUtils.js";
-import { uploadEventImage, validateMediaFile, uploadEventMedia, deleteEventMedia, reorderEventMedia, generateVideoThumbnail, compressImage, validateImageFile } from "../lib/imageUtils.js";
+import {
+  uploadEventImage,
+  validateMediaFile,
+  uploadEventMedia,
+  deleteEventMedia,
+  reorderEventMedia,
+  generateVideoThumbnail,
+  compressImage,
+  validateImageFile,
+  uploadEventMediaDirect,
+  uploadEventImageDirect,
+  processImageForUpload,
+} from "../lib/imageUtils.js";
 import {
   isNetworkError,
   handleNetworkError,
@@ -316,6 +329,48 @@ function FormFieldIcon({ iconKey, size = 16, color = "rgba(255,255,255,0.55)" })
 
 function makeFieldId() {
   return "ff_" + Math.random().toString(36).slice(2, 10);
+}
+
+// Compact segmented control used by the Format/crop settings.
+function SegmentedChoice({ value, onChange, options }) {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: `repeat(${options.length}, 1fr)`,
+      gap: "4px",
+      padding: "3px",
+      background: "rgba(255,255,255,0.04)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      borderRadius: "8px",
+    }}>
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            style={{
+              padding: "7px 4px",
+              borderRadius: "6px",
+              border: "none",
+              background: active ? "rgba(255,255,255,0.12)" : "transparent",
+              color: active ? "#fff" : "rgba(255,255,255,0.5)",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "background 0.15s ease, color 0.15s ease",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
@@ -607,10 +662,10 @@ export function CreateEventPage() {
   const [locationLng, setLocationLng] = useState(draft?.locationLng || null);
   const [hideLocation, setHideLocation] = useState(draft?.hideLocation || false);
   const [startsAt, setStartsAt] = useState(draft?.startsAt || (() => {
-    // Default to 14 days from now at 21:00
+    // Default to right now (rounded to the minute) — clear placeholder the
+    // host obviously overrides, beats a fake future date.
     const d = new Date();
-    d.setDate(d.getDate() + 14);
-    d.setHours(21, 0, 0, 0);
+    d.setSeconds(0, 0);
     return d.toISOString().slice(0, 16);
   })());
   const [endsAt, setEndsAt] = useState(draft?.endsAt || "");
@@ -625,7 +680,6 @@ export function CreateEventPage() {
   const [imagePreview, setImagePreview] = useState(null);
   const [mediaFiles, setMediaFiles] = useState([]); // [{file, preview, mediaType, id}]
   const [mediaMode, setMediaMode] = useState(null); // null | "images" | "video"
-  const [mediaIntent, setMediaIntent] = useState(null); // null | "image" | "carousel" | "video" — user's selection before upload
   // Video settings
   const [videoLoop, setVideoLoop] = useState(true);
   const [videoAutoplay, setVideoAutoplay] = useState(true);
@@ -637,6 +691,55 @@ export function CreateEventPage() {
   const [carouselInterval, setCarouselInterval] = useState(5);
   const [carouselLoop, setCarouselLoop] = useState(true);
   const [carouselTransitions, setCarouselTransitions] = useState([]); // per-gap: "slide"|"fade"|"zoom"|"pixelate"
+  // Upload progress — keyed by mediaItem.id; 0–100 while in-flight.
+  const [uploadProgress, setUploadProgress] = useState({});
+  // Aggregate status shown on the Publish button while uploads run.
+  const [uploadStatus, setUploadStatus] = useState(null); // null | { done: number, total: number }
+  // Crop/format settings — independent per screen, nested under mediaSettings.
+  // "fit"="cover" → fill (cropped). "fit"="contain" → real size (letterbox).
+  // Focus is stored as percentages (0–100). 50/50 = center; user drags the
+  // preview to adjust. Only matters when fit="cover".
+  const [phoneFit, setPhoneFit] = useState("cover");
+  const [phoneFocusX, setPhoneFocusX] = useState(50);
+  const [phoneFocusY, setPhoneFocusY] = useState(50);
+  // Desktop: two presets only. "fit" = portrait crop + drag, "real" = wide
+  // (16:9) crop + drag. Single source of truth — aspect & object-fit are
+  // derived from this in DesktopEventLayout.
+  const [desktopMode, setDesktopMode] = useState("fit"); // "fit" | "real"
+  const [desktopFocusX, setDesktopFocusX] = useState(50);
+  const [desktopFocusY, setDesktopFocusY] = useState(50);
+
+  // Build the mediaSettings object — single source of truth for both save and preview.
+  function buildMediaSettings() {
+    const playback = mediaMode === "video"
+      ? { mode: "video", loop: videoLoop, autoplay: videoAutoplay, audio: videoAudio }
+      : mediaMode === "images" && mediaFiles.length > 1
+        ? { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop, transitions: carouselTransitions }
+        : {};
+    return {
+      ...playback,
+      phone: { fit: phoneFit, focusX: phoneFocusX, focusY: phoneFocusY },
+      desktop: { mode: desktopMode, focusX: desktopFocusX, focusY: desktopFocusY },
+    };
+  }
+
+  // Drag-to-pan callback factory. Renderers call this with pixel deltas and the
+  // frame size; we convert to a percent change in the focus point and clamp.
+  // Drag direction is inverted (pan), matching how users expect to scroll the
+  // visible window across an image.
+  function makeFocusDragHandler(view) {
+    return (dx, dy, frameW, frameH) => {
+      const dxPct = -((dx / Math.max(frameW, 1)) * 100);
+      const dyPct = -((dy / Math.max(frameH, 1)) * 100);
+      if (view === "phone") {
+        setPhoneFocusX((v) => Math.max(0, Math.min(100, v + dxPct)));
+        setPhoneFocusY((v) => Math.max(0, Math.min(100, v + dyPct)));
+      } else {
+        setDesktopFocusX((v) => Math.max(0, Math.min(100, v + dxPct)));
+        setDesktopFocusY((v) => Math.max(0, Math.min(100, v + dyPct)));
+      }
+    };
+  }
   const [theme] = useState("minimal");
   const [calendar] = useState("personal");
   const [visibility] = useState("public");
@@ -1098,6 +1201,34 @@ export function CreateEventPage() {
           setCarouselLoop(ms.loop !== undefined ? ms.loop : true);
           if (ms.transitions) setCarouselTransitions(ms.transitions);
         }
+        // Crop/format settings — read nested with fallback to legacy flat fields.
+        const phoneMs = ms.phone || {};
+        const desktopMs = ms.desktop || {};
+        // Legacy "top"|"center"|"bottom" → numeric Y. X stays at 50 since the
+        // old schema had no horizontal control.
+        const focusStrToY = (s) => (s === "top" ? 0 : s === "bottom" ? 100 : 50);
+        setPhoneFit(phoneMs.fit || ms.fit || "cover");
+        setPhoneFocusX(
+          typeof phoneMs.focusX === "number" ? phoneMs.focusX : 50,
+        );
+        setPhoneFocusY(
+          typeof phoneMs.focusY === "number"
+            ? phoneMs.focusY
+            : focusStrToY(phoneMs.focus || ms.focus),
+        );
+        // Desktop mode: read new "mode" field; fall back to legacy aspect → mode.
+        // Legacy "landscape" → "real"; everything else (portrait/square) → "fit".
+        const legacyDesktopAspect = desktopMs.aspect || ms.aspect;
+        const inferredMode = legacyDesktopAspect === "landscape" ? "real" : "fit";
+        setDesktopMode(desktopMs.mode || inferredMode);
+        setDesktopFocusX(
+          typeof desktopMs.focusX === "number" ? desktopMs.focusX : 50,
+        );
+        setDesktopFocusY(
+          typeof desktopMs.focusY === "number"
+            ? desktopMs.focusY
+            : focusStrToY(desktopMs.focus || ms.focus),
+        );
 
         // Load existing media items
         if (ev.media && ev.media.length > 0) {
@@ -1263,8 +1394,14 @@ export function CreateEventPage() {
         continue;
       }
 
-      // Generate preview
+      // Generate preview. For images, pre-process here so HEIC files (which
+      // browsers can't render natively) are converted to JPEG/WebP up-front,
+      // giving an immediate, renderable preview. We stash the processed Blob
+      // on the media item so the upload pipeline reuses it instead of
+      // re-encoding the file at publish time.
       let preview;
+      let processedBlob = null;
+      let processedMime = null;
       if (isVideo) {
         try {
           const thumbBlob = await generateVideoThumbnail(file);
@@ -1272,7 +1409,18 @@ export function CreateEventPage() {
         } catch {
           preview = null;
         }
+      } else if (validation.mediaType === "image") {
+        try {
+          const processed = await processImageForUpload(file);
+          processedBlob = processed.blob;
+          processedMime = processed.mimeType;
+          preview = URL.createObjectURL(processedBlob);
+        } catch (err) {
+          console.error("[handleMediaAdd] image processing failed", err);
+          preview = URL.createObjectURL(file); // fall back to raw blob URL
+        }
       } else {
+        // GIF — leave untouched to preserve animation.
         preview = URL.createObjectURL(file);
       }
 
@@ -1282,6 +1430,8 @@ export function CreateEventPage() {
         preview,
         mediaType: validation.mediaType,
         previewUrl: isVideo ? URL.createObjectURL(file) : preview,
+        processedBlob,
+        processedMime,
       };
 
       setMediaFiles((prev) => {
@@ -1306,6 +1456,59 @@ export function CreateEventPage() {
     }
 
     showToast(`Media added! It will be uploaded when you ${isEditMode ? "save" : "create the event"}.`, "success");
+  }
+
+  // Upload a single queued media item via the direct-to-Supabase pipeline.
+  // Wraps processImageForUpload (for images) and generateVideoThumbnail (for
+  // videos), reporting per-item progress 0–100 into uploadProgress[item.id].
+  async function uploadQueuedMedia(eventId, item, position) {
+    const setItemProgress = (pct) =>
+      setUploadProgress((prev) => ({ ...prev, [item.id]: Math.max(prev[item.id] || 0, pct) }));
+    setItemProgress(1);
+
+    let blob;
+    let mimeType;
+    let thumbnailBlob = null;
+
+    if (item.mediaType === "video") {
+      blob = item.file;
+      mimeType = item.file.type;
+      try {
+        thumbnailBlob = await generateVideoThumbnail(item.file);
+      } catch (e) {
+        // Best-effort thumbnail; backend will still save the video.
+        console.warn("[upload] video thumbnail generation failed", e);
+      }
+    } else if (item.mediaType === "gif") {
+      blob = item.file;
+      mimeType = item.file.type || "image/gif";
+    } else if (item.processedBlob) {
+      // Already processed at add-time (e.g. HEIC → JPEG).
+      blob = item.processedBlob;
+      mimeType = item.processedMime || item.processedBlob.type || "image/jpeg";
+    } else {
+      const processed = await processImageForUpload(item.file);
+      blob = processed.blob;
+      mimeType = processed.mimeType;
+    }
+
+    // uploadEventMediaDirect wants a File-like object; wrap the Blob if needed.
+    const fileForUpload = blob instanceof File
+      ? blob
+      : new File(
+          [blob],
+          `${item.id}.${(mimeType.split("/")[1] || "bin")}`,
+          { type: mimeType },
+        );
+
+    return uploadEventMediaDirect({
+      eventId,
+      file: fileForUpload,
+      mediaType: item.mediaType,
+      position,
+      thumbnailBlob,
+      onProgress: setItemProgress,
+    });
   }
 
   function handleMediaRemove(id) {
@@ -1569,11 +1772,7 @@ export function CreateEventPage() {
         spotify: spotify || null,
         tiktok: tiktok || null,
         soundcloud: soundcloud || null,
-        mediaSettings: mediaMode === "video"
-          ? { mode: "video", loop: videoLoop, autoplay: videoAutoplay, audio: videoAudio }
-          : mediaMode === "images" && mediaFiles.length > 1
-            ? { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop, transitions: carouselTransitions }
-            : {},
+        mediaSettings: buildMediaSettings(),
       };
 
       if (isEditMode) {
@@ -1590,17 +1789,29 @@ export function CreateEventPage() {
 
         const updated = await res.json();
 
-        // Upload any NEW media items (ones without serverId)
+        // Upload any NEW media items (ones without serverId) in parallel.
         const newMedia = mediaFiles.filter((m) => !m.serverId && m.file);
         if (newMedia.length > 0) {
-          try {
-            for (let i = 0; i < newMedia.length; i++) {
-              const position = mediaFiles.indexOf(newMedia[i]);
-              await uploadEventMedia(editEventId, newMedia[i].file, position);
-            }
-          } catch (mediaError) {
-            console.error("Error uploading new media:", mediaError);
-            showToast("Event saved, but some media failed to upload", "warning");
+          setUploadStatus({ done: 0, total: newMedia.length });
+          let done = 0;
+          const tasks = newMedia.map((m) => {
+            const position = mediaFiles.indexOf(m);
+            return uploadQueuedMedia(editEventId, m, position).then(
+              (result) => {
+                done += 1;
+                setUploadStatus({ done, total: newMedia.length });
+                return result;
+              },
+              (err) => {
+                console.error("Error uploading media item:", err);
+                throw err;
+              },
+            );
+          });
+          const settled = await Promise.allSettled(tasks);
+          const failed = settled.filter((s) => s.status === "rejected").length;
+          if (failed > 0) {
+            showToast(`Event saved, but ${failed} of ${newMedia.length} files failed to upload`, "warning");
           }
         }
 
@@ -1617,15 +1828,16 @@ export function CreateEventPage() {
           }
         }
 
-        // Upload custom thumbnail if provided
+        // Upload custom thumbnail if provided (direct, with progress)
         if (customThumbnail?.file) {
           try {
-            await uploadEventImage(editEventId, customThumbnail.file);
+            await uploadEventImageDirect({ eventId: editEventId, file: customThumbnail.file });
           } catch (err) {
             console.error("Error uploading custom thumbnail:", err);
           }
         }
 
+        setUploadStatus(null);
         showToast("Event updated successfully!", "success");
         navigate(`/app/events/${editEventId}/guests`);
       } else {
@@ -1642,26 +1854,39 @@ export function CreateEventPage() {
 
         const created = await res.json();
 
-        // Upload all media items
+        // Upload all queued media items in parallel via the direct-to-Supabase
+        // pipeline. Each item reports its own progress.
         let finalEvent = created;
         if (mediaFiles.length > 0) {
-          try {
-            for (let i = 0; i < mediaFiles.length; i++) {
-              await uploadEventMedia(created.id, mediaFiles[i].file, i);
-            }
-            // Fetch updated event with media URLs
-            const updatedRes = await authenticatedFetch(`/host/events/${created.id}`);
-            if (updatedRes.ok) {
-              finalEvent = await updatedRes.json();
-            }
-          } catch (mediaError) {
-            console.error("Error uploading media:", mediaError);
-            showToast("Event created, but some media failed to upload", "warning");
+          setUploadStatus({ done: 0, total: mediaFiles.length });
+          let done = 0;
+          const tasks = mediaFiles.map((m, i) =>
+            uploadQueuedMedia(created.id, m, i).then(
+              (result) => {
+                done += 1;
+                setUploadStatus({ done, total: mediaFiles.length });
+                return result;
+              },
+              (err) => {
+                console.error("Error uploading media item:", err);
+                throw err;
+              },
+            ),
+          );
+          const settled = await Promise.allSettled(tasks);
+          const failed = settled.filter((s) => s.status === "rejected").length;
+          if (failed > 0) {
+            showToast(`Event created, but ${failed} of ${mediaFiles.length} files failed to upload`, "warning");
+          }
+          // Refresh event with media URLs.
+          const updatedRes = await authenticatedFetch(`/host/events/${created.id}`);
+          if (updatedRes.ok) {
+            finalEvent = await updatedRes.json();
           }
         } else if (imageFile) {
-          // Fallback for legacy single image
+          // Fallback for legacy single image input.
           try {
-            finalEvent = await uploadEventImage(created.id, imageFile);
+            finalEvent = await uploadEventImageDirect({ eventId: created.id, file: imageFile });
           } catch (imageError) {
             console.error("Error uploading image:", imageError);
             showToast("Event created, but image upload failed", "warning");
@@ -1671,12 +1896,13 @@ export function CreateEventPage() {
         // Upload custom thumbnail if provided (overrides auto-generated one)
         if (customThumbnail?.file) {
           try {
-            finalEvent = await uploadEventImage(created.id, customThumbnail.file);
+            finalEvent = await uploadEventImageDirect({ eventId: created.id, file: customThumbnail.file });
           } catch (err) {
             console.error("Error uploading custom thumbnail:", err);
           }
         }
 
+        setUploadStatus(null);
         clearDraft();
         showToast("Event created successfully!", "success");
         navigate(`/events/${finalEvent.slug}/success`, {
@@ -1905,6 +2131,9 @@ export function CreateEventPage() {
                 flexShrink: 0,
               }}
             >
+              {/* Step tabs. Step 4 was retired so the array has 4 entries —
+                  the underline indicator below uses array index, not step
+                  number, to compute its position. */}
               <div style={{ display: "flex", position: "relative" }}>
                 {[
                   { num: 1, label: "Media" },
@@ -1951,18 +2180,26 @@ export function CreateEventPage() {
                     )}
                   </button>
                 ))}
-                {/* Sliding underline indicator */}
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    left: `${((currentStep - 1) / 5) * 100}%`,
-                    width: `${100 / 5}%`,
-                    height: "1.5px",
-                    background: "rgba(255,255,255,0.9)",
-                    transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                  }}
-                />
+                {/* Sliding underline indicator — anchored by tab index in the
+                    array, not by step number, since step 4 was retired. */}
+                {(() => {
+                  const tabs = [1, 2, 3, 5];
+                  const activeIdx = Math.max(0, tabs.indexOf(currentStep));
+                  const tabWidth = 100 / tabs.length;
+                  return (
+                    <div
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        left: `${activeIdx * tabWidth}%`,
+                        width: `${tabWidth}%`,
+                        height: "1.5px",
+                        background: "rgba(255,255,255,0.9)",
+                        transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                      }}
+                    />
+                  );
+                })()}
                 {/* Bottom border behind the indicator */}
                 <div
                   style={{
@@ -2003,77 +2240,9 @@ export function CreateEventPage() {
               transition: "border-color 0.3s ease",
               padding: hasAttemptedPublish && missingFields.media ? "12px" : "0",
             }}>
-              {/* Media type selector */}
-              {mediaFiles.length === 0 && (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr",
-                    gap: "8px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  {[
-                    { id: "image", icon: ImageIcon, label: "Image", desc: "Single cover" },
-                    { id: "carousel", icon: Layers, label: "Carousel", desc: "Multiple images" },
-                    { id: "video", icon: Film, label: "Video", desc: "Single video" },
-                  ].map((opt) => {
-                    const active = mediaIntent === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => {
-                          setMediaIntent(opt.id);
-                          setMediaMode(opt.id === "video" ? "video" : "images");
-                        }}
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: "6px",
-                          padding: "14px 8px",
-                          borderRadius: "10px",
-                          border: active
-                            ? "1px solid rgba(255,255,255,0.35)"
-                            : "1px solid rgba(255,255,255,0.06)",
-                          background: active
-                            ? "rgba(255,255,255,0.08)"
-                            : "transparent",
-                          cursor: "pointer",
-                          transition: "all 0.15s ease",
-                          WebkitTapHighlightColor: "transparent",
-                        }}
-                      >
-                        <opt.icon
-                          size={20}
-                          style={{
-                            color: active ? "#fff" : "rgba(255,255,255,0.4)",
-                            transition: "color 0.15s ease",
-                          }}
-                        />
-                        <span style={{
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          color: active ? "#fff" : "rgba(255,255,255,0.5)",
-                          letterSpacing: "0.02em",
-                          transition: "color 0.15s ease",
-                        }}>
-                          {opt.label}
-                        </span>
-                        <span style={{
-                          fontSize: "9.5px",
-                          color: active ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)",
-                          transition: "color 0.15s ease",
-                        }}>
-                          {opt.desc}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {/* Main drop zone / first item preview */}
+              {/* Main drop zone / first item preview — accepts anything;
+                  type (image, multi-image carousel, or video) is detected
+                  from the actual files dropped. */}
               <div
                 style={{
                   width: "100%",
@@ -2198,11 +2367,7 @@ export function CreateEventPage() {
                         padding: "0 16px",
                       }}
                     >
-                      {isDragging
-                        ? "Drop files here"
-                        : mediaIntent
-                          ? "Click or drag to upload"
-                          : "Select a type above, or drag files here"}
+                      {isDragging ? "Drop files here" : "Click or drag to upload"}
                     </div>
                     <div
                       style={{
@@ -2212,13 +2377,7 @@ export function CreateEventPage() {
                         padding: "0 16px",
                       }}
                     >
-                      {mediaIntent === "video"
-                        ? "MP4, MOV, or WebM"
-                        : mediaIntent === "carousel"
-                          ? "JPG, PNG, GIF — up to 10 images"
-                          : mediaIntent === "image"
-                            ? "JPG, PNG, or GIF"
-                            : "Image, carousel, or video"}
+                      Image, multiple images, or video
                     </div>
                   </div>
                 )}
@@ -2326,6 +2485,27 @@ export function CreateEventPage() {
                       >
                         <X size={10} color="#fff" />
                       </button>
+                      {/* Per-item upload progress overlay */}
+                      {typeof uploadProgress[item.id] === "number" && uploadProgress[item.id] < 100 && (
+                        <>
+                          <div style={{
+                            position: "absolute", inset: 0,
+                            background: "rgba(0,0,0,0.35)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: "10px", fontWeight: 700, color: "#fff",
+                            letterSpacing: "0.05em",
+                          }}>
+                            {Math.round(uploadProgress[item.id])}%
+                          </div>
+                          <div style={{
+                            position: "absolute", bottom: 0, left: 0,
+                            height: "3px",
+                            width: `${uploadProgress[item.id]}%`,
+                            background: "linear-gradient(90deg, #fbbf24, #f59e0b)",
+                            transition: "width 0.2s ease",
+                          }} />
+                        </>
+                      )}
                     </div>
                     );
 
@@ -2416,8 +2596,9 @@ export function CreateEventPage() {
                 </div>
               )}
 
-              {/* Media settings — show based on intent (before upload) or actual mode (after upload) */}
-              {(mediaFiles.length > 0 || mediaIntent === "carousel" || mediaIntent === "video") && (
+              {/* Media settings — appear once at least one file is uploaded;
+                  panel content adapts to the detected mode + count. */}
+              {mediaFiles.length > 0 && (
                 <div
                   style={{
                     marginTop: "14px",
@@ -2435,14 +2616,14 @@ export function CreateEventPage() {
                     color: "rgba(255,255,255,0.45)",
                     marginBottom: "12px",
                   }}>
-                    {(mediaMode === "video" || (mediaFiles.length === 0 && mediaIntent === "video"))
+                    {mediaMode === "video"
                       ? "Video Settings"
-                      : (mediaFiles.length > 1 || (mediaFiles.length === 0 && mediaIntent === "carousel"))
+                      : mediaFiles.length > 1
                         ? "Carousel Settings"
                         : "Media Settings"}
                   </div>
 
-                  {(mediaMode === "video" || (mediaFiles.length === 0 && mediaIntent === "video")) && (
+                  {mediaMode === "video" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                       {/* Loop */}
                       <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
@@ -2593,7 +2774,7 @@ export function CreateEventPage() {
                     </div>
                   )}
 
-                  {((mediaMode === "images" && mediaFiles.length > 1) || (mediaFiles.length === 0 && mediaIntent === "carousel")) && (
+                  {mediaMode === "images" && mediaFiles.length > 1 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                       {/* Autoscroll */}
                       <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
@@ -2728,14 +2909,96 @@ export function CreateEventPage() {
                       This image is used as thumbnail in dashboard, emails, and link previews. Add more to create a carousel.
                     </div>
                   )}
+
+                  {/* ─── Format — independent per screen ─── */}
+                  {mediaFiles.length > 0 && (
+                    <div style={{
+                      marginTop: "14px",
+                      paddingTop: "14px",
+                      borderTop: "1px solid rgba(255,255,255,0.06)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "16px",
+                    }}>
+                      <div style={{
+                        fontSize: "10px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.12em",
+                        fontWeight: 700,
+                        color: "rgba(255,255,255,0.45)",
+                      }}>
+                        Format
+                      </div>
+
+                      {/* PHONE */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        <div style={{
+                          fontSize: "11px",
+                          color: "rgba(255,255,255,0.5)",
+                          fontWeight: 600,
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}>
+                          <span>Phone</span>
+                          {phoneFit === "cover" && (
+                            <span style={{ opacity: 0.55 }}>drag preview to reposition</span>
+                          )}
+                        </div>
+                        <SegmentedChoice
+                          value={phoneFit}
+                          onChange={(v) => {
+                            setPhoneFit(v);
+                            setDesktopPreviewMode("phone");
+                          }}
+                          options={[
+                            { value: "cover", label: "Fit" },
+                            { value: "contain", label: "Real" },
+                          ]}
+                        />
+                      </div>
+
+                      {/* DESKTOP */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        <div style={{
+                          fontSize: "11px",
+                          color: "rgba(255,255,255,0.5)",
+                          fontWeight: 600,
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}>
+                          <span>Desktop</span>
+                          <span style={{ opacity: 0.55 }}>drag preview to reposition</span>
+                        </div>
+                        <SegmentedChoice
+                          value={desktopMode}
+                          onChange={(v) => {
+                            setDesktopMode(v);
+                            setDesktopPreviewMode("desktop");
+                          }}
+                          options={[
+                            { value: "fit", label: "Fit" },
+                            { value: "real", label: "Real" },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept={mediaMode === "video" ? "video/mp4,video/quicktime,video/webm" : mediaMode === "images" ? "image/*" : "image/*,video/mp4,video/quicktime,video/webm"}
-                multiple={mediaIntent === "carousel"}
+                /* Accept any image or video; once one is uploaded we further
+                   restrict (e.g. only images can be added to an image set). */
+                accept={
+                  mediaMode === "video"
+                    ? "video/mp4,video/quicktime,video/webm"
+                    : mediaMode === "images"
+                      ? "image/*"
+                      : "image/*,video/mp4,video/quicktime,video/webm"
+                }
+                multiple
                 onChange={(e) => {
                   handleMediaAdd(Array.from(e.target.files));
                   e.target.value = "";
@@ -3499,7 +3762,7 @@ export function CreateEventPage() {
                           overflow: "hidden", background: "rgba(255,255,255,0.03)",
                         }}>
                           {section.logo ? (
-                            <img src={section.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            <img src={section.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", padding: "4px", boxSizing: "border-box" }} />
                           ) : (
                             <span style={{ fontSize: "18px", opacity: 0.25 }}>+</span>
                           )}
@@ -3508,7 +3771,7 @@ export function CreateEventPage() {
                             if (!file) return;
                             const validation = validateImageFile(file, 2);
                             if (!validation.valid) { alert(validation.error); return; }
-                            const compressed = await compressImage(file, 200, 200, 0.85);
+                            const compressed = await compressImage(file, 200, 200, 0.85, "image/png");
                             const u = [...sections]; u[i] = { ...u[i], logo: compressed }; setSections(u);
                           }} />
                         </label>
@@ -4352,7 +4615,11 @@ export function CreateEventPage() {
                   }
                 }}
               >
-                {loading ? (isEditMode ? "Saving…" : "Creating…") : (isEditMode ? "SAVE CHANGES" : "PUBLISH")}
+                {loading
+                  ? (uploadStatus
+                      ? `UPLOADING ${uploadStatus.done}/${uploadStatus.total}…`
+                      : isEditMode ? "Saving…" : "Creating…")
+                  : (isEditMode ? "SAVE CHANGES" : "PUBLISH")}
               </button>
               {hasAttemptedPublish && missingCount > 0 && (
                 <div style={{
@@ -4590,68 +4857,68 @@ export function CreateEventPage() {
                 height: desktopPreviewMode === "desktop" ? "calc(100% - 32px)" : desktopPreviewMode === "phone" ? "calc(100% - 102px)" : "100%",
                 overflow: "hidden",
               }}>
-              <EventPreview
-                title={title}
-                autoShowRsvp={currentStep === 3 || currentStep === 5}
-                activeStep={currentStep}
-                description={description}
-                location={location}
-                locationLat={locationLat}
-                locationLng={locationLng}
-                startsAt={startsAt}
-                endsAt={endsAt}
-                timezone={timezone}
-                imagePreview={imagePreview}
-                media={mediaFiles.length > 0 ? mediaFiles.map((m, i) => ({
-                  id: m.id,
-                  url: m.previewUrl || m.preview,
-                  mediaType: m.mediaType,
-                  position: i,
-                })) : null}
-                mediaSettings={mediaMode === "video"
-                  ? { mode: "video", loop: videoLoop, autoplay: videoAutoplay, audio: videoAudio }
-                  : { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop, transitions: carouselTransitions }}
-                ticketType={sellTicketsEnabled ? "paid" : "free"}
-                compact={desktopPreviewMode === "phone"}
-                instagram={instagram}
-                spotify={spotify}
-                tiktok={tiktok}
-                soundcloud={soundcloud}
-                ticketPrice={
-                  sellTicketsEnabled && ticketPrice
+              {(() => {
+                const previewProps = {
+                  title,
+                  autoShowRsvp: currentStep === 3 || currentStep === 5,
+                  activeStep: currentStep,
+                  description,
+                  location,
+                  locationLat,
+                  locationLng,
+                  startsAt,
+                  endsAt,
+                  timezone,
+                  imagePreview,
+                  media: mediaFiles.length > 0 ? mediaFiles.map((m, i) => ({
+                    id: m.id,
+                    url: m.previewUrl || m.preview,
+                    mediaType: m.mediaType,
+                    position: i,
+                  })) : null,
+                  mediaSettings: buildMediaSettings(),
+                  ticketType: sellTicketsEnabled ? "paid" : "free",
+                  instagram,
+                  spotify,
+                  tiktok,
+                  soundcloud,
+                  ticketPrice: sellTicketsEnabled && ticketPrice
                     ? Math.round(parseFloat(ticketPrice) * 100)
-                    : null
-                }
-                ticketCurrency={sellTicketsEnabled ? ticketCurrency : null}
-                sections={sections}
-                hoveredSection={hoveredSection}
-                hideLocation={hideLocation}
-                hideDate={hideDate}
-                revealHint={revealHint || null}
-                dateRevealHint={dateRevealHint || null}
-                instantWaitlist={instantWaitlist}
-                rsvpContent={({ onClose }) => (
-                  <RsvpForm
-                    event={{
-                      slug: null,
-                      dinnerEnabled: dinnerEnabled,
-                      dinnerBookingEmail: dinnerBookingEmail || null,
-                      waitlistEnabled: waitlistEnabled,
-                      hideDinnerRemaining: hideDinnerRemaining,
-                      maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
-                      timezone: timezone,
-                      formFields,
-                    }}
-                    previewSlots={previewDinnerSlots}
-                    onSubmit={async () => {
-                      onClose();
-                      showToast("This is a preview — no RSVP was submitted", "info");
-                    }}
-                    loading={false}
-                    onClose={onClose}
-                  />
-                )}
-              />
+                    : null,
+                  ticketCurrency: sellTicketsEnabled ? ticketCurrency : null,
+                  sections,
+                  hoveredSection,
+                  hideLocation,
+                  hideDate,
+                  revealHint: revealHint || null,
+                  dateRevealHint: dateRevealHint || null,
+                  instantWaitlist,
+                  rsvpContent: ({ onClose }) => (
+                    <RsvpForm
+                      event={{
+                        slug: null,
+                        dinnerEnabled: dinnerEnabled,
+                        dinnerBookingEmail: dinnerBookingEmail || null,
+                        waitlistEnabled: waitlistEnabled,
+                        hideDinnerRemaining: hideDinnerRemaining,
+                        maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
+                        timezone: timezone,
+                        formFields,
+                      }}
+                      previewSlots={previewDinnerSlots}
+                      onSubmit={async () => {
+                        onClose();
+                        showToast("This is a preview — no RSVP was submitted", "info");
+                      }}
+                      loading={false}
+                      onClose={onClose}
+                    />
+                  ),
+                };
+                return desktopPreviewMode === "desktop"
+                  ? <DesktopEventLayout {...previewProps} onFocusDrag={makeFocusDragHandler("desktop")} />
+                  : <EventPreview {...previewProps} compact onFocusDrag={makeFocusDragHandler("phone")} />;
+              })()}
               </div>
               {/* Phone bottom Safari toolbar */}
               {desktopPreviewMode === "phone" && (
@@ -4701,6 +4968,7 @@ export function CreateEventPage() {
           }}
         >
           <EventPreview
+            onFocusDrag={makeFocusDragHandler("phone")}
             title={title}
             description={description}
             location={location}
@@ -4716,9 +4984,7 @@ export function CreateEventPage() {
               mediaType: m.mediaType,
               position: i,
             })) : null}
-            mediaSettings={mediaMode === "video"
-              ? { mode: "video", loop: videoLoop, autoplay: videoAutoplay, audio: videoAudio }
-              : { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop, transitions: carouselTransitions }}
+            mediaSettings={buildMediaSettings()}
             ticketType={sellTicketsEnabled ? "paid" : "free"}
             compact
             autoShowRsvp={currentStep === 4 || currentStep === 5}

@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { transformedImageUrl } from "../lib/imageUtils";
 
 // Reactive video player that responds to setting changes
-export function VideoPlayer({ src, autoPlay, muted, loop, playsInline = true, style = {} }) {
+export function VideoPlayer({ src, autoPlay, muted, loop, playsInline = true, style = {}, objectFit = "cover", objectPosition = "center center" }) {
   const videoRef = useRef(null);
   const [ended, setEnded] = useState(false);
   const [paused, setPaused] = useState(!autoPlay);
@@ -93,7 +94,8 @@ export function VideoPlayer({ src, autoPlay, muted, loop, playsInline = true, st
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "cover",
+          objectFit,
+          objectPosition,
           display: "block",
           cursor: "pointer",
         }}
@@ -337,6 +339,10 @@ export function MediaCarousel({
   hideDots = false,
   onIndexChange,
   controlledIndex,
+  // Target rendered width in CSS pixels. When provided, image sources are
+  // routed through Supabase's image transform endpoint so we don't ship 4K
+  // originals to a 400px hero.
+  displayWidth,
 }) {
   const [internalIndex, setInternalIndex] = useState(0);
   const isControlled = controlledIndex !== undefined;
@@ -364,6 +370,19 @@ export function MediaCarousel({
   const interval = mediaSettings.interval || 5;
   const loopCarousel = mediaSettings.loop !== undefined ? mediaSettings.loop : true;
   const transitions = mediaSettings.transitions;
+
+  // Crop / fit settings (default: cover from center — matches legacy behavior).
+  // Supports both the legacy "top"/"center"/"bottom" focus and the new numeric
+  // focusX/focusY (percentages 0–100).
+  const fit = mediaSettings.fit === "contain" ? "contain" : "cover";
+  const focusX = typeof mediaSettings.focusX === "number" ? mediaSettings.focusX : 50;
+  const legacyFocusY = mediaSettings.focus === "top"
+    ? 0
+    : mediaSettings.focus === "bottom"
+      ? 100
+      : 50;
+  const focusY = typeof mediaSettings.focusY === "number" ? mediaSettings.focusY : legacyFocusY;
+  const objectPosition = `${focusX}% ${focusY}%`;
 
   const count = media?.length || 0;
 
@@ -547,16 +566,21 @@ export function MediaCarousel({
         autoPlay={autoplay}
         muted={!audio}
         loop={loopVideo}
+        objectFit={fit}
+        objectPosition={objectPosition}
         style={style}
       />
     ) : (
       <img
-        src={item.url}
+        src={transformedImageUrl(item.url, { width: displayWidth })}
         alt=""
+        loading="lazy"
+        decoding="async"
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "cover",
+          objectFit: fit,
+          objectPosition,
           display: "block",
           ...style,
         }}
@@ -792,17 +816,22 @@ function SlideRenderer({ item, phase, slideStyle, transitionType, direction, tra
             autoPlay
             muted
             loop
+            objectFit={fit}
+            objectPosition={objectPosition}
             style={{ width: "100%", height: "100%" }}
           />
         ) : (
           <img
-            src={item.url}
+            src={transformedImageUrl(item.url, { width: displayWidth })}
             alt=""
             draggable={false}
+            loading="lazy"
+            decoding="async"
             style={{
               width: "100%",
               height: "100%",
-              objectFit: "cover",
+              objectFit: fit,
+              objectPosition,
               display: "block",
               pointerEvents: "none",
             }}

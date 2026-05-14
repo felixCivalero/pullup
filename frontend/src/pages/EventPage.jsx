@@ -23,6 +23,7 @@ import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
 import { EventPageContent } from "../components/EventPageContent";
 import { EventPreview } from "../components/EventPreview";
+import { DesktopEventLayout } from "../components/DesktopEventLayout";
 import { RsvpForm } from "../components/RsvpForm";
 import { PaymentForm } from "../components/PaymentForm";
 import { Button } from "../components/ui/Button";
@@ -55,6 +56,18 @@ export function EventPage() {
   const [canShareStory, setCanShareStory] = useState(false);
   const [showSharePicker, setShowSharePicker] = useState(false);
   const [selectedShareIndexes, setSelectedShareIndexes] = useState(new Set());
+
+  // Viewport-gated layout: ≥1024px gets the new desktop one-pager, < 1024 keeps
+  // the existing mobile full-screen EventPreview.
+  const [isDesktop, setIsDesktop] = useState(
+    typeof window !== "undefined" ? window.innerWidth >= 1024 : false,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   // MUST be called before any early returns to follow Rules of Hooks
   const swipeHandlers = useCarouselSwipe(
@@ -788,80 +801,90 @@ export function EventPage() {
         * { box-sizing: border-box; }
       `}</style>
       <div style={{ width: "100%", height: "100vh", height: "100dvh", overflow: "hidden", background: "#05040a" }}>
-        <EventPreview
-          title={event?.titleSettings?.visible !== false ? event?.title : null}
-          description={event?.description}
-          location={event?.location}
-          startsAt={event?.startsAt}
-          endsAt={event?.endsAt}
-          timezone={event?.timezone}
-          media={event?.media}
-          mediaSettings={event?.mediaSettings}
-          imagePreview={event?.imageUrl}
-          ticketType={event?.ticketType || "free"}
-          ticketPrice={event?.ticketPrice}
-          ticketCurrency={event?.ticketCurrency}
-          instagram={event?.instagram}
-          spotify={event?.spotify}
-          tiktok={event?.tiktok}
-          soundcloud={event?.soundcloud}
-          sections={event?.sections || []}
-          hideLocation={event?.hideLocation}
-          hideDate={event?.hideDate}
-          revealHint={event?.revealHint}
-          dateRevealHint={event?.dateRevealHint}
-          instantWaitlist={event?.instantWaitlist}
-          autoShowRsvp={!!vipOffer || !!waitlistOffer}
-          rsvpContent={!isDisabled ? ({ onClose }) => (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* Waitlist offer banner */}
-              {waitlistOffer && (
-                <div style={{
-                  padding: "16px",
-                  background: "rgba(59, 130, 246, 0.1)",
-                  border: "1px solid rgba(59, 130, 246, 0.3)",
-                  borderRadius: "8px",
-                  marginBottom: "8px",
-                }}>
-                  <div style={{ fontSize: "16px", fontWeight: 600, color: "#3b82f6", marginBottom: "8px" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-                      <SilverIcon as={PartyPopper} size={20} style={{ color: "#3b82f6" }} />
-                      You've got a spot!
-                    </span>
-                  </div>
-                  <div style={{ fontSize: "14px", opacity: 0.9 }}>
-                    Your booking details are locked based on your original
-                    waitlist request. Complete payment below to confirm your spot.
-                  </div>
+        {(() => {
+          const renderRsvp = !isDisabled
+            ? ({ onClose }) => (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {/* Waitlist offer banner */}
+                  {waitlistOffer && (
+                    <div style={{
+                      padding: "16px",
+                      background: "rgba(59, 130, 246, 0.1)",
+                      border: "1px solid rgba(59, 130, 246, 0.3)",
+                      borderRadius: "8px",
+                      marginBottom: "8px",
+                    }}>
+                      <div style={{ fontSize: "16px", fontWeight: 600, color: "#3b82f6", marginBottom: "8px" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                          <SilverIcon as={PartyPopper} size={20} style={{ color: "#3b82f6" }} />
+                          You've got a spot!
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "14px", opacity: 0.9 }}>
+                        Your booking details are locked based on your original
+                        waitlist request. Complete payment below to confirm your spot.
+                      </div>
+                    </div>
+                  )}
+                  <RsvpForm
+                    event={event}
+                    onSubmit={handleRsvpSubmit}
+                    loading={rsvpLoading}
+                    onClose={() => {
+                      onClose();
+                      setPendingPayment(null);
+                      setWaitlistOffer(null);
+                      setWaitlistToken(null);
+                      setVipOffer(null);
+                      setVipToken(null);
+                    }}
+                    onPartySizeChange={setCurrentPartySize}
+                    waitlistOffer={waitlistOffer}
+                    waitlistToken={waitlistToken}
+                    vipOffer={vipOffer}
+                    vipToken={vipToken}
+                    isPaidEvent={event?.ticketType === "paid"}
+                    ticketPrice={event?.ticketPrice}
+                    ticketCurrency={(event?.ticketCurrency || "usd").toLowerCase()}
+                    currentPartySize={currentPartySize}
+                    pendingPayment={pendingPayment}
+                    PaymentFormComponent={PaymentFormComponent}
+                  />
                 </div>
-              )}
-              <RsvpForm
-                event={event}
-                onSubmit={handleRsvpSubmit}
-                loading={rsvpLoading}
-                onClose={() => {
-                  onClose();
-                  setPendingPayment(null);
-                  setWaitlistOffer(null);
-                  setWaitlistToken(null);
-                  setVipOffer(null);
-                  setVipToken(null);
-                }}
-                onPartySizeChange={setCurrentPartySize}
-                waitlistOffer={waitlistOffer}
-                waitlistToken={waitlistToken}
-                vipOffer={vipOffer}
-                vipToken={vipToken}
-                isPaidEvent={event?.ticketType === "paid"}
-                ticketPrice={event?.ticketPrice}
-                ticketCurrency={(event?.ticketCurrency || "usd").toLowerCase()}
-                currentPartySize={currentPartySize}
-                pendingPayment={pendingPayment}
-                PaymentFormComponent={PaymentFormComponent}
-              />
-            </div>
-          ) : null}
-        />
+              )
+            : null;
+
+          const sharedProps = {
+            title: event?.titleSettings?.visible !== false ? event?.title : null,
+            description: event?.description,
+            location: event?.location,
+            startsAt: event?.startsAt,
+            endsAt: event?.endsAt,
+            timezone: event?.timezone,
+            media: event?.media,
+            mediaSettings: event?.mediaSettings,
+            imagePreview: event?.imageUrl,
+            ticketType: event?.ticketType || "free",
+            ticketPrice: event?.ticketPrice,
+            ticketCurrency: event?.ticketCurrency,
+            instagram: event?.instagram,
+            spotify: event?.spotify,
+            tiktok: event?.tiktok,
+            soundcloud: event?.soundcloud,
+            sections: event?.sections || [],
+            hideLocation: event?.hideLocation,
+            hideDate: event?.hideDate,
+            revealHint: event?.revealHint,
+            dateRevealHint: event?.dateRevealHint,
+            instantWaitlist: event?.instantWaitlist,
+            autoShowRsvp: !!vipOffer || !!waitlistOffer,
+            rsvpContent: renderRsvp,
+          };
+
+          return isDesktop
+            ? <DesktopEventLayout {...sharedProps} />
+            : <EventPreview {...sharedProps} />;
+        })()}
 
         {/* Share picker for manual carousels */}
         <ModalOrDrawer

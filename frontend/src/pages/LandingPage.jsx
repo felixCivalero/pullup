@@ -67,7 +67,11 @@ function useReveal(threshold = 0.15) {
 /* ─── component ─── */
 export function LandingPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  // Ensure the auto-redirect to /events fires at most once per mount,
+  // even if the user object reference churns. Without this, a transient
+  // auth-state flap can ping-pong us between / and /events.
+  const redirectedRef = useRef(false);
 
   // Hero CTA goes to onboarding for new users; existing users skip ahead
   // to the dashboard. Nav CTA always goes to /login (returning users).
@@ -98,12 +102,16 @@ export function LandingPage() {
   }, []);
 
   // Logged-in users skip the marketing landing page entirely and go straight
-  // to their dashboard. We still detect post-OAuth round-trips so the
-  // `signed_in` analytics event fires with the right `via` attribution
-  // (sessionStorage flag survives the OAuth redirect; URL hash/code don't on
-  // mobile because Supabase scrubs them before React mounts).
+  // to their dashboard. Gate on `loading` so we don't fire during auth
+  // hydration (when the user reference can briefly toggle between cached
+  // and confirmed states — that's what was causing the / ↔ /events loop
+  // with ProtectedLayout's reverse redirect).
   useEffect(() => {
+    if (loading) return;
     if (!user) return;
+    if (redirectedRef.current) return;
+    redirectedRef.current = true;
+
     const hash = window.location.hash || "";
     const search = window.location.search || "";
     const pendingFlag = sessionStorage.getItem("pullup_signin_pending") === "1";
@@ -117,7 +125,7 @@ export function LandingPage() {
       trackEvent("signed_in", { via: pendingFlag ? "google" : "auto" });
     }
     navigate("/events", { replace: true });
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);

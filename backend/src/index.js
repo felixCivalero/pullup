@@ -6523,10 +6523,10 @@ async function processHostedByLogos(eventId, sections) {
 app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { imageData } = req.body; // Base64 image data
+    const { imageData, storagePath } = req.body;
 
-    if (!imageData) {
-      return res.status(400).json({ error: "imageData is required" });
+    if (!imageData && !storagePath) {
+      return res.status(400).json({ error: "imageData or storagePath is required" });
     }
 
     // Verify event ownership - only owners can upload event images
@@ -6543,32 +6543,40 @@ app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
       });
     }
 
-    // Convert base64 to buffer
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
-
-    // Determine file extension from data URL
-    const mimeMatch = imageData.match(/data:image\/(\w+);base64/);
-    const extension = mimeMatch ? mimeMatch[1] : "png";
-    const fileName = `${eventId}/image.${extension}`;
-
-    // Upload to Supabase Storage
     const { supabase } = await import("./supabase.js");
-    const { data, error } = await supabase.storage
-      .from("event-images")
-      .upload(fileName, buffer, {
-        contentType: `image/${extension}`,
-        upsert: true, // Overwrite if exists
-      });
+    let fileName;
 
-    if (error) {
-      console.error("Storage upload error:", error);
-      return res.status(500).json({ error: "Failed to upload image" });
+    if (storagePath) {
+      // Direct-upload flow: client already uploaded; we just record the path.
+      if (!storagePath.startsWith(`${eventId}/`)) {
+        return res.status(400).json({ error: "Invalid storage path" });
+      }
+      fileName = storagePath;
+    } else {
+      // Legacy base64 path.
+      const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(base64Data, "base64");
+
+      const mimeMatch = imageData.match(/data:image\/(\w+);base64/);
+      const extension = mimeMatch ? mimeMatch[1] : "png";
+      fileName = `${eventId}/image.${extension}`;
+
+      const { error } = await supabase.storage
+        .from("event-images")
+        .upload(fileName, buffer, {
+          contentType: `image/${extension}`,
+          upsert: true,
+        });
+
+      if (error) {
+        console.error("Storage upload error:", error);
+        return res.status(500).json({ error: "Failed to upload image" });
+      }
     }
 
     // Store just the file path in the database
     const updated = await updateEvent(eventId, {
-      imageUrl: fileName, // Store path, not full URL
+      imageUrl: fileName,
     });
 
     // Generate URL for immediate return (try signed first, fallback to public)
@@ -6651,13 +6659,84 @@ app.post("/host/crm/follow-up-images", requireAuth, async (req, res) => {
 // ---------------------------
 // PROTECTED: Upload event media (image/video/gif) for carousel
 // ---------------------------
+// ---------------------------
+// Helper: pick a file extension from an uploaded MIME type.
+// ---------------------------
+function extensionFromMime(mimeType) {
+  if (!mimeType) return "jpg";
+  const ext = mimeType.split("/")[1];
+  if (ext === "quicktime") return "mov";
+  if (ext === "webm") return "webm";
+  if (ext === "mp4") return "mp4";
+  if (ext === "gif") return "gif";
+  if (ext === "png") return "png";
+  if (ext === "webp") return "webp";
+  if (ext === "jpeg") return "jpg";
+  return ext || "jpg";
+}
+
+// ---------------------------
+// PROTECTED: Mint a Supabase signed upload URL for direct-to-storage upload.
+// The browser then PUTs the file straight to Supabase, bypassing Express
+// entirely — no base64, no body buffering, real progress events, much bigger
+// files supported.
+// ---------------------------
+app.post("/host/events/:eventId/storage-token", requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { mimeType, kind = "main", position } = req.body || {};
+
+    const event = await findEventById(eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const allowed = await canEditEvent(req.user.id, eventId);
+    if (!allowed) return res.status(403).json({ error: "Forbidden" });
+
+    // Server controls the path so the signed URL is bound to a known location.
+    const ext = kind === "thumb" ? "jpg" : extensionFromMime(mimeType);
+    const pos = Number.isFinite(position) ? position : 0;
+    const slug = kind === "thumb" ? "thumb" : "media";
+    const path = `${eventId}/${slug}_${pos}_${Date.now()}.${ext}`;
+
+    const { supabase } = await import("./supabase.js");
+    const { data, error } = await supabase.storage
+      .from("event-images")
+      .createSignedUploadUrl(path);
+
+    if (error || !data) {
+      console.error("[storage-token] createSignedUploadUrl failed", error);
+      return res.status(500).json({ error: "Could not mint upload URL" });
+    }
+
+    res.json({
+      path,
+      token: data.token,
+      uploadUrl: data.signedUrl,
+    });
+  } catch (err) {
+    console.error("[storage-token] error", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 app.post("/host/events/:eventId/media", requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { mediaData, mediaType, mimeType, position, thumbnailData } = req.body;
+    const {
+      mediaData,
+      mediaType,
+      mimeType,
+      position,
+      thumbnailData,
+      // New direct-upload flow: client has already uploaded the file(s) to
+      // Supabase Storage and supplies the resulting paths instead of base64.
+      storagePath,
+      thumbnailStoragePath,
+    } = req.body;
 
-    if (!mediaData) {
-      return res.status(400).json({ error: "mediaData is required" });
+    const usingDirectUpload = !!storagePath;
+    if (!mediaData && !usingDirectUpload) {
+      return res.status(400).json({ error: "mediaData or storagePath is required" });
     }
 
     const event = await findEventById(eventId);
@@ -6668,49 +6747,52 @@ app.post("/host/events/:eventId/media", requireAuth, async (req, res) => {
 
     const { supabase } = await import("./supabase.js");
 
-    // Determine type and extension
     const type = mediaType || "image";
-    let extension = "jpg";
-    if (mimeType) {
-      const ext = mimeType.split("/")[1];
-      if (ext === "quicktime") extension = "mov";
-      else if (ext === "webm") extension = "webm";
-      else if (ext === "mp4") extension = "mp4";
-      else if (ext === "gif") extension = "gif";
-      else if (ext === "png") extension = "png";
-      else if (ext === "webp") extension = "webp";
-      else extension = ext || "jpg";
-    }
-
+    const extension = extensionFromMime(mimeType);
     const pos = position ?? 0;
-    const fileName = `${eventId}/media_${pos}_${Date.now()}.${extension}`;
 
-    // Convert base64 to buffer
-    const base64Data = mediaData.replace(/^data:[^;]+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
+    let fileName;
+    if (usingDirectUpload) {
+      // Trust the client-supplied path only after verifying it lives under
+      // this event's folder — prevents a malicious caller from claiming
+      // someone else's storage object.
+      if (!storagePath.startsWith(`${eventId}/`)) {
+        return res.status(400).json({ error: "Invalid storage path" });
+      }
+      fileName = storagePath;
+    } else {
+      fileName = `${eventId}/media_${pos}_${Date.now()}.${extension}`;
 
-    // Supabase Storage doesn't support video/quicktime — map to video/mp4
-    let uploadContentType = mimeType || `image/${extension}`;
-    if (uploadContentType === "video/quicktime") {
-      uploadContentType = "video/mp4";
+      // Legacy base64 path — still here so older clients keep working.
+      const base64Data = mediaData.replace(/^data:[^;]+;base64,/, "");
+      const buffer = Buffer.from(base64Data, "base64");
+
+      let uploadContentType = mimeType || `image/${extension}`;
+      if (uploadContentType === "video/quicktime") {
+        uploadContentType = "video/mp4";
+      }
+
+      const { error: uploadError } = await supabase.storage
+        .from("event-images")
+        .upload(fileName, buffer, {
+          contentType: uploadContentType,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error("Media upload error:", uploadError);
+        return res.status(500).json({ error: "Failed to upload media" });
+      }
     }
 
-    // Upload to Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from("event-images")
-      .upload(fileName, buffer, {
-        contentType: uploadContentType,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error("Media upload error:", uploadError);
-      return res.status(500).json({ error: "Failed to upload media" });
-    }
-
-    // Handle video thumbnail
+    // Thumbnail handling
     let thumbnailPath = null;
-    if (thumbnailData && (type === "video" || type === "gif")) {
+    if (thumbnailStoragePath) {
+      if (!thumbnailStoragePath.startsWith(`${eventId}/`)) {
+        return res.status(400).json({ error: "Invalid thumbnail path" });
+      }
+      thumbnailPath = thumbnailStoragePath;
+    } else if (thumbnailData && (type === "video" || type === "gif")) {
       const thumbFileName = `${eventId}/thumb_${pos}_${Date.now()}.jpg`;
       const thumbBase64 = thumbnailData.replace(/^data:[^;]+;base64,/, "");
       const thumbBuffer = Buffer.from(thumbBase64, "base64");

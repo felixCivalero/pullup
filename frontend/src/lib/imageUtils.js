@@ -3,6 +3,342 @@
 
 import { authenticatedFetch } from "./api.js";
 
+// ─────────────────────────────────────────────────────────────────────────
+// Modern Blob-based image pipeline.
+// Replaces the legacy base64 path: produces an actual Blob for direct upload
+// to Supabase (no 33% encoding bloat), prefers WebP output to preserve alpha,
+// and converts HEIC/HEIF (iPhone default) to JPEG so it actually renders.
+// ─────────────────────────────────────────────────────────────────────────
+
+const HEIC_MIME_TYPES = new Set(["image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"]);
+
+function isHeicFile(file) {
+  if (HEIC_MIME_TYPES.has((file.type || "").toLowerCase())) return true;
+  const name = (file.name || "").toLowerCase();
+  return name.endsWith(".heic") || name.endsWith(".heif");
+}
+
+let _webpSupportPromise = null;
+function browserSupportsWebpEncode() {
+  if (_webpSupportPromise) return _webpSupportPromise;
+  _webpSupportPromise = new Promise((resolve) => {
+    try {
+      const c = document.createElement("canvas");
+      c.width = c.height = 1;
+      c.toBlob(
+        (blob) => resolve(!!blob && blob.type === "image/webp"),
+        "image/webp",
+        0.8,
+      );
+    } catch {
+      resolve(false);
+    }
+  });
+  return _webpSupportPromise;
+}
+
+async function heicToJpegBlob(file) {
+  const { default: heic2any } = await import("heic2any");
+  const result = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 });
+  // heic2any returns a Blob or an array of Blobs (for multi-image HEIC)
+  return Array.isArray(result) ? result[0] : result;
+}
+
+/**
+ * Prepare an image file for upload. Returns a Blob, the chosen MIME, and the
+ * final dimensions. Leaves GIFs and animated images untouched so animation
+ * isn't destroyed.
+ */
+export async function processImageForUpload(file, options = {}) {
+  const { maxDimension = 2400, quality = 0.82 } = options;
+
+  // Animated/transparent formats we don't want to touch.
+  if (file.type === "image/gif") {
+    return { blob: file, mimeType: "image/gif", width: null, height: null };
+  }
+
+  // Decode source — convert HEIC first if needed.
+  const sourceBlob = isHeicFile(file) ? await heicToJpegBlob(file) : file;
+  const sourceMime = isHeicFile(file) ? "image/jpeg" : (file.type || "image/jpeg");
+
+  const imgUrl = URL.createObjectURL(sourceBlob);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = imgUrl;
+    });
+
+    // Compute target size, preserving aspect.
+    const longSide = Math.max(img.naturalWidth, img.naturalHeight);
+    const scale = longSide > maxDimension ? maxDimension / longSide : 1;
+    const targetW = Math.round(img.naturalWidth * scale);
+    const targetH = Math.round(img.naturalHeight * scale);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    // Output: WebP if supported and source isn't a JPEG-only origin, else JPEG.
+    // (For JPEG sources, WebP usually still wins on size; for PNG with alpha,
+    // WebP preserves transparency.)
+    const wantWebp = await browserSupportsWebpEncode();
+    const outMime = wantWebp ? "image/webp" : "image/jpeg";
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("canvas.toBlob returned null"))),
+        outMime,
+        quality,
+      );
+    });
+
+    // Safety: if the "compressed" blob is somehow larger than the source,
+    // fall back to the source (after HEIC conversion). Rare but possible
+    // for already-optimised small images.
+    if (blob.size > sourceBlob.size && sourceMime !== "image/heic") {
+      return { blob: sourceBlob, mimeType: sourceMime, width: img.naturalWidth, height: img.naturalHeight };
+    }
+
+    return { blob, mimeType: outMime, width: targetW, height: targetH };
+  } finally {
+    URL.revokeObjectURL(imgUrl);
+  }
+}
+
+/**
+ * Upload a Blob to a Supabase signed upload URL. Reports progress 0–100 via
+ * the optional onProgress callback. Mirrors how the Supabase JS SDK's
+ * `uploadToSignedUrl` does it (multipart/form-data with cacheControl), so
+ * the storage endpoint accepts it the same way; we just swap fetch for XHR
+ * to get upload progress events.
+ *
+ * `signal` is an AbortSignal for cancellation.
+ */
+export function uploadBlobToSignedUrl({ url, blob, mimeType, onProgress, signal, cacheControl = "3600" }) {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append("cacheControl", cacheControl);
+    // Supabase SDK uses an empty field name for the file payload.
+    // Pass an explicit filename so the server stores a sensible content-type.
+    const filename = "upload" + extensionFromMime(mimeType || blob.type);
+    form.append("", blob, filename);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url, true);
+    // Don't set Content-Type: the browser fills in multipart boundary.
+    xhr.setRequestHeader("x-upsert", "true");
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (onProgress) onProgress(100);
+        resolve();
+      } else {
+        reject(new Error(`Upload failed: HTTP ${xhr.status} ${xhr.responseText || ""}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.onabort = () => reject(new DOMException("Upload aborted", "AbortError"));
+
+    if (signal) {
+      if (signal.aborted) {
+        xhr.abort();
+        return;
+      }
+      signal.addEventListener("abort", () => xhr.abort(), { once: true });
+    }
+
+    xhr.send(form);
+  });
+}
+
+function extensionFromMime(mime) {
+  if (!mime) return "";
+  if (mime === "image/jpeg") return ".jpg";
+  if (mime === "image/png") return ".png";
+  if (mime === "image/webp") return ".webp";
+  if (mime === "image/gif") return ".gif";
+  if (mime === "video/mp4") return ".mp4";
+  if (mime === "video/webm") return ".webm";
+  if (mime === "video/quicktime") return ".mov";
+  const slash = mime.indexOf("/");
+  return slash > 0 ? "." + mime.slice(slash + 1) : "";
+}
+
+/**
+ * End-to-end direct upload for one event-media item.
+ * 1. Asks the backend for a signed upload URL.
+ * 2. PUTs the (optionally processed) Blob straight to Supabase.
+ * 3. Records the resulting storage path in event_media.
+ */
+export async function uploadEventMediaDirect({
+  eventId,
+  file,
+  mediaType,            // "image" | "video" | "gif"
+  position = 0,
+  thumbnailBlob = null, // optional: for videos, the still-frame as JPEG Blob
+  onProgress,
+  signal,
+}) {
+  // 1) Mint signed upload URL for the main file.
+  const tokenRes = await authenticatedFetch(`/host/events/${eventId}/storage-token`, {
+    method: "POST",
+    body: JSON.stringify({
+      mimeType: file.type,
+      position,
+      kind: "main",
+    }),
+  });
+  if (!tokenRes.ok) {
+    const err = await tokenRes.json().catch(() => ({}));
+    throw new Error(err.error || "Could not get upload URL");
+  }
+  const { path: mainPath, token: mainToken, uploadUrl: mainUploadUrl } = await tokenRes.json();
+
+  // 2) Upload main file with progress.
+  await uploadBlobToSignedUrl({
+    url: mainUploadUrl,
+    token: mainToken,
+    blob: file,
+    mimeType: file.type,
+    onProgress: onProgress ? (p) => onProgress(thumbnailBlob ? p * 0.9 : p) : undefined,
+    signal,
+  });
+
+  // 3) Optionally upload thumbnail (videos, gifs).
+  let thumbnailPath = null;
+  if (thumbnailBlob) {
+    const thumbTokenRes = await authenticatedFetch(`/host/events/${eventId}/storage-token`, {
+      method: "POST",
+      body: JSON.stringify({
+        mimeType: thumbnailBlob.type || "image/jpeg",
+        position,
+        kind: "thumb",
+      }),
+    });
+    if (thumbTokenRes.ok) {
+      const thumbInfo = await thumbTokenRes.json();
+      try {
+        await uploadBlobToSignedUrl({
+          url: thumbInfo.uploadUrl,
+          token: thumbInfo.token,
+          blob: thumbnailBlob,
+          mimeType: thumbnailBlob.type || "image/jpeg",
+          onProgress: onProgress ? (p) => onProgress(90 + p * 0.1) : undefined,
+          signal,
+        });
+        thumbnailPath = thumbInfo.path;
+      } catch (e) {
+        // Thumbnail is best-effort — log and continue without it.
+        console.warn("[uploadEventMediaDirect] thumbnail upload failed", e);
+      }
+    }
+  }
+
+  // 4) Record the media row.
+  const recordRes = await authenticatedFetch(`/host/events/${eventId}/media`, {
+    method: "POST",
+    body: JSON.stringify({
+      storagePath: mainPath,
+      thumbnailStoragePath: thumbnailPath,
+      mediaType,
+      mimeType: file.type,
+      position,
+    }),
+  });
+  if (!recordRes.ok) {
+    const err = await recordRes.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to record media");
+  }
+  if (onProgress) onProgress(100);
+  return await recordRes.json();
+}
+
+/**
+ * Convert a Supabase public storage URL to its image-transform variant so it
+ * can be requested at a specific width/quality. Returns the URL unchanged when
+ * it isn't a Supabase public URL we recognise (e.g. a blob: preview).
+ *
+ * @param {string} url       — the source public URL
+ * @param {object} opts
+ * @param {number} opts.width — target display width in CSS pixels
+ * @param {number} [opts.dpr] — pixel density multiplier (default 2 for retina)
+ * @param {number} [opts.quality] — JPEG quality 1–100 (default 82)
+ * @param {"cover"|"contain"|"fill"} [opts.resize] — Supabase transform mode
+ */
+export function transformedImageUrl(url, opts = {}) {
+  if (!url || typeof url !== "string") return url;
+  if (!url.includes("/storage/v1/object/public/event-images/")) return url;
+  // Already a transform URL? Don't double-rewrite.
+  if (url.includes("/storage/v1/render/image/public/")) return url;
+  // Blob preview / data URL → leave alone.
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  // Skip formats Supabase image transform can't preserve safely. GIF would
+  // be reduced to its first frame (animation lost), SVG transforms aren't
+  // supported. Leave these as their original public URL.
+  const pathOnly = url.split("?")[0].toLowerCase();
+  if (pathOnly.endsWith(".gif") || pathOnly.endsWith(".svg")) return url;
+
+  const { width, dpr = 2, quality = 82, resize } = opts;
+  const targetWidth = width ? Math.max(1, Math.round(width * dpr)) : null;
+  const rewritten = url.replace(
+    "/storage/v1/object/public/event-images/",
+    "/storage/v1/render/image/public/event-images/",
+  );
+  const params = new URLSearchParams();
+  if (targetWidth) params.set("width", String(targetWidth));
+  if (quality) params.set("quality", String(quality));
+  if (resize) params.set("resize", resize);
+  const qs = params.toString();
+  return qs ? `${rewritten}?${qs}` : rewritten;
+}
+
+/**
+ * Direct upload for the legacy single event image (the cover/thumbnail).
+ * Processes the file through the new pipeline then uploads + records.
+ */
+export async function uploadEventImageDirect({ eventId, file, onProgress, signal }) {
+  const { blob, mimeType } = await processImageForUpload(file);
+
+  // Token (server picks path)
+  const tokenRes = await authenticatedFetch(`/host/events/${eventId}/storage-token`, {
+    method: "POST",
+    body: JSON.stringify({ mimeType, kind: "main", position: 0 }),
+  });
+  if (!tokenRes.ok) {
+    const err = await tokenRes.json().catch(() => ({}));
+    throw new Error(err.error || "Could not get upload URL");
+  }
+  const { path, token, uploadUrl } = await tokenRes.json();
+
+  await uploadBlobToSignedUrl({
+    url: uploadUrl,
+    token,
+    blob,
+    mimeType,
+    onProgress,
+    signal,
+  });
+
+  const res = await authenticatedFetch(`/host/events/${eventId}/image`, {
+    method: "POST",
+    body: JSON.stringify({ storagePath: path }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to record image");
+  }
+  return await res.json();
+}
+
 /**
  * Compress and resize an image file
  * @param {File} file - Image file to compress
@@ -15,7 +351,8 @@ export function compressImage(
   file,
   maxWidth = 1200,
   maxHeight = 1200,
-  quality = 0.8
+  quality = 0.8,
+  mimeType = "image/jpeg"
 ) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -45,8 +382,8 @@ export function compressImage(
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert to base64 with compression
-        const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+        // PNG ignores `quality`; JPEG honours it. PNG preserves alpha (needed for logos).
+        const compressedDataUrl = canvas.toDataURL(mimeType, quality);
         resolve(compressedDataUrl);
       };
       img.onerror = reject;

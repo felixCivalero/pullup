@@ -5,6 +5,8 @@ import { formatLocationShort } from "../lib/urlUtils";
 import { EventPageContent } from "./EventPageContent";
 import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
+import { useHeroFocusDrag } from "./useHeroFocusDrag";
+import { transformedImageUrl } from "../lib/imageUtils";
 
 const CTA_BAR_HEIGHT = 62;
 
@@ -37,11 +39,34 @@ export function EventPreview({
   rsvpContent,
   autoShowRsvp = false,
   activeStep,
+  onFocusDrag,
 }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const scrollRef = useRef(null);
   const rsvpSectionRef = useRef(null);
+  const heroRef = useRef(null);
   const [rsvpVisible, setRsvpVisible] = useState(false);
+
+  // Observe hero width so we can request appropriately-sized images from
+  // Supabase's transform endpoint.
+  const [heroWidth, setHeroWidth] = useState(0);
+  useEffect(() => {
+    if (!heroRef.current || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width;
+      if (w) setHeroWidth(Math.round(w));
+    });
+    ro.observe(heroRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // Phone-scoped fit (used to gate the drag overlay and the fallback img)
+  const phoneFit = (mediaSettings?.phone?.fit) || mediaSettings?.fit || "cover";
+  const focusDrag = useHeroFocusDrag({
+    onDrag: onFocusDrag,
+    frameRef: heroRef,
+    enabled: !!onFocusDrag && phoneFit === "cover",
+  });
 
   const mediaCount = media?.length || 0;
   const canSwipe = mediaCount > 1 && !mediaSettings?.autoscroll;
@@ -149,30 +174,102 @@ export function EventPreview({
         >
           {/* ─── HERO SECTION ─── */}
           <div
+            ref={heroRef}
             data-hero
-            {...(canSwipe ? swipeHandlers : {})}
+            {...(canSwipe && !(onFocusDrag && phoneFit === "cover") ? swipeHandlers : {})}
             style={{
               position: "relative",
               width: "100%",
               height: "100%",
               minHeight: "100%",
               flexShrink: 0,
-              cursor: canSwipe ? "grab" : undefined,
+              cursor: focusDrag.dragging
+                ? "grabbing"
+                : (onFocusDrag && phoneFit === "cover")
+                  ? "grab"
+                  : (canSwipe ? "grab" : undefined),
+              userSelect: "none",
+              touchAction: onFocusDrag && phoneFit === "cover" ? "none" : "pan-y",
             }}
           >
-            {media && media.length > 0 ? (
-              <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-                <MediaCarousel media={media} mediaSettings={mediaSettings} hideDots controlledIndex={canSwipe ? carouselIndex : undefined} onIndexChange={setCarouselIndex} />
-              </div>
-            ) : imagePreview ? (
-              <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-                <img src={imagePreview} alt="Event preview" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-              </div>
-            ) : (
-              <div style={{
-                position: "absolute", inset: 0, zIndex: 0,
-                background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232,232,232,0.06) 0%, transparent 50%), #05040a",
-              }} />
+            {(() => {
+              // Phone view uses mediaSettings.phone.fit/focusX/focusY (with
+              // legacy fallback to top-level fit/focus on old events).
+              const phoneFormat = mediaSettings?.phone || {};
+              const fit = phoneFormat.fit || mediaSettings?.fit || "cover";
+              const legacyY = mediaSettings?.focus === "top"
+                ? 0
+                : mediaSettings?.focus === "bottom"
+                  ? 100
+                  : 50;
+              const focusX = typeof phoneFormat.focusX === "number" ? phoneFormat.focusX : 50;
+              const focusY = typeof phoneFormat.focusY === "number" ? phoneFormat.focusY : legacyY;
+              const phoneMediaSettings = {
+                ...(mediaSettings || {}),
+                fit,
+                focusX,
+                focusY,
+              };
+              const objectFit = fit === "contain" ? "contain" : "cover";
+              const objectPosition = `${focusX}% ${focusY}%`;
+              // Real (contain) mode on phone: inset the media so it floats with
+              // visible black framing on all sides — makes the native aspect feel
+              // intentional, and wide media reads as "small inside the frame".
+              const mediaInset = fit === "contain" ? "32px" : 0;
+              if (media && media.length > 0) {
+                return (
+                  <div style={{ position: "absolute", inset: mediaInset, zIndex: 0 }}>
+                    <MediaCarousel
+                      media={media}
+                      mediaSettings={phoneMediaSettings}
+                      hideDots
+                      controlledIndex={canSwipe ? carouselIndex : undefined}
+                      onIndexChange={setCarouselIndex}
+                      displayWidth={heroWidth}
+                    />
+                  </div>
+                );
+              }
+              if (imagePreview) {
+                return (
+                  <div style={{ position: "absolute", inset: mediaInset, zIndex: 0 }}>
+                    <img
+                      src={transformedImageUrl(imagePreview, { width: heroWidth })}
+                      alt="Event preview"
+                      draggable={false}
+                      loading="eager"
+                      decoding="async"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit,
+                        objectPosition,
+                        display: "block",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </div>
+                );
+              }
+              return (
+                <div style={{
+                  position: "absolute", inset: 0, zIndex: 0,
+                  background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232,232,232,0.06) 0%, transparent 50%), #05040a",
+                }} />
+              );
+            })()}
+
+            {/* Drag-to-reposition overlay (editor only, when Fit is on) */}
+            {onFocusDrag && phoneFit === "cover" && (
+              <div
+                {...focusDrag.bind}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 4,
+                  cursor: focusDrag.dragging ? "grabbing" : "grab",
+                }}
+              />
             )}
 
             <div style={{

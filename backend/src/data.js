@@ -1386,6 +1386,9 @@ function mapPersonFromDb(dbPerson) {
     importSource: dbPerson.import_source || null,
     importMetadata: dbPerson.import_metadata || null,
     campaignsReceived: dbPerson.campaigns_received || [],
+    // Marketing-unsubscribe timestamp surfaces here so callers can decide
+    // sendability without re-querying.
+    marketingUnsubscribedAt: dbPerson.marketing_unsubscribed_at || null,
     createdAt: dbPerson.created_at,
     updatedAt: dbPerson.updated_at,
   };
@@ -1599,7 +1602,8 @@ export async function getPeopleWithFilters(
   sortBy = "created_at",
   sortOrder = "desc",
   limit = 50,
-  offset = 0
+  offset = 0,
+  { sendableOnly = false } = {}
 ) {
   if (!userId) {
     return { people: [], total: 0 };
@@ -1996,9 +2000,40 @@ export async function getPeopleWithFilters(
   }
 
   // Remove duplicates (in case any person appears in multiple batches due to filters)
-  const uniquePeople = Array.from(
+  let uniquePeople = Array.from(
     new Map(allPeople.map((p) => [p.id, p])).values()
   );
+
+  // Sendable-only filter: drop people we can't actually email (no address,
+  // unsubscribed from marketing, or on the global suppression list from
+  // bounces/complaints). Applied here — before sort/pagination — so the
+  // total count surfaced to the caller reflects the deliverable audience.
+  if (sendableOnly) {
+    const before = uniquePeople.length;
+    // 1) drop people without an email or who've unsubscribed
+    uniquePeople = uniquePeople.filter(
+      (p) => !!p.email && !p.marketing_unsubscribed_at,
+    );
+    // 2) drop people whose address is on the suppression list (bounce/complaint)
+    if (uniquePeople.length > 0) {
+      const { getSuppressedEmailSet } = await import(
+        "./email/repos/emailSuppressionsRepo.js"
+      );
+      const suppressed = await getSuppressedEmailSet(
+        uniquePeople.map((p) => p.email),
+      );
+      if (suppressed.size > 0) {
+        uniquePeople = uniquePeople.filter(
+          (p) => !suppressed.has(String(p.email).toLowerCase()),
+        );
+      }
+    }
+    if (before !== uniquePeople.length) {
+      console.log(
+        `[CRM Filter] sendableOnly: dropped ${before - uniquePeople.length} non-sendable (of ${before})`,
+      );
+    }
+  }
 
   // Sort
   const validSortFields = [

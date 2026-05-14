@@ -68,23 +68,19 @@ export async function sendCampaignInBatches(
       ? (process.env.BACKEND_URL || "https://pullup.se/api")
       : "http://localhost:3001";
 
-    // 3. Get all recipients using filterCriteria
+    // 3. Get all recipients using filterCriteria. sendableOnly drops everyone
+    // without an email, unsubscribed contacts, and addresses on the
+    // suppression list — so the count and the actual send are aligned.
     const { people } = await getPeopleWithFilters(
       campaign.userId,
       campaign.filterCriteria,
       "created_at",
       "desc",
       100000, // Large limit to get all recipients
-      0
+      0,
+      { sendableOnly: true },
     );
-
-    // Filter out anyone who has unsubscribed from marketing. We keep their row
-    // intact (history, RSVPs) but skip them at send time.
-    const eligible = people.filter((p) => !p.marketing_unsubscribed_at);
-    const skippedUnsubscribed = people.length - eligible.length;
-    if (skippedUnsubscribed > 0) {
-      console.log(`[campaignSender] Skipping ${skippedUnsubscribed} unsubscribed recipients`);
-    }
+    const eligible = people;
 
     if (eligible.length === 0) {
       await updateEmailCampaignStatus(campaignId, "sent", {

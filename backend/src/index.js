@@ -4966,6 +4966,16 @@ app.get("/host/crm/people", requireAuth, async (req, res) => {
 app.get("/host/crm/people-filter-index", requireAuth, async (req, res) => {
   try {
     const people = await getAllPeopleWithStats(req.user.id);
+
+    // Batch-check the suppression list once for everyone in the host's
+    // CRM. This lets the frontend show a live recipient count that already
+    // excludes unsendable contacts (no email, unsubscribed, bounced).
+    const emails = people.map((p) => p.email).filter(Boolean);
+    const { getSuppressedEmailSet } = await import(
+      "./email/repos/emailSuppressionsRepo.js"
+    );
+    const suppressed = await getSuppressedEmailSet(emails);
+
     const index = people.map((p) => {
       const eventIds = [];
       let hadDinner = false;
@@ -4973,7 +4983,11 @@ app.get("/host/crm/people-filter-index", requireAuth, async (req, res) => {
         if (h.eventId) eventIds.push(h.eventId);
         if (h.wantsDinner) hadDinner = true;
       }
-      return { id: p.id, eventIds, hadDinner };
+      const sendable =
+        !!p.email &&
+        !p.marketingUnsubscribedAt &&
+        !suppressed.has(String(p.email).toLowerCase());
+      return { id: p.id, eventIds, hadDinner, sendable };
     });
     return res.json({ index, total: index.length });
   } catch (error) {
@@ -5609,7 +5623,9 @@ app.post("/host/crm/campaigns", requireAuth, async (req, res) => {
       } - ${new Date().toLocaleDateString()}`;
     }
 
-    // Get recipients count using filterCriteria
+    // Get recipients count using filterCriteria — count only deliverable
+    // contacts (has email, not unsubscribed, not on suppression list) so the
+    // number the host sees on the confirm dialog matches what actually sends.
     const { getPeopleWithFilters } = await import("./data.js");
     const result = await getPeopleWithFilters(
       req.user.id,
@@ -5617,7 +5633,8 @@ app.post("/host/crm/campaigns", requireAuth, async (req, res) => {
       "created_at",
       "desc",
       1, // Just need count
-      0
+      0,
+      { sendableOnly: true },
     );
 
     const totalRecipients = result.total || 0;

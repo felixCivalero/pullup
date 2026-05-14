@@ -104,8 +104,10 @@ export function CrmTab({ onSegmentChange }) {
   }, [events]);
 
   // Pure client-side filter — operates on the lightweight index plus the
-  // tag map derived from events. Returns the count of people who match
-  // the supplied filters. Used to drive the live recipient badge.
+  // tag map derived from events. Returns counts for the live recipient
+  // badge: { sendable, total }. `sendable` excludes contacts with no email,
+  // unsubscribed contacts, and addresses on the global suppression list,
+  // so the badge matches what the backend would actually send.
   const optimisticTotal = useMemo(() => {
     if (!filterIndex) return null;
     const wantEventIds = (filters.attendedEventIds || []).length > 0
@@ -115,7 +117,8 @@ export function CrmTab({ onSegmentChange }) {
       ? new Set(filters.attendedEventTags)
       : null;
     const wantDinner = filters.hasDinner === true;
-    let count = 0;
+    let sendable = 0;
+    let total = 0;
     for (const p of filterIndex) {
       if (wantEventIds && !p.eventIds.some((id) => wantEventIds.has(id))) continue;
       if (wantTags) {
@@ -131,9 +134,13 @@ export function CrmTab({ onSegmentChange }) {
         if (!ok) continue;
       }
       if (wantDinner && !p.hadDinner) continue;
-      count += 1;
+      total += 1;
+      // p.sendable is set by the backend (people-filter-index endpoint).
+      // Legacy clients/responses without this field fall back to "sendable"
+      // so we don't accidentally zero out the count.
+      if (p.sendable !== false) sendable += 1;
     }
-    return count;
+    return { sendable, total };
   }, [filterIndex, filters, tagsByEventId]);
 
   // Fetch the filter index once on mount. Tiny payload; failure is
@@ -261,10 +268,15 @@ export function CrmTab({ onSegmentChange }) {
       hasDinner: filters.hasDinner !== undefined ? filters.hasDinner : undefined,
       eventsAttendedMin: 0,
     };
-    // Prefer optimisticTotal when available so the email composer's
+    // Prefer the optimistic count when available so the email composer's
     // "Send to N recipients" reflects filter changes instantly, matching
-    // the live count badge above.
-    onSegmentChange({ filterCriteria, total: optimisticTotal ?? total });
+    // the live count badge above. `sendable` is what we'll actually send to
+    // (no-email / unsubscribed / suppressed contacts excluded).
+    const optimisticSendable = optimisticTotal?.sendable;
+    onSegmentChange({
+      filterCriteria,
+      total: optimisticSendable != null ? optimisticSendable : total,
+    });
   }, [searchQuery, filters, total, optimisticTotal, onSegmentChange]);
 
   // Load detailed touchpoints (campaign history etc.) for a single person
@@ -675,23 +687,51 @@ export function CrmTab({ onSegmentChange }) {
                   transition: "opacity 0.15s ease",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                  <span
-                    style={{
-                      fontFamily:
-                        "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                      fontSize: "17px",
-                      fontWeight: 600,
-                      color: "#4ade80",
-                      transition: "color 0.15s ease",
-                    }}
-                  >
-                    {(optimisticTotal ?? total).toLocaleString()}
-                  </span>
-                  <span style={{ fontSize: "11.5px", opacity: 0.55, letterSpacing: "0.02em" }}>
-                    {(optimisticTotal ?? total) === 1 ? "recipient" : "recipients"}
-                  </span>
-                </div>
+                {(() => {
+                  // Prefer the live optimistic count when it's loaded. The
+                  // legacy server `total` is shown as a fallback (and only
+                  // until the filter index lands), so we shouldn't worry
+                  // about the unsendable gap in that branch.
+                  const sendable = optimisticTotal?.sendable;
+                  const matched = optimisticTotal?.total;
+                  const displayCount = sendable != null ? sendable : total;
+                  const skipped =
+                    sendable != null && matched != null
+                      ? Math.max(0, matched - sendable)
+                      : 0;
+                  return (
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span
+                        style={{
+                          fontFamily:
+                            "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                          fontSize: "17px",
+                          fontWeight: 600,
+                          color: "#4ade80",
+                          transition: "color 0.15s ease",
+                        }}
+                      >
+                        {displayCount.toLocaleString()}
+                      </span>
+                      <span style={{ fontSize: "11.5px", opacity: 0.55, letterSpacing: "0.02em" }}>
+                        {displayCount === 1 ? "recipient" : "recipients"}
+                      </span>
+                      {skipped > 0 && (
+                        <span
+                          title="Contacts in this segment that we can't email (no address, unsubscribed, or hard-bounced)"
+                          style={{
+                            fontSize: "10.5px",
+                            opacity: 0.45,
+                            letterSpacing: "0.02em",
+                            marginLeft: 4,
+                          }}
+                        >
+                          · {skipped.toLocaleString()} skipped
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
                 {listLoading && (
                   <Loader2
                     size={11}

@@ -103,14 +103,24 @@ export function LandingPage() {
 
   // Logged-in users skip the marketing landing page entirely and go straight
   // to their dashboard. Gate on `loading` so we don't fire during auth
-  // hydration (when the user reference can briefly toggle between cached
-  // and confirmed states — that's what was causing the / ↔ /events loop
-  // with ProtectedLayout's reverse redirect).
+  // hydration, and use a timestamp circuit-breaker so that if anything in
+  // the app sends us back to "/" within a few seconds (e.g. a 401 from a
+  // background call) we don't immediately re-redirect and create a loop.
   useEffect(() => {
     if (loading) return;
     if (!user) return;
     if (redirectedRef.current) return;
+
+    const LAST_KEY = "pullup_landing_redirected_at";
+    const lastAt = Number(sessionStorage.getItem(LAST_KEY)) || 0;
+    if (Date.now() - lastAt < 4000) {
+      // Just came back from /events very recently — break the loop and let
+      // the user see the landing page.
+      return;
+    }
+
     redirectedRef.current = true;
+    sessionStorage.setItem(LAST_KEY, String(Date.now()));
 
     const hash = window.location.hash || "";
     const search = window.location.search || "";

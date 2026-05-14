@@ -39,11 +39,13 @@ export async function authenticatedFetch(url, options = {}) {
     headers,
   });
 
-  // Handle 401 Unauthorized - redirect to login
+  // Handle 401 Unauthorized: clear the Supabase session and let React route
+  // the user back to "/" via ProtectedLayout's auth guard. We deliberately do
+  // NOT hard-redirect with window.location.href — that caused a ping-pong
+  // loop with LandingPage's auto-redirect to /events when best-effort
+  // background calls (e.g. /auth/record-consent on every mount) flapped.
   if (response.status === 401) {
-    // Clear session and redirect
     await supabase.auth.signOut();
-    window.location.href = "/";
     throw new Error("Unauthorized - please sign in");
   }
 

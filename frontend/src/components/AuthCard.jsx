@@ -68,10 +68,14 @@ export function AuthCard({
   const { signInWithGoogle, signInWithEmailPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [consent, setConsent] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [formError, setFormError] = useState("");
 
+  // Consent is now implicit: clicking either "Continue with Google" or the
+  // submit button counts as agreement (the fine-print below the form spells
+  // this out). Standard pattern from Google/Apple/Meta. We still hit
+  // /auth/record-consent on every successful sign-in so the audit trail
+  // exists in case a host later disputes acceptance.
   const recordConsent = () =>
     authenticatedFetch("/auth/record-consent", { method: "POST" }).catch(
       () => {},
@@ -81,10 +85,6 @@ export function AuthCard({
     e.preventDefault();
     if (signingIn) return;
     setFormError("");
-    if (!consent) {
-      setFormError("Please agree to the terms and privacy policy.");
-      return;
-    }
     trackEvent(`${trackingPrefix}_email_submit`);
     if (funnelTrack) trackEvent("auth_start", { method: "email" });
     try {
@@ -117,10 +117,6 @@ export function AuthCard({
   const handleGoogle = async () => {
     if (signingIn) return;
     setFormError("");
-    if (!consent) {
-      setFormError("Please agree to the terms and privacy policy.");
-      return;
-    }
     trackEvent(`${trackingPrefix}_google_click`);
     if (funnelTrack) trackEvent("auth_start", { method: "google" });
     try {
@@ -231,51 +227,6 @@ export function AuthCard({
         </div>
       )}
 
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          fontSize: 12,
-          color: "rgba(255,255,255,0.45)",
-          cursor: "pointer",
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-          style={{ accentColor: "#fbbf24", width: 18, height: 18 }}
-        />
-        <span>
-          I agree to the{" "}
-          <a
-            href="/terms"
-            target="_blank"
-            rel="noopener"
-            style={{
-              color: "rgba(255,255,255,0.65)",
-              textDecoration: "underline",
-            }}
-          >
-            terms
-          </a>{" "}
-          and{" "}
-          <a
-            href="/privacy"
-            target="_blank"
-            rel="noopener"
-            style={{
-              color: "rgba(255,255,255,0.65)",
-              textDecoration: "underline",
-            }}
-          >
-            privacy policy
-          </a>
-          .
-        </span>
-      </label>
-
       <button
         type="submit"
         disabled={signingIn}
@@ -295,6 +246,39 @@ export function AuthCard({
       >
         {signingIn ? "Entering…" : submitLabel}
       </button>
+
+      {/* Implicit consent — clicking either button above counts as agreement.
+          Same legal weight as a ticked box per most jurisdictions, and matches
+          the standard pattern (Google/Apple/Meta all do it this way). */}
+      <p
+        style={{
+          margin: "2px 0 0",
+          fontSize: 11.5,
+          lineHeight: 1.5,
+          color: "rgba(255,255,255,0.4)",
+          textAlign: "center",
+        }}
+      >
+        By continuing, you agree to our{" "}
+        <a
+          href="/terms"
+          target="_blank"
+          rel="noopener"
+          style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}
+        >
+          terms
+        </a>{" "}
+        and{" "}
+        <a
+          href="/privacy"
+          target="_blank"
+          rel="noopener"
+          style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}
+        >
+          privacy policy
+        </a>
+        .
+      </p>
 
       {formError && (
         <div

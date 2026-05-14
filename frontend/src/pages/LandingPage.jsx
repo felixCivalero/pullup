@@ -97,14 +97,11 @@ export function LandingPage() {
     }).catch(() => {});
   }, []);
 
-  // Don't auto-redirect logged-in users browsing the landing page casually.
-  // But if they JUST signed in from this page, send them to the dashboard.
-  // Three signals that we just completed a sign-in:
-  //   1. OAuth tokens still in the URL (desktop — Supabase hasn't cleaned yet)
-  //   2. OAuth `code=` in query (PKCE flow)
-  //   3. Our own `pullup_signin_pending` flag set right before the OAuth
-  //      redirect (mobile — Supabase scrubs the hash before React sees it,
-  //      so signals 1 and 2 miss; this flag is the reliable path)
+  // Logged-in users skip the marketing landing page entirely and go straight
+  // to their dashboard. We still detect post-OAuth round-trips so the
+  // `signed_in` analytics event fires with the right `via` attribution
+  // (sessionStorage flag survives the OAuth redirect; URL hash/code don't on
+  // mobile because Supabase scrubs them before React mounts).
   useEffect(() => {
     if (!user) return;
     const hash = window.location.hash || "";
@@ -118,8 +115,8 @@ export function LandingPage() {
     if (justCompletedOAuth) {
       sessionStorage.removeItem("pullup_signin_pending");
       trackEvent("signed_in", { via: pendingFlag ? "google" : "auto" });
-      navigate("/events", { replace: true });
     }
+    navigate("/events", { replace: true });
   }, [user, navigate]);
 
   useEffect(() => {

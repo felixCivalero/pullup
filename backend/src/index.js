@@ -207,9 +207,19 @@ function extractEventImagesFilePath(imageUrl) {
   return m?.[1] || null;
 }
 
+// OG canonical image dimensions. Facebook/Instagram crawlers validate that
+// declared og:image:width/height match the actual image — declaring 1200x630
+// while serving a 1080x1920 phone upload caused Instagram DM previews to drop
+// the image (WhatsApp's crawler is more lenient, which is why it still worked).
+const OG_IMAGE_WIDTH = 1200;
+const OG_IMAGE_HEIGHT = 630;
+
 /**
- * Convert signed/public supabase URL into permanent public URL for OG tags
- * If we can't, fall back to original.
+ * Convert signed/public supabase URL into a permanent, OG-friendly public URL.
+ * For event-images, applies Supabase's render transform to produce a 1200x630
+ * cover-cropped image so the og:image:width/height tags are truthful and the
+ * payload is small enough for strict crawlers (Instagram in particular).
+ * Falls back to the original URL on any failure.
  */
 async function toOgPublicImageUrl(imageUrl, routeName = "Share") {
   if (!imageUrl) return null;
@@ -236,7 +246,14 @@ async function toOgPublicImageUrl(imageUrl, routeName = "Share") {
     const { supabase } = await import("./supabase.js");
     const {
       data: { publicUrl },
-    } = supabase.storage.from("event-images").getPublicUrl(filePath);
+    } = supabase.storage.from("event-images").getPublicUrl(filePath, {
+      transform: {
+        width: OG_IMAGE_WIDTH,
+        height: OG_IMAGE_HEIGHT,
+        resize: "cover",
+        quality: 80,
+      },
+    });
 
     if (publicUrl) {
       logger.info(`[${routeName}] OG public image URL generated`, {
@@ -259,6 +276,20 @@ async function toOgPublicImageUrl(imageUrl, routeName = "Share") {
   }
 }
 
+// Pick the best static source image to use for OG previews.
+// Preference: full-res image from media[] > cover/image fields.
+// We avoid the events.cover_image_url / events.image_url for video covers
+// because those fields hold a low-res client-generated video thumbnail
+// (see /host/events/:eventId/media upload handler), and upscaling a tiny
+// thumbnail to 1200x630 yields a blurry preview.
+function pickOgSourceImage(event) {
+  const media = Array.isArray(event?.media) ? event.media : [];
+  const images = media.filter((m) => m?.mediaType === "image" && m?.url);
+  const coverImage = images.find((m) => m.isCover) || images[0];
+  if (coverImage?.url) return coverImage.url;
+  return event?.coverImageUrl || event?.imageUrl || null;
+}
+
 // ---------------------------
 // Helper: Generate OG HTML for an event (uses permanent public image URL)
 // ---------------------------
@@ -272,7 +303,8 @@ async function generateOgHtmlForEvent(event, routeName = "Share", queryString = 
     imageUrl: event?.imageUrl || "none",
   });
 
-  const ogImageUrl = await toOgPublicImageUrl(event?.coverImageUrl || event?.imageUrl, routeName);
+  const sourceImage = pickOgSourceImage(event);
+  const ogImageUrl = await toOgPublicImageUrl(sourceImage, routeName);
 
   logger.debug(`[${routeName}] Final OG image URL`, {
     imageUrl: ogImageUrl || "none (will use default)",
@@ -332,6 +364,15 @@ function generateOgHtml(event, queryString = "") {
 
   const description = escapeHtml(descParts.join(" — ")).slice(0, 200);
 
+  // Derive image MIME type from URL path (ignoring query params). Crawlers use
+  // og:image:type to decide whether to fetch — wrong/missing type causes some
+  // (notably Instagram via Facebook) to skip the image.
+  const imagePath = String(imageUrl).split("?")[0].toLowerCase();
+  let imageMime = "image/jpeg";
+  if (imagePath.endsWith(".png")) imageMime = "image/png";
+  else if (imagePath.endsWith(".webp")) imageMime = "image/webp";
+  else if (imagePath.endsWith(".gif")) imageMime = "image/gif";
+
   // Debug logging (keep it, but less noisy)
   console.log(`[OG] title: ${titleRaw}`);
   console.log(`[OG] url: ${eventUrl}`);
@@ -352,14 +393,18 @@ function generateOgHtml(event, queryString = "") {
   <meta property="og:title" content="${ogTitle}">
   <meta property="og:description" content="${description}">
   <meta property="og:image" content="${imageUrl}">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
+  <meta property="og:image:secure_url" content="${imageUrl}">
+  <meta property="og:image:type" content="${imageMime}">
+  <meta property="og:image:width" content="${OG_IMAGE_WIDTH}">
+  <meta property="og:image:height" content="${OG_IMAGE_HEIGHT}">
+  <meta property="og:image:alt" content="${escapedTitle}">
   <meta property="og:site_name" content="Pull Up">
 
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${ogTitle}">
   <meta name="twitter:description" content="${description}">
   <meta name="twitter:image" content="${imageUrl}">
+  <meta name="twitter:image:alt" content="${escapedTitle}">
 
   <!-- Redirect humans immediately -->
   <meta http-equiv="refresh" content="0;url=${redirectUrl}">

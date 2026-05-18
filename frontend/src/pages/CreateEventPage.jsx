@@ -297,8 +297,24 @@ function getQuickDateOptions() {
 }
 
 // ─── RSVP form-fields builder ───────────────────────────────────────
-// Custom fields collected at RSVP time. Name + email are always required
-// and rendered separately by RsvpForm — this builder controls everything else.
+// Form fields collected at RSVP time. Name + email are always required
+// (rendered as locked rows in the builder) but can be reordered alongside
+// custom fields. They live in the same array under sentinel ids.
+const NAME_FIELD_ID = "__name__";
+const EMAIL_FIELD_ID = "__email__";
+const isLockedFieldId = (id) => id === NAME_FIELD_ID || id === EMAIL_FIELD_ID;
+const makeNameField  = () => ({ id: NAME_FIELD_ID,  type: "name",  label: "Full name", iconKey: "name",  required: true, locked: true });
+const makeEmailField = () => ({ id: EMAIL_FIELD_ID, type: "email", label: "Email",     iconKey: "email", required: true, locked: true });
+const withLockedFields = (fields) => {
+  const list = Array.isArray(fields) ? [...fields] : [];
+  const hasName  = list.some((f) => f && f.id === NAME_FIELD_ID);
+  const hasEmail = list.some((f) => f && f.id === EMAIL_FIELD_ID);
+  const prefix = [];
+  if (!hasName)  prefix.push(makeNameField());
+  if (!hasEmail) prefix.push(makeEmailField());
+  return [...prefix, ...list];
+};
+
 const FORM_FIELD_PRESETS = [
   { type: "instagram", label: "Instagram", placeholder: "Your Instagram username",        iconKey: "instagram", color: "#E1306C" },
   { type: "phone",     label: "Phone",     placeholder: "Phone number",                   iconKey: "phone",     color: "#a3e635" },
@@ -405,14 +421,6 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
     setFields(next);
   };
 
-  const lockedRowStyle = {
-    display: "flex", alignItems: "center", gap: "10px",
-    padding: "10px 12px", borderRadius: "10px",
-    border: "1px solid rgba(255,255,255,0.05)",
-    background: "rgba(20, 16, 30, 0.25)",
-    opacity: 0.85,
-  };
-
   return (
     <div>
       <h3 style={{
@@ -422,24 +430,12 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
         Form Fields
       </h3>
 
-      {/* Locked: Name + Email */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "8px" }}>
-        <div style={lockedRowStyle}>
-          <FormFieldIcon iconKey="name" />
-          <div style={{ flex: 1, fontSize: "13px", color: "rgba(255,255,255,0.85)" }}>Full name</div>
-          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Required</div>
-        </div>
-        <div style={lockedRowStyle}>
-          <FormFieldIcon iconKey="email" />
-          <div style={{ flex: 1, fontSize: "13px", color: "rgba(255,255,255,0.85)" }}>Email</div>
-          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Required</div>
-        </div>
-      </div>
-
-      {/* Custom fields list */}
+      {/* Unified field list — name & email are locked but reorderable */}
       {fields.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
-          {fields.map((f, i) => (
+          {fields.map((f, i) => {
+            const locked = isLockedFieldId(f.id);
+            return (
             <div
               key={f.id}
               draggable
@@ -465,40 +461,52 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
                   <GripVertical size={14} />
                   <FormFieldIcon iconKey={f.iconKey} />
                 </span>
-                <input
-                  value={f.label}
-                  onChange={(e) => updateField(i, { label: e.target.value })}
-                  placeholder={f.type === "custom" ? "Field heading (e.g. Allergies)" : "Heading"}
-                  style={{
-                    flex: 1, background: "transparent", border: "none", outline: "none",
-                    color: "#fff", fontSize: "13px", padding: "2px 0",
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => updateField(i, { required: !f.required })}
-                  style={{
-                    fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.12em",
-                    padding: "4px 8px", borderRadius: "6px",
-                    border: f.required ? "1px solid rgba(163,230,53,0.4)" : "1px solid rgba(255,255,255,0.08)",
-                    background: f.required ? "rgba(163,230,53,0.12)" : "transparent",
-                    color: f.required ? "#a3e635" : "rgba(255,255,255,0.4)",
-                    cursor: "pointer", fontWeight: 600,
-                  }}
-                >
-                  {f.required ? "Required" : "Optional"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeField(i)}
-                  title="Remove field"
-                  style={{
-                    background: "none", border: "none", color: "rgba(255,255,255,0.3)",
-                    cursor: "pointer", padding: "4px", display: "flex", alignItems: "center",
-                  }}
-                >
-                  <Trash2 size={14} />
-                </button>
+                {locked ? (
+                  <div style={{ flex: 1, fontSize: "13px", color: "rgba(255,255,255,0.85)", padding: "2px 0" }}>
+                    {f.label}
+                  </div>
+                ) : (
+                  <input
+                    value={f.label}
+                    onChange={(e) => updateField(i, { label: e.target.value })}
+                    placeholder={f.type === "custom" ? "Field heading (e.g. Allergies)" : "Heading"}
+                    style={{
+                      flex: 1, background: "transparent", border: "none", outline: "none",
+                      color: "#fff", fontSize: "13px", padding: "2px 0",
+                    }}
+                  />
+                )}
+                {locked ? (
+                  <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Required</div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => updateField(i, { required: !f.required })}
+                    style={{
+                      fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.12em",
+                      padding: "4px 8px", borderRadius: "6px",
+                      border: f.required ? "1px solid rgba(163,230,53,0.4)" : "1px solid rgba(255,255,255,0.08)",
+                      background: f.required ? "rgba(163,230,53,0.12)" : "transparent",
+                      color: f.required ? "#a3e635" : "rgba(255,255,255,0.4)",
+                      cursor: "pointer", fontWeight: 600,
+                    }}
+                  >
+                    {f.required ? "Required" : "Optional"}
+                  </button>
+                )}
+                {!locked && (
+                  <button
+                    type="button"
+                    onClick={() => removeField(i)}
+                    title="Remove field"
+                    style={{
+                      background: "none", border: "none", color: "rgba(255,255,255,0.3)",
+                      cursor: "pointer", padding: "4px", display: "flex", alignItems: "center",
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
               {f.type === "custom" && (
                 <div style={{ paddingLeft: "26px" }}>
@@ -514,7 +522,7 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
                 </div>
               )}
             </div>
-          ))}
+          );})}
         </div>
       )}
 
@@ -660,16 +668,16 @@ export function CreateEventPage() {
   const [locationLat, setLocationLat] = useState(draft?.locationLat || null);
   const [locationLng, setLocationLng] = useState(draft?.locationLng || null);
   const [hideLocation, setHideLocation] = useState(draft?.hideLocation || false);
-  const [startsAt, setStartsAt] = useState(draft?.startsAt || (() => {
-    // Default to tomorrow at 19:00 local time — a typical evening event slot
-    // the host can easily adjust.
+  const [startsAt, setStartsAt] = useState(() => {
+    // Always start at tomorrow 19:00 local — overwritten by the load path in
+    // edit mode. Intentionally ignores any stale draft value.
     const d = new Date();
     d.setDate(d.getDate() + 1);
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}T19:00`;
-  })());
+  });
   const [endsAt, setEndsAt] = useState(draft?.endsAt || "");
   const [timezone, setTimezone] = useState(draft?.timezone || getUserTimezone());
   const [maxAttendees, setMaxAttendees] = useState(draft?.maxAttendees || "");
@@ -772,7 +780,7 @@ export function CreateEventPage() {
   const [spotify, setSpotify] = useState(draft?.spotify || "");
   const [tiktok, setTiktok] = useState(draft?.tiktok || "");
   const [soundcloud, setSoundcloud] = useState(draft?.soundcloud || "");
-  const [formFields, setFormFields] = useState(draft?.formFields || []);
+  const [formFields, setFormFields] = useState(withLockedFields(draft?.formFields));
   const [formFieldDragIndex, setFormFieldDragIndex] = useState(null);
 
   const [loading, setLoading] = useState(false);
@@ -1188,8 +1196,8 @@ export function CreateEventPage() {
         setTiktok(ev.tiktok || "");
         setSoundcloud(ev.soundcloud || "");
 
-        // Custom RSVP form fields
-        setFormFields(Array.isArray(ev.formFields) ? ev.formFields : []);
+        // RSVP form fields — pad with locked name/email sentinels for legacy events
+        setFormFields(withLockedFields(ev.formFields));
 
         // Media settings
         const ms = ev.mediaSettings || {};
@@ -1702,7 +1710,7 @@ export function CreateEventPage() {
         spotify: sections.find(s => s.type === "socials")?.spotify || "",
         tiktok: sections.find(s => s.type === "socials")?.tiktok || "",
         soundcloud: sections.find(s => s.type === "socials")?.soundcloud || "",
-        formFields: (formFields || []).filter(f => f && f.id && (f.label || "").trim()),
+        formFields: (formFields || []).filter(f => f && f.id && (isLockedFieldId(f.id) || (f.label || "").trim())),
         location,
         locationLat: locationLat || null,
         locationLng: locationLng || null,

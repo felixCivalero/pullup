@@ -45,9 +45,23 @@ export function RsvpForm({
   const [capacityExceeded, setCapacityExceeded] = useState(false);
   const [customAnswers, setCustomAnswers] = useState({});
 
-  const customFields = Array.isArray(event?.formFields)
-    ? event.formFields.filter((f) => f && f.id && (f.label || "").trim())
-    : [];
+  // Render-order: walk event.formFields, inserting locked name/email sentinels
+  // at the front if the event doesn't already place them. customFields excludes
+  // the sentinels — those are rendered via the dedicated Name/Email inputs.
+  const NAME_FIELD_ID = "__name__";
+  const EMAIL_FIELD_ID = "__email__";
+  const rawFields = Array.isArray(event?.formFields) ? event.formFields : [];
+  const orderedFields = (() => {
+    const hasName  = rawFields.some((f) => f && f.id === NAME_FIELD_ID);
+    const hasEmail = rawFields.some((f) => f && f.id === EMAIL_FIELD_ID);
+    const prefix = [];
+    if (!hasName)  prefix.push({ id: NAME_FIELD_ID,  type: "name"  });
+    if (!hasEmail) prefix.push({ id: EMAIL_FIELD_ID, type: "email" });
+    return [...prefix, ...rawFields];
+  })();
+  const customFields = orderedFields.filter(
+    (f) => f && f.id && f.id !== NAME_FIELD_ID && f.id !== EMAIL_FIELD_ID && (f.label || "").trim()
+  );
 
   useEffect(() => {
     if (document.activeElement && document.activeElement.blur) {
@@ -349,49 +363,58 @@ export function RsvpForm({
       }}
       onTouchStart={(e) => { if (e.touches.length > 1) e.preventDefault(); }}
     >
-      {/* Email & Name */}
+      {/* Name + email + custom — rendered in the order set by the host */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          <label style={fieldLabelStyle}>
-            Email<span style={requiredMarkStyle}>*</span>
-          </label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => { if (!isVipInvite) { setEmail(e.target.value); setError(""); } }}
-            placeholder="you@example.com"
-            disabled={loading}
-            readOnly={isVipInvite}
-            autoComplete="email"
-            style={{
-              ...inputStyle,
-              borderColor: error && error.includes("email") ? "rgba(239, 68, 68, 0.5)" : undefined,
-              ...(isVipInvite ? { opacity: 0.7, cursor: "default" } : {}),
-            }}
-          />
-          {error && error.includes("email") && (
-            <div style={{ fontSize: "12px", color: "#ef4444", marginTop: "4px", paddingLeft: "2px" }}>
-              {error}
-            </div>
-          )}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          <label style={fieldLabelStyle}>
-            Full name<span style={requiredMarkStyle}>*</span>
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your full name"
-            required
-            disabled={loading}
-            autoComplete="name"
-            style={inputStyle}
-          />
-        </div>
-        {customFields.map((f) => {
+        {orderedFields.map((f) => {
+          if (f.id === NAME_FIELD_ID) {
+            return (
+              <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={fieldLabelStyle}>
+                  Full name<span style={requiredMarkStyle}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your full name"
+                  required
+                  disabled={loading}
+                  autoComplete="name"
+                  style={inputStyle}
+                />
+              </div>
+            );
+          }
+          if (f.id === EMAIL_FIELD_ID) {
+            return (
+              <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={fieldLabelStyle}>
+                  Email<span style={requiredMarkStyle}>*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => { if (!isVipInvite) { setEmail(e.target.value); setError(""); } }}
+                  placeholder="you@example.com"
+                  disabled={loading}
+                  readOnly={isVipInvite}
+                  autoComplete="email"
+                  style={{
+                    ...inputStyle,
+                    borderColor: error && error.includes("email") ? "rgba(239, 68, 68, 0.5)" : undefined,
+                    ...(isVipInvite ? { opacity: 0.7, cursor: "default" } : {}),
+                  }}
+                />
+                {error && error.includes("email") && (
+                  <div style={{ fontSize: "12px", color: "#ef4444", marginTop: "4px", paddingLeft: "2px" }}>
+                    {error}
+                  </div>
+                )}
+              </div>
+            );
+          }
+          if (!(f.label || "").trim()) return null;
           const inputType =
             f.type === "phone" ? "tel" :
             f.type === "birthday" ? "date" :

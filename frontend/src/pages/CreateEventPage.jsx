@@ -628,7 +628,7 @@ export function CreateEventPage() {
   const [dragIndex, setDragIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
-  const [title, setTitle] = useState(draft?.title || "Summer Rooftop Party");
+  const [title, setTitle] = useState(draft?.title || "Event Name");
   const [titleVisible, setTitleVisible] = useState(draft?.titleVisible !== false);
   const [titleAlign, setTitleAlign] = useState(draft?.titleAlign || "left"); // "left"|"center"|"right"
   const [titleFont, setTitleFont] = useState(draft?.titleFont || "default"); // "default"|"serif"|"mono"|"condensed"
@@ -650,23 +650,25 @@ export function CreateEventPage() {
     // Pre-fill with template sections for new events (no draft / no custom sections yet)
     if (saved.length === 0 && !draft?.sections?.length) {
       return [...defaults,
-        { type: "text", title: "", text: "A short description about something nice maybe a quote yes." },
-        { type: "text", title: "About the artist", text: "A boundary-pushing creative known for blending electronic, soul, and experimental sounds into immersive live experiences. With roots in Stockholm\u2019s underground scene, they\u2019ve built a reputation for high-energy sets that blur the line between DJ performance and live act." },
+        { type: "text", title: "Headline", text: "A short description about something that describes something in short.\n\nCan also be longer if you like it." },
       ];
     }
     return [...defaults, ...saved];
   });
   // showSectionPicker state removed — grid is always visible
-  const [location, setLocation] = useState(draft?.location || "Slakthusomr\u00e5det, Stockholm");
+  const [location, setLocation] = useState(draft?.location || "Slakthusomr\u00e5det");
   const [locationLat, setLocationLat] = useState(draft?.locationLat || null);
   const [locationLng, setLocationLng] = useState(draft?.locationLng || null);
   const [hideLocation, setHideLocation] = useState(draft?.hideLocation || false);
   const [startsAt, setStartsAt] = useState(draft?.startsAt || (() => {
-    // Default to right now (rounded to the minute) — clear placeholder the
-    // host obviously overrides, beats a fake future date.
+    // Default to tomorrow at 19:00 local time — a typical evening event slot
+    // the host can easily adjust.
     const d = new Date();
-    d.setSeconds(0, 0);
-    return d.toISOString().slice(0, 16);
+    d.setDate(d.getDate() + 1);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}T19:00`;
   })());
   const [endsAt, setEndsAt] = useState(draft?.endsAt || "");
   const [timezone, setTimezone] = useState(draft?.timezone || getUserTimezone());

@@ -11035,7 +11035,13 @@ app.get("/admin/analytics/activity-series", requireAdmin, async (req, res) => {
     const { supabase: sb } = await import("./supabase.js");
     const { periodStart, periodEnd, days } = resolveAnalyticsRange(req);
 
-    const [eventsRes, rsvpsRes] = await Promise.all([
+    // Previous period of equal length for like-for-like change indicators.
+    const prevEnd = new Date(periodStart.getTime() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - days + 1);
+    prevStart.setHours(0, 0, 0, 0);
+
+    const [eventsRes, rsvpsRes, prevEventsRes, prevRsvpsRes] = await Promise.all([
       sb
         .from("events")
         .select("created_at")
@@ -11046,6 +11052,16 @@ app.get("/admin/analytics/activity-series", requireAdmin, async (req, res) => {
         .select("created_at")
         .gte("created_at", periodStart.toISOString())
         .lte("created_at", periodEnd.toISOString()),
+      sb
+        .from("events")
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", prevStart.toISOString())
+        .lte("created_at", prevEnd.toISOString()),
+      sb
+        .from("rsvps")
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", prevStart.toISOString())
+        .lte("created_at", prevEnd.toISOString()),
     ]);
 
     const eventCounts = {};
@@ -11074,7 +11090,27 @@ app.get("/admin/analytics/activity-series", requireAdmin, async (req, res) => {
       });
     }
 
-    return res.json({ periodDays: days, buckets });
+    const totalEvents = (eventsRes.data || []).length;
+    const totalRsvps = (rsvpsRes.data || []).length;
+    const prevTotalEvents = prevEventsRes.count || 0;
+    const prevTotalRsvps = prevRsvpsRes.count || 0;
+    const eventsChange = prevTotalEvents > 0
+      ? Math.round(((totalEvents - prevTotalEvents) / prevTotalEvents) * 100)
+      : null;
+    const rsvpsChange = prevTotalRsvps > 0
+      ? Math.round(((totalRsvps - prevTotalRsvps) / prevTotalRsvps) * 100)
+      : null;
+
+    return res.json({
+      periodDays: days,
+      totalEvents,
+      totalRsvps,
+      prevTotalEvents,
+      prevTotalRsvps,
+      eventsChange,
+      rsvpsChange,
+      buckets,
+    });
   } catch (err) {
     console.error("[activity-series] error:", err.message);
     return res.status(500).json({ error: "Failed to fetch activity series" });
@@ -11091,16 +11127,26 @@ app.get("/admin/analytics/signups-series", requireAdmin, async (req, res) => {
     const { supabase: sb } = await import("./supabase.js");
     const { periodStart, periodEnd, days } = resolveAnalyticsRange(req);
 
-    const { data: profiles } = await sb
-      .from("profiles")
-      .select("created_at")
-      .gte("created_at", periodStart.toISOString())
-      .lte("created_at", periodEnd.toISOString());
+    // Previous period of equal length, immediately before the current range,
+    // so the change indicator compares like-for-like (matches /pageviews).
+    const prevEnd = new Date(periodStart.getTime() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - days + 1);
+    prevStart.setHours(0, 0, 0, 0);
 
-    const { count: preCount } = await sb
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .lt("created_at", periodStart.toISOString());
+    const [{ data: profiles }, { count: prevCount }, { count: preCount }] = await Promise.all([
+      sb.from("profiles")
+        .select("created_at")
+        .gte("created_at", periodStart.toISOString())
+        .lte("created_at", periodEnd.toISOString()),
+      sb.from("profiles")
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", prevStart.toISOString())
+        .lte("created_at", prevEnd.toISOString()),
+      sb.from("profiles")
+        .select("*", { count: "exact", head: true })
+        .lt("created_at", periodStart.toISOString()),
+    ]);
 
     const dailyCounts = {};
     for (const p of profiles || []) {
@@ -11125,9 +11171,18 @@ app.get("/admin/analytics/signups-series", requireAdmin, async (req, res) => {
       });
     }
 
+    const totalSignups = (profiles || []).length;
+    const prevTotalSignups = prevCount || 0;
+    const signupsChange = prevTotalSignups > 0
+      ? Math.round(((totalSignups - prevTotalSignups) / prevTotalSignups) * 100)
+      : null;
+
     return res.json({
       periodDays: days,
       preCumulativeSignups: preCount || 0,
+      totalSignups,
+      prevTotalSignups,
+      signupsChange,
       buckets,
     });
   } catch (err) {

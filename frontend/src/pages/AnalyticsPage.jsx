@@ -237,6 +237,15 @@ export function AnalyticsPage() {
                 <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>unique</span>
                 <ChangeIndicator value={pageviews.uniqueChange} />
               </div>
+              {signupsSeries && (
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <span style={{ fontSize: "24px", fontWeight: 700, color: "#fbbf24" }}>
+                    {(signupsSeries.totalSignups ?? 0).toLocaleString()}
+                  </span>
+                  <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>new users</span>
+                  <ChangeIndicator value={signupsSeries.signupsChange} />
+                </div>
+              )}
               {pageviews.device_split && (pageviews.device_split.mobile > 0 || pageviews.device_split.desktop > 0) && (
                 <DeviceDonut mobile={pageviews.device_split.mobile} desktop={pageviews.device_split.desktop} />
               )}
@@ -411,8 +420,10 @@ export function AnalyticsPage() {
               }}
             >
               {(() => {
-                const totalEvents = activitySeries.buckets.reduce((s, b) => s + (b.eventsCreated || 0), 0);
-                const totalRsvps = activitySeries.buckets.reduce((s, b) => s + (b.rsvps || 0), 0);
+                const totalEvents = activitySeries.totalEvents
+                  ?? activitySeries.buckets.reduce((s, b) => s + (b.eventsCreated || 0), 0);
+                const totalRsvps = activitySeries.totalRsvps
+                  ?? activitySeries.buckets.reduce((s, b) => s + (b.rsvps || 0), 0);
                 return (
                   <div
                     style={{
@@ -429,6 +440,7 @@ export function AnalyticsPage() {
                       <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
                         events created
                       </span>
+                      <ChangeIndicator value={activitySeries.eventsChange} />
                     </div>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                       <span style={{ fontSize: 24, fontWeight: 700, color: "#fbbf24" }}>
@@ -437,6 +449,7 @@ export function AnalyticsPage() {
                       <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
                         emails collected (RSVPs)
                       </span>
+                      <ChangeIndicator value={activitySeries.rsvpsChange} />
                     </div>
                   </div>
                 );

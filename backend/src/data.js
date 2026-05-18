@@ -1278,6 +1278,55 @@ function isValidEmail(email) {
   return re.test(email);
 }
 
+// Identity-style RSVP form field types that promote to columns on `people`
+// (see migration 019). Anything not in this set stays in rsvps.custom_answers.
+// `type` here matches FORM_FIELD_PRESETS in frontend/.../CreateEventPage.jsx.
+const IDENTITY_FIELD_TO_PERSON_COLUMN = {
+  instagram: "instagram",
+  twitter: "twitter",
+  tiktok: "tiktok",
+  linkedin: "linkedin",
+  company: "company",
+  birthday: "birthday",
+  phone: "phone",
+};
+
+/**
+ * Split a customAnswers object (keyed by form-field id) into:
+ *   - personUpdates: { instagram, twitter, ... } for identity-typed fields
+ *   - remainingAnswers: only truly-custom (non-identity) entries
+ *
+ * Empty / whitespace-only values are dropped — we never overwrite a stored
+ * value with blank on resubmit.
+ */
+function splitCustomAnswers(customAnswers, formFields) {
+  const personUpdates = {};
+  const remainingAnswers = {};
+  if (!customAnswers || typeof customAnswers !== "object") {
+    return { personUpdates, remainingAnswers };
+  }
+  const fieldsById = new Map();
+  (Array.isArray(formFields) ? formFields : []).forEach((f) => {
+    if (f && typeof f === "object" && f.id) fieldsById.set(f.id, f);
+  });
+  for (const [fieldId, rawValue] of Object.entries(customAnswers)) {
+    const value = typeof rawValue === "string" ? rawValue.trim() : rawValue;
+    const field = fieldsById.get(fieldId);
+    const type = field ? String(field.type || "").toLowerCase() : null;
+    const personColumn = type ? IDENTITY_FIELD_TO_PERSON_COLUMN[type] : null;
+    if (personColumn) {
+      // Only promote non-empty values; an empty answer means "don't change
+      // what we already have on the person" (last-write-wins, blanks ignored).
+      if (value !== null && value !== undefined && value !== "") {
+        personUpdates[personColumn] = value;
+      }
+    } else {
+      remainingAnswers[fieldId] = rawValue;
+    }
+  }
+  return { personUpdates, remainingAnswers };
+}
+
 // ---------------------------
 // People/Contacts CRUD
 // ---------------------------
@@ -1376,6 +1425,15 @@ function mapPersonFromDb(dbPerson) {
     notes: dbPerson.notes,
     tags: dbPerson.tags || [],
     stripeCustomerId: dbPerson.stripe_customer_id,
+    // Identity fields collected via event form_fields (see migration 019).
+    // Belong on the person, not the RSVP — surfaced here so the CRM can
+    // read/filter/export without unpacking rsvps.custom_answers.
+    instagram: dbPerson.instagram || null,
+    twitter: dbPerson.twitter || null,
+    tiktok: dbPerson.tiktok || null,
+    linkedin: dbPerson.linkedin || null,
+    company: dbPerson.company || null,
+    birthday: dbPerson.birthday || null,
     // CRM fields
     totalSpend: dbPerson.total_spend || 0,
     paymentCount: dbPerson.payment_count || 0,
@@ -1403,6 +1461,13 @@ function mapPersonToDb(updates) {
   if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
   if (updates.stripeCustomerId !== undefined)
     dbUpdates.stripe_customer_id = updates.stripeCustomerId;
+  // Identity fields (see mapPersonFromDb and migration 019).
+  if (updates.instagram !== undefined) dbUpdates.instagram = updates.instagram;
+  if (updates.twitter !== undefined) dbUpdates.twitter = updates.twitter;
+  if (updates.tiktok !== undefined) dbUpdates.tiktok = updates.tiktok;
+  if (updates.linkedin !== undefined) dbUpdates.linkedin = updates.linkedin;
+  if (updates.company !== undefined) dbUpdates.company = updates.company;
+  if (updates.birthday !== undefined) dbUpdates.birthday = updates.birthday;
   // CRM fields
   if (updates.totalSpend !== undefined)
     dbUpdates.total_spend = Number(updates.totalSpend) || 0;
@@ -1927,7 +1992,7 @@ export async function getPeopleWithFilters(
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
       query = query.or(
-        `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`
+        `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%,instagram.ilike.%${searchTerm}%,company.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`
       );
     }
 
@@ -2495,6 +2560,13 @@ function mapRsvpFromDb(dbRsvp, person = null) {
     // Enrich with person data if provided
     name: person?.name || null,
     email: person?.email || null,
+    phone: person?.phone || null,
+    instagram: person?.instagram || null,
+    twitter: person?.twitter || null,
+    tiktok: person?.tiktok || null,
+    linkedin: person?.linkedin || null,
+    company: person?.company || null,
+    birthday: person?.birthday || null,
   };
 }
 
@@ -2964,21 +3036,47 @@ export async function addRsvp({
     return { error: "capacity_exceeded", event };
   }
 
-  // Persist custom form-field answers if any (atomic_rsvp_insert RPC doesn't take this param yet)
+  // Persist custom form-field answers. We split them into two buckets:
+  //   - identity-typed answers (instagram, phone, company, …) → write
+  //     to columns on `people` so the CRM can read/filter them directly.
+  //   - everything else → stays in rsvps.custom_answers, where each entry
+  //     is a per-RSVP response to a host-defined question.
+  // (atomic_rsvp_insert RPC doesn't take custom_answers yet, hence the
+  // follow-up writes here.)
   if (
     customAnswers &&
     typeof customAnswers === "object" &&
     Object.keys(customAnswers).length > 0 &&
     atomicResult?.id
   ) {
+    const { personUpdates, remainingAnswers } = splitCustomAnswers(
+      customAnswers,
+      event.formFields,
+    );
+
+    // 1) Promote identity fields onto the person record.
+    if (Object.keys(personUpdates).length > 0) {
+      const { error: personErr } = await supabase
+        .from("people")
+        .update(mapPersonToDb(personUpdates))
+        .eq("id", person.id);
+      if (personErr) {
+        console.error(
+          "Failed to persist identity fields on person:",
+          personErr,
+        );
+      }
+    }
+
+    // 2) Store only the leftover (truly custom) answers on the RSVP.
     const { error: updateErr } = await supabase
       .from("rsvps")
-      .update({ custom_answers: customAnswers })
+      .update({ custom_answers: remainingAnswers })
       .eq("id", atomicResult.id);
     if (updateErr) {
       console.error("Failed to persist custom_answers:", updateErr);
     } else {
-      atomicResult.custom_answers = customAnswers;
+      atomicResult.custom_answers = remainingAnswers;
     }
   }
 
@@ -2988,7 +3086,9 @@ export async function addRsvp({
 }
 
 export async function getRsvpsForEvent(eventId) {
-  // Fetch all RSVPs for this event with person data
+  // Fetch all RSVPs for this event with person data, including the
+  // identity fields (instagram, phone, …) that may have been collected
+  // via event form_fields — exports/UI read them from the person record.
   const { data: eventRsvps, error } = await supabase
     .from("rsvps")
     .select(
@@ -2997,7 +3097,14 @@ export async function getRsvpsForEvent(eventId) {
       people:person_id (
         id,
         name,
-        email
+        email,
+        phone,
+        instagram,
+        twitter,
+        tiktok,
+        linkedin,
+        company,
+        birthday
       )
     `
     )

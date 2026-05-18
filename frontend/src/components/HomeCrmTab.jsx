@@ -52,6 +52,170 @@ function formatCurrency(amount, currency = "SEK") {
 
 const PAGE_SIZE = 20;
 
+// Identity fields collected via event form_fields and stored on `people`.
+// Render order + small lowercase label (matches the dark/compact UI).
+// `format` runs on the raw value, returns null to hide the chip entirely.
+const IDENTITY_FIELDS = [
+  {
+    key: "instagram",
+    label: "ig",
+    format: (v) => (v.startsWith("@") ? v : `@${v.replace(/^@/, "")}`),
+  },
+  { key: "phone", label: "phone", format: (v) => v },
+  { key: "company", label: "co", format: (v) => v },
+  {
+    key: "twitter",
+    label: "x",
+    format: (v) => (v.startsWith("@") ? v : `@${v.replace(/^@/, "")}`),
+  },
+  {
+    key: "tiktok",
+    label: "tt",
+    format: (v) => (v.startsWith("@") ? v : `@${v.replace(/^@/, "")}`),
+  },
+  { key: "linkedin", label: "in", format: (v) => v },
+  { key: "birthday", label: "bday", format: (v) => v },
+];
+
+// Editable identity grid shown inside the expanded contact panel. Each field
+// is an inline input that auto-saves on blur (or Enter); blanking + blur
+// clears the value server-side. The parent supplies `onSave(patch)` which
+// PATCHes /host/crm/people/:id and merges the result back into list state.
+function EditableContact({ person, onSave }) {
+  const [drafts, setDrafts] = useState(() =>
+    Object.fromEntries(IDENTITY_FIELDS.map((f) => [f.key, person?.[f.key] || ""])),
+  );
+  const [savingKey, setSavingKey] = useState(null);
+  const [savedKey, setSavedKey] = useState(null);
+
+  // If the parent swaps person data (e.g. list refresh), sync drafts back so
+  // we don't show stale local edits over fresher server data.
+  useEffect(() => {
+    setDrafts(
+      Object.fromEntries(
+        IDENTITY_FIELDS.map((f) => [f.key, person?.[f.key] || ""]),
+      ),
+    );
+  }, [person?.id, person?.instagram, person?.twitter, person?.tiktok, person?.linkedin, person?.company, person?.birthday, person?.phone]);
+
+  const commit = async (key) => {
+    const next = drafts[key]?.trim() || "";
+    const current = person?.[key] || "";
+    if (next === current) return; // no-op
+    setSavingKey(key);
+    try {
+      await onSave({ [key]: next || null });
+      setSavedKey(key);
+      setTimeout(() => setSavedKey((k) => (k === key ? null : k)), 1200);
+    } catch (e) {
+      // Revert draft to stored value on failure so user sees the rollback.
+      setDrafts((d) => ({ ...d, [key]: current }));
+    } finally {
+      setSavingKey((k) => (k === key ? null : k));
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: "8px 12px",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {IDENTITY_FIELDS.map((f) => {
+        const isSaving = savingKey === f.key;
+        const isSaved = savedKey === f.key;
+        return (
+          <label
+            key={f.key}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "3px",
+              fontSize: "12px",
+            }}
+          >
+            <span
+              style={{
+                opacity: 0.55,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                fontSize: "10px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              {f.label}
+              {isSaving && <span style={{ opacity: 0.6 }}>· saving…</span>}
+              {isSaved && (
+                <span style={{ color: "#a3e635", opacity: 0.9 }}>· saved</span>
+              )}
+            </span>
+            <input
+              type="text"
+              value={drafts[f.key]}
+              placeholder="—"
+              onChange={(e) =>
+                setDrafts((d) => ({ ...d, [f.key]: e.target.value }))
+              }
+              onBlur={() => commit(f.key)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") {
+                  setDrafts((d) => ({ ...d, [f.key]: person?.[f.key] || "" }));
+                  e.currentTarget.blur();
+                }
+              }}
+              style={{
+                padding: "6px 8px",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "6px",
+                color: "#fff",
+                fontSize: "13px",
+                outline: "none",
+              }}
+            />
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+function ContactStrip({ person, compact = false }) {
+  const items = IDENTITY_FIELDS.map((f) => {
+    const raw = person?.[f.key];
+    if (!raw || typeof raw !== "string" || !raw.trim()) return null;
+    return { label: f.label, value: f.format(raw.trim()) };
+  }).filter(Boolean);
+  if (items.length === 0) return null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: compact ? "8px" : "10px 14px",
+        fontSize: compact ? "12px" : "13px",
+        marginTop: compact ? "4px" : 0,
+        marginBottom: compact ? "4px" : 0,
+        color: "rgba(255,255,255,0.78)",
+        lineHeight: 1.4,
+      }}
+    >
+      {items.map((it, i) => (
+        <span key={i} style={{ display: "inline-flex", gap: "5px" }}>
+          <span style={{ opacity: 0.45 }}>{it.label}</span>
+          <span style={{ wordBreak: "break-word" }}>{it.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function CrmTab({ onSegmentChange }) {
   const { showToast } = useToast();
   const [people, setPeople] = useState([]);
@@ -1280,7 +1444,7 @@ export function CrmTab({ onSegmentChange }) {
       >
         <input
           type="text"
-          placeholder="Search contacts..."
+          placeholder="Search name, email, IG, phone, company…"
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value);
@@ -1539,6 +1703,7 @@ export function CrmTab({ onSegmentChange }) {
                       >
                         {person.email}
                       </div>
+                      <ContactStrip person={person} compact />
                       <div
                         style={{
                           display: "flex",
@@ -1630,6 +1795,46 @@ export function CrmTab({ onSegmentChange }) {
                         gap: "14px",
                       }}
                     >
+                      {/* Contact info (collected via event form_fields, or
+                          filled in here by the host). Always shown so empty
+                          contacts can be enriched manually. */}
+                      <div>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.12em",
+                            opacity: 0.55,
+                            marginBottom: "8px",
+                          }}
+                        >
+                          Contact
+                        </div>
+                        <EditableContact
+                          person={person}
+                          onSave={async (patch) => {
+                            const res = await authenticatedFetch(
+                              `/host/crm/people/${person.id}`,
+                              {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(patch),
+                              },
+                            );
+                            if (!res.ok) {
+                              showToast("Failed to save", "error");
+                              throw new Error("save failed");
+                            }
+                            const updated = await res.json();
+                            setPeople((prev) =>
+                              prev.map((p) =>
+                                p.id === person.id ? { ...p, ...updated } : p,
+                              ),
+                            );
+                          }}
+                        />
+                      </div>
+
                       {/* All-time stats */}
                       <div
                         style={{

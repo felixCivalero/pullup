@@ -4170,6 +4170,39 @@ app.get("/host/events/:id/guests/export", requireAuth, async (req, res) => {
 
     const guests = await getRsvpsForEvent(event.id);
 
+    // Identity columns the host opted to collect on this event's form.
+    // Order follows event.formFields so the CSV mirrors the signup form.
+    // Each entry: { header, accessor: guest => value }.
+    const IDENTITY_FIELD_TO_GUEST_KEY = {
+      instagram: "instagram",
+      twitter: "twitter",
+      tiktok: "tiktok",
+      linkedin: "linkedin",
+      company: "company",
+      birthday: "birthday",
+      phone: "phone",
+    };
+    const identityColumns = (event.formFields || [])
+      .map((f) => {
+        const type = String(f?.type || "").toLowerCase();
+        const key = IDENTITY_FIELD_TO_GUEST_KEY[type];
+        if (!key) return null;
+        return {
+          header: f.label || type.charAt(0).toUpperCase() + type.slice(1),
+          accessor: (guest) => guest[key] || "",
+        };
+      })
+      .filter(Boolean);
+
+    // Custom (non-identity) form fields are answered per-RSVP — emit them
+    // as their own columns from rsvps.custom_answers, keyed by field id.
+    const customColumns = (event.formFields || [])
+      .filter((f) => String(f?.type || "").toLowerCase() === "custom" && f?.id)
+      .map((f) => ({
+        header: f.label || "Custom",
+        accessor: (guest) => (guest.customAnswers || {})[f.id] || "",
+      }));
+
     // CSV header
     const headers = [
       "Name",
@@ -4184,6 +4217,8 @@ app.get("/host/events/:id/guests/export", requireAuth, async (req, res) => {
       "Dinner Pull Up Count",
       "Cocktails Pull Up Count",
       "RSVP Date",
+      ...identityColumns.map((c) => c.header),
+      ...customColumns.map((c) => c.header),
     ];
 
     // CSV rows
@@ -4233,6 +4268,8 @@ app.get("/host/events/:id/guests/export", requireAuth, async (req, res) => {
         escapeCsv(guest.dinnerPullUpCount || 0),
         escapeCsv(guest.cocktailOnlyPullUpCount || 0),
         escapeCsv(guest.createdAt ? formatDate(guest.createdAt) : ""),
+        ...identityColumns.map((c) => escapeCsv(c.accessor(guest))),
+        ...customColumns.map((c) => escapeCsv(c.accessor(guest))),
       ].join(",");
     });
 
@@ -5197,13 +5234,33 @@ app.get("/host/crm/people/export", requireAuth, async (req, res) => {
 app.put("/host/crm/people/:personId", requireAuth, async (req, res) => {
   try {
     const { personId } = req.params;
-    const { name, phone, notes, tags } = req.body;
+    const {
+      name,
+      phone,
+      notes,
+      tags,
+      // Identity fields collected via event form_fields. Editable here so
+      // hosts can fill in details they already know (e.g. an Instagram
+      // handle they grabbed in person).
+      instagram,
+      twitter,
+      tiktok,
+      linkedin,
+      company,
+      birthday,
+    } = req.body;
 
     const result = await updatePerson(personId, {
       name,
       phone,
       notes,
       tags,
+      instagram,
+      twitter,
+      tiktok,
+      linkedin,
+      company,
+      birthday,
     });
 
     if (result.error === "not_found") {

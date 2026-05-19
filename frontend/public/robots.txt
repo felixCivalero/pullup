@@ -1,0 +1,35 @@
+# Allow all crawlers full access.
+User-agent: *
+Allow: /
+
+# Be explicit about social media crawlers — Facebook's debugger flags missing
+# or HTML-shaped robots.txt responses as "could be a robots.txt block" and may
+# return 403 when scraping.
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: facebookcatalog
+Allow: /
+
+User-agent: Facebot
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: WhatsApp
+Allow: /
+
+User-agent: Slackbot
+Allow: /
+
+User-agent: Discordbot
+Allow: /
+
+User-agent: TelegramBot
+Allow: /
+
+Sitemap: https://pullup.se/sitemap.xml

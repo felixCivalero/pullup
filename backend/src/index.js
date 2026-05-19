@@ -256,17 +256,11 @@ async function toOgPublicImageUrl(imageUrl, routeName = "Share") {
     });
 
     if (publicUrl) {
-      // Force JPEG output: Instagram/Facebook crawlers can drop WebP previews,
-      // and Supabase's render service preserves the source format by default.
-      // The SDK transform options don't expose `format`, but the underlying
-      // /render/image endpoint accepts ?format=jpg.
-      const sep = publicUrl.includes("?") ? "&" : "?";
-      const jpegUrl = `${publicUrl}${sep}format=jpg`;
       logger.info(`[${routeName}] OG public image URL generated`, {
-        publicUrl: jpegUrl,
+        publicUrl,
         filePath,
       });
-      return jpegUrl;
+      return publicUrl;
     }
 
     logger.warn(`[${routeName}] getPublicUrl returned empty, using original`, {
@@ -373,20 +367,12 @@ function generateOgHtml(event, queryString = "") {
 
   const description = escapeHtml(descParts.join(" — ")).slice(0, 200);
 
-  // Derive image MIME type. Crawlers use og:image:type to decide whether to
-  // fetch — wrong/missing type causes some (notably Instagram via Facebook) to
-  // skip the image. A ?format= query param (set by toOgPublicImageUrl when
-  // forcing JPEG) wins over the path extension since it dictates what's served.
-  const imageUrlStr = String(imageUrl);
-  const formatMatch = imageUrlStr.match(/[?&]format=([a-z]+)/i);
-  const formatParam = formatMatch ? formatMatch[1].toLowerCase() : null;
-  const imagePath = imageUrlStr.split("?")[0].toLowerCase();
+  // Derive image MIME type from URL path (ignoring query params). Crawlers use
+  // og:image:type to decide whether to fetch — wrong/missing type causes some
+  // (notably Instagram via Facebook) to skip the image.
+  const imagePath = String(imageUrl).split("?")[0].toLowerCase();
   let imageMime = "image/jpeg";
-  if (formatParam === "png") imageMime = "image/png";
-  else if (formatParam === "webp") imageMime = "image/webp";
-  else if (formatParam === "gif") imageMime = "image/gif";
-  else if (formatParam === "jpg" || formatParam === "jpeg") imageMime = "image/jpeg";
-  else if (imagePath.endsWith(".png")) imageMime = "image/png";
+  if (imagePath.endsWith(".png")) imageMime = "image/png";
   else if (imagePath.endsWith(".webp")) imageMime = "image/webp";
   else if (imagePath.endsWith(".gif")) imageMime = "image/gif";
 

@@ -375,8 +375,19 @@ function generateOgHtml(event, queryString = "") {
   const titleRaw = event?.title || "Pull Up";
   const escapedTitle = escapeHtml(titleRaw);
 
-  const when = formatOgDateTime(event?.startsAt, event?.timezone);
-  const where = event?.location ? String(event.location).trim() : "";
+  // Honor reveal-later flags so OG shares match what the page shows publicly.
+  // Without this, the OG title/description leak the placeholder startsAt and
+  // real location even for events the host marked as TBA.
+  const hideDate = !!event?.hideDate;
+  const hideLocation = !!event?.hideLocation;
+
+  const realWhen = formatOgDateTime(event?.startsAt, event?.timezone);
+  const when = hideDate
+    ? (event?.dateRevealHint || "Date TBA")
+    : realWhen;
+  const where = hideLocation
+    ? (event?.revealHint || "Location revealed later")
+    : (event?.location ? String(event.location).trim() : "");
 
   // Format date for OG title: "Event Title — Wednesday, December 17 at 18:00"
   // Uses the event's timezone so the preview shows the correct local time
@@ -1476,10 +1487,13 @@ app.post("/events", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "title and startsAt are required" });
   }
 
-  if (new Date(startsAt) < new Date()) {
+  // For TBA events (hideDate=true), startsAt is a private placeholder used for
+  // sorting/reminders only — the public never sees it. Don't reject when the
+  // placeholder is in the past; the host shouldn't have to babysit it.
+  if (!hideDate && new Date(startsAt) < new Date()) {
     return res.status(400).json({ error: "Event start date cannot be in the past" });
   }
-  if (endsAt && new Date(endsAt) < new Date()) {
+  if (!hideDate && endsAt && new Date(endsAt) < new Date()) {
     return res.status(400).json({ error: "Event end date cannot be in the past" });
   }
 
@@ -2517,6 +2531,10 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             spotifyUrl: result.event.spotify || "",
             ticketPrice: result.event.ticketPrice ? (Number(result.event.ticketPrice) / 100).toFixed(2) : 0,
             ticketCurrency: result.event.ticketCurrency || "",
+            hideDate: result.event.hideDate || false,
+            hideLocation: result.event.hideLocation || false,
+            dateRevealHint: result.event.dateRevealHint || "",
+            revealHint: result.event.revealHint || "",
             ...hostBrand,
           }),
         });
@@ -2545,6 +2563,10 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             slug: result.event.slug || "",
             frontendUrl: getFrontendUrl(),
             holdMinutes: 30,
+            hideDate: result.event.hideDate || false,
+            hideLocation: result.event.hideLocation || false,
+            dateRevealHint: result.event.dateRevealHint || "",
+            revealHint: result.event.revealHint || "",
             ...hostBrand,
           }),
         });
@@ -3202,6 +3224,10 @@ app.post(
               slug: event.slug || "",
               frontendUrl,
               spotifyUrl: event.spotify || "",
+              hideDate: event.hideDate || false,
+              hideLocation: event.hideLocation || false,
+              dateRevealHint: event.dateRevealHint || "",
+              revealHint: event.revealHint || "",
               ...hostBrand,
             }),
           });
@@ -3291,6 +3317,10 @@ app.post(
             offerLink: link,
             isPaidEvent: true,
             expiresInMinutes: Math.max(1, Math.round((expiresAt.getTime() - Date.now()) / (60 * 1000))),
+            hideDate: event.hideDate || false,
+            hideLocation: event.hideLocation || false,
+            dateRevealHint: event.dateRevealHint || "",
+            revealHint: event.revealHint || "",
             ...hostBrand,
           }),
         });
@@ -3827,18 +3857,21 @@ app.put(
       dateRevealHint,
     } = req.body;
 
-    // Validate dates are not in the past
-    if (startsAt && new Date(startsAt) < new Date()) {
-      return res.status(400).json({ error: "Event start date cannot be in the past" });
-    }
-    if (endsAt && new Date(endsAt) < new Date()) {
-      return res.status(400).json({ error: "Event end date cannot be in the past" });
-    }
-
     // Get current event to check if price/currency changed
     const currentEvent = await findEventById(id);
     if (!currentEvent) {
       return res.status(404).json({ error: "Event not found" });
+    }
+
+    // Validate dates are not in the past. For TBA events the date is a private
+    // placeholder, so skip the check — fall back to currentEvent.hideDate when
+    // the request didn't include hideDate (partial update).
+    const effectiveHideDate = hideDate !== undefined ? hideDate : currentEvent.hideDate;
+    if (!effectiveHideDate && startsAt && new Date(startsAt) < new Date()) {
+      return res.status(400).json({ error: "Event start date cannot be in the past" });
+    }
+    if (!effectiveHideDate && endsAt && new Date(endsAt) < new Date()) {
+      return res.status(400).json({ error: "Event end date cannot be in the past" });
     }
 
     // Only owner or admin can edit event details (Stripe, pricing, etc.)
@@ -4748,6 +4781,10 @@ app.post(
                 spotifyUrl: event.spotify || "",
                 ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
                 ticketCurrency: event.ticketCurrency || "",
+                hideDate: event.hideDate || false,
+                hideLocation: event.hideLocation || false,
+                dateRevealHint: event.dateRevealHint || "",
+                revealHint: event.revealHint || "",
                 ...hostBrand,
               }),
             });
@@ -4853,6 +4890,10 @@ app.post(
                     spotifyUrl: event.spotify || "",
                     ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
                     ticketCurrency: event.ticketCurrency || "",
+                    hideDate: event.hideDate || false,
+                    hideLocation: event.hideLocation || false,
+                    dateRevealHint: event.dateRevealHint || "",
+                    revealHint: event.revealHint || "",
                     ...hostBrand,
                   }),
                 });
@@ -12386,6 +12427,10 @@ app.listen(PORT, async () => {
                 slug: event.slug || "",
                 frontendUrl: frontendBase,
                 unsubscribeUrl,
+                hideDate: event.hide_date || false,
+                hideLocation: event.hide_location || false,
+                dateRevealHint: event.date_reveal_hint || "",
+                revealHint: event.reveal_hint || "",
                 ...hostBrand,
               }),
               idempotencyKey,

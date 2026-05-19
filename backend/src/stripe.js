@@ -600,6 +600,10 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
               ticketPrice: payment.amount ? (payment.amount / 100).toFixed(2) : 0,
               ticketCurrency: payment.currency || event.ticketCurrency || "",
               receiptUrl: receiptUrl || "",
+              hideDate: event.hideDate || false,
+              hideLocation: event.hideLocation || false,
+              dateRevealHint: event.dateRevealHint || "",
+              revealHint: event.revealHint || "",
               ...hostBrand,
             }),
           });

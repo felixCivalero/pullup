@@ -256,11 +256,17 @@ async function toOgPublicImageUrl(imageUrl, routeName = "Share") {
     });
 
     if (publicUrl) {
+      // Force JPEG output: Instagram/Facebook crawlers can drop WebP previews,
+      // and Supabase's render service preserves the source format by default.
+      // The SDK transform options don't expose `format`, but the underlying
+      // /render/image endpoint accepts ?format=jpg.
+      const sep = publicUrl.includes("?") ? "&" : "?";
+      const jpegUrl = `${publicUrl}${sep}format=jpg`;
       logger.info(`[${routeName}] OG public image URL generated`, {
-        publicUrl,
+        publicUrl: jpegUrl,
         filePath,
       });
-      return publicUrl;
+      return jpegUrl;
     }
 
     logger.warn(`[${routeName}] getPublicUrl returned empty, using original`, {
@@ -287,7 +293,10 @@ function pickOgSourceImage(event) {
   const images = media.filter((m) => m?.mediaType === "image" && m?.url);
   const coverImage = images.find((m) => m.isCover) || images[0];
   if (coverImage?.url) return coverImage.url;
-  return event?.coverImageUrl || event?.imageUrl || null;
+  // Prefer image_url over cover_image_url: a user-uploaded custom thumbnail
+  // lands in image_url but cover_image_url may still hold the auto-generated
+  // low-res video thumbnail from the original media upload.
+  return event?.imageUrl || event?.coverImageUrl || null;
 }
 
 // ---------------------------
@@ -364,12 +373,20 @@ function generateOgHtml(event, queryString = "") {
 
   const description = escapeHtml(descParts.join(" — ")).slice(0, 200);
 
-  // Derive image MIME type from URL path (ignoring query params). Crawlers use
-  // og:image:type to decide whether to fetch — wrong/missing type causes some
-  // (notably Instagram via Facebook) to skip the image.
-  const imagePath = String(imageUrl).split("?")[0].toLowerCase();
+  // Derive image MIME type. Crawlers use og:image:type to decide whether to
+  // fetch — wrong/missing type causes some (notably Instagram via Facebook) to
+  // skip the image. A ?format= query param (set by toOgPublicImageUrl when
+  // forcing JPEG) wins over the path extension since it dictates what's served.
+  const imageUrlStr = String(imageUrl);
+  const formatMatch = imageUrlStr.match(/[?&]format=([a-z]+)/i);
+  const formatParam = formatMatch ? formatMatch[1].toLowerCase() : null;
+  const imagePath = imageUrlStr.split("?")[0].toLowerCase();
   let imageMime = "image/jpeg";
-  if (imagePath.endsWith(".png")) imageMime = "image/png";
+  if (formatParam === "png") imageMime = "image/png";
+  else if (formatParam === "webp") imageMime = "image/webp";
+  else if (formatParam === "gif") imageMime = "image/gif";
+  else if (formatParam === "jpg" || formatParam === "jpeg") imageMime = "image/jpeg";
+  else if (imagePath.endsWith(".png")) imageMime = "image/png";
   else if (imagePath.endsWith(".webp")) imageMime = "image/webp";
   else if (imagePath.endsWith(".gif")) imageMime = "image/gif";
 
@@ -1340,6 +1357,7 @@ app.post("/events", requireAuth, async (req, res) => {
     dinnerOverflowAction,
     dinnerSlots,
     dinnerBookingEmail,
+    hideDinnerRemaining,
 
     // Capacity fields
     cocktailCapacity,
@@ -1367,6 +1385,9 @@ app.post("/events", requireAuth, async (req, res) => {
 
     // Sections (event builder blocks)
     sections,
+
+    // Custom RSVP form fields
+    formFields,
 
     // Reveal & waitlist features
     hideLocation,
@@ -1415,6 +1436,7 @@ app.post("/events", requireAuth, async (req, res) => {
     dinnerOverflowAction,
     dinnerSlots,
     dinnerBookingEmail,
+    hideDinnerRemaining,
     ticketPrice,
     ticketCurrency: ticketCurrency || "USD",
     cocktailCapacity,
@@ -1429,6 +1451,7 @@ app.post("/events", requireAuth, async (req, res) => {
     tiktok,
     soundcloud,
     sections,
+    formFields,
     hideLocation,
     hideDate,
     instantWaitlist,
@@ -3687,6 +3710,7 @@ app.put(
       dinnerOverflowAction,
       dinnerSlots,
       dinnerBookingEmail,
+      hideDinnerRemaining,
 
       // Stripe fields
       ticketPrice,
@@ -3716,6 +3740,9 @@ app.put(
 
       // Sections (event builder blocks)
       sections,
+
+      // Custom RSVP form fields
+      formFields,
 
       // Reveal & waitlist features
       hideLocation,
@@ -3853,6 +3880,7 @@ app.put(
         dinnerOverflowAction,
         dinnerSlots,
         dinnerBookingEmail,
+        hideDinnerRemaining,
         ticketPrice,
         ticketCurrency: ticketCurrency
           ? String(ticketCurrency).toLowerCase()
@@ -3870,6 +3898,7 @@ app.put(
         tiktok,
         soundcloud,
         sections: processedSections,
+        formFields,
         hideLocation,
         hideDate,
         instantWaitlist,
@@ -6648,7 +6677,13 @@ app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
       }
     }
 
-    // Store just the file path in the database
+    // Store just the file path in the database. Sync cover_image_url too so
+    // that a user-uploaded custom thumbnail overrides any auto-generated low-res
+    // video thumb (otherwise OG previews/emails keep using the old thumbnail).
+    await supabase
+      .from("events")
+      .update({ cover_image_url: fileName })
+      .eq("id", eventId);
     const updated = await updateEvent(eventId, {
       imageUrl: fileName,
     });

@@ -763,6 +763,8 @@ export async function createEvent({
   dinnerMaxSeatsPerSlot = null,
   dinnerOverflowAction = "waitlist",
   dinnerSlots = null,
+  dinnerBookingEmail = null,
+  hideDinnerRemaining = false,
 
   // Stripe fields
   ticketPrice = null, // Price in cents (e.g., 2000 = $20.00)
@@ -782,6 +784,9 @@ export async function createEvent({
   // Media settings
   mediaSettings,
 
+  // Title settings (font/align/color/etc.)
+  titleSettings,
+
   // Social links
   instagram,
   spotify,
@@ -793,6 +798,13 @@ export async function createEvent({
 
   // Custom RSVP form fields
   formFields,
+
+  // Reveal & waitlist features
+  hideLocation = false,
+  hideDate = false,
+  instantWaitlist = false,
+  revealHint = null,
+  dateRevealHint = null,
 }) {
   if (!hostId) {
     throw new Error("hostId is required to create an event");
@@ -843,11 +855,13 @@ export async function createEvent({
     dinnerMaxSeatsPerSlot: dinnerMaxSeatsPerSlot
       ? Number(dinnerMaxSeatsPerSlot)
       : null,
-    dinnerOverflowAction: "waitlist",
+    dinnerOverflowAction: dinnerOverflowAction || "waitlist",
     dinnerSlots:
       Array.isArray(dinnerSlots) && dinnerSlots.length > 0
         ? dinnerSlots
         : null,
+    dinnerBookingEmail: dinnerBookingEmail || null,
+    hideDinnerRemaining: !!hideDinnerRemaining,
     ticketPrice:
       ticketType === "paid" && ticketPrice ? Number(ticketPrice) : null,
     ticketCurrency: ticketCurrency
@@ -861,12 +875,18 @@ export async function createEvent({
     createdVia,
     status,
     mediaSettings,
+    titleSettings,
     instagram,
     spotify,
     tiktok,
     soundcloud,
     sections: Array.isArray(sections) ? sections : [],
     formFields: Array.isArray(formFields) ? formFields : [],
+    hideLocation: !!hideLocation,
+    hideDate: !!hideDate,
+    instantWaitlist: !!instantWaitlist,
+    revealHint: revealHint || null,
+    dateRevealHint: dateRevealHint || null,
   };
 
   const dbData = mapEventToDb(eventData);

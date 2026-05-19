@@ -329,7 +329,9 @@ async function generateOgHtmlForEvent(event, routeName = "Share", queryString = 
     const backendUrl = getBackendUrlFromReq(req);
     const updatedAt = event?.updatedAt || event?.createdAt || "";
     const v = updatedAt ? `?v=${encodeURIComponent(updatedAt)}` : "";
-    ogImageUrl = `${backendUrl}/og/event/${event.slug}/image.jpg${v}`;
+    // Path lives under /share/ because that prefix is already routed to this
+    // backend by the production nginx; /og/* falls through to the static SPA.
+    ogImageUrl = `${backendUrl}/share/og-image/${event.slug}/image.jpg${v}`;
   } else {
     const sourceImage = pickOgSourceImage(event);
     ogImageUrl = await toOgPublicImageUrl(sourceImage, routeName);
@@ -885,7 +887,7 @@ app.get("/share/:slug", async (req, res) => {
 
 // ---------------------------
 // PUBLIC: OG image proxy — serves a stable, JPEG-only preview image for
-// crawlers. Two reasons we proxy instead of pointing crawlers at Supabase:
+// crawlers. Three reasons we proxy instead of pointing crawlers at Supabase:
 //   1. Content-Type guarantee. Supabase's render service serves image/jpeg
 //      regardless of source format, but the URL extension may be .png/.webp,
 //      which causes downstream confusion. Pinning Content-Type here means
@@ -894,8 +896,10 @@ app.get("/share/:slug", async (req, res) => {
 //   2. Cache invalidation. We embed event.updatedAt as a ?v= cache-buster on
 //      the og:image URL so reshares of edited events get a fresh preview
 //      without waiting on multi-day crawler caches.
+//   3. Routability. Production nginx forwards /share/* to this backend but
+//      /og/* and /events/* go to the static SPA; hence the URL lives here.
 // ---------------------------
-app.get("/og/event/:slug/image.jpg", async (req, res) => {
+app.get("/share/og-image/:slug/image.jpg", async (req, res) => {
   const { slug } = req.params;
   const fallback = `${getFrontendUrl()}/og-image.jpg`;
 

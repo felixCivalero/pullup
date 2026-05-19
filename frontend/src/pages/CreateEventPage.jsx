@@ -1040,13 +1040,15 @@ export function CreateEventPage() {
   }
 
   function validateStep() {
-    // Check date logic errors (these are hard errors, not missing fields)
-    if (startsAt && new Date(startsAt) < new Date()) {
+    // Check date logic errors (these are hard errors, not missing fields).
+    // Skip the past-date check for TBA events — the date is a private
+    // placeholder for sorting/reminders, not the public time.
+    if (!hideDate && startsAt && new Date(startsAt) < new Date()) {
       goToStep(2);
       showToast("Event start date cannot be in the past", "error");
       return false;
     }
-    if (endsAt && new Date(endsAt) < new Date()) {
+    if (!hideDate && endsAt && new Date(endsAt) < new Date()) {
       goToStep(2);
       showToast("Event end date cannot be in the past", "error");
       return false;
@@ -3602,7 +3604,19 @@ export function CreateEventPage() {
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
                         <button
                           type="button"
-                          onClick={() => setHideDate(!hideDate)}
+                          onClick={() => {
+                            const next = !hideDate;
+                            setHideDate(next);
+                            // When enabling Reveal-later with no date set, drop in a
+                            // private placeholder (today + 30d) so the event can be
+                            // published. It's used for sorting/reminders only and
+                            // never shown publicly — the page and shares both
+                            // honor hideDate.
+                            if (next && !startsAt) {
+                              const placeholder = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                              setStartsAt(placeholder.toISOString());
+                            }
+                          }}
                           style={{
                             width: "36px", height: "20px", borderRadius: "10px", border: "none",
                             background: hideDate ? "#a3e635" : "rgba(255,255,255,0.15)",
@@ -3619,14 +3633,19 @@ export function CreateEventPage() {
                         <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>Reveal later</span>
                       </div>
                       {hideDate && (
-                        <input
-                          type="text"
-                          value={dateRevealHint}
-                          onChange={(e) => setDateRevealHint(e.target.value)}
-                          placeholder="e.g. Date announced soon"
-                          maxLength={80}
-                          style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "12px", padding: "8px 10px", outline: "none", fontFamily: "inherit", marginTop: "8px" }}
-                        />
+                        <>
+                          <input
+                            type="text"
+                            value={dateRevealHint}
+                            onChange={(e) => setDateRevealHint(e.target.value)}
+                            placeholder="e.g. Date announced soon"
+                            maxLength={80}
+                            style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "12px", padding: "8px 10px", outline: "none", fontFamily: "inherit", marginTop: "8px" }}
+                          />
+                          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", marginTop: "6px", lineHeight: 1.4 }}>
+                            Date above is a private placeholder for sorting and reminders. Public shares show your reveal hint instead.
+                          </div>
+                        </>
                       )}
                     </div>
                   ) : section.type === "spotify" ? (

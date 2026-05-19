@@ -90,6 +90,20 @@ function niceDate(dateStr, timezone) {
   return `${datePart} · ${timePart}`;
 }
 
+/* ── TBA-aware display resolvers ──
+   For events the host marked as "reveal later", startsAt and location are
+   private placeholders used for sorting/reminders. Emails should show the
+   reveal hint (or "Date TBA" / "Location revealed later") instead of leaking
+   the real values. */
+function resolveDateText({ startsAt, timezone, hideDate, dateRevealHint, fallback = "" }) {
+  if (hideDate) return dateRevealHint || "Date TBA";
+  return startsAt ? niceDate(startsAt, timezone) : fallback;
+}
+function resolveLocationText({ location, hideLocation, revealHint }) {
+  if (hideLocation) return revealHint || "Location revealed later";
+  return location || "";
+}
+
 /* ── Badge pill component ── */
 function badge(text, { bg = "rgba(245,158,11,0.15)", border = "rgba(245,158,11,0.3)", color = GOLD_LIGHT } = {}) {
   return `<span style="display:inline-block;padding:6px 20px;border-radius:999px;background:${bg};border:1px solid ${border};color:${color};font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">${text}</span>`;
@@ -151,16 +165,23 @@ export function signupConfirmationEmail({
   ticketPrice = 0,
   ticketCurrency = "",
   receiptUrl = "",
+  // reveal-later flags
+  hideDate = false,
+  hideLocation = false,
+  dateRevealHint = "",
+  revealHint = "",
   // host branding
   brandName = "",
   brandWebsite = "",
   contactEmail = "",
 }) {
-  const dateFormatted = startsAt ? niceDate(startsAt, timezone) : (date || "");
+  const dateFormatted = resolveDateText({ startsAt, timezone, hideDate, dateRevealHint, fallback: date || "" });
+  const locationText = resolveLocationText({ location, hideLocation, revealHint });
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
 
-  const googleCal = startsAt ? googleCalUrl({ title: eventTitle, startsAt, endsAt, location, slug, frontendUrl }) : "";
-  const outlookCal = startsAt ? outlookCalUrl({ title: eventTitle, startsAt, endsAt, location, slug, frontendUrl }) : "";
+  // Calendar links only make sense when the date is real and public.
+  const googleCal = !hideDate && startsAt ? googleCalUrl({ title: eventTitle, startsAt, endsAt, location: hideLocation ? "" : location, slug, frontendUrl }) : "";
+  const outlookCal = !hideDate && startsAt ? outlookCalUrl({ title: eventTitle, startsAt, endsAt, location: hideLocation ? "" : location, slug, frontendUrl }) : "";
 
   const partyText = plusOnes > 0
     ? `You + ${plusOnes} guest${plusOnes > 1 ? "s" : ""}`
@@ -204,10 +225,10 @@ ${imageUrl ? `<!-- Event Image -->
         <td style="font-size:14px;color:${WHITE};font-weight:600;">${dateFormatted}</td>
       </tr></table>
     </td></tr>` : ""}
-    ${location ? `<tr><td style="padding:10px 20px 0;">
+    ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
         <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Where</td>
-        <td style="font-size:14px;color:${WHITE};font-weight:600;">${location}</td>
+        <td style="font-size:14px;color:${WHITE};font-weight:600;">${locationText}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px ${ticketPrice ? "0" : "14px"};">
@@ -265,12 +286,18 @@ export function reminder24hEmail({
   location = "",
   slug = "",
   frontendUrl = "https://pullup.se",
+  // reveal-later flags
+  hideDate = false,
+  hideLocation = false,
+  dateRevealHint = "",
+  revealHint = "",
   brandName = "",
   brandWebsite = "",
   contactEmail = "",
   unsubscribeUrl = "",
 }) {
-  const dateFormatted = startsAt ? niceDate(startsAt, timezone) : "";
+  const dateFormatted = resolveDateText({ startsAt, timezone, hideDate, dateRevealHint });
+  const locationText = resolveLocationText({ location, hideLocation, revealHint });
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
 
   const content = `
@@ -302,7 +329,7 @@ ${imageUrl ? `<!-- Event Image -->
     <tr><td style="padding:14px 20px;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation">
         ${dateFormatted ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${MUTED};">When</td><td style="font-size:14px;color:${WHITE};font-weight:600;">${dateFormatted}</td></tr>` : ""}
-        ${location ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${MUTED};">Where</td><td style="font-size:14px;color:${WHITE};font-weight:600;">${location}</td></tr>` : ""}
+        ${locationText ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${MUTED};">Where</td><td style="font-size:14px;color:${WHITE};font-weight:600;">${locationText}</td></tr>` : ""}
       </table>
     </td></tr>
   </table>
@@ -333,11 +360,17 @@ export function reservationEmail({
   slug = "",
   frontendUrl = "https://pullup.se",
   holdMinutes = 30,
+  // reveal-later flags
+  hideDate = false,
+  hideLocation = false,
+  dateRevealHint = "",
+  revealHint = "",
   brandName = "",
   brandWebsite = "",
   contactEmail = "",
 }) {
-  const dateFormatted = startsAt ? niceDate(startsAt, timezone) : "";
+  const dateFormatted = resolveDateText({ startsAt, timezone, hideDate, dateRevealHint });
+  const locationText = resolveLocationText({ location, hideLocation, revealHint });
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
 
   const partyText = plusOnes > 0
@@ -376,10 +409,10 @@ ${imageUrl ? `<!-- Event Image -->
         <td style="font-size:14px;color:${WHITE};font-weight:600;">${dateFormatted}</td>
       </tr></table>
     </td></tr>` : ""}
-    ${location ? `<tr><td style="padding:10px 20px 0;">
+    ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
         <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Where</td>
-        <td style="font-size:14px;color:${WHITE};font-weight:600;">${location}</td>
+        <td style="font-size:14px;color:${WHITE};font-weight:600;">${locationText}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px 14px;">
@@ -419,11 +452,17 @@ export function waitlistOfferEmail({
   isPaidEvent = false,
   expiresInHours = 6,
   expiresInMinutes = null,
+  // reveal-later flags
+  hideDate = false,
+  hideLocation = false,
+  dateRevealHint = "",
+  revealHint = "",
   brandName = "",
   brandWebsite = "",
   contactEmail = "",
 }) {
-  const dateFormatted = startsAt ? niceDate(startsAt, timezone) : "";
+  const dateFormatted = resolveDateText({ startsAt, timezone, hideDate, dateRevealHint });
+  const locationText = resolveLocationText({ location, hideLocation, revealHint });
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
   const ctaHref = offerLink || eventUrl;
 
@@ -472,10 +511,10 @@ ${imageUrl ? `<!-- Event Image -->
         <td style="font-size:14px;color:${WHITE};font-weight:600;">${dateFormatted}</td>
       </tr></table>
     </td></tr>` : ""}
-    ${location ? `<tr><td style="padding:10px 20px 0;">
+    ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
         <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Where</td>
-        <td style="font-size:14px;color:${WHITE};font-weight:600;">${location}</td>
+        <td style="font-size:14px;color:${WHITE};font-weight:600;">${locationText}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px 14px;">

@@ -126,6 +126,15 @@ function getFrontendUrl() {
   return process.env.FRONTEND_URL;
 }
 
+// Helper: Build absolute backend URL from the incoming crawler request. Works
+// regardless of where the server is hosted because we read the actual Host
+// header (and respect X-Forwarded-Proto behind a proxy/CDN).
+function getBackendUrlFromReq(req) {
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const host = req.get("host");
+  return `${proto}://${host}`;
+}
+
 const app = express();
 
 // ---------------------------
@@ -294,20 +303,37 @@ function pickOgSourceImage(event) {
 }
 
 // ---------------------------
-// Helper: Generate OG HTML for an event (uses permanent public image URL)
+// Helper: Generate OG HTML for an event.
+//
+// Strategy: we hand crawlers a stable backend URL that we control
+// (/og/event/:slug/image.jpg) instead of the raw Supabase render URL. That lets
+// us guarantee Content-Type: image/jpeg (Supabase render outputs JPEG regardless
+// of source format, but crawlers like Instagram via Facebook validate the
+// declared og:image:type and silently drop the preview on a mismatch — which
+// happened for any event with a .png/.webp source). The URL carries a `?v=`
+// cache-buster derived from event.updatedAt so reshares of edited events get a
+// fresh preview without waiting for crawler caches to expire.
 // ---------------------------
-async function generateOgHtmlForEvent(event, routeName = "Share", queryString = "") {
+async function generateOgHtmlForEvent(event, routeName = "Share", queryString = "", req = null) {
   logger.debug(`[${routeName}] Found event`, {
     title: event?.title,
     slug: event?.slug,
     id: event?.id,
   });
-  logger.debug(`[${routeName}] Event image URL (raw)`, {
-    imageUrl: event?.imageUrl || "none",
-  });
 
-  const sourceImage = pickOgSourceImage(event);
-  const ogImageUrl = await toOgPublicImageUrl(sourceImage, routeName);
+  // Use our own proxy endpoint as the og:image URL when we have a slug and a
+  // request to derive the backend host from. Otherwise fall back to the raw
+  // Supabase URL (e.g., emails, server-side rendering without req context).
+  let ogImageUrl = null;
+  if (event?.slug && req) {
+    const backendUrl = getBackendUrlFromReq(req);
+    const updatedAt = event?.updatedAt || event?.createdAt || "";
+    const v = updatedAt ? `?v=${encodeURIComponent(updatedAt)}` : "";
+    ogImageUrl = `${backendUrl}/og/event/${event.slug}/image.jpg${v}`;
+  } else {
+    const sourceImage = pickOgSourceImage(event);
+    ogImageUrl = await toOgPublicImageUrl(sourceImage, routeName);
+  }
 
   logger.debug(`[${routeName}] Final OG image URL`, {
     imageUrl: ogImageUrl || "none (will use default)",
@@ -367,14 +393,11 @@ function generateOgHtml(event, queryString = "") {
 
   const description = escapeHtml(descParts.join(" — ")).slice(0, 200);
 
-  // Derive image MIME type from URL path (ignoring query params). Crawlers use
-  // og:image:type to decide whether to fetch — wrong/missing type causes some
-  // (notably Instagram via Facebook) to skip the image.
-  const imagePath = String(imageUrl).split("?")[0].toLowerCase();
-  let imageMime = "image/jpeg";
-  if (imagePath.endsWith(".png")) imageMime = "image/png";
-  else if (imagePath.endsWith(".webp")) imageMime = "image/webp";
-  else if (imagePath.endsWith(".gif")) imageMime = "image/gif";
+  // og:image:type must match what the crawler actually downloads — mismatches
+  // cause Instagram/Facebook to silently drop the preview. Our /og/event/:slug/
+  // image.jpg proxy always serves JPEG; the only non-proxy fallback is the
+  // bundled /og-image.jpg default, which is also JPEG. So this can be pinned.
+  const imageMime = "image/jpeg";
 
   // Debug logging (keep it, but less noisy)
   console.log(`[OG] title: ${titleRaw}`);
@@ -851,12 +874,74 @@ app.get("/share/:slug", async (req, res) => {
 
     // Forward UTM params through the redirect so tracking works
     const qs = new URLSearchParams(req.query).toString();
-    const ogHtml = await generateOgHtmlForEvent(event, "Share", qs);
+    const ogHtml = await generateOgHtmlForEvent(event, "Share", qs, req);
     res.setHeader("Content-Type", "text/html");
     res.send(ogHtml);
   } catch (error) {
     console.error("Error generating share page:", error);
     res.status(500).send("Error generating share page");
+  }
+});
+
+// ---------------------------
+// PUBLIC: OG image proxy — serves a stable, JPEG-only preview image for
+// crawlers. Two reasons we proxy instead of pointing crawlers at Supabase:
+//   1. Content-Type guarantee. Supabase's render service serves image/jpeg
+//      regardless of source format, but the URL extension may be .png/.webp,
+//      which causes downstream confusion. Pinning Content-Type here means
+//      og:image:type=image/jpeg is always truthful → Instagram/Facebook stop
+//      silently dropping the preview.
+//   2. Cache invalidation. We embed event.updatedAt as a ?v= cache-buster on
+//      the og:image URL so reshares of edited events get a fresh preview
+//      without waiting on multi-day crawler caches.
+// ---------------------------
+app.get("/og/event/:slug/image.jpg", async (req, res) => {
+  const { slug } = req.params;
+  const fallback = `${getFrontendUrl()}/og-image.jpg`;
+
+  try {
+    const event = await findEventBySlug(slug);
+    if (!event) return res.redirect(302, fallback);
+
+    const sourceImage = pickOgSourceImage(event);
+    const supabaseUrl = sourceImage
+      ? await toOgPublicImageUrl(sourceImage, "OgImage")
+      : null;
+    if (!supabaseUrl) return res.redirect(302, fallback);
+
+    // ETag based on event.updatedAt + source image path so crawlers can
+    // revalidate cheaply. Skip body on If-None-Match match.
+    const etagSource = `${event.updatedAt || event.createdAt || ""}:${sourceImage}`;
+    const etag = `"${Buffer.from(etagSource).toString("base64").slice(0, 32)}"`;
+    res.setHeader("ETag", etag);
+    if (req.headers["if-none-match"] === etag) {
+      return res.status(304).end();
+    }
+
+    const upstream = await fetch(supabaseUrl);
+    if (!upstream.ok) {
+      console.error(
+        `[OgImage] Upstream fetch failed for ${slug}: ${upstream.status}`
+      );
+      return res.redirect(302, fallback);
+    }
+
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+
+    // Hard-pin Content-Type. Cache for a day at the edge but allow revalidation
+    // via ETag — `stale-while-revalidate` keeps previews snappy even while we
+    // refresh in the background after an edit.
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader(
+      "Cache-Control",
+      "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800"
+    );
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Length", String(buffer.length));
+    return res.status(200).send(buffer);
+  } catch (error) {
+    console.error(`[OgImage] Error for slug ${slug}:`, error);
+    return res.redirect(302, fallback);
   }
 });
 
@@ -884,7 +969,7 @@ app.get("/e/:slug", async (req, res) => {
 
     // Always return OG HTML (crawlers get OG tags, browsers get redirected via meta refresh)
     const qs = new URLSearchParams(req.query).toString();
-    const ogHtml = await generateOgHtmlForEvent(event, "EventPage", qs);
+    const ogHtml = await generateOgHtmlForEvent(event, "EventPage", qs, req);
     res.setHeader("Content-Type", "text/html");
     res.send(ogHtml);
   } catch (error) {
@@ -977,7 +1062,7 @@ app.get("/events/:slug", optionalAuth, async (req, res) => {
     // If request is from a crawler, return HTML with OG tags
     if (isCrawler(req)) {
       console.log(`[Events] Crawler detected for slug: ${slug}`);
-      const ogHtml = await generateOgHtmlForEvent(event, "EventsAPI");
+      const ogHtml = await generateOgHtmlForEvent(event, "EventsAPI", "", req);
       res.setHeader("Content-Type", "text/html");
       return res.send(ogHtml);
     }

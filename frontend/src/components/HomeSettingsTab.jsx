@@ -10,7 +10,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { SettingsProfileSection } from "./SettingsProfileSection.jsx";
-import { SettingsClaudeIntegration } from "./SettingsClaudeIntegration.jsx";
+import { SettingsMcpIntegration } from "./SettingsMcpIntegration.jsx";
 
 export function SettingsTab({ user, setUser, onSave, showToast }) {
   const navigate = useNavigate();
@@ -368,12 +368,12 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
         </div>
       </SettingsSection>
 
-      {/* CLAUDE (MCP) */}
+      {/* PULLUP MCP */}
       <SettingsSection
-        title="Claude (MCP)"
-        description="Manage your events conversationally — in claude.ai, Claude Desktop, or Claude Code."
+        title="PullUp MCP"
+        description="Manage your events conversationally from any AI assistant that speaks MCP — Claude, ChatGPT, Cursor, and more."
       >
-        <SettingsClaudeIntegration showToast={showToast} />
+        <SettingsMcpIntegration showToast={showToast} />
       </SettingsSection>
 
       <div

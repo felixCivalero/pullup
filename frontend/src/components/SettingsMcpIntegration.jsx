@@ -1,20 +1,18 @@
-// Claude integration card on the Settings page.
+// PullUp MCP integration card on the Settings page.
 //
-// Two surfaces:
-//   1. "Connect to Claude" — the public MCP endpoint URL + paste-this
-//      instructions for the three Claude clients (web, Desktop, Code).
-//   2. "Personal Access Tokens" — mint / list / revoke PATs that
-//      authenticate the MCP endpoint. Plaintext is shown ONCE at mint time;
-//      after the modal is dismissed it's gone forever.
+// MCP (Model Context Protocol) is open — any client that speaks it can
+// connect: Claude (web/Desktop/Code), ChatGPT, Cursor, Cline, Windsurf,
+// Continue, Goose, etc. This card surfaces the endpoint URL, tabbed
+// per-client setup guides, and the host's PAT manager.
 //
-// Backed by:
+// Backend endpoints used:
 //   POST   /host/tokens   { name } → { id, name, token, createdAt }
 //   GET    /host/tokens                → [{ id, name, createdAt, lastUsedAt, revokedAt }]
 //   DELETE /host/tokens/:id            → { revoked: true }
 
 import { useEffect, useState } from "react";
 import {
-  Bot,
+  Plug,
   Key,
   Plus,
   Copy,
@@ -28,15 +26,100 @@ import { SilverIcon } from "./ui/SilverIcon.jsx";
 
 const MCP_URL = "https://mcp.pullup.se";
 
-export function SettingsClaudeIntegration({ showToast }) {
+// ─── Per-client setup guides ────────────────────────────────────────────
+// Each guide is keyed by a stable slug used for the tab state. `note` is
+// shown below the steps if present (e.g. plan requirements).
+
+const GUIDES = [
+  {
+    slug: "claude-web",
+    label: "claude.ai",
+    steps: [
+      "Open claude.ai → click your name (bottom left) → Settings → Connectors.",
+      'Click "Add custom connector".',
+      "Name: PullUp.",
+      `Server URL: ${MCP_URL}`,
+      "Authentication: paste your pup_… token as a Bearer token.",
+      "Save. Start a new chat — Claude can now manage your events.",
+    ],
+  },
+  {
+    slug: "chatgpt",
+    label: "ChatGPT",
+    note: "Custom connectors require a ChatGPT Plus, Pro, Team, or Enterprise plan.",
+    steps: [
+      "Open chatgpt.com → Settings → Connectors.",
+      'Click "Add connector" (or "Browse" → "Create custom").',
+      "Name: PullUp.",
+      `URL: ${MCP_URL}`,
+      "Auth: bearer token, paste your pup_… token.",
+      "Save, then enable the PullUp connector for the chat where you want to use it.",
+    ],
+  },
+  {
+    slug: "claude-desktop",
+    label: "Claude Desktop",
+    steps: [
+      "Open Claude Desktop → Settings → Connectors.",
+      'Click "Add custom connector".',
+      "Name: PullUp.",
+      `URL: ${MCP_URL}`,
+      "Auth: paste your pup_… token as a Bearer token.",
+      "Save. Restart Claude if it asks you to.",
+    ],
+  },
+  {
+    slug: "cursor",
+    label: "Cursor",
+    steps: [
+      "Open Cursor → Settings (⌘,) → MCP (or open ~/.cursor/mcp.json).",
+      'Add a "pullup" entry with the URL and bearer header (see config below).',
+      "Restart Cursor. The PullUp tools appear in the agent's tool list.",
+    ],
+    code: `{
+  "mcpServers": {
+    "pullup": {
+      "url": "${MCP_URL}",
+      "headers": { "Authorization": "Bearer pup_..." }
+    }
+  }
+}`,
+  },
+  {
+    slug: "claude-code",
+    label: "Claude Code",
+    steps: [
+      "Run the command below in your terminal. Replace pup_… with your token.",
+      "That's it — PullUp tools are now available in any Claude Code session.",
+    ],
+    code: `claude mcp add pullup --transport http ${MCP_URL} --header "Authorization: Bearer pup_..."`,
+  },
+  {
+    slug: "other",
+    label: "Other",
+    steps: [
+      "PullUp speaks the standard MCP Streamable HTTP transport, so most other MCP-capable clients (Cline, Windsurf, Continue, Goose, Gemini CLI, LibreChat, Zed, Sourcegraph Cody, etc.) work too.",
+      `Endpoint: ${MCP_URL}`,
+      "Auth: Authorization: Bearer pup_… header.",
+      "Tools exposed: 9 (event create/update/publish/list/get, RSVP list, image upload, gallery list).",
+      "In your client's MCP / connector settings, add an HTTP MCP server with the URL above and a bearer auth header.",
+    ],
+  },
+];
+
+// ─── Component ──────────────────────────────────────────────────────────
+
+export function SettingsMcpIntegration({ showToast }) {
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeGuide, setActiveGuide] = useState(GUIDES[0].slug);
   const [mintOpen, setMintOpen] = useState(false);
   const [mintName, setMintName] = useState("");
   const [minting, setMinting] = useState(false);
-  const [mintedPlaintext, setMintedPlaintext] = useState(null); // { token, name } once after mint
+  const [mintedPlaintext, setMintedPlaintext] = useState(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   useEffect(() => {
     loadTokens();
@@ -88,7 +171,11 @@ export function SettingsClaudeIntegration({ showToast }) {
   }
 
   async function handleRevoke(id, name) {
-    if (!confirm(`Revoke "${name}"? Any Claude installation using this token will stop working immediately.`)) {
+    if (
+      !confirm(
+        `Revoke "${name}"? Any AI client using this token will stop working immediately.`
+      )
+    ) {
       return;
     }
     try {
@@ -111,94 +198,126 @@ export function SettingsClaudeIntegration({ showToast }) {
       } else if (which === "token") {
         setCopiedToken(true);
         setTimeout(() => setCopiedToken(false), 1500);
+      } else if (which === "code") {
+        setCopiedCode(true);
+        setTimeout(() => setCopiedCode(false), 1500);
       }
     } catch {
       showToast?.("Copy failed — select the text manually", "error");
     }
   }
 
+  const guide = GUIDES.find((g) => g.slug === activeGuide) || GUIDES[0];
   const activeTokens = tokens.filter((t) => !t.revokedAt);
 
   return (
     <>
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        {/* Header card: Connect to Claude */}
-        <div style={cardStyle}>
-          <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-            <div style={iconBubbleStyle}>
-              <SilverIcon as={Bot} size={20} />
+      {/* Single combined card — both stages are part of one flow */}
+      <div style={cardStyle}>
+        {/* Header */}
+        <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
+          <div style={iconBubbleStyle}>
+            <SilverIcon as={Plug} size={20} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={cardTitleStyle}>Connect any AI assistant</div>
+            <div style={cardDescStyle}>
+              MCP is an open protocol. Anything that speaks it — Claude, ChatGPT,
+              Cursor, Cline, Gemini CLI, Goose — can manage your PullUp events.
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={cardTitleStyle}>Connect to Claude</div>
-              <div style={cardDescStyle}>
-                Create, edit, publish, and check RSVPs on your PullUp events by chatting with Claude. Works in claude.ai, Claude Desktop, and Claude Code.
-              </div>
 
-              <div style={{ marginTop: "16px" }}>
-                <div style={smallLabelStyle}>MCP endpoint</div>
-                <div style={urlRowStyle}>
-                  <code style={urlCodeStyle}>{MCP_URL}</code>
-                  <button
-                    type="button"
-                    style={iconButtonStyle}
-                    onClick={() => copyToClipboard(MCP_URL, "url")}
-                    title="Copy URL"
-                  >
-                    {copiedUrl ? <Check size={14} /> : <Copy size={14} />}
-                  </button>
-                </div>
+            <div style={{ marginTop: "16px" }}>
+              <div style={smallLabelStyle}>MCP endpoint</div>
+              <div style={urlRowStyle}>
+                <code style={urlCodeStyle}>{MCP_URL}</code>
+                <button
+                  type="button"
+                  style={iconButtonStyle}
+                  onClick={() => copyToClipboard(MCP_URL, "url")}
+                  title="Copy URL"
+                >
+                  {copiedUrl ? <Check size={14} /> : <Copy size={14} />}
+                </button>
               </div>
-
-              <ol style={stepListStyle}>
-                <li>
-                  <b>claude.ai</b> → Settings → Connectors → <i>Add custom connector</i>. Paste the URL above and a token below.
-                </li>
-                <li>
-                  <b>Claude Desktop</b> → Settings → Connectors → <i>Add connector</i>. Same URL + token.
-                </li>
-                <li>
-                  <b>Claude Code</b> → run <code style={inlineCodeStyle}>{`claude mcp add pullup --transport http ${MCP_URL} --header "Authorization: Bearer pup_…"`}</code>
-                </li>
-              </ol>
             </div>
           </div>
         </div>
 
-        {/* Tokens list */}
-        <div style={cardStyle}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "16px",
-              gap: "12px",
-            }}
-          >
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-              <div style={iconBubbleStyle}>
-                <SilverIcon as={Key} size={20} />
+        {/* STAGE 1 — Pick your client */}
+        <StageHeader number={1} title="In your AI assistant — start adding a connector" />
+
+        <div style={stageBodyStyle}>
+          {/* Tabs */}
+          <div style={tabBarStyle} role="tablist" aria-label="Setup guides">
+            {GUIDES.map((g) => {
+              const active = g.slug === activeGuide;
+              return (
+                <button
+                  key={g.slug}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveGuide(g.slug)}
+                  style={active ? tabActiveStyle : tabStyle}
+                >
+                  {g.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Tab content */}
+          <div style={{ marginTop: "14px" }}>
+            <ol style={stepListStyle}>
+              {guide.steps.map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ol>
+            {guide.code && (
+              <div style={codeBlockWrapperStyle}>
+                <pre style={codeBlockStyle}>{guide.code}</pre>
+                <button
+                  type="button"
+                  style={{ ...iconButtonStyle, position: "absolute", top: 8, right: 8 }}
+                  onClick={() => copyToClipboard(guide.code, "code")}
+                  title="Copy"
+                >
+                  {copiedCode ? <Check size={14} /> : <Copy size={14} />}
+                </button>
               </div>
-              <div>
-                <div style={cardTitleStyle}>Personal access tokens</div>
-                <div style={{ ...cardDescStyle, marginTop: "2px" }}>
-                  {activeTokens.length === 0
-                    ? "No tokens yet. Mint one to connect Claude."
-                    : `${activeTokens.length} active token${activeTokens.length === 1 ? "" : "s"}.`}
-                </div>
+            )}
+            {guide.note && (
+              <div style={noteStyle}>
+                <AlertTriangle size={12} style={{ flexShrink: 0, marginTop: "2px" }} />
+                <span>{guide.note}</span>
               </div>
-            </div>
+            )}
+          </div>
+        </div>
+
+        {/* STAGE 2 — Mint a token */}
+        <StageHeader
+          number={2}
+          title="When it asks for a token, mint one here"
+          subtitle={
+            activeTokens.length === 0
+              ? "No tokens yet."
+              : `${activeTokens.length} active token${activeTokens.length === 1 ? "" : "s"}.`
+          }
+          action={
             <button type="button" style={primaryButtonStyle} onClick={() => setMintOpen(true)}>
               <Plus size={16} style={{ marginRight: "6px", verticalAlign: "-3px" }} />
               New token
             </button>
-          </div>
+          }
+        />
 
+        <div style={stageBodyStyle}>
           {loading ? (
             <div style={{ opacity: 0.6, fontSize: "14px" }}>Loading…</div>
           ) : tokens.length === 0 ? (
             <div style={emptyStateStyle}>
-              You haven't created any tokens yet. Mint one above and paste it into Claude.
+              Mint a token, copy the plaintext shown once, and paste it back into your AI client's connector.
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -220,7 +339,7 @@ export function SettingsClaudeIntegration({ showToast }) {
               autoFocus
               value={mintName}
               onChange={(e) => setMintName(e.target.value)}
-              placeholder={"e.g. \"Adam's Mac\" or \"My iPhone Claude app\""}
+              placeholder={"e.g. \"ChatGPT on my Mac\" or \"Cursor at work\""}
               maxLength={80}
               className="settings-input"
               style={{ marginBottom: "16px" }}
@@ -246,7 +365,7 @@ export function SettingsClaudeIntegration({ showToast }) {
         </Modal>
       )}
 
-      {/* Plaintext display modal — only shown once after mint */}
+      {/* Plaintext display modal — shown once after mint */}
       {mintedPlaintext && (
         <Modal onClose={() => setMintedPlaintext(null)} title="Token created">
           <div style={{ ...cardDescStyle, marginBottom: "16px" }}>
@@ -268,7 +387,7 @@ export function SettingsClaudeIntegration({ showToast }) {
           <div style={warningStyle}>
             <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: "2px" }} />
             <div>
-              Anyone with this token can manage your PullUp events. Treat it like a password. Paste it into Claude's connector settings, then revoke it here if your device is ever lost.
+              Anyone with this token can manage your PullUp events. Treat it like a password. Paste it into your AI client's connector settings, then revoke it here if your device is ever lost.
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
@@ -279,6 +398,23 @@ export function SettingsClaudeIntegration({ showToast }) {
         </Modal>
       )}
     </>
+  );
+}
+
+// Numbered stage separator. Used between the in-card sections to make the
+// 1 → 2 sequence visually obvious.
+function StageHeader({ number, title, subtitle, action }) {
+  return (
+    <div style={stageHeaderStyle}>
+      <div style={stageBadgeStyle}>{number}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: "14px", fontWeight: 600 }}>{title}</div>
+        {subtitle && (
+          <div style={{ fontSize: "12px", opacity: 0.6, marginTop: "2px" }}>{subtitle}</div>
+        )}
+      </div>
+      {action}
+    </div>
   );
 }
 
@@ -467,14 +603,6 @@ const urlCodeStyle = {
   background: "transparent",
 };
 
-const inlineCodeStyle = {
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-  fontSize: "11.5px",
-  background: "rgba(255,255,255,0.06)",
-  padding: "1px 5px",
-  borderRadius: "4px",
-};
-
 const iconButtonStyle = {
   display: "inline-flex",
   alignItems: "center",
@@ -489,15 +617,103 @@ const iconButtonStyle = {
   flexShrink: 0,
 };
 
-const stepListStyle = {
+const stageHeaderStyle = {
+  marginTop: "28px",
+  paddingTop: "20px",
+  borderTop: "1px solid rgba(255,255,255,0.06)",
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap",
+};
+
+const stageBadgeStyle = {
+  width: "26px",
+  height: "26px",
+  borderRadius: "50%",
+  background: "rgba(232, 232, 232, 0.14)",
+  border: "1px solid rgba(232, 232, 232, 0.25)",
+  color: "#fff",
+  fontSize: "12px",
+  fontWeight: 700,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const stageBodyStyle = {
   marginTop: "16px",
+};
+
+const tabBarStyle = {
+  display: "flex",
+  gap: "6px",
+  flexWrap: "wrap",
+  borderBottom: "1px solid rgba(255,255,255,0.06)",
+  paddingBottom: "10px",
+};
+
+const tabStyle = {
+  padding: "6px 12px",
+  borderRadius: "8px",
+  border: "1px solid rgba(255,255,255,0.06)",
+  background: "rgba(255,255,255,0.02)",
+  color: "rgba(255,255,255,0.7)",
+  fontSize: "12.5px",
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const tabActiveStyle = {
+  ...tabStyle,
+  background: "rgba(232, 232, 232, 0.14)",
+  borderColor: "rgba(232, 232, 232, 0.25)",
+  color: "#fff",
+};
+
+const stepListStyle = {
   paddingLeft: "20px",
   fontSize: "13px",
-  opacity: 0.8,
+  opacity: 0.85,
   lineHeight: 1.7,
   display: "flex",
   flexDirection: "column",
-  gap: "6px",
+  gap: "4px",
+  margin: 0,
+};
+
+const codeBlockWrapperStyle = {
+  position: "relative",
+  marginTop: "12px",
+};
+
+const codeBlockStyle = {
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+  fontSize: "12px",
+  background: "rgba(10, 8, 18, 0.7)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  borderRadius: "8px",
+  padding: "12px 14px",
+  paddingRight: "44px",
+  color: "rgba(255,255,255,0.9)",
+  whiteSpace: "pre",
+  overflowX: "auto",
+  margin: 0,
+};
+
+const noteStyle = {
+  marginTop: "12px",
+  padding: "8px 10px",
+  background: "rgba(245, 158, 11, 0.06)",
+  border: "1px solid rgba(245, 158, 11, 0.12)",
+  borderRadius: "6px",
+  fontSize: "12px",
+  lineHeight: 1.5,
+  color: "rgba(245, 158, 11, 0.9)",
+  display: "flex",
+  gap: "8px",
+  alignItems: "flex-start",
 };
 
 const primaryButtonStyle = {

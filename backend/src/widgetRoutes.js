@@ -49,6 +49,19 @@ router.get("/widget/config", async (req, res) => {
   if (payload.scope === PREVIEW_SCOPE_EVENT) {
     const event = await findEventById(payload.resourceId);
     if (!event) return res.status(404).json({ ok: false, error: "event_not_found" });
+    // hasCover lets the widget decide whether to nudge for a cover upload.
+    // We check the legacy single-image columns AND look for any attached
+    // media — same logic the page uses to decide what to render.
+    let hasCover = !!(event.imageUrl || event.coverImageUrl);
+    if (!hasCover) {
+      try {
+        const { count } = await supabase
+          .from("event_media")
+          .select("id", { count: "exact", head: true })
+          .eq("event_id", event.id);
+        hasCover = (count || 0) > 0;
+      } catch { /* non-fatal */ }
+    }
     return res.json({
       ok: true,
       scope: payload.scope,
@@ -59,6 +72,7 @@ router.get("/widget/config", async (req, res) => {
         slug: event.slug,
         title: event.title,
         status: event.status,
+        hasCover,
       },
     });
   }

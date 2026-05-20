@@ -298,12 +298,20 @@ export function analyzeEvent({
   const stakesMult = stakesMultiplier(event);
   for (const s of out) {
     s.score = Math.round(s.score * stakesMult);
+    // Tag the suggestions that move the needle on the social→page
+    // customer journey so the audit tool can pick them out without
+    // re-implementing the heuristics. Pure tag — no score change.
+    if (JOURNEY_KEYS.has(s.key)) s.journeyAware = true;
   }
 
   // ── Sort & return ─────────────────────────────────────────────────
   out.sort((a, b) => b.score - a.score);
   return { category, series, suggestions: out, performance, stakes: stakesLabel(event) };
 }
+
+// Suggestion keys whose fixes show up in the customer journey from a
+// social post → opening the event page. journeyAudit() reuses these.
+const JOURNEY_KEYS = new Set(["cover", "video", "vibe", "description", "series"]);
 
 // Stakes: how much is riding on this event? Bigger room + real money =
 // higher stakes. Multiplier flexes suggestion scores by ~15% in either

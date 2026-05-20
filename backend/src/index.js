@@ -99,6 +99,7 @@ import {
 import { processSesEvent } from "./email/events/processSesEvent.js";
 import { handleProviderEvent, enqueueOutbox, sendEmail as infraSendEmail } from "./email/index.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
+import widgetRoutes from "./widgetRoutes.js";
 import { handleMcp, mcpCorsPreflight } from "./mcp/httpHandler.js";
 import {
   metadataPRM,
@@ -816,6 +817,9 @@ app.post("/internal/webhooks/ses-eventbridge", async (req, res) => {
 // EMAIL TRACKING: open pixel + click redirect
 // ---------------------------
 app.use(trackingRoutes);
+// HostBar widget endpoints: /api/widget/config + /api/widget/action.
+// Mounted after the json body parser (line ~640) so POST bodies are parsed.
+app.use(widgetRoutes);
 
 // ---------------------------
 // PARTNER CLICK TRACKING

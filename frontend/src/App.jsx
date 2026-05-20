@@ -34,11 +34,16 @@ import { OAuthAuthorizePage } from "./pages/OAuthAuthorizePage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { IdeaWidget } from "./components/IdeaWidget";
+import { HostBar } from "./components/HostBar";
 
 function App() {
   return (
     <ErrorBoundary>
       <IdeaWidget />
+      {/* HostBar reads ?pv=<jwt> from the URL and renders the floating */}
+      {/* publish/send/back pill anywhere the MCP coach has handed back  */}
+      {/* a preview link. Inert when no token is present.                */}
+      <HostBar />
       <Routes>
         {/* Public */}
         <Route path="/" element={<LandingPage />} />

@@ -4878,7 +4878,10 @@ export async function createPersonalAccessToken({ userId, name }) {
   return { id: data.id, name: data.name, createdAt: data.created_at, token: plaintext };
 }
 
-export async function findUserIdByPatToken(plaintext) {
+// Resolve a PAT to its row. Returns { userId, tokenId } on success, null
+// on missing/revoked/invalid. Callers that only need the user id should
+// use findUserIdByPatToken (thin wrapper below).
+export async function findPatRecord(plaintext) {
   if (!isPatToken(plaintext)) return null;
   const tokenHash = hashPatToken(plaintext);
   const { data, error } = await supabase
@@ -4897,7 +4900,12 @@ export async function findUserIdByPatToken(plaintext) {
     .eq("id", data.id)
     .then(() => {}, () => {});
 
-  return data.user_id;
+  return { userId: data.user_id, tokenId: data.id };
+}
+
+export async function findUserIdByPatToken(plaintext) {
+  const rec = await findPatRecord(plaintext);
+  return rec ? rec.userId : null;
 }
 
 export async function listPersonalAccessTokensForUser(userId) {

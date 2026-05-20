@@ -10,7 +10,7 @@
 // state machinery the prompt would need is already wired here.
 
 import { useEffect, useState, useCallback } from "react";
-import { Sparkles, Pencil, Check, Send, EyeOff, Image as ImageIcon } from "lucide-react";
+import { Sparkles, Pencil, Check, Send, EyeOff, Video } from "lucide-react";
 import { supabase } from "../lib/supabase.js";
 import { colors } from "../theme/colors.js";
 
@@ -247,17 +247,18 @@ function buildSlots({ config, error, hasSession, acting, onAct }) {
     </a>
   ) : null;
 
-  // Nudge for a cover only when the event genuinely has none — same
-  // destination as Edit (the edit page hosts the cover upload UI).
+  // Nudge for content only when the event has none. Tilted toward video
+  // on purpose — a 10–20s clip shot for this event beats a stock photo
+  // every time. Destination is the in-app editor (cover + media live there).
   const coverChip =
     kind === "event" && resource.hasCover === false && editHref ? (
       <a
         href={editHref}
         style={{ ...ghostButtonStyle, color: "#fde68a" }}
-        title="Add a cover image"
+        title="A short vertical video lands harder than a still — but anything beats nothing"
       >
-        <ImageIcon size={13} />
-        <span>Add cover</span>
+        <Video size={13} />
+        <span>Add content</span>
       </a>
     ) : null;
 

@@ -4832,3 +4832,101 @@ export async function listHostEventImageGallery(userId, { limit = 200 } = {}) {
   }
   return items.sort((a, b) => (b.addedAt || "").localeCompare(a.addedAt || ""));
 }
+
+// ---------------------------------------------------------------------------
+// Personal Access Tokens (PATs)
+// ---------------------------------------------------------------------------
+// Long-lived credentials minted from a logged-in session and used as bearer
+// tokens by clients that can't run a browser-based Supabase auth flow (the
+// PullUp MCP server, scripts, etc.).
+//
+// Plaintext format: `pup_<48 base64url chars>`. Only the SHA-256 hash is
+// persisted; plaintext is returned exactly once at mint time.
+
+const PAT_PREFIX = "pup_";
+
+export function isPatToken(token) {
+  return typeof token === "string" && token.startsWith(PAT_PREFIX);
+}
+
+export function hashPatToken(plaintext) {
+  return crypto.createHash("sha256").update(String(plaintext)).digest("hex");
+}
+
+export async function createPersonalAccessToken({ userId, name }) {
+  if (!userId) throw new Error("userId required");
+  if (!name || !String(name).trim()) throw new Error("name required");
+
+  // 48 base64url chars ~ 36 bytes of entropy. More than enough.
+  const random = crypto.randomBytes(36).toString("base64url");
+  const plaintext = `${PAT_PREFIX}${random}`;
+  const tokenHash = hashPatToken(plaintext);
+
+  const { data, error } = await supabase
+    .from("personal_access_tokens")
+    .insert({
+      user_id: userId,
+      token_hash: tokenHash,
+      name: String(name).trim().slice(0, 80),
+    })
+    .select("id, name, created_at")
+    .single();
+
+  if (error) throw error;
+  // Plaintext is returned ONCE and never persisted. Caller must surface it
+  // to the user immediately.
+  return { id: data.id, name: data.name, createdAt: data.created_at, token: plaintext };
+}
+
+export async function findUserIdByPatToken(plaintext) {
+  if (!isPatToken(plaintext)) return null;
+  const tokenHash = hashPatToken(plaintext);
+  const { data, error } = await supabase
+    .from("personal_access_tokens")
+    .select("id, user_id, revoked_at")
+    .eq("token_hash", tokenHash)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  if (data.revoked_at) return null;
+
+  // Fire-and-forget last_used_at update. Don't block the request on it.
+  supabase
+    .from("personal_access_tokens")
+    .update({ last_used_at: new Date().toISOString() })
+    .eq("id", data.id)
+    .then(() => {}, () => {});
+
+  return data.user_id;
+}
+
+export async function listPersonalAccessTokensForUser(userId) {
+  const { data, error } = await supabase
+    .from("personal_access_tokens")
+    .select("id, name, created_at, last_used_at, revoked_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data || []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    createdAt: r.created_at,
+    lastUsedAt: r.last_used_at,
+    revokedAt: r.revoked_at,
+  }));
+}
+
+export async function revokePersonalAccessToken({ userId, tokenId }) {
+  const { data, error } = await supabase
+    .from("personal_access_tokens")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("id", tokenId)
+    .eq("user_id", userId)
+    .is("revoked_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw error;
+  return !!data;
+}

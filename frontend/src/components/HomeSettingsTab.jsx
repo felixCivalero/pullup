@@ -10,6 +10,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { SettingsProfileSection } from "./SettingsProfileSection.jsx";
+import { SettingsClaudeIntegration } from "./SettingsClaudeIntegration.jsx";
 
 export function SettingsTab({ user, setUser, onSave, showToast }) {
   const navigate = useNavigate();
@@ -365,6 +366,14 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
               : "Connect Stripe"}
           </button>
         </div>
+      </SettingsSection>
+
+      {/* CLAUDE (MCP) */}
+      <SettingsSection
+        title="Claude (MCP)"
+        description="Manage your events conversationally — in claude.ai, Claude Desktop, or Claude Code."
+      >
+        <SettingsClaudeIntegration showToast={showToast} />
       </SettingsSection>
 
       <div

@@ -49,6 +49,9 @@ import {
   getVipInvitesForEvent,
   deleteEvent,
   listHostEventImageGallery,
+  createPersonalAccessToken,
+  listPersonalAccessTokensForUser,
+  revokePersonalAccessToken,
 } from "./data.js";
 
 import { requireAuth, optionalAuth, requireAdmin } from "./middleware/auth.js";
@@ -96,6 +99,7 @@ import {
 import { processSesEvent } from "./email/events/processSesEvent.js";
 import { handleProviderEvent, enqueueOutbox, sendEmail as infraSendEmail } from "./email/index.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
+import { handleMcp, mcpCorsPreflight } from "./mcp/httpHandler.js";
 
 // Load environment variables once. NODE_ENV can come from the process
 // (PM2, npm scripts) or from .env.
@@ -463,7 +467,15 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 200,
 };
-app.use(cors(corsOptions));
+// /mcp is reached from claude.ai (and other Claude clients) which aren't on
+// the website's origin allowlist. Bypass the global cors() for that path
+// and let handleMcp set its own permissive CORS headers — the endpoint is
+// itself bearer-auth-gated by a PAT, so an open Allow-Origin is safe.
+const _globalCors = cors(corsOptions);
+app.use((req, res, next) => {
+  if (req.path === "/mcp" || req.path.startsWith("/mcp/")) return next();
+  return _globalCors(req, res, next);
+});
 
 // ---------------------------
 // WEBHOOKS: Stripe webhook handler (MUST be before express.json() middleware)
@@ -588,6 +600,13 @@ app.use(
 );
 app.use(express.text({ limit: "50mb", type: "text/csv" })); // For CSV import
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// ---------------------------
+// MCP: Model Context Protocol endpoint for Claude (claude.ai connectors,
+// Claude Desktop, Claude Code). PAT-authenticated. See src/mcp/.
+// ---------------------------
+app.options("/mcp", mcpCorsPreflight);
+app.all("/mcp", handleMcp);
 
 // ---------------------------
 // WEBHOOKS: SES SNS webhook
@@ -6605,6 +6624,62 @@ app.post("/payments/verify/:paymentIntentId", async (req, res) => {
   } catch (error) {
     console.error("[Payment Verify] Error:", error);
     res.status(500).json({ error: "Failed to verify payment" });
+  }
+});
+
+// ---------------------------
+// PROTECTED: Personal Access Tokens (PATs)
+// ---------------------------
+// Tokens are issued from a logged-in browser session and used by clients
+// that can't run a browser-based Supabase flow (the PullUp MCP server, CLI
+// scripts, etc.). Plaintext is returned ONCE at mint time and never again.
+//
+// Mint/list/revoke require a Supabase JWT (req.authType === "jwt"), not a
+// PAT, so a stolen PAT can't escalate by spawning more PATs.
+function requireJwtAuth(req, res, next) {
+  if (req.authType !== "jwt") {
+    return res.status(403).json({
+      error: "forbidden",
+      message: "Token management requires a browser session, not a PAT.",
+    });
+  }
+  next();
+}
+
+app.post("/host/tokens", requireAuth, requireJwtAuth, async (req, res) => {
+  try {
+    const { name } = req.body || {};
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: "name_required", message: "name is required" });
+    }
+    const created = await createPersonalAccessToken({ userId: req.user.id, name });
+    // Plaintext is in `token` — surface it to the user immediately. We never
+    // store it and can't recover it later.
+    res.status(201).json(created);
+  } catch (error) {
+    console.error("Error creating PAT:", error);
+    res.status(500).json({ error: "Failed to create token" });
+  }
+});
+
+app.get("/host/tokens", requireAuth, requireJwtAuth, async (req, res) => {
+  try {
+    const tokens = await listPersonalAccessTokensForUser(req.user.id);
+    res.json(tokens);
+  } catch (error) {
+    console.error("Error listing PATs:", error);
+    res.status(500).json({ error: "Failed to list tokens" });
+  }
+});
+
+app.delete("/host/tokens/:id", requireAuth, requireJwtAuth, async (req, res) => {
+  try {
+    const ok = await revokePersonalAccessToken({ userId: req.user.id, tokenId: req.params.id });
+    if (!ok) return res.status(404).json({ error: "not_found" });
+    res.json({ revoked: true });
+  } catch (error) {
+    console.error("Error revoking PAT:", error);
+    res.status(500).json({ error: "Failed to revoke token" });
   }
 });
 

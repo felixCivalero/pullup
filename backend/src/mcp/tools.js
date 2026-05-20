@@ -133,6 +133,42 @@ const ListGalleryInput = {
   ),
 };
 
+const CrmSummaryInput = {
+  topN: z.number().int().positive().max(20).optional().describe(
+    "How many top repeat-attendees and top events to include in the summary. Default 5."
+  ),
+};
+
+const RevenueSummaryInput = {
+  topN: z.number().int().positive().max(20).optional().describe(
+    "How many top-revenue events to include. Default 5."
+  ),
+};
+
+const TrendsInput = {
+  months: z.number().int().positive().max(60).optional().describe(
+    "How many recent months to include in the time series. Default 12."
+  ),
+};
+
+const SegmentsInput = {
+  topN: z.number().int().positive().max(20).optional().describe(
+    "How many top spenders to include. Default 5."
+  ),
+};
+
+const RecentActivityInput = {
+  days: z.number().int().positive().max(365).optional().describe(
+    "Look-back window in days. Default 30."
+  ),
+};
+
+const EmailSummaryInput = {
+  topN: z.number().int().positive().max(20).optional().describe(
+    "How many top campaigns (by open rate) to include. Default 5."
+  ),
+};
+
 // ───────────────────────────────────────────────────────────────────────
 // Handlers
 // ───────────────────────────────────────────────────────────────────────
@@ -254,7 +290,11 @@ function buildHandlers(api) {
     let waitlistCount = null;
     try {
       const guests = await api("GET", `/host/events/${existing.id}/guests`);
-      const list = Array.isArray(guests) ? guests : guests?.rsvps || [];
+      // /host/events/:id/guests returns { event, guests } — not a bare array
+    // and not { rsvps }. Older code paths used `rsvps`, so accept both.
+    const list = Array.isArray(guests)
+      ? guests
+      : guests?.guests || guests?.rsvps || [];
       rsvpCount = list.filter((g) => {
         const s = (g.bookingStatus || g.status || "").toLowerCase();
         return s !== "waitlist";
@@ -299,7 +339,11 @@ function buildHandlers(api) {
   async function listRsvps(args) {
     const existing = await resolveEventBySlug(args.slug);
     const guests = await api("GET", `/host/events/${existing.id}/guests`);
-    const list = Array.isArray(guests) ? guests : guests?.rsvps || [];
+    // /host/events/:id/guests returns { event, guests } — not a bare array
+    // and not { rsvps }. Older code paths used `rsvps`, so accept both.
+    const list = Array.isArray(guests)
+      ? guests
+      : guests?.guests || guests?.rsvps || [];
 
     let filtered = list;
     if (args.status === "confirmed") {
@@ -371,6 +415,202 @@ function buildHandlers(api) {
     );
   }
 
+  async function getCrmSummary(args) {
+    const topN = args.topN || 5;
+
+    // Single round-trip — backend calls Postgres host_crm_summary() which
+    // does all the aggregation in one query plan. Shape:
+    //   { events: {total, published, draft, upcoming, past},
+    //     rsvps:  {confirmed, waitlist, unique_people, total_plus_ones, dinners},
+    //     topAttendees: [{id, name, email, events_attended}, …],
+    //     topEvents:    [{id, title, slug, attendance}, …] }
+    const data = await api("GET", "/host/crm/summary", { query: { topN } });
+    const ev = data?.events || {};
+    const rs = data?.rsvps || {};
+    const topAttendees = Array.isArray(data?.topAttendees) ? data.topAttendees : [];
+    const topEvents = Array.isArray(data?.topEvents) ? data.topEvents : [];
+
+    const lines = [
+      `Events:    ${ev.total ?? 0} total (${ev.published ?? 0} published, ${ev.draft ?? 0} draft) — ${ev.upcoming ?? 0} upcoming, ${ev.past ?? 0} past`,
+      `People:    ${rs.unique_people ?? 0} unique guests in your CRM`,
+      `RSVPs:     ${rs.confirmed ?? 0} confirmed${rs.waitlist ? ` (+${rs.waitlist} waitlist)` : ""}${rs.total_plus_ones ? `, ${rs.total_plus_ones} plus-ones brought` : ""}`,
+      rs.dinners ? `Dinners:   ${rs.dinners} dinner bookings` : null,
+    ].filter(Boolean);
+
+    if (topAttendees.length > 0) {
+      lines.push("");
+      lines.push(`Top ${topAttendees.length} repeat attendees:`);
+      for (const p of topAttendees) {
+        const name = p.name || p.email || "(no name)";
+        const n = Number(p.events_attended) || 0;
+        lines.push(`  • ${name}  —  ${n} event${n === 1 ? "" : "s"}`);
+      }
+    }
+
+    if (topEvents.length > 0) {
+      lines.push("");
+      lines.push(`Top ${topEvents.length} events by attendance:`);
+      for (const e of topEvents) {
+        const slug = e.slug ? `  → slug: ${e.slug}` : "";
+        lines.push(`  • ${e.title || "(untitled)"}  —  ${e.attendance} confirmed${slug}`);
+      }
+    }
+
+    return toolResultText(lines.join("\n"));
+  }
+
+  // Format a cents amount in the given currency. Avoids Intl.NumberFormat
+  // edge cases by formatting manually (cents → major units, with the
+  // currency code suffixed).
+  function fmtMoney(cents, currency = "usd") {
+    const major = (Number(cents) || 0) / 100;
+    const code = String(currency || "usd").toUpperCase();
+    const num = major.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${num} ${code}`;
+  }
+
+  function pct(n) {
+    if (n === null || n === undefined) return "—";
+    return `${Number(n).toFixed(1)}%`;
+  }
+
+  async function getRevenueSummary(args) {
+    const topN = args.topN || 5;
+    const d = await api("GET", "/host/crm/revenue", { query: { topN } });
+    const t = d?.totals || {};
+    const currency = d?.currency || "usd";
+    const topEvents = Array.isArray(d?.topEventsByRevenue) ? d.topEventsByRevenue : [];
+
+    const lines = [
+      `Gross:     ${fmtMoney(t.gross_cents, currency)} across ${t.payments || 0} payment${t.payments === 1 ? "" : "s"}`,
+      `Refunded:  ${fmtMoney(t.refunded_cents, currency)} (${t.refunded_payments || 0} payment${t.refunded_payments === 1 ? "" : "s"})`,
+      `Net:       ${fmtMoney(t.net_cents, currency)}`,
+      `Payers:    ${t.unique_payers || 0} unique`,
+    ];
+    if (topEvents.length > 0) {
+      lines.push("");
+      lines.push(`Top ${topEvents.length} events by net revenue:`);
+      for (const e of topEvents) {
+        lines.push(`  • ${e.title || "(untitled)"}  —  ${fmtMoney(e.net_cents, currency)}  (${e.payments} payment${e.payments === 1 ? "" : "s"})  → slug: ${e.slug || "—"}`);
+      }
+    }
+    return toolResultText(lines.join("\n"));
+  }
+
+  async function getAttendanceTrends(args) {
+    const months = args.months || 12;
+    const d = await api("GET", "/host/crm/trends", { query: { months } });
+    const series = Array.isArray(d?.months) ? d.months : [];
+    if (series.length === 0) {
+      return toolResultText(`No events in the last ${months} months.`);
+    }
+    const lines = [
+      `Monthly attendance (last ${months} months, ${series.length} active):`,
+      "",
+      "  Month     Events  Confirmed  +Ones  Total guests  Show-up",
+      "  ────────  ──────  ─────────  ─────  ────────────  ───────",
+    ];
+    for (const m of series) {
+      lines.push(
+        `  ${m.month}   ${String(m.events).padStart(6)}   ${String(m.confirmedRsvps).padStart(7)}  ${String(m.plusOnes).padStart(5)}   ${String(m.totalGuests).padStart(11)}   ${m.showUpRatePct == null ? "  —" : pct(m.showUpRatePct).padStart(6)}`
+      );
+    }
+    // Quick trend hint: compare first vs last active month.
+    if (series.length >= 2) {
+      const first = series[0];
+      const last = series[series.length - 1];
+      const delta = (last.confirmedRsvps || 0) - (first.confirmedRsvps || 0);
+      const dir = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+      lines.push("");
+      lines.push(`Trend: ${first.month} → ${last.month}, confirmed RSVPs ${dir} ${Math.abs(delta)}.`);
+    }
+    return toolResultText(lines.join("\n"));
+  }
+
+  async function getAudienceSegments(args) {
+    const topN = args.topN || 5;
+    const d = await api("GET", "/host/crm/segments", { query: { topN } });
+    const s = d?.segments || {};
+    const tops = Array.isArray(d?.topSpenders) ? d.topSpenders : [];
+    const total = s.total_people || 0;
+    const pctOf = (n) => total > 0 ? `${((Number(n) || 0) * 100 / total).toFixed(1)}%` : "—";
+
+    const lines = [
+      `Audience (${total} people with at least one confirmed RSVP):`,
+      `  First-timers (1 event):     ${s.first_timers || 0}  (${pctOf(s.first_timers)})`,
+      `  Occasional (2–4 events):    ${s.occasional || 0}  (${pctOf(s.occasional)})`,
+      `  Regulars (5+ events):       ${s.regulars || 0}  (${pctOf(s.regulars)})`,
+      `  VIP-flagged:                ${s.vips || 0}`,
+      `  Marketing-consented:        ${s.marketing_consented || 0}  (${pctOf(s.marketing_consented)})`,
+      `  Dinner attenders (ever):    ${s.dinner_attenders || 0}  (${pctOf(s.dinner_attenders)})`,
+    ];
+    if (tops.length > 0) {
+      lines.push("");
+      lines.push(`Top ${tops.length} spenders:`);
+      for (const p of tops) {
+        const name = p.name || p.email || "(no name)";
+        lines.push(`  • ${name}  —  ${fmtMoney(p.total_spend_cents, "usd")}  (${p.attended} event${p.attended === 1 ? "" : "s"})`);
+      }
+    }
+    return toolResultText(lines.join("\n"));
+  }
+
+  async function getRecentActivity(args) {
+    const days = args.days || 30;
+    const d = await api("GET", "/host/crm/recent", { query: { days } });
+    const rev = d?.revenue || {};
+    const pv = d?.pageViews || {};
+    const trending = Array.isArray(d?.trendingEvents) ? d.trendingEvents : [];
+
+    const lines = [
+      `Last ${days} days:`,
+      `  RSVPs received:    ${d.rsvpsReceived || 0}`,
+      `  New people:        ${d.newPeople || 0}  (first-ever RSVP to your events)`,
+      `  Revenue:           ${fmtMoney(rev.net_cents, d.currency)}  (${rev.payments || 0} payment${rev.payments === 1 ? "" : "s"})`,
+      `  Page views:        ${pv.views || 0}  (${pv.unique_visitors || 0} unique)`,
+    ];
+    if (trending.length > 0) {
+      lines.push("");
+      lines.push(`Trending events:`);
+      for (const e of trending) {
+        lines.push(`  • ${e.title || "(untitled)"}  —  ${e.recent_rsvps} RSVP${e.recent_rsvps === 1 ? "" : "s"}  → slug: ${e.slug || "—"}`);
+      }
+    }
+    return toolResultText(lines.join("\n"));
+  }
+
+  async function getEmailSummary(args) {
+    const topN = args.topN || 5;
+    const d = await api("GET", "/host/crm/emails", { query: { topN } });
+    const t = d?.totals || {};
+    const top = Array.isArray(d?.topByOpenRate) ? d.topByOpenRate : [];
+
+    if (!t.campaigns_sent) {
+      return toolResultText("No campaigns sent yet.");
+    }
+
+    const lines = [
+      `Email campaigns: ${t.campaigns_sent} sent`,
+      `  Total sends:    ${t.total_sent || 0}`,
+      `  Delivered:      ${t.total_delivered || 0}`,
+      `  Opened:         ${t.total_opened || 0}  (${pct(t.open_rate_pct)})`,
+      `  Clicked:        ${t.total_clicked || 0}  (${pct(t.click_rate_pct)})`,
+      `  Bounced:        ${t.total_bounced || 0}  (${pct(t.bounce_rate_pct)})`,
+    ];
+    if (t.total_complained) {
+      lines.push(`  Complaints:     ${t.total_complained}`);
+    }
+    if (top.length > 0) {
+      lines.push("");
+      lines.push(`Top ${top.length} by open rate:`);
+      for (const c of top) {
+        const when = c.sent_at ? new Date(c.sent_at).toLocaleDateString("en-GB") : "—";
+        lines.push(`  • "${c.subject || c.name || "(no subject)"}"  —  ${pct(c.open_rate_pct)} open, ${pct(c.click_rate_pct)} click  (${c.sent} sent, ${when})`);
+      }
+    }
+    return toolResultText(lines.join("\n"));
+  }
+
   async function listCoverImageGallery(args) {
     const items = await api("GET", "/host/crm/event-image-gallery");
     const limit = args.limit || 20;
@@ -396,6 +636,12 @@ function buildHandlers(api) {
     listRsvps,
     uploadEventImage,
     listCoverImageGallery,
+    getCrmSummary,
+    getRevenueSummary,
+    getAttendanceTrends,
+    getAudienceSegments,
+    getRecentActivity,
+    getEmailSummary,
   };
 }
 
@@ -510,6 +756,54 @@ export function buildTools(ctx) {
         "Returns URLs of cover and media images the host has used on past events. Use this when the host says 'use one of my previous images' — pick a URL and pass it as imageUrl to create_event or update_event.",
       inputSchema: ListGalleryInput,
       handler: h.listCoverImageGallery,
+    },
+    {
+      name: "get_crm_summary",
+      title: "Get a one-shot CRM summary",
+      description:
+        "Returns aggregate stats across ALL of the host's events in a SINGLE round-trip: total events (with status + upcoming/past split), total unique guests in the CRM, total confirmed RSVPs, plus-ones brought, dinner bookings, top repeat attendees, and top events by attendance. Prefer this over calling list_rsvps on each event when the user asks about totals, counts, or 'who comes the most'.",
+      inputSchema: CrmSummaryInput,
+      handler: h.getCrmSummary,
+    },
+    {
+      name: "get_revenue_summary",
+      title: "Get a revenue summary",
+      description:
+        "Returns gross/net revenue, refund totals, payment count, unique payers, and top-revenue events — all from Stripe payments tied to the host's events. Use this for 'how much have I made', 'what's my revenue', 'top-grossing events', refund questions, etc.",
+      inputSchema: RevenueSummaryInput,
+      handler: h.getRevenueSummary,
+    },
+    {
+      name: "get_attendance_trends",
+      title: "Get monthly attendance trends",
+      description:
+        "Returns a month-by-month time series for the last N months: number of events, confirmed RSVPs, plus-ones, total guests, and show-up rate (pulled_up / confirmed). Use for 'are my events growing', 'what was my best month', 'show-up rate over time'.",
+      inputSchema: TrendsInput,
+      handler: h.getAttendanceTrends,
+    },
+    {
+      name: "get_audience_segments",
+      title: "Get audience segmentation",
+      description:
+        "Returns audience breakdown by attendance: first-timers (1 event), occasional (2–4), regulars (5+), VIP-flagged, marketing-consented, and dinner attenders. Plus the top N spenders. Use for 'who are my regulars', 'how many first-timers', 'who are my biggest spenders', segmentation for newsletters, etc.",
+      inputSchema: SegmentsInput,
+      handler: h.getAudienceSegments,
+    },
+    {
+      name: "get_recent_activity",
+      title: "Get recent activity",
+      description:
+        "Returns activity in the last N days: RSVPs received, new people (first-ever RSVP), revenue, page views, and trending events. Use for 'what happened this week', 'recent signups', 'how's the new event doing', 'what's trending'.",
+      inputSchema: RecentActivityInput,
+      handler: h.getRecentActivity,
+    },
+    {
+      name: "get_email_summary",
+      title: "Get email campaign performance",
+      description:
+        "Returns campaign totals (sent, delivered, opened, clicked, bounced) plus open/click/bounce rates and the top N campaigns by open rate. Use for 'how are my emails doing', 'best-performing subject lines', 'what's my open rate'.",
+      inputSchema: EmailSummaryInput,
+      handler: h.getEmailSummary,
     },
   ];
 }

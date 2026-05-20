@@ -71,7 +71,7 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Message -->
@@ -136,7 +136,7 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Message -->

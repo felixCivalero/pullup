@@ -4429,6 +4429,7 @@ function mapProfileFromDb(dbProfile) {
     contactEmail: dbProfile.contact_email || "",
     stripeConnectedAccountId: dbProfile.stripe_connected_account_id || null,
     isAdmin: dbProfile.is_admin || false,
+    hostBrief: dbProfile.host_brief || "",
     createdAt: dbProfile.created_at,
     updatedAt: dbProfile.updated_at,
   };
@@ -4467,6 +4468,7 @@ function mapProfileToDb(profile) {
   if (profile.stripeConnectedAccountId !== undefined)
     dbProfile.stripe_connected_account_id = profile.stripeConnectedAccountId;
   if (profile.isAdmin !== undefined) dbProfile.is_admin = profile.isAdmin;
+  if (profile.hostBrief !== undefined) dbProfile.host_brief = profile.hostBrief;
   return dbProfile;
 }
 

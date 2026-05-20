@@ -241,7 +241,7 @@ export function renderWeeklyHappeningsTemplate({ events, templateContent, unsubs
                   <tbody>
                     <tr>
                       <td style="padding:14px 16px 6px 16px;">
-                        <h3 style="margin:0;font-size:1.1em;font-weight:600;color:#ffffff;line-height:1.3;">${ev.title || ""}</h3>
+                        <h3 translate="no" class="notranslate" style="margin:0;font-size:1.1em;font-weight:600;color:#ffffff;line-height:1.3;">${ev.title || ""}</h3>
                       </td>
                     </tr>
                     ${metaLine ? `<tr><td style="padding:2px 16px 6px 16px;font-size:0.82em;color:rgba(255,255,255,0.5);">${metaLine}</td></tr>` : ""}

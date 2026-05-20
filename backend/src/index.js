@@ -6970,6 +6970,49 @@ app.get("/host/crm/event-image-gallery", requireAuth, async (req, res) => {
   }
 });
 
+// ---------------------------
+// PROTECTED: Aggregate summaries for the MCP.
+// ---------------------------
+// All five endpoints below are thin wrappers around Postgres functions in
+// migrations/022 and 023. Each is a single round-trip — no Node-side
+// aggregation, no per-event fan-out. Used by the MCP get_*_summary tools
+// so Claude can answer questions like "how much have I made", "are my
+// events growing", "what happened this week" in one shot.
+function clampInt(raw, def, min, max) {
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return def;
+  return Math.min(max, Math.max(min, n));
+}
+
+function makeRpcHandler(funcName, paramShape) {
+  // paramShape: { topN: { default, min, max } } or { months: ... } etc.
+  return async (req, res) => {
+    try {
+      const params = { p_user_id: req.user.id };
+      for (const [key, spec] of Object.entries(paramShape)) {
+        params[spec.pgName] = clampInt(req.query[key], spec.default, spec.min, spec.max);
+      }
+      const { supabase } = await import("./supabase.js");
+      const { data, error } = await supabase.rpc(funcName, params);
+      if (error) {
+        console.error(`${funcName} RPC error:`, error);
+        return res.status(500).json({ error: `Failed to load ${funcName}` });
+      }
+      return res.json(data || {});
+    } catch (err) {
+      console.error(`${funcName} handler error:`, err);
+      return res.status(500).json({ error: `Failed to load ${funcName}` });
+    }
+  };
+}
+
+app.get("/host/crm/summary",  requireAuth, makeRpcHandler("host_crm_summary",        { topN:   { pgName: "p_top_n",  default: 5,  min: 1, max: 20 } }));
+app.get("/host/crm/revenue",  requireAuth, makeRpcHandler("host_revenue_summary",    { topN:   { pgName: "p_top_n",  default: 5,  min: 1, max: 20 } }));
+app.get("/host/crm/trends",   requireAuth, makeRpcHandler("host_attendance_trends",  { months: { pgName: "p_months", default: 12, min: 1, max: 60 } }));
+app.get("/host/crm/segments", requireAuth, makeRpcHandler("host_audience_segments",  { topN:   { pgName: "p_top_n",  default: 5,  min: 1, max: 20 } }));
+app.get("/host/crm/recent",   requireAuth, makeRpcHandler("host_recent_activity",    { days:   { pgName: "p_days",   default: 30, min: 1, max: 365 } }));
+app.get("/host/crm/emails",   requireAuth, makeRpcHandler("host_email_summary",      { topN:   { pgName: "p_top_n",  default: 5,  min: 1, max: 20 } }));
+
 // POST /host/crm/follow-up-images - Upload an image for a follow-up campaign block
 app.post("/host/crm/follow-up-images", requireAuth, async (req, res) => {
   try {

@@ -1,7 +1,7 @@
 // HostBar — the floating pill the MCP coach drops onto a preview URL.
 //
 // Mounts on the event page and the campaign preview page. Inert unless
-// the URL carries ?pv=<jwt>. Token-only fetch of /api/widget/config tells
+// the URL carries ?pv=<jwt>. Token-only fetch of /widget/config tells
 // the bar what to render; actions require a host session AND that the
 // signed-in user is the same host the token was minted for.
 //
@@ -35,7 +35,7 @@ export function HostBar() {
     if (!token) return;
     try {
       const resp = await fetch(
-        `${API_BASE}/api/widget/config?token=${encodeURIComponent(token)}`,
+        `${API_BASE}/widget/config?token=${encodeURIComponent(token)}`,
       );
       const body = await resp.json();
       if (body?.ok) {
@@ -83,7 +83,7 @@ export function HostBar() {
     setError(null);
     try {
       const { data } = await supabase.auth.getSession();
-      const resp = await fetch(`${API_BASE}/api/widget/action`, {
+      const resp = await fetch(`${API_BASE}/widget/action`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -22,14 +22,29 @@ import {
   analyzeCrmSignals,
   completenessSummary,
 } from "./suggestions.js";
+import { auditJourney } from "./journeyAudit.js";
+import {
+  mintPreviewToken,
+  PREVIEW_SCOPE_EVENT,
+  PREVIEW_SCOPE_CAMPAIGN,
+} from "../utils/previewTokens.js";
 
-function previewUrlForSlug(slug) {
-  return frontendUrl(`/e/${slug}`);
+function previewUrlForSlug(slug, opts = {}) {
+  const base = frontendUrl(`/e/${slug}`);
+  if (opts.token) {
+    // Host bar widget gets injected when the page loads and finds ?pv=<jwt>
+    // — the link works for anyone, the destructive actions require a session.
+    return `${base}?pv=${encodeURIComponent(opts.token)}`;
+  }
+  return base;
 }
 function shareUrlForSlug(slug) {
   // utm-tagged share URL for paste-into-IG/WhatsApp. Falls through to the
-  // same page; the param is just for attribution.
-  return `${previewUrlForSlug(slug)}?utm_source=mcp`;
+  // same page; the param is just for attribution. Never carries a preview
+  // token — sharing the widget link with strangers would expose the
+  // publish/unpublish chrome (and they'd need to sign in to act, but the
+  // chrome leak alone is wrong).
+  return `${frontendUrl(`/e/${slug}`)}?utm_source=mcp`;
 }
 function rsvpsDashboardForId(id) {
   return frontendUrl(`/host/events/${id}/guests`);
@@ -442,6 +457,12 @@ const SuggestCampaignImprovementsInput = {
   ),
 };
 
+const AuditJourneyInput = {
+  slug: z.string().describe(
+    "The event's slug. Walks the full customer journey (social handoff → page → RSVP form → emails) and returns a stage-by-stage report with the biggest break in the pipe surfaced first."
+  ),
+};
+
 const CrmSignalsInput = {
   days: z.number().int().positive().max(180).optional().describe(
     "Recent-activity look-back window. Default 30."
@@ -530,8 +551,41 @@ function buildFormFieldsFromExtras(extras) {
   return [...locked, ...custom];
 }
 
-function buildHandlers(api) {
+function buildHandlers(api, hostId) {
   const resolveEventBySlug = resolveEventBySlugVia(api);
+
+  // Mint a preview-link token for the host bar. Returns null when we
+  // don't have a host id (older callers without ctx.user) so the URL
+  // falls back to the plain shape — preview-before-act is a soft
+  // expectation, not a hard precondition of the URL.
+  function eventPreviewToken(eventId, capabilities) {
+    if (!hostId || !eventId) return null;
+    try {
+      return mintPreviewToken({
+        scope: PREVIEW_SCOPE_EVENT,
+        resourceId: eventId,
+        hostId,
+        capabilities,
+      });
+    } catch (err) {
+      console.warn("[mcp] preview-token mint failed:", err.message);
+      return null;
+    }
+  }
+  function campaignPreviewToken(campaignId) {
+    if (!hostId || !campaignId) return null;
+    try {
+      return mintPreviewToken({
+        scope: PREVIEW_SCOPE_CAMPAIGN,
+        resourceId: campaignId,
+        hostId,
+        capabilities: ["send"],
+      });
+    } catch (err) {
+      console.warn("[mcp] preview-token mint failed:", err.message);
+      return null;
+    }
+  }
 
   async function createEvent(args) {
     const status = args.status || "DRAFT";
@@ -543,7 +597,11 @@ function buildHandlers(api) {
     const event = await api("POST", "/events", { body: payload });
     const { completeness, performance, top } = await buildEventCoaching(event);
 
-    const preview = previewUrlForSlug(event.slug);
+    const pv = eventPreviewToken(
+      event.id,
+      status === "DRAFT" ? ["publish"] : ["unpublish"],
+    );
+    const preview = previewUrlForSlug(event.slug, { token: pv });
     const banner = eventBanner({
       title: event.title,
       status,
@@ -579,11 +637,15 @@ function buildHandlers(api) {
       ...updated,
       slug: newSlug,
     });
+    const pv = eventPreviewToken(
+      updated.id || existing.id,
+      status === "DRAFT" ? ["publish"] : ["unpublish"],
+    );
     return toolResultText(
       eventBanner({
         title: updated.title || existing.title,
         status,
-        previewUrl: previewUrlForSlug(newSlug),
+        previewUrl: previewUrlForSlug(newSlug, { token: pv }),
         shareUrl: status === "PUBLISHED" ? shareUrlForSlug(newSlug) : null,
         rsvpsUrl: rsvpsDashboardForId(updated.id || existing.id),
         note: "Updated.",
@@ -597,11 +659,12 @@ function buildHandlers(api) {
   async function publishEvent(args) {
     const existing = await resolveEventBySlug(args.slug);
     const updated = await api("PUT", `/host/events/${existing.id}/publish`);
+    const pv = eventPreviewToken(existing.id, ["unpublish"]);
     return toolResultText(
       eventBanner({
         title: updated.title || existing.title,
         status: "PUBLISHED",
-        previewUrl: previewUrlForSlug(args.slug),
+        previewUrl: previewUrlForSlug(args.slug, { token: pv }),
         shareUrl: shareUrlForSlug(args.slug),
         rsvpsUrl: rsvpsDashboardForId(existing.id),
         note: "Note: FB/IG share-preview caches can take ~24h to refresh after big edits.",
@@ -614,11 +677,12 @@ function buildHandlers(api) {
     const updated = await api("PUT", `/host/events/${existing.id}`, {
       body: { status: "DRAFT" },
     });
+    const pv = eventPreviewToken(existing.id, ["publish"]);
     return toolResultText(
       eventBanner({
         title: updated.title || existing.title,
         status: "DRAFT",
-        previewUrl: previewUrlForSlug(args.slug),
+        previewUrl: previewUrlForSlug(args.slug, { token: pv }),
         rsvpsUrl: rsvpsDashboardForId(existing.id),
         note:
           "Reverted to DRAFT. Existing RSVPs are kept. Social-platform caches keep the previously-public preview ~24h.",
@@ -696,7 +760,11 @@ function buildHandlers(api) {
       ? `(hidden — public sees: "${existing.revealHint || "Location revealed later"}")`
       : existing.location || "(no location)";
 
-    const preview = previewUrlForSlug(existing.slug);
+    const pvGet = eventPreviewToken(
+      existing.id,
+      existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
+    );
+    const preview = previewUrlForSlug(existing.slug, { token: pvGet });
     const block = [
       `${existing.title} [${existing.status}]`,
       `  When:     ${when}${existing.hideDate ? " (HIDDEN — public sees TBA)" : ""}`,
@@ -786,8 +854,12 @@ function buildHandlers(api) {
       body: { imageData },
     });
 
+    const pvCover = eventPreviewToken(
+      existing.id,
+      existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
+    );
     return toolResultText(
-      `Uploaded a new cover for "${existing.title}".\n\n  Preview: ${previewUrlForSlug(existing.slug)}`
+      `Uploaded a new cover for "${existing.title}".\n\n  Preview: ${previewUrlForSlug(existing.slug, { token: pvCover })}`
     );
   }
 
@@ -870,8 +942,12 @@ function buildHandlers(api) {
         });
       }
 
+      const pvMediaUrl = eventPreviewToken(
+        existing.id,
+        existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
+      );
       return toolResultText(
-        `Uploaded ${detectedType} (${sizeHeader ? Math.round(sizeHeader / 1024 / 1024 * 10) / 10 + "MB" : "size unknown"}) to "${existing.title}".\n  Preview: ${previewUrlForSlug(existing.slug)}`
+        `Uploaded ${detectedType} (${sizeHeader ? Math.round(sizeHeader / 1024 / 1024 * 10) / 10 + "MB" : "size unknown"}) to "${existing.title}".\n  Preview: ${previewUrlForSlug(existing.slug, { token: pvMediaUrl })}`
       );
     }
 
@@ -899,8 +975,12 @@ function buildHandlers(api) {
       },
     });
 
+    const pvMediaB64 = eventPreviewToken(
+      existing.id,
+      existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
+    );
     return toolResultText(
-      `Uploaded ${detectedType} (~${(approxBytes / 1024 / 1024).toFixed(1)}MB) to "${existing.title}".\n  Preview: ${previewUrlForSlug(existing.slug)}`
+      `Uploaded ${detectedType} (~${(approxBytes / 1024 / 1024).toFixed(1)}MB) to "${existing.title}".\n  Preview: ${previewUrlForSlug(existing.slug, { token: pvMediaB64 })}`
     );
   }
 
@@ -1232,11 +1312,12 @@ function buildHandlers(api) {
 
     const created = await api("POST", "/events", { body: payload });
 
+    const pvDup = eventPreviewToken(created.id, ["publish"]);
     return toolResultText(
       eventBanner({
         title: created.title,
         status: "DRAFT",
-        previewUrl: previewUrlForSlug(created.slug),
+        previewUrl: previewUrlForSlug(created.slug, { token: pvDup }),
         rsvpsUrl: rsvpsDashboardForId(created.id),
         note: `Duplicated from "${full.title}". Update or publish when ready.`,
       })
@@ -1440,7 +1521,11 @@ function buildHandlers(api) {
       status: "draft",
     }, ev);
 
-    const previewUrl = frontendUrl(`/host/crm/campaigns/${created.campaignId}/preview`);
+    const campPv = campaignPreviewToken(created.campaignId);
+    const previewBase = frontendUrl(`/host/crm/campaigns/${created.campaignId}/preview`);
+    const previewUrl = campPv
+      ? `${previewBase}?pv=${encodeURIComponent(campPv)}`
+      : previewBase;
     const lines = [
       "─────────────────────────────────────",
       "  Campaign drafted (NOT sent)",
@@ -1828,6 +1913,68 @@ function buildHandlers(api) {
     return toolResultText(lines.join("\n").trim());
   }
 
+  async function auditCustomerJourney(args) {
+    const existing = await resolveEventBySlug(args.slug);
+    let media = [];
+    let allEvents = [];
+    let campaigns = [];
+    try {
+      const m = await api("GET", `/host/events/${existing.id}/media`);
+      media = Array.isArray(m) ? m : (m?.media || []);
+    } catch { /* fall through */ }
+    try {
+      allEvents = await api("GET", "/events");
+    } catch { /* fall through */ }
+    try {
+      // Campaigns for this event specifically — small payload, lets the
+      // emails stage tell the difference between "no promo at all" and
+      // "promo went out, just no follow-up yet".
+      const c = await api("GET", "/host/crm/campaigns", {
+        query: { eventId: existing.id, limit: 50 },
+      });
+      campaigns = Array.isArray(c) ? c : (c?.campaigns || c?.items || []);
+    } catch { /* fall through */ }
+    const brief = await loadBriefForCoaching();
+    const analytics = await fetchAnalyticsForCoaching(existing);
+
+    const audit = auditJourney({
+      event: existing,
+      brief,
+      media,
+      allEvents,
+      campaigns,
+      analytics,
+    });
+
+    const lines = [
+      `Customer-journey audit — "${existing.title}" [${existing.status}]`,
+      "",
+    ];
+    for (const [, stage] of Object.entries(audit.stages)) {
+      const marker =
+        stage.status === "good" ? "✓" : stage.status === "warn" ? "·" : "✗";
+      lines.push(`  ${marker} ${stage.label}${stage.headline ? ` — ${stage.headline}` : ""}`);
+      for (const fix of stage.fixes) {
+        lines.push(`      • ${fix.headline}`);
+        if (fix.why) lines.push(`        ${fix.why}`);
+        if (fix.call) lines.push(`        → ${fix.call}`);
+      }
+    }
+    if (audit.ranked_breakpoints.length > 0) {
+      lines.push("");
+      lines.push("  Biggest break in the journey:");
+      const top = audit.ranked_breakpoints[0];
+      lines.push(`    ${top.headline}`);
+      if (top.why) lines.push(`    ${top.why}`);
+      if (top.call) lines.push(`    → ${top.call}`);
+    } else {
+      lines.push("");
+      lines.push("  No clear breakpoints — the journey reads end-to-end.");
+    }
+
+    return toolResultText(lines.join("\n"));
+  }
+
   return {
     createEvent,
     updateEvent,
@@ -1869,6 +2016,7 @@ function buildHandlers(api) {
     suggestEventImprovements,
     suggestCampaignImprovements,
     getCrmSignals,
+    auditCustomerJourney,
   };
 }
 
@@ -1946,7 +2094,7 @@ function inferMediaTypeFromBase64(s) {
 
 export function buildTools(ctx) {
   const api = makeApi(ctx.token);
-  const h = buildHandlers(api);
+  const h = buildHandlers(api, ctx?.user?.id || null);
   return [
     {
       name: "create_event",
@@ -2237,6 +2385,14 @@ export function buildTools(ctx) {
         "Surfaces a short ranked list of CRM moves worth making this week: top spenders not yet VIP-tagged, recent newcomers worth a personal follow-up, regulars who may be drifting, marketing-consented people who haven't heard from the host in a while. Brief-aware (intimate hosts get bumped recency signals). Use this when the host says 'who should I be talking to' / 'how's the audience' / 'anything I'm missing in the CRM'.",
       inputSchema: CrmSignalsInput,
       handler: h.getCrmSignals,
+    },
+    {
+      name: "audit_customer_journey",
+      title: "Audit the full guest journey for one event",
+      description:
+        "Walks the four stages a guest experiences — social handoff (share card / IG / WhatsApp paste), event page (cover / copy / vibe links), RSVP form (friction / capture), and emails (promo / day-of / follow-up) — and returns a stage-by-stage report with the single biggest breakpoint surfaced first. Use this when the host says 'how does this look end-to-end', 'audit my event', 'is the journey tight', or before publishing/sharing a major event. Complements suggest_event_improvements (which focuses on the page) with the stages around it.",
+      inputSchema: AuditJourneyInput,
+      handler: h.auditCustomerJourney,
     },
   ];
 }

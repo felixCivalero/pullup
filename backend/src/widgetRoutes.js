@@ -5,12 +5,12 @@
 // host a [Publish] / [Send] / [Back to chat] surface without making them
 // flip back to their MCP client.
 //
-// GET  /api/widget/config?token=<jwt>
+// GET  /widget/config?token=<jwt>
 //   Token-only. Returns the widget's display state — which buttons to
 //   render, what the current published/draft/sent state is. Anyone with
 //   the link can fetch this; the response intentionally carries no PII.
 //
-// POST /api/widget/action
+// POST /widget/action
 //   Body: { token, action, payload? }
 //   Requires token AND a host session. Actions: publish, unpublish, send.
 //   The token's hostId MUST match the session user id — otherwise a
@@ -37,7 +37,7 @@ import { sendCampaignInBatches } from "./services/campaignSender.js";
 const router = Router();
 
 // ── Config ──────────────────────────────────────────────────────────
-router.get("/api/widget/config", async (req, res) => {
+router.get("/widget/config", async (req, res) => {
   const token = (req.query?.token || "").toString();
   let payload;
   try {
@@ -94,7 +94,7 @@ router.get("/api/widget/config", async (req, res) => {
 });
 
 // ── Action ──────────────────────────────────────────────────────────
-router.post("/api/widget/action", requireAuth, async (req, res) => {
+router.post("/widget/action", requireAuth, async (req, res) => {
   const { token, action, payload: actionPayload } = req.body || {};
   let claims;
   try {
@@ -153,7 +153,7 @@ router.post("/api/widget/action", requireAuth, async (req, res) => {
       return res.status(409).json({ ok: false, error: "already_sent" });
     }
     // Fire-and-forget: the batcher updates status as it progresses; the
-    // widget polls /api/widget/config to see the new state.
+    // widget polls /widget/config to see the new state.
     sendCampaignInBatches(camp.id, req.user.id).catch((err) => {
       console.error("[widget] campaign send failed:", err);
     });

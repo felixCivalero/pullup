@@ -817,7 +817,9 @@ app.post("/internal/webhooks/ses-eventbridge", async (req, res) => {
 // EMAIL TRACKING: open pixel + click redirect
 // ---------------------------
 app.use(trackingRoutes);
-// HostBar widget endpoints: /api/widget/config + /api/widget/action.
+// HostBar widget endpoints: /widget/config + /widget/action.
+// Public-facing they're /api/widget/* — pullup.se nginx strips the /api
+// prefix on the way through, same convention as the rest of the API.
 // Mounted after the json body parser (line ~640) so POST bodies are parsed.
 app.use(widgetRoutes);
 

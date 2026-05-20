@@ -204,7 +204,7 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
@@ -313,13 +313,13 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Message -->
 <tr><td style="padding:8px 20px;text-align:center;">
   <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
-    Hi ${name}, <strong>${eventTitle}</strong> is tomorrow!
+    Hi ${name}, <strong translate="no" class="notranslate">${eventTitle}</strong> is tomorrow!
   </p>
 </td></tr>
 
@@ -390,7 +390,7 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
@@ -491,13 +491,13 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
 <tr><td style="padding:8px 20px 0;text-align:center;">
   <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
-    Hi ${name}, a spot has opened up for ${eventTitle}!
+    Hi ${name}, a spot has opened up for <span translate="no" class="notranslate">${eventTitle}</span>!
     ${isPaidEvent ? " Complete your payment to secure your spot." : " Confirm your booking below."}
   </p>
 </td></tr>
@@ -567,15 +567,15 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
 <tr><td style="padding:8px 20px 0;text-align:center;">
   <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
     ${isFullRefund
-      ? `Hi ${name}, your payment for ${eventTitle} has been fully refunded.`
-      : `Hi ${name}, a partial refund of ${refundAmount} ${currency.toUpperCase()} has been processed for ${eventTitle}.`}
+      ? `Hi ${name}, your payment for <span translate="no" class="notranslate">${eventTitle}</span> has been fully refunded.`
+      : `Hi ${name}, a partial refund of ${refundAmount} ${currency.toUpperCase()} has been processed for <span translate="no" class="notranslate">${eventTitle}</span>.`}
   </p>
 </td></tr>
 
@@ -624,13 +624,13 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 class="pu-text" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
 <tr><td style="padding:8px 20px 0;text-align:center;">
   <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
-    Hi ${name}, your booking for ${eventTitle} has been cancelled by the host.
+    Hi ${name}, your booking for <span translate="no" class="notranslate">${eventTitle}</span> has been cancelled by the host.
   </p>
 </td></tr>
 

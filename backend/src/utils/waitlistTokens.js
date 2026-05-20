@@ -13,14 +13,18 @@ if (!WAITLIST_TOKEN_SECRET) {
 }
 
 /**
- * Generate a signed JWT token (waitlist or VIP).
- * The payload MUST include a `type` field so callers can distinguish
- * between "waitlist_offer", "vip_invite", etc. during verification.
+ * Generate a signed JWT token (waitlist, VIP, or other short-lived host
+ * action). The payload MUST include a `type` field so callers can
+ * distinguish between "waitlist_offer", "vip_invite", "media_upload", etc.
+ * during verification.
  *
  * @param {Object} payload - Token payload
+ * @param {Object} [opts]
+ * @param {string|number} [opts.expiresIn] - jsonwebtoken expiresIn value.
+ *   Default "48h" to preserve historical behaviour for waitlist/VIP flows.
  * @returns {string} Signed JWT token
  */
-export function generateWaitlistToken(payload) {
+export function generateWaitlistToken(payload, opts = {}) {
   if (!WAITLIST_TOKEN_SECRET) {
     throw new Error(
       "WAITLIST_TOKEN_SECRET or SUPABASE_SERVICE_KEY must be set"
@@ -28,7 +32,7 @@ export function generateWaitlistToken(payload) {
   }
 
   return jwt.sign(payload, WAITLIST_TOKEN_SECRET, {
-    expiresIn: "48h", // 48 hours
+    expiresIn: opts.expiresIn || "48h",
   });
 }
 

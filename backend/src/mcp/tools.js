@@ -16,6 +16,12 @@ import { z } from "zod";
 
 import { makeApi, frontendUrl } from "./api.js";
 import { eventBanner, toolResultText, toolError } from "./format.js";
+import {
+  analyzeEvent,
+  analyzeCampaign,
+  analyzeCrmSignals,
+  completenessSummary,
+} from "./suggestions.js";
 
 function previewUrlForSlug(slug) {
   return frontendUrl(`/e/${slug}`);
@@ -50,6 +56,40 @@ function resolveEventBySlugVia(api) {
 // Schemas
 // ───────────────────────────────────────────────────────────────────────
 
+// One entry in the optional `extraRsvpFields` shorthand on create_event /
+// update_event. Either a preset type as a bare string ("instagram") or a
+// shaped object with required-flag and (for "custom") a label.
+const RsvpFieldSpecObject = z.object({
+  type: z.enum([
+    "instagram",
+    "phone",
+    "twitter",
+    "tiktok",
+    "linkedin",
+    "company",
+    "birthday",
+    "custom",
+  ]),
+  label: z.string().optional().describe(
+    "Override the field label shown to guests. Required when type is 'custom'."
+  ),
+  required: z.boolean().optional().describe(
+    "Whether the guest must fill this in to RSVP. Defaults to false."
+  ),
+});
+const RsvpFieldInput = z.union([
+  z.enum([
+    "instagram",
+    "phone",
+    "twitter",
+    "tiktok",
+    "linkedin",
+    "company",
+    "birthday",
+  ]),
+  RsvpFieldSpecObject,
+]);
+
 const CreateEventInput = {
   title: z.string().describe("Event title."),
   startsAt: z.string().describe(
@@ -60,10 +100,16 @@ const CreateEventInput = {
     "IANA timezone, e.g. 'Europe/Stockholm'. Defaults to the host's local timezone."
   ),
   location: z.string().optional().describe("Public address or venue name."),
+  locationLat: z.number().optional().describe(
+    "Latitude (decimal degrees) of the venue, for the map pin on the public page."
+  ),
+  locationLng: z.number().optional().describe(
+    "Longitude (decimal degrees) of the venue, for the map pin on the public page."
+  ),
   description: z.string().optional(),
   maxAttendees: z.number().int().positive().optional(),
   imageUrl: z.string().optional().describe(
-    "URL of a hosted cover image. Tip: call list_cover_image_gallery first to reuse one of the host's existing images, or call upload_event_image after create to attach a new one."
+    "URL of a hosted cover image. Tip: call list_cover_image_gallery first to reuse one of the host's existing images, or call upload_event_image after create to attach a new one. For local files (videos, phone photos), use get_media_upload_link after create — claude.ai web can't read file paths."
   ),
   hideLocation: z.boolean().optional().describe(
     "If true, public pages and shares hide the address. Use revealHint for the public substitute."
@@ -77,6 +123,54 @@ const CreateEventInput = {
   dateRevealHint: z.string().optional().describe(
     "Public substitute when hideDate is true. E.g. 'Date announced soon'."
   ),
+
+  // ─── Gating + capacity behaviour ────────────────────────────────────
+  requireApproval: z.boolean().optional().describe(
+    "If true, every RSVP lands in a pending state until the host approves it. Useful for invite-only-feel events."
+  ),
+  waitlistEnabled: z.boolean().optional().describe(
+    "If true, RSVPs past maxAttendees go onto a waitlist instead of being rejected. Default true when maxAttendees is set."
+  ),
+  instantWaitlist: z.boolean().optional().describe(
+    "If true, every RSVP starts on the waitlist (host promotes manually). Use for fully curated guest lists."
+  ),
+  maxPlusOnesPerGuest: z.number().int().nonnegative().max(10).optional().describe(
+    "How many extra guests each RSVP can bring (0–10). Default 0."
+  ),
+
+  // ─── Pricing (Stripe) ──────────────────────────────────────────────
+  ticketType: z.enum(["free", "paid"]).optional().describe(
+    "'paid' creates a Stripe product/price automatically (the host must already have Stripe Connect set up). Requires ticketPrice. Defaults to 'free'."
+  ),
+  ticketPrice: z.number().int().positive().optional().describe(
+    "Price in CENTS (e.g. 2500 = $25.00). Used only when ticketType is 'paid'."
+  ),
+  ticketCurrency: z.string().min(3).max(3).optional().describe(
+    "ISO currency code, e.g. 'USD', 'EUR', 'SEK'. Default 'USD'."
+  ),
+
+  // ─── Event-level social links (shown on the public page) ───────────
+  instagram: z.string().optional().describe("Public IG URL or @handle attached to the event."),
+  spotify: z.string().optional().describe("Spotify URL (playlist / artist) attached to the event."),
+  tiktok: z.string().optional().describe("TikTok URL or @handle attached to the event."),
+  soundcloud: z.string().optional().describe("SoundCloud URL attached to the event."),
+
+  // ─── Cosmetics + bucketing ─────────────────────────────────────────
+  theme: z.string().optional().describe(
+    "Visual theme name (e.g. 'classic', 'minimal'). Affects the public page look."
+  ),
+  visibility: z.enum(["public", "unlisted", "private"]).optional().describe(
+    "'public' = listed on the explore page. 'unlisted' = anyone with the link. 'private' = host-only preview. Default 'unlisted'."
+  ),
+  calendar: z.string().optional().describe(
+    "Free-text calendar/category tag for the host's own bucketing (e.g. 'dinners', 'work events'). Not shown to guests."
+  ),
+
+  // ─── RSVP form ─────────────────────────────────────────────────────
+  extraRsvpFields: z.array(RsvpFieldInput).optional().describe(
+    "Extra questions on the RSVP form, beyond the always-required name/email. Each entry is either a preset type string ('instagram', 'phone', 'twitter', 'tiktok', 'linkedin', 'company', 'birthday') or {type, label?, required?}. For type 'custom', a label is required. Example: ['instagram'] adds an optional Instagram field; [{type:'instagram', required:true}] makes Instagram required; [{type:'custom', label:'Dietary restrictions?', required:false}] adds a free-text question."
+  ),
+
   status: z.enum(["DRAFT", "PUBLISHED"]).optional().describe(
     "Defaults to DRAFT so the host can preview before going public. Pass 'PUBLISHED' to publish immediately."
   ),
@@ -148,6 +242,15 @@ const UploadMediaInput = {
   ),
   setAsCover: z.boolean().optional().describe(
     "If true, sets this media as the event's cover image. For videos, the auto-generated thumbnail is used as the cover."
+  ),
+};
+
+const MediaUploadLinkInput = {
+  slug: z.string().describe(
+    "The event's slug. Returns a short-lived URL the host can open in a browser to drag-drop a media file (image up to 50MB or video up to 500MB)."
+  ),
+  expiresInHours: z.number().int().positive().max(24).optional().describe(
+    "How long the link should stay valid. Default 2, max 24."
   ),
 };
 
@@ -315,6 +418,39 @@ const UpdateRsvpInput = {
   ),
 };
 
+const HostBriefSetInput = {
+  brief: z.string().max(2000).describe(
+    "1–3 paragraphs about the host: who they are, what kinds of events they run, who their audience is, and what they want to grow toward. The AI uses this to calibrate every suggestion."
+  ),
+};
+
+const SuggestImprovementsInput = {
+  slug: z.string().describe(
+    "The event's slug. Returns a ranked list of the most impactful next improvements with the exact MCP call to make each."
+  ),
+  limit: z.number().int().positive().max(10).optional().describe(
+    "Max suggestions to return. Default 5."
+  ),
+};
+
+const SuggestCampaignImprovementsInput = {
+  campaignId: z.string().describe(
+    "Campaign id (UUID) from draft_campaign or list_campaigns. Returns subject-quality, audience, timing, and preview-gate suggestions."
+  ),
+  limit: z.number().int().positive().max(10).optional().describe(
+    "Max suggestions to return. Default 5."
+  ),
+};
+
+const CrmSignalsInput = {
+  days: z.number().int().positive().max(180).optional().describe(
+    "Recent-activity look-back window. Default 30."
+  ),
+  limit: z.number().int().positive().max(10).optional().describe(
+    "Max signals to return. Default 5."
+  ),
+};
+
 const RefundPaymentInput = {
   eventSlug: z.string().describe("Slug of the event."),
   payerEmail: z.string().describe(
@@ -336,13 +472,76 @@ const RefundPaymentInput = {
 // Handlers
 // ───────────────────────────────────────────────────────────────────────
 
+// Mirrors the presets the frontend builder offers in CreateEventPage.jsx so
+// the public RSVP form, exports, and CRM enrichment all see the same shape.
+const RSVP_FIELD_PRESETS = {
+  instagram: { type: "instagram", label: "Instagram", placeholder: "Your Instagram username",  iconKey: "instagram", color: "#E1306C" },
+  phone:     { type: "phone",     label: "Phone",     placeholder: "Phone number",             iconKey: "phone",     color: "#a3e635" },
+  twitter:   { type: "twitter",   label: "X",         placeholder: "Your X username",          iconKey: "twitter",   color: "#ffffff" },
+  tiktok:    { type: "tiktok",    label: "TikTok",    placeholder: "Your TikTok username",     iconKey: "tiktok",    color: "#69C9D0" },
+  linkedin:  { type: "linkedin",  label: "LinkedIn",  placeholder: "LinkedIn profile URL",     iconKey: "linkedin",  color: "#0A66C2" },
+  company:   { type: "company",   label: "Company",   placeholder: "Company / where you work", iconKey: "company",   color: "#c0c0c0" },
+  birthday:  { type: "birthday",  label: "Birthday",  placeholder: "Birthday",                 iconKey: "birthday",  color: "#f59e0b", inputType: "date" },
+};
+
+function makeFieldId() {
+  return "ff_" + Math.random().toString(36).slice(2, 10);
+}
+
+// Convert the MCP `extraRsvpFields` shorthand into the full formFields array
+// the events table stores (name/email locked + custom presets). Throws on
+// missing labels for `custom` so the host gets a clear error from Claude.
+function buildFormFieldsFromExtras(extras) {
+  const locked = [
+    { id: "__name__",  type: "name",  label: "Full name", iconKey: "name",  required: true, locked: true },
+    { id: "__email__", type: "email", label: "Email",     iconKey: "email", required: true, locked: true },
+  ];
+  const custom = (Array.isArray(extras) ? extras : []).map((entry) => {
+    const spec = typeof entry === "string" ? { type: entry } : entry || {};
+    if (spec.type === "custom") {
+      if (!spec.label || !spec.label.trim()) {
+        throw new Error(
+          "extraRsvpFields: 'custom' fields need a label (the question to show the guest)."
+        );
+      }
+      return {
+        id: makeFieldId(),
+        type: "custom",
+        label: spec.label.trim(),
+        placeholder: "Your answer",
+        iconKey: "custom",
+        color: "#a3e635",
+        required: !!spec.required,
+      };
+    }
+    const preset = RSVP_FIELD_PRESETS[spec.type];
+    if (!preset) {
+      throw new Error(
+        `extraRsvpFields: unknown type "${spec.type}". Valid: ${Object.keys(RSVP_FIELD_PRESETS).join(", ")}, or "custom" with a label.`
+      );
+    }
+    return {
+      id: makeFieldId(),
+      ...preset,
+      label: (spec.label && spec.label.trim()) || preset.label,
+      required: !!spec.required,
+    };
+  });
+  return [...locked, ...custom];
+}
+
 function buildHandlers(api) {
   const resolveEventBySlug = resolveEventBySlugVia(api);
 
   async function createEvent(args) {
     const status = args.status || "DRAFT";
-    const payload = { ...args, status };
+    const { extraRsvpFields, ...rest } = args;
+    const payload = { ...rest, status };
+    if (extraRsvpFields !== undefined) {
+      payload.formFields = buildFormFieldsFromExtras(extraRsvpFields);
+    }
     const event = await api("POST", "/events", { body: payload });
+    const { completeness, performance, top } = await buildEventCoaching(event);
 
     const preview = previewUrlForSlug(event.slug);
     const banner = eventBanner({
@@ -355,20 +554,31 @@ function buildHandlers(api) {
         status === "DRAFT"
           ? `To publish: call publish_event with slug "${event.slug}", or update first.`
           : null,
+      completeness,
+      performance,
+      nextSuggestion: top,
     });
     return toolResultText(banner);
   }
 
   async function updateEvent(args) {
-    const { slug, ...rest } = args;
+    const { slug, extraRsvpFields, ...rest } = args;
     const existing = await resolveEventBySlug(slug);
     const patch = Object.fromEntries(
       Object.entries(rest).filter(([, v]) => v !== undefined)
     );
+    if (extraRsvpFields !== undefined) {
+      patch.formFields = buildFormFieldsFromExtras(extraRsvpFields);
+    }
     const updated = await api("PUT", `/host/events/${existing.id}`, { body: patch });
 
     const newSlug = updated.slug || slug;
     const status = updated.status || existing.status;
+    const { completeness, performance, top } = await buildEventCoaching({
+      ...existing,
+      ...updated,
+      slug: newSlug,
+    });
     return toolResultText(
       eventBanner({
         title: updated.title || existing.title,
@@ -377,6 +587,9 @@ function buildHandlers(api) {
         shareUrl: status === "PUBLISHED" ? shareUrlForSlug(newSlug) : null,
         rsvpsUrl: rsvpsDashboardForId(updated.id || existing.id),
         note: "Updated.",
+        completeness,
+        performance,
+        nextSuggestion: top,
       })
     );
   }
@@ -688,6 +901,32 @@ function buildHandlers(api) {
 
     return toolResultText(
       `Uploaded ${detectedType} (~${(approxBytes / 1024 / 1024).toFixed(1)}MB) to "${existing.title}".\n  Preview: ${previewUrlForSlug(existing.slug)}`
+    );
+  }
+
+  // Mint a short-lived browser upload page for the host. Use when the host
+  // has a local file (video, phone photo) and can't pass a URL or base64 —
+  // claude.ai web has no filesystem access and the MCP envelope can't carry
+  // 100MB+ videos. The returned URL opens a focused drag-drop page that
+  // talks straight to Supabase storage.
+  async function getMediaUploadLink(args) {
+    const existing = await resolveEventBySlug(args.slug);
+    const expiresInHours = args.expiresInHours || 2;
+    const resp = await api("POST", `/host/events/${existing.id}/upload-link`, {
+      body: { expiresInHours },
+    });
+    if (!resp?.uploadUrl) {
+      throw new Error("Backend did not return an upload URL.");
+    }
+    return toolResultText(
+      [
+        `Upload link for "${existing.title}":`,
+        ``,
+        `  ${resp.uploadUrl}`,
+        ``,
+        `Open it in a browser, drop a video (up to 500MB) or image (up to 50MB), and it'll attach to the event.`,
+        `Link expires in ${expiresInHours}h.`,
+      ].join("\n")
     );
   }
 
@@ -1190,19 +1429,35 @@ function buildHandlers(api) {
       },
     });
 
+    // Coach the host on the campaign while the iron is hot — subject quality,
+    // audience sanity, preview-gate reminder. Same one-suggestion-at-a-time
+    // pattern as event coaching.
+    const { top: campTop } = await buildCampaignCoaching({
+      id: created.campaignId,
+      subject: args.subject,
+      totalRecipients: created.totalRecipients,
+      templateType: args.templateType || "event",
+      status: "draft",
+    }, ev);
+
     const previewUrl = frontendUrl(`/host/crm/campaigns/${created.campaignId}/preview`);
-    return toolResultText(
-      [
-        "─────────────────────────────────────",
-        "  Campaign drafted (NOT sent)",
-        `  "${args.subject}"  →  ${ev.title}`,
-        `  Audience: ${created.totalRecipients ?? 0} recipients`,
-        "",
-        `  → Preview:    ${previewUrl}`,
-        `  → To send:    call send_campaign with campaignId="${created.campaignId}" and confirm=true`,
-        "─────────────────────────────────────",
-      ].join("\n")
-    );
+    const lines = [
+      "─────────────────────────────────────",
+      "  Campaign drafted (NOT sent)",
+      `  "${args.subject}"  →  ${ev.title}`,
+      `  Audience: ${created.totalRecipients ?? 0} recipients`,
+      "",
+      `  → Preview:    ${previewUrl}`,
+      `  → To send:    call send_campaign with campaignId="${created.campaignId}" and confirm=true`,
+    ];
+    if (campTop) {
+      lines.push("");
+      lines.push(`  Next: ${campTop.headline}`);
+      if (campTop.why) lines.push(`        ${campTop.why}`);
+      if (campTop.call) lines.push(`        → ${campTop.call}`);
+    }
+    lines.push("─────────────────────────────────────");
+    return toolResultText(lines.join("\n"));
   }
 
   async function sendCampaign(args) {
@@ -1301,6 +1556,278 @@ function buildHandlers(api) {
     );
   }
 
+  // ── Coaching: brief + analyzer plumbing ──────────────────────────
+  // Best-effort cache of the host brief within one MCP request. Reading
+  // the profile costs a DB hit + storage signed-URL calls, so we don't
+  // want to pay it on every event mutation in the same chat turn.
+  let cachedBrief = null;
+  let cachedBriefLoaded = false;
+  async function loadBriefForCoaching() {
+    if (cachedBriefLoaded) return cachedBrief;
+    cachedBriefLoaded = true;
+    try {
+      const profile = await api("GET", "/host/profile");
+      cachedBrief = profile?.hostBrief || "";
+    } catch {
+      cachedBrief = "";
+    }
+    return cachedBrief;
+  }
+
+  // Pull event analytics (page views, RSVPs, conversion, fill) for PUBLISHED
+  // events so the coach can ground suggestions in real numbers. Best-effort —
+  // a failed/missing analytics fetch just means no performance line and no
+  // performance signals; everything else still works.
+  async function fetchAnalyticsForCoaching(event) {
+    if (!event?.id) return null;
+    if (event.status !== "PUBLISHED") return null;
+    try {
+      const periodEnd = new Date();
+      const periodStart = new Date(periodEnd.getTime() - 30 * 86400000);
+      return await api("GET", `/host/events/${event.id}/analytics`, {
+        query: {
+          startDate: periodStart.toISOString(),
+          endDate: periodEnd.toISOString(),
+        },
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  // Bundle: { completeness, performance, top } for inline banners.
+  async function buildEventCoaching(event) {
+    if (!event) return { completeness: null, performance: null, top: null };
+    let media = [];
+    let allEvents = [];
+    try {
+      const m = await api("GET", `/host/events/${event.id}/media`);
+      media = Array.isArray(m) ? m : (m?.media || []);
+    } catch {
+      // non-fatal — fall back to event.imageUrl
+    }
+    try {
+      allEvents = await api("GET", "/events");
+    } catch {
+      allEvents = [];
+    }
+    const brief = await loadBriefForCoaching();
+    const analytics = await fetchAnalyticsForCoaching(event);
+    const { suggestions, performance } = analyzeEvent({
+      event,
+      brief,
+      media,
+      allEvents,
+      analytics,
+    });
+    const top = suggestions[0] || null;
+    return {
+      completeness: completenessSummary({ event, media }),
+      performance: performance?.line || null,
+      top,
+    };
+  }
+
+  // ── Host brief: read + write ────────────────────────────────────
+  async function getHostBrief() {
+    let brief = "";
+    try {
+      const profile = await api("GET", "/host/profile");
+      brief = profile?.hostBrief || "";
+    } catch {
+      brief = "";
+    }
+    cachedBrief = brief;
+    cachedBriefLoaded = true;
+    if (!brief) {
+      return toolResultText(
+        [
+          "No host brief set yet.",
+          "",
+          "Ask the host one short question — 'Tell me what you're building. What kinds of events, who are they for, where do you want to take this?' — then call set_host_brief with their answer.",
+          "From then on, every event-creation suggestion will be calibrated to this brief.",
+        ].join("\n")
+      );
+    }
+    return toolResultText(
+      [
+        "Host brief (use this to calibrate suggestions for THIS host):",
+        "",
+        brief,
+      ].join("\n")
+    );
+  }
+
+  async function setHostBrief(args) {
+    const brief = String(args.brief || "").trim();
+    if (!brief) throw new Error("brief is required (1–3 paragraphs).");
+    await api("PUT", "/host/profile", { body: { hostBrief: brief } });
+    cachedBrief = brief;
+    cachedBriefLoaded = true;
+    return toolResultText(
+      [
+        "Saved. From now on, every event suggestion is tuned to this brief.",
+        "",
+        brief,
+      ].join("\n")
+    );
+  }
+
+  // ── Campaign coaching ───────────────────────────────────────────
+  // Best-effort. Pulls the host's prior email performance so the coach
+  // can compare against their actual top-opening subjects.
+  let cachedEmailHistory = null;
+  let cachedEmailHistoryLoaded = false;
+  async function loadEmailHistoryForCoaching() {
+    if (cachedEmailHistoryLoaded) return cachedEmailHistory;
+    cachedEmailHistoryLoaded = true;
+    try {
+      cachedEmailHistory = await api("GET", "/host/crm/emails", { query: { topN: 5 } });
+    } catch {
+      cachedEmailHistory = null;
+    }
+    return cachedEmailHistory;
+  }
+
+  async function buildCampaignCoaching(campaign, event) {
+    if (!campaign) return { top: null };
+    const [brief, history] = await Promise.all([
+      loadBriefForCoaching(),
+      loadEmailHistoryForCoaching(),
+    ]);
+    const { suggestions } = analyzeCampaign({ campaign, event, history: history || {}, brief });
+    return { top: suggestions[0] || null, all: suggestions };
+  }
+
+  async function suggestCampaignImprovements(args) {
+    const c = await api("GET", `/host/crm/campaigns/${args.campaignId}`);
+    if (!c) throw new Error(`Campaign ${args.campaignId} not found.`);
+
+    // Pull the linked event for freshness checks (event date, title).
+    let linkedEvent = null;
+    if (c.eventId) {
+      try {
+        linkedEvent = await api("GET", `/host/events/${c.eventId}`);
+      } catch { /* non-fatal */ }
+    }
+
+    const { all } = await buildCampaignCoaching(
+      { ...c, id: c.id || args.campaignId },
+      linkedEvent
+    );
+
+    const limit = Math.max(1, Math.min(10, args.limit || 5));
+    const top = (all || []).slice(0, limit);
+    const subjectLabel = c.subject ? `"${c.subject}"` : "(no subject)";
+    if (top.length === 0) {
+      return toolResultText(
+        `Campaign ${subjectLabel} looks solid — nothing high-impact stands out. Open the preview URL, then call send_campaign({campaignId, confirm: true}) when you're ready.`
+      );
+    }
+    const lines = [
+      `Suggestions for campaign ${subjectLabel}  [${(c.status || "draft").toUpperCase()}]`,
+      `Audience: ${c.totalRecipients ?? 0} recipient${c.totalRecipients === 1 ? "" : "s"}`,
+      "",
+    ];
+    top.forEach((s, i) => {
+      lines.push(`${i + 1}. ${s.headline}`);
+      if (s.why) lines.push(`   ${s.why}`);
+      if (s.call) lines.push(`   → ${s.call}`);
+      lines.push("");
+    });
+    return toolResultText(lines.join("\n").trim());
+  }
+
+  // ── CRM signals ─────────────────────────────────────────────────
+  // Pulls segments + recent activity in parallel, runs the analyzer,
+  // formats a short ranked list. Pure read-only — the host decides
+  // what to act on.
+  async function getCrmSignals(args) {
+    const days = args.days || 30;
+    const [segments, recent, brief] = await Promise.all([
+      api("GET", "/host/crm/segments", { query: { topN: 5 } }).catch(() => null),
+      api("GET", "/host/crm/recent", { query: { days } }).catch(() => null),
+      loadBriefForCoaching(),
+    ]);
+
+    const { suggestions } = analyzeCrmSignals({
+      segments,
+      recent: { ...(recent || {}), days },
+      brief,
+    });
+
+    const limit = Math.max(1, Math.min(10, args.limit || 5));
+    const top = suggestions.slice(0, limit);
+    if (top.length === 0) {
+      return toolResultText(
+        `No high-impact CRM signals right now — your roster looks tended. Pop back in after the next event or call get_crm_summary for the wider picture.`
+      );
+    }
+    const lines = [
+      `CRM signals — who's worth a touch right now (window: last ${days}d)`,
+      "",
+    ];
+    top.forEach((s, i) => {
+      lines.push(`${i + 1}. ${s.headline}`);
+      if (s.why) lines.push(`   ${s.why}`);
+      if (s.call) lines.push(`   → ${s.call}`);
+      lines.push("");
+    });
+    return toolResultText(lines.join("\n").trim());
+  }
+
+  // ── On-demand: full ranked list of improvements for one event ───
+  async function suggestEventImprovements(args) {
+    const existing = await resolveEventBySlug(args.slug);
+    let media = [];
+    let allEvents = [];
+    try {
+      const m = await api("GET", `/host/events/${existing.id}/media`);
+      media = Array.isArray(m) ? m : (m?.media || []);
+    } catch { /* fall through */ }
+    try {
+      allEvents = await api("GET", "/events");
+    } catch { /* fall through */ }
+    const brief = await loadBriefForCoaching();
+    const analytics = await fetchAnalyticsForCoaching(existing);
+    const { category, series, suggestions, performance } = analyzeEvent({
+      event: existing,
+      brief,
+      media,
+      allEvents,
+      analytics,
+    });
+
+    const limit = Math.max(1, Math.min(10, args.limit || 5));
+    const top = suggestions.slice(0, limit);
+    if (top.length === 0) {
+      return toolResultText(
+        [
+          `"${existing.title}" is in good shape — nothing high-impact stands out.`,
+          performance?.line ? `Performance: ${performance.line}` : null,
+          "",
+          `Detected category: ${category}.${series?.prior ? ` (series: prior was "${series.prior.title}")` : ""}`,
+          brief ? "" : "Tip: call get_host_brief / set_host_brief to give the AI more context about who this is for.",
+        ].filter(Boolean).join("\n")
+      );
+    }
+    const lines = [
+      `Suggestions for "${existing.title}"  (category: ${category}${series?.prior ? `, series: "${series.prior.title}"` : ""})`,
+    ];
+    if (performance?.line) lines.push(`Performance: ${performance.line}`);
+    lines.push("");
+    top.forEach((s, i) => {
+      lines.push(`${i + 1}. ${s.headline}`);
+      if (s.why) lines.push(`   ${s.why}`);
+      if (s.call) lines.push(`   → ${s.call}`);
+      lines.push("");
+    });
+    if (!brief) {
+      lines.push("Tip: set_host_brief once to sharpen these suggestions for this host's specific journey.");
+    }
+    return toolResultText(lines.join("\n").trim());
+  }
+
   return {
     createEvent,
     updateEvent,
@@ -1311,6 +1838,7 @@ function buildHandlers(api) {
     listRsvps,
     uploadEventImage,
     uploadEventMedia,
+    getMediaUploadLink,
     listCoverImageGallery,
     getCrmSummary,
     getRevenueSummary,
@@ -1335,6 +1863,12 @@ function buildHandlers(api) {
     // Slice D — Guest actions
     updateRsvp,
     refundPayment,
+    // Slice E — AI coaching
+    getHostBrief,
+    setHostBrief,
+    suggestEventImprovements,
+    suggestCampaignImprovements,
+    getCrmSignals,
   };
 }
 
@@ -1482,9 +2016,17 @@ export function buildTools(ctx) {
       name: "upload_event_media",
       title: "Upload an image or video to an event's gallery",
       description:
-        "Adds media to an event's gallery. Supports images (jpg/png/webp/gif) up to 50MB and videos (mp4/webm/mov) up to 500MB. Pass a publicly fetchable mediaUrl (preferred for anything over ~5MB — server streams it directly to storage, bypassing MCP body limits) OR mediaBase64 for small inline content (≤30MB). Optionally set setAsCover=true for images to also make it the event's cover.",
+        "Adds media to an event's gallery. Supports images (jpg/png/webp/gif) up to 50MB and videos (mp4/webm/mov) up to 500MB. Pass a publicly fetchable mediaUrl (preferred for anything over ~5MB — server streams it directly to storage, bypassing MCP body limits) OR mediaBase64 for small inline content (≤30MB). Optionally set setAsCover=true for images to also make it the event's cover. For LOCAL files (anything that lives on the host's computer/phone without a public URL), call get_media_upload_link instead — claude.ai web can't read file paths.",
       inputSchema: UploadMediaInput,
       handler: h.uploadEventMedia,
+    },
+    {
+      name: "get_media_upload_link",
+      title: "Get a browser upload link for local files",
+      description:
+        "Returns a short-lived URL the host opens in a browser to drag-and-drop a media file (image up to 50MB or video up to 500MB) onto an event and tune media display settings (fit, focus, loop/autoplay/audio for videos). Use this whenever the host has a local file with no public URL — claude.ai web has no filesystem access and the MCP envelope can't carry large videos. The link is single-event scoped and expires.",
+      inputSchema: MediaUploadLinkInput,
+      handler: h.getMediaUploadLink,
     },
     {
       name: "list_cover_image_gallery",
@@ -1653,6 +2195,48 @@ export function buildTools(ctx) {
         "Refunds a guest's Stripe payment for one event. Looks up the payment by guest email. Defaults to a full refund and moves the RSVP back to WAITLIST so the host can re-promote. Pass amountCents for a partial refund. IRREVERSIBLE — moves real money and emails the guest. Requires confirm: true.",
       inputSchema: RefundPaymentInput,
       handler: h.refundPayment,
+    },
+
+    // ─── Slice E — AI coaching / hand-holding the host ─────────────
+    {
+      name: "get_host_brief",
+      title: "Read the host's freeform brief",
+      description:
+        "Returns the host's saved brief — who they are, what kinds of events they run, who their audience is, what they're growing toward. If empty, returns a hint telling you to ask the host one short question and then call set_host_brief. ALWAYS call this near the start of a conversation: every event suggestion you make should be calibrated to this brief.",
+      inputSchema: {},
+      handler: h.getHostBrief,
+    },
+    {
+      name: "set_host_brief",
+      title: "Save the host's freeform brief",
+      description:
+        "Persists the host's brief (1–3 paragraphs) so it's available on every future conversation. Call this AFTER the host has actually told you about their events and audience — never invent the content. Overwrites any prior brief.",
+      inputSchema: HostBriefSetInput,
+      handler: h.setHostBrief,
+    },
+    {
+      name: "suggest_event_improvements",
+      title: "Get ranked next-step suggestions for one event",
+      description:
+        "Returns a prioritized list of the most impactful improvements for one event — cover media, vibe links, RSVP gating, description depth, series continuity, etc. — each with the exact MCP call to apply it. Category-aware, brief-aware, stakes-aware (intensity scales with event size and ticket price), and performance-grounded for PUBLISHED events. Use this when the host says 'what should I add' / 'is it ready' / 'how do I make this pop' / 'why isn't anyone signing up'.",
+      inputSchema: SuggestImprovementsInput,
+      handler: h.suggestEventImprovements,
+    },
+    {
+      name: "suggest_campaign_improvements",
+      title: "Get ranked next-step suggestions for one email campaign",
+      description:
+        "Returns prioritized critique for a drafted email campaign — subject quality (length, generic-ness, urgency overuse), comparison against the host's own top-opening subjects, audience-size sanity, event-freshness checks, and a preview-gate reminder. Use this when the host says 'is this subject good?' / 'should I send this?', or before send_campaign. Always pair with the preview URL — never let send_campaign fire without the host eyeballing it.",
+      inputSchema: SuggestCampaignImprovementsInput,
+      handler: h.suggestCampaignImprovements,
+    },
+    {
+      name: "get_crm_signals",
+      title: "Proactive CRM insights — who's worth a touch right now",
+      description:
+        "Surfaces a short ranked list of CRM moves worth making this week: top spenders not yet VIP-tagged, recent newcomers worth a personal follow-up, regulars who may be drifting, marketing-consented people who haven't heard from the host in a while. Brief-aware (intimate hosts get bumped recency signals). Use this when the host says 'who should I be talking to' / 'how's the audience' / 'anything I'm missing in the CRM'.",
+      inputSchema: CrmSignalsInput,
+      handler: h.getCrmSignals,
     },
   ];
 }

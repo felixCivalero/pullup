@@ -12,6 +12,9 @@ export function eventBanner({
   shareUrl,
   rsvpsUrl,
   note,
+  completeness, // optional compact "✓ basics ✗ cover…" line
+  performance,  // optional "5d live · 47 views · 6 RSVPs · 13% conv" line
+  nextSuggestion, // optional { headline, why, call }
 }) {
   const statusLine =
     status === "DRAFT"
@@ -31,6 +34,19 @@ export function eventBanner({
   if (note) {
     lines.push("");
     lines.push(`  ${note}`);
+  }
+  if (completeness) {
+    lines.push("");
+    lines.push(`  ${completeness}`);
+  }
+  if (performance) {
+    lines.push(`  Performance: ${performance}`);
+  }
+  if (nextSuggestion) {
+    lines.push("");
+    lines.push(`  Next: ${nextSuggestion.headline}`);
+    if (nextSuggestion.why) lines.push(`        ${nextSuggestion.why}`);
+    if (nextSuggestion.call) lines.push(`        → ${nextSuggestion.call}`);
   }
   lines.push("─────────────────────────────────────");
   return lines.join("\n");

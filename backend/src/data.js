@@ -4566,6 +4566,38 @@ export async function getEmailCampaign(campaignId, userId) {
 }
 
 /**
+ * List email campaigns for a user, newest first. Status filter is optional;
+ * pass 'draft' | 'sending' | 'sent' | 'failed' | 'scheduled' to narrow.
+ * Returns a small projection — for full body/template, fetch with
+ * getEmailCampaign(id, userId).
+ */
+export async function listEmailCampaigns(userId, { status, limit = 50, offset = 0 } = {}) {
+  let q = supabase
+    .from("campaign_campaigns")
+    .select("id, name, subject, template_type, event_id, status, total_recipients, total_sent, total_failed, created_at, sent_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (status) q = q.eq("status", status);
+
+  const { data, error } = await q;
+  if (error) throw new Error(`Failed to list campaigns: ${error.message}`);
+  return (data || []).map((d) => ({
+    id: d.id,
+    name: d.name,
+    subject: d.subject,
+    templateType: d.template_type,
+    eventId: d.event_id,
+    status: d.status,
+    totalRecipients: d.total_recipients || 0,
+    totalSent: d.total_sent || 0,
+    totalFailed: d.total_failed || 0,
+    createdAt: d.created_at,
+    sentAt: d.sent_at,
+  }));
+}
+
+/**
  * Update email campaign status and stats
  */
 export async function updateEmailCampaignStatus(

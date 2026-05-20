@@ -5979,6 +5979,22 @@ app.post(
   }
 );
 
+// GET /host/crm/campaigns - List campaigns for the authenticated host.
+// Newest first. Optional ?status=draft|sending|sent|failed|scheduled.
+app.get("/host/crm/campaigns", requireAuth, async (req, res) => {
+  try {
+    const { listEmailCampaigns } = await import("./data.js");
+    const status = req.query.status ? String(req.query.status) : undefined;
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+    const items = await listEmailCampaigns(req.user.id, { status, limit, offset });
+    res.json(items);
+  } catch (error) {
+    console.error("Error listing campaigns:", error);
+    res.status(500).json({ error: "Failed to list campaigns", message: error.message });
+  }
+});
+
 // GET /host/crm/campaigns/:campaignId - Get campaign status
 app.get("/host/crm/campaigns/:campaignId", requireAuth, async (req, res) => {
   try {

@@ -169,6 +169,151 @@ const EmailSummaryInput = {
   ),
 };
 
+// ─── Slice A — Events completion ──────────────────────────────────────
+
+const EventAnalyticsInput = {
+  slug: z.string().describe("The event's slug."),
+  days: z.number().int().positive().max(365).optional().describe(
+    "Look-back window in days. Default 30. Sets both current and prior comparison periods."
+  ),
+};
+
+const DuplicateEventInput = {
+  slug: z.string().describe("Slug of the source event to clone."),
+  title: z.string().optional().describe(
+    "Title for the new event. Defaults to '<original title> (copy)'."
+  ),
+  startsAt: z.string().optional().describe(
+    "Start time for the new event (ISO 8601). Defaults to 7 days after the source event's start."
+  ),
+};
+
+const DeleteEventInput = {
+  slug: z.string().describe("The event's slug. Destructive — RSVPs and payments stay in the CRM, but the event itself is gone."),
+  confirm: z.literal(true).describe(
+    "Must be `true` to proceed. Forces a confirmation step so this can't be triggered accidentally by Claude."
+  ),
+};
+
+// ─── Slice B — CRM completion ─────────────────────────────────────────
+
+const FindPersonInput = {
+  query: z.string().describe(
+    "Free-text search across name, email, Instagram handle, and phone. Returns up to 20 matches."
+  ),
+};
+
+const GetPersonInput = {
+  personId: z.string().describe(
+    "Person id (UUID). Use find_person first if you only have a name or email."
+  ),
+};
+
+const QueryPeopleInput = {
+  attendedEventSlug: z.string().optional().describe(
+    "Limit to people who have attended this event (by slug)."
+  ),
+  eventsAttendedMin: z.number().int().nonnegative().optional().describe(
+    "Only people with at least this many confirmed RSVPs across all events."
+  ),
+  eventsAttendedMax: z.number().int().nonnegative().optional().describe("Upper bound on event count."),
+  totalSpendMinCents: z.number().int().nonnegative().optional().describe(
+    "Minimum lifetime spend in cents (e.g. 5000 = $50)."
+  ),
+  totalSpendMaxCents: z.number().int().nonnegative().optional().describe("Upper bound on lifetime spend in cents."),
+  tags: z.string().optional().describe(
+    "Comma-separated list of tag strings. Matches people who have ALL listed tags."
+  ),
+  marketingConsentedOnly: z.boolean().optional().describe(
+    "If true, only people who opted in to marketing (sendable for campaigns)."
+  ),
+  limit: z.number().int().positive().max(200).optional().describe("Max results. Default 50."),
+};
+
+const UpdatePersonInput = {
+  personId: z.string().describe("Person id (UUID)."),
+  name: z.string().optional(),
+  phone: z.string().optional(),
+  notes: z.string().optional(),
+  tags: z.array(z.string()).optional().describe(
+    "Full replacement tag list. Pass [] to clear all tags."
+  ),
+  instagram: z.string().optional(),
+  twitter: z.string().optional(),
+  tiktok: z.string().optional(),
+  linkedin: z.string().optional(),
+  company: z.string().optional(),
+  birthday: z.string().optional().describe("Free-form birthday string (e.g. '1992-04-17' or 'April 17')."),
+};
+
+// ─── Slice C — Email completion ───────────────────────────────────────
+
+const ListCampaignsInput = {
+  status: z.enum(["draft", "scheduled", "sending", "sent", "failed", "any"]).optional().describe(
+    "Filter by campaign status. Defaults to any."
+  ),
+  limit: z.number().int().positive().max(100).optional().describe("Max results. Default 20."),
+};
+
+const GetCampaignInput = {
+  campaignId: z.string().describe("Campaign id (UUID)."),
+};
+
+const DraftCampaignInput = {
+  subject: z.string().describe("Email subject line."),
+  eventSlug: z.string().describe(
+    "Slug of the event this campaign is about. Required — campaigns are always anchored to an event in PullUp."
+  ),
+  templateType: z.enum(["event", "followup"]).optional().describe(
+    "'event' = pre-event invite/announcement. 'followup' = post-event recap/thanks. Default 'event'."
+  ),
+  message: z.string().optional().describe(
+    "Plain-text body for the email. Used as the main message block. Optional — campaigns can be drafted with just a subject and refined later in the UI."
+  ),
+  filterAttendedEventSlug: z.string().optional().describe(
+    "Audience filter: only people who attended this event. Most useful for 'followup' templates."
+  ),
+  filterTags: z.string().optional().describe(
+    "Audience filter: comma-separated tag list. Matches people with ALL listed tags."
+  ),
+};
+
+const SendCampaignInput = {
+  campaignId: z.string().describe("Campaign id from draft_campaign or list_campaigns."),
+  confirm: z.literal(true).describe(
+    "Must be `true` to proceed. Forces a confirmation step so Claude can't fire a send without explicit user approval."
+  ),
+};
+
+// ─── Slice D — Guest actions ──────────────────────────────────────────
+
+const UpdateRsvpInput = {
+  eventSlug: z.string().describe("Slug of the event."),
+  rsvpEmail: z.string().describe(
+    "Email of the guest whose RSVP to update. Use list_rsvps to find emails."
+  ),
+  action: z.enum(["check_in", "promote_from_waitlist", "cancel"]).describe(
+    "'check_in' marks the guest as pulled-up. 'promote_from_waitlist' moves a WAITLIST RSVP to CONFIRMED (and triggers the confirmation email). 'cancel' cancels the booking (and triggers a cancellation email; refunds for paid events must be done with refund_payment)."
+  ),
+};
+
+const RefundPaymentInput = {
+  eventSlug: z.string().describe("Slug of the event."),
+  payerEmail: z.string().describe(
+    "Email of the guest who paid. The tool finds their payment for this event."
+  ),
+  amountCents: z.number().int().positive().optional().describe(
+    "Refund amount in cents. Omit for a full refund (or the remaining unrefunded amount if a partial refund was already issued)."
+  ),
+  reason: z.string().optional().describe("Free-text reason recorded with the refund."),
+  moveToWaitlist: z.boolean().optional().describe(
+    "If true (default), the refunded RSVP is moved back to WAITLIST so the host can re-promote later. Set false to leave it cancelled."
+  ),
+  confirm: z.literal(true).describe(
+    "Must be `true`. Refunds move real money and email the guest — never auto-fire from a model inference."
+  ),
+};
+
 // ───────────────────────────────────────────────────────────────────────
 // Handlers
 // ───────────────────────────────────────────────────────────────────────
@@ -589,13 +734,23 @@ function buildHandlers(api) {
       return toolResultText("No campaigns sent yet.");
     }
 
+    const sent = t.total_sent || 0;
+    const delivered = t.total_delivered || 0;
+    const failed = t.total_failed || 0;
+    const deliveryRatePct = sent > 0 ? `${(100 * delivered / sent).toFixed(1)}%` : "—";
+    // Engagement rates are most meaningful as a fraction of DELIVERED, not
+    // attempted — opens on a failed send are impossible by definition.
+    const openOfDelivered = delivered > 0 ? `${(100 * (t.total_opened || 0) / delivered).toFixed(1)}%` : "—";
+    const clickOfDelivered = delivered > 0 ? `${(100 * (t.total_clicked || 0) / delivered).toFixed(1)}%` : "—";
+
     const lines = [
       `Email campaigns: ${t.campaigns_sent} sent`,
-      `  Total sends:    ${t.total_sent || 0}`,
-      `  Delivered:      ${t.total_delivered || 0}`,
-      `  Opened:         ${t.total_opened || 0}  (${pct(t.open_rate_pct)})`,
-      `  Clicked:        ${t.total_clicked || 0}  (${pct(t.click_rate_pct)})`,
+      `  Attempts:       ${sent}`,
+      `  Delivered:      ${delivered}  (${deliveryRatePct} of attempts)`,
+      `  Failed:         ${failed}${failed > 0 && sent > 0 ? `  (${(100 * failed / sent).toFixed(1)}% of attempts — investigate)` : ""}`,
       `  Bounced:        ${t.total_bounced || 0}  (${pct(t.bounce_rate_pct)})`,
+      `  Opened:         ${t.total_opened || 0}  (${openOfDelivered} of delivered, ${pct(t.open_rate_pct)} of attempts)`,
+      `  Clicked:        ${t.total_clicked || 0}  (${clickOfDelivered} of delivered, ${pct(t.click_rate_pct)} of attempts)`,
     ];
     if (t.total_complained) {
       lines.push(`  Complaints:     ${t.total_complained}`);
@@ -626,6 +781,395 @@ function buildHandlers(api) {
     );
   }
 
+  // ─── Slice A — Events completion ──────────────────────────────────
+
+  async function getEventAnalytics(args) {
+    const existing = await resolveEventBySlug(args.slug);
+    const days = args.days || 30;
+    const periodEnd = new Date();
+    const periodStart = new Date(periodEnd.getTime() - days * 86400000);
+    const d = await api("GET", `/host/events/${existing.id}/analytics`, {
+      query: {
+        startDate: periodStart.toISOString(),
+        endDate: periodEnd.toISOString(),
+      },
+    });
+
+    const sources = Array.isArray(d?.sources) ? d.sources : [];
+    const ds = d?.device_split || {};
+    const period = d?.period || {};
+    const currency = d?.ticket_currency || "usd";
+
+    const lines = [
+      `${existing.title}  —  last ${days} days`,
+      "",
+      `  Page views:        ${d?.total_views ?? 0}  (${d?.unique_visitors ?? 0} unique)`,
+      `  vs prev period:    ${period.uniqueChange == null ? "—" : `${period.uniqueChange > 0 ? "+" : ""}${period.uniqueChange}%`}  (${period.prevUnique ?? 0} → ${period.currentUnique ?? 0} unique)`,
+      `  Devices:           mobile ${ds.mobile || 0}  ·  desktop ${ds.desktop || 0}  ·  unknown ${ds.unknown || 0}`,
+      "",
+      `  RSVPs:             ${d?.rsvp_count ?? 0} confirmed`,
+      d?.capacity ? `  Fill rate:         ${pct(d?.fill_rate)}  (${d?.rsvp_count}/${d?.capacity})` : null,
+      `  Conversion:        ${pct(d?.conversion_rate)}  (RSVPs / unique visitors)`,
+      `  Show-up rate:      ${pct(d?.show_rate)}  (${d?.pulled_up ?? 0}/${d?.rsvp_count ?? 0})`,
+      d?.is_paid ? `  Revenue:           ${fmtMoney(d?.revenue ?? 0, currency)}` : null,
+    ].filter(Boolean);
+
+    if (sources.length > 0) {
+      lines.push("");
+      lines.push("Traffic sources:");
+      for (const s of sources.slice(0, 8)) {
+        lines.push(`  • ${s.source || "(unknown)"}  —  ${s.count} visitor${s.count === 1 ? "" : "s"}`);
+      }
+    }
+
+    if (Array.isArray(d?.campaigns) && d.campaigns.length > 0) {
+      lines.push("");
+      lines.push("Campaigns featuring this event:");
+      for (const c of d.campaigns.slice(0, 5)) {
+        lines.push(`  • "${c.subject || c.name || "(no subject)"}"  —  ${c.sent || 0} sent, ${c.rsvps || 0} RSVPs attributed`);
+      }
+    }
+
+    return toolResultText(lines.join("\n"));
+  }
+
+  async function duplicateEvent(args) {
+    const src = await resolveEventBySlug(args.slug);
+    // Pull the full event so we copy theme, sections, settings — not just
+    // top-level fields. The host expects "duplicate" to mean an editable
+    // clone, not a stripped skeleton.
+    const full = await api("GET", `/host/events/${src.id}`);
+
+    const newStartsAt = args.startsAt
+      || (full.startsAt
+        ? new Date(new Date(full.startsAt).getTime() + 7 * 86400000).toISOString()
+        : new Date(Date.now() + 7 * 86400000).toISOString());
+    const newTitle = args.title || `${full.title} (copy)`;
+
+    // Strip identity / lifecycle fields so POST starts a new record.
+    const {
+      id, slug, hostId, createdAt, updatedAt,
+      stripeProductId, stripePriceId,
+      ...rest
+    } = full;
+
+    const payload = {
+      ...rest,
+      title: newTitle,
+      startsAt: newStartsAt,
+      status: "DRAFT", // Always land as DRAFT so the host previews before going live.
+    };
+
+    const created = await api("POST", "/events", { body: payload });
+
+    return toolResultText(
+      eventBanner({
+        title: created.title,
+        status: "DRAFT",
+        previewUrl: previewUrlForSlug(created.slug),
+        rsvpsUrl: rsvpsDashboardForId(created.id),
+        note: `Duplicated from "${full.title}". Update or publish when ready.`,
+      })
+    );
+  }
+
+  async function deleteEvent(args) {
+    if (args.confirm !== true) {
+      throw new Error("Pass confirm: true to actually delete. This is destructive.");
+    }
+    const existing = await resolveEventBySlug(args.slug);
+    await api("DELETE", `/host/events/${existing.id}`);
+    return toolResultText(
+      `Deleted "${existing.title}" (slug: ${existing.slug}). RSVPs and payments stay in the CRM; the event itself is gone.`
+    );
+  }
+
+  // ─── Slice B — CRM completion ─────────────────────────────────────
+
+  function formatPersonLine(p) {
+    const name = p.name || "(no name)";
+    const email = p.email || "(no email)";
+    const ig = p.instagram ? `  @${p.instagram.replace(/^@/, "")}` : "";
+    const events = p.eventsAttended || p.events_attended || 0;
+    return `  • ${name}  <${email}>${ig}  —  ${events} event${events === 1 ? "" : "s"}  →  id: ${p.id}`;
+  }
+
+  async function findPerson(args) {
+    if (!args.query || !String(args.query).trim()) {
+      throw new Error("query is required.");
+    }
+    const data = await api("GET", "/host/crm/people", {
+      query: { search: args.query, limit: 20 },
+    });
+    const people = Array.isArray(data) ? data : (data?.people || []);
+    if (people.length === 0) {
+      return toolResultText(`No people matched "${args.query}".`);
+    }
+    const lines = people.slice(0, 20).map(formatPersonLine);
+    return toolResultText(
+      `${people.length} match${people.length === 1 ? "" : "es"} for "${args.query}":\n${lines.join("\n")}`
+    );
+  }
+
+  async function getPerson(args) {
+    const p = await api("GET", `/host/crm/people/${args.personId}`);
+    if (!p) return toolResultText(`No person found with id ${args.personId}.`);
+
+    const events = Array.isArray(p.eventsAttended) ? p.eventsAttended : (p.events || []);
+    const eventsCount = typeof p.eventsAttended === "number"
+      ? p.eventsAttended
+      : (typeof p.events_attended === "number" ? p.events_attended : events.length || 0);
+    const spend = Number(p.totalSpendCents || p.total_spend_cents || 0);
+    const currency = p.currency || "usd";
+
+    const lines = [
+      `${p.name || "(no name)"}  <${p.email || "(no email)"}>`,
+      p.instagram ? `  Instagram:    @${p.instagram.replace(/^@/, "")}` : null,
+      p.phone ? `  Phone:        ${p.phone}` : null,
+      p.company ? `  Company:      ${p.company}` : null,
+      "",
+      `  Events:       ${eventsCount} confirmed RSVP${eventsCount === 1 ? "" : "s"}`,
+      spend > 0 ? `  Spent:        ${fmtMoney(spend, currency)}` : null,
+      p.tags && p.tags.length ? `  Tags:         ${p.tags.join(", ")}` : null,
+      p.notes ? `  Notes:        ${p.notes}` : null,
+    ].filter(Boolean);
+
+    if (Array.isArray(events) && events.length > 0) {
+      lines.push("");
+      lines.push(`Recent events:`);
+      for (const e of events.slice(0, 8)) {
+        const when = e.startsAt ? new Date(e.startsAt).toLocaleDateString("en-GB") : "—";
+        lines.push(`  • ${e.title || "(untitled)"}  (${when})  → slug: ${e.slug || "—"}`);
+      }
+    }
+
+    return toolResultText(lines.join("\n"));
+  }
+
+  async function queryPeople(args) {
+    const query = {};
+    if (args.attendedEventSlug) {
+      const ev = await resolveEventBySlug(args.attendedEventSlug);
+      query.attendedEventId = ev.id;
+    }
+    if (args.eventsAttendedMin != null) query.eventsAttendedMin = args.eventsAttendedMin;
+    if (args.eventsAttendedMax != null) query.eventsAttendedMax = args.eventsAttendedMax;
+    if (args.totalSpendMinCents != null) query.totalSpendMin = args.totalSpendMinCents;
+    if (args.totalSpendMaxCents != null) query.totalSpendMax = args.totalSpendMaxCents;
+    if (args.tags) query.tags = args.tags;
+    if (args.marketingConsentedOnly) query.subscriptionType = "consented";
+    query.limit = args.limit || 50;
+
+    const data = await api("GET", "/host/crm/people", { query });
+    const people = Array.isArray(data) ? data : (data?.people || []);
+    const total = (data && typeof data.total === "number") ? data.total : people.length;
+    if (people.length === 0) {
+      return toolResultText("No people match those filters.");
+    }
+    const lines = people.slice(0, query.limit).map(formatPersonLine);
+    return toolResultText(
+      `${total} match${total === 1 ? "" : "es"} (showing ${people.length}):\n${lines.join("\n")}`
+    );
+  }
+
+  async function updatePerson(args) {
+    const { personId, ...rest } = args;
+    const patch = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
+    if (Object.keys(patch).length === 0) {
+      throw new Error("No fields to update — pass at least one field besides personId.");
+    }
+    const updated = await api("PUT", `/host/crm/people/${personId}`, { body: patch });
+    const changed = Object.keys(patch);
+    return toolResultText(
+      `Updated ${updated?.name || updated?.email || "person"}.\n  Fields:  ${changed.join(", ")}`
+    );
+  }
+
+  // ─── Slice C — Email completion ───────────────────────────────────
+
+  async function listCampaigns(args) {
+    const query = {};
+    if (args.status && args.status !== "any") query.status = args.status;
+    if (args.limit) query.limit = args.limit;
+    const items = await api("GET", "/host/crm/campaigns", { query });
+    const limit = args.limit || 20;
+    const slice = (items || []).slice(0, limit);
+    if (slice.length === 0) {
+      return toolResultText("No campaigns yet. Use draft_campaign to create one.");
+    }
+    const lines = slice.map((c) => {
+      const when = c.sentAt
+        ? new Date(c.sentAt).toLocaleDateString("en-GB")
+        : (c.createdAt ? `drafted ${new Date(c.createdAt).toLocaleDateString("en-GB")}` : "—");
+      const recip = c.totalRecipients ? `${c.totalRecipients} recipients` : "no audience yet";
+      return `  • "${c.subject || c.name || "(no subject)"}"  [${(c.status || "?").toUpperCase()}]  ${recip}  ${when}  →  id: ${c.id}`;
+    });
+    return toolResultText(
+      `${slice.length} campaign${slice.length === 1 ? "" : "s"}:\n${lines.join("\n")}`
+    );
+  }
+
+  async function getCampaign(args) {
+    const c = await api("GET", `/host/crm/campaigns/${args.campaignId}`);
+    if (!c) return toolResultText(`Campaign ${args.campaignId} not found.`);
+    const total = Number(c.totalRecipients || 0);
+    const sent = Number(c.totalSent || 0);
+    const failed = Number(c.totalFailed || 0);
+    const lines = [
+      `"${c.subject || c.name || "(no subject)"}"  [${(c.status || "?").toUpperCase()}]`,
+      `  Type:         ${c.templateType || "—"}`,
+      `  Event:        ${c.eventId || "—"}`,
+      `  Recipients:   ${total}`,
+      `  Sent:         ${sent}${failed ? `  (${failed} failed)` : ""}`,
+      c.sentAt ? `  Sent at:      ${new Date(c.sentAt).toLocaleString("en-GB")}` : null,
+      c.createdAt ? `  Created:      ${new Date(c.createdAt).toLocaleString("en-GB")}` : null,
+    ].filter(Boolean);
+    return toolResultText(lines.join("\n"));
+  }
+
+  async function draftCampaign(args) {
+    const ev = await resolveEventBySlug(args.eventSlug);
+
+    // Build a minimal block-based templateContent the backend accepts.
+    // The host can edit/refine in the UI; chat-drafted campaigns ship a
+    // single paragraph block from `message`. Text blocks require a `style`
+    // of 'heading' or 'paragraph' per the followup-template validator.
+    const templateContent = args.message
+      ? {
+          blocks: [
+            { type: "text", style: "paragraph", text: String(args.message) },
+          ],
+        }
+      : { blocks: [] };
+
+    const filterCriteria = {};
+    if (args.filterAttendedEventSlug) {
+      const filterEv = await resolveEventBySlug(args.filterAttendedEventSlug);
+      filterCriteria.attendedEventId = filterEv.id;
+    }
+    if (args.filterTags) filterCriteria.tags = args.filterTags;
+
+    const created = await api("POST", "/host/crm/campaigns", {
+      body: {
+        subject: args.subject,
+        eventId: ev.id,
+        templateType: args.templateType || "event",
+        templateContent,
+        filterCriteria,
+      },
+    });
+
+    const previewUrl = frontendUrl(`/host/crm/campaigns/${created.campaignId}/preview`);
+    return toolResultText(
+      [
+        "─────────────────────────────────────",
+        "  Campaign drafted (NOT sent)",
+        `  "${args.subject}"  →  ${ev.title}`,
+        `  Audience: ${created.totalRecipients ?? 0} recipients`,
+        "",
+        `  → Preview:    ${previewUrl}`,
+        `  → To send:    call send_campaign with campaignId="${created.campaignId}" and confirm=true`,
+        "─────────────────────────────────────",
+      ].join("\n")
+    );
+  }
+
+  async function sendCampaign(args) {
+    if (args.confirm !== true) {
+      throw new Error("Pass confirm: true to actually send. This emails real people.");
+    }
+    const r = await api("POST", `/host/crm/campaigns/${args.campaignId}/send`);
+    return toolResultText(
+      `Campaign send started. Status: ${r?.status || "sending"}.\nUse get_campaign with id ${args.campaignId} in a minute to see delivery counts.`
+    );
+  }
+
+  // ─── Slice D — Guest actions ──────────────────────────────────────
+
+  async function findRsvpByEmail(eventId, email) {
+    const guests = await api("GET", `/host/events/${eventId}/guests`);
+    const list = Array.isArray(guests) ? guests : guests?.guests || guests?.rsvps || [];
+    const target = email.trim().toLowerCase();
+    const match = list.find((g) => (g.email || "").toLowerCase() === target);
+    if (!match) {
+      throw new Error(
+        `No RSVP found for ${email} on this event. Use list_rsvps to see who's signed up.`
+      );
+    }
+    return match;
+  }
+
+  async function updateRsvp(args) {
+    const ev = await resolveEventBySlug(args.eventSlug);
+    const rsvp = await findRsvpByEmail(ev.id, args.rsvpEmail);
+
+    if (args.action === "check_in") {
+      // pulledUpForCocktails=true marks attendance. For dinner events,
+      // hosts use the dashboard for the more granular toggle.
+      await api("PUT", `/host/events/${ev.id}/rsvps/${rsvp.id}`, {
+        body: { pulledUpForCocktails: true },
+      });
+      return toolResultText(`Checked in ${rsvp.name || rsvp.email} for "${ev.title}".`);
+    }
+
+    if (args.action === "promote_from_waitlist") {
+      const status = (rsvp.bookingStatus || rsvp.status || "").toLowerCase();
+      if (status !== "waitlist") {
+        return toolResultText(
+          `${rsvp.name || rsvp.email} is already ${rsvp.bookingStatus || rsvp.status}, not on the waitlist.`
+        );
+      }
+      await api("POST", `/host/events/${ev.id}/rsvps/${rsvp.id}/promote`);
+      return toolResultText(
+        `Promoted ${rsvp.name || rsvp.email} from waitlist to CONFIRMED for "${ev.title}". They'll receive the confirmation email.`
+      );
+    }
+
+    if (args.action === "cancel") {
+      await api("POST", `/host/events/${ev.id}/rsvps/${rsvp.id}/cancel`);
+      return toolResultText(
+        `Cancelled ${rsvp.name || rsvp.email}'s RSVP for "${ev.title}". They'll receive a cancellation email. (For paid events, run refund_payment separately.)`
+      );
+    }
+
+    throw new Error(`Unknown action: ${args.action}`);
+  }
+
+  async function refundPayment(args) {
+    if (args.confirm !== true) {
+      throw new Error("Pass confirm: true. Refunds move real money.");
+    }
+    const ev = await resolveEventBySlug(args.eventSlug);
+
+    // Find the payer's payment for this event. /host/events/:id/payments
+    // returns the event's payments scoped to the host.
+    const payments = await api("GET", `/host/events/${ev.id}/payments`);
+    const list = Array.isArray(payments) ? payments : (payments?.payments || []);
+    const target = args.payerEmail.trim().toLowerCase();
+    const candidate = list.find((p) => {
+      const email = (p.email || p.payerEmail || p.guestEmail || "").toLowerCase();
+      return email === target && (p.status === "succeeded" || p.status === "partial_refund");
+    });
+    if (!candidate) {
+      throw new Error(
+        `No refundable payment found for ${args.payerEmail} on "${ev.title}".`
+      );
+    }
+
+    const body = { moveToWaitlist: args.moveToWaitlist !== false };
+    if (args.amountCents != null) body.amount = args.amountCents;
+    if (args.reason) body.reason = args.reason;
+
+    const r = await api("POST", `/host/events/${ev.id}/payments/${candidate.id}/refund`, {
+      body,
+    });
+
+    const amount = (r?.amount_refunded ?? r?.refund?.amount ?? args.amountCents);
+    return toolResultText(
+      `Refunded ${amount != null ? fmtMoney(amount, candidate.currency || "usd") : "(amount confirmed by Stripe)"} to ${args.payerEmail} for "${ev.title}".${body.moveToWaitlist ? " Moved RSVP back to WAITLIST." : ""}`
+    );
+  }
+
   return {
     createEvent,
     updateEvent,
@@ -642,6 +1186,23 @@ function buildHandlers(api) {
     getAudienceSegments,
     getRecentActivity,
     getEmailSummary,
+    // Slice A — Events completion
+    getEventAnalytics,
+    duplicateEvent,
+    deleteEvent,
+    // Slice B — CRM completion
+    findPerson,
+    getPerson,
+    queryPeople,
+    updatePerson,
+    // Slice C — Email completion
+    listCampaigns,
+    getCampaign,
+    draftCampaign,
+    sendCampaign,
+    // Slice D — Guest actions
+    updateRsvp,
+    refundPayment,
   };
 }
 
@@ -804,6 +1365,118 @@ export function buildTools(ctx) {
         "Returns campaign totals (sent, delivered, opened, clicked, bounced) plus open/click/bounce rates and the top N campaigns by open rate. Use for 'how are my emails doing', 'best-performing subject lines', 'what's my open rate'.",
       inputSchema: EmailSummaryInput,
       handler: h.getEmailSummary,
+    },
+
+    // ─── Slice A — Events completion ────────────────────────────────
+    {
+      name: "get_event_analytics",
+      title: "Get analytics for one event",
+      description:
+        "Returns per-event analytics: page views (unique + total), period-over-period change, device split, traffic sources, RSVPs, fill rate, conversion rate, show-up rate, revenue, and any campaigns that promoted this event. Use for 'how is photo-walk-2 doing', 'where are people coming from', 'what's my conversion rate'.",
+      inputSchema: EventAnalyticsInput,
+      handler: h.getEventAnalytics,
+    },
+    {
+      name: "duplicate_event",
+      title: "Duplicate an event as a new DRAFT",
+      description:
+        "Clones an existing event — copies title, description, image, theme, sections, ticketing, form fields, settings — and creates a new DRAFT. Default new start = source start + 7 days. Use for 'set up next week's walk like last week's' or 'clone vol 03 for vol 04'.",
+      inputSchema: DuplicateEventInput,
+      handler: h.duplicateEvent,
+    },
+    {
+      name: "delete_event",
+      title: "Delete an event (destructive)",
+      description:
+        "Permanently deletes an event. RSVPs and payments stay in the CRM, but the event page is gone. Requires confirm: true so it can't fire from a casual instruction.",
+      inputSchema: DeleteEventInput,
+      handler: h.deleteEvent,
+    },
+
+    // ─── Slice B — CRM completion ───────────────────────────────────
+    {
+      name: "find_person",
+      title: "Find a person by name, email, IG, or phone",
+      description:
+        "Free-text search across the host's CRM. Returns up to 20 matches with id, name, email, IG handle, and attendance count. Use when the host names someone ('find sara', 'do I have mia in my CRM') — then use get_person for the full profile.",
+      inputSchema: FindPersonInput,
+      handler: h.findPerson,
+    },
+    {
+      name: "get_person",
+      title: "Get a person's full profile",
+      description:
+        "Returns one person's full profile: identity fields (IG/twitter/tiktok/linkedin/company), tags, notes, lifetime spend, every event they've attended. Use after find_person, or when the host references a specific person id.",
+      inputSchema: GetPersonInput,
+      handler: h.getPerson,
+    },
+    {
+      name: "query_people",
+      title: "Query people in the CRM",
+      description:
+        "Filter the CRM by attendance count, attendance to a specific event, lifetime spend range, tags, and marketing-consent status. Returns a list. Use for segmentation: 'who attended both walks', 'my top 20 spenders', 'people with the vip tag who consented to marketing', 'first-timers from last month'. For draft_campaign audiences, prefer the same-shape filters there.",
+      inputSchema: QueryPeopleInput,
+      handler: h.queryPeople,
+    },
+    {
+      name: "update_person",
+      title: "Update a person's CRM fields",
+      description:
+        "Patches a person record. Pass only the fields to change. Useful for enriching contacts post-event: add an IG handle the host grabbed in person, set notes, replace the tag list, etc. tags is a FULL replacement (pass [] to clear).",
+      inputSchema: UpdatePersonInput,
+      handler: h.updatePerson,
+    },
+
+    // ─── Slice C — Email completion ─────────────────────────────────
+    {
+      name: "list_campaigns",
+      title: "List email campaigns",
+      description:
+        "Lists the host's campaigns, newest first, with status, recipient count, and sent count. Filter by status='draft' / 'sending' / 'sent' / 'failed'. Use for 'what campaigns have I sent', 'find my last follow-up', 'any drafts pending'.",
+      inputSchema: ListCampaignsInput,
+      handler: h.listCampaigns,
+    },
+    {
+      name: "get_campaign",
+      title: "Get campaign details + send status",
+      description:
+        "Returns one campaign's full status: subject, type, recipient count, sent/failed counts, and timestamps. Use after list_campaigns, or after send_campaign to poll progress.",
+      inputSchema: GetCampaignInput,
+      handler: h.getCampaign,
+    },
+    {
+      name: "draft_campaign",
+      title: "Draft an email campaign",
+      description:
+        "Creates a DRAFT email campaign tied to one event. Subject is required; message is an optional plain-text body. Audience can be filtered to people who attended a specific event (great for follow-ups) or people with specific tags. Returns a preview URL the host can review. Does NOT send — pair with send_campaign(confirm: true) to actually fire.",
+      inputSchema: DraftCampaignInput,
+      handler: h.draftCampaign,
+    },
+    {
+      name: "send_campaign",
+      title: "Send a drafted campaign",
+      description:
+        "Fires a drafted campaign to its audience. IRREVERSIBLE — sends real email to real people. Requires confirm: true. The host should review the preview from draft_campaign first.",
+      inputSchema: SendCampaignInput,
+      handler: h.sendCampaign,
+    },
+
+    // ─── Slice D — Guest actions ────────────────────────────────────
+    {
+      name: "update_rsvp",
+      title: "Check in, promote, or cancel an RSVP",
+      description:
+        "Acts on one RSVP, identified by event slug + guest email. action='check_in' marks the guest as attended. action='promote_from_waitlist' moves a WAITLIST RSVP to CONFIRMED (and triggers the confirmation email). action='cancel' cancels the booking (and triggers a cancellation email). For refunds on paid events, use refund_payment instead.",
+      inputSchema: UpdateRsvpInput,
+      handler: h.updateRsvp,
+    },
+    {
+      name: "refund_payment",
+      title: "Refund a guest's payment",
+      description:
+        "Refunds a guest's Stripe payment for one event. Looks up the payment by guest email. Defaults to a full refund and moves the RSVP back to WAITLIST so the host can re-promote. Pass amountCents for a partial refund. IRREVERSIBLE — moves real money and emails the guest. Requires confirm: true.",
+      inputSchema: RefundPaymentInput,
+      handler: h.refundPayment,
     },
   ];
 }

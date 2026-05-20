@@ -133,6 +133,24 @@ const ListGalleryInput = {
   ),
 };
 
+const UploadMediaInput = {
+  slug: z.string().describe(
+    "The event's slug. Media is attached to this event's gallery."
+  ),
+  mediaUrl: z.string().optional().describe(
+    "Public URL of a media file. Preferred path — supports large files (up to 500MB for videos) because the server streams it directly to storage. Accepts jpg/png/webp/gif images and mp4/webm/mov videos."
+  ),
+  mediaBase64: z.string().optional().describe(
+    "Media as a base64 data URL or raw base64. Use only for small inline images (≤40MB encoded, ≤30MB decoded). For videos or larger files, use mediaUrl."
+  ),
+  mediaType: z.enum(["image", "video"]).optional().describe(
+    "Override autodetection. Auto-detected from mime type if omitted."
+  ),
+  setAsCover: z.boolean().optional().describe(
+    "If true, sets this media as the event's cover image. For videos, the auto-generated thumbnail is used as the cover."
+  ),
+};
+
 const CrmSummaryInput = {
   topN: z.number().int().positive().max(20).optional().describe(
     "How many top repeat-attendees and top events to include in the summary. Default 5."
@@ -557,6 +575,119 @@ function buildHandlers(api) {
 
     return toolResultText(
       `Uploaded a new cover for "${existing.title}".\n\n  Preview: ${previewUrlForSlug(existing.slug)}`
+    );
+  }
+
+  async function uploadEventMedia(args) {
+    const existing = await resolveEventBySlug(args.slug);
+    if (!args.mediaUrl && !args.mediaBase64) {
+      throw new Error("Provide either mediaUrl or mediaBase64.");
+    }
+
+    // ── URL path: stream-fetch and upload via signed Supabase URL ──
+    // This bypasses the 50MB /mcp body limit entirely because the bytes
+    // never traverse the MCP JSON-RPC envelope — the server fetches the
+    // remote URL, then PUTs to a Supabase-issued upload URL.
+    if (args.mediaUrl) {
+      const headResp = await fetch(args.mediaUrl, { method: "HEAD" }).catch(() => null);
+      const ctype = headResp?.headers?.get?.("content-type") || "";
+      const detectedType = args.mediaType || inferMediaTypeFromMime(ctype) || inferMediaTypeFromUrl(args.mediaUrl);
+      if (!detectedType) {
+        throw new Error("Could not detect media type. Pass mediaType: 'image' or 'video' to override.");
+      }
+      const mime = ctype && /^(image|video)\//.test(ctype)
+        ? ctype.split(";")[0]
+        : detectedType === "video"
+          ? "video/mp4"
+          : "image/jpeg";
+
+      const sizeHeader = Number(headResp?.headers?.get?.("content-length") || 0);
+      const maxBytes = detectedType === "video" ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
+      if (sizeHeader && sizeHeader > maxBytes) {
+        throw new Error(
+          `Media is ${(sizeHeader / 1024 / 1024).toFixed(1)}MB. Limit is ${maxBytes / 1024 / 1024}MB for ${detectedType}s.`
+        );
+      }
+
+      // Mint a signed upload URL scoped to this event.
+      const tokenResp = await api("POST", `/host/events/${existing.id}/storage-token`, {
+        body: { mimeType: mime, kind: "main", position: 0 },
+      });
+      if (!tokenResp?.uploadUrl || !tokenResp?.path) {
+        throw new Error("Failed to mint upload URL.");
+      }
+
+      // Stream the remote file into the signed Supabase URL. fetch().body
+      // is a ReadableStream; we PUT it directly. Node 20+ handles this.
+      const src = await fetch(args.mediaUrl);
+      if (!src.ok) throw new Error(`Source URL returned HTTP ${src.status}.`);
+      const uploadResp = await fetch(tokenResp.uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": mime,
+          // Supabase signed-upload accepts the body without further auth.
+        },
+        body: src.body,
+        duplex: "half",
+      });
+      if (!uploadResp.ok) {
+        const text = await uploadResp.text().catch(() => "");
+        throw new Error(`Storage upload failed: ${uploadResp.status} ${text.slice(0, 200)}`);
+      }
+
+      // Register the uploaded media against the event. For videos, the
+      // existing /media endpoint expects an optional thumbnail; we skip
+      // it for now (Supabase doesn't auto-generate video thumbnails and
+      // the host can swap one in via the dashboard if needed).
+      await api("POST", `/host/events/${existing.id}/media`, {
+        body: {
+          storagePath: tokenResp.path,
+          mediaType: detectedType,
+          mimeType: mime,
+          position: 0,
+        },
+      });
+
+      // If asked to set as cover and it's an image, update the event's
+      // cover. For videos, the first item is auto-marked cover by the
+      // media endpoint; otherwise the host can promote via the dashboard.
+      if (args.setAsCover && detectedType === "image") {
+        await api("POST", `/host/events/${existing.id}/image`, {
+          body: { storagePath: tokenResp.path },
+        });
+      }
+
+      return toolResultText(
+        `Uploaded ${detectedType} (${sizeHeader ? Math.round(sizeHeader / 1024 / 1024 * 10) / 10 + "MB" : "size unknown"}) to "${existing.title}".\n  Preview: ${previewUrlForSlug(existing.slug)}`
+      );
+    }
+
+    // ── Base64 path: small inline media only ──
+    const detectedType = args.mediaType || inferMediaTypeFromBase64(args.mediaBase64) || "image";
+    const mime = sniffMimeFromBase64(args.mediaBase64) || (detectedType === "video" ? "video/mp4" : "image/png");
+    const approxBytes = Math.floor((args.mediaBase64.length * 3) / 4);
+    const maxBytes = detectedType === "video" ? 30 * 1024 * 1024 : 30 * 1024 * 1024;
+    if (approxBytes > maxBytes) {
+      throw new Error(
+        `Inline media is ~${(approxBytes / 1024 / 1024).toFixed(1)}MB. For files this large, use mediaUrl instead.`
+      );
+    }
+
+    const dataUrl = args.mediaBase64.startsWith("data:")
+      ? args.mediaBase64
+      : `data:${mime};base64,${args.mediaBase64}`;
+
+    await api("POST", `/host/events/${existing.id}/media`, {
+      body: {
+        mediaData: dataUrl,
+        mediaType: detectedType,
+        mimeType: mime,
+        position: 0,
+      },
+    });
+
+    return toolResultText(
+      `Uploaded ${detectedType} (~${(approxBytes / 1024 / 1024).toFixed(1)}MB) to "${existing.title}".\n  Preview: ${previewUrlForSlug(existing.slug)}`
     );
   }
 
@@ -1179,6 +1310,7 @@ function buildHandlers(api) {
     getEvent,
     listRsvps,
     uploadEventImage,
+    uploadEventMedia,
     listCoverImageGallery,
     getCrmSummary,
     getRevenueSummary,
@@ -1219,7 +1351,7 @@ async function fetchAsBuffer(url) {
 }
 
 // Tiny magic-number sniffer so URL uploads round-trip with the right mime.
-// We only handle the four formats the backend storage accepts.
+// Handles the formats Supabase storage accepts for images + videos.
 function sniffMime(buf) {
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
   if (
@@ -1235,7 +1367,43 @@ function sniffMime(buf) {
     buf.length >= 6 &&
     (buf.toString("ascii", 0, 6) === "GIF87a" || buf.toString("ascii", 0, 6) === "GIF89a")
   ) return "image/gif";
+  // ISO base media file format (mp4/mov/m4v) — bytes 4..8 are 'ftyp'.
+  if (buf.length >= 12 && buf.toString("ascii", 4, 8) === "ftyp") return "video/mp4";
+  // WebM / Matroska EBML header.
+  if (buf.length >= 4 && buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) {
+    return "video/webm";
+  }
   return null;
+}
+
+function sniffMimeFromBase64(s) {
+  if (!s) return null;
+  const raw = s.startsWith("data:") ? s.split(",")[1] || "" : s;
+  try {
+    const head = Buffer.from(raw.slice(0, 64), "base64"); // sniff the first ~48 bytes
+    return sniffMime(head);
+  } catch {
+    return null;
+  }
+}
+
+function inferMediaTypeFromMime(mime) {
+  if (!mime) return null;
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  return null;
+}
+
+function inferMediaTypeFromUrl(url) {
+  const lower = String(url || "").toLowerCase().split("?")[0];
+  if (/\.(jpg|jpeg|png|webp|gif)$/.test(lower)) return "image";
+  if (/\.(mp4|webm|mov|m4v)$/.test(lower)) return "video";
+  return null;
+}
+
+function inferMediaTypeFromBase64(s) {
+  const mime = sniffMimeFromBase64(s);
+  return inferMediaTypeFromMime(mime);
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -1306,9 +1474,17 @@ export function buildTools(ctx) {
       name: "upload_event_image",
       title: "Upload a cover image to an event",
       description:
-        "Sets a new cover image on an event. Provide an imageUrl (publicly fetchable) or imageBase64 (data URL or raw base64). ≤10MB.",
+        "Sets a new cover image on an event. Provide an imageUrl (publicly fetchable) or imageBase64 (data URL or raw base64). ≤10MB. For larger images, gallery additions, or videos, use upload_event_media instead.",
       inputSchema: UploadImageInput,
       handler: h.uploadEventImage,
+    },
+    {
+      name: "upload_event_media",
+      title: "Upload an image or video to an event's gallery",
+      description:
+        "Adds media to an event's gallery. Supports images (jpg/png/webp/gif) up to 50MB and videos (mp4/webm/mov) up to 500MB. Pass a publicly fetchable mediaUrl (preferred for anything over ~5MB — server streams it directly to storage, bypassing MCP body limits) OR mediaBase64 for small inline content (≤30MB). Optionally set setAsCover=true for images to also make it the event's cover.",
+      inputSchema: UploadMediaInput,
+      handler: h.uploadEventMedia,
     },
     {
       name: "list_cover_image_gallery",

@@ -609,6 +609,33 @@ app.post(
   }
 );
 
+// /mcp JSON-RPC bodies get a stricter cap than the global json parser —
+// MCP messages are normally <100KB, occasional inline base64 images may
+// reach a few MB. 50MB is generous defense-in-depth without blocking
+// legitimate use. Mounted BEFORE the global parser so it wins for /mcp
+// (the global parser short-circuits when req.body is already set).
+app.use("/mcp", express.json({ limit: "50mb" }));
+
+// Convert body-parser errors on /mcp to a JSON-RPC envelope so clients
+// don't get raw Express HTML on 413 / malformed JSON.
+app.use("/mcp", (err, req, res, next) => {
+  if (!err) return next();
+  const status = err.statusCode || err.status || 400;
+  const code = status === 413 ? -32600 : -32700; // invalid-request vs parse-error
+  return res.status(status).json({
+    jsonrpc: "2.0",
+    error: { code, message: err.message || "Bad request" },
+    id: null,
+  });
+});
+
+// Lightweight no-auth heartbeat so uptime monitors / load balancers can
+// probe the MCP endpoint without minting a PAT. Returns the server name
+// + protocol version; intentionally NOT the tool list.
+app.get("/mcp/health", (req, res) => {
+  res.json({ ok: true, server: "pullup-mcp", version: "0.3.0" });
+});
+
 // Allow base64 images in body
 app.use(
   express.json({
@@ -6709,11 +6736,22 @@ function requireJwtAuth(req, res, next) {
 
 app.post("/host/tokens", requireAuth, requireJwtAuth, async (req, res) => {
   try {
-    const { name } = req.body || {};
+    const { name, expiresInDays } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: "name_required", message: "name is required" });
     }
-    const created = await createPersonalAccessToken({ userId: req.user.id, name });
+    const days = expiresInDays != null ? Number(expiresInDays) : null;
+    if (days != null && (!Number.isFinite(days) || days <= 0 || days > 3650)) {
+      return res.status(400).json({
+        error: "invalid_expires_in_days",
+        message: "expiresInDays must be a positive number ≤ 3650.",
+      });
+    }
+    const created = await createPersonalAccessToken({
+      userId: req.user.id,
+      name,
+      expiresInDays: days,
+    });
     // Plaintext is in `token` — surface it to the user immediately. We never
     // store it and can't recover it later.
     res.status(201).json(created);

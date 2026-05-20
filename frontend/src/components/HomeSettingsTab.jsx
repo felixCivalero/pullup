@@ -198,6 +198,14 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
         showToast={showToast}
       />
 
+      {/* PULLUP MCP */}
+      <SettingsSection
+        title="PullUp MCP"
+        description="Manage your events conversationally from any AI assistant that speaks MCP — Claude, ChatGPT, Cursor, and more."
+      >
+        <SettingsMcpIntegration showToast={showToast} />
+      </SettingsSection>
+
       {/* INTEGRATIONS */}
       <SettingsSection
         title="Integrations"
@@ -366,14 +374,6 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
               : "Connect Stripe"}
           </button>
         </div>
-      </SettingsSection>
-
-      {/* PULLUP MCP */}
-      <SettingsSection
-        title="PullUp MCP"
-        description="Manage your events conversationally from any AI assistant that speaks MCP — Claude, ChatGPT, Cursor, and more."
-      >
-        <SettingsMcpIntegration showToast={showToast} />
       </SettingsSection>
 
       <div

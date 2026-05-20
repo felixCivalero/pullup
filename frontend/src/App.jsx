@@ -29,6 +29,7 @@ import { PrivacyPage } from "./pages/PrivacyPage";
 import { TermsPage } from "./pages/TermsPage";
 import { CookiesPage } from "./pages/CookiesPage";
 import { HostAnalyticsPage } from "./pages/HostAnalyticsPage";
+import { OAuthAuthorizePage } from "./pages/OAuthAuthorizePage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { IdeaWidget } from "./components/IdeaWidget";
@@ -49,6 +50,7 @@ function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/cookies" element={<CookiesPage />} />
         <Route path="/u/:token" element={<UnsubscribePage />} />
+        <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
         <Route
           path="/e/:slug"
           element={

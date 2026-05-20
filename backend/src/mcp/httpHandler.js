@@ -44,15 +44,21 @@ function setMcpCorsHeaders(req, res) {
 export async function handleMcp(req, res) {
   setMcpCorsHeaders(req, res);
 
-  // Auth — PAT only
+  // Auth — PAT only (manually-minted OR OAuth-issued; both are pup_… tokens
+  // stored in personal_access_tokens). On 401 we set RFC 9728's
+  // WWW-Authenticate header pointing at our Protected Resource Metadata so
+  // MCP clients (claude.ai, ChatGPT, etc.) can auto-discover the OAuth
+  // flow and prompt the user to authorize.
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (!token) return jsonRpcError(res, 401, -32001, "Missing Authorization: Bearer pup_… token. Mint one in PullUp → Settings → Personal Access Tokens.");
+  if (!token) {
+    return unauthorized(res, "Missing Authorization: Bearer token. Authorize via OAuth or mint a PAT in PullUp → Settings → PullUp MCP.");
+  }
   if (!isPatToken(token)) {
-    return jsonRpcError(res, 401, -32001, "Only PullUp personal access tokens (pup_…) are accepted here.");
+    return unauthorized(res, "Only PullUp access tokens (pup_…) are accepted.");
   }
   const userId = await findUserIdByPatToken(token);
-  if (!userId) return jsonRpcError(res, 401, -32001, "Invalid or revoked PAT.");
+  if (!userId) return unauthorized(res, "Invalid or revoked token.");
 
   const { data, error } = await supabase.auth.admin.getUserById(userId);
   if (error || !data?.user) return jsonRpcError(res, 401, -32001, "User not found.");
@@ -104,4 +110,17 @@ function jsonRpcError(res, httpStatus, code, message) {
     error: { code, message },
     id: null,
   });
+}
+
+// RFC 9728: a 401 from a protected resource MUST point at its PRM via the
+// WWW-Authenticate header so OAuth-capable clients can auto-discover the
+// authorization server and start a fresh flow.
+function unauthorized(res, message) {
+  if (res.headersSent) return;
+  const issuer = process.env.PULLUP_OAUTH_ISSUER || "https://mcp.pullup.se";
+  res.setHeader(
+    "WWW-Authenticate",
+    `Bearer realm="pullup-mcp", resource_metadata="${issuer}/.well-known/oauth-protected-resource"`
+  );
+  jsonRpcError(res, 401, -32001, message);
 }

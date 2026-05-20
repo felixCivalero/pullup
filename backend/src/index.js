@@ -100,6 +100,17 @@ import { processSesEvent } from "./email/events/processSesEvent.js";
 import { handleProviderEvent, enqueueOutbox, sendEmail as infraSendEmail } from "./email/index.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
 import { handleMcp, mcpCorsPreflight } from "./mcp/httpHandler.js";
+import {
+  metadataPRM,
+  metadataAS,
+  register as oauthRegister,
+  authorize as oauthAuthorize,
+  consent as oauthConsent,
+  describeConsent as oauthDescribeConsent,
+  token as oauthToken,
+  oauthCorsPreflight,
+  setOauthCorsHeaders,
+} from "./oauth/routes.js";
 
 // Load environment variables once. NODE_ENV can come from the process
 // (PM2, npm scripts) or from .env.
@@ -467,13 +478,23 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 200,
 };
-// /mcp is reached from claude.ai (and other Claude clients) which aren't on
-// the website's origin allowlist. Bypass the global cors() for that path
-// and let handleMcp set its own permissive CORS headers — the endpoint is
-// itself bearer-auth-gated by a PAT, so an open Allow-Origin is safe.
+// /mcp + /oauth/* + /.well-known/oauth-* are reached from AI clients
+// (claude.ai, ChatGPT, etc.) which aren't on the website's origin
+// allowlist. Bypass the global cors() for those paths and let each
+// handler set its own permissive CORS headers — every one is auth-gated
+// by either a bearer token (PKCE-issued or manually minted) or PKCE
+// itself at the token endpoint, so an open Allow-Origin is safe.
 const _globalCors = cors(corsOptions);
+function isMcpOauthPath(p) {
+  return (
+    p === "/mcp" ||
+    p.startsWith("/mcp/") ||
+    p.startsWith("/oauth/") ||
+    p.startsWith("/.well-known/oauth-")
+  );
+}
 app.use((req, res, next) => {
-  if (req.path === "/mcp" || req.path.startsWith("/mcp/")) return next();
+  if (isMcpOauthPath(req.path)) return next();
   return _globalCors(req, res, next);
 });
 
@@ -602,11 +623,35 @@ app.use(express.text({ limit: "50mb", type: "text/csv" })); // For CSV import
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // ---------------------------
-// MCP: Model Context Protocol endpoint for Claude (claude.ai connectors,
-// Claude Desktop, Claude Code). PAT-authenticated. See src/mcp/.
+// MCP: Model Context Protocol endpoint for any MCP-capable AI client
+// (claude.ai, ChatGPT, Cursor, Claude Desktop/Code, etc.). Authenticated
+// via PATs — issued either manually in Settings or via the OAuth flow
+// below. See src/mcp/ and src/oauth/.
 // ---------------------------
 app.options("/mcp", mcpCorsPreflight);
 app.all("/mcp", handleMcp);
+
+// ---------------------------
+// OAuth 2.1 for the MCP endpoint. RFC 6749 + 7591 (DCR) + 7636 (PKCE) +
+// 8414 (AS metadata) + 9728 (PRM). Lets claude.ai's "Add custom connector"
+// flow auto-authenticate without the user pasting tokens.
+// ---------------------------
+app.use(["/oauth", "/.well-known/oauth-protected-resource", "/.well-known/oauth-authorization-server"], (req, res, next) => {
+  setOauthCorsHeaders(req, res);
+  if (req.method === "OPTIONS") return res.status(204).end();
+  next();
+});
+
+app.get("/.well-known/oauth-protected-resource", metadataPRM);
+app.get("/.well-known/oauth-authorization-server", metadataAS);
+
+app.post("/oauth/register", oauthRegister);
+app.get("/oauth/authorize", oauthAuthorize);
+app.post("/oauth/token", express.urlencoded({ extended: false }), oauthToken);
+// describeConsent and consent are called by the pullup.se SPA (same
+// origin via /api/) — JWT-authenticated.
+app.get("/oauth/describe-consent", oauthDescribeConsent);
+app.post("/oauth/consent", requireAuth, oauthConsent);
 
 // ---------------------------
 // WEBHOOKS: SES SNS webhook

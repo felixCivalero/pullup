@@ -12,11 +12,12 @@ import { supabase } from "../supabase.js";
 
 const ERROR_EXCERPT_MAX = 240;
 
-export function recordToolCall({ userId, tokenId, toolName, ok, durationMs, error }) {
+export function recordToolCall({ userId, tokenId, requestId, toolName, ok, durationMs, error }) {
   try {
     const row = {
       user_id: userId || null,
       token_id: tokenId || null,
+      request_id: requestId || null,
       tool_name: String(toolName || "unknown").slice(0, 80),
       ok: !!ok,
       duration_ms: Math.max(0, Math.round(Number(durationMs) || 0)),

@@ -10,7 +10,7 @@
 // state machinery the prompt would need is already wired here.
 
 import { useEffect, useState, useCallback } from "react";
-import { Sparkles, ArrowLeft, Check, Send, EyeOff } from "lucide-react";
+import { Sparkles, Pencil, Check, Send, EyeOff, Image as ImageIcon } from "lucide-react";
 import { supabase } from "../lib/supabase.js";
 import { colors } from "../theme/colors.js";
 
@@ -141,6 +141,7 @@ export function HostBar() {
     >
       <Sparkles size={14} color={colors?.gold || "#fbbf24"} />
       {slots.primary}
+      {slots.coverChip}
       {slots.secondary}
       {FUTURE_PROMPT_ENABLED && slots.future}
     </div>
@@ -232,16 +233,33 @@ function buildSlots({ config, error, hasSession, acting, onAct }) {
     );
   }
 
-  const secondary = (
-    <button
-      onClick={() => window.history.back()}
-      style={ghostButtonStyle}
-      title="Back to where you came from"
-    >
-      <ArrowLeft size={13} />
-      <span>Back</span>
-    </button>
-  );
+  // Edit drops the host into the in-app event editor so they can do the
+  // visual things the coach can't drive from chat (cover crop, theme,
+  // section ordering). Same tab — the preview URL we came from is the
+  // edit page's "back" target.
+  const editHref = kind === "event" && resource.id
+    ? `/app/events/${resource.id}/edit`
+    : null;
+  const secondary = editHref ? (
+    <a href={editHref} style={ghostButtonStyle} title="Open the in-app editor">
+      <Pencil size={13} />
+      <span>Edit</span>
+    </a>
+  ) : null;
+
+  // Nudge for a cover only when the event genuinely has none — same
+  // destination as Edit (the edit page hosts the cover upload UI).
+  const coverChip =
+    kind === "event" && resource.hasCover === false && editHref ? (
+      <a
+        href={editHref}
+        style={{ ...ghostButtonStyle, color: "#fde68a" }}
+        title="Add a cover image"
+      >
+        <ImageIcon size={13} />
+        <span>Add cover</span>
+      </a>
+    ) : null;
 
   const future = (
     <div
@@ -274,11 +292,12 @@ function buildSlots({ config, error, hasSession, acting, onAct }) {
         />
       ),
       secondary,
+      coverChip,
       future,
     };
   }
 
-  return { primary, secondary, future };
+  return { primary, secondary, coverChip, future };
 }
 
 function PrimaryButton({ onClick, disabled, icon, label, tone = "gold" }) {

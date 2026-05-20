@@ -36,6 +36,34 @@ import { sendCampaignInBatches } from "./services/campaignSender.js";
 
 const router = Router();
 
+// Loopback to our own HTTP server. Used to forward widget uploads to the
+// existing /host/events/:id/image and /media endpoints rather than
+// re-implementing their (non-trivial) storage + processing logic. We
+// pass the caller's Bearer token straight through so ownership checks
+// stay in their original endpoint.
+const INTERNAL_BASE = (
+  process.env.PULLUP_INTERNAL_API_BASE || `http://127.0.0.1:${process.env.PORT || 3001}`
+).replace(/\/+$/, "");
+
+async function loopback(method, path, { authorization, body } = {}) {
+  const init = {
+    method,
+    headers: {
+      Accept: "application/json",
+      ...(authorization ? { Authorization: authorization } : {}),
+    },
+  };
+  if (body !== undefined) {
+    init.headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  const resp = await fetch(`${INTERNAL_BASE}${path}`, init);
+  const text = await resp.text();
+  let parsed = text;
+  try { parsed = JSON.parse(text); } catch { /* keep raw */ }
+  return { status: resp.status, body: parsed };
+}
+
 // ── Config ──────────────────────────────────────────────────────────
 router.get("/widget/config", async (req, res) => {
   const token = (req.query?.token || "").toString();
@@ -175,6 +203,78 @@ router.post("/widget/action", requireAuth, async (req, res) => {
   }
 
   return res.status(400).json({ ok: false, error: "unknown_scope" });
+});
+
+// ── Upload content (drop-from-page) ────────────────────────────────
+// Drop an image or video onto the live event page → upload as cover.
+// Body: { token, dataUrl, mediaType?: 'image' | 'video' }
+//
+// `dataUrl` is a full data:<mime>;base64,<…> string the browser produced
+// from a FileReader. We forward to the existing upload endpoints rather
+// than re-implementing storage; that keeps mime/size/storage logic in
+// one place. Inline base64 is fine here — the express json limit is
+// 100mb in this app, plenty for the drag-drop use case. Anything bigger
+// belongs in the in-app editor with its signed-upload-URL flow.
+router.post("/widget/upload-content", requireAuth, async (req, res) => {
+  const { token, dataUrl, mediaType: explicitType } = req.body || {};
+  let claims;
+  try {
+    claims = verifyPreviewToken(token);
+  } catch (err) {
+    return res.status(401).json({ ok: false, error: err.message });
+  }
+  if (claims.scope !== PREVIEW_SCOPE_EVENT) {
+    return res.status(400).json({ ok: false, error: "wrong_scope" });
+  }
+  if (claims.hostId !== req.user?.id) {
+    return res.status(403).json({ ok: false, error: "wrong_host" });
+  }
+  if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
+    return res.status(400).json({ ok: false, error: "invalid_data_url" });
+  }
+
+  const event = await findEventById(claims.resourceId);
+  if (!event) return res.status(404).json({ ok: false, error: "event_not_found" });
+  const allowed = await canEditEvent(req.user.id, event.id);
+  if (!allowed) return res.status(403).json({ ok: false, error: "not_owner" });
+
+  const mime = (dataUrl.match(/^data:([^;,]+)[;,]/) || [])[1] || "";
+  const isVideo = explicitType === "video" || mime.startsWith("video/");
+  const isImage = explicitType === "image" || mime.startsWith("image/");
+  if (!isVideo && !isImage) {
+    return res.status(400).json({ ok: false, error: "unsupported_media_type" });
+  }
+
+  const authorization = req.headers.authorization;
+  if (isImage) {
+    // /image accepts { imageData: dataUrl } and handles both the events
+    // row update and the storage write.
+    const r = await loopback("POST", `/host/events/${event.id}/image`, {
+      authorization,
+      body: { imageData: dataUrl },
+    });
+    if (r.status >= 400) {
+      return res.status(r.status).json({ ok: false, error: r.body?.message || r.body?.error || "image_upload_failed" });
+    }
+    return res.json({ ok: true, kind: "image" });
+  }
+
+  // Video → add as media. The /media endpoint auto-marks the first video
+  // as the event's cover, so a drop on an empty event "just becomes" the
+  // cover. No follow-up call needed.
+  const r = await loopback("POST", `/host/events/${event.id}/media`, {
+    authorization,
+    body: {
+      mediaData: dataUrl,
+      mediaType: "video",
+      mimeType: mime || "video/mp4",
+      position: 0,
+    },
+  });
+  if (r.status >= 400) {
+    return res.status(r.status).json({ ok: false, error: r.body?.message || r.body?.error || "video_upload_failed" });
+  }
+  return res.json({ ok: true, kind: "video" });
 });
 
 export default router;

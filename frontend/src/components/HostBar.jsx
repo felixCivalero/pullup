@@ -71,6 +71,14 @@ export function HostBar() {
     };
   }, [token]);
 
+  const dropActive = !!(token && config?.ok && config?.resource?.kind === "event");
+  const drop = useDropToUpload({
+    enabled: dropActive,
+    token,
+    hasSession,
+    onComplete: () => window.location.reload(),
+  });
+
   if (!token) return null;
   if (!config && !error) return null;
 
@@ -114,38 +122,194 @@ export function HostBar() {
   const slots = buildSlots({ config, error, hasSession, acting, onAct: act });
 
   return (
+    <>
+      {drop.overlay}
+      <div
+        style={{
+          position: "fixed",
+          bottom: "max(16px, env(safe-area-inset-bottom))",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 2147483000,
+          background: "rgba(12,12,14,0.92)",
+          backdropFilter: "blur(14px) saturate(140%)",
+          WebkitBackdropFilter: "blur(14px) saturate(140%)",
+          border: `1px solid rgba(245, 158, 11, 0.25)`,
+          borderRadius: 999,
+          padding: "8px 12px",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          color: colors?.text || "#f5f5f5",
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, system-ui, sans-serif",
+          fontSize: 13,
+          lineHeight: 1.2,
+          boxShadow: "0 12px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.4)",
+          maxWidth: "calc(100vw - 24px)",
+        }}
+      >
+        <Sparkles size={14} color={colors?.gold || "#fbbf24"} />
+        {slots.primary}
+        {slots.coverChip}
+        {slots.secondary}
+        {FUTURE_PROMPT_ENABLED && slots.future}
+      </div>
+    </>
+  );
+}
+
+// Window-level drag-drop → upload-as-cover. Active only while we have a
+// valid event token. Renders a translucent gold overlay while a file is
+// dragged over the page; on drop, reads the file as a data URL and POSTs
+// to /widget/upload-content. On success, reload to show the new cover.
+function useDropToUpload({ enabled, token, hasSession, onComplete }) {
+  const [hover, setHover] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let counter = 0;
+    const isFileDrag = (e) =>
+      Array.from(e.dataTransfer?.types || []).includes("Files");
+    const onDragEnter = (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      counter += 1;
+      setHover(true);
+    };
+    const onDragOver = (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+    };
+    const onDragLeave = (e) => {
+      if (!isFileDrag(e)) return;
+      counter -= 1;
+      if (counter <= 0) {
+        counter = 0;
+        setHover(false);
+      }
+    };
+    const onDrop = async (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      counter = 0;
+      setHover(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      if (!hasSession) {
+        window.location.href = `/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+        return;
+      }
+      const mime = file.type || "";
+      const isImage = mime.startsWith("image/");
+      const isVideo = mime.startsWith("video/");
+      if (!isImage && !isVideo) {
+        setErrorMsg("Only images and videos");
+        setTimeout(() => setErrorMsg(null), 2500);
+        return;
+      }
+      // 75MB inline cap — comfortably under the json body limit while
+      // letting most phone clips through. Bigger files belong in the
+      // in-app editor with the signed-upload-URL flow.
+      if (file.size > 75 * 1024 * 1024) {
+        setErrorMsg("File >75MB — use the in-app editor");
+        setTimeout(() => setErrorMsg(null), 3500);
+        return;
+      }
+      setBusy(true);
+      setErrorMsg(null);
+      try {
+        const dataUrl = await readAsDataUrl(file);
+        const { data } = await supabase.auth.getSession();
+        const resp = await fetch(`${API_BASE}/widget/upload-content`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data?.session?.access_token || ""}`,
+          },
+          body: JSON.stringify({
+            token,
+            dataUrl,
+            mediaType: isVideo ? "video" : "image",
+          }),
+        });
+        const body = await resp.json().catch(() => ({}));
+        if (!body?.ok) {
+          setErrorMsg(body?.error || `Upload failed (${resp.status})`);
+          setBusy(false);
+          setTimeout(() => setErrorMsg(null), 3500);
+          return;
+        }
+        onComplete?.();
+      } catch (err) {
+        setErrorMsg(err.message || "Upload failed");
+        setBusy(false);
+        setTimeout(() => setErrorMsg(null), 3500);
+      }
+    };
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, [enabled, token, hasSession, onComplete]);
+
+  const visible = enabled && (hover || busy || errorMsg);
+  const overlay = visible ? (
     <div
       style={{
         position: "fixed",
-        bottom: "max(16px, env(safe-area-inset-bottom))",
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 2147483000,
-        background: "rgba(12,12,14,0.92)",
-        backdropFilter: "blur(14px) saturate(140%)",
-        WebkitBackdropFilter: "blur(14px) saturate(140%)",
-        border: `1px solid rgba(245, 158, 11, 0.25)`,
-        borderRadius: 999,
-        padding: "8px 12px",
+        inset: 0,
+        zIndex: 2147482000,
+        pointerEvents: "none",
+        background: "rgba(0,0,0,0.55)",
+        backdropFilter: "blur(2px)",
+        border: `3px dashed ${errorMsg ? "#f87171" : "#fbbf24"}`,
         display: "flex",
         alignItems: "center",
-        gap: 10,
-        color: colors?.text || "#f5f5f5",
-        fontFamily:
-          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, system-ui, sans-serif",
-        fontSize: 13,
-        lineHeight: 1.2,
-        boxShadow: "0 12px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.4)",
-        maxWidth: "calc(100vw - 24px)",
+        justifyContent: "center",
+        transition: "opacity 120ms ease",
       }}
     >
-      <Sparkles size={14} color={colors?.gold || "#fbbf24"} />
-      {slots.primary}
-      {slots.coverChip}
-      {slots.secondary}
-      {FUTURE_PROMPT_ENABLED && slots.future}
+      <div
+        style={{
+          padding: "16px 22px",
+          borderRadius: 14,
+          background: "rgba(12,12,14,0.92)",
+          border: `1px solid ${errorMsg ? "rgba(248,113,113,0.5)" : "rgba(245,158,11,0.45)"}`,
+          color: errorMsg ? "#fecaca" : "#fde68a",
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, system-ui, sans-serif",
+          fontSize: 15,
+          fontWeight: 500,
+        }}
+      >
+        {errorMsg
+          ? errorMsg
+          : busy
+            ? "Uploading…"
+            : "Drop to add as cover · video > photo"}
+      </div>
     </div>
-  );
+  ) : null;
+
+  return { overlay };
+}
+
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error || new Error("read_failed"));
+    r.readAsDataURL(file);
+  });
 }
 
 function useTokenFromUrl() {

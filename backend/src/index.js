@@ -6081,6 +6081,9 @@ app.get("/host/crm/campaigns/:campaignId", requireAuth, async (req, res) => {
       createdAt: campaign.createdAt,
       sentAt: campaign.sentAt,
       linkBreakdown,
+      templateType: campaign.templateType,
+      templateContent: campaign.templateContent,
+      eventId: campaign.eventId,
     });
   } catch (error) {
     console.error("Error fetching campaign:", error);

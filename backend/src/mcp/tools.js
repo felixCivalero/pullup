@@ -47,7 +47,7 @@ function shareUrlForSlug(slug) {
   return `${frontendUrl(`/e/${slug}`)}?utm_source=mcp`;
 }
 function rsvpsDashboardForId(id) {
-  return frontendUrl(`/host/events/${id}/guests`);
+  return frontendUrl(`/app/events/${id}/guests`);
 }
 
 // Resolve slug → event by listing the user's events. GET /events is
@@ -1522,7 +1522,7 @@ function buildHandlers(api, hostId) {
     }, ev);
 
     const campPv = campaignPreviewToken(created.campaignId);
-    const previewBase = frontendUrl(`/host/crm/campaigns/${created.campaignId}/preview`);
+    const previewBase = frontendUrl(`/app/crm/campaigns/${created.campaignId}/preview`);
     const previewUrl = campPv
       ? `${previewBase}?pv=${encodeURIComponent(campPv)}`
       : previewBase;

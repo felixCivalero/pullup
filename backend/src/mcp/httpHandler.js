@@ -15,8 +15,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
 import { supabase } from "../supabase.js";
-import { findUserIdByPatToken, isPatToken } from "../data.js";
+import { findPatRecord, isPatToken } from "../data.js";
 import { buildTools, wrapHandler } from "./tools.js";
+import { consume as consumeRateLimit } from "./rateLimit.js";
+import { recordToolCall } from "./telemetry.js";
 
 // CORS preflight handler for the /mcp route. Mounted separately because
 // the global cors() middleware doesn't expose mcp-session-id and is
@@ -57,8 +59,23 @@ export async function handleMcp(req, res) {
   if (!isPatToken(token)) {
     return unauthorized(res, "Only PullUp access tokens (pup_…) are accepted.");
   }
-  const userId = await findUserIdByPatToken(token);
-  if (!userId) return unauthorized(res, "Invalid or revoked token.");
+  const rec = await findPatRecord(token);
+  if (!rec) return unauthorized(res, "Invalid or revoked token.");
+  const { userId, tokenId } = rec;
+
+  // Rate limit per token (token bucket, in-memory). Runaway clients hit
+  // 429 instead of grinding through Supabase admin quota. Configurable
+  // via MCP_RATE_LIMIT_PER_MIN / MCP_RATE_LIMIT_CAPACITY env vars.
+  const rl = consumeRateLimit(token);
+  if (!rl.allowed) {
+    res.setHeader("Retry-After", String(rl.retryAfterSec));
+    return jsonRpcError(
+      res,
+      429,
+      -32002,
+      `Rate limit exceeded. Retry in ${rl.retryAfterSec}s.`
+    );
+  }
 
   const { data, error } = await supabase.auth.admin.getUserById(userId);
   if (error || !data?.user) return jsonRpcError(res, 401, -32001, "User not found.");
@@ -72,6 +89,34 @@ export async function handleMcp(req, res) {
 
   const tools = buildTools({ token, user });
   for (const t of tools) {
+    const inner = wrapHandler(t.handler); // structured error envelope
+    const outer = async (args) => {
+      const start = Date.now();
+      let result;
+      let thrown;
+      try {
+        result = await inner(args);
+        return result;
+      } catch (err) {
+        // wrapHandler already converts thrown errors to isError results,
+        // so this branch is defensive only.
+        thrown = err;
+        throw err;
+      } finally {
+        const isErr = !!thrown || !!result?.isError;
+        const excerpt = thrown
+          ? thrown
+          : (result?.isError ? result.content?.[0]?.text : null);
+        recordToolCall({
+          userId: user.id,
+          tokenId,
+          toolName: t.name,
+          ok: !isErr,
+          durationMs: Date.now() - start,
+          error: excerpt,
+        });
+      }
+    };
     server.registerTool(
       t.name,
       {
@@ -79,7 +124,7 @@ export async function handleMcp(req, res) {
         description: t.description,
         inputSchema: t.inputSchema,
       },
-      wrapHandler(t.handler)
+      outer
     );
   }
 

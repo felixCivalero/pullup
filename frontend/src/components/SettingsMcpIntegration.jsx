@@ -34,53 +34,58 @@ const GUIDES = [
   {
     slug: "claude-web",
     label: "claude.ai",
+    oauth: true,
     steps: [
-      "Open claude.ai → click your name (bottom left) → Settings → Connectors.",
-      'Click "Add custom connector".',
+      'Open claude.ai → click the "Customize" button in the top menu → Connectors.',
+      'Click "+" → "Add custom connector".',
       "Name: PullUp.",
-      `Server URL: ${MCP_URL}`,
-      "Authentication: paste your pup_… token as a Bearer token.",
-      "Save. Start a new chat — Claude can now manage your events.",
+      `Remote MCP server URL: ${MCP_URL}`,
+      'Click "Add" → "Connect".',
+      'A PullUp authorization page opens — click "Allow".',
+      "You're connected. Start a new chat and Claude can manage your events.",
     ],
   },
   {
     slug: "chatgpt",
     label: "ChatGPT",
+    oauth: true,
     note: "Custom connectors require a ChatGPT Plus, Pro, Team, or Enterprise plan.",
     steps: [
       "Open chatgpt.com → Settings → Connectors.",
-      'Click "Add connector" (or "Browse" → "Create custom").',
+      'Click "Create" (or "Add connector" → "Custom").',
       "Name: PullUp.",
-      `URL: ${MCP_URL}`,
-      "Auth: bearer token, paste your pup_… token.",
-      "Save, then enable the PullUp connector for the chat where you want to use it.",
+      `MCP server URL: ${MCP_URL}`,
+      'Click "Create" → "Connect".',
+      'A PullUp authorization page opens — click "Allow".',
+      "Done. Enable the PullUp connector in the chat where you want to use it.",
     ],
   },
   {
     slug: "claude-desktop",
     label: "Claude Desktop",
+    oauth: true,
     steps: [
       "Open Claude Desktop → Settings → Connectors.",
       'Click "Add custom connector".',
       "Name: PullUp.",
       `URL: ${MCP_URL}`,
-      "Auth: paste your pup_… token as a Bearer token.",
-      "Save. Restart Claude if it asks you to.",
+      'Click "Add" → "Connect".',
+      'A PullUp authorization page opens in your browser — click "Allow".',
+      "Restart Claude Desktop if prompted. Tools are now available.",
     ],
   },
   {
     slug: "cursor",
     label: "Cursor",
     steps: [
-      "Open Cursor → Settings (⌘,) → MCP (or open ~/.cursor/mcp.json).",
-      'Add a "pullup" entry with the URL and bearer header (see config below).',
-      "Restart Cursor. The PullUp tools appear in the agent's tool list.",
+      "Open Cursor → Settings (⌘,) → MCP, or edit ~/.cursor/mcp.json.",
+      "Add the entry below.",
+      "Restart Cursor. On first use it opens a PullUp authorization page — click Allow.",
     ],
     code: `{
   "mcpServers": {
     "pullup": {
-      "url": "${MCP_URL}",
-      "headers": { "Authorization": "Bearer pup_..." }
+      "url": "${MCP_URL}"
     }
   }
 }`,
@@ -89,20 +94,20 @@ const GUIDES = [
     slug: "claude-code",
     label: "Claude Code",
     steps: [
-      "Run the command below in your terminal. Replace pup_… with your token.",
-      "That's it — PullUp tools are now available in any Claude Code session.",
+      "Run this command in your terminal.",
+      "On first invocation, Claude Code opens the PullUp authorization page — click Allow.",
     ],
-    code: `claude mcp add pullup --transport http ${MCP_URL} --header "Authorization: Bearer pup_..."`,
+    code: `claude mcp add pullup --transport http ${MCP_URL}`,
   },
   {
     slug: "other",
     label: "Other",
     steps: [
-      "PullUp speaks the standard MCP Streamable HTTP transport, so most other MCP-capable clients (Cline, Windsurf, Continue, Goose, Gemini CLI, LibreChat, Zed, Sourcegraph Cody, etc.) work too.",
+      "PullUp speaks standard MCP over Streamable HTTP with OAuth 2.1 + Dynamic Client Registration, so any MCP-capable client (Cline, Windsurf, Continue, Goose, Gemini CLI, LibreChat, Zed, Sourcegraph Cody, …) works.",
       `Endpoint: ${MCP_URL}`,
-      "Auth: Authorization: Bearer pup_… header.",
+      "Auth: OAuth flow auto-discovers from the resource (RFC 9728). The user authorizes in their browser; the client receives a Bearer token transparently.",
+      "Fallback: paste a personal access token directly as Authorization: Bearer pup_… if your client doesn't trigger OAuth.",
       "Tools exposed: 9 (event create/update/publish/list/get, RSVP list, image upload, gallery list).",
-      "In your client's MCP / connector settings, add an HTTP MCP server with the URL above and a bearer auth header.",
     ],
   },
 ];
@@ -295,19 +300,19 @@ export function SettingsMcpIntegration({ showToast }) {
           </div>
         </div>
 
-        {/* STAGE 2 — Mint a token */}
+        {/* STAGE 2 — Approve / manage tokens */}
         <StageHeader
           number={2}
-          title="When it asks for a token, mint one here"
+          title="Approve the connection — or manage tokens"
           subtitle={
             activeTokens.length === 0
-              ? "No tokens yet."
-              : `${activeTokens.length} active token${activeTokens.length === 1 ? "" : "s"}.`
+              ? "Most clients open a PullUp authorization page automatically. No token to copy."
+              : `${activeTokens.length} active token${activeTokens.length === 1 ? "" : "s"} — manage below.`
           }
           action={
-            <button type="button" style={primaryButtonStyle} onClick={() => setMintOpen(true)}>
+            <button type="button" style={secondaryButtonStyle} onClick={() => setMintOpen(true)}>
               <Plus size={16} style={{ marginRight: "6px", verticalAlign: "-3px" }} />
-              New token
+              Manual token
             </button>
           }
         />
@@ -317,7 +322,7 @@ export function SettingsMcpIntegration({ showToast }) {
             <div style={{ opacity: 0.6, fontSize: "14px" }}>Loading…</div>
           ) : tokens.length === 0 ? (
             <div style={emptyStateStyle}>
-              Mint a token, copy the plaintext shown once, and paste it back into your AI client's connector.
+              Nothing here yet. When you authorize a client (or mint one manually), it'll appear here so you can revoke it later.
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>

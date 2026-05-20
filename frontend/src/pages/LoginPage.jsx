@@ -1,18 +1,30 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { colors } from "../theme/colors.js";
 import { ParticleField } from "../components/ParticleField";
 import { AuthCard } from "../components/AuthCard";
 
+// Where to send the user after sign-in. Honors ?next= (used by the OAuth
+// consent flow so users land back on the consent page after auth). Only
+// same-origin paths are accepted — never trust an open redirect.
+function resolveNext(params) {
+  const raw = params.get("next");
+  if (!raw) return "/events";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/events";
+  return raw;
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const [params] = useSearchParams();
+  const next = resolveNext(params);
 
   useEffect(() => {
     if (loading) return;
-    if (user) navigate("/events", { replace: true });
-  }, [user, loading, navigate]);
+    if (user) navigate(next, { replace: true });
+  }, [user, loading, navigate, next]);
 
   return (
     <div
@@ -136,11 +148,11 @@ export function LoginPage() {
           </div>
 
           <AuthCard
-            redirectTo="/events"
+            redirectTo={next}
             submitLabel="Log in"
             trackingPrefix="login"
             showForgotPassword
-            onSuccess={() => navigate("/events", { replace: true })}
+            onSuccess={() => navigate(next, { replace: true })}
           />
         </div>
       </div>

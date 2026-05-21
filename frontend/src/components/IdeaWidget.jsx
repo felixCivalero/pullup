@@ -685,7 +685,7 @@ export function IdeaWidget() {
             {continueChatUrl && (
               <a
                 href={continueChatUrl}
-                target="_blank"
+                target="pullup-claude"
                 rel="noopener noreferrer"
                 style={{
                   marginTop: 12,

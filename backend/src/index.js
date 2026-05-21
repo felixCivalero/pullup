@@ -694,7 +694,8 @@ app.post("/webhooks/ses", async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (error) {
     console.error("[Webhook][SES] Error processing webhook", error);
-    res.status(500).json({ error: "Failed to process SES webhook" });
+    const status = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+    res.status(status).json({ error: error?.message || "Failed to process SES webhook" });
   }
 });
 
@@ -1591,7 +1592,9 @@ app.post("/events", requireAuth, async (req, res) => {
 
   // Create the event first to get its ID (with host_id from authenticated user)
   const _createEventBody = req.body;
-  const event = await createEvent({
+  let event;
+  try {
+    event = await createEvent({
     hostId: req.user.id, // Set host_id from authenticated user
     title,
     description,
@@ -1639,7 +1642,15 @@ app.post("/events", requireAuth, async (req, res) => {
     instantWaitlist,
     revealHint,
     dateRevealHint,
-  });
+    });
+  } catch (err) {
+    console.error("[POST /events] createEvent failed:", err.message);
+    const status = Number.isInteger(err?.statusCode) ? err.statusCode : 500;
+    return res.status(status).json({
+      error: status === 400 ? "invalid_input" : "Failed to create event",
+      message: err.message,
+    });
+  }
 
   emitIntent({
     hostId: req.user.id,
@@ -4117,8 +4128,9 @@ app.put(
       });
     } catch (err) {
       console.error(`[PUT /host/events/${id}] Update failed:`, err.message);
-      return res.status(500).json({
-        error: "Failed to update event",
+      const status = Number.isInteger(err?.statusCode) ? err.statusCode : 500;
+      return res.status(status).json({
+        error: status === 400 ? "invalid_input" : "Failed to update event",
         message: err.message,
       });
     }
@@ -5324,7 +5336,15 @@ app.get("/host/crm/people-filter-index", requireAuth, async (req, res) => {
 app.get("/host/crm/people/:personId", requireAuth, async (req, res) => {
   try {
     const { personId } = req.params;
-    const { getPersonTouchpoints, findPersonById } = await import("./data.js");
+    const { getPersonTouchpoints, findPersonById, personBelongsToHost } =
+      await import("./data.js");
+
+    // Authorize before fetching so we don't reveal whether the personId exists
+    // to a host who has no relationship with that person.
+    const allowed = await personBelongsToHost(personId, req.user.id);
+    if (!allowed) {
+      return res.status(404).json({ error: "Person not found" });
+    }
 
     const person = await findPersonById(personId);
     if (!person) {
@@ -5534,6 +5554,12 @@ app.put("/host/crm/people/:personId", requireAuth, async (req, res) => {
       company,
       birthday,
     } = req.body;
+
+    const { personBelongsToHost } = await import("./data.js");
+    const allowed = await personBelongsToHost(personId, req.user.id);
+    if (!allowed) {
+      return res.status(404).json({ error: "Person not found" });
+    }
 
     const result = await updatePerson(personId, {
       name,

@@ -197,7 +197,7 @@ export function IdeaWidget() {
                     fontWeight: 600,
                   }}
                 >
-                  PullUp coach
+                  PullUp
                 </span>
               </div>
               <button
@@ -296,7 +296,7 @@ export function IdeaWidget() {
         {/* AI-mode trigger pill — gold-tinted to signal "AI is here" */}
         <button
           onClick={() => setOpen((prev) => !prev)}
-          title="PullUp coach"
+          title="PullUp"
           style={{
             borderRadius: 999,
             border: "1px solid rgba(232, 200, 102, 0.35)",
@@ -321,7 +321,7 @@ export function IdeaWidget() {
         >
           <Sparkles size={18} />
           <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
-            PullUp coach
+            PullUp
             {coachItems && coachItems.length > 0 ? ` · ${coachItems.length}` : ""}
           </span>
         </button>

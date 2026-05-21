@@ -173,7 +173,7 @@ export function analyzeEvent({
     out.push({
       key: "cover",
       score,
-      headline: "Send a cover for the event",
+      headline: "Add moving content",
       why,
       call: `get_media_upload_link({ slug: "${slug}" })`,
     });
@@ -185,8 +185,8 @@ export function analyzeEvent({
     out.push({
       key: "video",
       score,
-      headline: "Swap (or add) a 10–20s clip shot for this event",
-      why: "Niche, event-specific video converts harder than a still — extends the host's IG vibe into a personal moment.",
+      headline: "Make it move",
+      why: "A 10–20s clip shot for this event lands harder than a still — extends the host's IG vibe into a personal moment.",
       call: `get_media_upload_link({ slug: "${slug}" })`,
     });
   }
@@ -219,7 +219,7 @@ export function analyzeEvent({
     out.push({
       key: "vibe",
       score,
-      headline: "Add a vibe link (Spotify / Instagram / TikTok)",
+      headline: "Add interactive widgets like Spotify",
       why,
       call: `update_event({ slug: "${slug}", instagram: "…", spotify: "…" })`,
     });
@@ -256,7 +256,7 @@ export function analyzeEvent({
     out.push({
       key: "gating",
       score,
-      headline: "Add one RSVP question (or require approval)",
+      headline: "Collect Instagram handles for richer CRM",
       why,
       call: `update_event({ slug: "${slug}", extraRsvpFields: [{ type: "instagram", required: true }] })`,
     });

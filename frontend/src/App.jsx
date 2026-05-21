@@ -34,18 +34,17 @@ import { OAuthAuthorizePage } from "./pages/OAuthAuthorizePage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { IdeaWidget } from "./components/IdeaWidget";
-import { HostBar } from "./components/HostBar";
 import { HostResourceProvider } from "./contexts/HostResourceContext";
 
 function App() {
   return (
     <ErrorBoundary>
       <HostResourceProvider>
+      {/* The floating bottom-right slot. Shows "Have an idea?" by default,    */}
+      {/* swaps to the gold "PullUp" coach affordance when the current host    */}
+      {/* page has recent chat activity (see HostResourceContext + the         */}
+      {/* useRecentChatActivity gate inside IdeaWidget).                       */}
       <IdeaWidget />
-      {/* HostBar reads ?pv=<jwt> from the URL and renders the floating */}
-      {/* publish/send/back pill anywhere the MCP coach has handed back  */}
-      {/* a preview link. Inert when no token is present.                */}
-      <HostBar />
       <Routes>
         {/* Public */}
         <Route path="/" element={<LandingPage />} />

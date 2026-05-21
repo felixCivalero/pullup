@@ -6943,6 +6943,37 @@ app.post("/host/tokens", requireAuth, requireJwtAuth, async (req, res) => {
   }
 });
 
+// GET /host/mcp/status — does this host have an MCP connection live?
+// Used by the floating PullUp widget to decide between the "Connect MCP"
+// promo and the "PullUp · N" coach pill. Cheap: counts active (not
+// revoked, not expired) PATs — both manual and OAuth flows mint PATs, so
+// one query covers both connection paths.
+app.get("/host/mcp/status", requireAuth, async (req, res) => {
+  try {
+    const { listPersonalAccessTokensForUser } = await import("./data.js");
+    const tokens = await listPersonalAccessTokensForUser(req.user.id);
+    const now = Date.now();
+    const active = tokens.filter((t) => {
+      if (t.revokedAt) return false;
+      if (t.expiresAt && new Date(t.expiresAt).getTime() <= now) return false;
+      return true;
+    });
+    const lastUsedAt = active
+      .map((t) => t.lastUsedAt)
+      .filter(Boolean)
+      .sort()
+      .pop() || null;
+    res.json({
+      connected: active.length > 0,
+      activeCount: active.length,
+      lastUsedAt,
+    });
+  } catch (err) {
+    console.error("Error in /host/mcp/status:", err);
+    res.status(500).json({ error: "Failed to read MCP status" });
+  }
+});
+
 app.get("/host/tokens", requireAuth, requireJwtAuth, async (req, res) => {
   try {
     const tokens = await listPersonalAccessTokensForUser(req.user.id);

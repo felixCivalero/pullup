@@ -29,12 +29,26 @@ export function keyToEventIntent(key, _suggestion, ctx) {
   switch (key) {
     case "cover":
     case "video":
+      // Media upload needs the host's eyes + file picker — keep as nav.
       return { type: "navigate", url: edit, focus: "media" };
     case "vibe":
+      // One-click adds an empty Spotify section the host then fills in.
+      return {
+        type: "mutate",
+        mutation: "add_spotify_section",
+        afterUrl: edit,
+        focus: "details",
+      };
     case "description":
       return { type: "navigate", url: edit, focus: "details" };
     case "gating":
-      return { type: "navigate", url: edit, focus: "form" };
+      // One-click adds the Instagram form field as required.
+      return {
+        type: "mutate",
+        mutation: "add_instagram_field",
+        afterUrl: edit,
+        focus: "form",
+      };
     case "plus_ones":
     case "ticketing":
       return { type: "navigate", url: edit, focus: "tickets" };

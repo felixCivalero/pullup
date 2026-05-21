@@ -1,15 +1,12 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Lightbulb, X, Send, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
-import { colors } from "../theme/colors.js";
-import { authenticatedFetch, publicFetch } from "../lib/api.js";
+import { X, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
+import { authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useHostResource } from "../contexts/useHostResource.js";
 import { useRecentChatActivity } from "../lib/useRecentChatActivity.js";
-
-function getAiDismissKey(type, id) {
-  return `coach-widget-dismissed:${type || "_"}:${id || "_"}`;
-}
+import { addSpotifySection, addInstagramField } from "../lib/coachMutations.js";
+import { useMcpStatus } from "../lib/useMcpStatus.js";
 
 // "publish_event" → "Published this", "draft_campaign" → "Drafted a campaign", etc.
 // Pure presentation — keeps the narration line readable without a round-trip.
@@ -103,48 +100,50 @@ export function IdeaWidget() {
   const [, setSearchParams] = useSearchParams();
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
   const [open, setOpen] = useState(false);
-  const [body, setBody] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const textareaRef = useRef(null);
 
-  // AI / coach mode: the floating slot swaps from "Have an idea?" to a
-  // sparkle-flavoured coach panel whenever the current host page declares a
-  // resource AND chat has recently touched it.
+  // The floating slot has four modes derived from auth + MCP connection
+  // status + whether the current page declares a host resource:
+  //   - promo-marketing : not logged in (landing page promo)
+  //   - promo-connect   : logged in, no MCP connection (CTA to settings)
+  //   - coach           : logged in, MCP connected, on a host resource
+  //   - brand           : logged in, MCP connected, no resource (homepage,
+  //                       settings, etc.) — brand presence + handoff
+  // null hides the slot entirely (mobile, public event pages, mid-load).
   const resource = useHostResource();
-  const { hasActivity, lastAction } = useRecentChatActivity({
+  const { hasActivity: _hasActivity, lastAction } = useRecentChatActivity({
     enabled: !!resource,
     targetType: resource?.type,
     targetId: resource?.id,
   });
-  const [aiDismissed, setAiDismissed] = useState(() => {
-    if (!resource) return false;
-    try {
-      return sessionStorage.getItem(getAiDismissKey(resource.type, resource.id)) === "1";
-    } catch {
-      return false;
-    }
-  });
-  // Recompute dismissed state when the resource changes (page navigation).
-  useEffect(() => {
-    if (!resource) {
-      setAiDismissed(false);
-      return;
-    }
-    try {
-      setAiDismissed(
-        sessionStorage.getItem(getAiDismissKey(resource.type, resource.id)) === "1",
-      );
-    } catch {
-      setAiDismissed(false);
-    }
-  }, [resource]);
-  const inAiMode = !!resource && hasActivity && !aiDismissed;
+  const mcpStatus = useMcpStatus(user);
 
-  // Coach suggestions for the AI mode panel. Fetched once we enter AI mode.
+  // Suppress the unused-var lint while we keep the hook live (its realtime
+  // subscription drives lastAction, which the pulse + narration both use).
+  void _hasActivity;
+
+  let mode = null;
+  const isEventPagePath = pathname.startsWith("/e/") || pathname.startsWith("/events/");
+  if (isDesktop && !isEventPagePath) {
+    if (!user) {
+      mode = "promo-marketing";
+    } else if (mcpStatus.loading) {
+      mode = null; // brief hide while we check connection state
+    } else if (!mcpStatus.connected) {
+      mode = "promo-connect";
+    } else if (resource) {
+      mode = "coach";
+    } else {
+      mode = "brand";
+    }
+  }
+  const inAiMode = mode === "coach" || mode === "brand";
+  const isPromo = mode === "promo-marketing" || mode === "promo-connect";
+
+  // Coach suggestions for the AI mode panel. Fetched once we enter coach
+  // mode (which requires a resource — brand mode skips this entirely).
   const [coachItems, setCoachItems] = useState(null);
   useEffect(() => {
-    if (!inAiMode) return;
+    if (!inAiMode || !resource) { setCoachItems(null); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -179,7 +178,7 @@ export function IdeaWidget() {
   // when the panel opens AND when a fresh chat action lands.
   const [recentActions, setRecentActions] = useState([]);
   useEffect(() => {
-    if (!inAiMode || !open) return;
+    if (!inAiMode || !open || !resource) return;
     let cancelled = false;
     (async () => {
       try {
@@ -234,42 +233,82 @@ export function IdeaWidget() {
   // resource-aware prompt. Zero cost on PullUp's side; the host's existing
   // claude.ai connection (with PullUp MCP) picks up the context naturally.
   const continueChatUrl = useMemo(() => {
-    if (!resource) return null;
-    const noun = resource.type === "campaign" ? "campaign" : "event";
-    const prompt = `I'm working on this ${noun} in PullUp (id: ${resource.id}) — pick up where we left off. You have the PullUp MCP connected.`;
+    let prompt;
+    if (resource) {
+      const noun = resource.type === "campaign" ? "campaign" : "event";
+      prompt = `I'm working on this ${noun} in PullUp (id: ${resource.id}) — pick up where we left off. You have the PullUp MCP connected.`;
+    } else {
+      // Brand-mode handoff — no specific resource, just open a fresh chat
+      // primed for PullUp work.
+      prompt = "Help me with my PullUp events. You have the PullUp MCP connected — check get_recent_actions and get_host_brief to ground yourself.";
+    }
     return `https://claude.ai/new?q=${encodeURIComponent(prompt)}`;
   }, [resource]);
 
+  // The X in the panel header just closes the panel — the gold pill stays
+  // (Felix's "at all times once MCP is connected" model). If the host wants
+  // to truly hide the pill they'd disconnect MCP in settings.
   function dismissAiMode() {
-    if (!resource) return;
-    try {
-      sessionStorage.setItem(getAiDismissKey(resource.type, resource.id), "1");
-    } catch {
-      // private mode / blocked storage — silent
-    }
-    setAiDismissed(true);
     setOpen(false);
+  }
+
+  // Track in-flight mutations keyed by suggestion `key` so the right button
+  // can show a "Adding…" state without disabling its siblings.
+  const [mutatingKey, setMutatingKey] = useState(null);
+  const [mutationError, setMutationError] = useState(null);
+
+  function focusOrNavigate(url, focus) {
+    if (!url) return;
+    const target = url.split("?")[0];
+    if (target === pathname) {
+      if (focus) {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("focus", focus);
+          return next;
+        }, { replace: true });
+      }
+    } else {
+      const finalUrl = focus
+        ? `${url}${url.includes("?") ? "&" : "?"}focus=${encodeURIComponent(focus)}`
+        : url;
+      navigate(finalUrl);
+    }
+  }
+
+  async function runMutation(intent) {
+    if (!resource?.id) return;
+    setMutatingKey(intent._key || intent.mutation);
+    setMutationError(null);
+    try {
+      if (intent.mutation === "add_spotify_section") {
+        await addSpotifySection(resource.id);
+      } else if (intent.mutation === "add_instagram_field") {
+        await addInstagramField(resource.id);
+      } else {
+        throw new Error(`Unknown mutation: ${intent.mutation}`);
+      }
+      // Land the host on the right tab so they see what just got added.
+      focusOrNavigate(intent.afterUrl, intent.focus);
+      setOpen(false);
+    } catch (err) {
+      console.warn("[IdeaWidget] mutation failed:", err?.message);
+      setMutationError(err?.message || "Couldn't apply that — try again");
+    } finally {
+      setMutatingKey(null);
+    }
   }
 
   function dispatchIntent(intent) {
     if (!intent) return;
     if (intent.type === "navigate" && intent.url) {
-      const target = intent.url.split("?")[0];
-      if (target === pathname) {
-        // Same page — if the intent declares a `focus`, hand it off via the
-        // URL so the page can jump to the right tab / section. Otherwise
-        // no-op (the suggestion was informational about the current view).
-        if (intent.focus) {
-          setSearchParams((prev) => {
-            const next = new URLSearchParams(prev);
-            next.set("focus", intent.focus);
-            return next;
-          }, { replace: true });
-        }
-      } else {
-        navigate(intent.url);
-      }
+      focusOrNavigate(intent.url, intent.focus);
       setOpen(false);
+      return;
+    }
+    if (intent.type === "mutate") {
+      runMutation(intent);
+      return;
     }
   }
 
@@ -279,49 +318,135 @@ export function IdeaWidget() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  useEffect(() => {
-    if (open && textareaRef.current) {
-      textareaRef.current.focus();
-    }
-  }, [open]);
+  if (mode === null) return null;
 
-  const handleSubmit = useCallback(async () => {
-    if (!body.trim() || sending) return;
-    setSending(true);
-    try {
-      const fetchFn = user ? authenticatedFetch : publicFetch;
-      await fetchFn("/ideas", {
-        method: "POST",
-        body: JSON.stringify({ body: body.trim(), pageUrl: window.location.href }),
-      });
-      setSent(true);
-      setBody("");
-      setTimeout(() => {
-        setSent(false);
-        setOpen(false);
-      }, 2000);
-    } catch (err) {
-      console.error("Failed to submit idea:", err);
-    } finally {
-      setSending(false);
-    }
-  }, [body, sending, user]);
+  // Promo modes: replace the old "Have an idea?" affordance with an MCP
+  // pitch. promo-marketing for not-logged-in visitors (landing page),
+  // promo-connect for hosts who haven't wired up an MCP token yet.
+  if (isPromo) {
+    const isMarketing = mode === "promo-marketing";
+    const cta = isMarketing
+      ? { label: "Get started", href: "/start" }
+      : { label: "Connect MCP", href: "/settings" };
+    return (
+      <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
+        {open && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 56,
+              right: 0,
+              width: 320,
+              background: "rgba(12, 10, 18, 0.92)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 16,
+              padding: 18,
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 10,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 7, color: "#f0d878" }}>
+                <Sparkles size={14} />
+                <span
+                  style={{
+                    fontSize: 11,
+                    letterSpacing: 0.8,
+                    textTransform: "uppercase",
+                    fontWeight: 600,
+                  }}
+                >
+                  PullUp MCP
+                </span>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 4,
+                  color: "rgba(255,255,255,0.4)",
+                }}
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.5, color: "rgba(255,255,255,0.85)", marginBottom: 14 }}>
+              {isMarketing
+                ? "Talk to your events from claude.ai or any AI you already use. PullUp connects in one click — your AI then knows your RSVPs, CRM, drafts, and can publish, send, refund."
+                : "Connect PullUp to claude.ai (or any MCP-capable AI). Once linked, you can draft events, send campaigns, and answer 'who's coming on Saturday' from chat. Takes ~30 seconds."}
+            </div>
+            <a
+              href={cta.href}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(cta.href);
+                setOpen(false);
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: "1px solid rgba(232,200,102,0.5)",
+                background: "rgba(232,200,102,0.18)",
+                color: "#f0d878",
+                fontSize: 13,
+                fontWeight: 600,
+                textDecoration: "none",
+                cursor: "pointer",
+              }}
+            >
+              {cta.label}
+            </a>
+          </div>
+        )}
 
-  const handleKeyDown = useCallback(
-    (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        e.preventDefault();
-        handleSubmit();
-      }
-    },
-    [handleSubmit]
-  );
-
-  // Only show on landing page and dashboard, not on event pages
-  const isEventPage = pathname.startsWith("/e/") || pathname.startsWith("/events/");
-  if (!isDesktop || isEventPage) return null;
-
-  const canSubmit = body.trim().length > 0 && !sending;
+        <button
+          onClick={() => setOpen((prev) => !prev)}
+          title="Connect PullUp to your AI"
+          style={{
+            borderRadius: 999,
+            border: "1px solid rgba(232, 200, 102, 0.28)",
+            background: "rgba(232, 200, 102, 0.08)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            color: "#f0d878",
+            transition: "all 0.15s ease",
+            padding: "10px 14px 10px 12px",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(232, 200, 102, 0.14)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "rgba(232, 200, 102, 0.08)";
+          }}
+        >
+          <Sparkles size={18} />
+          <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
+            {isMarketing ? "Try PullUp MCP" : "Connect MCP"}
+          </span>
+        </button>
+      </div>
+    );
+  }
 
   if (inAiMode) {
     return (
@@ -450,10 +575,15 @@ export function IdeaWidget() {
               </div>
             )}
 
-            {coachItems === null && (
+            {!resource && (
+              <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)", padding: "4px 0 8px", lineHeight: 1.5 }}>
+                Your AI is connected. Open it from any host page for in-context coaching, or jump straight into claude.ai below.
+              </div>
+            )}
+            {resource && coachItems === null && (
               <div style={{ fontSize: 12, opacity: 0.5, padding: "8px 0" }}>Loading…</div>
             )}
-            {coachItems && coachItems.length === 0 && (
+            {resource && coachItems && coachItems.length === 0 && (
               <div style={{ fontSize: 12, opacity: 0.6, padding: "8px 0", lineHeight: 1.5 }}>
                 Nothing left to suggest right now — looks tight from here.
               </div>
@@ -462,15 +592,24 @@ export function IdeaWidget() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {coachItems.map((it) => {
                   const target = it.intent?.url ? it.intent.url.split("?")[0] : null;
-                  // Same-page intent without a focus is informational; with
-                  // a focus, the click flips a tab — still actionable.
-                  const isInfo = target && target === pathname && !it.intent?.focus;
+                  // Mutate intents are always actionable. Navigate intents on
+                  // the same page need a `focus` to be meaningful; without
+                  // one they're advice only.
+                  const isMutate = it.intent?.type === "mutate";
+                  const isInfo =
+                    !isMutate &&
+                    target && target === pathname && !it.intent?.focus;
+                  const isMutating = mutatingKey === it.key;
                   return (
                     <button
                       key={it.key}
                       type="button"
-                      onClick={() => (isInfo ? null : dispatchIntent(it.intent))}
-                      disabled={isInfo}
+                      onClick={() =>
+                        isInfo || isMutating
+                          ? null
+                          : dispatchIntent({ ...it.intent, _key: it.key })
+                      }
+                      disabled={isInfo || isMutating}
                       style={{
                         textAlign: "left",
                         display: "grid",
@@ -483,7 +622,8 @@ export function IdeaWidget() {
                         border: "1px solid rgba(255,255,255,0.08)",
                         background: isInfo ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.04)",
                         color: "#fff",
-                        cursor: isInfo ? "default" : "pointer",
+                        cursor: isInfo ? "default" : isMutating ? "wait" : "pointer",
+                        opacity: isMutating ? 0.7 : 1,
                       }}
                     >
                       <span
@@ -495,9 +635,9 @@ export function IdeaWidget() {
                           lineHeight: 1.3,
                         }}
                       >
-                        {it.headline}
+                        {isMutating ? "Adding…" : it.headline}
                       </span>
-                      {it.why && (
+                      {it.why && !isMutating && (
                         <span
                           style={{
                             gridColumn: 1,
@@ -510,7 +650,7 @@ export function IdeaWidget() {
                           {it.why}
                         </span>
                       )}
-                      {!isInfo && (
+                      {!isInfo && !isMutating && (
                         <ChevronRight
                           size={14}
                           style={{
@@ -524,6 +664,19 @@ export function IdeaWidget() {
                     </button>
                   );
                 })}
+              </div>
+            )}
+
+            {mutationError && (
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 11.5,
+                  color: "#fda4af",
+                  lineHeight: 1.4,
+                }}
+              >
+                {mutationError}
               </div>
             )}
 
@@ -596,173 +749,6 @@ export function IdeaWidget() {
     );
   }
 
-  return (
-    <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
-      {/* Panel */}
-      {open && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 56,
-            right: 0,
-            width: 320,
-            background: colors.backgroundOverlay,
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: 16,
-            padding: 20,
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-          }}
-        >
-          {/* Close button */}
-          <button
-            onClick={() => setOpen(false)}
-            style={{
-              position: "absolute",
-              top: 12,
-              right: 12,
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 4,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "rgba(255,255,255,0.4)",
-            }}
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-
-          {sent ? (
-            <div
-              style={{
-                color: colors.success,
-                fontSize: 14,
-                fontWeight: 500,
-                textAlign: "center",
-                padding: "20px 0",
-              }}
-            >
-              Thanks! Your idea has been received.
-            </div>
-          ) : (
-            <>
-              <div style={{ fontSize: 14, color: "#fff", fontWeight: 500, marginBottom: 6, lineHeight: 1.4 }}>
-                Help us make PullUp top tier
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "rgba(255,255,255,0.4)",
-                  marginBottom: 14,
-                  lineHeight: 1.5,
-                }}
-              >
-                We built this for free, for the culture, to keep the city alive. Every idea helps us get better — tell us what you'd love to see.
-              </div>
-
-              <textarea
-                ref={textareaRef}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                onKeyDown={handleKeyDown}
-                maxLength={2000}
-                placeholder="I wish PullUp had..."
-                rows={4}
-                style={{
-                  width: "100%",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  color: "#fff",
-                  fontSize: 13,
-                  resize: "vertical",
-                  outline: "none",
-                  fontFamily: "inherit",
-                  boxSizing: "border-box",
-                }}
-              />
-
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginTop: 10,
-                }}
-              >
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
-                  {body.length}/2000
-                </span>
-                <button
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "7px 16px",
-                    borderRadius: 8,
-                    border: "none",
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: canSubmit ? "pointer" : "default",
-                    background: canSubmit ? "#fff" : "rgba(255,255,255,0.1)",
-                    color: canSubmit ? "#000" : "rgba(255,255,255,0.3)",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {sending ? (
-                    "Sending..."
-                  ) : (
-                    <>
-                      Submit <Send size={13} />
-                    </>
-                  )}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Trigger button */}
-      <button
-        onClick={() => setOpen((prev) => !prev)}
-        title="Share an idea"
-        style={{
-          borderRadius: 999,
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(255,255,255,0.06)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: 7,
-          color: "rgba(255,255,255,0.6)",
-          transition: "all 0.15s ease",
-          padding: "10px 14px 10px 12px",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = "rgba(255,255,255,0.9)";
-          e.currentTarget.style.background = "rgba(255,255,255,0.1)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = "rgba(255,255,255,0.6)";
-          e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-        }}
-      >
-        <Lightbulb size={18} />
-        <span style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" }}>
-          Have an idea?
-        </span>
-      </button>
-    </div>
-  );
+  // Defensive — all real modes are handled above.
+  return null;
 }

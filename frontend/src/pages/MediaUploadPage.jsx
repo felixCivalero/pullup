@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Upload, Image as ImageIcon, Film, Check, ExternalLink, AlertCircle } from "lucide-react";
 
-import { uploadBlobToSignedUrl } from "../lib/imageUtils.js";
+import { uploadBlobToSignedUrl, generateVideoThumbnail } from "../lib/imageUtils.js";
 
 const API_BASE =
   import.meta.env.VITE_API_URL ||
@@ -39,9 +39,17 @@ export function MediaUploadPage() {
   const fileInputRef = useRef(null);
 
   // Media settings — start with sensible defaults; merged into event on save.
-  const [fit, setFit] = useState("cover"); // image: cover | contain
-  const [focusX, setFocusX] = useState(50); // 0–100
-  const [focusY, setFocusY] = useState(50);
+  // Phone: fit cover|contain + focus. Desktop: mode fit|real + focus. Both
+  // are independent so the host can crop differently per device (matches
+  // CreateEventPage's data model — the chat-handoff upload writes the same
+  // mediaSettings shape the editor writes).
+  const [phoneFit, setPhoneFit] = useState("cover"); // cover | contain
+  const [phoneFocusX, setPhoneFocusX] = useState(50);
+  const [phoneFocusY, setPhoneFocusY] = useState(50);
+  const [desktopMode, setDesktopMode] = useState("fit"); // fit | real
+  const [desktopFocusX, setDesktopFocusX] = useState(50);
+  const [desktopFocusY, setDesktopFocusY] = useState(50);
+  const [previewDevice, setPreviewDevice] = useState("phone"); // phone | desktop
   const [videoLoop, setVideoLoop] = useState(true);
   const [videoAutoplay, setVideoAutoplay] = useState(true);
   const [videoAudio, setVideoAudio] = useState(false);
@@ -69,9 +77,14 @@ export function MediaUploadPage() {
         // current focus/playback values rather than fresh defaults.
         const ms = data?.mediaSettings || {};
         if (ms.phone) {
-          if (ms.phone.fit) setFit(ms.phone.fit);
-          if (Number.isFinite(ms.phone.focusX)) setFocusX(ms.phone.focusX);
-          if (Number.isFinite(ms.phone.focusY)) setFocusY(ms.phone.focusY);
+          if (ms.phone.fit) setPhoneFit(ms.phone.fit);
+          if (Number.isFinite(ms.phone.focusX)) setPhoneFocusX(ms.phone.focusX);
+          if (Number.isFinite(ms.phone.focusY)) setPhoneFocusY(ms.phone.focusY);
+        }
+        if (ms.desktop) {
+          if (ms.desktop.mode) setDesktopMode(ms.desktop.mode);
+          if (Number.isFinite(ms.desktop.focusX)) setDesktopFocusX(ms.desktop.focusX);
+          if (Number.isFinite(ms.desktop.focusY)) setDesktopFocusY(ms.desktop.focusY);
         }
         if (typeof ms.loop === "boolean") setVideoLoop(ms.loop);
         if (typeof ms.autoplay === "boolean") setVideoAutoplay(ms.autoplay);
@@ -120,15 +133,27 @@ export function MediaUploadPage() {
 
   const mediaType = mediaTypeFromMime(file?.type);
 
+  // Whether the active device's preview shows a cropped/repositionable image.
+  // Phone "cover" → draggable. Phone "contain" → letterboxed, no drag.
+  // Desktop "fit" → portrait crop, draggable. Desktop "real" → wide crop, draggable.
+  const activeIsDraggable = (() => {
+    if (mediaType !== "image") return false;
+    if (previewDevice === "phone") return phoneFit === "cover";
+    return true; // desktop modes both crop
+  })();
+
   // ── Drag-to-focus on the preview ───────────────────────────────────
+  // Updates the active device's focus point only — phone and desktop crops
+  // are independent.
   function startFocusDrag(e) {
-    if (!file || mediaType !== "image" || fit !== "cover") return;
+    if (!file || !activeIsDraggable) return;
     e.preventDefault();
     const frame = e.currentTarget.getBoundingClientRect();
     const startX = e.clientX ?? e.touches?.[0]?.clientX;
     const startY = e.clientY ?? e.touches?.[0]?.clientY;
-    const initFx = focusX;
-    const initFy = focusY;
+    const isPhone = previewDevice === "phone";
+    const initFx = isPhone ? phoneFocusX : desktopFocusX;
+    const initFy = isPhone ? phoneFocusY : desktopFocusY;
     function onMove(ev) {
       const cx = ev.clientX ?? ev.touches?.[0]?.clientX;
       const cy = ev.clientY ?? ev.touches?.[0]?.clientY;
@@ -136,8 +161,13 @@ export function MediaUploadPage() {
       const dy = cy - startY;
       const fx = Math.max(0, Math.min(100, initFx - (dx / frame.width) * 100));
       const fy = Math.max(0, Math.min(100, initFy - (dy / frame.height) * 100));
-      setFocusX(fx);
-      setFocusY(fy);
+      if (isPhone) {
+        setPhoneFocusX(fx);
+        setPhoneFocusY(fy);
+      } else {
+        setDesktopFocusX(fx);
+        setDesktopFocusY(fy);
+      }
     }
     function onUp() {
       window.removeEventListener("mousemove", onMove);
@@ -158,6 +188,20 @@ export function MediaUploadPage() {
     setProgress(0);
     setErrorText("");
     try {
+      // 0) For videos, extract a still frame BEFORE uploading anything — the
+      // event card / OG image / mail header all use this as the cover. Without
+      // it, the dashboard would try to render the video URL as an <img> and
+      // show a broken-image icon (which was the bug Felix spotted).
+      let thumbnailBlob = null;
+      if (mediaType === "video") {
+        try {
+          thumbnailBlob = await generateVideoThumbnail(file);
+        } catch (e) {
+          // Non-fatal — log and continue; the event just won't have a cover.
+          console.warn("[MediaUpload] video thumbnail generation failed:", e?.message);
+        }
+      }
+
       // 1) Mint signed Supabase upload URL via token.
       const tokRes = await fetch(
         `${API_BASE}/public/upload-links/${encodeURIComponent(token)}/storage-token`,
@@ -174,20 +218,56 @@ export function MediaUploadPage() {
       const { path, uploadUrl } = await tokRes.json();
 
       // 2) PUT the file directly to Supabase Storage (progress events).
+      // Reserve the last 10% of progress for the thumbnail step if there is one.
+      const mainProgressMax = thumbnailBlob ? 85 : 95;
       await uploadBlobToSignedUrl({
         url: uploadUrl,
         blob: file,
         mimeType: file.type,
-        onProgress: (p) => setProgress(Math.min(95, Math.round(p * 0.95))),
+        onProgress: (p) => setProgress(Math.min(mainProgressMax, Math.round(p * (mainProgressMax / 100)))),
       });
+
+      // 2b) Upload the video thumbnail to a separate storage path so the
+      // register endpoint can wire it in as cover_image_url for the event.
+      let thumbnailStoragePath = null;
+      if (thumbnailBlob) {
+        try {
+          const thumbTokRes = await fetch(
+            `${API_BASE}/public/upload-links/${encodeURIComponent(token)}/storage-token`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                mimeType: thumbnailBlob.type || "image/jpeg",
+                kind: "thumb",
+                position: 0,
+              }),
+            }
+          );
+          if (thumbTokRes.ok) {
+            const thumbInfo = await thumbTokRes.json();
+            await uploadBlobToSignedUrl({
+              url: thumbInfo.uploadUrl,
+              blob: thumbnailBlob,
+              mimeType: thumbnailBlob.type || "image/jpeg",
+              onProgress: (p) => setProgress(Math.min(95, 85 + Math.round(p * 0.1))),
+            });
+            thumbnailStoragePath = thumbInfo.path;
+          }
+        } catch (e) {
+          // Thumbnail is best-effort; if it fails, the video still uploads
+          // and registers, just without a cover image.
+          console.warn("[MediaUpload] thumbnail upload failed:", e?.message);
+        }
+      }
 
       // 3) Register the media against the event + persist mediaSettings.
       const mediaSettings = {
         ...(mediaType === "video"
           ? { mode: "video", loop: videoLoop, autoplay: videoAutoplay, audio: videoAudio }
           : {}),
-        phone: { fit, focusX, focusY },
-        desktop: { mode: fit === "cover" ? "fit" : "real", focusX, focusY },
+        phone: { fit: phoneFit, focusX: phoneFocusX, focusY: phoneFocusY },
+        desktop: { mode: desktopMode, focusX: desktopFocusX, focusY: desktopFocusY },
       };
       const regRes = await fetch(
         `${API_BASE}/public/upload-links/${encodeURIComponent(token)}/register`,
@@ -196,6 +276,7 @@ export function MediaUploadPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             storagePath: path,
+            thumbnailStoragePath,
             mediaType,
             mimeType: file.type,
             position: 0,
@@ -275,8 +356,30 @@ export function MediaUploadPage() {
       {/* Preview + settings */}
       {file && phase !== "done" && (
         <>
+          {/* Device toggle — switches the preview frame between phone (9:16
+              portrait) and desktop (aspect depends on desktopMode). Each
+              device has its own focus/fit, edited independently. */}
+          {mediaType === "image" && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              <button
+                type="button"
+                onClick={() => setPreviewDevice("phone")}
+                style={devicePillStyle(previewDevice === "phone")}
+              >
+                Phone
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewDevice("desktop")}
+                style={devicePillStyle(previewDevice === "desktop")}
+              >
+                Desktop
+              </button>
+            </div>
+          )}
+
           <div
-            style={previewFrameStyle(fit, focusX, focusY)}
+            style={previewFrameStyle(previewDevice, desktopMode)}
             onMouseDown={startFocusDrag}
             onTouchStart={startFocusDrag}
           >
@@ -284,13 +387,18 @@ export function MediaUploadPage() {
               <img
                 src={previewUrl}
                 alt="preview"
-                style={previewMediaStyle(fit, focusX, focusY)}
+                style={previewMediaStyleForDevice({
+                  device: previewDevice,
+                  phoneFit,
+                  phoneFocusX, phoneFocusY,
+                  desktopFocusX, desktopFocusY,
+                })}
                 draggable={false}
               />
             ) : (
               <video
                 src={previewUrl}
-                style={previewMediaStyle("cover", focusX, focusY)}
+                style={previewMediaStyle("cover", phoneFocusX, phoneFocusY)}
                 autoPlay={videoAutoplay}
                 loop={videoLoop}
                 muted={!videoAudio}
@@ -298,7 +406,7 @@ export function MediaUploadPage() {
                 controls={!videoAutoplay}
               />
             )}
-            {mediaType === "image" && fit === "cover" && (
+            {activeIsDraggable && (
               <div style={dragHintStyle}>drag to adjust focus</div>
             )}
           </div>
@@ -313,15 +421,35 @@ export function MediaUploadPage() {
             </div>
 
             {mediaType === "image" && (
-              <Segmented
-                label="Fit"
-                value={fit}
-                onChange={setFit}
-                options={[
-                  { value: "cover", label: "Fill (crop)" },
-                  { value: "contain", label: "Real size" },
-                ]}
-              />
+              <>
+                <Segmented
+                  label="Phone"
+                  value={phoneFit}
+                  onChange={(v) => {
+                    setPhoneFit(v);
+                    setPreviewDevice("phone");
+                  }}
+                  options={[
+                    { value: "cover", label: "Fill (crop)" },
+                    { value: "contain", label: "Real size" },
+                  ]}
+                />
+                <Segmented
+                  label="Desktop"
+                  value={desktopMode}
+                  onChange={(v) => {
+                    setDesktopMode(v);
+                    setPreviewDevice("desktop");
+                  }}
+                  options={[
+                    { value: "fit", label: "Fit (portrait)" },
+                    { value: "real", label: "Real (wide)" },
+                  ]}
+                />
+                <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>
+                  Each device has its own crop. Drag the preview to reposition the active device.
+                </div>
+              </>
             )}
 
             {mediaType === "video" && (
@@ -524,11 +652,17 @@ const dropZoneStyle = {
   background: "rgba(255,255,255,0.02)",
 };
 
-function previewFrameStyle(/* fit, fx, fy */) {
+// Preview frame aspect varies by active device:
+//   phone:          9:16 portrait (what mobile recipients see)
+//   desktop "fit":  9:16 portrait (same aspect; image still cropped)
+//   desktop "real": 16:9 wide (what laptop recipients see for "real" mode)
+function previewFrameStyle(device, desktopMode) {
+  const aspect =
+    device === "desktop" && desktopMode === "real" ? "16 / 9" : "9 / 16";
   return {
     position: "relative",
     width: "100%",
-    aspectRatio: "9 / 16",
+    aspectRatio: aspect,
     maxHeight: "55vh",
     background: "#000",
     borderRadius: 12,
@@ -548,6 +682,36 @@ function previewMediaStyle(fit, fx, fy) {
     objectFit: fit === "contain" ? "contain" : "cover",
     objectPosition: `${fx}% ${fy}%`,
     pointerEvents: "none",
+  };
+}
+
+// Renders the image with the active device's crop + focus. Phone respects
+// the phoneFit (cover|contain); desktop is always cropped (cover) — its
+// "fit" vs "real" mode only changes the frame aspect, not object-fit.
+function previewMediaStyleForDevice({
+  device,
+  phoneFit,
+  phoneFocusX, phoneFocusY,
+  desktopFocusX, desktopFocusY,
+}) {
+  if (device === "phone") {
+    return previewMediaStyle(phoneFit, phoneFocusX, phoneFocusY);
+  }
+  return previewMediaStyle("cover", desktopFocusX, desktopFocusY);
+}
+
+function devicePillStyle(active) {
+  return {
+    flex: 1,
+    padding: "8px 12px",
+    borderRadius: 10,
+    border: `1px solid ${active ? "rgba(232,200,102,0.5)" : "rgba(255,255,255,0.08)"}`,
+    background: active ? "rgba(232,200,102,0.12)" : "rgba(255,255,255,0.03)",
+    color: active ? "#f0d878" : "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    letterSpacing: 0.3,
   };
 }
 

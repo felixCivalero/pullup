@@ -3,6 +3,7 @@ import { useToast } from "../components/Toast";
 import { EventsTab } from "../components/HomeEventsTab";
 import { CoachActions } from "../components/CoachActions";
 import { authenticatedFetch } from "../lib/api.js";
+import { useHostActions } from "../lib/useHostActions.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
 export function HomePage() {
@@ -26,29 +27,45 @@ export function HomePage() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  useEffect(() => {
-    async function loadUpcomingEvents() {
-      setNetworkError(false);
-      setLoadingUpcoming(true);
-      try {
-        const res = await authenticatedFetch("/events?filter=upcoming");
-        if (!res.ok) throw new Error("Failed to load events");
-        const data = await res.json();
-        setUpcomingEvents(data);
-      } catch (err) {
-        console.error("Failed to load events", err);
-        if (isNetworkError(err)) {
-          setNetworkError(true);
-          handleNetworkError(err, showToast);
-        } else {
-          showToast("Failed to load events", "error");
-        }
-      } finally {
-        setLoadingUpcoming(false);
+  async function loadUpcomingEvents() {
+    setNetworkError(false);
+    setLoadingUpcoming(true);
+    try {
+      const res = await authenticatedFetch("/events?filter=upcoming");
+      if (!res.ok) throw new Error("Failed to load events");
+      const data = await res.json();
+      setUpcomingEvents(data);
+    } catch (err) {
+      console.error("Failed to load events", err);
+      if (isNetworkError(err)) {
+        setNetworkError(true);
+        handleNetworkError(err, showToast);
+      } else {
+        showToast("Failed to load events", "error");
       }
+    } finally {
+      setLoadingUpcoming(false);
     }
+  }
+
+  useEffect(() => {
     loadUpcomingEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showToast]);
+
+  // When MCP creates / updates / publishes / deletes an event from chat,
+  // refresh the dashboard so the new card shows up without a manual reload.
+  useHostActions({
+    tools: [
+      "create_event",
+      "update_event",
+      "publish_event",
+      "unpublish_event",
+      "delete_event",
+      "duplicate_event",
+    ],
+    onInsert: () => loadUpcomingEvents(),
+  });
 
   // Lazy-load past events only when needed
   useEffect(() => {

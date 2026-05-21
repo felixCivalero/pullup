@@ -9,6 +9,7 @@ import EmailPanel from "../components/crm/EmailPanel";
 import EmailCanvas from "../components/crm/EmailCanvas";
 import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
 import { CoachActions } from "../components/CoachActions";
+import { useHostActions } from "../lib/useHostActions.js";
 
 // Normalize a campaign's stored filterCriteria into the shape CrmTab expects.
 // MCP-drafted campaigns use a slightly different shape (singular attendedEventId,
@@ -303,6 +304,31 @@ export function CrmPage() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCampaignId]);
+
+  // Chat → UI live sync. When MCP sends or updates the loaded campaign,
+  // refetch its status so the composer flips draft → sending → sent in
+  // real time. We only refetch status fields; we don't clobber the
+  // composer's in-flight edits (subject/blocks/segment).
+  useHostActions({
+    enabled: !!currentDraftId,
+    targetType: "campaign",
+    targetId: currentDraftId,
+    tools: ["send_campaign", "update_campaign"],
+    onInsert: async () => {
+      if (!currentDraftId) return;
+      try {
+        const res = await authenticatedFetch(`/host/crm/campaigns/${currentDraftId}`);
+        if (!res.ok) return;
+        const c = await res.json();
+        setDraftStatus(c.status || "draft");
+        if (c.totalRecipients != null) {
+          setSegmentSelection((prev) => ({ ...prev, total: c.totalRecipients }));
+        }
+      } catch (err) {
+        console.warn("[CrmPage] live refresh failed:", err?.message);
+      }
+    },
+  });
 
   useEffect(() => {
     let cancelled = false;

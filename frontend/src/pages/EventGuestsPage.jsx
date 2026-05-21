@@ -22,6 +22,7 @@ import { authenticatedFetch, API_BASE } from "../lib/api.js";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { formatEventTime, formatEventDate } from "../lib/dateUtils.js";
 import { colors } from "../theme/colors.js";
+import { useHostActions } from "../lib/useHostActions.js";
 
 // -----------------------------
 // Helpers: stats, filtering, sorting
@@ -208,6 +209,44 @@ export function EventGuestsPage() {
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
+
+  // Chat → UI live sync. When MCP updates an RSVP or refunds a payment on
+  // this event, refetch the guest list so the dashboard stays current
+  // without a manual reload. Best-effort; failures are silent.
+  useHostActions({
+    enabled: !!id,
+    targetType: "event",
+    targetId: id,
+    tools: ["update_rsvp", "refund_payment", "update_event", "publish_event", "unpublish_event"],
+    onInsert: async () => {
+      try {
+        const res = await authenticatedFetch(`/host/events/${id}/guests`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setGuests(data.guests || []);
+        if (data.event) setEvent(data.event);
+      } catch (err) {
+        console.warn("[EventGuests] live refresh failed:", err?.message);
+      }
+    },
+  });
+  // RSVPs target type is "rsvp" not "event" — listen for those too,
+  // scoped by no targetId (we filter client-side by tool name).
+  useHostActions({
+    enabled: !!id,
+    targetType: "rsvp",
+    tools: ["update_rsvp"],
+    onInsert: async () => {
+      try {
+        const res = await authenticatedFetch(`/host/events/${id}/guests`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setGuests(data.guests || []);
+      } catch (err) {
+        console.warn("[EventGuests] live refresh failed:", err?.message);
+      }
+    },
+  });
 
   useEffect(() => {
     async function load() {

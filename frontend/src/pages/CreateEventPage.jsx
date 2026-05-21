@@ -49,6 +49,7 @@ import { RsvpForm } from "../components/RsvpForm";
 import { useToast } from "../components/Toast";
 import { PublishAuthModal } from "../components/PublishAuthModal";
 import { CoachActions } from "../components/CoachActions";
+import { useHostActions } from "../lib/useHostActions.js";
 import { useAuth } from "../contexts/AuthContext";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
@@ -578,6 +579,24 @@ export function CreateEventPage() {
   const { user } = useAuth();
   const [editLoading, setEditLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
+
+  // Live notice when MCP edits/publishes this event from chat. The editor
+  // is the one surface where auto-overwrite would clobber in-flight edits,
+  // so we surface a banner instead — host chooses when to refresh.
+  const [chatActivity, setChatActivity] = useState(null);
+  useHostActions({
+    enabled: isEditMode && !!editEventId,
+    targetType: "event",
+    targetId: editEventId,
+    tools: [
+      "update_event",
+      "publish_event",
+      "unpublish_event",
+      "upload_event_image",
+      "upload_event_media",
+    ],
+    onInsert: (row) => setChatActivity(row),
+  });
   const [profileChecked, setProfileChecked] = useState(true);
   const [showPublishAuth, setShowPublishAuth] = useState(false);
   const [pendingPublishAfterAuth, setPendingPublishAfterAuth] = useState(false);
@@ -3044,6 +3063,64 @@ export function CreateEventPage() {
 
             {isEditMode && editEventId && (
               <CoachActions surface="event" id={editEventId} compact />
+            )}
+
+            {chatActivity && (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  background: "rgba(232, 200, 102, 0.08)",
+                  border: "1px solid rgba(232, 200, 102, 0.25)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  marginBottom: 12,
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ opacity: 0.9 }}>
+                  Chat just{" "}
+                  <strong style={{ color: "#f0d878" }}>
+                    {chatActivity.tool.replace(/_/g, " ")}
+                  </strong>
+                  {" "}on this event. Refresh to see the latest.
+                </span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(232, 200, 102, 0.5)",
+                      background: "rgba(232, 200, 102, 0.18)",
+                      color: "#f0d878",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Refresh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatActivity(null)}
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "transparent",
+                      color: "rgba(255,255,255,0.6)",
+                      fontSize: 12,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* Draft restored banner */}

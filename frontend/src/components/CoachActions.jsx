@@ -10,9 +10,19 @@
 // later once send/publish/delete intents are wired in.
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Sparkles, ChevronRight } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
+
+// When the intent's destination is the page the host is already on, clicking
+// would re-route to the same screen and look broken. Treat those as
+// informational chips instead — the headline + why still helps; the chevron
+// goes away so the affordance reads as "advice, not action".
+function isSelfPage(intent, currentPath) {
+  if (intent?.type !== "navigate" || !intent.url) return false;
+  const target = intent.url.split("?")[0];
+  return target === currentPath;
+}
 
 /**
  * @param {object} props
@@ -23,6 +33,7 @@ import { authenticatedFetch } from "../lib/api.js";
  */
 export function CoachActions({ surface, id, limit = 3, compact = false }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [items, setItems] = useState(null); // null = loading, [] = no actions
   const [error, setError] = useState(null);
 
@@ -68,19 +79,31 @@ export function CoachActions({ surface, id, limit = 3, compact = false }) {
         </div>
       )}
       <div style={rowStyle}>
-        {items.map((it) => (
-          <button
-            key={it.key}
-            type="button"
-            onClick={() => dispatch(it.intent)}
-            style={compact ? compactButton : button}
-            title={it.why || it.headline}
-          >
-            <span style={compact ? compactHeadline : headline}>{it.headline}</span>
-            {!compact && it.why && <span style={why}>{it.why}</span>}
-            <ChevronRight size={14} style={{ opacity: 0.55, alignSelf: "center" }} />
-          </button>
-        ))}
+        {items.map((it) => {
+          const isInfo = isSelfPage(it.intent, location.pathname);
+          const Tag = isInfo ? "div" : "button";
+          const tagProps = isInfo
+            ? {}
+            : { type: "button", onClick: () => dispatch(it.intent) };
+          return (
+            <Tag
+              key={it.key}
+              {...tagProps}
+              style={
+                isInfo
+                  ? (compact ? compactInfo : info)
+                  : (compact ? compactButton : button)
+              }
+              title={it.why || it.headline}
+            >
+              <span style={compact ? compactHeadline : headline}>{it.headline}</span>
+              {!compact && it.why && <span style={why}>{it.why}</span>}
+              {!isInfo && (
+                <ChevronRight size={14} style={{ opacity: 0.55, alignSelf: "center" }} />
+              )}
+            </Tag>
+          );
+        })}
       </div>
     </div>
   );
@@ -178,4 +201,19 @@ const compactButton = {
 const compactHeadline = {
   fontSize: 12.5,
   fontWeight: 500,
+};
+
+// Informational chip — same shape as a button but no hover/cursor + no chevron.
+const info = {
+  ...button,
+  cursor: "default",
+  background: "rgba(255,255,255,0.02)",
+  borderColor: "rgba(255,255,255,0.05)",
+};
+
+const compactInfo = {
+  ...compactButton,
+  cursor: "default",
+  background: "rgba(255,255,255,0.03)",
+  borderColor: "rgba(255,255,255,0.08)",
 };

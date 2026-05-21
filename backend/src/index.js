@@ -6996,6 +6996,34 @@ app.put("/host/profile", requireAuth, async (req, res) => {
     await getUserProfile(req.user.id);
     const updates = req.body;
     const updated = await updateUserProfile(req.user.id, updates);
+
+    // host_brief changes are the one profile field with a dedicated MCP tool
+    // (set_host_brief), so log them distinctly. Other profile edits aren't
+    // mirrored in MCP today; emit them under update_profile for completeness.
+    if (Object.prototype.hasOwnProperty.call(updates || {}, "hostBrief")) {
+      emitIntent({
+        hostId: req.user.id,
+        tool: "set_host_brief",
+        args: { brief: updates.hostBrief },
+        source: sourceFromRequest(req),
+        target: { type: "profile", id: req.user.id },
+        result: { length: (updates.hostBrief || "").length },
+      });
+    } else {
+      emitIntent({
+        hostId: req.user.id,
+        tool: "update_profile",
+        args: Object.keys(updates || {}).reduce((acc, k) => {
+          // Don't log raw image data or sensitive fields verbatim.
+          if (k === "avatarUrl" || k === "logoUrl") acc[k] = updates[k];
+          else if (typeof updates[k] !== "string" || updates[k].length < 500) acc[k] = updates[k];
+          return acc;
+        }, {}),
+        source: sourceFromRequest(req),
+        target: { type: "profile", id: req.user.id },
+      });
+    }
+
     res.json(updated);
   } catch (error) {
     console.error("Error updating profile:", error);
@@ -7347,9 +7375,32 @@ app.get("/host/coach/actions", requireAuth, async (req, res) => {
       const ev = (await findEventBySlug(id)) || (await findEventById(id));
       if (!ev) return res.status(404).json({ error: "Event not found" });
       const brief = await loadBrief();
-      // Skip allEvents fetch in v1 — series detection just returns null when
-      // the list is empty, so non-series suggestions still surface correctly.
-      const result = analyzeEvent({ event: ev, brief, media: [], allEvents: [], analytics: null });
+      // Pull analytics for PUBLISHED events so perf_* suggestions surface
+      // (capped waitlist, filling-up, quiet promo, weak campaigns). Loopback
+      // through the auth'd REST endpoint so the analytics math stays in one
+      // place. Best-effort — if it fails the non-perf keys still work.
+      let analytics = null;
+      if (ev.status === "PUBLISHED") {
+        try {
+          const PORT = process.env.PORT || 3001;
+          const base = (
+            process.env.PULLUP_INTERNAL_API_BASE || `http://127.0.0.1:${PORT}`
+          ).replace(/\/+$/, "");
+          const periodEnd = new Date();
+          const periodStart = new Date(periodEnd.getTime() - 30 * 86400000);
+          const q = new URLSearchParams({
+            startDate: periodStart.toISOString(),
+            endDate: periodEnd.toISOString(),
+          });
+          const r = await fetch(`${base}/host/events/${ev.id}/analytics?${q}`, {
+            headers: { Authorization: req.headers.authorization || "" },
+          });
+          if (r.ok) analytics = await r.json();
+        } catch (e) {
+          console.warn("[coach] analytics fetch failed:", e?.message);
+        }
+      }
+      const result = analyzeEvent({ event: ev, brief, media: [], allEvents: [], analytics });
       suggestions = result.suggestions || [];
       mapper = keyToEventIntent;
       ctx = { event: ev };

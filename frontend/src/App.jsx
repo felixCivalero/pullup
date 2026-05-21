@@ -35,10 +35,12 @@ import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { IdeaWidget } from "./components/IdeaWidget";
 import { HostBar } from "./components/HostBar";
+import { HostResourceProvider } from "./contexts/HostResourceContext";
 
 function App() {
   return (
     <ErrorBoundary>
+      <HostResourceProvider>
       <IdeaWidget />
       {/* HostBar reads ?pv=<jwt> from the URL and renders the floating */}
       {/* publish/send/back pill anywhere the MCP coach has handed back  */}
@@ -126,6 +128,7 @@ function App() {
           />
         </Route>
       </Routes>
+      </HostResourceProvider>
     </ErrorBoundary>
   );
 }

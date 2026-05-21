@@ -8,8 +8,8 @@ import { CrmTab } from "../components/HomeCrmTab";
 import EmailPanel from "../components/crm/EmailPanel";
 import EmailCanvas from "../components/crm/EmailCanvas";
 import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
-import { CoachActions } from "../components/CoachActions";
 import { useHostActions } from "../lib/useHostActions.js";
+import { useSetHostResource } from "../contexts/useHostResource.js";
 
 // Normalize a campaign's stored filterCriteria into the shape CrmTab expects.
 // MCP-drafted campaigns use a slightly different shape (singular attendedEventId,
@@ -132,6 +132,10 @@ export function CrmPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialCampaignId = searchParams.get("campaignId") || null;
   const [currentDraftId, setCurrentDraftId] = useState(initialCampaignId);
+  // Tell the floating coach widget which campaign is loaded (or none).
+  useSetHostResource(
+    currentDraftId ? { type: "campaign", id: currentDraftId } : null,
+  );
   // Status of the loaded campaign (null until hydrated). Anything other than
   // "draft" means the campaign already sent (or is sending) — the composer
   // hydrates for viewing but disables Save / Send.
@@ -862,11 +866,6 @@ export function CrmPage() {
             flexDirection: "column",
           }}
         >
-          <CoachActions
-            surface={currentDraftId ? "campaign" : "crm"}
-            id={currentDraftId || undefined}
-            compact
-          />
           <EmailCanvas
             selectedTemplate={selectedTemplate}
             selectedEvent={selectedEvent}

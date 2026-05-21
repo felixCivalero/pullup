@@ -23,6 +23,7 @@ import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { formatEventTime, formatEventDate } from "../lib/dateUtils.js";
 import { colors } from "../theme/colors.js";
 import { useHostActions } from "../lib/useHostActions.js";
+import { useSetHostResource } from "../contexts/useHostResource.js";
 
 // -----------------------------
 // Helpers: stats, filtering, sorting
@@ -165,6 +166,8 @@ export function EventGuestsPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { setEventNav } = useEventNav();
+  // Tell the floating coach widget which event the host is viewing.
+  useSetHostResource(id ? { type: "event", id } : null);
   const [event, setEvent] = useState(null);
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -27,16 +27,21 @@ async function putEvent(eventId, patch) {
   return await res.json();
 }
 
-/** Append an empty Spotify section to the event's sections array.
- *  Idempotent: skips if one already exists (the host can drop in another
- *  manually if they really want two). */
+// Default Spotify URL — matches the editor's "Add section" Spotify button so
+// the host gets a working embed immediately and can swap in their own link.
+const DEFAULT_SPOTIFY_URL = "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT";
+
+/** Append a Spotify section pre-filled with a default URL, matching the
+ *  editor's "Add section" Spotify button byte-for-byte so the host lands on
+ *  a working embed they can replace in one paste.
+ *  Idempotent: skips if one already exists. */
 export async function addSpotifySection(eventId) {
   const event = await getEvent(eventId);
   const sections = Array.isArray(event.sections) ? event.sections : [];
   if (sections.some((s) => s?.type === "spotify")) {
     return { ok: true, skipped: true, reason: "exists" };
   }
-  const next = [...sections, { type: "spotify", url: "" }];
+  const next = [...sections, { type: "spotify", url: DEFAULT_SPOTIFY_URL }];
   await putEvent(eventId, { sections: next });
   return { ok: true };
 }

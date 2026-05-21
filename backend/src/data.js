@@ -4500,7 +4500,7 @@ export async function createEmailCampaign({
       template_content: templateContent,
       filter_criteria: filterCriteria,
       total_recipients: totalRecipients,
-      status: "queued",
+      status: "draft",
     })
     .select()
     .single();

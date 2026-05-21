@@ -44,7 +44,7 @@ export async function sendCampaignInBatches(
       throw new Error("Campaign not found or access denied");
     }
 
-    if (campaign.status !== "queued" && campaign.status !== "sending") {
+    if (campaign.status !== "draft" && campaign.status !== "sending") {
       throw new Error(`Campaign is not in a sendable state: ${campaign.status}`);
     }
 

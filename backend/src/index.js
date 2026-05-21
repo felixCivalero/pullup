@@ -100,6 +100,7 @@ import { processSesEvent } from "./email/events/processSesEvent.js";
 import { handleProviderEvent, enqueueOutbox, sendEmail as infraSendEmail } from "./email/index.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
 import widgetRoutes from "./widgetRoutes.js";
+import { emitIntent, sourceFromRequest } from "./services/intentLog.js";
 import { handleMcp, mcpCorsPreflight } from "./mcp/httpHandler.js";
 import {
   metadataPRM,
@@ -1595,6 +1596,7 @@ app.post("/events", requireAuth, async (req, res) => {
   }
 
   // Create the event first to get its ID (with host_id from authenticated user)
+  const _createEventBody = req.body;
   const event = await createEvent({
     hostId: req.user.id, // Set host_id from authenticated user
     title,
@@ -1643,6 +1645,15 @@ app.post("/events", requireAuth, async (req, res) => {
     instantWaitlist,
     revealHint,
     dateRevealHint,
+  });
+
+  emitIntent({
+    hostId: req.user.id,
+    tool: "create_event",
+    args: _createEventBody,
+    source: sourceFromRequest(req),
+    target: { type: "event", id: event.id },
+    result: { slug: event.slug, status: event.status },
   });
 
   // Upload any hostedby logos from sections to storage (now that we have event.id)
@@ -4120,6 +4131,17 @@ app.put(
 
     if (!updated) return res.status(404).json({ error: "Event not found" });
 
+    // If status flipped to DRAFT, log as unpublish; otherwise as update.
+    const wasUnpublish = req.body?.status === "DRAFT" && updated.status === "DRAFT";
+    emitIntent({
+      hostId: req.user.id,
+      tool: wasUnpublish ? "unpublish_event" : "update_event",
+      args: req.body,
+      source: sourceFromRequest(req),
+      target: { type: "event", id: updated.id },
+      result: { slug: updated.slug, status: updated.status },
+    });
+
     res.json(updated);
   }
 );
@@ -4148,6 +4170,15 @@ app.put("/host/events/:id/publish", requireAuth, async (req, res) => {
   if (!updated) {
     return res.status(404).json({ error: "Event not found" });
   }
+
+  emitIntent({
+    hostId: req.user.id,
+    tool: "publish_event",
+    args: { id },
+    source: sourceFromRequest(req),
+    target: { type: "event", id: updated.id },
+    result: { slug: updated.slug, status: updated.status },
+  });
 
   res.json(updated);
 });
@@ -4180,6 +4211,15 @@ app.delete("/host/events/:id", requireAuth, async (req, res) => {
   if (result.error) {
     return res.status(500).json({ error: result.error, message: result.message });
   }
+
+  emitIntent({
+    hostId: req.user.id,
+    tool: "delete_event",
+    args: { id },
+    source: sourceFromRequest(req),
+    target: { type: "event", id },
+    result: { slug: event.slug },
+  });
 
   res.json({ success: true });
 });
@@ -4707,6 +4747,15 @@ app.put(
           message: result.message || "Failed to update RSVP",
         });
       }
+
+      emitIntent({
+        hostId: req.user.id,
+        tool: "update_rsvp",
+        args: { eventId: req.params.eventId, rsvpId: req.params.rsvpId, ...req.body },
+        source: sourceFromRequest(req),
+        target: { type: "rsvp", id: req.params.rsvpId },
+        result: { status: result.rsvp?.status },
+      });
 
       res.json(result.rsvp);
     } catch (error) {
@@ -5509,6 +5558,15 @@ app.put("/host/crm/people/:personId", requireAuth, async (req, res) => {
       return res.status(404).json({ error: "Person not found" });
     }
 
+    emitIntent({
+      hostId: req.user.id,
+      tool: "update_person",
+      args: { personId: req.params.personId, ...req.body },
+      source: sourceFromRequest(req),
+      target: { type: "person", id: req.params.personId },
+      result: { name: result.person?.name },
+    });
+
     res.json(result.person);
   } catch (error) {
     console.error("Error updating person:", error);
@@ -5951,6 +6009,15 @@ app.post("/host/crm/campaigns", requireAuth, async (req, res) => {
       totalRecipients,
     });
 
+    emitIntent({
+      hostId: req.user.id,
+      tool: "draft_campaign",
+      args: { templateType, eventId, subject, templateContent, filterCriteria },
+      source: sourceFromRequest(req),
+      target: { type: "campaign", id: campaign.id },
+      result: { totalRecipients, status: campaign.status },
+    });
+
     res.status(201).json({
       campaignId: campaign.id,
       totalRecipients,
@@ -5962,6 +6029,100 @@ app.post("/host/crm/campaigns", requireAuth, async (req, res) => {
       error: "Failed to create campaign",
       message: error.message,
     });
+  }
+});
+
+// PATCH /host/crm/campaigns/:campaignId - Update a campaign that hasn't sent
+// yet. Lets the host (or the MCP coach) save edits to a draft without
+// recreating the row. Only writes the columns the client sends.
+app.patch("/host/crm/campaigns/:campaignId", requireAuth, async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const { getEmailCampaign } = await import("./data.js");
+    const existing = await getEmailCampaign(campaignId, req.user.id);
+    if (!existing) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+    if (existing.status === "sent" || existing.status === "sending") {
+      return res.status(409).json({
+        error: "Campaign already sent",
+        message: "Sent or sending campaigns can't be edited.",
+      });
+    }
+
+    const allowed = ["subject", "templateType", "templateContent", "filterCriteria", "eventId"];
+    const updates = {};
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(req.body || {}, key)) {
+        updates[key] = req.body[key];
+      }
+    }
+
+    if (updates.templateContent && Array.isArray(updates.templateContent.blocks)) {
+      const err = validateFollowupTemplateContent(updates.templateContent);
+      if (err) {
+        return res.status(400).json({ error: "Invalid templateContent", message: err });
+      }
+    }
+
+    // If the filter changed, recompute totalRecipients so the host sees the
+    // count that matches what would actually send right now.
+    let totalRecipients = existing.totalRecipients;
+    if (updates.filterCriteria) {
+      const { getPeopleWithFilters } = await import("./data.js");
+      const result = await getPeopleWithFilters(
+        req.user.id,
+        updates.filterCriteria,
+        "created_at",
+        "desc",
+        1,
+        0,
+        { sendableOnly: true },
+      );
+      totalRecipients = result.total || 0;
+    }
+
+    const dbPatch = { updated_at: new Date().toISOString() };
+    if ("subject" in updates) dbPatch.subject = updates.subject;
+    if ("templateType" in updates) dbPatch.template_type = updates.templateType;
+    if ("templateContent" in updates) dbPatch.template_content = updates.templateContent;
+    if ("filterCriteria" in updates) {
+      dbPatch.filter_criteria = updates.filterCriteria;
+      dbPatch.total_recipients = totalRecipients;
+    }
+    if ("eventId" in updates) dbPatch.event_id = updates.eventId;
+
+    const { supabase } = await import("./supabase.js");
+    const { data, error } = await supabase
+      .from("campaign_campaigns")
+      .update(dbPatch)
+      .eq("id", campaignId)
+      .eq("user_id", req.user.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating campaign:", error);
+      return res.status(500).json({ error: "Failed to update campaign", message: error.message });
+    }
+
+    emitIntent({
+      hostId: req.user.id,
+      tool: "update_campaign",
+      args: { campaignId, ...updates },
+      source: sourceFromRequest(req),
+      target: { type: "campaign", id: data.id },
+      result: { totalRecipients: data.total_recipients || 0, status: data.status },
+    });
+
+    res.json({
+      campaignId: data.id,
+      totalRecipients: data.total_recipients || 0,
+      status: data.status,
+    });
+  } catch (error) {
+    console.error("Error patching campaign:", error);
+    res.status(500).json({ error: "Failed to update campaign", message: error.message });
   }
 });
 
@@ -5995,6 +6156,15 @@ app.post(
       sendCampaignInBatches(campaignId, req.user.id).catch((error) => {
         console.error("Error sending campaign in background:", error);
         // Status will be updated to "failed" by sendCampaignInBatches
+      });
+
+      emitIntent({
+        hostId: req.user.id,
+        tool: "send_campaign",
+        args: { campaignId },
+        source: sourceFromRequest(req),
+        target: { type: "campaign", id: campaignId },
+        result: { subject: campaign.subject, totalRecipients: campaign.totalRecipients },
       });
 
       res.json({
@@ -6502,6 +6672,15 @@ app.post(
           console.error("Failed to send refund email:", emailErr);
         }
       }
+
+      emitIntent({
+        hostId: req.user.id,
+        tool: "refund_payment",
+        args: { eventId: req.params.eventId, paymentId: req.params.paymentId, amount: req.body?.amount },
+        source: sourceFromRequest(req),
+        target: { type: "payment", id: req.params.paymentId },
+        result: { refundId: refund.id, amount: refund.amount, isFullRefund },
+      });
 
       return res.json({
         success: true,
@@ -7015,6 +7194,16 @@ app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
       imageUrl: imageUrl,
     };
 
+    emitIntent({
+      hostId: req.user.id,
+      tool: "upload_event_image",
+      // Strip the binary payload — replay-by-reference uses imageUrl only.
+      args: { eventId: req.params.eventId, imageUrl },
+      source: sourceFromRequest(req),
+      target: { type: "event", id: req.params.eventId },
+      result: { imageUrl },
+    });
+
     res.json(eventWithUrl);
   } catch (error) {
     console.error("Error uploading event image:", error);
@@ -7075,6 +7264,143 @@ app.get("/host/crm/trends",   requireAuth, makeRpcHandler("host_attendance_trend
 app.get("/host/crm/segments", requireAuth, makeRpcHandler("host_audience_segments",  { topN:   { pgName: "p_top_n",  default: 5,  min: 1, max: 20 } }));
 app.get("/host/crm/recent",   requireAuth, makeRpcHandler("host_recent_activity",    { days:   { pgName: "p_days",   default: 30, min: 1, max: 365 } }));
 app.get("/host/crm/emails",   requireAuth, makeRpcHandler("host_email_summary",      { topN:   { pgName: "p_top_n",  default: 5,  min: 1, max: 20 } }));
+
+// GET /host/actions/recent — the host's own action log (UI + chat), newest
+// first. Backs the MCP get_recent_actions tool and the (future) "what did I
+// do this week?" surface inside the app.
+app.get("/host/actions/recent", requireAuth, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const sinceParam = req.query.since;
+    let q = supabase
+      .from("host_actions")
+      .select("id, tool, args, source, target_type, target_id, result, created_at")
+      .eq("host_id", req.user.id)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (sinceParam) {
+      const sinceIso = new Date(sinceParam).toISOString();
+      q = q.gte("created_at", sinceIso);
+    }
+    if (req.query.targetType) q = q.eq("target_type", String(req.query.targetType));
+    if (req.query.targetId) q = q.eq("target_id", String(req.query.targetId));
+    if (req.query.source) q = q.eq("source", String(req.query.source));
+    const { data, error } = await q;
+    if (error) {
+      console.error("Error fetching host actions:", error);
+      return res.status(500).json({ error: "Failed to fetch actions", message: error.message });
+    }
+    res.json({ items: data || [] });
+  } catch (err) {
+    console.error("Error in /host/actions/recent:", err);
+    res.status(500).json({ error: "Failed to fetch actions", message: err.message });
+  }
+});
+
+// GET /host/coach/actions — surface-aware one-tap action suggestions.
+//
+// Wraps the suggestion engine (analyzeEvent / analyzeCampaign /
+// analyzeCrmSignals) and maps each suggestion key to a UI-friendly intent
+// (navigate / modal / mcp). Returns up to `limit` items, top by score.
+//
+// Used by the in-product CoachActions widget — same brain that produces the
+// MCP banner's "Next:" line, now rendered as buttons.
+app.get("/host/coach/actions", requireAuth, async (req, res) => {
+  try {
+    const surface = String(req.query.surface || "").toLowerCase();
+    const id = req.query.id ? String(req.query.id) : null;
+    const limit = Math.min(5, Math.max(1, Number(req.query.limit) || 3));
+
+    const {
+      analyzeEvent,
+      analyzeCampaign,
+      analyzeCrmSignals,
+    } = await import("./mcp/suggestions.js");
+    const {
+      keyToEventIntent,
+      keyToCampaignIntent,
+      keyToCrmIntent,
+    } = await import("./services/coachIntents.js");
+    const {
+      findEventBySlug,
+      findEventById,
+      getEmailCampaign,
+      getUserProfile,
+    } = await import("./data.js");
+
+    async function loadBrief() {
+      try {
+        const p = await getUserProfile(req.user.id);
+        return p?.hostBrief || "";
+      } catch {
+        return "";
+      }
+    }
+
+    let suggestions = [];
+    let mapper = () => null;
+    let ctx = {};
+
+    if (surface === "event") {
+      if (!id) return res.status(400).json({ error: "id required for surface=event" });
+      const ev = (await findEventBySlug(id)) || (await findEventById(id));
+      if (!ev) return res.status(404).json({ error: "Event not found" });
+      const brief = await loadBrief();
+      // Skip allEvents fetch in v1 — series detection just returns null when
+      // the list is empty, so non-series suggestions still surface correctly.
+      const result = analyzeEvent({ event: ev, brief, media: [], allEvents: [], analytics: null });
+      suggestions = result.suggestions || [];
+      mapper = keyToEventIntent;
+      ctx = { event: ev };
+    } else if (surface === "campaign") {
+      if (!id) return res.status(400).json({ error: "id required for surface=campaign" });
+      const campaign = await getEmailCampaign(id, req.user.id);
+      if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+      const ev = campaign.eventId ? await findEventById(campaign.eventId).catch(() => null) : null;
+      const brief = await loadBrief();
+      const result = analyzeCampaign({ campaign, event: ev, history: {}, brief });
+      suggestions = result.suggestions || [];
+      mapper = keyToCampaignIntent;
+      ctx = { campaign, event: ev };
+    } else if (surface === "crm") {
+      const brief = await loadBrief();
+      // The CRM analyzer reads from segments + recent. Skip the heavy fetches
+      // for v1 — pass empty defaults; the analyzer's brief-aware paths still
+      // emit useful signals.
+      const result = analyzeCrmSignals({ segments: null, recent: null, brief });
+      suggestions = result.suggestions || [];
+      mapper = keyToCrmIntent;
+      ctx = {};
+    } else {
+      return res.status(400).json({
+        error: "Unknown surface",
+        message: "surface must be one of: event, campaign, crm",
+      });
+    }
+
+    const items = [];
+    for (const s of suggestions) {
+      const intent = mapper(s.key, s, ctx);
+      if (!intent) continue;
+      items.push({
+        key: s.key,
+        headline: s.headline,
+        why: s.why || null,
+        intent,
+        // destructive: false in v1 — none of today's suggestion keys map to a
+        // destructive intent (no send/publish/delete buttons surfaced yet).
+        destructive: false,
+      });
+      if (items.length >= limit) break;
+    }
+
+    res.json({ items, surface });
+  } catch (err) {
+    console.error("Coach actions error:", err);
+    res.status(500).json({ error: "Failed to load coach actions", message: err.message });
+  }
+});
 
 // POST /host/crm/follow-up-images - Upload an image for a follow-up campaign block
 app.post("/host/crm/follow-up-images", requireAuth, async (req, res) => {
@@ -7304,6 +7630,16 @@ app.post("/host/events/:eventId/media", requireAuth, async (req, res) => {
       const { data: { publicUrl: tUrl } } = supabase.storage.from("event-images").getPublicUrl(thumbnailPath);
       thumbnailUrl = tUrl;
     }
+
+    emitIntent({
+      hostId: req.user.id,
+      tool: "upload_event_media",
+      // Replay-by-reference: log the resulting URL, not the binary payload.
+      args: { eventId: req.params.eventId, mediaUrl: publicUrl, mediaType: type, setAsCover: isCover },
+      source: sourceFromRequest(req),
+      target: { type: "event", id: req.params.eventId },
+      result: { mediaId: mediaRow.id, url: publicUrl, isCover },
+    });
 
     res.json({
       id: mediaRow.id,

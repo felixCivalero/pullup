@@ -48,6 +48,7 @@ import { VideoPlayer } from "../components/MediaCarousel";
 import { RsvpForm } from "../components/RsvpForm";
 import { useToast } from "../components/Toast";
 import { PublishAuthModal } from "../components/PublishAuthModal";
+import { CoachActions } from "../components/CoachActions";
 import { useAuth } from "../contexts/AuthContext";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
@@ -3040,6 +3041,10 @@ export function CreateEventPage() {
             >
               {isEditMode ? "PULLUP · EDIT EVENT" : "PULLUP · CREATE EVENT"}
             </div>
+
+            {isEditMode && editEventId && (
+              <CoachActions surface="event" id={editEventId} compact />
+            )}
 
             {/* Draft restored banner */}
             {showDraftBanner && !isEditMode && (

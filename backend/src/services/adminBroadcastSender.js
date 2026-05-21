@@ -375,7 +375,7 @@ export async function sendAdminBroadcastInBatches(
   try {
     const campaign = await getEmailCampaign(campaignId, adminUserId);
     if (!campaign) throw new Error("Campaign not found");
-    if (campaign.status !== "queued" && campaign.status !== "sending") {
+    if (campaign.status !== "draft" && campaign.status !== "sending") {
       throw new Error(
         `Campaign is not in a sendable state: ${campaign.status}`,
       );

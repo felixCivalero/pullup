@@ -569,7 +569,7 @@ export function analyzeCampaign({ campaign, event, history = {}, brief = "" } = 
   }
 
   // ── Always remind about the preview gate while still drafting ────
-  if (status === "draft" || status === "queued") {
+  if (status === "draft") {
     out.push({
       key: "camp_preview_gate",
       score: 60,

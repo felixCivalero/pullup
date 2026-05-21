@@ -29,11 +29,14 @@ import {
   PREVIEW_SCOPE_CAMPAIGN,
 } from "../utils/previewTokens.js";
 
-function previewUrlForSlug(slug, opts = {}) {
-  const base = frontendUrl(`/e/${slug}`);
+// The "preview" handed back to the host from chat is now the event editor —
+// not the public /e/:slug page. Same principle as the campaign composer: the
+// host should land somewhere they can actually finish the work, not a
+// read-only render. The HostBar Publish/Unpublish pill mounts globally and
+// reads ?pv= from the URL, so it rides along on the editor page unchanged.
+function editUrlForEventId(id, opts = {}) {
+  const base = frontendUrl(`/app/events/${id}/edit`);
   if (opts.token) {
-    // Host bar widget gets injected when the page loads and finds ?pv=<jwt>
-    // — the link works for anyone, the destructive actions require a session.
     return `${base}?pv=${encodeURIComponent(opts.token)}`;
   }
   return base;
@@ -296,6 +299,24 @@ const SegmentsInput = {
 const RecentActivityInput = {
   days: z.number().int().positive().max(365).optional().describe(
     "Look-back window in days. Default 30."
+  ),
+};
+
+const GetRecentActionsInput = {
+  limit: z.number().int().positive().max(100).optional().describe(
+    "How many actions to return. Default 25."
+  ),
+  since: z.string().optional().describe(
+    "ISO date/time string — only actions at or after this timestamp."
+  ),
+  targetType: z.string().optional().describe(
+    "Filter by target resource type, e.g. 'event', 'campaign', 'person', 'rsvp', 'payment'."
+  ),
+  targetId: z.string().optional().describe(
+    "Filter to actions against a single target (use together with targetType)."
+  ),
+  source: z.enum(["ui", "chat", "sdk", "system"]).optional().describe(
+    "Filter by where the action came from: 'ui' (web app), 'chat' (this MCP), 'sdk', or 'system'."
   ),
 };
 
@@ -601,7 +622,7 @@ function buildHandlers(api, hostId) {
       event.id,
       status === "DRAFT" ? ["publish"] : ["unpublish"],
     );
-    const preview = previewUrlForSlug(event.slug, { token: pv });
+    const preview = editUrlForEventId(event.id, { token: pv });
     const banner = eventBanner({
       title: event.title,
       status,
@@ -645,7 +666,7 @@ function buildHandlers(api, hostId) {
       eventBanner({
         title: updated.title || existing.title,
         status,
-        previewUrl: previewUrlForSlug(newSlug, { token: pv }),
+        previewUrl: editUrlForEventId(updated.id || existing.id, { token: pv }),
         shareUrl: status === "PUBLISHED" ? shareUrlForSlug(newSlug) : null,
         rsvpsUrl: rsvpsDashboardForId(updated.id || existing.id),
         note: "Updated.",
@@ -664,7 +685,7 @@ function buildHandlers(api, hostId) {
       eventBanner({
         title: updated.title || existing.title,
         status: "PUBLISHED",
-        previewUrl: previewUrlForSlug(args.slug, { token: pv }),
+        previewUrl: editUrlForEventId(existing.id, { token: pv }),
         shareUrl: shareUrlForSlug(args.slug),
         rsvpsUrl: rsvpsDashboardForId(existing.id),
         note: "Note: FB/IG share-preview caches can take ~24h to refresh after big edits.",
@@ -682,7 +703,7 @@ function buildHandlers(api, hostId) {
       eventBanner({
         title: updated.title || existing.title,
         status: "DRAFT",
-        previewUrl: previewUrlForSlug(args.slug, { token: pv }),
+        previewUrl: editUrlForEventId(existing.id, { token: pv }),
         rsvpsUrl: rsvpsDashboardForId(existing.id),
         note:
           "Reverted to DRAFT. Existing RSVPs are kept. Social-platform caches keep the previously-public preview ~24h.",
@@ -764,7 +785,7 @@ function buildHandlers(api, hostId) {
       existing.id,
       existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
     );
-    const preview = previewUrlForSlug(existing.slug, { token: pvGet });
+    const preview = editUrlForEventId(existing.id, { token: pvGet });
     const block = [
       `${existing.title} [${existing.status}]`,
       `  When:     ${when}${existing.hideDate ? " (HIDDEN — public sees TBA)" : ""}`,
@@ -859,7 +880,7 @@ function buildHandlers(api, hostId) {
       existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
     );
     return toolResultText(
-      `Uploaded a new cover for "${existing.title}".\n\n  Preview: ${previewUrlForSlug(existing.slug, { token: pvCover })}`
+      `Uploaded a new cover for "${existing.title}".\n\n  Preview: ${editUrlForEventId(existing.id, { token: pvCover })}`
     );
   }
 
@@ -947,7 +968,7 @@ function buildHandlers(api, hostId) {
         existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
       );
       return toolResultText(
-        `Uploaded ${detectedType} (${sizeHeader ? Math.round(sizeHeader / 1024 / 1024 * 10) / 10 + "MB" : "size unknown"}) to "${existing.title}".\n  Preview: ${previewUrlForSlug(existing.slug, { token: pvMediaUrl })}`
+        `Uploaded ${detectedType} (${sizeHeader ? Math.round(sizeHeader / 1024 / 1024 * 10) / 10 + "MB" : "size unknown"}) to "${existing.title}".\n  Preview: ${editUrlForEventId(existing.id, { token: pvMediaUrl })}`
       );
     }
 
@@ -980,7 +1001,7 @@ function buildHandlers(api, hostId) {
       existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
     );
     return toolResultText(
-      `Uploaded ${detectedType} (~${(approxBytes / 1024 / 1024).toFixed(1)}MB) to "${existing.title}".\n  Preview: ${previewUrlForSlug(existing.slug, { token: pvMediaB64 })}`
+      `Uploaded ${detectedType} (~${(approxBytes / 1024 / 1024).toFixed(1)}MB) to "${existing.title}".\n  Preview: ${editUrlForEventId(existing.id, { token: pvMediaB64 })}`
     );
   }
 
@@ -1317,7 +1338,7 @@ function buildHandlers(api, hostId) {
       eventBanner({
         title: created.title,
         status: "DRAFT",
-        previewUrl: previewUrlForSlug(created.slug, { token: pvDup }),
+        previewUrl: editUrlForEventId(created.id, { token: pvDup }),
         rsvpsUrl: rsvpsDashboardForId(created.id),
         note: `Duplicated from "${full.title}". Update or publish when ready.`,
       })
@@ -1498,7 +1519,7 @@ function buildHandlers(api, hostId) {
       const filterEv = await resolveEventBySlug(args.filterAttendedEventSlug);
       filterCriteria.attendedEventId = filterEv.id;
     }
-    if (args.filterTags) filterCriteria.tags = args.filterTags;
+    if (args.filterTags) filterCriteria.attendedEventTags = args.filterTags;
 
     const created = await api("POST", "/host/crm/campaigns", {
       body: {
@@ -1522,9 +1543,12 @@ function buildHandlers(api, hostId) {
     }, ev);
 
     const campPv = campaignPreviewToken(created.campaignId);
-    const previewBase = frontendUrl(`/app/crm/campaigns/${created.campaignId}/preview`);
+    // Hand the host straight into the real CRM composer with the draft loaded.
+    // The composer's "Send" footer + HostBar's pv-gated Send pill both fire the
+    // same /send endpoint, so the host has two consistent paths to ship it.
+    const previewBase = frontendUrl(`/crm?campaignId=${created.campaignId}`);
     const previewUrl = campPv
-      ? `${previewBase}?pv=${encodeURIComponent(campPv)}`
+      ? `${previewBase}&pv=${encodeURIComponent(campPv)}`
       : previewBase;
     const lines = [
       "─────────────────────────────────────",
@@ -1975,6 +1999,48 @@ function buildHandlers(api, hostId) {
     return toolResultText(lines.join("\n"));
   }
 
+  // ── Recent actions ─────────────────────────────────────────────
+  // Reads from host_actions — every mutating action the host took, via UI
+  // or chat, in MCP-tool shape. Lets the coach "know what just happened"
+  // when a new chat opens cold.
+  async function getRecentActions(args) {
+    const limit = Math.max(1, Math.min(100, args.limit || 25));
+    const query = { limit };
+    if (args.since) query.since = args.since;
+    if (args.targetType) query.targetType = args.targetType;
+    if (args.targetId) query.targetId = args.targetId;
+    if (args.source) query.source = args.source;
+
+    let resp;
+    try {
+      resp = await api("GET", "/host/actions/recent", { query });
+    } catch (err) {
+      return toolResultText(`Couldn't load the action log: ${err.message}`);
+    }
+    const items = resp?.items || [];
+    if (items.length === 0) {
+      return toolResultText("No actions logged in that window yet.");
+    }
+
+    // Compact text rendering — newest first, one line per action with a
+    // hint about source so the assistant can tell what the host did
+    // in the app vs in chat.
+    const lines = [
+      `Recent actions (${items.length} of last ${limit})`,
+      "",
+    ];
+    for (const a of items) {
+      const when = relativeTime(a.created_at);
+      const tgt =
+        a.target_type && a.target_id
+          ? ` [${a.target_type}:${shortId(a.target_id)}]`
+          : "";
+      const detail = summarizeAction(a);
+      lines.push(`${when} · ${a.source} · ${a.tool}${tgt}${detail ? ` — ${detail}` : ""}`);
+    }
+    return toolResultText(lines.join("\n"));
+  }
+
   return {
     createEvent,
     updateEvent,
@@ -2017,7 +2083,58 @@ function buildHandlers(api, hostId) {
     suggestCampaignImprovements,
     getCrmSignals,
     auditCustomerJourney,
+    getRecentActions,
   };
+}
+
+// Compact "5 min ago" / "2h ago" / "3d ago" — keeps action-log output
+// scannable inside chat without dragging in moment/date-fns.
+function relativeTime(iso) {
+  if (!iso) return "?";
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "?";
+  const diffSec = Math.floor((Date.now() - then) / 1000);
+  if (diffSec < 60) return `${Math.max(diffSec, 0)}s ago`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86400)}d ago`;
+}
+
+function shortId(id) {
+  const s = String(id || "");
+  return s.length > 10 ? s.slice(0, 8) : s;
+}
+
+// Pull a short human detail out of an action's args+result so the log line
+// is useful at a glance. Keeps the renderer dumb on unknown tools.
+function summarizeAction(a) {
+  const r = a.result || {};
+  const args = a.args || {};
+  switch (a.tool) {
+    case "create_event":
+    case "update_event":
+    case "publish_event":
+    case "unpublish_event":
+    case "delete_event":
+      return [args.title, r.slug, r.status].filter(Boolean).join(" · ");
+    case "upload_event_image":
+    case "upload_event_media":
+      return r.url ? `→ ${r.url}` : null;
+    case "draft_campaign":
+    case "update_campaign":
+    case "send_campaign":
+      return [args.subject, r.totalRecipients != null ? `${r.totalRecipients} recipients` : null]
+        .filter(Boolean)
+        .join(" · ");
+    case "update_rsvp":
+      return [args.status || r.status].filter(Boolean).join(" · ");
+    case "refund_payment":
+      return r.amount != null ? `amount ${r.amount}${r.isFullRefund ? " (full)" : ""}` : null;
+    case "update_person":
+      return r.name || null;
+    default:
+      return null;
+  }
 }
 
 async function fetchAsBuffer(url) {
@@ -2393,6 +2510,14 @@ export function buildTools(ctx) {
         "Walks the four stages a guest experiences — social handoff (share card / IG / WhatsApp paste), event page (cover / copy / vibe links), RSVP form (friction / capture), and emails (promo / day-of / follow-up) — and returns a stage-by-stage report with the single biggest breakpoint surfaced first. Use this when the host says 'how does this look end-to-end', 'audit my event', 'is the journey tight', or before publishing/sharing a major event. Complements suggest_event_improvements (which focuses on the page) with the stages around it.",
       inputSchema: AuditJourneyInput,
       handler: h.auditCustomerJourney,
+    },
+    {
+      name: "get_recent_actions",
+      title: "What did the host just do (UI + chat)",
+      description:
+        "Returns the host's recent mutating actions across the whole product, in MCP-tool shape — anything they did in the web app AND anything done via this MCP. Use this at the START of a fresh chat to ground the assistant ('I see you just published Volume 01 and sent a campaign to 168 people') or when the host asks 'what did I do this week' / 'pick up where I left off'. Optional filters: targetType ('event' | 'campaign' | 'person' | 'rsvp' | 'payment'), targetId, source ('ui' | 'chat'), since (ISO datetime).",
+      inputSchema: GetRecentActionsInput,
+      handler: h.getRecentActions,
     },
   ];
 }

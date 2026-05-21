@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { authenticatedFetch } from "../lib/api.js";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../contexts/AuthContext";
@@ -7,6 +8,29 @@ import { CrmTab } from "../components/HomeCrmTab";
 import EmailPanel from "../components/crm/EmailPanel";
 import EmailCanvas from "../components/crm/EmailCanvas";
 import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
+import { CoachActions } from "../components/CoachActions";
+
+// Normalize a campaign's stored filterCriteria into the shape CrmTab expects.
+// MCP-drafted campaigns use a slightly different shape (singular attendedEventId,
+// `tags` instead of `attendedEventTags`); accept either so chat-drafted segments
+// re-display correctly when the host opens the draft in the composer.
+function normalizeFilterCriteria(fc) {
+  if (!fc || typeof fc !== "object") return {};
+  const out = {};
+  if (Array.isArray(fc.attendedEventIds) && fc.attendedEventIds.length) {
+    out.attendedEventIds = fc.attendedEventIds;
+  } else if (fc.attendedEventId) {
+    out.attendedEventIds = [fc.attendedEventId];
+  }
+  if (Array.isArray(fc.attendedEventTags) && fc.attendedEventTags.length) {
+    out.attendedEventTags = fc.attendedEventTags;
+  } else if (Array.isArray(fc.tags) && fc.tags.length) {
+    out.attendedEventTags = fc.tags;
+  }
+  if (fc.hasDinner !== undefined) out.hasDinner = fc.hasDinner;
+  if (fc.search) out.search = fc.search;
+  return out;
+}
 
 // Build a sensible default block list when an event is picked for the
 // "Event email template" — host can then edit / reorder / extend.
@@ -101,6 +125,25 @@ export function CrmPage() {
   const { user } = useAuth();
   const currentUserFirstName = useMemo(() => deriveFirstName(user), [user]);
 
+  // ?campaignId=<id> drops the host into an existing draft (the URL the MCP
+  // coach hands back from draft_campaign, and the address the Save-draft
+  // button writes into the URL after the first save).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialCampaignId = searchParams.get("campaignId") || null;
+  const [currentDraftId, setCurrentDraftId] = useState(initialCampaignId);
+  // Status of the loaded campaign (null until hydrated). Anything other than
+  // "draft" means the campaign already sent (or is sending) — the composer
+  // hydrates for viewing but disables Save / Send.
+  const [draftStatus, setDraftStatus] = useState(null);
+  // Set right before we apply campaign data into composer state so the
+  // auto-populate-on-event-pick effect skips a beat (we don't want to
+  // overwrite the draft's blocks with a fresh template).
+  const hydratingRef = useRef(false);
+  // Initial filters CrmTab should display when hydrating from a draft.
+  // Stable reference so CrmTab's effect doesn't loop.
+  const [hydratedFilters, setHydratedFilters] = useState(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
   const [activeTab, setActiveTab] = useState("segment");
   // Mirrors the CreateEventPage hover-section pattern: editor row hover →
   // outline the matching part in the canvas. Key is "greeting" or `block-${i}`.
@@ -192,12 +235,74 @@ export function CrmPage() {
   // Auto-populate event-template subject + blocks when an event is selected.
   // Re-runs on event change — switching events regenerates the block defaults
   // (host loses customization but gets fresh, accurate content for the new event).
+  // Skipped while hydrating an existing draft so we don't clobber its content.
   useEffect(() => {
+    if (hydratingRef.current) {
+      hydratingRef.current = false;
+      return;
+    }
     if (selectedTemplate !== "event" || !selectedEvent) return;
     setEventSubject(`You're invited to ${selectedEvent.title}.`);
     setEventBlocks(buildDefaultEventBlocks(selectedEvent));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEventId, selectedTemplate]);
+
+  // Hydrate composer from ?campaignId=<id> on mount. Runs once. Drops the host
+  // onto the Design tab so the email is the first thing they see.
+  useEffect(() => {
+    if (!initialCampaignId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authenticatedFetch(`/host/crm/campaigns/${initialCampaignId}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            showToast("Draft not found — starting a fresh compose", "error");
+            setCurrentDraftId(null);
+            setSearchParams({}, { replace: true });
+          }
+          return;
+        }
+        const c = await res.json();
+        if (cancelled) return;
+
+        const tt = c.templateType === "followup" ? "followup" : "event";
+        const tc = c.templateContent || {};
+        const blocks = Array.isArray(tc.blocks) ? tc.blocks : [];
+
+        hydratingRef.current = true;
+        setSelectedTemplate(tt);
+        setDraftStatus(c.status || "draft");
+
+        if (tt === "followup") {
+          if (c.eventId) setFollowupEventId(c.eventId);
+          if (c.subject) setFollowupSubject(c.subject);
+          if (tc.previewText) setFollowupPreviewText(tc.previewText);
+          if (tc.fromName) setFollowupFromName(tc.fromName);
+          if (blocks.length) setFollowupBlocks(blocks);
+        } else {
+          if (c.eventId) setSelectedEventId(c.eventId);
+          if (c.subject) setEventSubject(c.subject);
+          if (tc.previewText) setEventPreviewText(tc.previewText);
+          if (tc.fromName) setEventFromName(tc.fromName);
+          if (blocks.length) setEventBlocks(blocks);
+        }
+
+        const normalized = normalizeFilterCriteria(c.filterCriteria);
+        setHydratedFilters(normalized);
+        setSegmentSelection({
+          filterCriteria: normalized,
+          total: c.totalRecipients || 0,
+        });
+
+        setActiveTab("email");
+      } catch (err) {
+        console.error("[CrmPage] hydrate draft failed:", err);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCampaignId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,6 +319,98 @@ export function CrmPage() {
     })();
     return () => { cancelled = true; };
   }, [showToast]);
+
+  // Build the campaign payload from the current composer state. Shared by
+  // save-draft and send flows so they always agree on the shape that lands
+  // in the DB.
+  function buildCampaignPayload() {
+    const isFollowup = selectedTemplate === "followup";
+    const filterCriteria = segmentSelection.filterCriteria || {};
+    if (isFollowup) {
+      return {
+        templateType: "followup",
+        eventId: followupEventId || null,
+        subject: followupSubject,
+        templateContent: {
+          subject: followupSubject,
+          previewText: followupPreviewText,
+          fromName: followupFromName || null,
+          blocks: followupBlocks,
+        },
+        filterCriteria,
+      };
+    }
+    return {
+      templateType: "event",
+      eventId: selectedEventId || null,
+      subject: eventSubject,
+      templateContent: {
+        subject: eventSubject,
+        previewText: eventPreviewText,
+        fromName: eventFromName || null,
+        blocks: eventBlocks,
+      },
+      filterCriteria,
+    };
+  }
+
+  // Save-draft is the same write path the MCP coach uses — creates or updates
+  // a campaign row at status='draft' without firing /send. URL gets the
+  // campaignId so the draft is addressable and re-loadable.
+  async function handleSaveDraft() {
+    if (!selectedTemplate) {
+      showToast("Pick a template first.", "error");
+      setActiveTab("email");
+      return;
+    }
+    const isFollowup = selectedTemplate === "followup";
+    const requiredEventId = isFollowup ? followupEventId : selectedEventId;
+    const subject = isFollowup ? followupSubject : eventSubject;
+    if (!requiredEventId) {
+      showToast("Pick an event for this campaign first.", "error");
+      setActiveTab("email");
+      return;
+    }
+    if (!subject.trim()) {
+      showToast("Subject is required.", "error");
+      setActiveTab("email");
+      return;
+    }
+
+    setIsSavingDraft(true);
+    try {
+      const payload = buildCampaignPayload();
+      const url = currentDraftId
+        ? `/host/crm/campaigns/${currentDraftId}`
+        : "/host/crm/campaigns";
+      const method = currentDraftId ? "PATCH" : "POST";
+      const res = await authenticatedFetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || "Failed to save draft");
+      }
+      const data = await res.json();
+      const newId = data.campaignId || currentDraftId;
+      if (newId && newId !== currentDraftId) {
+        setCurrentDraftId(newId);
+        setSearchParams({ campaignId: newId }, { replace: true });
+      }
+      if (data.totalRecipients != null) {
+        setSegmentSelection((prev) => ({ ...prev, total: data.totalRecipients }));
+      }
+      setDraftStatus(data.status || "draft");
+      showToast("Draft saved", "success");
+    } catch (err) {
+      console.error("[CrmPage] save draft failed:", err);
+      showToast(err.message || "Failed to save draft", "error");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
 
   function handleSendClick() {
     if (segmentSelection.total === 0) {
@@ -296,47 +493,43 @@ export function CrmPage() {
     setSendStage("sending");
     setSendingErrorMessage("");
 
-    const filterCriteria = segmentSelection.filterCriteria || {};
-
     try {
-      // Both templates now share a block-based payload shape. Backend
-      // routes both to the block renderer.
-      const campaignData = isFollowup
-        ? {
-            templateType: "followup",
-            eventId: followupEventId,
-            subject: followupSubject,
-            templateContent: {
-              subject: followupSubject,
-              previewText: followupPreviewText,
-              fromName: followupFromName || null,
-              blocks: followupBlocks,
-            },
-            filterCriteria,
-          }
-        : {
-            templateType: "event",
-            eventId: selectedEventId,
-            subject: eventSubject,
-            templateContent: {
-              subject: eventSubject,
-              previewText: eventPreviewText,
-              fromName: eventFromName || null,
-              blocks: eventBlocks,
-            },
-            filterCriteria,
-          };
+      const campaignData = buildCampaignPayload();
 
-      const createRes = await authenticatedFetch("/host/crm/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(campaignData),
-      });
-      if (!createRes.ok) {
-        const errJson = await createRes.json().catch(() => ({}));
-        throw new Error(errJson.message || "Failed to create campaign");
+      // Hydrated drafts already exist in the DB — PATCH the latest edits then
+      // /send the existing campaignId. Fresh composes POST a new row first.
+      let campaignId = currentDraftId;
+      let totalRecipients;
+      if (campaignId) {
+        const patchRes = await authenticatedFetch(`/host/crm/campaigns/${campaignId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(campaignData),
+        });
+        if (!patchRes.ok) {
+          const errJson = await patchRes.json().catch(() => ({}));
+          throw new Error(errJson.message || "Failed to save edits before send");
+        }
+        const data = await patchRes.json();
+        totalRecipients = data.totalRecipients;
+      } else {
+        const createRes = await authenticatedFetch("/host/crm/campaigns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(campaignData),
+        });
+        if (!createRes.ok) {
+          const errJson = await createRes.json().catch(() => ({}));
+          throw new Error(errJson.message || "Failed to create campaign");
+        }
+        const created = await createRes.json();
+        campaignId = created.campaignId;
+        totalRecipients = created.totalRecipients;
+        // Reflect the new campaignId in the URL so the host can come back to
+        // its status page after the send completes.
+        setCurrentDraftId(campaignId);
+        setSearchParams({ campaignId }, { replace: true });
       }
-      const { campaignId, totalRecipients } = await createRes.json();
       if (cancelledRef.current) return;
       setSendingStats((prev) => ({
         ...prev,
@@ -506,7 +699,7 @@ export function CrmPage() {
           {/* Tab content — scrolls independently */}
           <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
             <div style={{ display: activeTab === "segment" ? "block" : "none" }}>
-              <CrmTab onSegmentChange={setSegmentSelection} />
+              <CrmTab onSegmentChange={setSegmentSelection} initialFilters={hydratedFilters} />
             </div>
             {isPhone && (
               <div style={phoneNoteStyle}>
@@ -568,14 +761,46 @@ export function CrmPage() {
               backdropFilter: "blur(8px)",
             }}
           >
-            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
-              {segmentSelection.total.toLocaleString()}{" "}
-              {segmentSelection.total === 1 ? "recipient" : "recipients"}
+            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)", display: "flex", flexDirection: "column", gap: 2 }}>
+              <span>
+                {segmentSelection.total.toLocaleString()}{" "}
+                {segmentSelection.total === 1 ? "recipient" : "recipients"}
+              </span>
+              {currentDraftId && draftStatus === "draft" && (
+                <span style={{ fontSize: "10.5px", opacity: 0.7, letterSpacing: 0.3 }}>
+                  Editing saved draft
+                </span>
+              )}
+              {currentDraftId && draftStatus && draftStatus !== "draft" && (
+                <span style={{ fontSize: "10.5px", color: "#fde68a", letterSpacing: 0.3 }}>
+                  Already {draftStatus} — read only
+                </span>
+              )}
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={isSavingDraft || (draftStatus && draftStatus !== "draft")}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: isSavingDraft ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.88)",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: isSavingDraft || (draftStatus && draftStatus !== "draft") ? "not-allowed" : "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                title={currentDraftId ? "Update saved draft" : "Save as draft (no send)"}
+              >
+                {isSavingDraft ? "Saving…" : currentDraftId ? "Update draft" : "Save draft"}
+              </button>
             <button
               type="button"
               onClick={handleSendClick}
-              disabled={sendDisabled}
+              disabled={sendDisabled || (draftStatus && draftStatus !== "draft")}
               style={{
                 padding: "10px 18px",
                 borderRadius: "10px",
@@ -595,6 +820,7 @@ export function CrmPage() {
             >
               Send campaign →
             </button>
+            </div>
           </div>
         </aside>
 
@@ -605,11 +831,16 @@ export function CrmPage() {
             flex: 1,
             minWidth: 0,
             padding: "24px",
-            overflow: "hidden",
+            overflow: "auto",
             display: isPhone ? "none" : "flex",
             flexDirection: "column",
           }}
         >
+          <CoachActions
+            surface={currentDraftId ? "campaign" : "crm"}
+            id={currentDraftId || undefined}
+            compact
+          />
           <EmailCanvas
             selectedTemplate={selectedTemplate}
             selectedEvent={selectedEvent}

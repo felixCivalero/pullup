@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useToast } from "../components/Toast";
 import { EventsTab } from "../components/HomeEventsTab";
+import { CoachActions } from "../components/CoachActions";
 import { authenticatedFetch } from "../lib/api.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 
@@ -181,6 +182,8 @@ export function HomePage() {
             }
           }
         `}</style>
+
+        <CoachActions surface="crm" />
 
         <div
           className="responsive-card"

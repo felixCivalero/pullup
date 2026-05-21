@@ -43,6 +43,9 @@ export function makeApi(token) {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
+        // Lets the intent log attribute this write to the chat client rather
+        // than the web UI. Read by sourceFromRequest() in intentLog.js.
+        "X-Source": "chat",
       },
     };
     if (body !== undefined) {

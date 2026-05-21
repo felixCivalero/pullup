@@ -182,9 +182,11 @@ export function IdeaWidget() {
     let cancelled = false;
     (async () => {
       try {
-        const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        // No `since` filter — the panel shows the recent chat history on
+        // this resource regardless of when. The pulse and realtime
+        // subscription already handle the "AI is here right now" signal;
+        // the narration is "what has chat done with this thing."
         const params = new URLSearchParams({
-          since,
           targetType: resource.type,
           targetId: String(resource.id),
           source: "chat",

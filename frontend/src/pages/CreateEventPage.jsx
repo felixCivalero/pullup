@@ -48,8 +48,8 @@ import { VideoPlayer } from "../components/MediaCarousel";
 import { RsvpForm } from "../components/RsvpForm";
 import { useToast } from "../components/Toast";
 import { PublishAuthModal } from "../components/PublishAuthModal";
-import { CoachActions } from "../components/CoachActions";
 import { useHostActions } from "../lib/useHostActions.js";
+import { useSetHostResource } from "../contexts/useHostResource.js";
 import { useAuth } from "../contexts/AuthContext";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
@@ -579,6 +579,13 @@ export function CreateEventPage() {
   const { user } = useAuth();
   const [editLoading, setEditLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
+
+  // Declare this page's resource to the floating coach widget. When the
+  // host is on the editor for event X, the bottom-right widget can flip to
+  // "PullUp coach" mode if chat has recently touched X.
+  useSetHostResource(
+    isEditMode && editEventId ? { type: "event", id: editEventId } : null,
+  );
 
   // Live notice when MCP edits/publishes this event from chat. The editor
   // is the one surface where auto-overwrite would clobber in-flight edits,
@@ -3060,10 +3067,6 @@ export function CreateEventPage() {
             >
               {isEditMode ? "PULLUP · EDIT EVENT" : "PULLUP · CREATE EVENT"}
             </div>
-
-            {isEditMode && editEventId && (
-              <CoachActions surface="event" id={editEventId} compact />
-            )}
 
             {chatActivity && (
               <div

@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Sparkles, ChevronRight } from "lucide-react";
+import { Sparkles, ChevronRight, X } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 
 // When the intent's destination is the page the host is already on, clicking
@@ -22,6 +22,28 @@ function isSelfPage(intent, currentPath) {
   if (intent?.type !== "navigate" || !intent.url) return false;
   const target = intent.url.split("?")[0];
   return target === currentPath;
+}
+
+// Per-(surface, id) dismiss state, scoped to the browser session. Hosts who
+// dismiss the widget on one page won't see it again until they open a new
+// tab. Cross-tab persistence would be too aggressive — the AI might do
+// something fresh and we'd want the widget back.
+function getDismissKey(surface, id) {
+  return `coach-dismissed:${surface || "_"}:${id || "_"}`;
+}
+function readDismissed(surface, id) {
+  try {
+    return sessionStorage.getItem(getDismissKey(surface, id)) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeDismissed(surface, id) {
+  try {
+    sessionStorage.setItem(getDismissKey(surface, id), "1");
+  } catch {
+    // sessionStorage may be unavailable (private mode, etc.) — silently noop.
+  }
 }
 
 /**
@@ -36,6 +58,12 @@ export function CoachActions({ surface, id, limit = 3, compact = false }) {
   const location = useLocation();
   const [items, setItems] = useState(null); // null = loading, [] = no actions
   const [error, setError] = useState(null);
+  const [dismissed, setDismissed] = useState(() => readDismissed(surface, id));
+
+  function handleDismiss() {
+    writeDismissed(surface, id);
+    setDismissed(true);
+  }
 
   useEffect(() => {
     if (!surface) return;
@@ -65,18 +93,32 @@ export function CoachActions({ surface, id, limit = 3, compact = false }) {
     // them in v1, but the dispatcher is shaped to accept them when added.
   }
 
-  if (error || !items || items.length === 0) return null;
+  if (error || !items || items.length === 0 || dismissed) return null;
 
   const containerStyle = compact ? compactContainer : container;
   const rowStyle = compact ? compactRow : row;
 
   return (
     <div style={containerStyle}>
-      {!compact && (
+      {!compact ? (
         <div style={header}>
-          <Sparkles size={13} style={{ opacity: 0.7 }} />
-          <span>What's next</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Sparkles size={13} style={{ opacity: 0.7 }} />
+            <span>What's next</span>
+          </div>
+          <button type="button" onClick={handleDismiss} style={dismissBtn} title="Hide for this session">
+            <X size={14} />
+          </button>
         </div>
+      ) : (
+        <button
+          type="button"
+          onClick={handleDismiss}
+          style={{ ...dismissBtn, alignSelf: "center" }}
+          title="Hide for this session"
+        >
+          <X size={13} />
+        </button>
       )}
       <div style={rowStyle}>
         {items.map((it) => {
@@ -125,12 +167,27 @@ const container = {
 const header = {
   display: "flex",
   alignItems: "center",
+  justifyContent: "space-between",
   gap: 6,
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: 0.7,
   color: "rgba(255,255,255,0.55)",
   marginBottom: 10,
+};
+
+const dismissBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 22,
+  height: 22,
+  padding: 0,
+  borderRadius: 999,
+  border: "1px solid transparent",
+  background: "transparent",
+  color: "rgba(255,255,255,0.45)",
+  cursor: "pointer",
 };
 
 const row = {

@@ -921,6 +921,7 @@ export async function createEvent({
 
   if (error) {
     console.error("Error creating event:", error);
+    throwConstraintError(error);
     // If error is about missing columns, try without them (backward compatibility)
     if (
       error.message &&
@@ -1034,6 +1035,7 @@ export async function updateEvent(id, updates) {
   if (error) {
     console.error(`[updateEvent] Supabase error updating event ${id}:`, error);
     console.error(`[updateEvent] Attempted update fields:`, Object.keys(dbUpdates));
+    throwConstraintError(error);
     throw new Error(error.message || "Database update failed");
   }
 
@@ -1404,6 +1406,31 @@ export async function findOrCreatePerson(email, name = null) {
   return mapPersonFromDb(newPerson);
 }
 
+// Map a Postgres check_violation (SQLSTATE 23514) into a friendly message the
+// MCP coach (and humans) can act on. Returns null for any other error.
+function friendlyConstraintError(error) {
+  if (error?.code !== "23514") return null;
+  const match = String(error.message || "").match(/constraint "([^"]+)"/);
+  if (!match) return null;
+  const KNOWN = {
+    events_visibility_check: "visibility must be 'public' or 'private'",
+    events_calendar_category_check: "calendar must be 'personal' or 'business'",
+    events_ticket_type_check: "ticketType must be 'free' or 'paid'",
+    check_status: "status must be 'DRAFT' or 'PUBLISHED'",
+    check_created_via: "createdVia must be 'post', 'create', or 'legacy'",
+  };
+  return KNOWN[match[1]] || `constraint ${match[1]} violated`;
+}
+
+function throwConstraintError(error) {
+  const friendly = friendlyConstraintError(error);
+  if (!friendly) return false;
+  const err = new Error(friendly);
+  err.statusCode = 400;
+  err.code = "constraint_violation";
+  throw err;
+}
+
 // Find person by ID
 export async function findPersonById(personId) {
   const { data, error } = await supabase
@@ -1417,6 +1444,28 @@ export async function findPersonById(personId) {
   }
 
   return mapPersonFromDb(data);
+}
+
+// A person "belongs" to a host iff they have at least one RSVP to one of the
+// host's events. This is the same scope getPeopleWithFilters / getAllPeopleWithStats
+// use, so the detail GET/PUT endpoints stay consistent with the list view.
+export async function personBelongsToHost(personId, userId) {
+  if (!personId || !userId) return false;
+  const eventIds = await getUserEventIds(userId);
+  if (!eventIds || eventIds.length === 0) return false;
+
+  const { data, error } = await supabase
+    .from("rsvps")
+    .select("id")
+    .eq("person_id", personId)
+    .in("event_id", eventIds)
+    .limit(1);
+
+  if (error) {
+    console.error("[personBelongsToHost] error:", error);
+    return false;
+  }
+  return Array.isArray(data) && data.length > 0;
 }
 
 // Find person by email
@@ -4467,7 +4516,10 @@ function mapProfileToDb(profile) {
     dbProfile.contact_email = profile.contactEmail;
   if (profile.stripeConnectedAccountId !== undefined)
     dbProfile.stripe_connected_account_id = profile.stripeConnectedAccountId;
-  if (profile.isAdmin !== undefined) dbProfile.is_admin = profile.isAdmin;
+  // is_admin is intentionally NOT updatable here. Privilege escalation would
+  // otherwise be possible by POSTing { "isAdmin": true } to /host/profile.
+  // The admin flag is granted out-of-band via scripts/grant_admin.js, which
+  // writes the column directly.
   if (profile.hostBrief !== undefined) dbProfile.host_brief = profile.hostBrief;
   return dbProfile;
 }

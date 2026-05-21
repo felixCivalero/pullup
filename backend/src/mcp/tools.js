@@ -167,11 +167,11 @@ const CreateEventInput = {
   theme: z.string().optional().describe(
     "Visual theme name (e.g. 'classic', 'minimal'). Affects the public page look."
   ),
-  visibility: z.enum(["public", "unlisted", "private"]).optional().describe(
-    "'public' = listed on the explore page. 'unlisted' = anyone with the link. 'private' = host-only preview. Default 'unlisted'."
+  visibility: z.enum(["public", "private"]).optional().describe(
+    "'public' = listed on the explore page; 'private' = link-only (host shares the URL). Default 'public'."
   ),
-  calendar: z.string().optional().describe(
-    "Free-text calendar/category tag for the host's own bucketing (e.g. 'dinners', 'work events'). Not shown to guests."
+  calendar: z.enum(["personal", "business"]).optional().describe(
+    "Which of the host's calendars this event belongs to. 'personal' for private/social events, 'business' for work events. Default 'personal'. Not shown to guests."
   ),
 
   // ─── RSVP form ─────────────────────────────────────────────────────

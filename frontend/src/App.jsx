@@ -7,7 +7,6 @@ import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { NewsletterPage } from "./pages/NewsletterPage";
 import { HomePage } from "./pages/HomePage";
 import { CrmPage } from "./pages/CrmPage";
-import { CampaignPreviewPage } from "./pages/CampaignPreviewPage";
 import { UnsubscribePage } from "./pages/UnsubscribePage";
 import { MediaUploadPage } from "./pages/MediaUploadPage";
 import { CreateEventPage } from "./pages/CreateEventPage";
@@ -84,7 +83,6 @@ function App() {
           <Route path="/analytics" element={<HostAnalyticsPage />} />
           <Route path="/crm" element={<CrmPage />} />
           <Route path="/crm/compose" element={<Navigate to="/crm" replace />} />
-          <Route path="/app/crm/campaigns/:id/preview" element={<CampaignPreviewPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/discover" element={<DiscoverPage />} />
           <Route path="/admin/analytics" element={<AnalyticsPage />} />

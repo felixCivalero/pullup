@@ -216,7 +216,7 @@ function ContactStrip({ person, compact = false }) {
   );
 }
 
-export function CrmTab({ onSegmentChange }) {
+export function CrmTab({ onSegmentChange, initialFilters }) {
   const { showToast } = useToast();
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -225,7 +225,13 @@ export function CrmTab({ onSegmentChange }) {
   const [importing, setImporting] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importEventUrl, setImportEventUrl] = useState("");
-  const [filters, setFilters] = useState({});
+  const [filters, setFilters] = useState(initialFilters || {});
+
+  // Hydrate filters from a parent-provided initial value (used when CrmPage
+  // loads an existing draft via ?campaignId=). Runs once per identity change.
+  useEffect(() => {
+    if (initialFilters) setFilters(initialFilters);
+  }, [initialFilters]);
   const [total, setTotal] = useState(0);
   const [baselineTotal, setBaselineTotal] = useState(null);
   const [page, setPage] = useState(0); // zero-based page index

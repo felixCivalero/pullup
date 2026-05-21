@@ -16,6 +16,12 @@ function eventEditUrl(event) {
 
 // Translate an analyzeEvent suggestion key into a UI intent. Returns null
 // when the key has no clean one-tap shortcut.
+//
+// The `focus` field is read by the widget dispatcher: when the host is
+// already on the editor and the intent URL matches the current page, the
+// widget appends `?focus=<value>` instead of navigating. CreateEventPage
+// reads that param and flips to the matching tab (with a brief gold flash
+// so the host sees where to land).
 export function keyToEventIntent(key, _suggestion, ctx) {
   const { event } = ctx;
   if (!event) return null;
@@ -23,15 +29,15 @@ export function keyToEventIntent(key, _suggestion, ctx) {
   switch (key) {
     case "cover":
     case "video":
-      // Cover/media upload lives in the in-app editor — the upload modal
-      // is part of the cover section. Direct deep-link not wired yet.
-      return { type: "navigate", url: edit };
+      return { type: "navigate", url: edit, focus: "media" };
     case "vibe":
     case "description":
+      return { type: "navigate", url: edit, focus: "details" };
     case "gating":
+      return { type: "navigate", url: edit, focus: "form" };
     case "plus_ones":
     case "ticketing":
-      return { type: "navigate", url: edit };
+      return { type: "navigate", url: edit, focus: "tickets" };
     case "series":
       // Series duplication is two-step (pick prior, then edit deltas) —
       // skip the one-click affordance until we have a "duplicate from"
@@ -43,10 +49,9 @@ export function keyToEventIntent(key, _suggestion, ctx) {
         url: `/app/events/${event.id}/guests?status=waitlist`,
       };
     case "perf_filling":
-      return { type: "navigate", url: edit };
+      return { type: "navigate", url: edit, focus: "tickets" };
     case "perf_quiet":
-      // No campaigns sent yet — drop into the CRM with the event preselected
-      // (CrmPage's existing eventId-aware flow would pick it up).
+      // No campaigns sent yet — drop into the CRM with the event preselected.
       return { type: "navigate", url: `/crm?eventId=${event.id}` };
     case "perf_low_conversion":
     case "perf_campaign_weak":

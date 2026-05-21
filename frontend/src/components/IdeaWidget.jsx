@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Lightbulb, X, Send, Sparkles, ChevronRight } from "lucide-react";
+import { Lightbulb, X, Send, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
@@ -9,6 +9,45 @@ import { useRecentChatActivity } from "../lib/useRecentChatActivity.js";
 
 function getAiDismissKey(type, id) {
   return `coach-widget-dismissed:${type || "_"}:${id || "_"}`;
+}
+
+// "publish_event" → "Published this", "draft_campaign" → "Drafted a campaign", etc.
+// Pure presentation — keeps the narration line readable without a round-trip.
+function narrateAction(row) {
+  const r = row?.result || {};
+  const args = row?.args || {};
+  switch (row?.tool) {
+    case "create_event":           return "Created the event";
+    case "update_event":           return "Updated event details";
+    case "publish_event":          return "Published this event";
+    case "unpublish_event":        return "Reverted to draft";
+    case "delete_event":           return "Deleted the event";
+    case "duplicate_event":        return "Duplicated the event";
+    case "upload_event_image":     return "Uploaded a new cover";
+    case "upload_event_media":     return "Uploaded media";
+    case "draft_campaign":         return r.totalRecipients != null
+      ? `Drafted a campaign to ${r.totalRecipients} people`
+      : "Drafted a campaign";
+    case "update_campaign":        return "Updated the draft";
+    case "send_campaign":          return r.totalRecipients != null
+      ? `Sent a campaign to ${r.totalRecipients} people`
+      : "Sent a campaign";
+    case "update_rsvp":            return args.status ? `Set an RSVP to ${args.status}` : "Updated an RSVP";
+    case "refund_payment":         return r.isFullRefund ? "Issued a full refund" : "Issued a refund";
+    case "update_person":          return "Updated a contact";
+    case "set_host_brief":         return "Updated your host brief";
+    default:                       return row?.tool ? row.tool.replace(/_/g, " ") : "Did something";
+  }
+}
+
+function relTime(iso) {
+  if (!iso) return "";
+  const diffSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (!Number.isFinite(diffSec) || diffSec < 0) return "just now";
+  if (diffSec < 60) return `${diffSec}s ago`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86400)}d ago`;
 }
 
 export function IdeaWidget() {
@@ -26,7 +65,7 @@ export function IdeaWidget() {
   // sparkle-flavoured coach panel whenever the current host page declares a
   // resource AND chat has recently touched it.
   const resource = useHostResource();
-  const { hasActivity } = useRecentChatActivity({
+  const { hasActivity, lastAction } = useRecentChatActivity({
     enabled: !!resource,
     targetType: resource?.type,
     targetId: resource?.id,
@@ -87,6 +126,72 @@ export function IdeaWidget() {
   useEffect(() => {
     setOpen(false);
   }, [inAiMode]);
+
+  // Narration: last few chat actions on this resource, shown above the
+  // suggestion buttons in the panel. Pure log read — no LLM cost. Refetched
+  // when the panel opens AND when a fresh chat action lands.
+  const [recentActions, setRecentActions] = useState([]);
+  useEffect(() => {
+    if (!inAiMode || !open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        const params = new URLSearchParams({
+          since,
+          targetType: resource.type,
+          targetId: String(resource.id),
+          source: "chat",
+          limit: "5",
+        });
+        const res = await authenticatedFetch(`/host/actions/recent?${params.toString()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setRecentActions(data.items || []);
+      } catch (err) {
+        // Best-effort. Narration is decorative, not load-bearing.
+        console.warn("[IdeaWidget] narration fetch failed:", err?.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [inAiMode, open, resource, lastAction?.id]);
+
+  // Pulse the trigger button + sparkle icon whenever a fresh chat action
+  // lands. Uses the Web Animations API — no CSS class juggling, no extra
+  // state, just a one-shot animation triggered by lastAction.id changing.
+  const triggerRef = useRef(null);
+  const sparkleRef = useRef(null);
+  const lastPulsedRef = useRef(null);
+  useEffect(() => {
+    if (!inAiMode || !lastAction?.id) return;
+    if (lastPulsedRef.current === lastAction.id) return; // already pulsed for this one
+    lastPulsedRef.current = lastAction.id;
+    triggerRef.current?.animate(
+      [
+        { boxShadow: "0 4px 16px rgba(0,0,0,0.3), 0 0 28px rgba(240,216,120,0.85)" },
+        { boxShadow: "0 4px 16px rgba(0,0,0,0.3), 0 0 12px rgba(232,200,102,0.15)" },
+      ],
+      { duration: 1800, easing: "ease-out" },
+    );
+    sparkleRef.current?.animate(
+      [
+        { transform: "scale(1) rotate(0deg)" },
+        { transform: "scale(1.35) rotate(15deg)" },
+        { transform: "scale(1) rotate(0deg)" },
+      ],
+      { duration: 900, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" },
+    );
+  }, [inAiMode, lastAction?.id]);
+
+  // "Continue in claude.ai" — opens claude.ai in a new tab with a
+  // resource-aware prompt. Zero cost on PullUp's side; the host's existing
+  // claude.ai connection (with PullUp MCP) picks up the context naturally.
+  const continueChatUrl = useMemo(() => {
+    if (!resource) return null;
+    const noun = resource.type === "campaign" ? "campaign" : "event";
+    const prompt = `I'm working on this ${noun} in PullUp (id: ${resource.id}) — pick up where we left off. You have the PullUp MCP connected.`;
+    return `https://claude.ai/new?q=${encodeURIComponent(prompt)}`;
+  }, [resource]);
 
   function dismissAiMode() {
     if (!resource) return;
@@ -216,6 +321,53 @@ export function IdeaWidget() {
               </button>
             </div>
 
+            {recentActions.length > 0 && (
+              <div
+                style={{
+                  marginBottom: 12,
+                  paddingBottom: 12,
+                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    letterSpacing: 0.7,
+                    textTransform: "uppercase",
+                    color: "rgba(255,255,255,0.4)",
+                    fontWeight: 600,
+                    marginBottom: 2,
+                  }}
+                >
+                  Chat just
+                </div>
+                {recentActions.slice(0, 4).map((a) => (
+                  <div
+                    key={a.id}
+                    style={{
+                      fontSize: 12.5,
+                      color: "rgba(255,255,255,0.78)",
+                      display: "flex",
+                      alignItems: "baseline",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {narrateAction(a)}
+                    </span>
+                    <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap" }}>
+                      {relTime(a.created_at)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {coachItems === null && (
               <div style={{ fontSize: 12, opacity: 0.5, padding: "8px 0" }}>Loading…</div>
             )}
@@ -290,11 +442,40 @@ export function IdeaWidget() {
                 })}
               </div>
             )}
+
+            {continueChatUrl && (
+              <a
+                href={continueChatUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  marginTop: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(232,200,102,0.2)",
+                  background: "rgba(232,200,102,0.06)",
+                  color: "#f0d878",
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  letterSpacing: 0.2,
+                }}
+                title="Open this in claude.ai with the context pre-loaded"
+              >
+                <span>Continue in claude.ai</span>
+                <ExternalLink size={12} />
+              </a>
+            )}
           </div>
         )}
 
         {/* AI-mode trigger pill — gold-tinted to signal "AI is here" */}
         <button
+          ref={triggerRef}
           onClick={() => setOpen((prev) => !prev)}
           title="PullUp"
           style={{
@@ -319,7 +500,9 @@ export function IdeaWidget() {
             e.currentTarget.style.background = "rgba(232, 200, 102, 0.12)";
           }}
         >
-          <Sparkles size={18} />
+          <span ref={sparkleRef} style={{ display: "inline-flex", alignItems: "center" }}>
+            <Sparkles size={18} />
+          </span>
           <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
             PullUp
             {coachItems && coachItems.length > 0 ? ` · ${coachItems.length}` : ""}

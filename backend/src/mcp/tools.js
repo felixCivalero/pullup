@@ -23,23 +23,13 @@ import {
   completenessSummary,
 } from "./suggestions.js";
 import { auditJourney } from "./journeyAudit.js";
-import {
-  mintPreviewToken,
-  PREVIEW_SCOPE_EVENT,
-  PREVIEW_SCOPE_CAMPAIGN,
-} from "../utils/previewTokens.js";
 
-// The "preview" handed back to the host from chat is now the event editor —
-// not the public /e/:slug page. Same principle as the campaign composer: the
-// host should land somewhere they can actually finish the work, not a
-// read-only render. The HostBar Publish/Unpublish pill mounts globally and
-// reads ?pv= from the URL, so it rides along on the editor page unchanged.
-function editUrlForEventId(id, opts = {}) {
-  const base = frontendUrl(`/app/events/${id}/edit`);
-  if (opts.token) {
-    return `${base}?pv=${encodeURIComponent(opts.token)}`;
-  }
-  return base;
+// The "preview" handed back to the host from chat is the event editor — not
+// the public /e/:slug page. Auth is the editor's normal session auth; the
+// floating "PullUp" coach widget reads host_actions to know chat has been
+// here recently, no per-link token needed.
+function editUrlForEventId(id) {
+  return frontendUrl(`/app/events/${id}/edit`);
 }
 function shareUrlForSlug(slug) {
   // utm-tagged share URL for paste-into-IG/WhatsApp. Falls through to the
@@ -572,41 +562,8 @@ function buildFormFieldsFromExtras(extras) {
   return [...locked, ...custom];
 }
 
-function buildHandlers(api, hostId) {
+function buildHandlers(api, _hostId) {
   const resolveEventBySlug = resolveEventBySlugVia(api);
-
-  // Mint a preview-link token for the host bar. Returns null when we
-  // don't have a host id (older callers without ctx.user) so the URL
-  // falls back to the plain shape — preview-before-act is a soft
-  // expectation, not a hard precondition of the URL.
-  function eventPreviewToken(eventId, capabilities) {
-    if (!hostId || !eventId) return null;
-    try {
-      return mintPreviewToken({
-        scope: PREVIEW_SCOPE_EVENT,
-        resourceId: eventId,
-        hostId,
-        capabilities,
-      });
-    } catch (err) {
-      console.warn("[mcp] preview-token mint failed:", err.message);
-      return null;
-    }
-  }
-  function campaignPreviewToken(campaignId) {
-    if (!hostId || !campaignId) return null;
-    try {
-      return mintPreviewToken({
-        scope: PREVIEW_SCOPE_CAMPAIGN,
-        resourceId: campaignId,
-        hostId,
-        capabilities: ["send"],
-      });
-    } catch (err) {
-      console.warn("[mcp] preview-token mint failed:", err.message);
-      return null;
-    }
-  }
 
   async function createEvent(args) {
     const status = args.status || "DRAFT";
@@ -618,11 +575,7 @@ function buildHandlers(api, hostId) {
     const event = await api("POST", "/events", { body: payload });
     const { completeness, performance, top } = await buildEventCoaching(event);
 
-    const pv = eventPreviewToken(
-      event.id,
-      status === "DRAFT" ? ["publish"] : ["unpublish"],
-    );
-    const preview = editUrlForEventId(event.id, { token: pv });
+    const preview = editUrlForEventId(event.id);
     const banner = eventBanner({
       title: event.title,
       status,
@@ -658,15 +611,11 @@ function buildHandlers(api, hostId) {
       ...updated,
       slug: newSlug,
     });
-    const pv = eventPreviewToken(
-      updated.id || existing.id,
-      status === "DRAFT" ? ["publish"] : ["unpublish"],
-    );
     return toolResultText(
       eventBanner({
         title: updated.title || existing.title,
         status,
-        previewUrl: editUrlForEventId(updated.id || existing.id, { token: pv }),
+        previewUrl: editUrlForEventId(updated.id || existing.id),
         shareUrl: status === "PUBLISHED" ? shareUrlForSlug(newSlug) : null,
         rsvpsUrl: rsvpsDashboardForId(updated.id || existing.id),
         note: "Updated.",
@@ -680,12 +629,11 @@ function buildHandlers(api, hostId) {
   async function publishEvent(args) {
     const existing = await resolveEventBySlug(args.slug);
     const updated = await api("PUT", `/host/events/${existing.id}/publish`);
-    const pv = eventPreviewToken(existing.id, ["unpublish"]);
     return toolResultText(
       eventBanner({
         title: updated.title || existing.title,
         status: "PUBLISHED",
-        previewUrl: editUrlForEventId(existing.id, { token: pv }),
+        previewUrl: editUrlForEventId(existing.id),
         shareUrl: shareUrlForSlug(args.slug),
         rsvpsUrl: rsvpsDashboardForId(existing.id),
         note: "Note: FB/IG share-preview caches can take ~24h to refresh after big edits.",
@@ -698,12 +646,11 @@ function buildHandlers(api, hostId) {
     const updated = await api("PUT", `/host/events/${existing.id}`, {
       body: { status: "DRAFT" },
     });
-    const pv = eventPreviewToken(existing.id, ["publish"]);
     return toolResultText(
       eventBanner({
         title: updated.title || existing.title,
         status: "DRAFT",
-        previewUrl: editUrlForEventId(existing.id, { token: pv }),
+        previewUrl: editUrlForEventId(existing.id),
         rsvpsUrl: rsvpsDashboardForId(existing.id),
         note:
           "Reverted to DRAFT. Existing RSVPs are kept. Social-platform caches keep the previously-public preview ~24h.",
@@ -781,11 +728,7 @@ function buildHandlers(api, hostId) {
       ? `(hidden — public sees: "${existing.revealHint || "Location revealed later"}")`
       : existing.location || "(no location)";
 
-    const pvGet = eventPreviewToken(
-      existing.id,
-      existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
-    );
-    const preview = editUrlForEventId(existing.id, { token: pvGet });
+    const preview = editUrlForEventId(existing.id);
     const block = [
       `${existing.title} [${existing.status}]`,
       `  When:     ${when}${existing.hideDate ? " (HIDDEN — public sees TBA)" : ""}`,
@@ -875,12 +818,8 @@ function buildHandlers(api, hostId) {
       body: { imageData },
     });
 
-    const pvCover = eventPreviewToken(
-      existing.id,
-      existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
-    );
     return toolResultText(
-      `Uploaded a new cover for "${existing.title}".\n\n  Preview: ${editUrlForEventId(existing.id, { token: pvCover })}`
+      `Uploaded a new cover for "${existing.title}".\n\n  Preview: ${editUrlForEventId(existing.id)}`
     );
   }
 
@@ -963,12 +902,8 @@ function buildHandlers(api, hostId) {
         });
       }
 
-      const pvMediaUrl = eventPreviewToken(
-        existing.id,
-        existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
-      );
       return toolResultText(
-        `Uploaded ${detectedType} (${sizeHeader ? Math.round(sizeHeader / 1024 / 1024 * 10) / 10 + "MB" : "size unknown"}) to "${existing.title}".\n  Preview: ${editUrlForEventId(existing.id, { token: pvMediaUrl })}`
+        `Uploaded ${detectedType} (${sizeHeader ? Math.round(sizeHeader / 1024 / 1024 * 10) / 10 + "MB" : "size unknown"}) to "${existing.title}".\n  Preview: ${editUrlForEventId(existing.id)}`
       );
     }
 
@@ -996,12 +931,8 @@ function buildHandlers(api, hostId) {
       },
     });
 
-    const pvMediaB64 = eventPreviewToken(
-      existing.id,
-      existing.status === "PUBLISHED" ? ["unpublish"] : ["publish"],
-    );
     return toolResultText(
-      `Uploaded ${detectedType} (~${(approxBytes / 1024 / 1024).toFixed(1)}MB) to "${existing.title}".\n  Preview: ${editUrlForEventId(existing.id, { token: pvMediaB64 })}`
+      `Uploaded ${detectedType} (~${(approxBytes / 1024 / 1024).toFixed(1)}MB) to "${existing.title}".\n  Preview: ${editUrlForEventId(existing.id)}`
     );
   }
 
@@ -1333,12 +1264,11 @@ function buildHandlers(api, hostId) {
 
     const created = await api("POST", "/events", { body: payload });
 
-    const pvDup = eventPreviewToken(created.id, ["publish"]);
     return toolResultText(
       eventBanner({
         title: created.title,
         status: "DRAFT",
-        previewUrl: editUrlForEventId(created.id, { token: pvDup }),
+        previewUrl: editUrlForEventId(created.id),
         rsvpsUrl: rsvpsDashboardForId(created.id),
         note: `Duplicated from "${full.title}". Update or publish when ready.`,
       })
@@ -1542,14 +1472,10 @@ function buildHandlers(api, hostId) {
       status: "draft",
     }, ev);
 
-    const campPv = campaignPreviewToken(created.campaignId);
     // Hand the host straight into the real CRM composer with the draft loaded.
-    // The composer's "Send" footer + HostBar's pv-gated Send pill both fire the
-    // same /send endpoint, so the host has two consistent paths to ship it.
-    const previewBase = frontendUrl(`/crm?campaignId=${created.campaignId}`);
-    const previewUrl = campPv
-      ? `${previewBase}&pv=${encodeURIComponent(campPv)}`
-      : previewBase;
+    // The composer's "Send" footer fires /send on the existing draft id; the
+    // host has one consistent path to ship it.
+    const previewUrl = frontendUrl(`/crm?campaignId=${created.campaignId}`);
     const lines = [
       "─────────────────────────────────────",
       "  Campaign drafted (NOT sent)",

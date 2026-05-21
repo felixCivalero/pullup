@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import {
   Camera,
@@ -570,15 +570,66 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
   );
 }
 
+// focus key → editor step number. Used by the floating PullUp widget: when
+// the host clicks "Add interactive widgets like Spotify" from inside the
+// editor, the widget rewrites the URL to ?focus=details, this map sends the
+// editor to step 2, and the host lands where they need to be.
+const FOCUS_TO_STEP = {
+  media: 1,    // cover / video upload
+  details: 2,  // title, location, date, description, sections (incl. vibe links)
+  form: 3,     // RSVP form fields
+  tickets: 5,  // capacity, plus-ones, paid ticketing
+};
+const FOCUS_TO_FIELD_FLASH = {
+  media: "media",
+  // details/form/tickets don't have a single field to flash — the tab
+  // switch is the cue.
+};
+
 export function CreateEventPage() {
   const navigate = useNavigate();
   const { id: editEventId } = useParams(); // present when editing
+  const [searchParams, setSearchParams] = useSearchParams();
   const isEditMode = !!editEventId;
   const { showToast } = useToast();
   const { setEventNav } = useEventNav();
   const { user } = useAuth();
   const [editLoading, setEditLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
+
+  // PullUp coach widget hands off into the editor by appending ?focus=<key>.
+  // Read it, flip to the matching tab, briefly gold-flash a relevant field
+  // for media (the only step with a single visual cue), then clear the param
+  // so a refresh doesn't re-fire the jump.
+  useEffect(() => {
+    const focus = searchParams.get("focus");
+    if (!focus || !isEditMode) return;
+    const stepNum = FOCUS_TO_STEP[focus];
+    if (stepNum) {
+      setStepDirection("forward");
+      setCurrentStep(stepNum);
+    }
+    const flashField = FOCUS_TO_FIELD_FLASH[focus];
+    if (flashField) {
+      setGoldFlash((prev) => ({ ...prev, [flashField]: true }));
+      setTimeout(() => {
+        setGoldFlash((prev) => {
+          const next = { ...prev };
+          delete next[flashField];
+          return next;
+        });
+      }, 1400);
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("focus");
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, isEditMode]);
 
   // Declare this page's resource to the floating coach widget. When the
   // host is on the editor for event X, the bottom-right widget can flip to

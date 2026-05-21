@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Lightbulb, X, Send, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
@@ -40,6 +40,52 @@ function narrateAction(row) {
   }
 }
 
+// Each chat action has a UI place it lives. Return a dispatchable intent
+// (same shape as coach suggestions) or null if there's no useful landing.
+function narrationIntent(row) {
+  if (!row) return null;
+  const args = row.args || {};
+  switch (row.tool) {
+    case "create_event":
+    case "update_event":
+    case "publish_event":
+    case "unpublish_event":
+    case "duplicate_event":
+      return row.target_id
+        ? { type: "navigate", url: `/app/events/${row.target_id}/edit` }
+        : null;
+    case "delete_event":
+      // Event is gone; no landing.
+      return null;
+    case "upload_event_image":
+    case "upload_event_media":
+      return row.target_id
+        ? {
+            type: "navigate",
+            url: `/app/events/${row.target_id}/edit`,
+            focus: "media",
+          }
+        : null;
+    case "draft_campaign":
+    case "update_campaign":
+    case "send_campaign":
+      return row.target_id
+        ? { type: "navigate", url: `/crm?campaignId=${row.target_id}` }
+        : null;
+    case "update_rsvp":
+    case "refund_payment":
+      return args.eventId
+        ? { type: "navigate", url: `/app/events/${args.eventId}/guests` }
+        : null;
+    case "update_person":
+      return { type: "navigate", url: "/crm" };
+    case "set_host_brief":
+      return { type: "navigate", url: "/settings" };
+    default:
+      return null;
+  }
+}
+
 function relTime(iso) {
   if (!iso) return "";
   const diffSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -54,6 +100,7 @@ export function IdeaWidget() {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState("");
@@ -208,7 +255,18 @@ export function IdeaWidget() {
     if (!intent) return;
     if (intent.type === "navigate" && intent.url) {
       const target = intent.url.split("?")[0];
-      if (target !== pathname) {
+      if (target === pathname) {
+        // Same page — if the intent declares a `focus`, hand it off via the
+        // URL so the page can jump to the right tab / section. Otherwise
+        // no-op (the suggestion was informational about the current view).
+        if (intent.focus) {
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set("focus", intent.focus);
+            return next;
+          }, { replace: true });
+        }
+      } else {
         navigate(intent.url);
       }
       setOpen(false);
@@ -344,27 +402,51 @@ export function IdeaWidget() {
                 >
                   Chat just
                 </div>
-                {recentActions.slice(0, 4).map((a) => (
-                  <div
-                    key={a.id}
-                    style={{
-                      fontSize: 12.5,
-                      color: "rgba(255,255,255,0.78)",
-                      display: "flex",
-                      alignItems: "baseline",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {narrateAction(a)}
-                    </span>
-                    <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap" }}>
-                      {relTime(a.created_at)}
-                    </span>
-                  </div>
-                ))}
+                {recentActions.slice(0, 4).map((a) => {
+                  const intent = narrationIntent(a);
+                  const baseStyle = {
+                    fontSize: 12.5,
+                    color: "rgba(255,255,255,0.78)",
+                    display: "flex",
+                    alignItems: "baseline",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    lineHeight: 1.4,
+                    textAlign: "left",
+                    width: "100%",
+                    padding: 0,
+                    background: "none",
+                    border: "none",
+                  };
+                  const inner = (
+                    <>
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", color: intent ? "#fff" : "rgba(255,255,255,0.78)" }}>
+                        {narrateAction(a)}
+                      </span>
+                      <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap" }}>
+                        {relTime(a.created_at)}
+                      </span>
+                    </>
+                  );
+                  if (!intent) {
+                    return (
+                      <div key={a.id} style={baseStyle}>
+                        {inner}
+                      </div>
+                    );
+                  }
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => dispatchIntent(intent)}
+                      style={{ ...baseStyle, cursor: "pointer" }}
+                      title="Jump to where this happened"
+                    >
+                      {inner}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -380,7 +462,9 @@ export function IdeaWidget() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {coachItems.map((it) => {
                   const target = it.intent?.url ? it.intent.url.split("?")[0] : null;
-                  const isInfo = target && target === pathname;
+                  // Same-page intent without a focus is informational; with
+                  // a focus, the click flips a tab — still actionable.
+                  const isInfo = target && target === pathname && !it.intent?.focus;
                   return (
                     <button
                       key={it.key}

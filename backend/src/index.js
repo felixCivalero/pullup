@@ -3,6 +3,7 @@ import express from "express";
 import crypto from "crypto";
 import cors from "cors";
 import dotenv from "dotenv";
+import helmet from "helmet";
 
 import {
   createEvent,
@@ -152,6 +153,36 @@ function getBackendUrlFromReq(req) {
 }
 
 const app = express();
+
+// nginx sits in front of node on EC2 and forwards x-forwarded-for. Without
+// trust proxy=1, req.ip is always 127.0.0.1 (nginx) and any rate-limit /
+// IP-logging code sees one client. With trust proxy=1, we trust exactly
+// one upstream hop (our nginx). NEVER set this to true — that would
+// trust any x-forwarded-for value an attacker injects.
+app.set("trust proxy", 1);
+
+// Security headers via helmet. CSP is intentionally disabled here — our
+// event pages embed Spotify/Apple/SoundCloud/YouTube iframes and call
+// Supabase + Stripe directly, so a meaningful CSP needs careful per-route
+// tuning we haven't done yet. The remaining helmet defaults still give us
+// HSTS, X-Content-Type-Options: nosniff, X-Frame-Options: SAMEORIGIN,
+// Referrer-Policy, X-DNS-Prefetch-Control, etc. — all wins over the
+// "no security headers anywhere" the audit flagged.
+//
+// crossOriginEmbedderPolicy is also disabled: it'd break the OG image
+// proxy that crawlers embed cross-origin.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    strictTransportSecurity: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: false, // flip to true only after submitting to hstspreload.org
+    },
+  }),
+);
 
 // ---------------------------
 // Helper: Detect if request is from a crawler/bot
@@ -637,18 +668,25 @@ app.get("/mcp/health", (req, res) => {
   res.json({ ok: true, server: "pullup-mcp", version: "0.3.0" });
 });
 
-// Allow base64 images in body
+// Global JSON parser. The previous 100mb default was vastly more than any
+// non-attack request needs and made it easy to slow the process with
+// large payloads. 15mb still comfortably accommodates every image-upload
+// route (each has its own code-side cap: profile pic 5MB raw → ~6.7MB
+// base64 in JSON; event image 10MB → ~13.3MB; CRM image 2MB; logo
+// 500KB). Routes that legitimately need more (e.g. some future bulk
+// import) can mount their own express.json with a higher limit BEFORE
+// this global middleware.
 app.use(
   express.json({
-    limit: "100mb",
+    limit: "15mb",
     verify: (req, res, buf) => {
       // Preserve raw body for HMAC verification on webhooks.
       req.rawBody = buf;
     },
   }),
 );
-app.use(express.text({ limit: "50mb", type: "text/csv" })); // For CSV import
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use(express.text({ limit: "10mb", type: "text/csv" })); // CSV import
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 // ---------------------------
 // MCP: Model Context Protocol endpoint for any MCP-capable AI client
@@ -13359,5 +13397,8 @@ app.listen(PORT, HOST, async () => {
     }
   }
 
-  // setInterval(sendEventReminders, REMINDER_INTERVAL_MS); // PAUSED — uncomment to re-enable reminder emails
+  // Day-before event reminders. Outbox idempotency key
+  // `reminder-24h-<eventId>-<personId>` dedupes across the every-15-min
+  // ticks so each guest gets exactly one reminder per event.
+  setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
 });

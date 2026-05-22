@@ -4654,6 +4654,31 @@ export async function listEmailCampaigns(userId, { status, limit = 50, offset = 
 /**
  * Update email campaign status and stats
  */
+/**
+ * Atomic draft→sending transition. Returns the campaign row on success,
+ * or null if the campaign was already past `draft` (already sending, sent,
+ * or failed). Used as a CAS gate to prevent the double-send race the
+ * audit flagged: two concurrent send_campaign calls would both read
+ * status="draft", both pass the check, both flip to "sending", both
+ * dispatch. By making "draft → sending" a single conditional UPDATE,
+ * only one caller wins; the loser sees status="sending" and bails.
+ */
+export async function claimCampaignForSending(campaignId, userId) {
+  const { data, error } = await supabase
+    .from("campaign_campaigns")
+    .update({ status: "sending", updated_at: new Date().toISOString() })
+    .eq("id", campaignId)
+    .eq("user_id", userId)
+    .eq("status", "draft")
+    .select()
+    .maybeSingle();
+  if (error) {
+    console.error("[claimCampaignForSending] error:", error);
+    throw new Error(`Failed to claim campaign: ${error.message}`);
+  }
+  return data || null; // null = lost the race or wrong owner / not draft
+}
+
 export async function updateEmailCampaignStatus(
   campaignId,
   status,

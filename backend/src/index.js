@@ -1911,6 +1911,12 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       const missing = [];
       for (const f of fields) {
         if (!f || !f.id) continue;
+        // Skip built-in name/email sentinels — the host event editor inserts
+        // these into form_fields so they show up in the form-fields drag-drop
+        // UI, but their values arrive on the top-level `name` / `email` body
+        // params, not inside customAnswers. Iterating them here previously
+        // produced the bogus "Please fill in: Full name, Email" error.
+        if (f.id.startsWith("__")) continue;
         const val = incoming[f.id];
         const trimmed = typeof val === "string" ? val.trim() : "";
         if (f.required && !trimmed) {

@@ -13,7 +13,6 @@ import { CreateEventPage } from "./pages/CreateEventPage";
 import { EventPage } from "./pages/EventPage";
 import { RsvpSuccessPage } from "./pages/RsvpSuccessPage";
 import { EventSuccessPage } from "./pages/EventSuccessPage";
-import { ManageEventPage } from "./pages/ManageEventPage";
 import { EventGuestsPage } from "./pages/EventGuestsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";

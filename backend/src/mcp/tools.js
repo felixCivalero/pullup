@@ -13,6 +13,8 @@
 //     so Claude shows them inline and Adam clicks through.
 
 import { z } from "zod";
+import dns from "dns/promises";
+import net from "net";
 
 import { makeApi, frontendUrl } from "./api.js";
 import { eventBanner, toolResultText, toolError } from "./format.js";
@@ -834,6 +836,7 @@ function buildHandlers(api, _hostId) {
     // never traverse the MCP JSON-RPC envelope — the server fetches the
     // remote URL, then PUTs to a Supabase-issued upload URL.
     if (args.mediaUrl) {
+      await assertSafeFetchUrl(args.mediaUrl);
       const headResp = await fetch(args.mediaUrl, { method: "HEAD" }).catch(() => null);
       const ctype = headResp?.headers?.get?.("content-type") || "";
       const detectedType = args.mediaType || inferMediaTypeFromMime(ctype) || inferMediaTypeFromUrl(args.mediaUrl);
@@ -2063,7 +2066,77 @@ function summarizeAction(a) {
   }
 }
 
+// SSRF guard for any user-supplied URL we're about to fetch. PAT-holders
+// would otherwise be able to point upload_event_image / upload_event_media at
+// http://169.254.169.254/latest/meta-data/iam/... (AWS metadata) or
+// http://127.0.0.1:3001 to probe internal services. Restrict scheme to https
+// and reject any hostname that resolves to a private / link-local / loopback
+// address. There is a residual DNS-rebind window between this check and the
+// real fetch — acceptable for an MCP tool but worth knowing.
+function isPrivateOrReservedIPv4(ip) {
+  const [a, b] = ip.split(".").map(Number);
+  if (a === 0) return true;                                   // 0.0.0.0/8
+  if (a === 10) return true;                                  // 10.0.0.0/8
+  if (a === 127) return true;                                 // 127.0.0.0/8 loopback
+  if (a === 169 && b === 254) return true;                    // 169.254/16 link-local incl. AWS metadata
+  if (a === 172 && b >= 16 && b <= 31) return true;           // 172.16.0.0/12
+  if (a === 192 && b === 168) return true;                    // 192.168.0.0/16
+  if (a === 100 && b >= 64 && b <= 127) return true;          // 100.64/10 CGNAT
+  if (a >= 224) return true;                                  // multicast + reserved
+  return false;
+}
+
+function isPrivateOrReservedIPv6(ip) {
+  const lower = ip.toLowerCase();
+  if (lower === "::" || lower === "::1") return true;
+  if (lower.startsWith("fe80:")) return true;                 // link-local fe80::/10
+  if (/^f[cd]/.test(lower)) return true;                      // unique local fc00::/7
+  if (lower.startsWith("::ffff:")) {                          // v4-mapped
+    const v4 = lower.slice(7);
+    if (net.isIPv4(v4)) return isPrivateOrReservedIPv4(v4);
+  }
+  return false;
+}
+
+async function assertSafeFetchUrl(rawUrl) {
+  let u;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    throw new Error("Invalid URL.");
+  }
+  if (u.protocol !== "https:") {
+    throw new Error("URL must use https://.");
+  }
+  const host = u.hostname;
+  if (net.isIP(host)) {
+    if (net.isIPv4(host) && isPrivateOrReservedIPv4(host)) {
+      throw new Error("URL points to a private/reserved IP.");
+    }
+    if (net.isIPv6(host) && isPrivateOrReservedIPv6(host)) {
+      throw new Error("URL points to a private/reserved IP.");
+    }
+    return u;
+  }
+  let addrs;
+  try {
+    addrs = await dns.lookup(host, { all: true });
+  } catch (err) {
+    throw new Error(`Could not resolve URL host: ${err.message}`);
+  }
+  for (const { address, family } of addrs) {
+    if (family === 4 && isPrivateOrReservedIPv4(address)) {
+      throw new Error("URL resolves to a private/reserved IP.");
+    }
+    if (family === 6 && isPrivateOrReservedIPv6(address)) {
+      throw new Error("URL resolves to a private/reserved IP.");
+    }
+  }
+  return u;
+}
+
 async function fetchAsBuffer(url) {
+  await assertSafeFetchUrl(url);
   let resp;
   try {
     resp = await fetch(url);

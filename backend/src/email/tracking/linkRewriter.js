@@ -9,18 +9,31 @@
 
 import crypto from "crypto";
 
-const HMAC_SECRET = process.env.EMAIL_TRACKING_HMAC_SECRET || "pullup-tracking-default-key";
+// Signs click-tracking redirect URLs. A predictable HMAC secret would let
+// anyone forge /t/c/<uuid>?u=<base64(evil)>&s=<sig>, turning the click
+// endpoint into an open redirect off the pullup.se domain. Hard-fail in
+// production; dev keeps a placeholder so local email sends don't crash.
+const HMAC_SECRET = process.env.EMAIL_TRACKING_HMAC_SECRET;
 
-if (!process.env.EMAIL_TRACKING_HMAC_SECRET && process.env.NODE_ENV === "production") {
-  console.warn("[tracking] WARNING: EMAIL_TRACKING_HMAC_SECRET not set — using insecure default key");
+if (!HMAC_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "EMAIL_TRACKING_HMAC_SECRET is required in production. Set a 32+ byte random value.",
+    );
+  }
+  console.warn(
+    "[tracking] EMAIL_TRACKING_HMAC_SECRET not set — using dev-only placeholder",
+  );
 }
+
+const EFFECTIVE_HMAC_SECRET = HMAC_SECRET || "pullup-tracking-dev-only";
 
 /**
  * Create an HMAC signature for a tracking URL to prevent abuse.
  */
 export function signUrl(trackingId, url) {
   return crypto
-    .createHmac("sha256", HMAC_SECRET)
+    .createHmac("sha256", EFFECTIVE_HMAC_SECRET)
     .update(`${trackingId}:${url}`)
     .digest("hex")
     .slice(0, 16); // 16 hex chars = 64 bits, sufficient for URL signing

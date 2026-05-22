@@ -7142,23 +7142,17 @@ async function processHostedByLogos(eventId, sections) {
   if (hostedByIdx === -1) return sections; // nothing to upload
 
   const section = sections[hostedByIdx];
-  const base64Data = section.logo.replace(/^data:image\/\w+;base64,/, "");
-  const buffer = Buffer.from(base64Data, "base64");
-
-  // Enforce 500KB limit
-  if (buffer.length > 512 * 1024) {
-    throw new Error("Hosted-by logo must be under 500KB. Please use a smaller image.");
-  }
-
-  const mimeMatch = section.logo.match(/data:image\/(\w+);base64/);
-  const extension = mimeMatch ? mimeMatch[1] : "png";
+  const { buffer, extension, mime } = sniffUploadedImage(section.logo, {
+    maxBytes: 512 * 1024,
+    label: "Hosted-by logo",
+  });
   const fileName = `${eventId}/hostedby_logo.${extension}`;
 
   const { supabase } = await import("./supabase.js");
   const { error } = await supabase.storage
     .from("event-images")
     .upload(fileName, buffer, {
-      contentType: `image/${extension}`,
+      contentType: mime,
       upsert: true,
     });
 
@@ -7214,17 +7208,22 @@ app.post("/host/events/:eventId/image", requireAuth, async (req, res) => {
       fileName = storagePath;
     } else {
       // Legacy base64 path.
-      const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-      const buffer = Buffer.from(base64Data, "base64");
-
-      const mimeMatch = imageData.match(/data:image\/(\w+);base64/);
-      const extension = mimeMatch ? mimeMatch[1] : "png";
+      let sniff;
+      try {
+        sniff = sniffUploadedImage(imageData, {
+          maxBytes: 10 * 1024 * 1024,
+          label: "Event image",
+        });
+      } catch (e) {
+        return res.status(e.statusCode || 400).json(e.body);
+      }
+      const { buffer, extension, mime } = sniff;
       fileName = `${eventId}/image.${extension}`;
 
       const { error } = await supabase.storage
         .from("event-images")
         .upload(fileName, buffer, {
-          contentType: `image/${extension}`,
+          contentType: mime,
           upsert: true,
         });
 
@@ -7508,21 +7507,21 @@ app.get("/host/coach/actions", requireAuth, async (req, res) => {
 app.post("/host/crm/follow-up-images", requireAuth, async (req, res) => {
   try {
     const { imageData } = req.body;
-    if (!imageData || typeof imageData !== "string") {
-      return res.status(400).json({ error: "imageData is required" });
+    let sniff;
+    try {
+      sniff = sniffUploadedImage(imageData, {
+        maxBytes: 2 * 1024 * 1024,
+        label: "Image",
+      });
+    } catch (e) {
+      return res.status(e.statusCode || 400).json(e.body);
     }
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
-    if (buffer.length > 2 * 1024 * 1024) {
-      return res.status(400).json({ error: "Image must be under 2MB" });
-    }
-    const mimeMatch = imageData.match(/data:image\/(\w+);base64/);
-    const extension = mimeMatch ? mimeMatch[1] : "png";
+    const { buffer, extension, mime } = sniff;
     const fileName = `crm/${req.user.id}/${crypto.randomUUID()}.${extension}`;
     const { supabase } = await import("./supabase.js");
     const { error } = await supabase.storage
       .from("event-images")
-      .upload(fileName, buffer, { contentType: `image/${extension}`, upsert: false });
+      .upload(fileName, buffer, { contentType: mime, upsert: false });
     if (error) {
       console.error("CRM image upload error:", error);
       return res.status(500).json({ error: "Failed to upload image" });
@@ -8109,21 +8108,86 @@ app.put("/host/events/:eventId/media/:mediaId/cover", requireAuth, async (req, r
 // ---------------------------
 // PROTECTED: Upload profile picture
 // ---------------------------
+// Magic-byte sniff for user-uploaded images. The previous pattern of trusting
+// the data-URL's claimed MIME ("data:image/svg+xml;base64,...") let an
+// attacker upload an SVG containing <script>, which Supabase storage would
+// then serve back with Content-Type image/svg+xml — stored XSS for anyone
+// loading the asset directly. Only allow raster formats we have a documented
+// reason to accept on these surfaces.
+//
+// Returns { buffer, extension, mime }. Throws an HTTP-shaped error (.statusCode +
+// .body) on rejection so callers can `return res.status(e.statusCode).json(e.body)`.
+function sniffUploadedImage(imageData, { maxBytes, label = "Image" } = {}) {
+  if (!imageData || typeof imageData !== "string") {
+    const err = new Error(`${label} data is required`);
+    err.statusCode = 400;
+    err.body = { error: `${label} data is required` };
+    throw err;
+  }
+  const base64Data = imageData.replace(/^data:[\w+/.-]+;base64,/, "");
+  const buffer = Buffer.from(base64Data, "base64");
+  if (maxBytes && buffer.byteLength > maxBytes) {
+    const err = new Error(`${label} too large`);
+    err.statusCode = 413;
+    err.body = {
+      error: `${label} must be ${Math.round(maxBytes / 1024 / 1024)}MB or smaller.`,
+    };
+    throw err;
+  }
+  let extension, mime;
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
+  ) {
+    extension = "jpg"; mime = "image/jpeg";
+  } else if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47 &&
+    buffer[4] === 0x0d && buffer[5] === 0x0a && buffer[6] === 0x1a && buffer[7] === 0x0a
+  ) {
+    extension = "png"; mime = "image/png";
+  } else if (
+    buffer.length >= 12 &&
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    extension = "webp"; mime = "image/webp";
+  } else if (
+    buffer.length >= 6 &&
+    (buffer.toString("ascii", 0, 6) === "GIF87a" ||
+      buffer.toString("ascii", 0, 6) === "GIF89a")
+  ) {
+    extension = "gif"; mime = "image/gif";
+  } else {
+    const err = new Error(`${label} must be JPEG, PNG, WebP, or GIF.`);
+    err.statusCode = 415;
+    err.body = { error: `${label} must be JPEG, PNG, WebP, or GIF.` };
+    throw err;
+  }
+  return { buffer, extension, mime };
+}
+
 app.post("/host/profile/picture", requireAuth, async (req, res) => {
   try {
-    const { imageData } = req.body; // Base64 image data
+    const { imageData } = req.body;
 
-    if (!imageData) {
-      return res.status(400).json({ error: "imageData is required" });
+    let sniff;
+    try {
+      sniff = sniffUploadedImage(imageData, {
+        maxBytes: 5 * 1024 * 1024,
+        label: "Profile picture",
+      });
+    } catch (e) {
+      return res.status(e.statusCode || 400).json(e.body);
+    }
+    const { buffer, extension, mime } = sniff;
+    // Avatars don't need animation; drop GIF here to keep this surface tight.
+    if (extension === "gif") {
+      return res.status(415).json({
+        error: "Profile picture must be JPEG, PNG, or WebP.",
+      });
     }
 
-    // Convert base64 to buffer
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
-
-    // Determine file extension from data URL
-    const mimeMatch = imageData.match(/data:image\/(\w+);base64/);
-    const extension = mimeMatch ? mimeMatch[1] : "png";
     const fileName = `${req.user.id}/profile.${extension}`;
 
     // Upload to Supabase Storage
@@ -8131,7 +8195,7 @@ app.post("/host/profile/picture", requireAuth, async (req, res) => {
     const { data, error } = await supabase.storage
       .from("profile-pictures")
       .upload(fileName, buffer, {
-        contentType: `image/${extension}`,
+        contentType: mime,
         upsert: true, // Overwrite if exists
       });
 
@@ -8187,27 +8251,23 @@ app.post("/host/profile/logo", requireAuth, async (req, res) => {
   try {
     const { imageData } = req.body;
 
-    if (!imageData) {
-      return res.status(400).json({ error: "imageData is required" });
+    let sniff;
+    try {
+      sniff = sniffUploadedImage(imageData, {
+        maxBytes: 512 * 1024,
+        label: "Logo",
+      });
+    } catch (e) {
+      return res.status(e.statusCode || 400).json(e.body);
     }
-
-    // Enforce max size: ~500KB after base64 decoding
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
-
-    if (buffer.length > 512 * 1024) {
-      return res.status(400).json({ error: "Logo must be under 500KB. Please use a smaller image." });
-    }
-
-    const mimeMatch = imageData.match(/data:image\/(\w+);base64/);
-    const extension = mimeMatch ? mimeMatch[1] : "png";
+    const { buffer, extension, mime } = sniff;
     const fileName = `${req.user.id}/logo.${extension}`;
 
     const { supabase } = await import("./supabase.js");
     const { error } = await supabase.storage
       .from("profile-pictures")
       .upload(fileName, buffer, {
-        contentType: `image/${extension}`,
+        contentType: mime,
         upsert: true,
       });
 
@@ -13092,8 +13152,9 @@ app.patch("/admin/ideas/:id", requireAdmin, async (req, res) => {
 // Server
 // ---------------------------
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, async () => {
-  console.log(`PullUp API running on http://localhost:${PORT}`);
+const HOST = process.env.HOST || "0.0.0.0";
+app.listen(PORT, HOST, async () => {
+  console.log(`PullUp API running on http://${HOST}:${PORT}`);
   try {
     const { backfillEventHostsCoHostToEditor } = await import("./migrations.js");
     const updated = await backfillEventHostsCoHostToEditor();

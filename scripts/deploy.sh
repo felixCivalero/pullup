@@ -108,12 +108,16 @@ fi
 rm -rf dist-staging
 npm run build -- --outDir dist-staging 2>&1 | tail -8
 
-# Smoke test: a production bundle must NOT contain localhost references.
-# This catches the exact 2026-05-22 incident (and any future variant) at
-# deploy time, before the swap.
-if grep -qE "(localhost:[0-9]+|127\.0\.0\.1:[0-9]+)" dist-staging/assets/*.js 2>/dev/null; then
-  echo "SMOKE TEST FAILED: localhost reference found in bundle:"
-  grep -nE "(localhost:[0-9]+|127\.0\.0\.1:[0-9]+)" dist-staging/assets/*.js | head -5
+# Smoke test: a production bundle must NOT contain references to OUR dev
+# URLs (3001 = backend, 5173 = vite dev). We scope to specific ports
+# because vendor bundles (Supabase auth defaults to localhost:9999,
+# realtime client has localhost references, etc.) legitimately contain
+# unrelated localhost:N strings that we don't want to false-positive on.
+# Minified output is one line per file, so we cut the printed match to
+# 200 chars to keep the failure message readable.
+if grep -qE "(localhost:3001|localhost:5173|127\.0\.0\.1:3001)" dist-staging/assets/*.js 2>/dev/null; then
+  echo "SMOKE TEST FAILED: dev URL leaked into bundle:"
+  grep -oE "(localhost:3001|localhost:5173|127\.0\.0\.1:3001)[^\"',\)\}]{0,40}" dist-staging/assets/*.js | head -5
   rm -rf dist-staging
   exit 1
 fi

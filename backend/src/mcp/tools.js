@@ -353,7 +353,7 @@ const FindPersonInput = {
 };
 
 const GetPersonInput = {
-  personId: z.string().describe(
+  personId: z.string().uuid().describe(
     "Person id (UUID). Use find_person first if you only have a name or email."
   ),
 };
@@ -380,7 +380,7 @@ const QueryPeopleInput = {
 };
 
 const UpdatePersonInput = {
-  personId: z.string().describe("Person id (UUID)."),
+  personId: z.string().uuid().describe("Person id (UUID)."),
   name: z.string().optional(),
   phone: z.string().optional(),
   notes: z.string().optional(),
@@ -405,7 +405,7 @@ const ListCampaignsInput = {
 };
 
 const GetCampaignInput = {
-  campaignId: z.string().describe("Campaign id (UUID)."),
+  campaignId: z.string().uuid().describe("Campaign id (UUID)."),
 };
 
 const DraftCampaignInput = {
@@ -428,7 +428,7 @@ const DraftCampaignInput = {
 };
 
 const SendCampaignInput = {
-  campaignId: z.string().describe("Campaign id from draft_campaign or list_campaigns."),
+  campaignId: z.string().uuid().describe("Campaign id from draft_campaign or list_campaigns."),
   confirm: z.literal(true).describe(
     "Must be `true` to proceed. Forces a confirmation step so Claude can't fire a send without explicit user approval."
   ),
@@ -462,7 +462,7 @@ const SuggestImprovementsInput = {
 };
 
 const SuggestCampaignImprovementsInput = {
-  campaignId: z.string().describe(
+  campaignId: z.string().uuid().describe(
     "Campaign id (UUID) from draft_campaign or list_campaigns. Returns subject-quality, audience, timing, and preview-gate suggestions."
   ),
   limit: z.number().int().positive().max(10).optional().describe(

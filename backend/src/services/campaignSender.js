@@ -38,18 +38,30 @@ export async function sendCampaignInBatches(
   delayMs = 1000
 ) {
   try {
-    // 1. Get campaign data (with ownership check)
+    // 1. Atomically claim the campaign by flipping draft → sending in a
+    // single conditional UPDATE. Two concurrent send calls cannot both
+    // win: the loser sees null and bails before any email goes out. The
+    // previous "read status, check, then update" pattern raced under
+    // retries and could double-send. Sending → sending retries (the old
+    // permissive check) are now rejected explicitly: if you need to
+    // resume a stuck send, reset the campaign back to draft first.
+    const { claimCampaignForSending } = await import("../data.js");
+    const claimed = await claimCampaignForSending(campaignId, userId);
+    if (!claimed) {
+      // Either the campaign doesn't exist for this user, or it's not in
+      // draft. Surface the actual current status for the caller.
+      const existing = await getEmailCampaign(campaignId, userId);
+      if (!existing) {
+        throw new Error("Campaign not found or access denied");
+      }
+      throw new Error(`Campaign is not in a sendable state: ${existing.status}`);
+    }
+    // Re-fetch through the mapped helper so the rest of this function
+    // gets the full mapped shape (templateContent, filterCriteria, etc.).
     const campaign = await getEmailCampaign(campaignId, userId);
     if (!campaign) {
-      throw new Error("Campaign not found or access denied");
+      throw new Error("Campaign disappeared mid-claim — aborting send.");
     }
-
-    if (campaign.status !== "draft" && campaign.status !== "sending") {
-      throw new Error(`Campaign is not in a sendable state: ${campaign.status}`);
-    }
-
-    // Update status to "sending"
-    await updateEmailCampaignStatus(campaignId, "sending");
 
     // 2. Get event data if event-based campaign
     let event = null;

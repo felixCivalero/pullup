@@ -502,11 +502,23 @@ function generateOgHtml(event, queryString = "") {
 </html>`;
 }
 
-// CORS configuration
+// CORS configuration.
+//
+// If CORS_ORIGIN is unset in production, fail fast on boot rather than
+// silently fall back to the dev-only localhost allowlist. The audit
+// flagged the previous quiet-fallback behavior as a real foot-gun: a
+// prod deploy that forgot the env would 200 the OPTIONS preflight but
+// then deny actual cross-origin requests, breaking every browser
+// client without any backend error.
+if (process.env.NODE_ENV === "production" && !process.env.CORS_ORIGIN) {
+  throw new Error(
+    "CORS_ORIGIN must be set in production. Example: CORS_ORIGIN=https://pullup.se,https://www.pullup.se",
+  );
+}
 const corsOptions = {
   origin: process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",")
-    : ["http://localhost:3000", "http://localhost:5173"], // Default dev origins
+    : ["http://localhost:3000", "http://localhost:5173"], // dev default
   credentials: true,
   optionsSuccessStatus: 200,
 };

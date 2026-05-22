@@ -70,6 +70,10 @@ export function AuthCard({
   const [password, setPassword] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [formError, setFormError] = useState("");
+  // When sign-in fails with invalid credentials we surface a
+  // "Create new account with this email?" CTA instead of silently
+  // creating one (typos would mint orphan accounts otherwise).
+  const [offerCreate, setOfferCreate] = useState(false);
 
   // Consent is now implicit: clicking either "Continue with Google" or the
   // submit button counts as agreement (the fine-print below the form spells
@@ -81,15 +85,14 @@ export function AuthCard({
       () => {},
     );
 
-  const handleEmailSubmit = async (e) => {
-    e.preventDefault();
-    if (signingIn) return;
+  const submitAuth = async ({ allowAutoCreate }) => {
     setFormError("");
-    trackEvent(`${trackingPrefix}_email_submit`);
-    if (funnelTrack) trackEvent("auth_start", { method: "email" });
+    if (!allowAutoCreate) setOfferCreate(false);
     try {
       setSigningIn(true);
-      await signInWithEmailPassword(email.trim(), password);
+      await signInWithEmailPassword(email.trim(), password, {
+        allowAutoCreate,
+      });
       recordConsent();
       // signed_in fires from the parent (OnboardingPage's finalize) so the
       // event is unified across both email and Google OAuth completion paths
@@ -97,6 +100,13 @@ export function AuthCard({
       onSuccess?.("email");
     } catch (err) {
       const msg = (err?.message || "").toLowerCase();
+      // invalid_credentials code from AuthContext = signin failed and
+      // caller hasn't opted in to create. Show the create-account CTA.
+      if (err?.code === "invalid_credentials" && !allowAutoCreate) {
+        setOfferCreate(true);
+        setFormError("");
+        return;
+      }
       let friendly = "Something went wrong. Please try again.";
       if (msg.includes("email not confirmed"))
         friendly = "Check your email to confirm your account, then come back.";
@@ -109,9 +119,25 @@ export function AuthCard({
           'This email uses another sign-in method. Try "Continue with Google".';
       else if (msg.includes("password")) friendly = err.message;
       setFormError(friendly);
+      setOfferCreate(false);
     } finally {
       setSigningIn(false);
     }
+  };
+
+  const handleEmailSubmit = async (e) => {
+    e.preventDefault();
+    if (signingIn) return;
+    trackEvent(`${trackingPrefix}_email_submit`);
+    if (funnelTrack) trackEvent("auth_start", { method: "email" });
+    await submitAuth({ allowAutoCreate: false });
+  };
+
+  const handleConfirmCreate = async () => {
+    if (signingIn) return;
+    trackEvent(`${trackingPrefix}_email_create_confirm`);
+    if (funnelTrack) trackEvent("auth_start", { method: "email_create" });
+    await submitAuth({ allowAutoCreate: true });
   };
 
   const handleGoogle = async () => {
@@ -289,6 +315,62 @@ export function AuthCard({
           }}
         >
           {formError}
+        </div>
+      )}
+
+      {offerCreate && (
+        <div
+          style={{
+            fontSize: 12,
+            color: "rgba(255,255,255,0.85)",
+            textAlign: "center",
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          <div style={{ color: "rgba(255,255,255,0.7)" }}>
+            No account found for{" "}
+            <strong style={{ color: "#fff" }}>{email.trim()}</strong>.
+          </div>
+          <button
+            type="button"
+            onClick={handleConfirmCreate}
+            disabled={signingIn}
+            style={{
+              width: "100%",
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,0.2)",
+              background: "transparent",
+              color: "#fff",
+              padding: "10px 14px",
+              cursor: signingIn ? "wait" : "pointer",
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            Create a new account with this email
+          </button>
+          <button
+            type="button"
+            onClick={() => setOfferCreate(false)}
+            disabled={signingIn}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "rgba(255,255,255,0.55)",
+              fontSize: 12,
+              padding: "4px 0",
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            Or check the email — I had a typo
+          </button>
         </div>
       )}
     </form>

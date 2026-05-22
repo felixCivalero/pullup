@@ -30,3 +30,4 @@ discord-bot/node_modules
 
 # Git worktrees
 .worktrees/
+node_modules/

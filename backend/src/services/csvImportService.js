@@ -212,11 +212,16 @@ export async function importPeopleFromCsv(csvText, userId) {
       }
 
       if (!existingPerson && personData.stripeCustomerId) {
+        // maybeSingle (not single) because most lookups WON'T find a
+        // match — .single() returns an error in that case
+        // ("Cannot coerce the result to a single JSON object") that we
+        // then have to defensively ignore. .maybeSingle returns
+        // {data:null, error:null} cleanly.
         const { data, error } = await supabase
           .from("people")
           .select("*")
           .eq("stripe_customer_id", personData.stripeCustomerId)
-          .single();
+          .maybeSingle();
 
         if (data && !error) {
           // Map database person to application format

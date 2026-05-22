@@ -756,7 +756,20 @@ app.post("/webhooks/ses-eventbridge", async (req, res) => {
     const signatureHeader =
       req.headers["x-pullup-signature"] || req.headers["X-Pullup-Signature"];
 
-    if (!secret || !signatureHeader || signatureHeader !== secret) {
+    // Constant-time compare so an attacker can't time-side-channel out
+    // the secret one byte at a time. Length-check first because
+    // timingSafeEqual throws on unequal lengths.
+    const isValid =
+      !!secret &&
+      !!signatureHeader &&
+      typeof signatureHeader === "string" &&
+      Buffer.byteLength(signatureHeader) === Buffer.byteLength(secret) &&
+      crypto.timingSafeEqual(
+        Buffer.from(signatureHeader),
+        Buffer.from(secret),
+      );
+
+    if (!isValid) {
       console.warn("[Webhook][SES-EventBridge] Unauthorized request", {
         hasSecret: !!secret,
         hasSignature: !!signatureHeader,

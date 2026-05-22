@@ -263,7 +263,7 @@ export function AuthCard({
         <a
           href="/terms"
           target="_blank"
-          rel="noopener"
+          rel="noopener noreferrer"
           style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}
         >
           terms
@@ -272,7 +272,7 @@ export function AuthCard({
         <a
           href="/privacy"
           target="_blank"
-          rel="noopener"
+          rel="noopener noreferrer"
           style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}
         >
           privacy policy

@@ -200,9 +200,9 @@ export function PublishAuthModal({ onClose, onProfileReady }) {
                 />
                 <span>
                   I agree to the{" "}
-                  <a href="/terms" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}>terms</a>
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}>terms</a>
                   {" "}and{" "}
-                  <a href="/privacy" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}>privacy policy</a>
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}>privacy policy</a>
                 </span>
               </label>
               <button

@@ -1,59 +1,22 @@
 // frontend/src/lib/urlUtils.js
 // Utility functions for URL handling (localhost vs production)
 import { formatDateForCalendar, addHours } from "./dateUtils.js";
-
-// Frontend and backend base URLs are driven by env, with sensible dev fallbacks.
-// This keeps dev/prod/staging deploys aligned without hardcoding domains.
-const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || "";
-const DEV_FRONTEND_FALLBACK = "http://localhost:5173";
-const DEV_API_FALLBACK = "http://localhost:3001";
-
-// Allow explicit control via VITE_NODE_ENV, but also respect Vite's DEV flag.
-const VITE_NODE_ENV = import.meta.env.VITE_NODE_ENV || "";
-const IS_DEV =
-  VITE_NODE_ENV.toLowerCase() === "development" || import.meta.env.DEV;
+import { API_BASE, FRONTEND_BASE, IS_DEV } from "./env.js";
 
 export function getBaseUrl() {
-  // In development, prefer the real browser origin when available
-  if (IS_DEV) {
-    if (typeof window !== "undefined" && window.location?.origin) {
-      return window.location.origin;
-    }
-    // Fallback if window isn't available (e.g. during SSR or tests)
-    return FRONTEND_URL || DEV_FRONTEND_FALLBACK;
-  }
-
-  // In production-like builds, use explicit env when provided
-  if (FRONTEND_URL) {
-    return FRONTEND_URL;
-  }
-
-  // As a last resort, fall back to window.location.origin if available
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin;
-  }
-
-  throw new Error(
-    "[getBaseUrl] VITE_FRONTEND_URL is not set and window.location.origin is unavailable.",
-  );
+  return FRONTEND_BASE;
 }
 
 function getShareOrigin() {
-  // In dev, the backend serves /share/:slug directly.
-  // Prefer an explicit share origin or API URL, then default to localhost backend.
   if (IS_DEV) {
-    const apiBase =
-      import.meta.env.VITE_API_URL ||
-      (import.meta.env.DEV ? DEV_API_FALLBACK : "/api");
     return (
       import.meta.env.VITE_SHARE_ORIGIN ||
-      apiBase.replace(/\/api\/?$/, "").replace(/\/$/, "")
+      API_BASE.replace(/\/api\/?$/, "").replace(/\/$/, "")
     );
   }
-
-  // In prod, nginx (or your proxy) usually serves /share/:slug on the same domain as the frontend.
-  const baseUrl = getBaseUrl();
-  return import.meta.env.VITE_SHARE_ORIGIN || baseUrl;
+  // In prod, nginx (or your proxy) usually serves /share/:slug on the same
+  // domain as the frontend.
+  return import.meta.env.VITE_SHARE_ORIGIN || FRONTEND_BASE;
 }
 
 export function getEventUrl(slug) {

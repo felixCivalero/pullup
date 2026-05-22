@@ -14,6 +14,12 @@ frontend/.env.production
 !backend/.env.example
 !frontend/.env.example
 
+# Keep frontend/.env.production checked in. Its values get baked into the
+# JS bundle that ships to every visitor, so they're public by definition —
+# no secrets live in this file. Tracking it makes every clone produce a
+# correct production build (see scripts/deploy.sh + frontend/vite.config.js).
+!frontend/.env.production
+
 *.md
 
 

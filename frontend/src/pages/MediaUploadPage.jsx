@@ -12,10 +12,7 @@ import { useParams } from "react-router-dom";
 import { Upload, Image as ImageIcon, Film, Check, ExternalLink, AlertCircle } from "lucide-react";
 
 import { uploadBlobToSignedUrl, generateVideoThumbnail } from "../lib/imageUtils.js";
-
-const API_BASE =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? "http://localhost:3001" : "/api");
+import { API_BASE } from "../lib/env.js";
 
 const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024;

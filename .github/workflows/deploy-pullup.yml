@@ -8,6 +8,15 @@ on:
       - "backend/**"
       - ".github/workflows/deploy-pullup.yml"
 
+# Prevent concurrent deploys of the same branch from racing. A new push
+# while a deploy is in progress cancels the previous run before starting
+# the new one — so we never have two `npm install` processes clobbering
+# the same node_modules tree on EC2 (which is what produced the tar
+# ENOENT errors on 2026-05-22).
+concurrency:
+  group: deploy-pullup-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -18,6 +27,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 10m
           script: |
             set -euo pipefail
             export PATH=$PATH:/usr/local/bin:/usr/bin
@@ -51,6 +61,10 @@ jobs:
             fi
             echo "✅ Node.js: $(node -v), npm: $(npm -v)"
 
+            # ─── FRONTEND BUILD (atomic swap) ────────────────────────────
+            # Build into dist-staging so the live `dist` only gets touched
+            # AFTER the smoke test passes. On failure, dist is untouched
+            # and the previous bundle keeps serving.
             echo "📦 Installing frontend dependencies..."
             cd frontend
             if [ -f package-lock.json ]; then
@@ -59,9 +73,39 @@ jobs:
               npm install --include=dev
             fi
 
-            echo "🏗 Building frontend..."
-            npm run build
+            echo "🏗 Building frontend → dist-staging..."
+            rm -rf dist-staging
+            npm run build -- --outDir dist-staging
 
+            echo "🔍 Smoke test on dist-staging..."
+            # No dev URLs leaked into the bundle. (We only check for the
+            # exact ports our app uses in dev — 3001/5173 — to avoid
+            # false positives from vendor libs that have their own
+            # localhost:NNNN defaults baked in.)
+            if grep -qE "(localhost:3001|localhost:5173|127\.0\.0\.1:3001)" dist-staging/assets/*.js 2>/dev/null; then
+              echo "❌ SMOKE TEST FAILED: dev URL leaked into bundle:" >&2
+              grep -oE "(localhost:3001|localhost:5173|127\.0\.0\.1:3001)[^\"',\)\}]{0,40}" dist-staging/assets/*.js | head -5 >&2
+              rm -rf dist-staging
+              exit 1
+            fi
+            # Production API host must actually be present in the bundle.
+            # Accepts either api.pullup.se or the same-origin /api path.
+            if ! grep -qE "(api\.pullup\.se|pullup\.se/api)" dist-staging/assets/*.js 2>/dev/null; then
+              echo "❌ SMOKE TEST FAILED: no pullup.se API URL in bundle — env wasn't applied?" >&2
+              rm -rf dist-staging
+              exit 1
+            fi
+            echo "✅ Smoke test passed."
+
+            echo "🔁 Atomic swap (previous bundle preserved as dist-prev)..."
+            rm -rf dist-prev
+            if [ -d dist ]; then
+              mv dist dist-prev
+            fi
+            mv dist-staging dist
+            echo "  active bundle: $(ls dist/assets/index-*.js 2>/dev/null | head -1)"
+
+            # ─── BACKEND ─────────────────────────────────────────────────
             echo "📦 Installing backend dependencies..."
             cd ../backend
             if [ -f package-lock.json ]; then
@@ -70,31 +114,47 @@ jobs:
               npm install
             fi
 
-            echo "🔄 Restarting PM2 processes with updated env..."
+            echo "🔄 Reloading PM2 processes with updated env..."
 
-            # API
-            if ! pm2 restart pullup-api --update-env; then
+            # API — reload (not restart) for zero-downtime. Falls back to
+            # ecosystem.config.js on first deploy when the process isn't
+            # yet registered.
+            if ! pm2 reload pullup-api --update-env; then
               if [ -f ecosystem.config.js ]; then
                 echo "ℹ️ pm2 process 'pullup-api' not found, starting from ecosystem.config.js"
                 pm2 start ecosystem.config.js --only pullup-api
               else
-                echo "❌ Failed to restart pm2 process 'pullup-api' and no ecosystem.config.js found" >&2
+                echo "❌ Failed to reload pm2 process 'pullup-api' and no ecosystem.config.js found" >&2
                 exit 1
               fi
             fi
 
             # Email worker
-            if ! pm2 restart pullup-email-worker --update-env; then
+            if ! pm2 reload pullup-email-worker --update-env; then
               if [ -f ecosystem.config.js ]; then
                 echo "ℹ️ pm2 process 'pullup-email-worker' not found, starting from ecosystem.config.js"
                 pm2 start ecosystem.config.js --only pullup-email-worker
               else
-                echo "❌ Failed to restart pm2 process 'pullup-email-worker' and no ecosystem.config.js found" >&2
+                echo "❌ Failed to reload pm2 process 'pullup-email-worker' and no ecosystem.config.js found" >&2
                 exit 1
               fi
             fi
 
             pm2 save
+
+            # ─── POST-DEPLOY HEALTH CHECK ────────────────────────────────
+            echo "🏥 Backend health check..."
+            sleep 2
+            if ! curl -fsS -o /dev/null http://127.0.0.1:3001/mcp/health; then
+              echo "❌ Backend health check failed after reload. Rolling back frontend..." >&2
+              if [ -d dist-prev ]; then
+                rm -rf dist-failed
+                mv dist dist-failed
+                mv dist-prev dist
+                echo "🔙 Frontend rolled back to dist-prev."
+              fi
+              exit 1
+            fi
 
             echo "✅ Deployment complete"
             pm2 status pullup-api

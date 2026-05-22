@@ -617,27 +617,37 @@ app.post(
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // Respond 200 immediately so Stripe never times out, then process in background
-    res.json({ received: true });
-
-    // Process asynchronously — errors are logged but don't affect the HTTP response
-    handleStripeWebhook(event)
-      .then((result) => {
-        console.log("[Webhook] ✅ Event processed:", {
-          type: event.type,
-          id: event.id,
-          processed: result.processed,
-          error: result.error,
-        });
-      })
-      .catch((error) => {
-        console.error("[Webhook] ❌ Processing error:", {
-          type: event.type,
-          id: event.id,
-          error: error.message,
-          stack: error.stack,
-        });
+    // Process synchronously and only THEN ack 200. The previous pattern
+    // was "ack 200, process in background" — any uncaught throw inside
+    // handleStripeWebhook silently lost the event because Stripe saw 200
+    // and never retried. The audit flagged this as a real source of
+    // payment-state drift. Stripe's webhook timeout is ~30s; our
+    // handlers are well under that, so awaiting is safe.
+    //
+    // Stripe automatically retries on any non-2xx for up to 3 days with
+    // exponential backoff — so a 500 here is the correct way to ask for
+    // a retry. We deliberately do NOT include err.message in the
+    // response body to avoid leaking internal details to anyone able to
+    // POST to /webhooks/stripe (signature verification already happened
+    // above, so this is defense-in-depth).
+    try {
+      const result = await handleStripeWebhook(event);
+      console.log("[Webhook] ✅ Event processed:", {
+        type: event.type,
+        id: event.id,
+        processed: result.processed,
+        error: result.error,
       });
+      res.json({ received: true });
+    } catch (error) {
+      console.error("[Webhook] ❌ Processing error:", {
+        type: event.type,
+        id: event.id,
+        error: error.message,
+        stack: error.stack,
+      });
+      res.status(500).send("Webhook processing failed — will be retried");
+    }
   }
 );
 
@@ -13190,6 +13200,49 @@ app.patch("/admin/ideas/:id", requireAdmin, async (req, res) => {
     console.error("[admin] ideas update error:", err.message);
     return res.status(500).json({ error: "Failed to update idea" });
   }
+});
+
+// ---------------------------
+// 404 + global error handlers
+// ---------------------------
+//
+// Anything not matched by a route above falls through to this 404. JSON
+// shape so the SPA fetch wrappers don't choke on HTML.
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found", path: req.path });
+});
+
+// Last-resort error handler. The audit flagged synchronous throws
+// leaking stack traces via Express's default HTML error page, plus
+// per-route `res.status(500).json({ message: error.message })` echoing
+// Supabase errors that contain schema/column names. Catch everything
+// here, log the real error server-side, return a generic message
+// client-side.
+//
+// 4-arg signature is what flags this as an error handler to Express.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  const requestId = crypto.randomBytes(6).toString("hex");
+  console.error("[globalError]", {
+    requestId,
+    method: req.method,
+    path: req.originalUrl,
+    statusCode: err.statusCode || err.status,
+    name: err.name,
+    message: err.message,
+    stack: err.stack,
+  });
+  if (res.headersSent) return; // Express handles the rest
+  const status = Number(err.statusCode || err.status) || 500;
+  // Only surface the actual message when it's clearly an intentional
+  // 4xx (a route that set .statusCode = 400/401/403/404 etc.). 5xx
+  // messages are kept opaque because they typically wrap Supabase /
+  // Stripe / internal errors that name fields we don't want public.
+  const body =
+    status < 500 && err.message
+      ? { error: err.message, requestId }
+      : { error: "Internal server error", requestId };
+  res.status(status).json(body);
 });
 
 // ---------------------------

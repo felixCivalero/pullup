@@ -13463,8 +13463,9 @@ app.listen(PORT, HOST, async () => {
     }
   }
 
-  // Day-before event reminders. Outbox idempotency key
-  // `reminder-24h-<eventId>-<personId>` dedupes across the every-15-min
-  // ticks so each guest gets exactly one reminder per event.
-  setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
+  // Day-before event reminders — PAUSED by request. Uncomment to
+  // re-enable. The outbox idempotency key
+  // `reminder-24h-<eventId>-<personId>` already dedupes across the
+  // every-15-min ticks, so re-enabling is safe whenever you're ready.
+  // setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
 });

@@ -3,12 +3,20 @@
 
 import jwt from "jsonwebtoken";
 
-let WAITLIST_TOKEN_SECRET =
-  process.env.WAITLIST_TOKEN_SECRET || process.env.SUPABASE_SERVICE_KEY;
+// Dedicated secret for short-lived host-action JWTs (waitlist offers, VIP
+// invites, media uploads). Must be its own secret — reusing the Supabase
+// service-role key would massively expand the blast radius of any token leak
+// or jsonwebtoken CVE. Hard-fail in production if unset.
+const WAITLIST_TOKEN_SECRET = process.env.WAITLIST_TOKEN_SECRET;
 
 if (!WAITLIST_TOKEN_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "WAITLIST_TOKEN_SECRET is required in production. Set a 32+ byte random value.",
+    );
+  }
   console.warn(
-    "⚠️  WAITLIST_TOKEN_SECRET or SUPABASE_SERVICE_KEY not set"
+    "⚠️  WAITLIST_TOKEN_SECRET not set — waitlist/VIP/media tokens will fail",
   );
 }
 
@@ -26,12 +34,11 @@ if (!WAITLIST_TOKEN_SECRET) {
  */
 export function generateWaitlistToken(payload, opts = {}) {
   if (!WAITLIST_TOKEN_SECRET) {
-    throw new Error(
-      "WAITLIST_TOKEN_SECRET or SUPABASE_SERVICE_KEY must be set"
-    );
+    throw new Error("WAITLIST_TOKEN_SECRET must be set");
   }
 
   return jwt.sign(payload, WAITLIST_TOKEN_SECRET, {
+    algorithm: "HS256",
     expiresIn: opts.expiresIn || "48h",
   });
 }
@@ -46,13 +53,13 @@ export function generateWaitlistToken(payload, opts = {}) {
  */
 export function verifyWaitlistToken(token) {
   if (!WAITLIST_TOKEN_SECRET) {
-    throw new Error(
-      "WAITLIST_TOKEN_SECRET or SUPABASE_SERVICE_KEY must be set"
-    );
+    throw new Error("WAITLIST_TOKEN_SECRET must be set");
   }
 
   try {
-    return jwt.verify(token, WAITLIST_TOKEN_SECRET);
+    return jwt.verify(token, WAITLIST_TOKEN_SECRET, {
+      algorithms: ["HS256"],
+    });
   } catch (error) {
     if (error.name === "TokenExpiredError") {
       throw new Error("Token expired");

@@ -2,35 +2,65 @@ import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort } from "../lib/urlUtils";
 
-function getSpotifyEmbedUrl(url) {
-  return url.replace("spotify.com/", "spotify.com/embed/").split("?")[0];
-}
+// Each embed helper PARSES the URL and only emits an iframe src whose host
+// is one we explicitly trust. The previous string.includes() / replace()
+// versions matched `https://attacker.com/spotify.com/x` and dutifully built
+// an iframe pointing at attacker.com. Return null on anything unrecognised so
+// the caller can refuse to render.
 
-function getAppleMusicEmbedUrl(url) {
-  return url.replace("music.apple.com", "embed.music.apple.com");
-}
-
-function getSoundCloudEmbedUrl(url) {
-  return `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&visual=true`;
-}
-
-function getYouTubeEmbedUrl(url) {
-  let videoId = null;
+function parseHttpsUrl(raw) {
   try {
-    const u = new URL(url);
-    if (u.hostname === "youtu.be") {
-      videoId = u.pathname.slice(1);
-    } else if (u.hostname.includes("youtube.com")) {
-      if (u.pathname.startsWith("/embed/")) {
-        videoId = u.pathname.split("/embed/")[1];
-      } else {
-        videoId = u.searchParams.get("v");
-      }
-    }
+    const u = new URL(raw);
+    if (u.protocol !== "https:") return null;
+    return u;
   } catch {
     return null;
   }
-  return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+}
+
+function hostMatches(host, suffixes) {
+  return suffixes.some((s) => host === s || host.endsWith(`.${s}`));
+}
+
+function getSpotifyEmbedUrl(url) {
+  const u = parseHttpsUrl(url);
+  if (!u || !hostMatches(u.hostname, ["spotify.com"])) return null;
+  // Spotify URL paths look like /track/<id>, /album/<id>, /playlist/<id>,
+  // /episode/<id>, /show/<id>. The embed form just prefixes /embed/ before
+  // the type segment. Reconstruct from the trusted host instead of replacing
+  // text inside the user-supplied string.
+  return `https://open.spotify.com/embed${u.pathname}`;
+}
+
+function getAppleMusicEmbedUrl(url) {
+  const u = parseHttpsUrl(url);
+  if (!u || !hostMatches(u.hostname, ["music.apple.com"])) return null;
+  return `https://embed.music.apple.com${u.pathname}${u.search}`;
+}
+
+function getSoundCloudEmbedUrl(url) {
+  const u = parseHttpsUrl(url);
+  if (!u || !hostMatches(u.hostname, ["soundcloud.com"])) return null;
+  return `https://w.soundcloud.com/player/?url=${encodeURIComponent(u.href)}&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&visual=true`;
+}
+
+function getYouTubeEmbedUrl(url) {
+  const u = parseHttpsUrl(url);
+  if (!u) return null;
+  let videoId = null;
+  if (u.hostname === "youtu.be") {
+    videoId = u.pathname.slice(1);
+  } else if (hostMatches(u.hostname, ["youtube.com", "youtube-nocookie.com"])) {
+    if (u.pathname.startsWith("/embed/")) {
+      videoId = u.pathname.split("/embed/")[1];
+    } else {
+      videoId = u.searchParams.get("v");
+    }
+  }
+  // Strict id check — letters, digits, dash, underscore only (YouTube's
+  // alphabet). Prevents path traversal back into another provider's URL.
+  if (!videoId || !/^[A-Za-z0-9_-]{6,32}$/.test(videoId)) return null;
+  return `https://www.youtube.com/embed/${videoId}`;
 }
 
 function formatDate(startsAt, timezone) {
@@ -100,16 +130,31 @@ export function EventPageContent({
               ? <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", opacity: 0.5, fontStyle: "italic" }}>{dateTba}</div>
               : formattedDate ? <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635" }}>{formattedDate}</div> : null
 
-          ) : section.type === "spotify" && section.url && section.url.includes("spotify.com") ? (
-            <iframe src={getSpotifyEmbedUrl(section.url)} width="100%" height={section.url.includes("/track/") ? "80" : "152"} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style={{ borderRadius: "12px", border: "none" }} />
+          ) : section.type === "spotify" && section.url ? (
+            (() => {
+              const embedUrl = getSpotifyEmbedUrl(section.url);
+              return embedUrl ? (
+                <iframe src={embedUrl} width="100%" height={embedUrl.includes("/track/") ? "80" : "152"} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style={{ borderRadius: "12px", border: "none" }} />
+              ) : null;
+            })()
 
-          ) : section.type === "applemusic" && section.url && section.url.includes("music.apple.com") ? (
-            <iframe src={getAppleMusicEmbedUrl(section.url)} width="100%" height={section.url.includes("/song/") || section.url.includes("?i=") ? "175" : "450"} frameBorder="0" allow="autoplay *; encrypted-media *; fullscreen *" loading="lazy" sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation" style={{ borderRadius: "12px", border: "none" }} />
+          ) : section.type === "applemusic" && section.url ? (
+            (() => {
+              const embedUrl = getAppleMusicEmbedUrl(section.url);
+              return embedUrl ? (
+                <iframe src={embedUrl} width="100%" height={embedUrl.includes("/song/") || embedUrl.includes("?i=") ? "175" : "450"} frameBorder="0" allow="autoplay *; encrypted-media *; fullscreen *" loading="lazy" sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation" style={{ borderRadius: "12px", border: "none" }} />
+              ) : null;
+            })()
 
-          ) : section.type === "soundcloud" && section.url && section.url.includes("soundcloud.com") ? (
-            <iframe src={getSoundCloudEmbedUrl(section.url)} width="100%" height={section.url.includes("/sets/") ? "300" : "166"} frameBorder="0" allow="autoplay" loading="lazy" style={{ borderRadius: "12px", border: "none" }} />
+          ) : section.type === "soundcloud" && section.url ? (
+            (() => {
+              const embedUrl = getSoundCloudEmbedUrl(section.url);
+              return embedUrl ? (
+                <iframe src={embedUrl} width="100%" height={section.url.includes("/sets/") ? "300" : "166"} frameBorder="0" allow="autoplay" loading="lazy" style={{ borderRadius: "12px", border: "none" }} />
+              ) : null;
+            })()
 
-          ) : section.type === "youtube" && section.url && (section.url.includes("youtube.com") || section.url.includes("youtu.be")) ? (
+          ) : section.type === "youtube" && section.url ? (
             (() => {
               const embedUrl = getYouTubeEmbedUrl(section.url);
               return embedUrl ? (

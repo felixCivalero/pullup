@@ -2,18 +2,7 @@
 // Helper functions for authenticated API calls
 
 import { supabase } from "./supabase.js";
-
-// API base URL:
-// - Prefer VITE_API_URL when set (for staging/custom domains)
-// - Otherwise:
-//   - Dev: talk directly to backend on localhost:3001
-//   - Prod: use /api on the same origin (fronted by a proxy)
-const VITE_NODE_ENV = import.meta.env.VITE_NODE_ENV || "";
-const IS_DEV =
-  VITE_NODE_ENV.toLowerCase() === "development" || import.meta.env.DEV;
-
-const API_BASE =
-  import.meta.env.VITE_API_URL || (IS_DEV ? "http://localhost:3001" : "/api");
+import { API_BASE } from "./env.js";
 
 /**
  * Make an authenticated API request

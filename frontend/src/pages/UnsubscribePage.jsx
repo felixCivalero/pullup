@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import { API_BASE } from "../lib/env.js";
 
 export function UnsubscribePage() {
   const { token } = useParams();

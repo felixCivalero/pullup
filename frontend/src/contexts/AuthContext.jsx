@@ -53,7 +53,25 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const signInWithEmailPassword = async (email, password) => {
+  // Email + password auth. By default this ONLY signs in — it does NOT
+  // create an account on failure. The previous behavior (transparent
+  // signup on sign-in failure) had a bad failure mode: a typo'd email
+  // would silently mint a new account at the typo address, orphaning
+  // the user's real account.
+  //
+  // To get the old "type-and-go" UX safely, callers pass
+  //   { allowAutoCreate: true }
+  // which they should ONLY do after the user explicitly confirms
+  // "create new account with <typed email>" in the UI.
+  //
+  // On sign-in failure with "invalid login credentials" and no
+  // allowAutoCreate, throws an Error whose .code === "invalid_credentials"
+  // so the caller can choose to offer the create-account CTA.
+  const signInWithEmailPassword = async (
+    email,
+    password,
+    { allowAutoCreate = false } = {},
+  ) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     // First, try to sign in
@@ -68,16 +86,13 @@ export function AuthProvider({ children }) {
 
     const message = error?.message?.toLowerCase() ?? "";
 
-    // If Supabase thinks the email itself is invalid, surface that directly and stop
+    // Surface invalid-email and rate-limit errors directly.
     if (message.includes("email address") && message.includes("invalid")) {
       console.error("Invalid email address for email/password auth:", error);
       throw error;
     }
-
-    // If credentials are wrong for an existing account, surface that back to the caller
     if (
       message.includes("email not confirmed") ||
-      message.includes("password") ||
       message.includes("rate limit") ||
       message.includes("too many requests")
     ) {
@@ -85,7 +100,27 @@ export function AuthProvider({ children }) {
       throw error;
     }
 
-    // For "invalid login credentials" / "user not found" cases, transparently create an account
+    // "Invalid login credentials" is what Supabase returns for both
+    // (a) no such account and (b) account exists but wrong password.
+    // We can't distinguish them from the client. Without explicit
+    // opt-in, don't create an account — let the caller decide whether
+    // to prompt for that.
+    const looksLikeUnknownUserOrBadPw =
+      message.includes("invalid login credentials") ||
+      message.includes("user not found") ||
+      message.includes("password");
+
+    if (looksLikeUnknownUserOrBadPw && !allowAutoCreate) {
+      const e = error || new Error("Invalid login credentials");
+      e.code = "invalid_credentials";
+      throw e;
+    }
+    if (!allowAutoCreate) {
+      console.error("Error signing in with email/password:", error);
+      throw error;
+    }
+
+    // Caller explicitly asked for create-on-fail. Proceed with signup.
     const {
       data: signUpData,
       error: signUpError,
@@ -98,10 +133,9 @@ export function AuthProvider({ children }) {
       // If Supabase tells us the user already exists, treat it as invalid credentials
       const signUpMessage = signUpError.message?.toLowerCase() ?? "";
       if (signUpMessage.includes("already registered")) {
-        console.error(
-          "Email/password sign in failed: user already exists with different credentials."
-        );
-        throw error || signUpError;
+        const e = error || signUpError;
+        e.code = "invalid_credentials";
+        throw e;
       }
 
       console.error("Error signing up with email/password:", signUpError);

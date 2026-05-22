@@ -102,10 +102,14 @@ function PaymentFormInner({
     setError(null);
 
     try {
-      console.log(
-        "[PaymentForm] Confirming payment with clientSecret:",
-        clientSecret?.substring(0, 20) + "..."
-      );
+      // Do NOT log the clientSecret (even a prefix). The Stripe client
+      // secret is a bearer-equivalent for the PaymentIntent — anyone who
+      // gets it can manipulate the payment. The previous .substring(0,20)
+      // still leaked enough of the token to be sensitive on shared /
+      // recorded screens. Just confirm we have one.
+      console.log("[PaymentForm] Confirming payment", {
+        hasClientSecret: !!clientSecret,
+      });
 
       // CRITICAL: For PaymentElement, must call elements.submit() BEFORE confirmPayment()
       // This validates the payment method and prepares it for confirmation
@@ -316,15 +320,15 @@ function PaymentFormInner({
                 "[PaymentForm] PaymentElement ready (duplicate call ignored)",
                 {
                   mountCount: mountCountRef.current,
-                  clientSecret: clientSecret?.substring(0, 20) + "...",
-                }
+                  hasClientSecret: !!clientSecret,
+                },
               );
               return;
             }
             hasInitializedRef.current = true;
             console.log("[PaymentForm] PaymentElement ready", {
               mountCount: mountCountRef.current,
-              clientSecret: clientSecret?.substring(0, 20) + "...",
+              hasClientSecret: !!clientSecret,
             });
             setIsReady(true);
           }}

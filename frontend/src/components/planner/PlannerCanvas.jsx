@@ -51,6 +51,9 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const pad2 = (n) => String(n).padStart(2, "0");
 const isoOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
+// Serialisable card fields sent to the backend (id added separately on create).
+const cardPayload = (c) => ({ x: c.x, y: c.y, w: c.w, channel: c.channel, contentType: c.contentType, eventId: c.eventId, note: c.note, links: c.links, mediaUrl: c.mediaUrl, mediaPath: c.mediaPath, mediaKind: c.mediaKind, mediaName: c.mediaName, mediaMime: c.mediaMime });
+
 // Card width + approximate height — used to anchor each card's connector to the
 // edge nearest the timeline. The card is media-only by default (settings live
 // behind a gear), so height = media + an optional date row.
@@ -63,7 +66,7 @@ const cardHeight = (c) => {
 
 const DEFAULT_STATE = { viewport: { panX: 0, panY: 0, scale: 1 }, items: [] };
 
-export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, events = [] }, ref) {
+export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, events = [], onSaveStatus }, ref) {
   const containerRef = useRef(null);
   const today = useMemo(() => startOfDay(new Date()), []);
   const [state, setState] = useState(() => ({ viewport: loadViewport(storageKey) || DEFAULT_STATE.viewport, items: [] }));
@@ -85,6 +88,15 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
   }, [state]);
   const saveTimers = useRef({});
   const vpTimer = useRef(null);
+
+  // Autosave status surfaced to the toolbar: "saved" | "saving" | "error".
+  const [saveState, setSaveState] = useState("saved");
+  const inflight = useRef(0);
+  const pendingIds = useRef(new Set());
+  const lastError = useRef(false);
+  useEffect(() => {
+    onSaveStatus?.(saveState);
+  }, [saveState, onSaveStatus]);
 
   const offsetOfDate = useCallback((d) => Math.round((startOfDay(d).getTime() - today.getTime()) / DAY_MS), [today]);
   const offsetToX = (o) => o * PX_PER_DAY;
@@ -152,39 +164,89 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     return screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
   }, [screenToWorld]);
 
-  // ── DB persistence ────────────────────────────────────────────────
-  const cardPayload = (c) => ({ x: c.x, y: c.y, w: c.w, channel: c.channel, contentType: c.contentType, eventId: c.eventId, note: c.note, links: c.links, mediaUrl: c.mediaUrl, mediaPath: c.mediaPath, mediaKind: c.mediaKind, mediaName: c.mediaName, mediaMime: c.mediaMime });
-
-  const queueSave = useCallback((id) => {
-    clearTimeout(saveTimers.current[id]);
-    saveTimers.current[id] = setTimeout(() => {
-      const c = stateRef.current.items.find((x) => x.id === id);
-      if (!c) return;
-      authenticatedFetch(`/host/planner/cards/${id}`, { method: "PATCH", body: JSON.stringify(cardPayload(c)) }).catch(() => {});
-    }, 400);
+  // ── DB persistence + autosave status ──────────────────────────────
+  const recalc = useCallback(() => {
+    setSaveState(pendingIds.current.size > 0 || inflight.current > 0 ? "saving" : lastError.current ? "error" : "saved");
   }, []);
 
-  const createCardRemote = useCallback(async (c) => {
-    try {
-      await authenticatedFetch("/host/planner/cards", { method: "POST", body: JSON.stringify({ id: c.id, ...cardPayload(c) }) });
-    } catch {
-      /* a later edit will re-persist via queueSave */
-    }
-  }, []);
+  // authenticatedFetch wrapped to drive the autosave indicator.
+  const trackFetch = useCallback(
+    async (url, opts) => {
+      inflight.current += 1;
+      recalc();
+      try {
+        const res = await authenticatedFetch(url, opts);
+        lastError.current = !res.ok;
+        return res;
+      } catch (e) {
+        lastError.current = true;
+        throw e;
+      } finally {
+        inflight.current = Math.max(0, inflight.current - 1);
+        recalc();
+      }
+    },
+    [recalc],
+  );
 
-  const deleteCardRemote = useCallback((id) => {
-    clearTimeout(saveTimers.current[id]);
-    authenticatedFetch(`/host/planner/cards/${id}`, { method: "DELETE" }).catch(() => {});
-  }, []);
+  const queueSave = useCallback(
+    (id) => {
+      clearTimeout(saveTimers.current[id]);
+      if (!pendingIds.current.has(id)) {
+        pendingIds.current.add(id);
+        recalc();
+      }
+      saveTimers.current[id] = setTimeout(() => {
+        pendingIds.current.delete(id);
+        const c = stateRef.current.items.find((x) => x.id === id);
+        if (!c) {
+          recalc();
+          return;
+        }
+        trackFetch(`/host/planner/cards/${id}`, { method: "PATCH", body: JSON.stringify(cardPayload(c)) }).catch(() => {});
+      }, 400);
+    },
+    [recalc, trackFetch],
+  );
 
-  const uploadMedia = useCallback(async (file) => {
-    const res = await authenticatedFetch("/host/planner/upload-url", { method: "POST", body: JSON.stringify({ mimeType: file.type }) });
-    if (!res.ok) throw new Error("upload-url failed");
-    const tok = await res.json();
-    const { error } = await supabase.storage.from(tok.bucket).uploadToSignedUrl(tok.path, tok.token, file);
-    if (error) throw error;
-    return { url: tok.publicUrl, path: tok.path };
-  }, []);
+  const createCardRemote = useCallback(
+    async (c) => {
+      await trackFetch("/host/planner/cards", { method: "POST", body: JSON.stringify({ id: c.id, ...cardPayload(c) }) }).catch(() => {});
+    },
+    [trackFetch],
+  );
+
+  const deleteCardRemote = useCallback(
+    (id) => {
+      clearTimeout(saveTimers.current[id]);
+      pendingIds.current.delete(id);
+      trackFetch(`/host/planner/cards/${id}`, { method: "DELETE" }).catch(() => {});
+    },
+    [trackFetch],
+  );
+
+  const uploadMedia = useCallback(
+    async (file) => {
+      inflight.current += 1;
+      recalc();
+      try {
+        const res = await authenticatedFetch("/host/planner/upload-url", { method: "POST", body: JSON.stringify({ mimeType: file.type }) });
+        if (!res.ok) throw new Error("upload-url failed");
+        const tok = await res.json();
+        const { error } = await supabase.storage.from(tok.bucket).uploadToSignedUrl(tok.path, tok.token, file);
+        if (error) throw error;
+        lastError.current = false;
+        return { url: tok.publicUrl, path: tok.path };
+      } catch (e) {
+        lastError.current = true;
+        throw e;
+      } finally {
+        inflight.current = Math.max(0, inflight.current - 1);
+        recalc();
+      }
+    },
+    [recalc],
+  );
 
   const markUploading = useCallback((id, on) => {
     setUploadingIds((p) => {

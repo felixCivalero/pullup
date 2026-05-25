@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Upload, Plus } from "lucide-react";
+import { Loader2, Upload, Plus, Check, CloudOff } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext";
 import { colors } from "../theme/colors.js";
@@ -11,6 +11,7 @@ export function ContentPlannerPage() {
   const storageKey = user?.id ? layoutKey(user.id) : null;
 
   const [events, setEvents] = useState([]);
+  const [saveStatus, setSaveStatus] = useState("saved");
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -52,7 +53,7 @@ export function ContentPlannerPage() {
   return (
     <div className="page-with-header" style={{ position: "fixed", inset: 0, background: colors.background, overflow: "hidden" }}>
       <div style={{ position: "absolute", top: 70, left: 0, right: 0, bottom: 0 }}>
-        <PlannerCanvas ref={canvasRef} storageKey={storageKey} events={events} />
+        <PlannerCanvas ref={canvasRef} storageKey={storageKey} events={events} onSaveStatus={setSaveStatus} />
 
         {/* Bottom-center toolbar */}
         <div
@@ -71,6 +72,8 @@ export function ContentPlannerPage() {
             backdropFilter: "blur(8px)",
           }}
         >
+          <SaveStatus status={saveStatus} />
+          <div style={{ width: 1, background: "rgba(255,255,255,0.1)", margin: "2px 0" }} />
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px", fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.45)" }}>
             <Upload size={15} />
             Drop content anywhere
@@ -85,6 +88,22 @@ export function ContentPlannerPage() {
           </button>
         </div>
       </div>
+      <style>{`@keyframes crm-spin { to { transform: rotate(360deg); } }`}</style>
     </div>
+  );
+}
+
+function SaveStatus({ status }) {
+  const map = {
+    saving: { icon: <Loader2 size={14} style={{ animation: "crm-spin 0.9s linear infinite" }} />, label: "Saving…", color: "rgba(255,255,255,0.55)" },
+    saved: { icon: <Check size={14} />, label: "Saved", color: "rgba(74,222,128,0.85)" },
+    error: { icon: <CloudOff size={14} />, label: "Couldn't save", color: "rgba(248,113,113,0.95)" },
+  };
+  const s = map[status] || map.saved;
+  return (
+    <span title={status === "error" ? "Changes couldn't be saved — they'll retry on your next edit" : "Your board autosaves to the cloud"} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 12px", fontSize: 12.5, fontWeight: 600, color: s.color, whiteSpace: "nowrap" }}>
+      {s.icon}
+      {s.label}
+    </span>
   );
 }

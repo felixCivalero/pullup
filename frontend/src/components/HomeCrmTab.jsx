@@ -13,6 +13,10 @@ import {
   Clock,
   FileEdit,
   Tag,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
 } from "lucide-react";
 import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
@@ -182,6 +186,365 @@ function EditableContact({ person, onSave }) {
           </label>
         );
       })}
+    </div>
+  );
+}
+
+// ISO date (YYYY-MM-DD) in the browser's local timezone — what <input type=date>
+// expects and what the notes API stores in note_date.
+function todayLocalISO() {
+  const d = new Date();
+  const tzOffset = d.getTimezoneOffset() * 60000;
+  return new Date(d - tzOffset).toISOString().slice(0, 10);
+}
+
+function formatNoteDate(iso) {
+  if (!iso) return "—";
+  // note_date is a bare YYYY-MM-DD; append time so it isn't shifted by tz.
+  const d = new Date(`${iso}T00:00:00`);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+// Timeline of dated, host-private observations about a person ("talked Leica on
+// the photowalk"). Composer up top, newest-first log below. Each entry is just
+// a date + free text, optionally tagged to the event it happened at. The `topic`
+// field exists on the record but is AI-only (set via MCP) and never shown here.
+function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) {
+  const [content, setContent] = useState("");
+  const [eventId, setEventId] = useState("");
+  const [noteDate, setNoteDate] = useState(todayLocalISO());
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ content: "", eventId: "", noteDate: "" });
+  const [busyId, setBusyId] = useState(null);
+
+  const eventTitleById = useMemo(() => {
+    const m = {};
+    (eventOptions || []).forEach((e) => {
+      m[e.id] = e.title;
+    });
+    return m;
+  }, [eventOptions]);
+
+  // Picking an event snaps the date to that event's date (host can still
+  // override afterwards) — matches the "this came up on that walk" mental model.
+  const onPickEvent = (id) => {
+    setEventId(id);
+    const ev = (eventOptions || []).find((e) => e.id === id);
+    if (ev && ev.date) setNoteDate(ev.date.slice(0, 10));
+  };
+
+  const submit = async () => {
+    const text = content.trim();
+    if (!text || saving) return;
+    setSaving(true);
+    try {
+      await onAdd({ content: text, eventId: eventId || null, noteDate });
+      setContent("");
+      setEventId("");
+      setNoteDate(todayLocalISO());
+    } catch {
+      /* parent shows the toast; keep the draft so nothing is lost */
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEdit = (n) => {
+    setEditingId(n.id);
+    setEditDraft({
+      content: n.content,
+      eventId: n.eventId || "",
+      noteDate: (n.noteDate || todayLocalISO()).slice(0, 10),
+    });
+  };
+
+  const saveEdit = async (noteId) => {
+    const text = editDraft.content.trim();
+    if (!text) return;
+    setBusyId(noteId);
+    try {
+      await onEdit(noteId, {
+        content: text,
+        eventId: editDraft.eventId || null,
+        noteDate: editDraft.noteDate,
+      });
+      setEditingId(null);
+    } catch {
+      /* keep editing open on failure */
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (noteId) => {
+    setBusyId(noteId);
+    try {
+      await onDelete(noteId);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const inputStyle = {
+    padding: "6px 8px",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "6px",
+    color: "#fff",
+    fontSize: "13px",
+    outline: "none",
+  };
+
+  const list = Array.isArray(notes) ? notes : [];
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <div
+        style={{
+          fontSize: "11px",
+          textTransform: "uppercase",
+          letterSpacing: "0.12em",
+          opacity: 0.55,
+          marginBottom: "8px",
+        }}
+      >
+        Notes
+      </div>
+
+      {/* Composer */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          padding: "10px",
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.07)",
+          borderRadius: "8px",
+          marginBottom: list.length > 0 ? "12px" : "4px",
+        }}
+      >
+        <textarea
+          value={content}
+          placeholder="What did you learn? e.g. talked Leica M6, wants to get into film…"
+          rows={2}
+          onChange={(e) => setContent(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit();
+          }}
+          style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.4 }}
+        />
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            type="date"
+            value={noteDate}
+            onChange={(e) => setNoteDate(e.target.value)}
+            style={{ ...inputStyle, colorScheme: "dark", flex: "0 0 auto" }}
+          />
+          <select
+            value={eventId}
+            onChange={(e) => onPickEvent(e.target.value)}
+            style={{ ...inputStyle, flex: "1 1 160px", colorScheme: "dark", cursor: "pointer" }}
+          >
+            <option value="">No event</option>
+            {(eventOptions || []).map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.title}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!content.trim() || saving}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "6px 12px",
+              background: content.trim() && !saving ? colors.gold : "rgba(255,255,255,0.06)",
+              color: content.trim() && !saving ? "#000" : "rgba(255,255,255,0.5)",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: content.trim() && !saving ? "pointer" : "default",
+            }}
+          >
+            {saving ? (
+              <Loader2 size={14} style={{ animation: "crm-spin 0.9s linear infinite" }} />
+            ) : (
+              <Plus size={14} />
+            )}
+            Add note
+          </button>
+        </div>
+      </div>
+
+      {/* Timeline */}
+      {loading && list.length === 0 ? (
+        <div style={{ fontSize: "13px", opacity: 0.5, fontStyle: "italic" }}>Loading notes…</div>
+      ) : list.length === 0 ? (
+        <div style={{ fontSize: "13px", opacity: 0.45, fontStyle: "italic" }}>
+          No notes yet — jot down what you learn and it builds a history over time.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {list.map((n) => {
+            const isEditing = editingId === n.id;
+            const isBusy = busyId === n.id;
+            const eventTitle = n.eventId ? eventTitleById[n.eventId] : null;
+            return (
+              <div
+                key={n.id}
+                style={{
+                  padding: "10px 12px",
+                  background: "rgba(12, 10, 18, 0.4)",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  opacity: isBusy ? 0.5 : 1,
+                }}
+              >
+                {isEditing ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <textarea
+                      value={editDraft.content}
+                      rows={2}
+                      onChange={(e) =>
+                        setEditDraft((d) => ({ ...d, content: e.target.value }))
+                      }
+                      style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.4 }}
+                    />
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                      <input
+                        type="date"
+                        value={editDraft.noteDate}
+                        onChange={(e) =>
+                          setEditDraft((d) => ({ ...d, noteDate: e.target.value }))
+                        }
+                        style={{ ...inputStyle, colorScheme: "dark" }}
+                      />
+                      <select
+                        value={editDraft.eventId}
+                        onChange={(e) =>
+                          setEditDraft((d) => ({ ...d, eventId: e.target.value }))
+                        }
+                        style={{ ...inputStyle, flex: "1 1 140px", colorScheme: "dark", cursor: "pointer" }}
+                      >
+                        <option value="">No event</option>
+                        {(eventOptions || []).map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.title}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => saveEdit(n.id)}
+                        disabled={!editDraft.content.trim()}
+                        style={{
+                          padding: "6px 10px",
+                          background: colors.gold,
+                          color: "#000",
+                          border: "none",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(null)}
+                        title="Cancel"
+                        style={{
+                          padding: "6px",
+                          background: "transparent",
+                          color: "rgba(255,255,255,0.6)",
+                          border: "none",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                        }}
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          fontSize: "11px",
+                          opacity: 0.6,
+                          marginBottom: "4px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span>{formatNoteDate(n.noteDate)}</span>
+                        {eventTitle && (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                            <span style={{ opacity: 0.5 }}>·</span>
+                            <Calendar size={11} />
+                            <span style={{ wordBreak: "break-word" }}>{eventTitle}</span>
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.45 }}>
+                        {n.content}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "2px", flex: "0 0 auto" }}>
+                      <button
+                        type="button"
+                        onClick={() => startEdit(n)}
+                        title="Edit note"
+                        style={{
+                          padding: "4px",
+                          background: "transparent",
+                          color: "rgba(255,255,255,0.45)",
+                          border: "none",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                        }}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(n.id)}
+                        disabled={isBusy}
+                        title="Delete note"
+                        style={{
+                          padding: "4px",
+                          background: "transparent",
+                          color: "rgba(255,255,255,0.45)",
+                          border: "none",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -468,6 +831,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
       }
       const data = await res.json();
       const emails = data.touchpoints?.emails || [];
+      const notes = data.touchpoints?.notes || [];
 
       // Compute simple campaign stats
       const campaignIds = new Set();
@@ -516,6 +880,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
           openCount,
           clickCount,
           bounceCount,
+          notes,
         },
       }));
     } catch (error) {
@@ -529,6 +894,68 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
         },
       }));
     }
+  }
+
+  // Notes timeline mutations. All three keep personDetails[personId].notes in
+  // sync optimistically-ish (we wait for the server, then patch local state)
+  // and re-sort newest-first so a backdated entry lands in the right place.
+  const sortNotes = (arr) =>
+    [...arr].sort((a, b) => {
+      const d = (b.noteDate || "").localeCompare(a.noteDate || "");
+      if (d !== 0) return d;
+      return (b.createdAt || "").localeCompare(a.createdAt || "");
+    });
+
+  const setNotesFor = (personId, updater) =>
+    setPersonDetails((prev) => {
+      const current = prev[personId] || {};
+      const next = updater(current.notes || []);
+      return { ...prev, [personId]: { ...current, notes: sortNotes(next) } };
+    });
+
+  async function addPersonNote(personId, payload) {
+    const res = await authenticatedFetch(`/host/crm/people/${personId}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      showToast("Failed to add note", "error");
+      throw new Error("add note failed");
+    }
+    const note = await res.json();
+    setNotesFor(personId, (notes) => [note, ...notes]);
+  }
+
+  async function editPersonNote(personId, noteId, payload) {
+    const res = await authenticatedFetch(
+      `/host/crm/people/${personId}/notes/${noteId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!res.ok) {
+      showToast("Failed to save note", "error");
+      throw new Error("edit note failed");
+    }
+    const updated = await res.json();
+    setNotesFor(personId, (notes) =>
+      notes.map((n) => (n.id === noteId ? updated : n)),
+    );
+  }
+
+  async function removePersonNote(personId, noteId) {
+    const res = await authenticatedFetch(
+      `/host/crm/people/${personId}/notes/${noteId}`,
+      { method: "DELETE" },
+    );
+    if (!res.ok) {
+      showToast("Failed to delete note", "error");
+      throw new Error("delete note failed");
+    }
+    setNotesFor(personId, (notes) => notes.filter((n) => n.id !== noteId));
   }
 
   // Load saved views
@@ -1840,6 +2267,34 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                           }}
                         />
                       </div>
+
+                      {/* Notes timeline — dated observations, optionally tied
+                          to the event they came up at. Event options are the
+                          person's own attended events, so the dropdown is
+                          "which walk", not the host's whole calendar. */}
+                      <PersonNotes
+                        notes={details.notes}
+                        loading={details.loading}
+                        eventOptions={(() => {
+                          const seen = new Set();
+                          const opts = [];
+                          (person.eventHistory || []).forEach((h) => {
+                            if (!h.eventId || seen.has(h.eventId)) return;
+                            seen.add(h.eventId);
+                            opts.push({
+                              id: h.eventId,
+                              title: h.eventTitle || "(untitled event)",
+                              date: h.eventDate || null,
+                            });
+                          });
+                          return opts;
+                        })()}
+                        onAdd={(payload) => addPersonNote(person.id, payload)}
+                        onEdit={(noteId, payload) =>
+                          editPersonNote(person.id, noteId, payload)
+                        }
+                        onDelete={(noteId) => removePersonNote(person.id, noteId)}
+                      />
 
                       {/* All-time stats */}
                       <div

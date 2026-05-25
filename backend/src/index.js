@@ -5415,8 +5415,12 @@ app.get("/host/crm/people-filter-index", requireAuth, async (req, res) => {
 app.get("/host/crm/people/:personId", requireAuth, async (req, res) => {
   try {
     const { personId } = req.params;
-    const { getPersonTouchpoints, findPersonById, personBelongsToHost } =
-      await import("./data.js");
+    const {
+      getPersonTouchpoints,
+      findPersonById,
+      personBelongsToHost,
+      getPersonNotes,
+    } = await import("./data.js");
 
     // Authorize before fetching so we don't reveal whether the personId exists
     // to a host who has no relationship with that person.
@@ -5431,6 +5435,10 @@ app.get("/host/crm/people/:personId", requireAuth, async (req, res) => {
     }
 
     const touchpoints = await getPersonTouchpoints(personId, req.user.id);
+    // Host-private timeline notes ride along inside touchpoints (the history
+    // bucket) so the expanded CRM row and the MCP coach get them in one round
+    // trip.
+    touchpoints.notes = await getPersonNotes(personId, req.user.id);
 
     res.json({
       person,
@@ -5552,7 +5560,6 @@ app.get("/host/crm/people/export", requireAuth, async (req, res) => {
       "Name",
       "Email",
       "Phone",
-      "Notes",
       "Tags",
       "Total Events",
       "Events Attended",
@@ -5579,7 +5586,6 @@ app.get("/host/crm/people/export", requireAuth, async (req, res) => {
         escapeCsv(person.name),
         escapeCsv(person.email),
         escapeCsv(person.phone),
-        escapeCsv(person.notes),
         escapeCsv(person.tags?.join(", ") || ""),
         escapeCsv(person.stats?.totalEvents || 0),
         escapeCsv(person.stats?.eventsAttended || 0),
@@ -5621,7 +5627,6 @@ app.put("/host/crm/people/:personId", requireAuth, async (req, res) => {
     const {
       name,
       phone,
-      notes,
       tags,
       // Identity fields collected via event form_fields. Editable here so
       // hosts can fill in details they already know (e.g. an Instagram
@@ -5643,7 +5648,6 @@ app.put("/host/crm/people/:personId", requireAuth, async (req, res) => {
     const result = await updatePerson(personId, {
       name,
       phone,
-      notes,
       tags,
       instagram,
       twitter,
@@ -5672,6 +5676,140 @@ app.put("/host/crm/people/:personId", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Failed to update person" });
   }
 });
+
+// ---------------------------
+// PROTECTED: Person timeline notes (requires auth)
+// ---------------------------
+// A running log of dated observations about a person ("talked Leica on the
+// photowalk"). PRIVATE per host — people are shared across hosts, so every
+// handler re-asserts personBelongsToHost + host_id ownership. `topic` is set
+// only by the AI via MCP and never surfaced in the web UI.
+
+app.get(
+  "/host/crm/people/:personId/notes",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { personId } = req.params;
+      const { personBelongsToHost, getPersonNotes } = await import("./data.js");
+      const allowed = await personBelongsToHost(personId, req.user.id);
+      if (!allowed) {
+        return res.status(404).json({ error: "Person not found" });
+      }
+      const notes = await getPersonNotes(personId, req.user.id);
+      res.json({ notes });
+    } catch (error) {
+      console.error("Error fetching person notes:", error);
+      res.status(500).json({ error: "Failed to fetch notes" });
+    }
+  },
+);
+
+app.post(
+  "/host/crm/people/:personId/notes",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { personId } = req.params;
+      const { content, eventId, noteDate, topic } = req.body || {};
+      const { personBelongsToHost, createPersonNote } = await import(
+        "./data.js"
+      );
+      const allowed = await personBelongsToHost(personId, req.user.id);
+      if (!allowed) {
+        return res.status(404).json({ error: "Person not found" });
+      }
+
+      const result = await createPersonNote(personId, req.user.id, {
+        content,
+        eventId,
+        noteDate,
+        topic,
+        source: sourceFromRequest(req) === "chat" ? "mcp" : "ui",
+      });
+      if (result.error === "empty_content") {
+        return res.status(400).json({ error: "Note content is required" });
+      }
+      if (result.error) {
+        return res.status(500).json({ error: "Failed to create note" });
+      }
+
+      emitIntent({
+        hostId: req.user.id,
+        tool: "add_person_note",
+        args: { personId, content, eventId, noteDate, topic },
+        source: sourceFromRequest(req),
+        target: { type: "person", id: personId },
+        result: { noteId: result.note.id },
+      });
+
+      res.status(201).json(result.note);
+    } catch (error) {
+      console.error("Error creating person note:", error);
+      res.status(500).json({ error: "Failed to create note" });
+    }
+  },
+);
+
+app.patch(
+  "/host/crm/people/:personId/notes/:noteId",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { personId, noteId } = req.params;
+      const { content, eventId, noteDate, topic } = req.body || {};
+      const { personBelongsToHost, updatePersonNote } = await import(
+        "./data.js"
+      );
+      const allowed = await personBelongsToHost(personId, req.user.id);
+      if (!allowed) {
+        return res.status(404).json({ error: "Person not found" });
+      }
+
+      const result = await updatePersonNote(noteId, personId, req.user.id, {
+        content,
+        eventId,
+        noteDate,
+        topic,
+      });
+      if (result.error === "empty_content") {
+        return res.status(400).json({ error: "Note content is required" });
+      }
+      if (result.error === "not_found") {
+        return res.status(404).json({ error: "Note not found" });
+      }
+      res.json(result.note);
+    } catch (error) {
+      console.error("Error updating person note:", error);
+      res.status(500).json({ error: "Failed to update note" });
+    }
+  },
+);
+
+app.delete(
+  "/host/crm/people/:personId/notes/:noteId",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { personId, noteId } = req.params;
+      const { personBelongsToHost, deletePersonNote } = await import(
+        "./data.js"
+      );
+      const allowed = await personBelongsToHost(personId, req.user.id);
+      if (!allowed) {
+        return res.status(404).json({ error: "Person not found" });
+      }
+      const result = await deletePersonNote(noteId, personId, req.user.id);
+      if (result.error === "not_found") {
+        return res.status(404).json({ error: "Note not found" });
+      }
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Error deleting person note:", error);
+      res.status(500).json({ error: "Failed to delete note" });
+    }
+  },
+);
 
 // ---------------------------
 // PROTECTED: Import CSV (requires auth)

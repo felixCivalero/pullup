@@ -1391,7 +1391,6 @@ export async function findOrCreatePerson(email, name = null) {
       email: normalizedEmail,
       name: name ? name.trim() : null,
       phone: null,
-      notes: null,
       tags: [],
       stripe_customer_id: null,
     })
@@ -1468,6 +1467,127 @@ export async function personBelongsToHost(personId, userId) {
   return Array.isArray(data) && data.length > 0;
 }
 
+// ─── Person notes (per-host timeline) ─────────────────────────────────
+// People are SHARED across hosts (see personBelongsToHost), so notes are
+// scoped by host_id: a host only ever sees notes they wrote. Every read and
+// write goes through the service-role client AND re-asserts host_id, so the
+// RLS select-own policy is belt-and-braces, not the only guard.
+
+function mapNoteFromDb(n) {
+  return {
+    id: n.id,
+    personId: n.person_id,
+    eventId: n.event_id || null,
+    content: n.content,
+    noteDate: n.note_date,
+    // `topic` is AI-only enrichment, hidden in the web UI for now.
+    topic: n.topic || null,
+    source: n.source || "ui",
+    createdAt: n.created_at,
+    updatedAt: n.updated_at,
+  };
+}
+
+// Newest first. note_date is the host-meaningful order; created_at breaks ties
+// when several notes share a backdated day.
+export async function getPersonNotes(personId, hostId) {
+  if (!personId || !hostId) return [];
+  const { data, error } = await supabase
+    .from("person_notes")
+    .select("*")
+    .eq("person_id", personId)
+    .eq("host_id", hostId)
+    .order("note_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("[getPersonNotes] error:", error);
+    return [];
+  }
+  return (data || []).map(mapNoteFromDb);
+}
+
+export async function createPersonNote(
+  personId,
+  hostId,
+  { content, eventId, noteDate, topic, source } = {},
+) {
+  const text = typeof content === "string" ? content.trim() : "";
+  if (!text) return { error: "empty_content" };
+
+  const row = {
+    person_id: personId,
+    host_id: hostId,
+    content: text,
+    event_id: eventId || null,
+    source: source === "mcp" ? "mcp" : "ui",
+  };
+  // note_date defaults to CURRENT_DATE in the DB; only override if given.
+  if (noteDate) row.note_date = noteDate; // 'YYYY-MM-DD'
+  if (topic && String(topic).trim()) row.topic = String(topic).trim();
+
+  const { data, error } = await supabase
+    .from("person_notes")
+    .insert(row)
+    .select("*")
+    .single();
+  if (error) {
+    console.error("[createPersonNote] error:", error);
+    return { error: "insert_failed" };
+  }
+  return { note: mapNoteFromDb(data) };
+}
+
+// Scoped to (note, person, host) so a host can never touch a note that isn't
+// theirs, even with a guessed id.
+export async function updatePersonNote(noteId, personId, hostId, updates = {}) {
+  const patch = { updated_at: new Date().toISOString() };
+  if (updates.content !== undefined) {
+    const text = typeof updates.content === "string" ? updates.content.trim() : "";
+    if (!text) return { error: "empty_content" };
+    patch.content = text;
+  }
+  if (updates.eventId !== undefined) patch.event_id = updates.eventId || null;
+  // note_date is NOT NULL — ignore empty values rather than clearing it.
+  if (updates.noteDate) patch.note_date = updates.noteDate;
+  if (updates.topic !== undefined) {
+    patch.topic = updates.topic ? String(updates.topic).trim() : null;
+  }
+
+  const { data, error } = await supabase
+    .from("person_notes")
+    .update(patch)
+    .eq("id", noteId)
+    .eq("person_id", personId)
+    .eq("host_id", hostId)
+    .select("*")
+    .single();
+  if (error || !data) {
+    if (error && error.code !== "PGRST116") {
+      console.error("[updatePersonNote] error:", error);
+    }
+    return { error: "not_found" };
+  }
+  return { note: mapNoteFromDb(data) };
+}
+
+export async function deletePersonNote(noteId, personId, hostId) {
+  const { data, error } = await supabase
+    .from("person_notes")
+    .delete()
+    .eq("id", noteId)
+    .eq("person_id", personId)
+    .eq("host_id", hostId)
+    .select("id")
+    .single();
+  if (error || !data) {
+    if (error && error.code !== "PGRST116") {
+      console.error("[deletePersonNote] error:", error);
+    }
+    return { error: "not_found" };
+  }
+  return { ok: true };
+}
+
 // Find person by email
 export async function findPersonByEmail(email) {
   const normalizedEmail = email.trim().toLowerCase();
@@ -1491,7 +1611,6 @@ function mapPersonFromDb(dbPerson) {
     email: dbPerson.email,
     name: dbPerson.name,
     phone: dbPerson.phone,
-    notes: dbPerson.notes,
     tags: dbPerson.tags || [],
     stripeCustomerId: dbPerson.stripe_customer_id,
     // Identity fields collected via event form_fields (see migration 019).
@@ -1526,7 +1645,6 @@ function mapPersonToDb(updates) {
   const dbUpdates = {};
   if (updates.name !== undefined) dbUpdates.name = updates.name;
   if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
-  if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
   if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
   if (updates.stripeCustomerId !== undefined)
     dbUpdates.stripe_customer_id = updates.stripeCustomerId;
@@ -2061,7 +2179,7 @@ export async function getPeopleWithFilters(
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
       query = query.or(
-        `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%,instagram.ilike.%${searchTerm}%,company.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`
+        `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,instagram.ilike.%${searchTerm}%,company.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`
       );
     }
 

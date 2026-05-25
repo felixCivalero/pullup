@@ -29,6 +29,7 @@ import { PrivacyPage } from "./pages/PrivacyPage";
 import { TermsPage } from "./pages/TermsPage";
 import { CookiesPage } from "./pages/CookiesPage";
 import { HostAnalyticsPage } from "./pages/HostAnalyticsPage";
+import { ContentPlannerPage } from "./pages/ContentPlannerPage";
 import { OAuthAuthorizePage } from "./pages/OAuthAuthorizePage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -81,6 +82,7 @@ function App() {
           {/* Events / CRM dashboard */}
           <Route path="/events" element={<HomePage />} />
           <Route path="/analytics" element={<HostAnalyticsPage />} />
+          <Route path="/planner" element={<ContentPlannerPage />} />
           <Route path="/crm" element={<CrmPage />} />
           <Route path="/crm/compose" element={<Navigate to="/crm" replace />} />
           <Route path="/admin" element={<AdminPage />} />

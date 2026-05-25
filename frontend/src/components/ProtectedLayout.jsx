@@ -135,6 +135,7 @@ function ProtectedLayoutInner() {
     { label: "Events", path: "/events" },
     { label: "Analytics", path: "/analytics" },
     { label: "CRM", path: "/crm" },
+    { label: "Content Planner", path: "/planner" },
     { label: "Settings", path: "/settings" },
   ];
 
@@ -366,7 +367,10 @@ function ProtectedLayoutInner() {
         ) : !isMobile ? (
           /* Default navigation */
           <nav style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            {navItems.slice(0, 3).map(({ label, path }) => (
+            {/* All main destinations as text; Settings lives in the gear icon
+                (right side), so it's excluded here. Using a filter rather than
+                a fixed slice so adding a nav item never silently drops CRM. */}
+            {navItems.filter((i) => i.path !== "/settings").map(({ label, path }) => (
               <button
                 key={path}
                 onClick={() => handleNav(path)}

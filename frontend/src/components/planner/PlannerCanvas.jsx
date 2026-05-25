@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { FileText, Link2, X, Trash2, Settings2, StickyNote, CalendarDays, ImagePlus, Loader2, Mail, Image as ImageIcon, Film, Smartphone, GalleryHorizontalEnd } from "lucide-react";
+import { FileText, Link2, X, Trash2, Settings2, StickyNote, CalendarDays, ImagePlus, Loader2, Mail, Image as ImageIcon, Film, Smartphone, GalleryHorizontalEnd, Palette } from "lucide-react";
 import { SiInstagram, SiTiktok, SiYoutube, SiFacebook, SiX, SiLinkedin, SiWhatsapp } from "react-icons/si";
 import { mediaKind, loadViewport, saveViewport } from "../../lib/plannerStore.js";
 import { DAY_MS, startOfDay, addDays } from "../../lib/plannerTime.js";
@@ -16,13 +16,22 @@ import { supabase } from "../../lib/supabase.js";
 
 // ── World constants ─────────────────────────────────────────────────
 const PX_PER_DAY = 26;
-const TIMELINE_Y = 0;
+const TIMELINE_Y = 0; // vertical centre of the timeline band
+const BAND_H = 30; // slim band — its bold borders carry the structure, not its mass
+const BAND_TOP = TIMELINE_Y - BAND_H / 2;
+const BAND_BOTTOM = TIMELINE_Y + BAND_H / 2;
+const TODAY_COLOR = "#fbbf24"; // gold — "now", fixed in every colour mode
+const TIMELINE_COLOR = "rgba(255,255,255,0.6)"; // events share the band's neutral tone in platform mode — timeline + events read as one
+const NEUTRAL_LINK = "rgba(148,163,184,0.95)"; // content with no channel / no event
+// Distinct hues for "event" colour mode — assigned per event, chronologically.
+// Gold is reserved for "today", so it's absent here.
+const EVENT_PALETTE = ["#60a5fa", "#f472b6", "#34d399", "#a78bfa", "#fb923c", "#22d3ee", "#f87171", "#a3e635"];
 const CARD_W = 188; // card (and media) width — resizable
 const MIN_CARD_W = 120;
 const MAX_CARD_W = 440;
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.5;
-const SNAP_Y = 56; // how close to the line counts as "on the timeline"
+const SNAP_Y = 56; // how close to the band counts as "on the timeline"
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -45,6 +54,10 @@ const TYPES = {
   story: { label: "Story", Icon: Smartphone, ratio: 1.5 },
   reel: { label: "Reel", Icon: Film, ratio: 1.5 },
 };
+
+// A content card's identity colour — its channel, or neutral slate if none.
+// Drives the whole link chain: handle → connector line → mark on the band.
+const channelColor = (channel) => CHANNELS[channel]?.color || NEUTRAL_LINK;
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -69,6 +82,13 @@ const DEFAULT_STATE = { viewport: { panX: 0, panY: 0, scale: 1 }, items: [] };
 export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, events = [], onSaveStatus }, ref) {
   const containerRef = useRef(null);
   const today = useMemo(() => startOfDay(new Date()), []);
+  // Stable, chronological colour per event — drives "event" colour mode.
+  const eventColorMap = useMemo(() => {
+    const sorted = [...events].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+    const m = {};
+    sorted.forEach((ev, i) => { m[ev.id] = EVENT_PALETTE[i % EVENT_PALETTE.length]; });
+    return m;
+  }, [events]);
   const [state, setState] = useState(() => ({ viewport: loadViewport(storageKey) || DEFAULT_STATE.viewport, items: [] }));
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [link, setLink] = useState(null);
@@ -76,6 +96,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
   const [openCardId, setOpenCardId] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [uploadingIds, setUploadingIds] = useState(() => new Set());
+  const [colorMode, setColorMode] = useState("platform"); // "platform" = by channel · "event" = by event
   const drag = useRef(null);
   const inited = useRef(false);
   const eventsRef = useRef(events);
@@ -447,6 +468,13 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
 
   const { panX, panY, scale } = state.viewport;
   const cards = state.items;
+
+  // What a content card's link chain is coloured by, per mode:
+  //   source → its channel (channel spread)   event → its linked event (event distribution)
+  const cardLinkColor = (c) =>
+    colorMode === "event" ? (c.eventId ? eventColorMap[c.eventId] || NEUTRAL_LINK : NEUTRAL_LINK) : channelColor(c.channel);
+  // Event marks stay blue in source mode; take their palette colour in event mode.
+  const eventMarkColor = (ev) => (colorMode === "event" ? eventColorMap[ev.id] || TIMELINE_COLOR : TIMELINE_COLOR);
   const ready = size.w > 0;
 
   const xMin = -panX / scale;
@@ -467,11 +495,14 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     const bot = c.y + cardHeight(c);
     return Math.abs(top - TIMELINE_Y) <= Math.abs(bot - TIMELINE_Y) ? top : bot;
   };
+  // The band edge the connector plugs into — top edge for cards above, bottom for below.
+  const bandEdgeForCard = (c) => (cardAnchorY(c) <= TIMELINE_Y ? BAND_TOP : BAND_BOTTOM);
 
   const connectors = [];
   for (const c of cards) {
+    const color = cardLinkColor(c);
     for (const l of c.links || []) {
-      connectors.push({ key: `${c.id}-${l.id}`, cardId: c.id, linkId: l.id, x1: c.x + cardFrameW(c) / 2, y1: cardAnchorY(c), x2: offsetToX(offsetOfDate(`${l.date}T00:00:00`)), y2: TIMELINE_Y });
+      connectors.push({ key: `${c.id}-${l.id}`, cardId: c.id, linkId: l.id, color, x1: c.x + cardFrameW(c) / 2, y1: cardAnchorY(c), x2: offsetToX(offsetOfDate(`${l.date}T00:00:00`)), y2: bandEdgeForCard(c) });
     }
   }
 
@@ -481,10 +512,12 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     const c = cards.find((x) => x.id === link.cardId);
     if (c) {
       const near = Math.abs(link.world.y - TIMELINE_Y) < SNAP_Y;
+      const edgeY = bandEdgeForCard(c);
+      const color = cardLinkColor(c);
       const x2 = near ? xToOffset(link.world.x) * PX_PER_DAY : link.world.x;
-      const y2 = near ? TIMELINE_Y : link.world.y;
-      tempLine = { x1: c.x + cardFrameW(c) / 2, y1: cardAnchorY(c), x2, y2 };
-      if (near) snapDot = { x: x2, y: TIMELINE_Y };
+      const y2 = near ? edgeY : link.world.y;
+      tempLine = { x1: c.x + cardFrameW(c) / 2, y1: cardAnchorY(c), x2, y2, color };
+      if (near) snapDot = { x: x2, y: edgeY, color };
     }
   }
 
@@ -521,18 +554,26 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     >
       {ready && (
         <div style={{ position: "absolute", left: 0, top: 0, transform: `translate(${panX}px, ${panY}px) scale(${scale})`, transformOrigin: "0 0" }}>
-          {/* Baseline */}
-          <div style={{ position: "absolute", left: dayMin * PX_PER_DAY, top: TIMELINE_Y, width: (dayMax - dayMin) * PX_PER_DAY, height: 2, background: "rgba(255,255,255,0.16)", pointerEvents: "none" }} />
+          {/* Timeline band — the spine. Marks cut through it: gold = today, blue = events. */}
+          <div style={{ position: "absolute", left: dayMin * PX_PER_DAY, top: BAND_TOP, width: (dayMax - dayMin) * PX_PER_DAY, height: BAND_H, background: "rgba(255,255,255,0.05)", borderTop: "3px solid rgba(255,255,255,0.28)", borderBottom: "3px solid rgba(255,255,255,0.28)", pointerEvents: "none" }} />
 
-          {/* Ticks (today = bigger gold tick, no full line) */}
+          {/* Content link marks — channel-coloured, sit within the band (secondary to today/events) */}
+          {connectors.map((c) => (
+            <div key={`${c.key}-mark`} style={{ position: "absolute", left: c.x2, top: BAND_TOP, width: 2, height: BAND_H, background: c.color, opacity: 0.85, transform: "translateX(-1px)", pointerEvents: "none" }} />
+          ))}
+
+          {/* Today — full-height gold line cutting through the band */}
+          <div style={{ position: "absolute", left: 0, top: BAND_TOP - 7, width: 2, height: BAND_H + 14, borderRadius: 1, background: TODAY_COLOR, transform: "translateX(-1px)", pointerEvents: "none" }} />
+
+          {/* Date ticks + labels, below the band */}
           {ticks.map((o) => {
             const d = addDays(today, o);
             const isToday = o === 0;
             const showMonth = isToday || d.getDate() === 1;
             return (
-              <div key={o} style={{ position: "absolute", left: o * PX_PER_DAY, top: TIMELINE_Y - 7, transform: "translateX(-50%)", textAlign: "center", pointerEvents: "none" }}>
-                <div style={{ width: isToday ? 3 : 1, height: isToday ? 18 : 8, margin: "0 auto", borderRadius: 2, background: isToday ? "#fbbf24" : "rgba(255,255,255,0.28)" }} />
-                <div style={{ marginTop: 3, fontSize: 9, lineHeight: 1.15, color: isToday ? "#fbbf24" : "rgba(255,255,255,0.45)", fontWeight: isToday ? 700 : 400, whiteSpace: "nowrap" }}>
+              <div key={o} style={{ position: "absolute", left: o * PX_PER_DAY, top: BAND_BOTTOM + 5, transform: "translateX(-50%)", textAlign: "center", pointerEvents: "none" }}>
+                {isToday ? <div style={{ height: 6 }} /> : <div style={{ width: 1, height: 6, margin: "0 auto", background: "rgba(255,255,255,0.28)" }} />}
+                <div style={{ marginTop: 3, fontSize: 9, lineHeight: 1.15, color: isToday ? TODAY_COLOR : "rgba(255,255,255,0.45)", fontWeight: isToday ? 700 : 400, whiteSpace: "nowrap" }}>
                   <div style={{ opacity: isToday ? 1 : 0.7 }}>{isToday ? "Today" : WEEKDAYS[d.getDay()]}</div>
                   <div>{showMonth ? `${d.getDate()} ${MONTHS[d.getMonth()]}` : d.getDate()}</div>
                 </div>
@@ -540,33 +581,53 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
             );
           })}
 
-          {/* Connectors */}
+          {/* Connectors — each in its content's channel colour */}
           <svg style={{ position: "absolute", left: 0, top: 0, overflow: "visible", pointerEvents: "none" }}>
             {connectors.map((c) => (
-              <line key={c.key} x1={c.x1} y1={c.y1} x2={c.x2} y2={c.y2} stroke="rgba(251,191,36,0.5)" strokeWidth={1.5} />
+              <line key={c.key} x1={c.x1} y1={c.y1} x2={c.x2} y2={c.y2} stroke={c.color} strokeOpacity={0.7} strokeWidth={1.75} />
             ))}
-            {tempLine && <line x1={tempLine.x1} y1={tempLine.y1} x2={tempLine.x2} y2={tempLine.y2} stroke="rgba(251,191,36,0.75)" strokeWidth={1.5} strokeDasharray="4 4" />}
+            {tempLine && <line x1={tempLine.x1} y1={tempLine.y1} x2={tempLine.x2} y2={tempLine.y2} stroke={tempLine.color} strokeWidth={1.75} strokeDasharray="4 4" />}
           </svg>
 
           {/* Snap target preview */}
-          {snapDot && <div style={{ position: "absolute", left: snapDot.x - 8, top: snapDot.y - 8, width: 16, height: 16, borderRadius: "50%", border: "2px solid #fbbf24", pointerEvents: "none" }} />}
+          {snapDot && <div style={{ position: "absolute", left: snapDot.x - 8, top: snapDot.y - 8, width: 16, height: 16, borderRadius: "50%", border: `2px solid ${snapDot.color}`, pointerEvents: "none" }} />}
 
           {/* Draggable date dots (change / drag off to remove) */}
           {connectors.map((c) => (
-            <div key={`${c.key}-dot`} onPointerDown={(e) => startRelink(e, c.cardId, c.linkId)} title="Drag to change the date · drag off the line to remove" style={{ position: "absolute", left: c.x2 - 7, top: c.y2 - 7, width: 14, height: 14, borderRadius: "50%", background: "#fbbf24", border: "2px solid rgba(8,7,12,0.9)", cursor: "ew-resize" }} />
+            <div key={`${c.key}-dot`} onPointerDown={(e) => startRelink(e, c.cardId, c.linkId)} title="Drag to change the date · drag off the line to remove" style={{ position: "absolute", left: c.x2 - 7, top: c.y2 - 7, width: 14, height: 14, borderRadius: "50%", background: c.color, border: "2px solid rgba(8,7,12,0.9)", cursor: "ew-resize" }} />
           ))}
 
-          {/* Event marks (static preview pills) */}
+          {/* Event marks — lifted above the band, on their mark */}
           {events.map((ev) => (
-            <EventMark key={ev.id} ev={ev} x={offsetToX(offsetOfDate(ev.startsAt))} />
+            <EventMark key={ev.id} ev={ev} x={offsetToX(offsetOfDate(ev.startsAt))} color={eventMarkColor(ev)} />
           ))}
 
           {/* Content cards */}
           {cards.map((c) => (
-            <ContentCard key={c.id} card={c} uploading={uploadingIds.has(c.id)} events={events} onMove={startMove} onStartLink={startLink} onStartResize={startResizeCard} onRemoveLink={removeLink} onSet={setCard} onOpenSettings={setOpenCardId} onFill={fillCard} />
+            <ContentCard key={c.id} card={c} uploading={uploadingIds.has(c.id)} events={events} linkColor={cardLinkColor(c)} onMove={startMove} onStartLink={startLink} onStartResize={startResizeCard} onRemoveLink={removeLink} onSet={setCard} onOpenSettings={setOpenCardId} onFill={fillCard} />
           ))}
         </div>
       )}
+
+      {/* Colour-mode toggle — top-right. Flips what the content colour-coding means. */}
+      <div
+        onPointerDown={(e) => e.stopPropagation()}
+        style={{ position: "absolute", top: 14, right: 14, display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 6px 5px 10px", borderRadius: 11, background: "rgba(18,15,26,0.92)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 6px 20px rgba(0,0,0,0.45)", backdropFilter: "blur(8px)", zIndex: 20 }}
+      >
+        <Palette size={14} color="rgba(255,255,255,0.5)" />
+        <div style={{ display: "inline-flex", padding: 3, borderRadius: 8, background: "rgba(255,255,255,0.05)" }}>
+          {[["platform", "Platform"], ["event", "Event"]].map(([m, label]) => (
+            <button
+              key={m}
+              onClick={() => setColorMode(m)}
+              title={m === "platform" ? "Colour content by platform — read channel spread" : "Colour content by event — read event distribution"}
+              style={{ padding: "5px 11px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: colorMode === m ? "rgba(255,255,255,0.14)" : "transparent", color: colorMode === m ? "#fff" : "rgba(255,255,255,0.55)" }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Settings popup — screen-space, floats beside the card, always readable */}
       {settingsCard && settingsPos && (
@@ -594,22 +655,28 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
   );
 });
 
-// Static event marker — a pill with mini thumbnail + title, on a short stem.
-function EventMark({ ev, x }) {
+// Event marker — lifted above the band, sitting on its own mark that cuts through
+// the band exactly as boldly as Today. Flat + soft (no shadow, pill corners) so it
+// reads as part of the timeline, not a content card. Colour is event-blue by
+// default, but parameterised so the colour-mode toggle can recolour per event.
+function EventMark({ ev, x, color = TIMELINE_COLOR }) {
+  const BLOCK_H = 26;
   return (
-    <div style={{ position: "absolute", left: x, top: TIMELINE_Y, transform: "translateX(-50%)", pointerEvents: "none" }}>
-      <div style={{ position: "absolute", left: "50%", top: -30, width: 2, height: 30, background: "rgba(96,165,250,0.7)", transform: "translateX(-1px)" }} />
-      <div style={{ position: "absolute", left: "50%", top: -50, transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 6, maxWidth: 160, padding: "3px 9px 3px 3px", borderRadius: 999, background: "rgba(20,28,46,0.95)", border: "1px solid rgba(96,165,250,0.55)" }}>
-        <span style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "rgba(255,255,255,0.08)" }}>
+    <div style={{ position: "absolute", left: x, top: 0, pointerEvents: "none" }}>
+      {/* Mark through the band — same weight as Today, in event colour */}
+      <div style={{ position: "absolute", left: 0, top: BAND_TOP - 7, width: 2, height: BAND_H + 14, borderRadius: 1, background: color, transform: "translateX(-1px)" }} />
+      {/* Block lifted above, sitting on top of its mark — slim, with a bold outline */}
+      <div style={{ position: "absolute", left: 0, top: BAND_TOP - 7 - BLOCK_H, transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 6, height: BLOCK_H, maxWidth: 174, padding: "0 11px 0 5px", borderRadius: 999, background: "rgba(22,22,28,0.97)", border: `2px solid ${color}` }}>
+        <span style={{ width: 18, height: 18, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "rgba(255,255,255,0.08)" }}>
           {ev.thumb && <img src={ev.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
         </span>
-        <span style={{ fontSize: 11, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
+        <span style={{ fontSize: 11.5, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
       </div>
     </div>
   );
 }
 
-function ContentCard({ card, uploading, events, onMove, onStartLink, onStartResize, onRemoveLink, onSet, onOpenSettings, onFill }) {
+function ContentCard({ card, uploading, events, linkColor, onMove, onStartLink, onStartResize, onRemoveLink, onSet, onOpenSettings, onFill }) {
   const fileRef = useRef(null);
   const url = card.mediaUrl || null;
   const isPlaceholder = !url;
@@ -623,19 +690,19 @@ function ContentCard({ card, uploading, events, onMove, onStartLink, onStartResi
   const stop = (e) => e.stopPropagation();
 
   const linkHandle = (where) => (
-    <button onPointerDown={(e) => onStartLink(e, card.id)} title="Drag onto the timeline to set a date" style={{ position: "absolute", left: "50%", [where]: -9, transform: "translateX(-50%)", width: 18, height: 18, borderRadius: "50%", background: "#fbbf24", border: "2px solid rgba(8,7,12,0.9)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "crosshair", padding: 0, zIndex: 3 }}>
-      <Link2 size={9} color="#1a1505" />
+    <button onPointerDown={(e) => onStartLink(e, card.id)} title="Drag onto the timeline to set a date" style={{ position: "absolute", left: "50%", [where]: -9, transform: "translateX(-50%)", width: 18, height: 18, borderRadius: "50%", background: linkColor, border: "2px solid rgba(8,7,12,0.9)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "crosshair", padding: 0, zIndex: 3 }}>
+      <Link2 size={9} color="rgba(8,7,12,0.95)" />
     </button>
   );
 
   return (
     <div
       onPointerDown={(e) => onMove(e, card.id)}
-      style={{ position: "absolute", left: card.x, top: card.y, width: outerW, borderRadius: 12, background: "rgba(20,16,30,0.97)", border: `1px solid ${ch ? accent : "rgba(255,255,255,0.12)"}`, boxShadow: "0 4px 16px rgba(0,0,0,0.4)", cursor: "grab", userSelect: "none" }}
+      style={{ position: "absolute", left: card.x, top: card.y, width: outerW, borderRadius: 3, background: "rgba(20,16,30,0.97)", border: `1px solid ${linkColor}`, boxShadow: "0 2px 9px rgba(0,0,0,0.5)", cursor: "grab", userSelect: "none" }}
     >
       {/* Media */}
       <div style={{ padding: 6 }}>
-        <div style={{ position: "relative", width: "100%", height: mediaH, borderRadius: 6, overflow: "hidden", background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "relative", width: "100%", height: mediaH, borderRadius: 2, overflow: "hidden", background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           {isPlaceholder ? (
             uploading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.5)" }}>
@@ -647,7 +714,7 @@ function ContentCard({ card, uploading, events, onMove, onStartLink, onStartResi
                 onPointerDown={stop}
                 onClick={() => fileRef.current?.click()}
                 title="Add content"
-                style={{ position: "absolute", inset: 4, borderRadius: 6, border: "1.5px dashed rgba(255,255,255,0.22)", background: "transparent", color: "rgba(255,255,255,0.45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}
+                style={{ position: "absolute", inset: 4, borderRadius: 2, border: "1.5px dashed rgba(255,255,255,0.22)", background: "transparent", color: "rgba(255,255,255,0.45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}
               >
                 <ImagePlus size={22} />
                 <span style={{ fontSize: 11, fontWeight: 600 }}>Add content</span>
@@ -655,7 +722,7 @@ function ContentCard({ card, uploading, events, onMove, onStartLink, onStartResi
             )
           ) : (
             <>
-              {card.contentType === "carousel" && <div style={{ position: "absolute", inset: "4px -5px 4px 5px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.14)" }} />}
+              {card.contentType === "carousel" && <div style={{ position: "absolute", inset: "4px -5px 4px 5px", borderRadius: 2, border: "1px solid rgba(255,255,255,0.14)" }} />}
               {card.mediaKind === "image" ? (
                 <img src={url} alt={card.mediaName || ""} draggable={false} style={{ position: "relative", width: "100%", height: "100%", objectFit: "cover" }} />
               ) : card.mediaKind === "video" ? (
@@ -674,19 +741,19 @@ function ContentCard({ card, uploading, events, onMove, onStartLink, onStartResi
 
           {/* Source style badge — icon (channel is obvious) + type */}
           {ch && (
-            <div style={{ position: "absolute", top: 6, left: 6, display: "flex", alignItems: "center", gap: 5, padding: ch.types?.length ? "4px 9px 4px 8px" : 5, borderRadius: 999, background: accent, color: "#fff", fontSize: 11, fontWeight: 600 }}>
+            <div style={{ position: "absolute", top: 6, left: 6, display: "flex", alignItems: "center", gap: 5, padding: ch.types?.length ? "4px 9px 4px 8px" : 5, borderRadius: 2, background: accent, color: "#fff", fontSize: 11, fontWeight: 600 }}>
               <ch.Icon size={13} />
               {ch.types?.length ? <span style={{ whiteSpace: "nowrap" }}>{ty.label}</span> : null}
             </div>
           )}
           {/* Note indicator */}
           {card.note?.trim() && (
-            <div title={card.note} style={{ position: "absolute", bottom: 6, left: 6, width: 22, height: 22, borderRadius: 6, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.85)" }}>
+            <div title={card.note} style={{ position: "absolute", bottom: 6, left: 6, width: 22, height: 22, borderRadius: 3, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.85)" }}>
               <StickyNote size={12} />
             </div>
           )}
           {/* Gear → open the settings popup beside the card */}
-          <button onPointerDown={stop} onClick={() => onOpenSettings(card.id)} title="Settings" style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 7, background: "rgba(0,0,0,0.5)", border: "none", color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+          <button onPointerDown={stop} onClick={() => onOpenSettings(card.id)} title="Settings" style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 3, background: "rgba(0,0,0,0.5)", border: "none", color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
             <Settings2 size={13} />
           </button>
         </div>
@@ -696,7 +763,7 @@ function ContentCard({ card, uploading, events, onMove, onStartLink, onStartResi
       {(linkedEvent || (card.links || []).length > 0) && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "0 8px 8px" }} onPointerDown={stop}>
           {linkedEvent && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "#93c5fd", background: "rgba(96,165,250,0.14)", borderRadius: 5, padding: "2px 6px", maxWidth: "100%" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "#93c5fd", background: "rgba(96,165,250,0.14)", borderRadius: 2, padding: "2px 6px", maxWidth: "100%" }}>
               <CalendarDays size={11} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{linkedEvent.title}</span>
               <button onClick={() => onSet(card.id, { eventId: null })} style={{ background: "none", border: "none", color: "#93c5fd", cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
@@ -705,7 +772,7 @@ function ContentCard({ card, uploading, events, onMove, onStartLink, onStartResi
           {(card.links || []).map((l) => {
             const d = new Date(`${l.date}T00:00:00`);
             return (
-              <span key={l.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "#fbbf24", background: "rgba(251,191,36,0.12)", borderRadius: 5, padding: "2px 6px" }}>
+              <span key={l.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "#fbbf24", background: "rgba(251,191,36,0.12)", borderRadius: 2, padding: "2px 6px" }}>
                 {WEEKDAYS[d.getDay()]} {d.getDate()} {MONTHS[d.getMonth()]}
                 <button onClick={() => onRemoveLink(card.id, l.id)} style={{ background: "none", border: "none", color: "#fbbf24", cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
               </span>
@@ -719,7 +786,7 @@ function ContentCard({ card, uploading, events, onMove, onStartLink, onStartResi
 
       {/* Resize grip — scales the media (proportions locked) */}
       <div onPointerDown={(e) => onStartResize(e, card.id)} title="Drag to resize" style={{ position: "absolute", right: 3, bottom: 3, width: 13, height: 13, cursor: "nwse-resize", zIndex: 3 }}>
-        <div style={{ width: "100%", height: "100%", borderRight: "2px solid rgba(255,255,255,0.4)", borderBottom: "2px solid rgba(255,255,255,0.4)", borderBottomRightRadius: 4 }} />
+        <div style={{ width: "100%", height: "100%", borderRight: "2px solid rgba(255,255,255,0.4)", borderBottom: "2px solid rgba(255,255,255,0.4)", borderBottomRightRadius: 2 }} />
       </div>
     </div>
   );

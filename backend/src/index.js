@@ -12476,7 +12476,7 @@ app.get("/admin/analytics/partner-clicks", requireAdmin, async (req, res) => {
 
     const { data: clicks, error } = await supabase
       .from("partner_clicks")
-      .select("id, partner_slug, event_id, placement, clicked_at, ip_address")
+      .select("id, partner_slug, event_id, placement, clicked_at, ip_address, user_id")
       .gte("clicked_at", periodStart.toISOString())
       .lte("clicked_at", periodEnd.toISOString())
       .order("clicked_at", { ascending: false });
@@ -12514,20 +12514,57 @@ app.get("/admin/analytics/partner-clicks", requireAdmin, async (req, res) => {
       eventClickMap[c.event_id].byPartner[c.partner_slug]++;
     }
 
-    // Fetch event titles for top events
+    // Resolve event titles for every event in the window (the detail list
+    // needs them all, not just the top 10).
+    const allEventIds = [...new Set(rows.map((c) => c.event_id).filter(Boolean))];
+    let eventTitles = {};
+    if (allEventIds.length > 0) {
+      const { data: events } = await supabase
+        .from("events")
+        .select("id, title, slug")
+        .in("id", allEventIds);
+      for (const e of (events || [])) eventTitles[e.id] = { title: e.title, slug: e.slug };
+    }
+
+    // Resolve host identity for the detail list: profiles first, auth.users
+    // email as a backfill (same pattern as the admin CRM/leads endpoints).
+    const userIds = [...new Set(rows.map((c) => c.user_id).filter(Boolean))];
+    let hostById = {};
+    if (userIds.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, name, brand, contact_email")
+        .in("id", userIds);
+      for (const p of (profs || [])) {
+        hostById[p.id] = {
+          id: p.id,
+          name: p.name || p.brand || null,
+          email: p.contact_email || null,
+        };
+      }
+      const needEmail = userIds.filter((id) => !hostById[id]?.email);
+      if (needEmail.length > 0) {
+        const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+        const emailById = {};
+        (authData?.users || []).forEach((u) => {
+          if (u.email) emailById[u.id] = u.email;
+        });
+        for (const id of userIds) {
+          if (!hostById[id]) hostById[id] = { id, name: null, email: emailById[id] || null };
+          else if (!hostById[id].email) hostById[id].email = emailById[id] || null;
+        }
+      }
+      // Last-resort display name from the email local part.
+      for (const id of Object.keys(hostById)) {
+        const h = hostById[id];
+        if (!h.name && h.email) h.name = h.email.split("@")[0];
+      }
+    }
+
     const topEventIds = Object.entries(eventClickMap)
       .sort((a, b) => b[1].total - a[1].total)
       .slice(0, 10)
       .map(([id]) => id);
-
-    let eventTitles = {};
-    if (topEventIds.length > 0) {
-      const { data: events } = await supabase
-        .from("events")
-        .select("id, title, slug")
-        .in("id", topEventIds);
-      for (const e of (events || [])) eventTitles[e.id] = { title: e.title, slug: e.slug };
-    }
 
     const topEvents = topEventIds.map(id => ({
       id,
@@ -12537,11 +12574,25 @@ app.get("/admin/analytics/partner-clicks", requireAdmin, async (req, res) => {
       byPartner: eventClickMap[id].byPartner,
     }));
 
+    // Per-click detail (rows are already newest-first), capped so the payload
+    // stays small. This is the "who clicked what, on which event, when" list.
+    const recentClicks = rows.slice(0, 100).map((c) => ({
+      id: c.id,
+      partnerSlug: c.partner_slug,
+      placement: c.placement,
+      clickedAt: c.clicked_at,
+      eventId: c.event_id,
+      eventTitle: eventTitles[c.event_id]?.title || "Unknown event",
+      eventSlug: eventTitles[c.event_id]?.slug || null,
+      host: c.user_id ? (hostById[c.user_id] || { id: c.user_id, name: null, email: null }) : null,
+    }));
+
     return res.json({
       totalClicks: rows.length,
       uniqueClickers: new Set(rows.map(c => c.ip_address || c.id)).size,
       partners,
       topEvents,
+      recentClicks,
     });
   } catch (err) {
     console.error("[partner-clicks analytics] error:", err.message);

@@ -519,6 +519,36 @@ export function AnalyticsPage() {
                   ))}
                 </div>
               )}
+
+              {/* Per-click detail: who clicked, which event, when */}
+              {partnerClicks.recentClicks && partnerClicks.recentClicks.length > 0 && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Recent clicks
+                  </div>
+                  {partnerClicks.recentClicks.map((c) => (
+                    <div key={c.id} style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "5px 0",
+                      borderBottom: "1px solid rgba(255,255,255,0.03)",
+                      fontSize: "12px",
+                    }}>
+                      <span style={{ textTransform: "capitalize", color: "rgba(251,191,36,0.7)", fontWeight: 600, minWidth: 84 }}>
+                        {c.partnerSlug}
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0, color: "rgba(255,255,255,0.55)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.host ? (c.host.name || c.host.email || "Host") : (
+                          <span style={{ fontStyle: "italic", color: "rgba(255,255,255,0.3)" }}>Anonymous</span>
+                        )}
+                        <span style={{ color: "rgba(255,255,255,0.25)" }}> · {c.eventTitle}</span>
+                      </span>
+                      <span style={{ color: "rgba(255,255,255,0.25)", whiteSpace: "nowrap" }}>
+                        {new Date(c.clickedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

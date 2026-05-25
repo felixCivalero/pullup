@@ -168,10 +168,19 @@ export function AuthProvider({ children }) {
   };
 
   const signInWithGoogle = async (returnTo = null) => {
-    // Always use current origin so same Supabase project works on localhost and production
-    const redirectTo = returnTo
-      ? `${window.location.origin}${returnTo}`
-      : `${window.location.origin}/events`;
+    // Land every OAuth round-trip on the dedicated /auth/callback handler
+    // rather than dropping the user straight onto a protected route. The
+    // callback waits for the session before forwarding (no redirect race) and
+    // surfaces provider errors instead of silently bouncing to login. The
+    // original destination rides along as ?next= so we forward there on success.
+    const dest =
+      returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+        ? returnTo
+        : "/events";
+    // Always use current origin so the same Supabase project works on localhost and production.
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+      dest,
+    )}`;
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",

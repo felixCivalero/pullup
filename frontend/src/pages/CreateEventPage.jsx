@@ -1527,6 +1527,18 @@ export function CreateEventPage() {
         continue;
       }
 
+      // A .mov is a QuickTime container, but almost always holds H.264/AAC —
+      // the same codecs as MP4. Chrome/Firefox refuse to decode a
+      // `video/quicktime` source, so the thumbnail, the editor preview, and
+      // the live <video> all come back blank (the "video disappeared" bug).
+      // The identical bytes labelled `video/mp4` play fine. The old base64
+      // upload path relabelled server-side; the direct-upload path dropped it,
+      // so normalise here and let the whole pipeline treat it as mp4.
+      const uploadFile =
+        isVideo && file.type === "video/quicktime"
+          ? new File([file], file.name.replace(/\.mov$/i, ".mp4"), { type: "video/mp4" })
+          : file;
+
       // Generate preview. For images, pre-process here so HEIC files (which
       // browsers can't render natively) are converted to JPEG/WebP up-front,
       // giving an immediate, renderable preview. We stash the processed Blob
@@ -1537,32 +1549,32 @@ export function CreateEventPage() {
       let processedMime = null;
       if (isVideo) {
         try {
-          const thumbBlob = await generateVideoThumbnail(file);
+          const thumbBlob = await generateVideoThumbnail(uploadFile);
           preview = URL.createObjectURL(thumbBlob);
         } catch {
           preview = null;
         }
       } else if (validation.mediaType === "image") {
         try {
-          const processed = await processImageForUpload(file);
+          const processed = await processImageForUpload(uploadFile);
           processedBlob = processed.blob;
           processedMime = processed.mimeType;
           preview = URL.createObjectURL(processedBlob);
         } catch (err) {
           console.error("[handleMediaAdd] image processing failed", err);
-          preview = URL.createObjectURL(file); // fall back to raw blob URL
+          preview = URL.createObjectURL(uploadFile); // fall back to raw blob URL
         }
       } else {
         // GIF — leave untouched to preserve animation.
-        preview = URL.createObjectURL(file);
+        preview = URL.createObjectURL(uploadFile);
       }
 
       const mediaItem = {
         id: `local_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        file,
+        file: uploadFile,
         preview,
         mediaType: validation.mediaType,
-        previewUrl: isVideo ? URL.createObjectURL(file) : preview,
+        previewUrl: isVideo ? URL.createObjectURL(uploadFile) : preview,
         processedBlob,
         processedMime,
       };

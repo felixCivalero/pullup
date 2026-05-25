@@ -175,6 +175,16 @@ function ProtectedLayoutInner() {
     return eventTab === tab;
   }
 
+  // The header "Live" button reflects the event's stage. A draft isn't public
+  // yet, so it offers a preview; a published event is "Live", and once the
+  // editor has unsaved edits it nudges the host to preview those changes.
+  const liveBtn = (() => {
+    const isDraft = eventNav?.status === "DRAFT";
+    if (isDraft) return { label: "Show preview", dot: "rgba(255,255,255,0.4)" };
+    if (eventNav?.dirty) return { label: "Live · preview changes", dot: "#f0d878" };
+    return { label: "Live", dot: "#4ade80" };
+  })();
+
   // Show loading state while checking auth
   if (loading) {
     return (
@@ -469,6 +479,9 @@ function ProtectedLayoutInner() {
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
               style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "7px",
                 padding: "6px 14px",
                 borderRadius: "999px",
                 border: "1px solid rgba(255,255,255,0.15)",
@@ -488,7 +501,16 @@ function ProtectedLayoutInner() {
                 e.currentTarget.style.background = "rgba(255,255,255,0.05)";
               }}
             >
-              Live
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: liveBtn.dot,
+                  flexShrink: 0,
+                }}
+              />
+              {liveBtn.label}
             </a>
           )}
 
@@ -841,6 +863,7 @@ function ProtectedLayoutInner() {
                       style={{
                         display: "flex",
                         alignItems: "center",
+                        gap: "10px",
                         width: "100%",
                         padding: "14px 16px",
                         borderRadius: "12px",
@@ -851,7 +874,16 @@ function ProtectedLayoutInner() {
                         touchAction: "manipulation",
                       }}
                     >
-                      View Live
+                      <span
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: "50%",
+                          background: liveBtn.dot,
+                          flexShrink: 0,
+                        }}
+                      />
+                      {eventNav?.status === "DRAFT" ? "Show preview" : "View live"}
                     </a>
                   )}
                 </>

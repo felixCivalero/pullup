@@ -265,6 +265,7 @@ export function EventGuestsPage() {
         setEventNav({
           title: data.event?.title,
           slug: data.event?.slug,
+          status: data.event?.status,
           guestsCount: data.guests?.length || 0,
           myRole: data.event?.myRole,
         });
@@ -338,6 +339,7 @@ export function EventGuestsPage() {
       setEventNav({
         title: event.title,
         slug: event.slug,
+        status: event.status,
         guestsCount: guests.length,
         myRole: event.myRole,
       });

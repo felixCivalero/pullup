@@ -596,6 +596,12 @@ export function CreateEventPage() {
   const { user } = useAuth();
   const [editLoading, setEditLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
+  // Event identity for the header "Live" button (edit mode). Status drives its
+  // label: DRAFT -> "Show preview", PUBLISHED -> "Live" (+ "preview changes"
+  // once there are unsaved edits).
+  const [eventTitle, setEventTitle] = useState(null);
+  const [eventSlug, setEventSlug] = useState(null);
+  const [eventStatus, setEventStatus] = useState(null);
 
   // PullUp coach widget hands off into the editor by appending ?focus=<key>.
   // Read it, flip to the matching tab, briefly gold-flash a relevant field
@@ -929,6 +935,44 @@ export function CreateEventPage() {
       })
       .filter((s) => s.time);
   }, [dinnerEnabled, dinnerSlotsConfig, startsAt]);
+
+  // --- Unsaved-edit tracking (edit mode) -------------------------------------
+  // Serialize the editable fields into one string. We snapshot this once the
+  // event finishes loading; any later divergence means the host has unsaved
+  // edits, which the header "Live" button surfaces as "preview changes".
+  const formSnapshot = JSON.stringify({
+    title, titleVisible, titleAlign, titleFont, titleSize, titleColor,
+    detailsColor, detailsGradient, detailsGradientEnabled, description, sections,
+    location, locationLat, locationLng, hideLocation, hideDate, revealHint,
+    dateRevealHint, startsAt, endsAt, timezone, maxAttendees, waitlistEnabled,
+    instantWaitlist, sellTicketsEnabled, ticketPrice, ticketCurrency,
+    allowPlusOnes, maxPlusOnesPerGuest, dinnerEnabled, dinnerStartTime,
+    dinnerEndTime, dinnerMaxSeatsPerSlot, dinnerOverflowAction, dinnerBookingEmail,
+    hideDinnerRemaining, dinnerSlotsConfig, instagram, spotify, tiktok, soundcloud,
+    formFields, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
+    customThumbnail: !!customThumbnail,
+  });
+  const baselineSnapshot = useRef(null);
+  useEffect(() => {
+    if (isEditMode && !editLoading && eventSlug && baselineSnapshot.current === null) {
+      baselineSnapshot.current = formSnapshot;
+    }
+  }, [isEditMode, editLoading, eventSlug, formSnapshot]);
+  const hasUnsavedEdits =
+    isEditMode && baselineSnapshot.current !== null && formSnapshot !== baselineSnapshot.current;
+
+  // Feed event identity + stage into the navbar so the header "Live" button can
+  // reflect it. Keeps title/slug from load; only status & dirty flag move.
+  useEffect(() => {
+    if (!isEditMode || !eventSlug) return;
+    setEventNav({
+      title: eventTitle,
+      slug: eventSlug,
+      status: eventStatus,
+      dirty: hasUnsavedEdits,
+      guestsCount: null,
+    });
+  }, [isEditMode, eventSlug, eventStatus, eventTitle, hasUnsavedEdits, setEventNav]);
 
   // Stripe connection status - load from backend
   const [stripeConnected, setStripeConnected] = useState(false);
@@ -1343,12 +1387,11 @@ export function CreateEventPage() {
           setImagePreview(ev.imageUrl);
         }
 
-        // Update navbar with event context
-        setEventNav({
-          title: ev.title,
-          slug: ev.slug,
-          guestsCount: null,
-        });
+        // Stash identity + stage; the navbar effect picks these up so the
+        // header "Live" button can reflect draft/live/unsaved-edits state.
+        setEventTitle(ev.title);
+        setEventSlug(ev.slug);
+        setEventStatus(ev.status || "PUBLISHED");
       } catch (err) {
         console.error("Error loading event for edit:", err);
         showToast("Failed to load event", "error");

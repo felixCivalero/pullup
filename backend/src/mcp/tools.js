@@ -257,10 +257,7 @@ const UploadMediaInput = {
 
 const MediaUploadLinkInput = {
   slug: z.string().describe(
-    "The event's slug. Returns a short-lived URL the host can open in a browser to drag-drop a media file (image up to 50MB or video up to 500MB)."
-  ),
-  expiresInHours: z.number().int().positive().max(24).optional().describe(
-    "How long the link should stay valid. Default 2, max 24."
+    "The event's slug. Returns the event's edit page URL, where the host can drag-drop a media file (image up to 50MB or video up to 500MB) and tune the rest of the event. The host must be signed in to PullUp in that browser."
   ),
 };
 
@@ -956,28 +953,21 @@ function buildHandlers(api, _hostId) {
     );
   }
 
-  // Mint a short-lived browser upload page for the host. Use when the host
-  // has a local file (video, phone photo) and can't pass a URL or base64 —
-  // claude.ai web has no filesystem access and the MCP envelope can't carry
-  // 100MB+ videos. The returned URL opens a focused drag-drop page that
-  // talks straight to Supabase storage.
+  // Point the host straight at the event's edit page. Use when the host has a
+  // local file (video, phone photo) and can't pass a URL or base64 — claude.ai
+  // web has no filesystem access and the MCP envelope can't carry 100MB+
+  // videos. The edit page has the drag-drop media area (talks straight to
+  // Supabase storage) plus all the other event controls, so everything lives
+  // in one place. Requires the host be signed in to PullUp in that browser.
   async function getMediaUploadLink(args) {
     const existing = await resolveEventBySlug(args.slug);
-    const expiresInHours = args.expiresInHours || 2;
-    const resp = await api("POST", `/host/events/${existing.id}/upload-link`, {
-      body: { expiresInHours },
-    });
-    if (!resp?.uploadUrl) {
-      throw new Error("Backend did not return an upload URL.");
-    }
     return toolResultText(
       [
-        `Upload link for "${existing.title}":`,
+        `Open the edit page for "${existing.title}":`,
         ``,
-        `  ${resp.uploadUrl}`,
+        `  ${editUrlForEventId(existing.id)}`,
         ``,
-        `Open it in a browser, drop a video (up to 500MB) or image (up to 50MB), and it'll attach to the event.`,
-        `Link expires in ${expiresInHours}h.`,
+        `Drop a video (up to 500MB) or image (up to 50MB) onto the media area and it'll attach to the event.`,
       ].join("\n")
     );
   }
@@ -2344,9 +2334,9 @@ export function buildTools(ctx) {
     },
     {
       name: "get_media_upload_link",
-      title: "Get a browser upload link for local files",
+      title: "Get the event edit page link for local files",
       description:
-        "Returns a short-lived URL the host opens in a browser to drag-and-drop a media file (image up to 50MB or video up to 500MB) onto an event and tune media display settings (fit, focus, loop/autoplay/audio for videos). Use this whenever the host has a local file with no public URL — claude.ai web has no filesystem access and the MCP envelope can't carry large videos. The link is single-event scoped and expires.",
+        "Returns the event's edit page URL, where the host drag-and-drops a media file (image up to 50MB or video up to 500MB) and tunes media display settings (fit, focus, loop/autoplay/audio for videos) alongside the rest of the event. Use this whenever the host has a local file with no public URL — claude.ai web has no filesystem access and the MCP envelope can't carry large videos. The host must be signed in to PullUp in that browser.",
       inputSchema: MediaUploadLinkInput,
       handler: h.getMediaUploadLink,
     },

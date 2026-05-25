@@ -1467,6 +1467,103 @@ export async function personBelongsToHost(personId, userId) {
   return Array.isArray(data) && data.length > 0;
 }
 
+// ─── Content Planner cards (per-host) ─────────────────────────────────
+// Durable storage for the planner canvas. Scoped by host_id; all writes go
+// through the service-role client and re-assert host_id.
+
+function mapPlannerCardFromDb(r) {
+  return {
+    id: r.id,
+    x: r.x,
+    y: r.y,
+    w: r.w,
+    channel: r.channel || null,
+    contentType: r.content_type || "image",
+    eventId: r.event_id || null,
+    note: r.note || "",
+    mediaUrl: r.media_url || null,
+    mediaPath: r.media_path || null,
+    mediaKind: r.media_kind || "placeholder",
+    mediaName: r.media_name || null,
+    mediaMime: r.media_mime || null,
+    links: Array.isArray(r.links) ? r.links : [],
+  };
+}
+
+function plannerCardToDb(p) {
+  const d = {};
+  if (p.x !== undefined) d.x = p.x;
+  if (p.y !== undefined) d.y = p.y;
+  if (p.w !== undefined) d.w = p.w;
+  if (p.channel !== undefined) d.channel = p.channel;
+  if (p.contentType !== undefined) d.content_type = p.contentType;
+  if (p.eventId !== undefined) d.event_id = p.eventId;
+  if (p.note !== undefined) d.note = p.note;
+  if (p.mediaUrl !== undefined) d.media_url = p.mediaUrl;
+  if (p.mediaPath !== undefined) d.media_path = p.mediaPath;
+  if (p.mediaKind !== undefined) d.media_kind = p.mediaKind;
+  if (p.mediaName !== undefined) d.media_name = p.mediaName;
+  if (p.mediaMime !== undefined) d.media_mime = p.mediaMime;
+  if (p.links !== undefined) d.links = p.links;
+  return d;
+}
+
+export async function getPlannerCards(hostId) {
+  const { data, error } = await supabase
+    .from("planner_cards")
+    .select("*")
+    .eq("host_id", hostId)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("[getPlannerCards] error:", error);
+    return [];
+  }
+  return (data || []).map(mapPlannerCardFromDb);
+}
+
+export async function createPlannerCard(hostId, card) {
+  if (!card?.id) return { error: "missing_id" };
+  const row = { id: card.id, host_id: hostId, ...plannerCardToDb(card) };
+  const { data, error } = await supabase.from("planner_cards").insert(row).select("*").single();
+  if (error) {
+    console.error("[createPlannerCard] error:", error);
+    return { error: "insert_failed" };
+  }
+  return { card: mapPlannerCardFromDb(data) };
+}
+
+export async function updatePlannerCard(id, hostId, patch) {
+  const d = plannerCardToDb(patch);
+  d.updated_at = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("planner_cards")
+    .update(d)
+    .eq("id", id)
+    .eq("host_id", hostId)
+    .select("*")
+    .single();
+  if (error || !data) {
+    if (error && error.code !== "PGRST116") console.error("[updatePlannerCard] error:", error);
+    return { error: "not_found" };
+  }
+  return { card: mapPlannerCardFromDb(data) };
+}
+
+export async function deletePlannerCard(id, hostId) {
+  const { data, error } = await supabase
+    .from("planner_cards")
+    .delete()
+    .eq("id", id)
+    .eq("host_id", hostId)
+    .select("media_path")
+    .single();
+  if (error || !data) {
+    if (error && error.code !== "PGRST116") console.error("[deletePlannerCard] error:", error);
+    return { error: "not_found" };
+  }
+  return { ok: true, mediaPath: data.media_path || null };
+}
+
 // ─── Person notes (per-host timeline) ─────────────────────────────────
 // People are SHARED across hosts (see personBelongsToHost), so notes are
 // scoped by host_id: a host only ever sees notes they wrote. Every read and

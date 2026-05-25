@@ -5812,6 +5812,84 @@ app.delete(
 );
 
 // ---------------------------
+// PROTECTED: Content Planner — cards + media upload (requires auth)
+// ---------------------------
+app.get("/host/planner/cards", requireAuth, async (req, res) => {
+  try {
+    const { getPlannerCards } = await import("./data.js");
+    res.json({ cards: await getPlannerCards(req.user.id) });
+  } catch (e) {
+    console.error("Error loading planner cards:", e);
+    res.status(500).json({ error: "Failed to load planner" });
+  }
+});
+
+app.post("/host/planner/cards", requireAuth, async (req, res) => {
+  try {
+    const { createPlannerCard } = await import("./data.js");
+    const result = await createPlannerCard(req.user.id, req.body || {});
+    if (result.error === "missing_id") return res.status(400).json({ error: "id required" });
+    if (result.error) return res.status(500).json({ error: "Failed to create card" });
+    res.status(201).json(result.card);
+  } catch (e) {
+    console.error("Error creating planner card:", e);
+    res.status(500).json({ error: "Failed to create card" });
+  }
+});
+
+app.patch("/host/planner/cards/:id", requireAuth, async (req, res) => {
+  try {
+    const { updatePlannerCard } = await import("./data.js");
+    const result = await updatePlannerCard(req.params.id, req.user.id, req.body || {});
+    if (result.error === "not_found") return res.status(404).json({ error: "Card not found" });
+    res.json(result.card);
+  } catch (e) {
+    console.error("Error updating planner card:", e);
+    res.status(500).json({ error: "Failed to update card" });
+  }
+});
+
+app.delete("/host/planner/cards/:id", requireAuth, async (req, res) => {
+  try {
+    const { deletePlannerCard } = await import("./data.js");
+    const result = await deletePlannerCard(req.params.id, req.user.id);
+    if (result.error === "not_found") return res.status(404).json({ error: "Card not found" });
+    if (result.mediaPath) {
+      try {
+        const { supabase } = await import("./supabase.js");
+        await supabase.storage.from("event-images").remove([result.mediaPath]);
+      } catch (err) {
+        console.error("planner media cleanup failed:", err?.message);
+      }
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Error deleting planner card:", e);
+    res.status(500).json({ error: "Failed to delete card" });
+  }
+});
+
+// Mint a signed upload URL so the browser uploads media straight to Storage.
+app.post("/host/planner/upload-url", requireAuth, async (req, res) => {
+  try {
+    const { mimeType } = req.body || {};
+    const ext = extensionFromMime(mimeType);
+    const path = `planner/${req.user.id}/${crypto.randomUUID()}.${ext}`;
+    const { supabase } = await import("./supabase.js");
+    const { data, error } = await supabase.storage.from("event-images").createSignedUploadUrl(path);
+    if (error || !data) {
+      console.error("planner upload-url mint failed:", error);
+      return res.status(500).json({ error: "Could not mint upload URL" });
+    }
+    const { data: pub } = supabase.storage.from("event-images").getPublicUrl(path);
+    res.json({ bucket: "event-images", path, token: data.token, publicUrl: pub.publicUrl });
+  } catch (e) {
+    console.error("Error minting planner upload URL:", e);
+    res.status(500).json({ error: "Failed to mint upload URL" });
+  }
+});
+
+// ---------------------------
 // PROTECTED: Import CSV (requires auth)
 // ---------------------------
 app.post("/host/crm/import-csv", requireAuth, async (req, res) => {

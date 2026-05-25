@@ -5869,6 +5869,53 @@ app.delete("/host/planner/cards/:id", requireAuth, async (req, res) => {
   }
 });
 
+// ─── Planner timelines (lanes) ────────────────────────────────────────
+app.get("/host/planner/timelines", requireAuth, async (req, res) => {
+  try {
+    const { getPlannerTimelines } = await import("./data.js");
+    res.json({ timelines: await getPlannerTimelines(req.user.id) });
+  } catch (e) {
+    console.error("Error loading planner timelines:", e);
+    res.status(500).json({ error: "Failed to load timelines" });
+  }
+});
+
+app.post("/host/planner/timelines", requireAuth, async (req, res) => {
+  try {
+    const { createPlannerTimeline } = await import("./data.js");
+    const result = await createPlannerTimeline(req.user.id, req.body || {});
+    if (result.error) return res.status(500).json({ error: "Failed to create timeline" });
+    res.status(201).json(result.timeline);
+  } catch (e) {
+    console.error("Error creating planner timeline:", e);
+    res.status(500).json({ error: "Failed to create timeline" });
+  }
+});
+
+app.patch("/host/planner/timelines/:id", requireAuth, async (req, res) => {
+  try {
+    const { updatePlannerTimeline } = await import("./data.js");
+    const result = await updatePlannerTimeline(req.params.id, req.user.id, req.body || {});
+    if (result.error === "not_found") return res.status(404).json({ error: "Timeline not found" });
+    res.json(result.timeline);
+  } catch (e) {
+    console.error("Error updating planner timeline:", e);
+    res.status(500).json({ error: "Failed to update timeline" });
+  }
+});
+
+app.delete("/host/planner/timelines/:id", requireAuth, async (req, res) => {
+  try {
+    const { deletePlannerTimeline } = await import("./data.js");
+    const result = await deletePlannerTimeline(req.params.id, req.user.id);
+    if (result.error) return res.status(500).json({ error: "Failed to delete timeline" });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Error deleting planner timeline:", e);
+    res.status(500).json({ error: "Failed to delete timeline" });
+  }
+});
+
 // Mint a signed upload URL so the browser uploads media straight to Storage.
 app.post("/host/planner/upload-url", requireAuth, async (req, res) => {
   try {

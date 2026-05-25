@@ -7,77 +7,28 @@ import {
   useRef,
   useState,
 } from "react";
-import { FileText, Link2, X, Trash2, Settings2, StickyNote, CalendarDays, ImagePlus, Loader2, Mail, Image as ImageIcon, Film, Smartphone, GalleryHorizontalEnd, Palette } from "lucide-react";
-import { SiInstagram, SiTiktok, SiYoutube, SiFacebook, SiX, SiLinkedin, SiWhatsapp } from "react-icons/si";
+import { FileText, Link2, X, StickyNote, CalendarDays, ImagePlus, Loader2, Image as ImageIcon, Palette, Pencil, BarChart3, RotateCcw, GripVertical, ListFilter, Trash2, Plus, Check, Keyboard } from "lucide-react";
 import { mediaKind, loadViewport, saveViewport } from "../../lib/plannerStore.js";
 import { DAY_MS, startOfDay, addDays } from "../../lib/plannerTime.js";
 import { authenticatedFetch } from "../../lib/api.js";
 import { supabase } from "../../lib/supabase.js";
-
-// ── World constants ─────────────────────────────────────────────────
-const PX_PER_DAY = 26;
-const TIMELINE_Y = 0; // vertical centre of the timeline band
-const BAND_H = 30; // slim band — its bold borders carry the structure, not its mass
-const BAND_TOP = TIMELINE_Y - BAND_H / 2;
-const BAND_BOTTOM = TIMELINE_Y + BAND_H / 2;
-const TODAY_COLOR = "#fbbf24"; // gold — "now", fixed in every colour mode
-const TIMELINE_COLOR = "rgba(255,255,255,0.6)"; // events share the band's neutral tone in platform mode — timeline + events read as one
-const NEUTRAL_LINK = "rgba(148,163,184,0.95)"; // content with no channel / no event
-// Distinct hues for "event" colour mode — assigned per event, chronologically.
-// Gold is reserved for "today", so it's absent here.
-const EVENT_PALETTE = ["#60a5fa", "#f472b6", "#34d399", "#a78bfa", "#fb923c", "#22d3ee", "#f87171", "#a3e635"];
-const CARD_W = 188; // card (and media) width — resizable
-const MIN_CARD_W = 120;
-const MAX_CARD_W = 440;
-const MIN_SCALE = 0.25;
-const MAX_SCALE = 2.5;
-const SNAP_Y = 56; // how close to the band counts as "on the timeline"
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-// `types` = the content formats relevant to each channel. The Type dropdown
-// only shows when a channel offers more than one (e.g. Email shows none).
-const CHANNELS = {
-  instagram: { label: "Instagram", color: "#E1306C", Icon: SiInstagram, types: ["image", "carousel", "story", "reel"] },
-  tiktok: { label: "TikTok", color: "#FE2C55", Icon: SiTiktok, types: ["reel", "story", "carousel"] },
-  youtube: { label: "YouTube", color: "#FF0000", Icon: SiYoutube, types: ["reel"] },
-  facebook: { label: "Facebook", color: "#1877F2", Icon: SiFacebook, types: ["image", "carousel", "story", "reel"] },
-  x: { label: "X", color: "#7d8b99", Icon: SiX, types: ["image", "carousel"] },
-  linkedin: { label: "LinkedIn", color: "#0A66C2", Icon: SiLinkedin, types: ["image", "carousel"] },
-  whatsapp: { label: "WhatsApp", color: "#25D366", Icon: SiWhatsapp, types: ["story", "image"] },
-  email: { label: "Email", color: "#3b82f6", Icon: Mail, types: [] },
-};
-const TYPES = {
-  image: { label: "Image", Icon: ImageIcon, ratio: 1 },
-  carousel: { label: "Carousel", Icon: GalleryHorizontalEnd, ratio: 1 },
-  story: { label: "Story", Icon: Smartphone, ratio: 1.5 },
-  reel: { label: "Reel", Icon: Film, ratio: 1.5 },
-};
-
-// A content card's identity colour — its channel, or neutral slate if none.
-// Drives the whole link chain: handle → connector line → mark on the band.
-const channelColor = (channel) => CHANNELS[channel]?.color || NEUTRAL_LINK;
-
-const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const pad2 = (n) => String(n).padStart(2, "0");
-const isoOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+import {
+  PX_PER_DAY, BAND_H, BAND_TOP, BAND_BOTTOM, TODAY_COLOR, TIMELINE_COLOR, NEUTRAL_LINK,
+  EVENT_PALETTE, CARD_W, MIN_CARD_W, MAX_CARD_W, MIN_SCALE, MAX_SCALE, SNAP_Y, WEEKDAYS, MONTHS,
+  CHANNELS, TYPES, channelColor, uid, clamp, isoOf, cardFrameW, cardHeight, fmtDate, phaseOf, eventPhase,
+} from "./plannerConstants.js";
+import { EditFace, AnalyticsFace } from "./CardFaces.jsx";
 
 // Serialisable card fields sent to the backend (id added separately on create).
-const cardPayload = (c) => ({ x: c.x, y: c.y, w: c.w, channel: c.channel, contentType: c.contentType, eventId: c.eventId, note: c.note, links: c.links, mediaUrl: c.mediaUrl, mediaPath: c.mediaPath, mediaKind: c.mediaKind, mediaName: c.mediaName, mediaMime: c.mediaMime });
-
-// Card width + approximate height — used to anchor each card's connector to the
-// edge nearest the timeline. The card is media-only by default (settings live
-// behind a gear), so height = media + an optional date row.
-const cardFrameW = (c) => c.w || CARD_W;
-const cardHeight = (c) => {
-  const ty = TYPES[c.contentType] || TYPES.image;
-  const mediaH = Math.round(((c.w || CARD_W) - 12) * ty.ratio);
-  return 6 + mediaH + 6 + (c.links?.length || c.eventId ? 28 : 0);
-};
+const cardPayload = (c) => ({ x: c.x, y: c.y, w: c.w, channel: c.channel, contentType: c.contentType, eventId: c.eventId, timelineIds: c.timelineIds || [], note: c.note, links: c.links, meta: c.meta || {}, mediaUrl: c.mediaUrl, mediaPath: c.mediaPath, mediaKind: c.mediaKind, mediaName: c.mediaName, mediaMime: c.mediaMime });
 
 const DEFAULT_STATE = { viewport: { panX: 0, panY: 0, scale: 1 }, items: [] };
+
+const LANE_GAP = 360; // default vertical spacing when auto-placing a new lane
+const LANE_PALETTE = ["#fb923c", "#60a5fa", "#f472b6", "#34d399", "#a78bfa", "#22d3ee", "#f87171", "#a3e635"];
+
+// Which events a lane shows, given its filter.
+const laneEvents = (lane, events) => (lane?.eventFilter?.mode === "selected" ? events.filter((e) => (lane.eventFilter.eventIds || []).includes(e.id)) : events);
 
 export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, events = [], onSaveStatus }, ref) {
   const containerRef = useRef(null);
@@ -90,10 +41,21 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     return m;
   }, [events]);
   const [state, setState] = useState(() => ({ viewport: loadViewport(storageKey) || DEFAULT_STATE.viewport, items: [] }));
+  const [timelines, setTimelines] = useState([]);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [link, setLink] = useState(null);
   const [panning, setPanning] = useState(false);
-  const [openCardId, setOpenCardId] = useState(null);
+  const [flippedIds, setFlippedIds] = useState(() => new Set());
+  const [raisedId, setRaisedId] = useState(null); // last-clicked card/event — sits above overlapping siblings
+  const [filterLaneId, setFilterLaneId] = useState(null); // lane whose event-filter popup is open
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [marquee, setMarquee] = useState(null); // rubber-band rectangle in world coords
+  const [spaceDown, setSpaceDown] = useState(false); // hand-tool pan modifier
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const selectedIdsRef = useRef(selectedIds);
+  useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
+  const spaceRef = useRef(false);
+  const clipboardRef = useRef([]);
   const [loaded, setLoaded] = useState(false);
   const [uploadingIds, setUploadingIds] = useState(() => new Set());
   const [colorMode, setColorMode] = useState("platform"); // "platform" = by channel · "event" = by event
@@ -107,7 +69,12 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+  const timelinesRef = useRef(timelines);
+  useEffect(() => {
+    timelinesRef.current = timelines;
+  }, [timelines]);
   const saveTimers = useRef({});
+  const tlTimers = useRef({});
   const vpTimer = useRef(null);
 
   // Autosave status surfaced to the toolbar: "saved" | "saving" | "error".
@@ -150,6 +117,30 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     };
   }, []);
 
+  // Load timelines (lanes). Bootstrap a default "All events" lane on first run.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await authenticatedFetch("/host/planner/timelines");
+        if (!res.ok) return;
+        const data = await res.json();
+        let tls = Array.isArray(data.timelines) ? data.timelines : [];
+        if (!tls.length) {
+          const def = { id: uid(), name: "All events", color: LANE_PALETTE[0], y: 0, sort: 0, eventFilter: { mode: "all", eventIds: [] } };
+          tls = [def];
+          authenticatedFetch("/host/planner/timelines", { method: "POST", body: JSON.stringify(def) }).catch(() => {});
+        }
+        if (alive) setTimelines(tls);
+      } catch {
+        /* ignore — lanes just won't render */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -184,6 +175,15 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     const rect = containerRef.current.getBoundingClientRect();
     return screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
   }, [screenToWorld]);
+
+  // Nearest lane to a world-y (used for snapping links and placing new cards).
+  const nearestLaneId = useCallback((wy) => {
+    const tls = timelinesRef.current;
+    if (!tls.length) return null;
+    let best = tls[0], bd = Infinity;
+    for (const t of tls) { const dist = Math.abs(wy - t.y); if (dist < bd) { bd = dist; best = t; } }
+    return best.id;
+  }, []);
 
   // ── DB persistence + autosave status ──────────────────────────────
   const recalc = useCallback(() => {
@@ -246,6 +246,69 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     [trackFetch],
   );
 
+  // ── Timeline (lane) persistence ───────────────────────────────────
+  const queueSaveTimeline = useCallback(
+    (id) => {
+      clearTimeout(tlTimers.current[id]);
+      if (!pendingIds.current.has(id)) {
+        pendingIds.current.add(id);
+        recalc();
+      }
+      tlTimers.current[id] = setTimeout(() => {
+        pendingIds.current.delete(id);
+        const t = timelinesRef.current.find((x) => x.id === id);
+        if (!t) {
+          recalc();
+          return;
+        }
+        trackFetch(`/host/planner/timelines/${id}`, { method: "PATCH", body: JSON.stringify({ name: t.name, color: t.color, y: t.y, sort: t.sort, eventFilter: t.eventFilter }) }).catch(() => {});
+      }, 400);
+    },
+    [recalc, trackFetch],
+  );
+
+  const setTimeline = useCallback(
+    (id, patch) => {
+      setTimelines((p) => p.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+      queueSaveTimeline(id);
+    },
+    [queueSaveTimeline],
+  );
+
+  const createTimeline = useCallback(() => {
+    const tls = timelinesRef.current;
+    const maxY = tls.reduce((m, t) => Math.max(m, t.y), 0);
+    const maxSort = tls.reduce((m, t) => Math.max(m, t.sort), -1);
+    const t = { id: uid(), name: "New timeline", color: LANE_PALETTE[tls.length % LANE_PALETTE.length], y: tls.length ? maxY + LANE_GAP : 0, sort: maxSort + 1, eventFilter: { mode: "all", eventIds: [] } };
+    setTimelines((p) => [...p, t]);
+    trackFetch("/host/planner/timelines", { method: "POST", body: JSON.stringify(t) }).catch(() => {});
+  }, [trackFetch]);
+
+  const deleteTimeline = useCallback(
+    (id) => {
+      clearTimeout(tlTimers.current[id]);
+      pendingIds.current.delete(id);
+      setTimelines((p) => p.filter((t) => t.id !== id));
+      setState((s) => ({
+        ...s,
+        items: s.items.map((c) => ((c.timelineIds || []).includes(id) ? { ...c, timelineIds: c.timelineIds.filter((x) => x !== id) } : c)),
+      }));
+      stateRef.current.items.forEach((c) => { if ((c.timelineIds || []).includes(id)) queueSave(c.id); });
+      if (filterLaneId === id) setFilterLaneId(null);
+      trackFetch(`/host/planner/timelines/${id}`, { method: "DELETE" }).catch(() => {});
+    },
+    [trackFetch, filterLaneId, queueSave],
+  );
+
+  const cycleColor = useCallback(
+    (id) => {
+      const t = timelinesRef.current.find((x) => x.id === id);
+      const i = Math.max(0, LANE_PALETTE.indexOf(t?.color));
+      setTimeline(id, { color: LANE_PALETTE[(i + 1) % LANE_PALETTE.length] });
+    },
+    [setTimeline],
+  );
+
   const uploadMedia = useCallback(
     async (file) => {
       inflight.current += 1;
@@ -278,6 +341,77 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     });
   }, []);
 
+  const toggleFlip = useCallback((id) => {
+    setFlippedIds((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }, []);
+
+  const bringToFront = useCallback((id) => setRaisedId(id), []);
+
+  // ── Selection commands (keyboard / clipboard) ─────────────────────
+  // Clones keep their media URL but drop media_path so deleting a copy never
+  // removes the original's stored file.
+  const duplicateCards = useCallback(
+    (ids, dx, dy) => {
+      const src = stateRef.current.items.filter((c) => ids.includes(c.id));
+      const clones = src.map((c) => ({ ...c, id: uid(), x: c.x + dx, y: c.y + dy, mediaPath: null }));
+      if (clones.length) {
+        setState((s) => ({ ...s, items: [...s.items, ...clones] }));
+        clones.forEach((c) => createCardRemote(c));
+      }
+      return clones;
+    },
+    [createCardRemote],
+  );
+
+  const deleteSelected = useCallback(() => {
+    const ids = [...selectedIdsRef.current];
+    if (!ids.length) return;
+    setState((s) => ({ ...s, items: s.items.filter((c) => !ids.includes(c.id)) }));
+    setFlippedIds((p) => { const n = new Set(p); ids.forEach((id) => n.delete(id)); return n; });
+    ids.forEach((id) => deleteCardRemote(id));
+    setSelectedIds(new Set());
+  }, [deleteCardRemote]);
+
+  const pasteClipboard = useCallback(() => {
+    const items = clipboardRef.current;
+    if (!items?.length) return;
+    const base = viewportCenterWorld();
+    const minX = Math.min(...items.map((i) => i.x));
+    const minY = Math.min(...items.map((i) => i.y));
+    const clones = items.map((p) => ({ ...p, id: uid(), x: base.x + (p.x - minX), y: base.y + (p.y - minY), mediaPath: null }));
+    setState((s) => ({ ...s, items: [...s.items, ...clones] }));
+    clones.forEach((c) => createCardRemote(c));
+    setSelectedIds(new Set(clones.map((c) => c.id)));
+  }, [viewportCenterWorld, createCardRemote]);
+
+  const zoomBy = useCallback((factor) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.width / 2, cy = rect.height / 2;
+    setState((s) => {
+      const { panX, panY, scale } = s.viewport;
+      const ns = clamp(scale * factor, MIN_SCALE, MAX_SCALE);
+      return { ...s, viewport: { ...s.viewport, scale: ns, panX: cx - ((cx - panX) / scale) * ns, panY: cy - ((cy - panY) / scale) * ns } };
+    });
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.width / 2, cy = rect.height / 2;
+    setState((s) => {
+      const { panX, panY, scale } = s.viewport;
+      return { ...s, viewport: { ...s.viewport, scale: 1, panX: cx - (cx - panX) / scale, panY: cy - (cy - panY) / scale } };
+    });
+  }, []);
+
   const addFiles = useCallback(
     async (files, at) => {
       const base = at || viewportCenterWorld();
@@ -285,7 +419,8 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
       for (const file of files) {
         const id = uid();
         const o = i * 22;
-        const card = { id, x: base.x - CARD_W / 2 + o, y: base.y - 110 + o, w: CARD_W, channel: null, contentType: "image", eventId: null, note: "", mediaUrl: null, mediaPath: null, mediaKind: "placeholder", mediaName: file.name, mediaMime: file.type, links: [] };
+        const lid = nearestLaneId(base.y);
+        const card = { id, x: base.x - CARD_W / 2 + o, y: base.y - 110 + o, w: CARD_W, channel: null, contentType: "image", eventId: null, timelineIds: lid ? [lid] : [], note: "", meta: {}, mediaUrl: null, mediaPath: null, mediaKind: "placeholder", mediaName: file.name, mediaMime: file.type, links: [] };
         update((s) => ({ ...s, items: [...s.items, card] }));
         markUploading(id, true);
         await createCardRemote(card);
@@ -301,16 +436,17 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
         i++;
       }
     },
-    [update, viewportCenterWorld, createCardRemote, uploadMedia, queueSave, markUploading],
+    [update, viewportCenterWorld, nearestLaneId, createCardRemote, uploadMedia, queueSave, markUploading],
   );
 
   // An empty placeholder card — wireframe a slot now, fill it with media later.
   const addPlaceholder = useCallback(() => {
     const base = viewportCenterWorld();
-    const card = { id: uid(), x: base.x - CARD_W / 2, y: base.y - 110, w: CARD_W, channel: null, contentType: "image", eventId: null, note: "", mediaUrl: null, mediaPath: null, mediaKind: "placeholder", mediaName: null, mediaMime: null, links: [] };
+    const lid = nearestLaneId(base.y);
+    const card = { id: uid(), x: base.x - CARD_W / 2, y: base.y - 110, w: CARD_W, channel: null, contentType: "image", eventId: null, timelineIds: lid ? [lid] : [], note: "", meta: {}, mediaUrl: null, mediaPath: null, mediaKind: "placeholder", mediaName: null, mediaMime: null, links: [] };
     update((s) => ({ ...s, items: [...s.items, card] }));
     createCardRemote(card);
-  }, [update, viewportCenterWorld, createCardRemote]);
+  }, [update, viewportCenterWorld, nearestLaneId, createCardRemote]);
 
   // Drop/pick media into an existing (placeholder) card.
   const fillCard = useCallback(
@@ -375,8 +511,23 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
         setViewport({ panX: d.panX0 + (e.clientX - d.sx), panY: d.panY0 + (e.clientY - d.sy) });
       } else if (d.type === "move") {
         const w = screenToWorld(e.clientX, e.clientY);
-        update((s) => ({ ...s, items: s.items.map((it) => (it.id === d.id ? { ...it, x: d.x0 + (w.x - d.wx0), y: d.y0 + (w.y - d.wy0) } : it)) }));
-        queueSave(d.id);
+        let dx = w.x - d.wx0, dy = w.y - d.wy0;
+        if (e.shiftKey) { if (Math.abs(dx) >= Math.abs(dy)) dy = 0; else dx = 0; } // constrain to an axis
+        update((s) => ({ ...s, items: s.items.map((it) => { const st = d.starts[it.id]; return st ? { ...it, x: st.x + dx, y: st.y + dy } : it; }) }));
+        d.ids.forEach((mid) => queueSave(mid));
+      } else if (d.type === "marquee") {
+        const w = screenToWorld(e.clientX, e.clientY);
+        setMarquee({ x0: d.x0, y0: d.y0, x1: w.x, y1: w.y });
+        const rx0 = Math.min(d.x0, w.x), rx1 = Math.max(d.x0, w.x), ry0 = Math.min(d.y0, w.y), ry1 = Math.max(d.y0, w.y);
+        const hit = new Set(d.base);
+        for (const c of stateRef.current.items) {
+          if (c.x < rx1 && c.x + cardFrameW(c) > rx0 && c.y < ry1 && c.y + cardHeight(c) > ry0) hit.add(c.id);
+        }
+        setSelectedIds(hit);
+      } else if (d.type === "lane") {
+        const w = screenToWorld(e.clientX, e.clientY);
+        setTimelines((p) => p.map((t) => (t.id === d.id ? { ...t, y: d.y0 + (w.y - d.wy0) } : t)));
+        queueSaveTimeline(d.id);
       } else if (d.type === "resizeCard") {
         const w = screenToWorld(e.clientX, e.clientY);
         update((s) => ({ ...s, items: s.items.map((it) => (it.id === d.id ? { ...it, w: clamp(Math.round(d.w0 + (w.x - d.wx0)), MIN_CARD_W, MAX_CARD_W) } : it)) }));
@@ -394,9 +545,13 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
       const d = drag.current;
       drag.current = null;
       setPanning(false);
+      if (d?.type === "marquee") { setMarquee(null); return; }
       if (d?.type === "link") {
         const w = screenToWorld(e.clientX, e.clientY);
-        if (Math.abs(w.y - TIMELINE_Y) < SNAP_Y) {
+        const tls = timelinesRef.current;
+        let lane = null, ld = Infinity;
+        for (const t of tls) { const dist = Math.abs(w.y - t.y); if (dist < ld) { ld = dist; lane = t; } }
+        if (lane && ld < SNAP_Y) {
           const off = xToOffset(w.x);
           const date = isoOf(addDays(today, off));
           // Dropped right on an event's mark → also tag the card with that event.
@@ -407,16 +562,23 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
               if (c.id !== d.cardId) return c;
               const exists = (c.links || []).some((l) => l.date === date);
               const links = exists ? c.links : [...(c.links || []), { id: uid(), date }];
-              return { ...c, links, eventId: c.eventId || (ev ? ev.id : null) };
+              // Dropping onto a lane ADDS it — drop on a second lane to co-post.
+              const curLanes = c.timelineIds?.length ? c.timelineIds : c.timelineId ? [c.timelineId] : [];
+              const timelineIds = curLanes.includes(lane.id) ? curLanes : [...curLanes, lane.id];
+              return { ...c, links, eventId: c.eventId || (ev ? ev.id : null), timelineIds };
             }),
           }));
           queueSave(d.cardId);
         }
         setLink(null);
       } else if (d?.type === "relink") {
-        // Dragged far from the line → unlink.
+        // Dragged far from every lane it's on → unlink.
         const w = screenToWorld(e.clientX, e.clientY);
-        if (Math.abs(w.y - TIMELINE_Y) > 110) {
+        const card = stateRef.current.items.find((c) => c.id === d.cardId);
+        const ids = card?.timelineIds?.length ? card.timelineIds : card?.timelineId ? [card.timelineId] : [];
+        const lys = ids.map((id) => timelinesRef.current.find((t) => t.id === id)?.y).filter((v) => v != null);
+        const nearestY = lys.length ? lys.reduce((a, b) => (Math.abs(w.y - b) < Math.abs(w.y - a) ? b : a)) : timelinesRef.current[0]?.y ?? 0;
+        if (Math.abs(w.y - nearestY) > 110) {
           update((s) => ({ ...s, items: s.items.map((c) => (c.id === d.cardId ? { ...c, links: (c.links || []).filter((l) => l.id !== d.linkId) } : c)) }));
         }
         queueSave(d.cardId);
@@ -428,19 +590,102 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [screenToWorld, update, setViewport, dateAtX, offsetOfDate, today, queueSave]);
+  }, [screenToWorld, update, setViewport, dateAtX, offsetOfDate, today, queueSave, queueSaveTimeline]);
 
-  const startPan = (e) => {
-    if (e.button !== 0) return;
-    setOpenCardId(null); // clicking the canvas closes any open settings popup
+  // ── Keyboard shortcuts (Illustrator / Figma muscle memory) ────────
+  useEffect(() => {
+    const inField = () => {
+      const el = document.activeElement;
+      return el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+    };
+    const onKeyDown = (e) => {
+      if (e.code === "Space" && !inField()) {
+        spaceRef.current = true;
+        setSpaceDown(true);
+        e.preventDefault();
+        return;
+      }
+      if (inField()) {
+        if (e.key === "Escape") e.target.blur?.();
+        return;
+      }
+      const meta = e.metaKey || e.ctrlKey;
+      const sel = selectedIdsRef.current;
+      if (e.key === "Escape") { setSelectedIds(new Set()); setFilterLaneId(null); setShowShortcuts(false); return; }
+      if (meta && (e.key === "a" || e.key === "A")) { e.preventDefault(); setSelectedIds(new Set(stateRef.current.items.map((c) => c.id))); return; }
+      if ((e.key === "Delete" || e.key === "Backspace") && sel.size) { e.preventDefault(); deleteSelected(); return; }
+      if (meta && (e.key === "d" || e.key === "D") && sel.size) { e.preventDefault(); const clones = duplicateCards([...sel], 18, 18); setSelectedIds(new Set(clones.map((c) => c.id))); return; }
+      if (meta && (e.key === "c" || e.key === "C") && sel.size) { clipboardRef.current = stateRef.current.items.filter((c) => sel.has(c.id)).map(cardPayload); return; }
+      if (meta && (e.key === "v" || e.key === "V") && clipboardRef.current?.length) { e.preventDefault(); pasteClipboard(); return; }
+      if (meta && (e.key === "=" || e.key === "+")) { e.preventDefault(); zoomBy(1.2); return; }
+      if (meta && (e.key === "-" || e.key === "_")) { e.preventDefault(); zoomBy(1 / 1.2); return; }
+      if (meta && e.key === "0") { e.preventDefault(); resetZoom(); return; }
+      if (sel.size && e.key.startsWith("Arrow")) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+        if (dx || dy) {
+          update((s) => ({ ...s, items: s.items.map((it) => (sel.has(it.id) ? { ...it, x: it.x + dx, y: it.y + dy } : it)) }));
+          sel.forEach((id) => queueSave(id));
+        }
+        return;
+      }
+    };
+    const onKeyUp = (e) => {
+      if (e.code === "Space") { spaceRef.current = false; setSpaceDown(false); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [deleteSelected, duplicateCards, pasteClipboard, zoomBy, resetZoom, update, queueSave]);
+
+  const beginPan = (e) => {
     drag.current = { type: "pan", sx: e.clientX, sy: e.clientY, panX0: state.viewport.panX, panY0: state.viewport.panY };
     setPanning(true);
   };
+  // Empty-canvas press: Space/middle-button pans (Adobe hand tool); otherwise rubber-band select.
+  const startCanvasPointer = (e) => {
+    if (e.button === 1 || spaceRef.current) { beginPan(e); return; }
+    if (e.button !== 0) return;
+    setFilterLaneId(null);
+    const w = screenToWorld(e.clientX, e.clientY);
+    const base = e.shiftKey ? new Set(selectedIdsRef.current) : new Set();
+    if (!e.shiftKey) setSelectedIds(new Set());
+    drag.current = { type: "marquee", x0: w.x, y0: w.y, base };
+    setMarquee({ x0: w.x, y0: w.y, x1: w.x, y1: w.y });
+  };
   const startMove = (e, id) => {
     e.stopPropagation();
+    if (e.button === 1 || spaceRef.current) { beginPan(e); return; }
+    bringToFront(id);
+    const cur = selectedIdsRef.current;
+    if (e.shiftKey) {
+      const n = new Set(cur);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      setSelectedIds(n);
+      return; // shift-click only adjusts the selection
+    }
+    let ids = cur.has(id) ? [...cur] : [id];
+    if (!cur.has(id)) setSelectedIds(new Set([id]));
+    if (e.altKey) { // Alt-drag → duplicate, then drag the copies
+      const clones = duplicateCards(ids, 0, 0);
+      ids = clones.map((c) => c.id);
+      setSelectedIds(new Set(ids));
+    }
     const w = screenToWorld(e.clientX, e.clientY);
-    const it = state.items.find((i) => i.id === id);
-    drag.current = { type: "move", id, wx0: w.x, wy0: w.y, x0: it.x, y0: it.y };
+    const starts = {};
+    for (const mid of ids) { const it = stateRef.current.items.find((i) => i.id === mid); if (it) starts[mid] = { x: it.x, y: it.y }; }
+    drag.current = { type: "move", ids, starts, wx0: w.x, wy0: w.y };
+  };
+  const startLaneDrag = (e, id) => {
+    e.stopPropagation();
+    const w = screenToWorld(e.clientX, e.clientY);
+    const t = timelines.find((x) => x.id === id);
+    drag.current = { type: "lane", id, wy0: w.y, y0: t?.y ?? 0 };
   };
   const startLink = (e, cardId) => {
     e.stopPropagation();
@@ -459,6 +704,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
   };
   const removeCard = (id) => {
     update((s) => ({ ...s, items: s.items.filter((i) => i.id !== id) }));
+    setFlippedIds((p) => { const n = new Set(p); n.delete(id); return n; });
     deleteCardRemote(id); // backend also removes the storage object
   };
   const removeLink = (cardId, linkId) => {
@@ -468,6 +714,15 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
 
   const { panX, panY, scale } = state.viewport;
   const cards = state.items;
+
+  // The lanes a card belongs to (co-posted content lives on several). Falls back
+  // to the first lane / origin. Reads timelineIds, with the old single timelineId
+  // as a migration fallback.
+  const lanesOf = (c) => {
+    const ids = c.timelineIds?.length ? c.timelineIds : c.timelineId ? [c.timelineId] : [];
+    const ls = ids.map((id) => timelines.find((t) => t.id === id)).filter(Boolean);
+    return ls.length ? ls : timelines[0] ? [timelines[0]] : [{ id: null, y: 0, color: NEUTRAL_LINK }];
+  };
 
   // What a content card's link chain is coloured by, per mode:
   //   source → its channel (channel spread)   event → its linked event (event distribution)
@@ -489,20 +744,24 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     ticks.push(o);
   }
 
-  // Connector anchor: card edge nearest the timeline.
-  const cardAnchorY = (c) => {
+  // Connector anchor: card edge nearest its lane band.
+  const cardAnchorY = (c, ly) => {
     const top = c.y;
     const bot = c.y + cardHeight(c);
-    return Math.abs(top - TIMELINE_Y) <= Math.abs(bot - TIMELINE_Y) ? top : bot;
+    return Math.abs(top - ly) <= Math.abs(bot - ly) ? top : bot;
   };
-  // The band edge the connector plugs into — top edge for cards above, bottom for below.
-  const bandEdgeForCard = (c) => (cardAnchorY(c) <= TIMELINE_Y ? BAND_TOP : BAND_BOTTOM);
+  const bandEdgeFor = (c, ly) => (cardAnchorY(c, ly) <= ly ? ly + BAND_TOP : ly + BAND_BOTTOM);
 
+  // Co-posted content fans a connector to EACH of its lanes' bands.
   const connectors = [];
   for (const c of cards) {
     const color = cardLinkColor(c);
-    for (const l of c.links || []) {
-      connectors.push({ key: `${c.id}-${l.id}`, cardId: c.id, linkId: l.id, color, x1: c.x + cardFrameW(c) / 2, y1: cardAnchorY(c), x2: offsetToX(offsetOfDate(`${l.date}T00:00:00`)), y2: bandEdgeForCard(c) });
+    const lanes = lanesOf(c);
+    for (const lane of lanes) {
+      const ly = lane.y;
+      for (const l of c.links || []) {
+        connectors.push({ key: `${c.id}-${lane.id}-${l.id}`, cardId: c.id, linkId: l.id, color, x1: c.x + cardFrameW(c) / 2, y1: cardAnchorY(c, ly), x2: offsetToX(offsetOfDate(`${l.date}T00:00:00`)), y2: bandEdgeFor(c, ly), bandTop: ly + BAND_TOP });
+      }
     }
   }
 
@@ -511,75 +770,100 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
   if (link) {
     const c = cards.find((x) => x.id === link.cardId);
     if (c) {
-      const near = Math.abs(link.world.y - TIMELINE_Y) < SNAP_Y;
-      const edgeY = bandEdgeForCard(c);
+      let lane = null, ld = Infinity;
+      for (const t of timelines) { const dist = Math.abs(link.world.y - t.y); if (dist < ld) { ld = dist; lane = t; } }
+      const near = lane && ld < SNAP_Y;
+      const anchorLaneY = near ? lane.y : lanesOf(c)[0].y;
       const color = cardLinkColor(c);
+      const edgeY = near ? bandEdgeFor(c, lane.y) : null;
       const x2 = near ? xToOffset(link.world.x) * PX_PER_DAY : link.world.x;
       const y2 = near ? edgeY : link.world.y;
-      tempLine = { x1: c.x + cardFrameW(c) / 2, y1: cardAnchorY(c), x2, y2, color };
+      tempLine = { x1: c.x + cardFrameW(c) / 2, y1: cardAnchorY(c, anchorLaneY), x2, y2, color };
       if (near) snapDot = { x: x2, y: edgeY, color };
     }
   }
 
-  // Settings popup anchor — screen-space, beside the open card.
-  const settingsCard = openCardId ? cards.find((c) => c.id === openCardId) : null;
-  let settingsPos = null;
-  if (settingsCard) {
-    const PANEL_W = 284;
-    const cl = settingsCard.x * scale + panX;
-    const ct = settingsCard.y * scale + panY;
-    const cw = (settingsCard.w || CARD_W) * scale;
-    let left = cl + cw + 14;
-    let sideOfCard = "left"; // caret on the panel's left, pointing at the card
-    if (left + PANEL_W > size.w - 8) {
-      left = cl - PANEL_W - 14;
-      sideOfCard = "right";
+  // Each lane's content extent — header floats just above `top`, group tint fills [top, bottom],
+  // and both grow as the lane's events/cards spread further up or down.
+  const laneExtents = {};
+  for (const lane of timelines) {
+    let top = lane.y + BAND_TOP;
+    let bottom = lane.y + BAND_BOTTOM + 38; // include the date ticks under the band
+    if (laneEvents(lane, events).length) top = Math.min(top, lane.y + BAND_TOP - 9 - EVENT_FRONT_H);
+    for (const c of cards) {
+      if (!lanesOf(c).some((l) => l.id === lane.id)) continue;
+      top = Math.min(top, c.y);
+      bottom = Math.max(bottom, c.y + cardHeight(c));
     }
-    left = Math.max(8, Math.min(left, size.w - PANEL_W - 8));
-    const top = Math.max(8, Math.min(ct, size.h - 360));
-    settingsPos = { left, top, side: sideOfCard, w: PANEL_W };
+    laneExtents[lane.id] = { top: top - 14, bottom: bottom + 8 };
   }
+
+  const filterLane = filterLaneId ? timelines.find((t) => t.id === filterLaneId) : null;
+  const filterExt = filterLane ? laneExtents[filterLane.id] : null;
+  const filterPopupTop = filterExt ? clamp(filterExt.top * scale + panY - 44, 8, Math.max(8, size.h - 52)) + 46 : 60;
 
   return (
     <div
       ref={containerRef}
-      onPointerDown={startPan}
+      onPointerDown={startCanvasPointer}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
         const files = [...(e.dataTransfer?.files || [])];
         if (files.length) addFiles(files, screenToWorld(e.clientX, e.clientY));
       }}
-      style={{ position: "absolute", inset: 0, overflow: "hidden", cursor: panning ? "grabbing" : "default", background: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0) 0 0 / 28px 28px, rgba(8,7,12,0.6)", touchAction: "none" }}
+      style={{ position: "absolute", inset: 0, overflow: "hidden", cursor: panning ? "grabbing" : spaceDown ? "grab" : "default", background: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0) 0 0 / 28px 28px, rgba(8,7,12,0.6)", touchAction: "none" }}
     >
       {ready && (
         <div style={{ position: "absolute", left: 0, top: 0, transform: `translate(${panX}px, ${panY}px) scale(${scale})`, transformOrigin: "0 0" }}>
-          {/* Timeline band — the spine. Marks cut through it: gold = today, blue = events. */}
-          <div style={{ position: "absolute", left: dayMin * PX_PER_DAY, top: BAND_TOP, width: (dayMax - dayMin) * PX_PER_DAY, height: BAND_H, background: "rgba(255,255,255,0.05)", borderTop: "3px solid rgba(255,255,255,0.28)", borderBottom: "3px solid rgba(255,255,255,0.28)", pointerEvents: "none" }} />
+          {/* The past — everything left of Today is settled. A cool wash sets it apart… */}
+          <div style={{ position: "absolute", left: -100000, top: -100000, width: 100000, height: 200000, background: "rgba(10,13,24,0.5)", pointerEvents: "none" }} />
+          {/* …with a sudden deepening right at the seam. */}
+          <div style={{ position: "absolute", left: -90, top: -100000, width: 90, height: 200000, background: "linear-gradient(90deg, transparent, rgba(6,8,16,0.55))", pointerEvents: "none" }} />
+          {/* The seam itself — a clean gold line cutting the whole canvas at Today. */}
+          <div style={{ position: "absolute", left: 0, top: -100000, width: 1.5, height: 200000, background: TODAY_COLOR, opacity: 0.5, transform: "translateX(-0.75px)", pointerEvents: "none" }} />
 
-          {/* Content link marks — channel-coloured, sit within the band (secondary to today/events) */}
-          {connectors.map((c) => (
-            <div key={`${c.key}-mark`} style={{ position: "absolute", left: c.x2, top: BAND_TOP, width: 2, height: BAND_H, background: c.color, opacity: 0.85, transform: "translateX(-1px)", pointerEvents: "none" }} />
-          ))}
-
-          {/* Today — full-height gold line cutting through the band */}
-          <div style={{ position: "absolute", left: 0, top: BAND_TOP - 7, width: 2, height: BAND_H + 14, borderRadius: 1, background: TODAY_COLOR, transform: "translateX(-1px)", pointerEvents: "none" }} />
-
-          {/* Date ticks + labels, below the band */}
-          {ticks.map((o) => {
-            const d = addDays(today, o);
-            const isToday = o === 0;
-            const showMonth = isToday || d.getDate() === 1;
+          {/* Each lane's group tint — a soft band behind everything it owns, so the grouping reads */}
+          {timelines.map((lane) => {
+            const ext = laneExtents[lane.id];
+            if (!ext) return null;
             return (
-              <div key={o} style={{ position: "absolute", left: o * PX_PER_DAY, top: BAND_BOTTOM + 5, transform: "translateX(-50%)", textAlign: "center", pointerEvents: "none" }}>
-                {isToday ? <div style={{ height: 6 }} /> : <div style={{ width: 1, height: 6, margin: "0 auto", background: "rgba(255,255,255,0.28)" }} />}
-                <div style={{ marginTop: 3, fontSize: 9, lineHeight: 1.15, color: isToday ? TODAY_COLOR : "rgba(255,255,255,0.45)", fontWeight: isToday ? 700 : 400, whiteSpace: "nowrap" }}>
-                  <div style={{ opacity: isToday ? 1 : 0.7 }}>{isToday ? "Today" : WEEKDAYS[d.getDay()]}</div>
-                  <div>{showMonth ? `${d.getDate()} ${MONTHS[d.getMonth()]}` : d.getDate()}</div>
-                </div>
+              <div key={`tint-${lane.id}`} style={{ position: "absolute", left: dayMin * PX_PER_DAY, top: ext.top, width: (dayMax - dayMin) * PX_PER_DAY, height: ext.bottom - ext.top, background: `${lane.color}10`, borderTop: `1px solid ${lane.color}33`, borderRadius: 6, pointerEvents: "none" }} />
+            );
+          })}
+
+          {/* Each lane: a band tinted in its colour, with Today cutting through + its own date ticks */}
+          {timelines.map((lane) => {
+            const bandTop = lane.y + BAND_TOP;
+            const bandBottom = lane.y + BAND_BOTTOM;
+            return (
+              <div key={`lane-${lane.id}`}>
+                <div style={{ position: "absolute", left: dayMin * PX_PER_DAY, top: bandTop, width: (dayMax - dayMin) * PX_PER_DAY, height: BAND_H, background: `${lane.color}12`, borderTop: `3px solid ${lane.color}66`, borderBottom: `3px solid ${lane.color}66`, pointerEvents: "none" }} />
+                {/* Today mark through this band */}
+                <div style={{ position: "absolute", left: 0, top: bandTop - 7, width: 2, height: BAND_H + 14, borderRadius: 1, background: TODAY_COLOR, transform: "translateX(-1px)", pointerEvents: "none" }} />
+                {/* Date ticks + labels under this band */}
+                {ticks.map((o) => {
+                  const d = addDays(today, o);
+                  const isToday = o === 0;
+                  const showMonth = isToday || d.getDate() === 1;
+                  return (
+                    <div key={`${lane.id}-${o}`} style={{ position: "absolute", left: o * PX_PER_DAY, top: bandBottom + 5, transform: "translateX(-50%)", textAlign: "center", pointerEvents: "none" }}>
+                      {isToday ? <div style={{ height: 6 }} /> : <div style={{ width: 1, height: 6, margin: "0 auto", background: "rgba(255,255,255,0.28)" }} />}
+                      <div style={{ marginTop: 3, fontSize: 9, lineHeight: 1.15, color: isToday ? TODAY_COLOR : "rgba(255,255,255,0.45)", fontWeight: isToday ? 700 : 400, whiteSpace: "nowrap" }}>
+                        <div style={{ opacity: isToday ? 1 : 0.7 }}>{isToday ? "Today" : WEEKDAYS[d.getDay()]}</div>
+                        <div>{showMonth ? `${d.getDate()} ${MONTHS[d.getMonth()]}` : d.getDate()}</div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
+
+          {/* Content link marks — channel-coloured, sit within their lane's band */}
+          {connectors.map((c) => (
+            <div key={`${c.key}-mark`} style={{ position: "absolute", left: c.x2, top: c.bandTop, width: 2, height: BAND_H, background: c.color, opacity: 0.85, transform: "translateX(-1px)", pointerEvents: "none" }} />
+          ))}
 
           {/* Connectors — each in its content's channel colour */}
           <svg style={{ position: "absolute", left: 0, top: 0, overflow: "visible", pointerEvents: "none" }}>
@@ -597,14 +881,132 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
             <div key={`${c.key}-dot`} onPointerDown={(e) => startRelink(e, c.cardId, c.linkId)} title="Drag to change the date · drag off the line to remove" style={{ position: "absolute", left: c.x2 - 7, top: c.y2 - 7, width: 14, height: 14, borderRadius: "50%", background: c.color, border: "2px solid rgba(8,7,12,0.9)", cursor: "ew-resize" }} />
           ))}
 
-          {/* Event marks — lifted above the band, on their mark */}
-          {events.map((ev) => (
-            <EventMark key={ev.id} ev={ev} x={offsetToX(offsetOfDate(ev.startsAt))} color={eventMarkColor(ev)} />
-          ))}
+          {/* Event banners — filtered per lane, sit on that lane's mark */}
+          {timelines.map((lane) =>
+            laneEvents(lane, events).map((ev) => {
+              const bannerKey = `${lane.id}:${ev.id}`;
+              return (
+                <EventBanner
+                  key={bannerKey}
+                  ev={ev}
+                  x={offsetToX(offsetOfDate(ev.startsAt))}
+                  laneY={lane.y}
+                  color={eventMarkColor(ev)}
+                  phase={eventPhase(ev, today)}
+                  flipped={flippedIds.has(bannerKey)}
+                  raised={raisedId === bannerKey}
+                  onRaise={() => bringToFront(bannerKey)}
+                  onToggleFlip={() => toggleFlip(bannerKey)}
+                />
+              );
+            }),
+          )}
 
           {/* Content cards */}
           {cards.map((c) => (
-            <ContentCard key={c.id} card={c} uploading={uploadingIds.has(c.id)} events={events} linkColor={cardLinkColor(c)} onMove={startMove} onStartLink={startLink} onStartResize={startResizeCard} onRemoveLink={removeLink} onSet={setCard} onOpenSettings={setOpenCardId} onFill={fillCard} />
+            <ContentCard
+              key={c.id}
+              card={c}
+              uploading={uploadingIds.has(c.id)}
+              events={events}
+              timelines={timelines}
+              linkColor={cardLinkColor(c)}
+              phase={phaseOf(c, today)}
+              flipped={flippedIds.has(c.id)}
+              raised={raisedId === c.id}
+              selected={selectedIds.has(c.id)}
+              coLanes={lanesOf(c).length > 1 ? lanesOf(c) : null}
+              onRaise={() => bringToFront(c.id)}
+              onMove={startMove}
+              onStartLink={startLink}
+              onStartResize={startResizeCard}
+              onRemoveLink={removeLink}
+              onSet={setCard}
+              onToggleFlip={toggleFlip}
+              onRemove={removeCard}
+              onFill={fillCard}
+            />
+          ))}
+
+          {/* Rubber-band selection rectangle */}
+          {marquee && (
+            <div style={{ position: "absolute", left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0), background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.7)", borderRadius: 2, pointerEvents: "none" }} />
+          )}
+        </div>
+      )}
+
+      {/* Lane headings — float just above each lane's content, rising as it grows */}
+      {ready &&
+        timelines.map((lane) => {
+          const ext = laneExtents[lane.id];
+          if (!ext) return null;
+          const topY = clamp(ext.top * scale + panY - 44, 8, Math.max(8, size.h - 52));
+          return (
+            <LaneHeading
+              key={`head-${lane.id}`}
+              lane={lane}
+              top={topY}
+              shown={laneEvents(lane, events).length}
+              soleLane={timelines.length <= 1}
+              filterOpen={filterLaneId === lane.id}
+              onStartDrag={(e) => startLaneDrag(e, lane.id)}
+              onRename={(name) => setTimeline(lane.id, { name })}
+              onRecolor={() => cycleColor(lane.id)}
+              onOpenFilter={() => setFilterLaneId((id) => (id === lane.id ? null : lane.id))}
+              onDelete={() => deleteTimeline(lane.id)}
+            />
+          );
+        })}
+
+      {/* Event-filter popup for the open lane */}
+      {filterLane && (
+        <LaneFilterPopup
+          lane={filterLane}
+          events={events}
+          left={14}
+          top={clamp(filterPopupTop, 8, Math.max(8, size.h - 360))}
+          onChange={(eventFilter) => setTimeline(filterLane.id, { eventFilter })}
+          onClose={() => setFilterLaneId(null)}
+        />
+      )}
+
+      {/* Add timeline — bottom-left, clear of the centre toolbar */}
+      <button
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={createTimeline}
+        style={{ position: "absolute", left: 14, bottom: 22, zIndex: 16, display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 11, background: "rgba(18,15,26,0.92)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,0.45)", backdropFilter: "blur(8px)" }}
+      >
+        <Plus size={16} /> Add timeline
+      </button>
+
+      {/* Keyboard shortcuts — discoverable cheat sheet */}
+      <button
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => setShowShortcuts((v) => !v)}
+        title="Keyboard shortcuts"
+        style={{ position: "absolute", left: 14, bottom: 70, zIndex: 16, width: 34, height: 34, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", background: showShortcuts ? "rgba(255,255,255,0.16)" : "rgba(18,15,26,0.92)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.7)", cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,0.45)", backdropFilter: "blur(8px)" }}
+      >
+        <Keyboard size={16} />
+      </button>
+      {showShortcuts && (
+        <div onPointerDown={(e) => e.stopPropagation()} style={{ position: "absolute", left: 14, bottom: 112, zIndex: 30, width: 270, padding: "12px 14px", borderRadius: 12, background: "rgba(16,13,22,0.99)", border: "1px solid rgba(255,255,255,0.14)", boxShadow: "0 16px 44px rgba(0,0,0,0.6)" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", marginBottom: 9 }}>Shortcuts</div>
+          {[
+            ["Duplicate (hold + drag)", "⌥ drag"],
+            ["Duplicate in place", "⌘ D"],
+            ["Multi-select", "Shift-click / drag"],
+            ["Select all · deselect", "⌘A · Esc"],
+            ["Nudge · ×10", "Arrows · ⇧"],
+            ["Constrain drag to axis", "⇧ drag"],
+            ["Delete", "Del / ⌫"],
+            ["Copy · paste", "⌘C · ⌘V"],
+            ["Pan", "Space-drag / scroll"],
+            ["Zoom · reset", "⌘± · ⌘0"],
+          ].map(([label, keys]) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "3px 0", fontSize: 11.5 }}>
+              <span style={{ color: "rgba(255,255,255,0.7)" }}>{label}</span>
+              <span style={{ color: "#fff", fontWeight: 600, whiteSpace: "nowrap" }}>{keys}</span>
+            </div>
           ))}
         </div>
       )}
@@ -629,21 +1031,6 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
         </div>
       </div>
 
-      {/* Settings popup — screen-space, floats beside the card, always readable */}
-      {settingsCard && settingsPos && (
-        <CardSettings
-          card={settingsCard}
-          events={events}
-          left={settingsPos.left}
-          top={settingsPos.top}
-          side={settingsPos.side}
-          width={settingsPos.w}
-          onSet={setCard}
-          onRemove={(id) => { removeCard(id); setOpenCardId(null); }}
-          onClose={() => setOpenCardId(null)}
-        />
-      )}
-
       {!loaded && (
         <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 999, background: "rgba(18,15,26,0.9)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)", fontSize: 12 }}>
           <Loader2 size={13} style={{ animation: "crm-spin 0.9s linear infinite" }} /> Loading…
@@ -655,29 +1042,128 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
   );
 });
 
-// Event marker — lifted above the band, sitting on its own mark that cuts through
-// the band exactly as boldly as Today. Flat + soft (no shadow, pill corners) so it
-// reads as part of the timeline, not a content card. Colour is event-blue by
-// default, but parameterised so the colour-mode toggle can recolour per event.
-function EventMark({ ev, x, color = TIMELINE_COLOR }) {
-  const BLOCK_H = 26;
+// ── Lane heading (screen-space, pinned left, tracks its band's y) ─────
+function LaneHeading({ lane, top, shown, soleLane, filterOpen, onStartDrag, onRename, onRecolor, onOpenFilter, onDelete }) {
+  const filtered = lane.eventFilter?.mode === "selected";
   return (
-    <div style={{ position: "absolute", left: x, top: 0, pointerEvents: "none" }}>
-      {/* Mark through the band — same weight as Today, in event colour */}
-      <div style={{ position: "absolute", left: 0, top: BAND_TOP - 7, width: 2, height: BAND_H + 14, borderRadius: 1, background: color, transform: "translateX(-1px)" }} />
-      {/* Block lifted above, sitting on top of its mark — slim, with a bold outline */}
-      <div style={{ position: "absolute", left: 0, top: BAND_TOP - 7 - BLOCK_H, transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 6, height: BLOCK_H, maxWidth: 174, padding: "0 11px 0 5px", borderRadius: 999, background: "rgba(22,22,28,0.97)", border: `2px solid ${color}` }}>
-        <span style={{ width: 18, height: 18, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "rgba(255,255,255,0.08)" }}>
-          {ev.thumb && <img src={ev.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-        </span>
-        <span style={{ fontSize: 11.5, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
+    <div
+      onPointerDown={(e) => e.stopPropagation()}
+      style={{ position: "absolute", left: 14, top, zIndex: 15, display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 8px 0 4px", borderRadius: 10, background: "rgba(14,12,20,0.95)", border: `1px solid ${lane.color}66`, boxShadow: `0 6px 18px rgba(0,0,0,0.45), 0 0 0 1px ${lane.color}1f`, backdropFilter: "blur(8px)", maxWidth: 340 }}
+    >
+      <span onPointerDown={onStartDrag} title="Drag to move this timeline" style={{ display: "flex", alignItems: "center", color: "rgba(255,255,255,0.4)", cursor: "grab", flexShrink: 0 }}>
+        <GripVertical size={15} />
+      </span>
+      <button onClick={onRecolor} title="Change colour" style={{ width: 14, height: 14, borderRadius: "50%", background: lane.color, border: "1px solid rgba(255,255,255,0.25)", cursor: "pointer", padding: 0, flexShrink: 0 }} />
+      <input
+        value={lane.name}
+        onChange={(e) => onRename(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        spellCheck={false}
+        style={{ minWidth: 0, width: Math.min(150, Math.max(54, (lane.name?.length || 8) * 8)), background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 13, fontWeight: 700 }}
+      />
+      <button onClick={onOpenFilter} title="Choose which events show on this timeline" style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, padding: "4px 8px", borderRadius: 7, background: filterOpen ? "rgba(255,255,255,0.16)" : filtered ? `${lane.color}26` : "rgba(255,255,255,0.06)", border: `1px solid ${filtered ? lane.color + "66" : "rgba(255,255,255,0.1)"}`, color: filtered ? "#fff" : "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <ListFilter size={12} /> {filtered ? `${shown} event${shown === 1 ? "" : "s"}` : "All events"}
+      </button>
+      {!soleLane && (
+        <button onClick={onDelete} title="Delete this timeline" style={{ display: "flex", alignItems: "center", flexShrink: 0, color: "rgba(248,113,113,0.8)", background: "none", border: "none", cursor: "pointer", padding: 1 }}>
+          <Trash2 size={13} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function FilterRow({ checked, color, onClick, children }) {
+  return (
+    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "7px 9px", borderRadius: 8, border: "none", background: "transparent", color: "#fff", cursor: "pointer", textAlign: "left" }}>
+      <span style={{ width: 16, height: 16, borderRadius: 5, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: checked ? color || "#60a5fa" : "rgba(255,255,255,0.08)", border: `1px solid ${checked ? color || "#60a5fa" : "rgba(255,255,255,0.18)"}` }}>
+        {checked && <Check size={11} color="#0b0a10" strokeWidth={3} />}
+      </span>
+      {children}
+    </button>
+  );
+}
+
+function LaneFilterPopup({ lane, events, left, top, onChange, onClose }) {
+  const mode = lane.eventFilter?.mode || "all";
+  const ids = lane.eventFilter?.eventIds || [];
+  const allIds = events.map((e) => e.id);
+  const shows = (id) => mode === "all" || ids.includes(id);
+  const toggleAll = () => onChange(mode === "all" ? { mode: "selected", eventIds: [] } : { mode: "all", eventIds: [] });
+  const toggleOne = (id) => {
+    if (mode === "all") onChange({ mode: "selected", eventIds: allIds.filter((x) => x !== id) });
+    else onChange({ mode: "selected", eventIds: ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id] });
+  };
+  return (
+    <div onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} style={{ position: "absolute", left, top, width: 264, maxHeight: 348, display: "flex", flexDirection: "column", zIndex: 30, borderRadius: 12, background: "rgba(16,13,22,0.99)", border: "1px solid rgba(255,255,255,0.14)", boxShadow: "0 16px 44px rgba(0,0,0,0.6)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>Events on “{lane.name}”</span>
+        <button onClick={onClose} style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}><X size={13} /></button>
+      </div>
+      <div style={{ overflowY: "auto", padding: 6 }}>
+        <FilterRow checked={mode === "all"} color={lane.color} onClick={toggleAll}><span style={{ fontSize: 12.5, fontWeight: 600 }}>All events</span></FilterRow>
+        <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 8px" }} />
+        {events.length === 0 && <div style={{ padding: "8px 9px", fontSize: 11.5, color: "rgba(255,255,255,0.4)" }}>No events yet.</div>}
+        {events.map((ev) => (
+          <FilterRow key={ev.id} checked={shows(ev.id)} color={lane.color} onClick={() => toggleOne(ev.id)}>
+            <span style={{ width: 22, height: 22, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "rgba(255,255,255,0.08)" }}>
+              {ev.thumb && <img src={ev.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+            </span>
+            <span style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ display: "block", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
+              <span style={{ display: "block", fontSize: 10, color: "rgba(255,255,255,0.4)" }}>{ev.startsAt ? fmtDate(new Date(ev.startsAt)) : "Unscheduled"}</span>
+            </span>
+          </FilterRow>
+        ))}
       </div>
     </div>
   );
 }
 
-function ContentCard({ card, uploading, events, linkColor, onMove, onStartLink, onStartResize, onRemoveLink, onSet, onOpenSettings, onFill }) {
+// A reusable left-edge tab — the "clear visual piece" that flips a card.
+// Icon telegraphs what's on the back: pencil (compose), bar chart (results),
+// or a return arrow when you're already looking at the back.
+function FlipTab({ accent, flipped, phase, onToggle }) {
+  const Icon = flipped ? RotateCcw : phase === "past" ? BarChart3 : Pencil;
+  const title = flipped ? "Back to content" : phase === "past" ? "See how it did" : "Compose";
+  return (
+    <button
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={onToggle}
+      title={title}
+      style={{ position: "absolute", left: -11, top: "50%", transform: "translateY(-50%)", width: 22, height: 42, borderRadius: 8, border: "1.5px solid rgba(8,7,12,0.85)", background: accent, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, boxShadow: "0 3px 10px rgba(0,0,0,0.5)", zIndex: 8 }}
+    >
+      <Icon size={12} />
+    </button>
+  );
+}
+
+// Fallback heights used only for the split-second before the back is measured.
+const EDIT_BACK_H = 360;
+const ANALYTICS_BACK_H = 320;
+const FLIP_MIN_W = 300; // a comfortable writing width — narrow cards grow to this when flipped
+
+// Auto-fit: measure a flipped face's natural height so the card grows to fit it
+// (no inner scrolling). ResizeObserver re-fires whenever the face's content changes.
+function useNaturalHeight(ref) {
+  const [h, setH] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const ro = new ResizeObserver(() => setH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return h;
+}
+
+function ContentCard({ card, uploading, events, timelines, linkColor, phase, flipped, raised, selected, coLanes, onRaise, onMove, onStartLink, onStartResize, onRemoveLink, onSet, onToggleFlip, onRemove, onFill }) {
   const fileRef = useRef(null);
+  const backRef = useRef(null);
+  const measuredBackH = useNaturalHeight(backRef);
+  // Past cards open straight to results; "Edit post" flips that to the composer.
+  const [editingPast, setEditingPast] = useState(false);
+
   const url = card.mediaUrl || null;
   const isPlaceholder = !url;
   const linkedEvent = card.eventId ? (events || []).find((e) => e.id === card.eventId) : null;
@@ -689,199 +1175,261 @@ function ContentCard({ card, uploading, events, linkColor, onMove, onStartLink, 
   const mediaH = Math.round(boxW * ty.ratio);
   const stop = (e) => e.stopPropagation();
 
+  const showingEdit = phase === "future" || editingPast;
+  const frontH = cardHeight(card);
+  const flipW = Math.max(outerW, FLIP_MIN_W); // composer grows to a readable width
+  const backH = measuredBackH || (showingEdit ? EDIT_BACK_H : ANALYTICS_BACK_H);
+  const wrapperW = flipped ? flipW : outerW;
+  const wrapperH = flipped ? backH : frontH;
+  const ranOn = (() => {
+    const dates = (card.links || []).map((l) => l.date).filter(Boolean).sort();
+    return dates[0] ? fmtDate(new Date(`${dates[0]}T00:00:00`)) : null;
+  })();
+  const dim = phase === "past" && !flipped; // settled look for content that already ran
+
   const linkHandle = (where) => (
-    <button onPointerDown={(e) => onStartLink(e, card.id)} title="Drag onto the timeline to set a date" style={{ position: "absolute", left: "50%", [where]: -9, transform: "translateX(-50%)", width: 18, height: 18, borderRadius: "50%", background: linkColor, border: "2px solid rgba(8,7,12,0.9)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "crosshair", padding: 0, zIndex: 3 }}>
+    <button onPointerDown={(e) => onStartLink(e, card.id)} title="Drag onto a timeline to set a date" style={{ position: "absolute", left: "50%", [where]: -9, transform: "translateX(-50%)", width: 18, height: 18, borderRadius: "50%", background: linkColor, border: "2px solid rgba(8,7,12,0.9)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "crosshair", padding: 0, zIndex: 3 }}>
       <Link2 size={9} color="rgba(8,7,12,0.95)" />
     </button>
   );
 
   return (
-    <div
-      onPointerDown={(e) => onMove(e, card.id)}
-      style={{ position: "absolute", left: card.x, top: card.y, width: outerW, borderRadius: 3, background: "rgba(20,16,30,0.97)", border: `1px solid ${linkColor}`, boxShadow: "0 2px 9px rgba(0,0,0,0.5)", cursor: "grab", userSelect: "none" }}
-    >
-      {/* Media */}
-      <div style={{ padding: 6 }}>
-        <div style={{ position: "relative", width: "100%", height: mediaH, borderRadius: 2, overflow: "hidden", background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {isPlaceholder ? (
-            uploading ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.5)" }}>
-                <Loader2 size={20} style={{ animation: "crm-spin 0.9s linear infinite" }} />
-                <span style={{ fontSize: 11 }}>Uploading…</span>
-              </div>
-            ) : (
-              <button
-                onPointerDown={stop}
-                onClick={() => fileRef.current?.click()}
-                title="Add content"
-                style={{ position: "absolute", inset: 4, borderRadius: 2, border: "1.5px dashed rgba(255,255,255,0.22)", background: "transparent", color: "rgba(255,255,255,0.45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}
-              >
-                <ImagePlus size={22} />
-                <span style={{ fontSize: 11, fontWeight: 600 }}>Add content</span>
-              </button>
-            )
-          ) : (
-            <>
-              {card.contentType === "carousel" && <div style={{ position: "absolute", inset: "4px -5px 4px 5px", borderRadius: 2, border: "1px solid rgba(255,255,255,0.14)" }} />}
-              {card.mediaKind === "image" ? (
-                <img src={url} alt={card.mediaName || ""} draggable={false} style={{ position: "relative", width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : card.mediaKind === "video" ? (
-                <video src={url} controls style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : card.mediaKind === "audio" ? (
-                <div style={{ width: "100%", padding: "0 6px" }}><audio src={url} controls style={{ width: "100%" }} /></div>
+    <div style={{ position: "absolute", left: card.x, top: card.y, width: wrapperW, height: wrapperH, perspective: 1400, transform: flipped ? "scale(1.03)" : "none", transition: "transform 0.35s ease, height 0.4s cubic-bezier(0.4,0,0.2,1), width 0.4s cubic-bezier(0.4,0,0.2,1)", borderRadius: 6, boxShadow: selected ? "0 0 0 2px #38bdf8, 0 0 0 6px rgba(56,189,248,0.22)" : "none", zIndex: flipped ? 20 : raised || selected ? 10 : 1 }}>
+      <div style={{ position: "relative", width: "100%", height: "100%", transformStyle: "preserve-3d", transition: "transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform: flipped ? "rotateY(180deg)" : "none" }}>
+        {/* ── FRONT — the visual identity ── */}
+        <div
+          onPointerDown={(e) => { onRaise(); onMove(e, card.id); }}
+          style={{ position: "absolute", top: 0, left: 0, width: outerW, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", borderRadius: 4, background: "rgba(20,16,30,0.97)", border: `1px solid ${linkColor}`, boxShadow: "0 2px 9px rgba(0,0,0,0.5)", cursor: "grab", userSelect: "none", opacity: dim ? 0.78 : 1, filter: dim ? "saturate(0.82)" : "none", transition: "opacity 0.3s, filter 0.3s" }}
+        >
+          {/* Media */}
+          <div style={{ padding: 6 }}>
+            <div style={{ position: "relative", width: "100%", height: mediaH, borderRadius: 2, overflow: "hidden", background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {isPlaceholder ? (
+                uploading ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.5)" }}>
+                    <Loader2 size={20} style={{ animation: "crm-spin 0.9s linear infinite" }} />
+                    <span style={{ fontSize: 11 }}>Uploading…</span>
+                  </div>
+                ) : (
+                  <button
+                    onPointerDown={stop}
+                    onClick={() => fileRef.current?.click()}
+                    title="Add content"
+                    style={{ position: "absolute", inset: 4, borderRadius: 2, border: "1.5px dashed rgba(255,255,255,0.22)", background: "transparent", color: "rgba(255,255,255,0.45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}
+                  >
+                    <ImagePlus size={22} />
+                    <span style={{ fontSize: 11, fontWeight: 600 }}>Add content</span>
+                  </button>
+                )
               ) : (
-                <a href={url} target="_blank" rel="noopener noreferrer" onPointerDown={stop} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.6)", padding: 12, textDecoration: "none" }}>
-                  <FileText size={20} />
-                  <span style={{ fontSize: 11, textAlign: "center", wordBreak: "break-word" }}>{card.mediaName || "File"}</span>
-                </a>
+                <>
+                  {card.contentType === "carousel" && <div style={{ position: "absolute", inset: "4px -5px 4px 5px", borderRadius: 2, border: "1px solid rgba(255,255,255,0.14)" }} />}
+                  {card.mediaKind === "image" ? (
+                    <img src={url} alt={card.mediaName || ""} draggable={false} style={{ position: "relative", width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : card.mediaKind === "video" ? (
+                    <video src={url} controls style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : card.mediaKind === "audio" ? (
+                    <div style={{ width: "100%", padding: "0 6px" }}><audio src={url} controls style={{ width: "100%" }} /></div>
+                  ) : (
+                    <a href={url} target="_blank" rel="noopener noreferrer" onPointerDown={stop} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.6)", padding: 12, textDecoration: "none" }}>
+                      <FileText size={20} />
+                      <span style={{ fontSize: 11, textAlign: "center", wordBreak: "break-word" }}>{card.mediaName || "File"}</span>
+                    </a>
+                  )}
+                </>
               )}
-            </>
-          )}
-          <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" style={{ display: "none" }} onChange={(e) => { const f = (e.target.files || [])[0]; if (f) onFill(card.id, f); e.target.value = ""; }} />
+              <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" style={{ display: "none" }} onChange={(e) => { const f = (e.target.files || [])[0]; if (f) onFill(card.id, f); e.target.value = ""; }} />
 
-          {/* Source style badge — icon (channel is obvious) + type */}
-          {ch && (
-            <div style={{ position: "absolute", top: 6, left: 6, display: "flex", alignItems: "center", gap: 5, padding: ch.types?.length ? "4px 9px 4px 8px" : 5, borderRadius: 2, background: accent, color: "#fff", fontSize: 11, fontWeight: 600 }}>
-              <ch.Icon size={13} />
-              {ch.types?.length ? <span style={{ whiteSpace: "nowrap" }}>{ty.label}</span> : null}
+              {/* Source style badge — icon (channel is obvious) + type */}
+              {ch && (
+                <div style={{ position: "absolute", top: 6, left: 6, display: "flex", alignItems: "center", gap: 5, padding: ch.types?.length ? "4px 9px 4px 8px" : 5, borderRadius: 2, background: accent, color: "#fff", fontSize: 11, fontWeight: 600 }}>
+                  <ch.Icon size={13} />
+                  {ch.types?.length ? <span style={{ whiteSpace: "nowrap" }}>{ty.label}</span> : null}
+                </div>
+              )}
+              {/* Note indicator */}
+              {card.note?.trim() && (
+                <div title={card.note} style={{ position: "absolute", bottom: 6, left: 6, width: 22, height: 22, borderRadius: 3, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.85)" }}>
+                  <StickyNote size={12} />
+                </div>
+              )}
+              {/* Co-post badge — shared across multiple timelines (CC for email) */}
+              {coLanes && (
+                <div title={`Shared on ${coLanes.map((l) => l.name).join(" · ")}`} style={{ position: "absolute", top: 6, right: 6, display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 7px", borderRadius: 999, background: "rgba(0,0,0,0.62)", border: "1px solid rgba(255,255,255,0.2)", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.04em", color: "#fff" }}>
+                  <span style={{ display: "inline-flex" }}>
+                    {coLanes.slice(0, 3).map((l, i) => (
+                      <span key={l.id} style={{ width: 7, height: 7, borderRadius: "50%", background: l.color, marginLeft: i ? -2 : 0, border: "1px solid rgba(0,0,0,0.6)" }} />
+                    ))}
+                  </span>
+                  {card.channel === "email" ? "CC" : "Co-post"}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Event + date chips — the context you always see */}
+          {(linkedEvent || (card.links || []).length > 0) && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "0 8px 8px" }} onPointerDown={stop}>
+              {linkedEvent && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "#93c5fd", background: "rgba(96,165,250,0.14)", borderRadius: 2, padding: "2px 6px", maxWidth: "100%" }}>
+                  <CalendarDays size={11} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{linkedEvent.title}</span>
+                  <button onClick={() => onSet(card.id, { eventId: null })} style={{ background: "none", border: "none", color: "#93c5fd", cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
+                </span>
+              )}
+              {(card.links || []).map((l) => {
+                const d = new Date(`${l.date}T00:00:00`);
+                return (
+                  <span key={l.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "#fbbf24", background: "rgba(251,191,36,0.12)", borderRadius: 2, padding: "2px 6px" }}>
+                    {WEEKDAYS[d.getDay()]} {d.getDate()} {MONTHS[d.getMonth()]}
+                    <button onClick={() => onRemoveLink(card.id, l.id)} style={{ background: "none", border: "none", color: "#fbbf24", cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
+                  </span>
+                );
+              })}
             </div>
           )}
-          {/* Note indicator */}
-          {card.note?.trim() && (
-            <div title={card.note} style={{ position: "absolute", bottom: 6, left: 6, width: 22, height: 22, borderRadius: 3, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.85)" }}>
-              <StickyNote size={12} />
-            </div>
+
+          {linkHandle("top")}
+          {linkHandle("bottom")}
+
+          {/* Resize grip — scales the media (proportions locked) */}
+          <div onPointerDown={(e) => onStartResize(e, card.id)} title="Drag to resize" style={{ position: "absolute", right: 3, bottom: 3, width: 13, height: 13, cursor: "nwse-resize", zIndex: 3 }}>
+            <div style={{ width: "100%", height: "100%", borderRight: "2px solid rgba(255,255,255,0.4)", borderBottom: "2px solid rgba(255,255,255,0.4)", borderBottomRightRadius: 2 }} />
+          </div>
+        </div>
+
+        {/* ── BACK — compose (upcoming) or results (already ran) ── */}
+        <div
+          ref={backRef}
+          onPointerDown={stop}
+          onWheel={stop}
+          style={{ position: "absolute", top: 0, left: 0, width: flipW, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 10, overflow: "hidden", background: "rgba(16,13,22,0.99)", border: `1px solid ${linkColor}`, boxShadow: "0 14px 38px rgba(0,0,0,0.6)" }}
+        >
+          {showingEdit ? (
+            <EditFace card={card} events={events} timelines={timelines} accent={linkColor} onSet={onSet} onRemove={onRemove} />
+          ) : (
+            <AnalyticsFace card={card} accent={linkColor} ranOn={ranOn} linkedEvent={linkedEvent} onEdit={() => setEditingPast(true)} />
           )}
-          {/* Gear → open the settings popup beside the card */}
-          <button onPointerDown={stop} onClick={() => onOpenSettings(card.id)} title="Settings" style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 3, background: "rgba(0,0,0,0.5)", border: "none", color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
-            <Settings2 size={13} />
-          </button>
         </div>
       </div>
 
-      {/* Event + date chips — the context you always see */}
-      {(linkedEvent || (card.links || []).length > 0) && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "0 8px 8px" }} onPointerDown={stop}>
-          {linkedEvent && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "#93c5fd", background: "rgba(96,165,250,0.14)", borderRadius: 2, padding: "2px 6px", maxWidth: "100%" }}>
-              <CalendarDays size={11} />
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{linkedEvent.title}</span>
-              <button onClick={() => onSet(card.id, { eventId: null })} style={{ background: "none", border: "none", color: "#93c5fd", cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
+      <FlipTab accent={linkColor} flipped={flipped} phase={phase} onToggle={() => { if (flipped) setEditingPast(false); onToggleFlip(card.id); }} />
+    </div>
+  );
+}
+
+// ── Event banner ────────────────────────────────────────────────────
+// A wide, slim banner sitting on its lane's mark. Same flip language as
+// content cards: upcoming events flip to a quick editor, past ones to a recap.
+const EVENT_W = 236;
+const EVENT_FRONT_H = 58;
+const EVENT_BACK_H = 236; // fallback before the back is measured
+const EVENT_FLIP_W = 272; // banners widen a touch when flipped open
+
+function EventBanner({ ev, x, laneY, color, phase, flipped, raised, onRaise, onToggleFlip }) {
+  const backRef = useRef(null);
+  const measuredBackH = useNaturalHeight(backRef);
+  const wrapperW = flipped ? EVENT_FLIP_W : EVENT_W;
+  const h = flipped ? (measuredBackH || EVENT_BACK_H) : EVENT_FRONT_H;
+  const bandTop = laneY + BAND_TOP;
+  const top = bandTop - 9 - h; // bottom edge floats just above the band, grows upward
+  const dim = phase === "past" && !flipped;
+  return (
+    <>
+      {/* Mark through the band — same weight as Today, in event colour */}
+      <div style={{ position: "absolute", left: x, top: bandTop - 7, width: 2, height: BAND_H + 14, borderRadius: 1, background: color, transform: "translateX(-1px)", pointerEvents: "none" }} />
+
+      <div onPointerDownCapture={onRaise} style={{ position: "absolute", left: x, top, width: wrapperW, height: h, transform: `translateX(-50%) ${flipped ? "scale(1.03)" : ""}`, perspective: 1400, transition: "height 0.4s cubic-bezier(0.4,0,0.2,1), width 0.4s cubic-bezier(0.4,0,0.2,1), transform 0.35s ease", zIndex: flipped ? 21 : raised ? 12 : 2 }}>
+        <div style={{ position: "relative", width: "100%", height: "100%", transformStyle: "preserve-3d", transition: "transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform: flipped ? "rotateY(180deg)" : "none" }}>
+          {/* FRONT */}
+          <div onPointerDown={(e) => e.stopPropagation()} style={{ position: "absolute", left: "50%", top: 0, transform: "translateX(-50%)", width: EVENT_W, height: EVENT_FRONT_H, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", display: "flex", alignItems: "center", gap: 9, padding: "0 12px 0 7px", borderRadius: 12, background: "rgba(22,22,28,0.97)", border: `2px solid ${color}`, opacity: dim ? 0.82 : 1, filter: dim ? "saturate(0.85)" : "none", overflow: "hidden", cursor: "pointer" }}>
+            <span style={{ width: 40, height: 40, borderRadius: 9, overflow: "hidden", flexShrink: 0, background: "rgba(255,255,255,0.08)" }}>
+              {ev.thumb && <img src={ev.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
             </span>
-          )}
-          {(card.links || []).map((l) => {
-            const d = new Date(`${l.date}T00:00:00`);
-            return (
-              <span key={l.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "#fbbf24", background: "rgba(251,191,36,0.12)", borderRadius: 2, padding: "2px 6px" }}>
-                {WEEKDAYS[d.getDay()]} {d.getDate()} {MONTHS[d.getMonth()]}
-                <button onClick={() => onRemoveLink(card.id, l.id)} style={{ background: "none", border: "none", color: "#fbbf24", cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
-              </span>
-            );
-          })}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</div>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 2, fontSize: 10.5, color: "rgba(255,255,255,0.55)" }}>
+                <CalendarDays size={11} /> {ev.startsAt ? fmtDate(new Date(ev.startsAt)) : "Unscheduled"}
+                <span style={{ marginLeft: 4, padding: "1px 6px", borderRadius: 999, fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color, background: `${color}22` }}>{phase === "past" ? "Recap" : "Upcoming"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* BACK */}
+          <div
+            ref={backRef}
+            onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            style={{ position: "absolute", top: 0, left: 0, width: EVENT_FLIP_W, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 12, overflow: "hidden", background: "rgba(16,14,22,0.99)", border: `2px solid ${color}`, boxShadow: "0 14px 38px rgba(0,0,0,0.6)" }}
+          >
+            {phase === "past" ? <EventAnalytics ev={ev} color={color} /> : <EventEdit ev={ev} color={color} />}
+          </div>
         </div>
-      )}
 
-      {linkHandle("top")}
-      {linkHandle("bottom")}
-
-      {/* Resize grip — scales the media (proportions locked) */}
-      <div onPointerDown={(e) => onStartResize(e, card.id)} title="Drag to resize" style={{ position: "absolute", right: 3, bottom: 3, width: 13, height: 13, cursor: "nwse-resize", zIndex: 3 }}>
-        <div style={{ width: "100%", height: "100%", borderRight: "2px solid rgba(255,255,255,0.4)", borderBottom: "2px solid rgba(255,255,255,0.4)", borderBottomRightRadius: 2 }} />
+        <FlipTab accent={color} flipped={flipped} phase={phase} onToggle={onToggleFlip} />
       </div>
+    </>
+  );
+}
+
+function eventSeeded(id) {
+  let h = 5381;
+  for (let i = 0; i < (id || "x").length; i++) h = (h * 33) ^ id.charCodeAt(i);
+  return (h >>> 0) / 4294967296;
+}
+
+function EventAnalytics({ ev, color }) {
+  const r = eventSeeded(ev.id);
+  const views = 120 + Math.round(r * 1800);
+  const rsvps = Math.round(views * (0.08 + r * 0.18));
+  const revenue = Math.round(rsvps * (8 + r * 22));
+  const stats = [
+    { label: "Page views", value: views.toLocaleString() },
+    { label: "RSVPs", value: rsvps.toLocaleString() },
+    { label: "Revenue", value: `$${revenue.toLocaleString()}` },
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", color: "#fff" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", background: `linear-gradient(90deg, ${color}22, transparent)` }}>
+        <BarChart3 size={13} /> <span style={{ fontSize: 11.5, fontWeight: 700 }}>How it went</span>
+      </div>
+      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</div>
+        {stats.map((s) => (
+          <div key={s.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.5)" }}>{s.label}</span>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>{s.value}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: "7px 12px", borderTop: "1px solid rgba(255,255,255,0.07)", fontSize: 9, color: "rgba(255,255,255,0.35)" }}>Demo data</div>
     </div>
   );
 }
 
-// Screen-space settings popup, anchored beside its card. Lives outside the
-// content so it can be roomy and grow (subjects, captions/copy) later.
-function CardSettings({ card, events, left, top, side, width, onSet, onRemove, onClose }) {
-  const ch = card.channel ? CHANNELS[card.channel] : null;
-  const allowedTypes = ch ? ch.types || [] : [];
-  const showType = allowedTypes.length > 1;
-  const onChannelChange = (value) => {
-    const newCh = value || null;
-    const allowed = newCh ? CHANNELS[newCh].types || [] : [];
-    let nextType = card.contentType;
-    if (allowed.length === 0) nextType = "image";
-    else if (allowed.length === 1) nextType = allowed[0];
-    else if (!allowed.includes(card.contentType)) nextType = allowed[0];
-    onSet(card.id, { channel: newCh, contentType: nextType });
-  };
-
+function EventEdit({ ev, color }) {
   return (
-    <div
-      onPointerDown={(e) => e.stopPropagation()}
-      onWheel={(e) => e.stopPropagation()}
-      style={{ position: "absolute", left, top, width, maxHeight: "calc(100% - 16px)", overflowY: "auto", borderRadius: 12, background: "rgba(16,13,22,0.99)", border: "1px solid rgba(255,255,255,0.14)", boxShadow: "0 16px 44px rgba(0,0,0,0.6)", zIndex: 30 }}
-    >
-      {/* Caret toward the card */}
-      <div style={{ position: "absolute", top: 18, [side === "left" ? "left" : "right"]: -5, width: 10, height: 10, background: "rgba(16,13,22,0.99)", borderLeft: side === "left" ? "1px solid rgba(255,255,255,0.14)" : "none", borderBottom: side === "left" ? "1px solid rgba(255,255,255,0.14)" : "none", borderRight: side === "right" ? "1px solid rgba(255,255,255,0.14)" : "none", borderTop: side === "right" ? "1px solid rgba(255,255,255,0.14)" : "none", transform: "rotate(45deg)" }} />
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 13px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: "#fff" }}>Content settings</span>
-        <button onClick={onClose} title="Close" style={iconBtnStyle}><X size={14} /></button>
+    <div style={{ display: "flex", flexDirection: "column", color: "#fff" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", background: `linear-gradient(90deg, ${color}26, transparent)` }}>
+        <Pencil size={13} /> <span style={{ fontSize: 11.5, fontWeight: 700 }}>Event</span>
       </div>
-
-      <div style={{ padding: 13, display: "flex", flexDirection: "column", gap: 11 }}>
-        <Field label="Channel">
-          <select value={card.channel || ""} onChange={(e) => onChannelChange(e.target.value)} style={selectStyle}>
-            <option value="">Choose channel…</option>
-            {Object.entries(CHANNELS).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
-          </select>
-        </Field>
-        {showType && (
-          <Field label="Format">
-            <select value={card.contentType} onChange={(e) => onSet(card.id, { contentType: e.target.value })} style={selectStyle}>
-              {allowedTypes.map((k) => (
-                <option key={k} value={k}>{TYPES[k].label}</option>
-              ))}
-            </select>
-          </Field>
-        )}
-        <Field label="Event">
-          <select value={card.eventId || ""} onChange={(e) => onSet(card.id, { eventId: e.target.value || null })} style={selectStyle}>
-            <option value="">No event</option>
-            {(events || []).map((ev) => (
-              <option key={ev.id} value={ev.id}>{ev.title}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Note">
-          <textarea value={card.note || ""} placeholder="A reminder for later, or a note for a teammate…" onChange={(e) => onSet(card.id, { note: e.target.value })} rows={4} style={textareaStyle} />
-        </Field>
-        <button onClick={() => onRemove(card.id)} style={deleteBtnStyle}>
-          <Trash2 size={13} /> Delete content
-        </button>
+      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Title</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.title}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>When</div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5 }}>
+            <CalendarDays size={13} color="rgba(255,255,255,0.6)" /> {ev.startsAt ? fmtDate(new Date(ev.startsAt)) : "Unscheduled"}
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: 12, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+        <a href={`/app/events/${ev.id}/edit`} onClick={(e) => e.stopPropagation()} style={{ display: "block", textAlign: "center", padding: "8px", borderRadius: 8, background: `${color}22`, border: `1px solid ${color}`, color: "#fff", fontSize: 11.5, fontWeight: 600, textDecoration: "none" }}>
+          Open full editor →
+        </a>
       </div>
     </div>
   );
 }
-
-function Field({ label, children }) {
-  return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-      <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.42)" }}>{label}</span>
-      {children}
-    </label>
-  );
-}
-
-const iconBtnStyle = { width: 24, height: 24, borderRadius: 6, background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
-const textareaStyle = { width: "100%", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit", fontSize: 12, lineHeight: 1.45, padding: "7px 9px", borderRadius: 7, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", outline: "none", minHeight: 66 };
-const deleteBtnStyle = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 7, background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", color: "rgba(248,113,113,0.95)", fontSize: 12, fontWeight: 600, cursor: "pointer", marginTop: 2 };
-
-const selectStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  minWidth: 0,
-  fontSize: 12,
-  padding: "7px 8px",
-  borderRadius: 7,
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "#fff",
-  colorScheme: "dark",
-  cursor: "pointer",
-};

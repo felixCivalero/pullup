@@ -2,6 +2,18 @@
 // Centralized image upload and compression utilities
 
 import { authenticatedFetch } from "./api.js";
+import { supabase } from "./supabase.js";
+
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// How long to wait with zero upload progress before treating the request as
+// hung. A stalled connection — or a CORS preflight that never resolves — is the
+// "stuck at 0%" symptom; this turns an infinite silent hang into a clear,
+// retryable failure. We watch for *stalls* (no progress within the window)
+// rather than capping total time, so a slow-but-progressing large upload
+// (e.g. a 50MB video on mobile data) isn't killed mid-flight.
+const UPLOAD_STALL_TIMEOUT_MS = 30000;
+const MAX_UPLOAD_ATTEMPTS = 2; // initial attempt + one retry
 
 // ─────────────────────────────────────────────────────────────────────────
 // Modern Blob-based image pipeline.
@@ -118,7 +130,46 @@ export async function processImageForUpload(file, options = {}) {
  *
  * `signal` is an AbortSignal for cancellation.
  */
-export function uploadBlobToSignedUrl({ url, blob, mimeType, onProgress, signal, cacheControl = "3600" }) {
+export async function uploadBlobToSignedUrl({ url, blob, mimeType, onProgress, signal, cacheControl = "3600" }) {
+  // Mirror the authenticated request the Supabase SDK makes on the planner's
+  // upload path (which works reliably): some storage gateways / CORS configs
+  // expect the apikey + bearer token even on token-signed uploads. The hand-
+  // rolled XHR previously sent only x-upsert, which is the one concrete way it
+  // differed from the SDK call.
+  const authHeaders = {};
+  if (SUPABASE_ANON_KEY) authHeaders.apikey = SUPABASE_ANON_KEY;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) authHeaders.Authorization = `Bearer ${session.access_token}`;
+  } catch {
+    // Best-effort — the signed token in the URL is what actually authorizes.
+  }
+
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
+    try {
+      return await attemptSignedUpload({ url, blob, mimeType, onProgress, signal, cacheControl, authHeaders });
+    } catch (err) {
+      lastErr = err;
+      // Don't retry a deliberate cancellation or a deterministic client error
+      // (a 4xx other than 408/429 won't succeed on a second try).
+      if (err?.name === "AbortError") throw err;
+      const status = err?.status;
+      if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) throw err;
+      if (attempt < MAX_UPLOAD_ATTEMPTS) {
+        console.warn(`[uploadBlobToSignedUrl] attempt ${attempt}/${MAX_UPLOAD_ATTEMPTS} failed: ${err?.message}. Retrying…`);
+        if (onProgress) onProgress(0); // restart the bar so it doesn't look frozen
+      }
+    }
+  }
+  console.error("[uploadBlobToSignedUrl] upload failed after retries:", lastErr?.message);
+  throw lastErr;
+}
+
+// One PUT attempt. Aborts and rejects if the upload makes no progress for
+// UPLOAD_STALL_TIMEOUT_MS so a hung request surfaces as an error instead of an
+// infinite "stuck at 0%".
+function attemptSignedUpload({ url, blob, mimeType, onProgress, signal, cacheControl, authHeaders = {} }) {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append("cacheControl", cacheControl);
@@ -131,22 +182,52 @@ export function uploadBlobToSignedUrl({ url, blob, mimeType, onProgress, signal,
     xhr.open("PUT", url, true);
     // Don't set Content-Type: the browser fills in multipart boundary.
     xhr.setRequestHeader("x-upsert", "true");
+    for (const [k, v] of Object.entries(authHeaders)) xhr.setRequestHeader(k, v);
 
+    // Stall watchdog: (re)armed before send and on every progress event. If it
+    // fires, the connection is hung (or a preflight never resolved) — abort so
+    // the caller gets a clear, retryable error rather than waiting forever.
+    let stalled = false;
+    let stallTimer;
+    const armStall = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        stalled = true;
+        xhr.abort();
+      }, UPLOAD_STALL_TIMEOUT_MS);
+    };
+    const clearStall = () => clearTimeout(stallTimer);
+
+    xhr.upload.onloadstart = armStall;
     xhr.upload.onprogress = (e) => {
+      armStall();
       if (e.lengthComputable && onProgress) {
         onProgress(Math.round((e.loaded / e.total) * 100));
       }
     };
     xhr.onload = () => {
+      clearStall();
       if (xhr.status >= 200 && xhr.status < 300) {
         if (onProgress) onProgress(100);
         resolve();
       } else {
-        reject(new Error(`Upload failed: HTTP ${xhr.status} ${xhr.responseText || ""}`));
+        const err = new Error(`Upload failed: HTTP ${xhr.status} ${xhr.responseText || ""}`.trim());
+        err.status = xhr.status;
+        reject(err);
       }
     };
-    xhr.onerror = () => reject(new Error("Network error during upload"));
-    xhr.onabort = () => reject(new DOMException("Upload aborted", "AbortError"));
+    xhr.onerror = () => {
+      clearStall();
+      reject(new Error("Network error during upload"));
+    };
+    xhr.onabort = () => {
+      clearStall();
+      if (stalled) {
+        reject(new Error(`Upload stalled — no progress for ${Math.round(UPLOAD_STALL_TIMEOUT_MS / 1000)}s`));
+      } else {
+        reject(new DOMException("Upload aborted", "AbortError"));
+      }
+    };
 
     if (signal) {
       if (signal.aborted) {
@@ -156,6 +237,7 @@ export function uploadBlobToSignedUrl({ url, blob, mimeType, onProgress, signal,
       signal.addEventListener("abort", () => xhr.abort(), { once: true });
     }
 
+    armStall(); // arm before send so a connection that never opens still times out
     xhr.send(form);
   });
 }

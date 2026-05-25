@@ -13,6 +13,7 @@ import {
 import { useToast } from "../components/Toast";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { publicFetch, API_BASE } from "../lib/api.js";
+import { supabase } from "../lib/supabase.js";
 import {
   getEventShareUrl,
   getGoogleMapsUrl,
@@ -21,6 +22,35 @@ import {
 } from "../lib/urlUtils";
 import { formatReadableDateTime } from "../lib/dateUtils.js";
 import { logger } from "../lib/logger.js";
+
+// Fire-and-forget partner-CTA click tracking. Sends the host's auth token so
+// the backend (optionalAuth) records WHICH host clicked — without it, every
+// click lands with user_id NULL. Never blocks navigation: the button is a
+// target="_blank" link, so this completes in the background.
+async function trackPartnerClick(eventId, partnerSlug) {
+  if (!eventId) return;
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    await fetch(`${API_BASE}/partner-clicks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {}),
+      },
+      body: JSON.stringify({
+        partnerSlug,
+        eventId,
+        placement: "event_success_page",
+      }),
+    });
+  } catch {
+    /* best-effort: a missed click record must never disrupt the host */
+  }
+}
 
 export function EventSuccessPage() {
   const { slug } = useParams();
@@ -734,17 +764,7 @@ export function EventSuccessPage() {
               rel="noopener noreferrer"
               onMouseEnter={() => setZodaHovered(true)}
               onMouseLeave={() => setZodaHovered(false)}
-              onClick={() => {
-                fetch(`${API_BASE}/partner-clicks`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    partnerSlug: "zoda",
-                    eventId: event.id,
-                    placement: "event_success_page",
-                  }),
-                }).catch(() => {});
-              }}
+              onClick={() => trackPartnerClick(event.id, "zoda")}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -826,17 +846,7 @@ export function EventSuccessPage() {
               rel="noopener noreferrer"
               onMouseEnter={() => setShowlightersHovered(true)}
               onMouseLeave={() => setShowlightersHovered(false)}
-              onClick={() => {
-                fetch(`${API_BASE}/partner-clicks`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    partnerSlug: "showlighters",
-                    eventId: event.id,
-                    placement: "event_success_page",
-                  }),
-                }).catch(() => {});
-              }}
+              onClick={() => trackPartnerClick(event.id, "showlighters")}
               style={{
                 display: "flex",
                 alignItems: "center",

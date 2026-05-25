@@ -230,7 +230,6 @@ export async function importPeopleFromCsv(csvText, userId) {
             email: data.email,
             name: data.name,
             phone: data.phone,
-            notes: data.notes,
             tags: data.tags || [],
             stripeCustomerId: data.stripe_customer_id,
             totalSpend: data.total_spend || 0,

@@ -383,7 +383,6 @@ const UpdatePersonInput = {
   personId: z.string().uuid().describe("Person id (UUID)."),
   name: z.string().optional(),
   phone: z.string().optional(),
-  notes: z.string().optional(),
   tags: z.array(z.string()).optional().describe(
     "Full replacement tag list. Pass [] to clear all tags."
   ),
@@ -393,6 +392,24 @@ const UpdatePersonInput = {
   linkedin: z.string().optional(),
   company: z.string().optional(),
   birthday: z.string().optional().describe("Free-form birthday string (e.g. '1992-04-17' or 'April 17')."),
+};
+
+const AddPersonNoteInput = {
+  personId: z.string().uuid().describe(
+    "Person id (UUID). Use find_person first if you only have a name."
+  ),
+  content: z.string().describe(
+    "The observation, in the host's voice. e.g. 'Talked Leica M6 on the photowalk — wants to get into film.' Keep one note to one moment; add separate notes for separate conversations."
+  ),
+  eventId: z.string().uuid().optional().describe(
+    "Optional event id this note is about (the walk/dinner where it came up). get_person lists the events this person attended."
+  ),
+  noteDate: z.string().optional().describe(
+    "Date the note is about, YYYY-MM-DD. Defaults to today — backdate it to when the conversation actually happened."
+  ),
+  topic: z.string().optional().describe(
+    "Optional one-word topic label for later filtering (e.g. 'gear', 'career', 'family'). This is the AI-only enrichment field — hidden from the host's UI. Set it when you can infer a clean category from the content."
+  ),
 };
 
 // ─── Slice C — Email completion ───────────────────────────────────────
@@ -1317,8 +1334,13 @@ function buildHandlers(api, _hostId) {
   }
 
   async function getPerson(args) {
-    const p = await api("GET", `/host/crm/people/${args.personId}`);
-    if (!p) return toolResultText(`No person found with id ${args.personId}.`);
+    const raw = await api("GET", `/host/crm/people/${args.personId}`);
+    if (!raw) return toolResultText(`No person found with id ${args.personId}.`);
+    // The detail endpoint returns { person, touchpoints }. Tolerate a flattened
+    // shape too so this stays robust if the API ever changes.
+    const p = raw.person || raw;
+    const touchpoints = raw.touchpoints || p.touchpoints || {};
+    const notes = Array.isArray(touchpoints.notes) ? touchpoints.notes : [];
 
     const events = Array.isArray(p.eventsAttended) ? p.eventsAttended : (p.events || []);
     const eventsCount = typeof p.eventsAttended === "number"
@@ -1336,7 +1358,6 @@ function buildHandlers(api, _hostId) {
       `  Events:       ${eventsCount} confirmed RSVP${eventsCount === 1 ? "" : "s"}`,
       spend > 0 ? `  Spent:        ${fmtMoney(spend, currency)}` : null,
       p.tags && p.tags.length ? `  Tags:         ${p.tags.join(", ")}` : null,
-      p.notes ? `  Notes:        ${p.notes}` : null,
     ].filter(Boolean);
 
     if (Array.isArray(events) && events.length > 0) {
@@ -1345,6 +1366,23 @@ function buildHandlers(api, _hostId) {
       for (const e of events.slice(0, 8)) {
         const when = e.startsAt ? new Date(e.startsAt).toLocaleDateString("en-GB") : "—";
         lines.push(`  • ${e.title || "(untitled)"}  (${when})  → slug: ${e.slug || "—"}`);
+      }
+    }
+
+    // Timeline notes — the host's running log of what they've learned about
+    // this person. This is the richest context for personalising a follow-up.
+    if (notes.length > 0) {
+      const titleById = {};
+      for (const e of events) if (e && e.id) titleById[e.id] = e.title;
+      lines.push("");
+      lines.push(`Notes (${notes.length}):`);
+      for (const n of notes.slice(0, 10)) {
+        const when = n.noteDate
+          ? new Date(`${n.noteDate}T00:00:00`).toLocaleDateString("en-GB")
+          : "—";
+        const evt = n.eventId && titleById[n.eventId] ? ` @ ${titleById[n.eventId]}` : "";
+        const topic = n.topic ? ` [${n.topic}]` : "";
+        lines.push(`  • ${when}${evt}${topic} — ${n.content}`);
       }
     }
 
@@ -1387,6 +1425,21 @@ function buildHandlers(api, _hostId) {
     const changed = Object.keys(patch);
     return toolResultText(
       `Updated ${updated?.name || updated?.email || "person"}.\n  Fields:  ${changed.join(", ")}`
+    );
+  }
+
+  async function addPersonNote(args) {
+    const { personId, ...rest } = args;
+    const body = Object.fromEntries(
+      Object.entries(rest).filter(([, v]) => v !== undefined && v !== null && v !== "")
+    );
+    const note = await api("POST", `/host/crm/people/${personId}/notes`, { body });
+    const when = note?.noteDate
+      ? new Date(`${note.noteDate}T00:00:00`).toLocaleDateString("en-GB")
+      : "today";
+    const topic = note?.topic ? `  [${note.topic}]` : "";
+    return toolResultText(
+      `Noted on ${when}${topic}\n  "${note?.content || rest.content}"`
     );
   }
 
@@ -1997,6 +2050,7 @@ function buildHandlers(api, _hostId) {
     getPerson,
     queryPeople,
     updatePerson,
+    addPersonNote,
     // Slice C — Email completion
     listCampaigns,
     getCampaign,
@@ -2061,6 +2115,10 @@ function summarizeAction(a) {
       return r.amount != null ? `amount ${r.amount}${r.isFullRefund ? " (full)" : ""}` : null;
     case "update_person":
       return r.name || null;
+    case "add_person_note": {
+      const c = String(args.content || "");
+      return c ? `"${c.length > 60 ? `${c.slice(0, 60)}…` : c}"` : null;
+    }
     default:
       return null;
   }
@@ -2388,7 +2446,7 @@ export function buildTools(ctx) {
       name: "get_person",
       title: "Get a person's full profile",
       description:
-        "Returns one person's full profile: identity fields (IG/twitter/tiktok/linkedin/company), tags, notes, lifetime spend, every event they've attended. Use after find_person, or when the host references a specific person id.",
+        "Returns one person's full profile: identity fields (IG/twitter/tiktok/linkedin/company), tags, lifetime spend, every event they've attended, and the host's timeline notes about them. Use after find_person, or when the host references a specific person id.",
       inputSchema: GetPersonInput,
       handler: h.getPerson,
     },
@@ -2404,9 +2462,17 @@ export function buildTools(ctx) {
       name: "update_person",
       title: "Update a person's CRM fields",
       description:
-        "Patches a person record. Pass only the fields to change. Useful for enriching contacts post-event: add an IG handle the host grabbed in person, set notes, replace the tag list, etc. tags is a FULL replacement (pass [] to clear).",
+        "Patches a person record. Pass only the fields to change. Useful for enriching contacts post-event: add an IG handle the host grabbed in person, replace the tag list, etc. tags is a FULL replacement (pass [] to clear). To log an observation about someone, use add_person_note instead.",
       inputSchema: UpdatePersonInput,
       handler: h.updatePerson,
+    },
+    {
+      name: "add_person_note",
+      title: "Add a timeline note about a person",
+      description:
+        "Logs a dated observation on a person's CRM timeline — what the host learned about them at an event ('talked Leica on the photowalk, wants to get into film'). Optionally tie it to the event it came up at and backdate it. These build a running history the host (and you) read back via get_person. Set `topic` to a clean one-word label when you can infer one — it's a hidden filter field, invisible in the host UI. Use this for narrative observations; use update_person tags for queryable labels.",
+      inputSchema: AddPersonNoteInput,
+      handler: h.addPersonNote,
     },
 
     // ─── Slice C — Email completion ─────────────────────────────────

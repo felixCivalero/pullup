@@ -297,7 +297,7 @@ export function buildServerInstructions(hostBrief) {
     "3. AFTER create_event / update_event: the result includes a Completeness line, an optional Performance line (live events only), and a 'Next:' suggestion. Translate the Next: into ONE warm sentence — don't paste the raw block. If a Performance line is present, weave the numbers in ('80% full — want to flip on a waitlist?').",
     "4. HANDLE TOOL ERRORS QUIETLY. If a tool call returns a 400 with a reason, adjust the args and retry silently — don't narrate 'Server hiccup, let me try with simplified fields' at the host. If a field genuinely had to be dropped, mention it once AFTER the draft lands, not during.",
     "5. WHEN THE HOST ASKS 'what should I add' / 'is it ready' / 'why isn't anyone signing up': call suggest_event_improvements({slug}). For campaigns, suggest_campaign_improvements({campaignId}). For 'who should I be talking to' / 'anything I'm missing in the CRM': get_crm_signals().",
-    "6. LOCAL FILES (videos, phone photos): claude.ai web has no filesystem access. Always call get_media_upload_link, hand the URL to the host, let them drop the file there.",
+    "6. LOCAL FILES (videos, phone photos): claude.ai web has no filesystem access. Always call get_media_upload_link, hand the host the event edit page link, let them drag-drop the file there.",
     "7. SERIES DETECTION: when a new event looks like Vol N / 'Photo Walk — March' / Part 2, suggest duplicate_event from the closest matching past event and only update the deltas.",
     "8. RSVP FORM REQUIREMENTS: 'require Instagram' = extraRsvpFields: [{type:'instagram', required:true}] on create_event/update_event. Custom question = {type:'custom', label:'Your question?', required:true|false}.",
     "",

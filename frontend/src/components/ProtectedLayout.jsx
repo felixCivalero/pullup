@@ -14,6 +14,9 @@ function ProtectedLayoutInner() {
   const { user, loading } = useAuth();
   const { eventNav, clearEventNav } = useEventNav();
   const [isAdmin, setIsAdmin] = useState(false);
+  // Tracks whether /host/profile has resolved yet, so the admin guard below
+  // doesn't bounce a real admin while their profile is still loading.
+  const [profileChecked, setProfileChecked] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [profilePic, setProfilePic] = useState(null);
@@ -49,12 +52,14 @@ function ProtectedLayoutInner() {
     authenticatedFetch("/host/profile")
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => {
-        if (!p) return;
-        if (p.profilePicture) setProfilePic(p.profilePicture);
-        if (p.isAdmin) setIsAdmin(true);
-        setProfileComplete(!!(p.brand?.trim() && p.contactEmail?.trim()));
+        if (p) {
+          if (p.profilePicture) setProfilePic(p.profilePicture);
+          if (p.isAdmin) setIsAdmin(true);
+          setProfileComplete(!!(p.brand?.trim() && p.contactEmail?.trim()));
+        }
+        setProfileChecked(true);
       })
-      .catch(() => {});
+      .catch(() => setProfileChecked(true));
   }
 
   useEffect(() => {
@@ -96,6 +101,17 @@ function ProtectedLayoutInner() {
     }
   }, [user, loading, navigate, location.pathname]);
 
+  // The email section is admin-only — it sends mail outside PullUp. The backend
+  // already 403s every /admin/email API, but the SPA would still render the page
+  // shell for a logged-in non-admin who navigates here directly. Once we've
+  // confirmed they're not an admin, bounce them out so the email UI never mounts.
+  useEffect(() => {
+    if (profileChecked && !isAdmin && location.pathname.startsWith("/admin/email")) {
+      showToast("Admin access required", "error");
+      navigate("/events", { replace: true });
+    }
+  }, [profileChecked, isAdmin, location.pathname, navigate, showToast]);
+
   // On first authenticated load, link any existing newsletter subscriptions
   useEffect(() => {
     if (!loading && user) {
@@ -129,6 +145,10 @@ function ProtectedLayoutInner() {
 
   const isCreatingEvent = location.pathname === "/create";
   const isAdminPage = location.pathname.startsWith("/admin");
+  // The email section is the one admin surface that's strictly admin-only — it
+  // sends mail outside PullUp. Other /admin pages stay accessible since they
+  // can back data-driven features, so the guard is scoped to /admin/email only.
+  const isEmailSection = location.pathname.startsWith("/admin/email");
 
   // Nav items for all users
   const navItems = [
@@ -1008,9 +1028,25 @@ function ProtectedLayoutInner() {
         </>
       )}
 
-      {/* Page content */}
+      {/* Page content. On the email section, hold rendering until we've
+          confirmed admin status — never mount the email UI for a non-admin, and
+          avoid a flash while /host/profile is still resolving. */}
       <main>
-        <Outlet />
+        {isEmailSection && (!profileChecked || !isAdmin) ? (
+          <div
+            style={{
+              minHeight: "60vh",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "rgba(255,255,255,0.5)",
+            }}
+          >
+            {profileChecked ? null : "Loading..."}
+          </div>
+        ) : (
+          <Outlet />
+        )}
       </main>
 
       {/* Unsaved media confirm dialog */}

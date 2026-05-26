@@ -4917,6 +4917,7 @@ export async function getEmailCampaign(campaignId, userId) {
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     sentAt: data.sent_at,
+    scheduledAt: data.scheduled_at,
   };
 }
 
@@ -4929,7 +4930,7 @@ export async function getEmailCampaign(campaignId, userId) {
 export async function listEmailCampaigns(userId, { status, limit = 50, offset = 0 } = {}) {
   let q = supabase
     .from("campaign_campaigns")
-    .select("id, name, subject, template_type, event_id, status, total_recipients, total_sent, total_failed, created_at, sent_at")
+    .select("id, name, subject, template_type, event_id, status, total_recipients, total_sent, total_failed, created_at, sent_at, scheduled_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -4949,6 +4950,7 @@ export async function listEmailCampaigns(userId, { status, limit = 50, offset = 
     totalFailed: d.total_failed || 0,
     createdAt: d.created_at,
     sentAt: d.sent_at,
+    scheduledAt: d.scheduled_at,
   }));
 }
 
@@ -4970,14 +4972,84 @@ export async function claimCampaignForSending(campaignId, userId) {
     .update({ status: "sending", updated_at: new Date().toISOString() })
     .eq("id", campaignId)
     .eq("user_id", userId)
-    .eq("status", "draft")
+    // A campaign becomes sendable from "draft" (send now) OR "scheduled" (the
+    // poll worker firing a deferred send). Both transition to "sending" via
+    // this single conditional UPDATE, so the same CAS gate prevents a
+    // double-send whether two send_campaign calls race or a poll tick overlaps
+    // a manual "send now".
+    .in("status", ["draft", "scheduled"])
     .select()
     .maybeSingle();
   if (error) {
     console.error("[claimCampaignForSending] error:", error);
     throw new Error(`Failed to claim campaign: ${error.message}`);
   }
-  return data || null; // null = lost the race or wrong owner / not draft
+  return data || null; // null = lost the race or wrong owner / not draft|scheduled
+}
+
+/**
+ * Schedule a campaign to send at `scheduledAt` (ISO string). Only a draft or
+ * an already-scheduled campaign can be (re)scheduled — never one mid-send or
+ * already sent. Returns the row on success, null if it wasn't in a
+ * schedulable state.
+ */
+export async function scheduleEmailCampaign(campaignId, userId, scheduledAt) {
+  const { data, error } = await supabase
+    .from("campaign_campaigns")
+    .update({
+      status: "scheduled",
+      scheduled_at: scheduledAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", campaignId)
+    .eq("user_id", userId)
+    .in("status", ["draft", "scheduled"])
+    .select()
+    .maybeSingle();
+  if (error) {
+    console.error("[scheduleEmailCampaign] error:", error);
+    throw new Error(`Failed to schedule campaign: ${error.message}`);
+  }
+  return data || null;
+}
+
+/**
+ * Cancel a scheduled send, returning the campaign to draft. Only acts on a
+ * campaign still in "scheduled" — a send already in flight is left alone.
+ */
+export async function unscheduleEmailCampaign(campaignId, userId) {
+  const { data, error } = await supabase
+    .from("campaign_campaigns")
+    .update({ status: "draft", scheduled_at: null, updated_at: new Date().toISOString() })
+    .eq("id", campaignId)
+    .eq("user_id", userId)
+    .eq("status", "scheduled")
+    .select()
+    .maybeSingle();
+  if (error) {
+    console.error("[unscheduleEmailCampaign] error:", error);
+    throw new Error(`Failed to cancel schedule: ${error.message}`);
+  }
+  return data || null;
+}
+
+/**
+ * Scheduled campaigns whose send time has arrived. Used by the poll worker.
+ * Kept to a small projection (the sender re-fetches the full row by id).
+ */
+export async function getDueScheduledCampaigns(nowIso, limit = 25) {
+  const { data, error } = await supabase
+    .from("campaign_campaigns")
+    .select("id, user_id, subject, scheduled_at")
+    .eq("status", "scheduled")
+    .lte("scheduled_at", nowIso)
+    .order("scheduled_at", { ascending: true })
+    .limit(limit);
+  if (error) {
+    console.error("[getDueScheduledCampaigns] error:", error);
+    return [];
+  }
+  return data || [];
 }
 
 export async function updateEmailCampaignStatus(

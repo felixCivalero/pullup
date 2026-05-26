@@ -1,5 +1,14 @@
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { applyTokens, buildPreviewContext } from "../../lib/emailTokens";
+
+// datetime-local wants "YYYY-MM-DDTHH:MM" in LOCAL time (no offset). Build it
+// from the local field getters so the min attr and the value round-trip in the
+// host's own timezone.
+function toLocalInputValue(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 const TYPE_COUNT_LABELS = {
   text: { singular: "text block", plural: "text blocks" },
@@ -33,9 +42,19 @@ export default function ConfirmSendDialog({
   blocks,
   onClose,
   onConfirmSend,
+  onSchedule,
 }) {
+  // "now" = fire immediately (existing path); "later" = schedule_at.
+  const [mode, setMode] = useState("now");
+  const [whenLocal, setWhenLocal] = useState("");
+  const [scheduling, setScheduling] = useState(false);
   if (!isOpen) return null;
   const isFollowup = templateType === "followup";
+  const nowLocal = toLocalInputValue(new Date());
+  const scheduledDate = whenLocal ? new Date(whenLocal) : null;
+  const scheduleValid =
+    scheduledDate && !Number.isNaN(scheduledDate.getTime()) && scheduledDate.getTime() > Date.now();
+  const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const blockSummary = summarizeBlocks(blocks);
   // Resolve tokens so the host sees a real subject ("You're invited to
   // Hallon Spritz") instead of the literal "{{event_title}}" in the
@@ -89,10 +108,38 @@ export default function ConfirmSendDialog({
               {blockSummary && <Row label="Body">{blockSummary}</Row>}
             </div>
 
-            <div style={noteStyle}>
-              Once you send, emails go out immediately and can't be recalled.
-              Recipients who unsubscribed are automatically excluded.
+            {/* Send now vs. schedule */}
+            <div style={{ display: "flex", gap: 8, marginBottom: mode === "later" ? 10 : 14 }}>
+              <button type="button" onClick={() => setMode("now")} style={modePillStyle(mode === "now")}>
+                Send now
+              </button>
+              <button type="button" onClick={() => setMode("later")} style={modePillStyle(mode === "later")}>
+                Schedule
+              </button>
             </div>
+
+            {mode === "later" && (
+              <div style={{ marginBottom: 14 }}>
+                <input
+                  type="datetime-local"
+                  value={whenLocal}
+                  min={nowLocal}
+                  onChange={(e) => setWhenLocal(e.target.value)}
+                  style={dtInputStyle}
+                />
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.5 }}>
+                  Sends automatically at this time ({localTz}) — you don't need to be online.
+                  The audience is recalculated when it fires, so new RSVPs are included.
+                </div>
+              </div>
+            )}
+
+            {mode === "now" && (
+              <div style={noteStyle}>
+                Once you send, emails go out immediately and can't be recalled.
+                Recipients who unsubscribed are automatically excluded.
+              </div>
+            )}
           </>
         )}
 
@@ -149,10 +196,29 @@ export default function ConfirmSendDialog({
               <button type="button" onClick={onClose} style={cancelBtnStyle}>
                 Cancel
               </button>
-              <button type="button" onClick={onConfirmSend} style={sendBtnStyle}>
-                Send to {effectiveRecipientCount.toLocaleString()}{" "}
-                {effectiveRecipientCount === 1 ? "recipient" : "recipients"} →
-              </button>
+              {mode === "now" ? (
+                <button type="button" onClick={onConfirmSend} style={sendBtnStyle}>
+                  Send to {effectiveRecipientCount.toLocaleString()}{" "}
+                  {effectiveRecipientCount === 1 ? "recipient" : "recipients"} →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!scheduleValid || scheduling}
+                  onClick={async () => {
+                    if (!scheduleValid || scheduling) return;
+                    setScheduling(true);
+                    try {
+                      await onSchedule(scheduledDate.toISOString());
+                    } finally {
+                      setScheduling(false);
+                    }
+                  }}
+                  style={!scheduleValid || scheduling ? disabledBtnStyle : sendBtnStyle}
+                >
+                  {scheduling ? "Scheduling…" : "Schedule send →"}
+                </button>
+              )}
             </>
           )}
           {sendStage === "sending" && (
@@ -303,6 +369,30 @@ const disabledBtnStyle = {
   color: "rgba(255,255,255,0.5)",
   fontSize: 14,
   cursor: "not-allowed",
+};
+
+const modePillStyle = (active) => ({
+  flex: 1,
+  padding: "8px 12px",
+  borderRadius: 10,
+  border: active ? "1px solid rgba(255,255,255,0.3)" : "1px solid rgba(255,255,255,0.1)",
+  background: active ? "rgba(255,255,255,0.1)" : "transparent",
+  color: active ? "#fff" : "rgba(255,255,255,0.5)",
+  fontSize: 13,
+  fontWeight: active ? 600 : 500,
+  cursor: "pointer",
+});
+
+const dtInputStyle = {
+  width: "100%",
+  padding: "10px 12px",
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.15)",
+  background: "rgba(255,255,255,0.04)",
+  color: "#fff",
+  fontSize: 14,
+  boxSizing: "border-box",
+  colorScheme: "dark",
 };
 
 const pillStyle = (isFollowup) => ({

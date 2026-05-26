@@ -2876,16 +2876,26 @@ app.get("/host/events/:id", requireAuth, async (req, res) => {
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    // Verify access (any host role)
+    // Verify access (any host role). Admins can also view any event read-only —
+    // they reach this through the admin Analytics → All Events tab. We surface
+    // them with the "analytics" role so the event nav shows only the Analytics
+    // tab (no Edit/Guests they couldn't act on anyway).
     const { isHost } = await isUserEventHost(req.user.id, event.id);
+    let adminView = false;
     if (!isHost) {
+      const profile = await getUserProfile(req.user.id);
+      adminView = !!profile?.isAdmin;
+    }
+    if (!isHost && !adminView) {
       return res.status(403).json({
         error: "Forbidden",
         message: "You don't have access to this event",
       });
     }
 
-    const myRole = await getEventHostRole(req.user.id, event.id);
+    const myRole = isHost
+      ? await getEventHostRole(req.user.id, event.id)
+      : "analytics";
     res.json({ ...event, myRole });
   } catch (error) {
     console.error("Error fetching event:", error);
@@ -6538,6 +6548,106 @@ app.post(
       console.error("Error starting campaign send:", error);
       res.status(500).json({
         error: "Failed to start campaign send",
+        message: error.message,
+      });
+    }
+  }
+);
+
+// POST /host/crm/campaigns/:campaignId/schedule - Defer a send to a future
+// time. The poll worker (see app.listen) fires it; recipients are resolved
+// fresh at send time, so the audience reflects RSVPs/filters as of sending,
+// not as of scheduling.
+app.post(
+  "/host/crm/campaigns/:campaignId/schedule",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { campaignId } = req.params;
+      const { scheduledAt } = req.body || {};
+      const when = scheduledAt ? new Date(scheduledAt) : null;
+      if (!when || Number.isNaN(when.getTime())) {
+        return res.status(400).json({
+          error: "Invalid scheduledAt",
+          message: "Provide an ISO 8601 date/time (with timezone offset).",
+        });
+      }
+      // Allow ~1 min of slack so "now" rounds through; anything clearly in the
+      // past is rejected rather than silently firing on the next tick.
+      if (when.getTime() < Date.now() - 60 * 1000) {
+        return res.status(400).json({
+          error: "scheduledAt is in the past",
+          message: "Pick a future time.",
+        });
+      }
+
+      const { getEmailCampaign, scheduleEmailCampaign } = await import("./data.js");
+      const campaign = await getEmailCampaign(campaignId, req.user.id);
+      if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+      if (campaign.status === "sent" || campaign.status === "sending") {
+        return res.status(400).json({
+          error: `Campaign is ${campaign.status} and can't be scheduled`,
+        });
+      }
+
+      const updated = await scheduleEmailCampaign(
+        campaignId,
+        req.user.id,
+        when.toISOString(),
+      );
+      if (!updated) {
+        return res.status(409).json({
+          error: "Could not schedule",
+          message: "Campaign is not in a schedulable state.",
+        });
+      }
+
+      emitIntent({
+        hostId: req.user.id,
+        tool: "schedule_campaign",
+        args: { campaignId, scheduledAt: when.toISOString() },
+        source: sourceFromRequest(req),
+        target: { type: "campaign", id: campaignId },
+        result: { subject: campaign.subject, scheduledAt: when.toISOString() },
+      });
+
+      res.json({
+        message: "Campaign scheduled",
+        campaignId,
+        status: "scheduled",
+        scheduledAt: when.toISOString(),
+      });
+    } catch (error) {
+      console.error("Error scheduling campaign:", error);
+      res.status(500).json({
+        error: "Failed to schedule campaign",
+        message: error.message,
+      });
+    }
+  }
+);
+
+// POST /host/crm/campaigns/:campaignId/unschedule - Cancel a scheduled send,
+// returning the campaign to draft. No-op (409) if it isn't scheduled.
+app.post(
+  "/host/crm/campaigns/:campaignId/unschedule",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { campaignId } = req.params;
+      const { unscheduleEmailCampaign } = await import("./data.js");
+      const updated = await unscheduleEmailCampaign(campaignId, req.user.id);
+      if (!updated) {
+        return res.status(409).json({
+          error: "Campaign is not scheduled",
+          message: "Nothing to cancel.",
+        });
+      }
+      res.json({ message: "Schedule cancelled", campaignId, status: "draft" });
+    } catch (error) {
+      console.error("Error cancelling schedule:", error);
+      res.status(500).json({
+        error: "Failed to cancel schedule",
         message: error.message,
       });
     }
@@ -10375,10 +10485,14 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify the user has access to this event
+    // Verify the user has access to this event. Admins can read any event's
+    // analytics (admin Analytics → All Events tab).
     const { isHost } = await isUserEventHost(req.user.id, id);
     if (!isHost) {
-      return res.status(403).json({ error: "Forbidden", message: "You don't have access to this event" });
+      const profile = await getUserProfile(req.user.id);
+      if (!profile?.isAdmin) {
+        return res.status(403).json({ error: "Forbidden", message: "You don't have access to this event" });
+      }
     }
 
     const { supabase: sb } = await import("./supabase.js");
@@ -11437,21 +11551,38 @@ app.get("/admin/platform-events", requireAdmin, async (req, res) => {
     const { supabase: sb } = await import("./supabase.js");
     const { filter = "upcoming" } = req.query;
 
+    // Optional pagination. When `limit` is supplied the admin Analytics → All
+    // Events tab pages through results (upcoming soonest-first, then past
+    // newest-first); without it, callers get the legacy behaviour.
+    const limit = req.query.limit != null
+      ? Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 1), 100)
+      : null;
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
     const now = new Date().toISOString();
+    const ascending = filter === "upcoming"; // upcoming: soonest first; past/all: newest first
     let query = sb
       .from("events")
       .select("id, slug, title, starts_at, ends_at, location, status, host_id, total_capacity, cocktail_capacity, ticket_type, created_at, admin_tags")
-      .order("starts_at", { ascending: filter === "upcoming" });
+      .order("starts_at", { ascending });
 
     if (filter === "upcoming") {
       query = query.gte("starts_at", new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()); // include recently started
     } else if (filter === "past") {
-      query = query.lt("starts_at", now).order("starts_at", { ascending: false }).limit(50);
+      query = query.lt("starts_at", now);
     }
     // filter === "all" — no date filter
 
+    if (limit != null) {
+      query = query.range(offset, offset + limit - 1);
+    } else if (filter === "past") {
+      query = query.limit(50); // legacy default for the Platform Events page
+    }
+
     const { data: events, error } = await query;
     if (error) throw error;
+
+    const hasMore = limit != null && (events || []).length === limit;
 
     // Batch-fetch RSVP counts + host info
     const eventIds = (events || []).map(e => e.id);
@@ -11502,7 +11633,7 @@ app.get("/admin/platform-events", requireAdmin, async (req, res) => {
       };
     });
 
-    return res.json({ events: result });
+    return res.json({ events: result, hasMore });
   } catch (err) {
     console.error("[admin/platform-events] error:", err.message);
     return res.status(500).json({ error: "Failed to fetch events" });
@@ -13486,6 +13617,33 @@ app.listen(PORT, HOST, async () => {
       console.error("[Cleanup] Unexpected error:", err.message);
     }
   }, CLEANUP_INTERVAL_MS);
+
+  /* ── Scheduled campaign sends ─────────────────────────────
+     Poll every minute for campaigns whose scheduled_at has arrived and fire
+     them. Mirrors the cleanup interval: light poll on a long-lived process.
+     Resilient by construction — a missed tick or a restart just picks the
+     campaign up on the next poll, and the atomic scheduled→sending claim
+     inside sendCampaignInBatches prevents a double-fire if ticks overlap. */
+  const SCHEDULED_CAMPAIGN_INTERVAL_MS = 60 * 1000; // 1 minute
+  setInterval(async () => {
+    try {
+      const { getDueScheduledCampaigns } = await import("./data.js");
+      const due = await getDueScheduledCampaigns(new Date().toISOString());
+      if (!due.length) return;
+      const { sendCampaignInBatches } = await import("./services/campaignSender.js");
+      for (const c of due) {
+        console.log(`[ScheduledCampaigns] firing ${c.id} (due ${c.scheduled_at})`);
+        // Fire-and-forget; the sender claims atomically and flips to
+        // sending/sent/failed. We don't await so one slow send doesn't hold
+        // up the rest of the batch.
+        sendCampaignInBatches(c.id, c.user_id).catch((err) => {
+          console.error(`[ScheduledCampaigns] send failed for ${c.id}:`, err.message);
+        });
+      }
+    } catch (err) {
+      console.error("[ScheduledCampaigns] poll error:", err.message);
+    }
+  }, SCHEDULED_CAMPAIGN_INTERVAL_MS);
 
   /* ── 24-hour event reminder emails ────────────────────── */
   const REMINDER_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes

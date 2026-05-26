@@ -425,7 +425,7 @@ const GetCampaignInput = {
 const DraftCampaignInput = {
   subject: z.string().describe("Email subject line."),
   eventSlug: z.string().describe(
-    "Slug of the event this campaign is about. Required — campaigns are always anchored to an event in PullUp."
+    "Slug of the event this campaign is ABOUT (anchors branding/links). NOTE: this does NOT set the audience. With no audience filter, the campaign goes to the host's whole sendable contact list — NOT this event's guests. To email the people who RSVP'd to THIS event, also pass filterAttendedEventSlug with the same slug."
   ),
   templateType: z.enum(["event", "followup"]).optional().describe(
     "'event' = pre-event invite/announcement. 'followup' = post-event recap/thanks. Default 'event'."
@@ -434,10 +434,10 @@ const DraftCampaignInput = {
     "Plain-text body for the email. Used as the main message block. Optional — campaigns can be drafted with just a subject and refined later in the UI."
   ),
   filterAttendedEventSlug: z.string().optional().describe(
-    "Audience filter: only people who attended this event. Most useful for 'followup' templates."
+    "Audience filter: only people who RSVP'd to / attended this event. Set it to the campaign's own eventSlug to reach that event's guests; set it to a DIFFERENT event to reach a related crowd. Combine with filterTags to segment further (filters are flexible and stack — the audience is never auto-tied to eventSlug)."
   ),
   filterTags: z.string().optional().describe(
-    "Audience filter: comma-separated tag list. Matches people with ALL listed tags."
+    "Audience filter: comma-separated tag list (matches across events the person attended — e.g. 'jazz' reaches everyone from any jazz-tagged event). Combinable with filterAttendedEventSlug."
   ),
 };
 
@@ -446,6 +446,20 @@ const SendCampaignInput = {
   confirm: z.literal(true).describe(
     "Must be `true` to proceed. Forces a confirmation step so Claude can't fire a send without explicit user approval."
   ),
+};
+
+const ScheduleCampaignInput = {
+  campaignId: z.string().uuid().describe("Campaign id from draft_campaign or list_campaigns."),
+  scheduledAt: z.string().describe(
+    "When to send, as an ISO 8601 datetime WITH timezone offset — e.g. '2026-05-28T09:00:00+02:00'. Always include the offset so the send fires at the host's intended local time. Must be in the future."
+  ),
+  confirm: z.literal(true).describe(
+    "Must be `true` to proceed. Like send_campaign, this commits to emailing real people — just at a later time."
+  ),
+};
+
+const UnscheduleCampaignInput = {
+  campaignId: z.string().uuid().describe("Campaign id of a scheduled campaign to cancel (returns it to draft)."),
 };
 
 // ─── Slice D — Guest actions ──────────────────────────────────────────
@@ -1491,11 +1505,20 @@ function buildHandlers(api, _hostId) {
       : { blocks: [] };
 
     const filterCriteria = {};
+    const audienceParts = [];
     if (args.filterAttendedEventSlug) {
       const filterEv = await resolveEventBySlug(args.filterAttendedEventSlug);
       filterCriteria.attendedEventId = filterEv.id;
+      audienceParts.push(`attended "${filterEv.title}"`);
     }
-    if (args.filterTags) filterCriteria.attendedEventTags = args.filterTags;
+    if (args.filterTags) {
+      filterCriteria.attendedEventTags = args.filterTags;
+      audienceParts.push(`tags: ${args.filterTags}`);
+    }
+    const hasFilters = audienceParts.length > 0;
+    const audienceDesc = hasFilters
+      ? audienceParts.join(" + ")
+      : "no filters — your full sendable contact list";
 
     const created = await api("POST", "/host/crm/campaigns", {
       body: {
@@ -1522,15 +1545,30 @@ function buildHandlers(api, _hostId) {
     // The composer's "Send" footer fires /send on the existing draft id; the
     // host has one consistent path to ship it.
     const previewUrl = frontendUrl(`/crm?campaignId=${created.campaignId}`);
+    const recipientCount = created.totalRecipients ?? 0;
     const lines = [
       "─────────────────────────────────────",
       "  Campaign drafted (NOT sent)",
       `  "${args.subject}"  →  ${ev.title}`,
-      `  Audience: ${created.totalRecipients ?? 0} recipients`,
+      `  Audience: ${recipientCount} recipient${recipientCount === 1 ? "" : "s"}  (${audienceDesc})`,
+    ];
+    // Make a silent/unexpected audience impossible to miss before sending. No
+    // filters means the full list — not this event's guests — which is the
+    // exact trap that sent a host's "tomorrow" email to the wrong handful.
+    if (!hasFilters) {
+      lines.push(
+        "",
+        "  Note: no audience filter is set, so this goes to your FULL sendable list,",
+        `  not the guests of "${ev.title}". To email this event's RSVPs, redraft with`,
+        `  filterAttendedEventSlug="${args.eventSlug}". To segment, add filterTags (e.g. "jazz").`,
+      );
+    }
+    lines.push(
       "",
       `  → Preview:    ${previewUrl}`,
-      `  → To send:    call send_campaign with campaignId="${created.campaignId}" and confirm=true`,
-    ];
+      `  → To send:    send_campaign with campaignId="${created.campaignId}" and confirm=true`,
+      `  → To schedule: schedule_campaign with campaignId="${created.campaignId}", scheduledAt, confirm=true`,
+    );
     if (campTop) {
       lines.push("");
       lines.push(`  Next: ${campTop.headline}`);
@@ -1548,6 +1586,37 @@ function buildHandlers(api, _hostId) {
     const r = await api("POST", `/host/crm/campaigns/${args.campaignId}/send`);
     return toolResultText(
       `Campaign send started. Status: ${r?.status || "sending"}.\nUse get_campaign with id ${args.campaignId} in a minute to see delivery counts.`
+    );
+  }
+
+  async function scheduleCampaign(args) {
+    if (args.confirm !== true) {
+      throw new Error("Pass confirm: true to schedule. This commits to emailing real people at the scheduled time.");
+    }
+    const when = new Date(args.scheduledAt);
+    if (Number.isNaN(when.getTime())) {
+      throw new Error(
+        "scheduledAt must be an ISO 8601 datetime with timezone offset, e.g. 2026-05-28T09:00:00+02:00.",
+      );
+    }
+    const r = await api("POST", `/host/crm/campaigns/${args.campaignId}/schedule`, {
+      body: { scheduledAt: when.toISOString() },
+    });
+    const fireAt = new Date(r?.scheduledAt || when.toISOString());
+    const local = fireAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+    return toolResultText(
+      [
+        `Scheduled — the campaign will send around ${local}.`,
+        `The audience is resolved when it fires, so it reflects your filters/RSVPs at that moment.`,
+        `To cancel before then: cancel_scheduled_campaign with campaignId="${args.campaignId}".`,
+      ].join("\n"),
+    );
+  }
+
+  async function unscheduleCampaign(args) {
+    await api("POST", `/host/crm/campaigns/${args.campaignId}/unschedule`);
+    return toolResultText(
+      `Schedule cancelled — the campaign is back to draft. Reschedule or send when you're ready.`,
     );
   }
 
@@ -2046,6 +2115,8 @@ function buildHandlers(api, _hostId) {
     getCampaign,
     draftCampaign,
     sendCampaign,
+    scheduleCampaign,
+    unscheduleCampaign,
     // Slice D — Guest actions
     updateRsvp,
     refundPayment,
@@ -2494,9 +2565,25 @@ export function buildTools(ctx) {
       name: "send_campaign",
       title: "Send a drafted campaign",
       description:
-        "Fires a drafted campaign to its audience. IRREVERSIBLE — sends real email to real people. Requires confirm: true. The host should review the preview from draft_campaign first.",
+        "Fires a drafted campaign to its audience NOW. IRREVERSIBLE — sends real email to real people. Requires confirm: true. The host should review the preview from draft_campaign first. To send later instead, use schedule_campaign.",
       inputSchema: SendCampaignInput,
       handler: h.sendCampaign,
+    },
+    {
+      name: "schedule_campaign",
+      title: "Schedule a campaign to send later",
+      description:
+        "Schedules a drafted campaign to send at a future time (scheduledAt, ISO 8601 with timezone offset). The send fires automatically — the host does not need to be online. Audience is resolved at send time, so it reflects the latest RSVPs/filters. IRREVERSIBLE once it fires; requires confirm: true. Use cancel_scheduled_campaign to call it off beforehand.",
+      inputSchema: ScheduleCampaignInput,
+      handler: h.scheduleCampaign,
+    },
+    {
+      name: "cancel_scheduled_campaign",
+      title: "Cancel a scheduled send",
+      description:
+        "Cancels a scheduled campaign before it fires, returning it to draft so it can be edited, rescheduled, or sent manually. No effect if the campaign already sent or isn't scheduled.",
+      inputSchema: UnscheduleCampaignInput,
+      handler: h.unscheduleCampaign,
     },
 
     // ─── Slice D — Guest actions ────────────────────────────────────

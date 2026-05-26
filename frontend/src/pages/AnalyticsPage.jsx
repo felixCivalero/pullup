@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
-import { TrendingUp, TrendingDown, Minus, Monitor, Smartphone } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Monitor, Smartphone, Users, MapPin, Calendar, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { DateRangePicker } from "../components/DateRangePicker.jsx";
 
 // Past-only quick ranges for the analytics date picker. Replaces the old
@@ -28,6 +28,10 @@ const ANALYTICS_QUICK_RANGES = [
 export function AnalyticsPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+
+  // Two views: platform-wide PullUp analytics (default), or a list of every
+  // event that opens the same per-event analytics page the host sees.
+  const [tab, setTab] = useState("pullup");
 
   const [overview, setOverview] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
@@ -185,7 +189,7 @@ export function AnalyticsPage() {
         {/* Header */}
         <div
           style={{
-            marginBottom: "clamp(16px, 3vw, 24px)",
+            marginBottom: 16,
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "space-between",
@@ -198,19 +202,54 @@ export function AnalyticsPage() {
               Analytics
             </h1>
             <p style={{ margin: "4px 0 0", fontSize: "13px", color: colors.textSubtle }}>
-              Activity, funnel and campaigns — bound to the date range below.
+              {tab === "pullup"
+                ? "Activity, funnel and campaigns — bound to the date range below."
+                : "Every event on the platform — open one to see its host analytics."}
             </p>
           </div>
-          <DateRangePicker
-            startDate={dateRange.startDate}
-            endDate={dateRange.endDate}
-            onChange={(s, e) => setDateRange({ startDate: s, endDate: e })}
-            allowPast
-            blockFuture
-            quickRanges={ANALYTICS_QUICK_RANGES}
-          />
+          {tab === "pullup" && (
+            <DateRangePicker
+              startDate={dateRange.startDate}
+              endDate={dateRange.endDate}
+              onChange={(s, e) => setDateRange({ startDate: s, endDate: e })}
+              allowPast
+              blockFuture
+              quickRanges={ANALYTICS_QUICK_RANGES}
+            />
+          )}
         </div>
 
+        {/* Tab strip — platform-wide analytics vs. the per-event list */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
+          {[
+            { key: "pullup", label: "PullUp Analytics" },
+            { key: "events", label: "All Events" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "999px",
+                border: tab === t.key ? "1px solid rgba(255,255,255,0.2)" : "1px solid transparent",
+                background: tab === t.key ? "rgba(255,255,255,0.1)" : "transparent",
+                color: tab === t.key ? "#fff" : "rgba(255,255,255,0.4)",
+                fontSize: "13px",
+                fontWeight: tab === t.key ? 600 : 400,
+                cursor: "pointer",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "events" && (
+          <AllEventsTab onOpenFull={(id) => navigate(`/app/events/${id}/analytics`)} />
+        )}
+
+        {tab === "pullup" && (
+          <>
         {/* Landing Page Views */}
         {pageviews && (
           <div style={{ marginBottom: 24 }}>
@@ -817,9 +856,336 @@ export function AnalyticsPage() {
             ))}
           </div>
         )}
+          </>
+        )}
       </div>
     </div>
   );
+}
+
+// Derive a live/upcoming/past status from the event's start/end the same way
+// the admin Platform Events page does, so badges read consistently.
+const EVENT_STATUS_BADGE = {
+  live: { bg: "rgba(16,185,129,0.15)", text: "#10b981", border: "rgba(16,185,129,0.3)", label: "Live" },
+  upcoming: { bg: "rgba(59,130,246,0.15)", text: "#60a5fa", border: "rgba(59,130,246,0.3)", label: "Upcoming" },
+  past: { bg: "rgba(107,114,128,0.15)", text: "#9ca3af", border: "rgba(107,114,128,0.3)", label: "Past" },
+};
+
+function eventStatus(ev) {
+  const now = new Date();
+  const start = new Date(ev.startsAt);
+  const end = ev.endsAt ? new Date(ev.endsAt) : new Date(start.getTime() + 3 * 60 * 60 * 1000);
+  if (now > end) return "past";
+  if (now >= start && now <= end) return "live";
+  return "upcoming";
+}
+
+const PAGE_SIZE = 10;
+
+// All Events tab — every event on the platform, ongoing and past. The list
+// pages in chronologically (10 upcoming soonest-first, then past newest-first)
+// with a Load more button, so it scales as the platform grows. Clicking a row
+// expands a compact analytics overview inline (fetched on demand); a link in
+// the panel opens the full host analytics page.
+function AllEventsTab({ onOpenFull }) {
+  const [events, setEvents] = useState([]);
+  // Cursor walks the virtual list: upcoming first, then past, then null (done).
+  const [cursor, setCursor] = useState({ phase: "upcoming", offset: 0 });
+  const [loading, setLoading] = useState(true); // first page
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const [expandedId, setExpandedId] = useState(null);
+  const [analytics, setAnalytics] = useState({}); // id -> { loading, data }
+
+  async function fetchPage(phase, offset) {
+    const res = await authenticatedFetch(
+      `/admin/platform-events?filter=${phase}&limit=${PAGE_SIZE}&offset=${offset}`,
+    );
+    const data = res.ok ? await res.json() : { events: [] };
+    return data.events || [];
+  }
+
+  // Load the next batch from `startCursor`, skipping any exhausted phase so a
+  // click never lands on an empty result. Appends unless `isInitial`.
+  async function loadBatch(startCursor, isInitial) {
+    if (isInitial) setLoading(true); else setLoadingMore(true);
+    let { phase, offset } = startCursor;
+    let collected = null;
+    while (phase) {
+      let got = [];
+      try { got = await fetchPage(phase, offset); } catch { got = []; }
+      if (got.length > 0) {
+        collected = got;
+        if (got.length < PAGE_SIZE) {
+          // phase drained — advance for next click
+          if (phase === "upcoming") setCursor({ phase: "past", offset: 0 });
+          else { setCursor({ phase: null, offset: 0 }); setDone(true); }
+        } else {
+          setCursor({ phase, offset: offset + got.length });
+        }
+        break;
+      }
+      if (phase === "upcoming") { phase = "past"; offset = 0; }
+      else { phase = null; setDone(true); }
+    }
+    if (collected) setEvents((prev) => (isInitial ? collected : [...prev, ...collected]));
+    if (isInitial) setLoading(false); else setLoadingMore(false);
+  }
+
+  useEffect(() => {
+    loadBatch({ phase: "upcoming", offset: 0 }, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function toggle(ev) {
+    if (expandedId === ev.id) { setExpandedId(null); return; }
+    setExpandedId(ev.id);
+    if (analytics[ev.id]) return; // cached
+    setAnalytics((a) => ({ ...a, [ev.id]: { loading: true, data: null } }));
+    // Window the query to the event's lifetime so past events still show their
+    // numbers (a 30-day default would read zero). Activity can't predate the
+    // event row, so start a day before it was created and run through now.
+    const start = ev.createdAt
+      ? new Date(new Date(ev.createdAt).getTime() - 86400000)
+      : new Date("2020-01-01");
+    const params = new URLSearchParams({
+      startDate: start.toISOString(),
+      endDate: new Date().toISOString(),
+    });
+    try {
+      const res = await authenticatedFetch(`/host/events/${ev.id}/analytics?${params}`);
+      const data = res.ok ? await res.json() : null;
+      setAnalytics((a) => ({ ...a, [ev.id]: { loading: false, data } }));
+    } catch {
+      setAnalytics((a) => ({ ...a, [ev.id]: { loading: false, data: null } }));
+    }
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return "";
+    return new Date(iso).toLocaleDateString("en-GB", {
+      day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+  }
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+        Loading…
+      </div>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+        No events found
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {events.map((ev) => {
+        const badge = EVENT_STATUS_BADGE[eventStatus(ev)];
+        const isOpen = expandedId === ev.id;
+        const entry = analytics[ev.id];
+        return (
+          <div key={ev.id}>
+            {/* Row header — click to expand the inline overview */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => toggle(ev)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(ev); } }}
+              style={{
+                cursor: "pointer",
+                background: "rgba(20,16,30,0.5)",
+                border: isOpen ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.06)",
+                borderRadius: isOpen ? "14px 14px 0 0" : 14,
+                padding: "14px 16px",
+                display: "flex", alignItems: "center", gap: 10,
+              }}
+            >
+              <span style={{
+                padding: "2px 8px", borderRadius: "999px", fontSize: "10px", fontWeight: 600,
+                background: badge.bg, color: badge.text, border: `1px solid ${badge.border}`,
+                textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0,
+              }}>
+                {badge.label}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {ev.title || "Untitled"}
+                  </span>
+                  {ev.host && (
+                    <span style={{
+                      fontSize: 11, color: "rgba(255,255,255,0.35)", flexShrink: 0,
+                      padding: "1px 7px", borderRadius: "999px",
+                      background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200,
+                    }}>
+                      {ev.host.name || ev.host.email}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {ev.location && (
+                    <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                      <MapPin size={10} /> {ev.location.length > 30 ? ev.location.slice(0, 30) + "…" : ev.location}
+                    </span>
+                  )}
+                  <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                    <Calendar size={10} /> {fmtDate(ev.startsAt)}
+                  </span>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>
+                <Users size={14} />
+                {ev.confirmedGuests}{ev.capacity > 0 && <span style={{ opacity: 0.5 }}>/{ev.capacity}</span>}
+              </div>
+              <div style={{ flexShrink: 0, color: "rgba(255,255,255,0.3)", display: "flex" }}>
+                {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </div>
+            </div>
+
+            {/* Inline analytics overview */}
+            {isOpen && (
+              <div style={{
+                background: "rgba(15,12,24,0.6)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderTop: "none",
+                borderRadius: "0 0 14px 14px",
+                padding: "14px 16px 16px",
+              }}>
+                <EventOverview entry={entry} onOpenFull={() => onOpenFull(ev.id)} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Load more */}
+      {!done && (
+        <button
+          onClick={() => loadBatch(cursor, false)}
+          disabled={loadingMore}
+          style={{
+            marginTop: 4, padding: "10px 16px", borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.03)",
+            color: loadingMore ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.6)",
+            fontSize: 13, fontWeight: 500, cursor: loadingMore ? "default" : "pointer",
+          }}
+        >
+          {loadingMore ? "Loading…" : "Load more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Compact per-event analytics shown inline under an event row. Headline funnel
+// numbers + top sources; "Open full analytics" jumps to the host page.
+function EventOverview({ entry, onOpenFull }) {
+  if (!entry || entry.loading) {
+    return <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", padding: "8px 0" }}>Loading analytics…</div>;
+  }
+  const d = entry.data;
+  if (!d) {
+    return <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", padding: "8px 0" }}>Couldn’t load analytics.</div>;
+  }
+  const noData = (d.total_views || 0) === 0 && (d.unique_visitors || 0) === 0;
+  const sources = (d.sources || []).slice(0, 4);
+
+  return (
+    <div>
+      {noData ? (
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", padding: "4px 0 10px" }}>
+          No visitors recorded yet.
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: sources.length ? 12 : 4 }}>
+            <Stat label="Unique" value={(d.unique_visitors || 0).toLocaleString()} color="rgba(59,130,246,0.9)" />
+            <Stat label="Views" value={(d.total_views || 0).toLocaleString()} />
+            <Stat label="RSVPs" value={(d.rsvp_count || 0).toLocaleString()} color="rgba(139,92,246,0.9)" />
+            <Stat label="Pulled up" value={(d.pulled_up || 0).toLocaleString()} color="rgba(74,222,128,0.9)" />
+            {d.is_paid && (
+              <Stat label="Revenue" value={fmtRevenue(d.revenue, d.ticket_currency)} color="#fbbf24" />
+            )}
+          </div>
+
+          {sources.length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {sources.map((s) => (
+                <span key={s.source} style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  fontSize: 11, color: "rgba(255,255,255,0.55)",
+                  padding: "3px 9px", borderRadius: 999,
+                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 2, background: getSourceColorLocal(s.source) }} />
+                  <span style={{ textTransform: "capitalize" }}>{s.source}</span>
+                  <span style={{ color: "#fff", fontWeight: 600 }}>{s.count}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      <button
+        onClick={onOpenFull}
+        style={{
+          marginTop: 12, display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "5px 12px", borderRadius: 999,
+          border: "1px solid rgba(251,191,36,0.25)", background: "rgba(251,191,36,0.06)",
+          color: "rgba(251,191,36,0.95)", fontSize: 12, fontWeight: 500, cursor: "pointer",
+        }}
+      >
+        Open full analytics <ExternalLink size={12} />
+      </button>
+    </div>
+  );
+}
+
+function Stat({ label, value, color }) {
+  return (
+    <div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: color || "#fff", lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{label}</div>
+    </div>
+  );
+}
+
+function fmtRevenue(cents, currency = "sek") {
+  if (!cents) return currency === "sek" ? "0 kr" : "0";
+  const amount = cents / 100;
+  const sym = currency === "sek" ? " kr" : currency === "eur" ? "€" : currency === "gbp" ? "£" : "$";
+  return ["eur", "gbp", "usd"].includes(currency)
+    ? `${sym}${amount.toLocaleString()}`
+    : `${amount.toLocaleString()}${sym}`;
+}
+
+// Local copy of the per-event source palette (the host analytics page has its
+// own); keeps the inline source pills colour-consistent without a shared dep.
+const ALL_EVENTS_SOURCE_COLORS = {
+  direct: "rgba(255,255,255,0.35)",
+  instagram: "rgba(225,48,108,0.75)",
+  facebook: "rgba(66,103,178,0.75)",
+  twitter: "rgba(29,155,240,0.75)",
+  linkedin: "rgba(10,102,194,0.75)",
+  tiktok: "rgba(255,255,255,0.6)",
+  pullup: "rgba(192,192,192,0.6)",
+  pullup_newsletter: "rgba(251,191,36,0.7)",
+  other: "rgba(168,85,247,0.5)",
+};
+function getSourceColorLocal(name) {
+  return ALL_EVENTS_SOURCE_COLORS[name]
+    || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.6)`;
 }
 
 function OverviewCard({ label, value, color }) {

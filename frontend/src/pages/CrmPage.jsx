@@ -140,6 +140,9 @@ export function CrmPage() {
   // "draft" means the campaign already sent (or is sending) — the composer
   // hydrates for viewing but disables Save / Send.
   const [draftStatus, setDraftStatus] = useState(null);
+  // When the loaded campaign is scheduled, the ISO time it'll fire — drives the
+  // "Scheduled for …" indicator and the Cancel-schedule button.
+  const [scheduledAt, setScheduledAt] = useState(null);
   // Set right before we apply campaign data into composer state so the
   // auto-populate-on-event-pick effect skips a beat (we don't want to
   // overwrite the draft's blocks with a fresh template).
@@ -278,6 +281,7 @@ export function CrmPage() {
         hydratingRef.current = true;
         setSelectedTemplate(tt);
         setDraftStatus(c.status || "draft");
+        setScheduledAt(c.scheduledAt || null);
 
         if (tt === "followup") {
           if (c.eventId) setFollowupEventId(c.eventId);
@@ -626,6 +630,88 @@ export function CrmPage() {
     }
   }
 
+  // Schedule = same write path as send (save the latest edits, creating the
+  // row if needed), but POST /schedule instead of /send. The backend poll
+  // worker fires it later and re-resolves recipients then. Closes the dialog
+  // and reflects the scheduled state inline regardless of outcome.
+  async function handleConfirmSchedule(scheduledAtISO) {
+    try {
+      const campaignData = buildCampaignPayload();
+      let campaignId = currentDraftId;
+      if (campaignId) {
+        const patchRes = await authenticatedFetch(`/host/crm/campaigns/${campaignId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(campaignData),
+        });
+        if (!patchRes.ok) {
+          const e = await patchRes.json().catch(() => ({}));
+          throw new Error(e.message || "Failed to save edits before scheduling");
+        }
+      } else {
+        const createRes = await authenticatedFetch("/host/crm/campaigns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(campaignData),
+        });
+        if (!createRes.ok) {
+          const e = await createRes.json().catch(() => ({}));
+          throw new Error(e.message || "Failed to create campaign");
+        }
+        const created = await createRes.json();
+        campaignId = created.campaignId;
+        setCurrentDraftId(campaignId);
+        setSearchParams({ campaignId }, { replace: true });
+      }
+
+      const schedRes = await authenticatedFetch(
+        `/host/crm/campaigns/${campaignId}/schedule`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scheduledAt: scheduledAtISO }),
+        },
+      );
+      if (!schedRes.ok) {
+        const e = await schedRes.json().catch(() => ({}));
+        throw new Error(e.message || "Failed to schedule");
+      }
+      const data = await schedRes.json();
+      setDraftStatus("scheduled");
+      setScheduledAt(data.scheduledAt || scheduledAtISO);
+      const local = new Date(data.scheduledAt || scheduledAtISO).toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      showToast(`Scheduled for ${local}`, "success");
+    } catch (err) {
+      console.error("[CrmPage] schedule failed:", err);
+      showToast(err.message || "Failed to schedule", "error");
+    } finally {
+      setIsConfirmSendOpen(false);
+    }
+  }
+
+  async function handleCancelSchedule() {
+    if (!currentDraftId) return;
+    try {
+      const res = await authenticatedFetch(
+        `/host/crm/campaigns/${currentDraftId}/unschedule`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.message || "Failed to cancel schedule");
+      }
+      setDraftStatus("draft");
+      setScheduledAt(null);
+      showToast("Schedule cancelled — back to draft", "success");
+    } catch (err) {
+      console.error("[CrmPage] cancel schedule failed:", err);
+      showToast(err.message || "Failed to cancel schedule", "error");
+    }
+  }
+
   const sendDisabled = segmentSelection.total === 0;
 
   return (
@@ -801,55 +887,86 @@ export function CrmPage() {
                   Editing saved draft
                 </span>
               )}
-              {currentDraftId && draftStatus && draftStatus !== "draft" && (
+              {currentDraftId && draftStatus === "scheduled" && (
+                <span style={{ fontSize: "10.5px", color: "#fde68a", letterSpacing: 0.3 }}>
+                  Scheduled for{" "}
+                  {scheduledAt
+                    ? new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
+                    : "later"}
+                </span>
+              )}
+              {currentDraftId && draftStatus && draftStatus !== "draft" && draftStatus !== "scheduled" && (
                 <span style={{ fontSize: "10.5px", color: "#fde68a", letterSpacing: 0.3 }}>
                   Already {draftStatus} — read only
                 </span>
               )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                disabled={isSavingDraft || (draftStatus && draftStatus !== "draft")}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  background: "rgba(255,255,255,0.04)",
-                  color: isSavingDraft ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.88)",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  cursor: isSavingDraft || (draftStatus && draftStatus !== "draft") ? "not-allowed" : "pointer",
-                  transition: "all 0.2s ease",
-                }}
-                title={currentDraftId ? "Update saved draft" : "Save as draft (no send)"}
-              >
-                {isSavingDraft ? "Saving…" : currentDraftId ? "Update draft" : "Save draft"}
-              </button>
-            <button
-              type="button"
-              onClick={handleSendClick}
-              disabled={sendDisabled || (draftStatus && draftStatus !== "draft")}
-              style={{
-                padding: "10px 18px",
-                borderRadius: "10px",
-                border: "none",
-                background: sendDisabled
-                  ? "rgba(34,197,94,0.12)"
-                  : "linear-gradient(135deg, rgba(34,197,94,0.35), rgba(34,197,94,0.18))",
-                color: sendDisabled ? "rgba(255,255,255,0.3)" : "#4ade80",
-                fontSize: "13px",
-                fontWeight: 600,
-                cursor: sendDisabled ? "not-allowed" : "pointer",
-                boxShadow: sendDisabled
-                  ? "none"
-                  : "0 0 0 1px rgba(34,197,94,0.3), 0 4px 12px rgba(0,0,0,0.3)",
-                transition: "all 0.2s ease",
-              }}
-            >
-              Send campaign →
-            </button>
+              {draftStatus === "scheduled" ? (
+                <button
+                  type="button"
+                  onClick={handleCancelSchedule}
+                  style={{
+                    padding: "10px 16px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(253,230,138,0.3)",
+                    background: "rgba(253,230,138,0.08)",
+                    color: "#fde68a",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  title="Cancel the scheduled send and return to draft"
+                >
+                  Cancel schedule
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    disabled={isSavingDraft || (draftStatus && draftStatus !== "draft")}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      border: "1px solid rgba(255,255,255,0.14)",
+                      background: "rgba(255,255,255,0.04)",
+                      color: isSavingDraft ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.88)",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: isSavingDraft || (draftStatus && draftStatus !== "draft") ? "not-allowed" : "pointer",
+                      transition: "all 0.2s ease",
+                    }}
+                    title={currentDraftId ? "Update saved draft" : "Save as draft (no send)"}
+                  >
+                    {isSavingDraft ? "Saving…" : currentDraftId ? "Update draft" : "Save draft"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendClick}
+                    disabled={sendDisabled || (draftStatus && draftStatus !== "draft")}
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: "10px",
+                      border: "none",
+                      background: sendDisabled
+                        ? "rgba(34,197,94,0.12)"
+                        : "linear-gradient(135deg, rgba(34,197,94,0.35), rgba(34,197,94,0.18))",
+                      color: sendDisabled ? "rgba(255,255,255,0.3)" : "#4ade80",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: sendDisabled ? "not-allowed" : "pointer",
+                      boxShadow: sendDisabled
+                        ? "none"
+                        : "0 0 0 1px rgba(34,197,94,0.3), 0 4px 12px rgba(0,0,0,0.3)",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    Send or schedule →
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </aside>
@@ -896,6 +1013,7 @@ export function CrmPage() {
         blocks={selectedTemplate === "followup" ? followupBlocks : eventBlocks}
         onClose={() => setIsConfirmSendOpen(false)}
         onConfirmSend={handleConfirmSend}
+        onSchedule={handleConfirmSchedule}
       />
     </div>
   );

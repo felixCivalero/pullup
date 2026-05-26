@@ -23,8 +23,7 @@ import { authenticatedFetch } from "../lib/api.js";
 import { getEventUrl } from "../lib/urlUtils.js";
 import { colors } from "../theme/colors.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
-import { AutoTagButton, AutoTagFlashStyle } from "./crm/AutoTagButton.jsx";
-import { SegmentedControl, ChipCloud, FilterGroup } from "./crm/SegmentControls.jsx";
+import { SegmentedControl, FilterGroup } from "./crm/SegmentControls.jsx";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -608,13 +607,6 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
   const [personDetails, setPersonDetails] = useState({});
   const [showAllEventsByPerson, setShowAllEventsByPerson] = useState({});
 
-  // Auto-tagging state — drives the per-event "watch it work" animation
-  // inside the event filter dropdown. Tags persist on the events themselves
-  // so they're visible after the run.
-  const [taggingEventId, setTaggingEventId] = useState(null);
-  const [newTagsByEventId, setNewTagsByEventId] = useState({});
-  const [flashedEventIds, setFlashedEventIds] = useState({});
-
   // Filter index — lightweight {id, eventIds, hadDinner} per contact loaded
   // once on mount. Drives instant client-side count updates while filters
   // change; the paginated /people fetch refreshes the visible rows in the
@@ -1002,44 +994,6 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
     }
   }, [activeView]);
 
-  // Flatten the host's event admin_tags into a frequency-sorted vocabulary —
-  // drives the tag filter chip cloud below the event dropdown.
-  const tagVocabulary = useMemo(() => {
-    const counts = {};
-    for (const ev of events) {
-      for (const t of ev.adminTags || []) {
-        if (typeof t !== "string") continue;
-        counts[t] = (counts[t] || 0) + 1;
-      }
-    }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([tag, count]) => ({ tag, count }));
-  }, [events]);
-
-  // Patch local events state when AI returns new tags for one of them.
-  function handleEventTagged({ eventId, adminTags, generatedTags }) {
-    setEvents((prev) =>
-      prev.map((ev) => (ev.id === eventId ? { ...ev, adminTags } : ev)),
-    );
-    setNewTagsByEventId((prev) => ({ ...prev, [eventId]: new Set(generatedTags || []) }));
-    setFlashedEventIds((prev) => ({ ...prev, [eventId]: Date.now() }));
-    setTaggingEventId(null);
-    setTimeout(() => {
-      setNewTagsByEventId((prev) => {
-        const next = { ...prev };
-        delete next[eventId];
-        return next;
-      });
-    }, 2500);
-  }
-
-  function handleAutoTagStart(eventId) {
-    setTaggingEventId(eventId);
-    // Pop the dropdown open so the host can actually see the rows updating.
-    setShowEventDropdown(true);
-  }
-
   const handleImportCsv = async () => {
     if (!importFile) {
       showToast("Please select a CSV file", "error");
@@ -1223,7 +1177,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
             gap: "18px",
           }}
         >
-          {/* Segment heading + recipient count + auto-tag */}
+          {/* Segment heading + recipient count */}
           <div
             style={{
               display: "flex",
@@ -1265,13 +1219,6 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <AutoTagButton
-                events={events}
-                endpoint={(id) => `/events/${id}/auto-tag`}
-                onEventStart={handleAutoTagStart}
-                onEventTagged={handleEventTagged}
-                label="auto-tag events"
-              />
               <div
                 style={{
                   display: "flex",
@@ -1341,7 +1288,6 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
               </div>
             </div>
           </div>
-          {AutoTagFlashStyle}
 
           {/* Divider */}
           <div style={{ height: "1px", background: "rgba(255,255,255,0.06)" }} />
@@ -1349,9 +1295,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
           {(() => {
             const eventActive = (filters.attendedEventIds || []).length > 0;
             const dinnerActive = filters.hasDinner === true;
-            const tagsActive = (filters.attendedEventTags || []).length > 0;
-            const activeCount =
-              Number(eventActive) + Number(dinnerActive) + Number(tagsActive);
+            const activeCount = Number(eventActive) + Number(dinnerActive);
             const clearAll = () => {
               setFilters((prev) => ({
                 ...prev,
@@ -1471,79 +1415,36 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                         {events.map((event) => {
                           const selectedIds = filters.attendedEventIds || [];
                           const checked = selectedIds.includes(event.id);
-                          const isTagging = taggingEventId === event.id;
-                          const flashKey = flashedEventIds[event.id];
-                          const newTagSet = newTagsByEventId[event.id] || new Set();
-                          const eventTags = event.adminTags || [];
                           return (
                             <label
                               key={event.id}
-                              className={flashKey ? "autotag-flash" : undefined}
                               style={{
                                 display: "flex",
-                                flexDirection: "column",
-                                gap: 4,
+                                alignItems: "center",
+                                gap: 8,
                                 padding: "8px 6px",
                                 fontSize: 13,
                                 cursor: "pointer",
                                 borderRadius: 6,
-                                border: isTagging
-                                  ? "1px solid rgba(251,191,36,0.5)"
-                                  : "1px solid transparent",
-                                transition: "border-color 0.25s",
                               }}
                             >
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={(e) => {
-                                    const current = filters.attendedEventIds || [];
-                                    const next = e.target.checked
-                                      ? [...current, event.id]
-                                      : current.filter((id) => id !== event.id);
-                                    setFilters((prev) => ({
-                                      ...prev,
-                                      attendedEventIds: next.length ? next : undefined,
-                                    }));
-                                    setPage(0);
-                                  }}
-                                  style={{ margin: 0 }}
-                                />
-                                <span style={{ opacity: 0.9, flex: 1, minWidth: 0 }}>{event.title}</span>
-                              </div>
-                              {(eventTags.length > 0 || isTagging) && (
-                                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 24 }}>
-                                  {isTagging && eventTags.length === 0 && (
-                                    <span style={{ fontSize: 10, color: "rgba(251,191,36,0.85)", fontStyle: "italic" }}>
-                                      generating tags…
-                                    </span>
-                                  )}
-                                  {eventTags.map((tag) => {
-                                    const isNew = newTagSet.has(tag);
-                                    return (
-                                      <span
-                                        key={tag}
-                                        className={isNew ? "autotag-tag-new" : undefined}
-                                        style={{
-                                          padding: "1px 7px",
-                                          borderRadius: 999,
-                                          fontSize: 10,
-                                          fontWeight: 600,
-                                          background: isNew ? "rgba(251,191,36,0.22)" : "rgba(251,191,36,0.10)",
-                                          color: isNew ? "#fde68a" : "rgba(251,191,36,0.85)",
-                                          border: isNew
-                                            ? "1px solid rgba(251,191,36,0.55)"
-                                            : "1px solid rgba(251,191,36,0.18)",
-                                          boxShadow: isNew ? "0 0 6px rgba(251,191,36,0.35)" : "none",
-                                        }}
-                                      >
-                                        {tag}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              )}
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const current = filters.attendedEventIds || [];
+                                  const next = e.target.checked
+                                    ? [...current, event.id]
+                                    : current.filter((id) => id !== event.id);
+                                  setFilters((prev) => ({
+                                    ...prev,
+                                    attendedEventIds: next.length ? next : undefined,
+                                  }));
+                                  setPage(0);
+                                }}
+                                style={{ margin: 0 }}
+                              />
+                              <span style={{ opacity: 0.9, flex: 1, minWidth: 0 }}>{event.title}</span>
                             </label>
                           );
                         })}
@@ -1593,43 +1494,6 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                     }}
                   />
                 </FilterGroup>
-
-                {tagVocabulary.length > 0 && (
-                  <FilterGroup label="event vibe" active={tagsActive} accent="#fbbf24">
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "rgba(255,255,255,0.4)",
-                        marginBottom: 8,
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      guests of any event tagged with one of these.
-                    </div>
-                    <ChipCloud
-                      items={tagVocabulary.map((t) => ({
-                        key: t.tag,
-                        label: t.tag,
-                        count: t.count,
-                      }))}
-                      selected={filters.attendedEventTags || []}
-                      onToggle={(tag) => {
-                        const current = filters.attendedEventTags || [];
-                        const key = String(tag);
-                        const next = current.includes(key)
-                          ? current.filter((t) => t !== key)
-                          : [...current, key];
-                        setFilters((prev) => ({
-                          ...prev,
-                          attendedEventTags: next.length ? next : undefined,
-                        }));
-                        setPage(0);
-                      }}
-                      accent="#fbbf24"
-                      emptyLabel="No event tags yet — run auto-tag first."
-                    />
-                  </FilterGroup>
-                )}
               </>
             );
           })()}

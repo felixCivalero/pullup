@@ -6517,8 +6517,8 @@ app.post("/me/deletion-request", requireAuth, async (req, res) => {
         html: `<p>A user requested deletion of their account and personal data (GDPR right to erasure).</p>
 <ul><li>User ID: ${userId}</li><li>Email: ${userEmail}</li></ul>
 ${reason ? `<p>Reason: ${reason}</p>` : ""}
-<p>Erase within 30 days. Keep payment records 7 years; don't remove events other guests RSVP'd to.</p>`,
-        text: `Account deletion request\nUser ID: ${userId}\nEmail: ${userEmail}\n${rawReason ? `Reason: ${rawReason}\n` : ""}Erase within 30 days.`,
+<p>To fulfil (within 30 days): call <code>POST /admin/erase-person</code> with <code>{ "email": "${userEmail}" }</code> — this anonymises their data across the app while keeping payment records (7yr) and de-identified counts. Then handle account-login removal + their hosted events/payouts separately.</p>`,
+        text: `Account deletion request\nUser ID: ${userId}\nEmail: ${userEmail}\n${rawReason ? `Reason: ${rawReason}\n` : ""}Fulfil within 30 days: POST /admin/erase-person { email: "${userEmail}" }. Then handle login + hosted events/payouts separately.`,
         idempotencyKey: `deletion-request:${userId}:${new Date().toISOString().slice(0, 10)}`,
       });
     } catch (mailErr) {
@@ -6529,6 +6529,28 @@ ${reason ? `<p>Reason: ${reason}</p>` : ""}
   } catch (error) {
     console.error("[deletion-request] error:", error.message);
     res.status(500).json({ error: "Failed to submit deletion request" });
+  }
+});
+
+// POST /admin/erase-person — fulfil a GDPR erasure request by anonymising a
+// data subject across the app (see the anonymize_person SQL function: scrubs
+// PII, keeps the de-identified skeleton + legally-required financial records).
+// Admin-only: erasure is irreversible, so it is not self-serve. Account-holder
+// offboarding (removing the auth login + their hosted events/payouts) is a
+// separate, deliberate step.
+app.post("/admin/erase-person", requireAdmin, async (req, res) => {
+  try {
+    const email = typeof req.body?.email === "string" ? req.body.email : "";
+    if (!email.trim()) {
+      return res.status(400).json({ error: "email required" });
+    }
+    const { anonymizePersonByEmail } = await import("./data.js");
+    const result = await anonymizePersonByEmail(email);
+    console.log(`[erase-person] admin=${req.user.id} erased=${email.trim().toLowerCase()} result=${JSON.stringify(result)}`);
+    res.json(result);
+  } catch (error) {
+    console.error("[erase-person] error:", error.message);
+    res.status(500).json({ error: "Failed to erase person", message: error.message });
   }
 });
 

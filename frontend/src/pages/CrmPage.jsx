@@ -8,6 +8,7 @@ import { CrmTab } from "../components/HomeCrmTab";
 import EmailPanel from "../components/crm/EmailPanel";
 import EmailCanvas from "../components/crm/EmailCanvas";
 import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
+import DraftSwitcher from "../components/crm/DraftSwitcher";
 import { useHostActions } from "../lib/useHostActions.js";
 import { useSetHostResource } from "../contexts/useHostResource.js";
 
@@ -151,6 +152,9 @@ export function CrmPage() {
   // Stable reference so CrmTab's effect doesn't loop.
   const [hydratedFilters, setHydratedFilters] = useState(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  // Bumped after a save/delete so the DraftSwitcher list refetches and shows
+  // the latest subject / newly-created drafts without a manual reload.
+  const [draftsReloadSignal, setDraftsReloadSignal] = useState(0);
 
   const [activeTab, setActiveTab] = useState("segment");
   // Mirrors the CreateEventPage hover-section pattern: editor row hover →
@@ -255,61 +259,99 @@ export function CrmPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEventId, selectedTemplate]);
 
+  // Apply a fetched campaign object into the composer state. Shared by the
+  // mount hydrate and the DraftSwitcher's select handler. Assignments are
+  // unconditional (not `if (x) set(x)`) so switching from one draft to another
+  // clears fields the new draft leaves empty instead of bleeding through.
+  function applyCampaign(c) {
+    const tt = c.templateType === "followup" ? "followup" : "event";
+    const tc = c.templateContent || {};
+    const blocks = Array.isArray(tc.blocks) ? tc.blocks : [];
+
+    hydratingRef.current = true;
+    setSelectedTemplate(tt);
+    setDraftStatus(c.status || "draft");
+    setScheduledAt(c.scheduledAt || null);
+
+    if (tt === "followup") {
+      setFollowupEventId(c.eventId || "");
+      setFollowupSubject(c.subject || "");
+      setFollowupPreviewText(tc.previewText || "");
+      setFollowupFromName(tc.fromName || defaultFromName);
+      setFollowupBlocks(blocks.length ? blocks : [defaultGreetingBlock()]);
+    } else {
+      setSelectedEventId(c.eventId || "");
+      setEventSubject(c.subject || "");
+      setEventPreviewText(tc.previewText || "");
+      setEventFromName(tc.fromName || defaultFromName);
+      setEventBlocks(blocks);
+    }
+
+    const normalized = normalizeFilterCriteria(c.filterCriteria);
+    setHydratedFilters(normalized);
+    setSegmentSelection({
+      filterCriteria: normalized,
+      total: c.totalRecipients || 0,
+    });
+
+    setActiveTab("email");
+  }
+
+  // Fetch a campaign by id and load it into the composer. Used on mount (from
+  // ?campaignId=) and when a draft is picked from the DraftSwitcher.
+  async function loadCampaign(id) {
+    try {
+      const res = await authenticatedFetch(`/host/crm/campaigns/${id}`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          showToast("Draft not found — starting a fresh compose", "error");
+          resetComposer();
+        }
+        return;
+      }
+      const c = await res.json();
+      applyCampaign(c);
+    } catch (err) {
+      console.error("[CrmPage] load draft failed:", err);
+    }
+  }
+
+  // Clear the composer back to a blank "new draft" state and drop the
+  // campaignId from the URL so the next save creates a fresh row.
+  function resetComposer() {
+    hydratingRef.current = true;
+    setCurrentDraftId(null);
+    setSearchParams({}, { replace: true });
+    setDraftStatus(null);
+    setScheduledAt(null);
+    setSelectedTemplate("");
+    setSelectedEventId("");
+    setEventSubject("");
+    setEventPreviewText("");
+    setEventBlocks([]);
+    setEventFromName(defaultFromName);
+    setFollowupEventId("");
+    setFollowupSubject("");
+    setFollowupPreviewText("");
+    setFollowupBlocks([defaultGreetingBlock()]);
+    setFollowupFromName(defaultFromName);
+    setHydratedFilters(null);
+    setSegmentSelection({ filterCriteria: { eventsAttendedMin: 0 }, total: 0 });
+  }
+
+  // Switch the composer to a different saved draft (from the DraftSwitcher).
+  function selectDraft(id) {
+    if (id === currentDraftId) return;
+    setCurrentDraftId(id);
+    setSearchParams({ campaignId: id }, { replace: true });
+    loadCampaign(id);
+  }
+
   // Hydrate composer from ?campaignId=<id> on mount. Runs once. Drops the host
   // onto the Design tab so the email is the first thing they see.
   useEffect(() => {
     if (!initialCampaignId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await authenticatedFetch(`/host/crm/campaigns/${initialCampaignId}`);
-        if (!res.ok) {
-          if (res.status === 404) {
-            showToast("Draft not found — starting a fresh compose", "error");
-            setCurrentDraftId(null);
-            setSearchParams({}, { replace: true });
-          }
-          return;
-        }
-        const c = await res.json();
-        if (cancelled) return;
-
-        const tt = c.templateType === "followup" ? "followup" : "event";
-        const tc = c.templateContent || {};
-        const blocks = Array.isArray(tc.blocks) ? tc.blocks : [];
-
-        hydratingRef.current = true;
-        setSelectedTemplate(tt);
-        setDraftStatus(c.status || "draft");
-        setScheduledAt(c.scheduledAt || null);
-
-        if (tt === "followup") {
-          if (c.eventId) setFollowupEventId(c.eventId);
-          if (c.subject) setFollowupSubject(c.subject);
-          if (tc.previewText) setFollowupPreviewText(tc.previewText);
-          if (tc.fromName) setFollowupFromName(tc.fromName);
-          if (blocks.length) setFollowupBlocks(blocks);
-        } else {
-          if (c.eventId) setSelectedEventId(c.eventId);
-          if (c.subject) setEventSubject(c.subject);
-          if (tc.previewText) setEventPreviewText(tc.previewText);
-          if (tc.fromName) setEventFromName(tc.fromName);
-          if (blocks.length) setEventBlocks(blocks);
-        }
-
-        const normalized = normalizeFilterCriteria(c.filterCriteria);
-        setHydratedFilters(normalized);
-        setSegmentSelection({
-          filterCriteria: normalized,
-          total: c.totalRecipients || 0,
-        });
-
-        setActiveTab("email");
-      } catch (err) {
-        console.error("[CrmPage] hydrate draft failed:", err);
-      }
-    })();
-    return () => { cancelled = true; };
+    loadCampaign(initialCampaignId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCampaignId]);
 
@@ -437,6 +479,7 @@ export function CrmPage() {
         setSegmentSelection((prev) => ({ ...prev, total: data.totalRecipients }));
       }
       setDraftStatus(data.status || "draft");
+      setDraftsReloadSignal((n) => n + 1);
       showToast("Draft saved", "success");
     } catch (err) {
       console.error("[CrmPage] save draft failed:", err);
@@ -830,8 +873,18 @@ export function CrmPage() {
               </div>
             )}
             {!isPhone && activeTab === "email" && (
-              <EmailPanel
-                events={events}
+              <>
+                <div style={{ padding: "0 0 14px" }}>
+                  <DraftSwitcher
+                    currentDraftId={currentDraftId}
+                    reloadSignal={draftsReloadSignal}
+                    onSelect={selectDraft}
+                    onNew={resetComposer}
+                    onDeleted={() => resetComposer()}
+                  />
+                </div>
+                <EmailPanel
+                  events={events}
                 selectedTemplate={selectedTemplate}
                 setSelectedTemplate={setSelectedTemplate}
                 // Event template props
@@ -858,7 +911,8 @@ export function CrmPage() {
                 setFollowupFromName={setFollowupFromName}
                 hoveredKey={hoveredKey}
                 setHoveredKey={setHoveredKey}
-              />
+                />
+              </>
             )}
           </div>
 

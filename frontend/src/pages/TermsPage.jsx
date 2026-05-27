@@ -18,7 +18,7 @@ export function TermsPage() {
       <div style={s.wrap}>
         <a href="/" style={s.back}>&larr; Back to PullUp</a>
         <h1 style={s.h1}>Terms of Service</h1>
-        <p style={s.updated}>Last updated: March 11, 2026</p>
+        <p style={s.updated}>Last updated: May 27, 2026</p>
 
         <p style={s.p}>
           These terms govern your use of the PullUp platform at pullup.se. By creating an account or using the platform, you agree to these terms.
@@ -45,7 +45,10 @@ export function TermsPage() {
 
         <h2 style={s.h2}>4. Guest data and privacy</h2>
         <p style={s.p}>
-          As an event host, you may collect guest information (names, emails, dietary restrictions, etc.) through PullUp. You are responsible for handling this data in accordance with applicable privacy laws, including GDPR. You may not use guest data for purposes unrelated to your events without their consent.
+          As an event host, you collect guest information (names, emails, dietary restrictions, etc.) through PullUp. For this guest data you are the <strong>data controller</strong> and PullUp acts as your <strong>data processor</strong> — we store and handle it on your behalf and on your instructions, and we never sell it or reuse it for our own marketing. A data processing agreement is available on request.
+        </p>
+        <p style={s.p}>
+          You are responsible for handling your guest data in accordance with applicable privacy laws, including GDPR. You may email your own guests about your own future events on the basis of legitimate interest — keep it occasional and relevant, and honour every opt-out. You may not use guest data for unrelated purposes, or share it with other parties, without a lawful basis.
         </p>
 
         <h2 style={s.h2}>5. Payments and tickets</h2>
@@ -67,13 +70,16 @@ export function TermsPage() {
           By using PullUp, you agree to receive transactional emails related to your account and events (RSVP confirmations, payment receipts, event reminders). These are necessary for the service to function.
         </p>
         <p style={s.p}>
-          Marketing emails (newsletters, event recommendations, culture updates) are only sent with your explicit consent. When you subscribe to our newsletter or check "Keep me updated about future events" on an RSVP form, you consent to receiving marketing emails from PullUp. You can withdraw this consent at any time via the unsubscribe link in any email.
+          When you RSVP to an event, the host may email you about their own future events on the basis of legitimate interest — occasional and relevant, never a fixed-cadence newsletter, with a one-click unsubscribe in every message. RSVPing does <strong>not</strong> sign you up to PullUp's own newsletter.
         </p>
         <p style={s.p}>
-          We track email opens and link clicks to improve our communications. Details about email tracking are described in our <a href="/privacy" style={{ color: "rgba(255,255,255,0.85)" }}>privacy policy</a>.
+          PullUp's own newsletter and platform updates are only sent to people who explicitly opt in to them. You can withdraw that consent at any time via the unsubscribe link in any email. We never sell your details or share a host's contacts with other hosts for their marketing.
         </p>
         <p style={s.p}>
-          As a host, when you send emails through PullUp's email tools, you must comply with anti-spam laws (GDPR, CAN-SPAM). You may only email guests who have a legitimate relationship with your events or who have given consent to receive communications.
+          We track email opens and link clicks to improve communications. Details about email tracking are described in our <a href="/privacy" style={{ color: "rgba(255,255,255,0.85)" }}>privacy policy</a>.
+        </p>
+        <p style={s.p}>
+          As a host, when you send emails through PullUp's email tools, you must comply with anti-spam laws (GDPR, CAN-SPAM). You may only email guests who have a legitimate relationship with your events, and you must honour every unsubscribe.
         </p>
 
         <h2 style={s.h2}>8. Free platform</h2>

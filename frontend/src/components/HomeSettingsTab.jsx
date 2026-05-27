@@ -16,6 +16,33 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   // Stripe state
+  const [deletionRequested, setDeletionRequested] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  async function handleDeletionRequest() {
+    if (deletingAccount || deletionRequested) return;
+    const ok = window.confirm(
+      "Request deletion of your account and personal data?\n\nWe'll erase everything within 30 days and email you to confirm. Payment records required by law are kept for 7 years.",
+    );
+    if (!ok) return;
+    setDeletingAccount(true);
+    try {
+      const res = await authenticatedFetch("/me/deletion-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error("Failed to submit request");
+      setDeletionRequested(true);
+      showToast?.("Deletion request received — we'll erase your account within 30 days.", "success");
+    } catch (err) {
+      console.error("[settings] deletion request failed:", err);
+      showToast?.("Couldn't submit your request. Email hello@pullup.se and we'll handle it.", "error");
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+
   const [stripeConnected, setStripeConnected] = useState(false);
   const [stripeAccountEmail, setStripeAccountEmail] = useState("");
   const [stripeBusinessName, setStripeBusinessName] = useState("");
@@ -422,33 +449,35 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
         {/* DELETE ACCOUNT */}
         <SettingsSection
           title="Delete Account"
-          description="If you no longer wish to use PullUp, you can permanently delete your account."
+          description="Request permanent deletion of your account and personal data. We'll erase everything within 30 days and email you to confirm. Payment records required by law are kept for 7 years."
         >
           <button
             type="button"
+            onClick={handleDeletionRequest}
+            disabled={deletingAccount || deletionRequested}
             style={{
               padding: "12px 24px",
               borderRadius: "12px",
               border: "none",
-              background: "rgba(239, 68, 68, 0.2)",
-              color: "#ef4444",
+              background: deletionRequested ? "rgba(255,255,255,0.08)" : "rgba(239, 68, 68, 0.2)",
+              color: deletionRequested ? "rgba(255,255,255,0.6)" : "#ef4444",
               fontWeight: 600,
               fontSize: "14px",
-              cursor: "pointer",
+              cursor: deletingAccount || deletionRequested ? "not-allowed" : "pointer",
               display: "flex",
               alignItems: "center",
               gap: "8px",
               transition: "all 0.3s ease",
             }}
             onMouseEnter={(e) => {
-              e.target.style.background = "rgba(239, 68, 68, 0.3)";
+              if (!deletingAccount && !deletionRequested) e.currentTarget.style.background = "rgba(239, 68, 68, 0.3)";
             }}
             onMouseLeave={(e) => {
-              e.target.style.background = "rgba(239, 68, 68, 0.2)";
+              if (!deletingAccount && !deletionRequested) e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
             }}
           >
             <SilverIcon as={AlertTriangle} size={18} style={{ color: "#f59e0b" }} />
-            <span>Delete My Account</span>
+            <span>{deletionRequested ? "Deletion requested" : deletingAccount ? "Submitting…" : "Request account deletion"}</span>
           </button>
         </SettingsSection>
       </div>

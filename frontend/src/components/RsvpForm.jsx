@@ -722,6 +722,9 @@ export function RsvpForm({
                 />
                 <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>privacy policy</a></span>
               </label>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "-4px 2px 10px", lineHeight: 1.5, textAlign: "left" }}>
+                The organiser may occasionally email you about future events you might like — unsubscribe anytime. We never sell your details or share them with other organisers.
+              </p>
               <button
                 type="button"
                 onClick={(e) => {
@@ -858,17 +861,23 @@ export function RsvpForm({
             </div>
           )}
 
-          {/* Marketing opt-in (shown here for free events, inside payment section for paid) */}
+          {/* Terms agreement + legitimate-interest transparency (shown here for
+              free events, inside payment section for paid) */}
           {!(isPaidEvent && ticketPrice && !willGoToWaitlist) && (
-            <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "rgba(255,255,255,0.35)", cursor: "pointer", textAlign: "left", margin: "12px 0 16px", padding: 0, minHeight: 44 }}>
-              <input
-                type="checkbox"
-                checked={marketingOptIn}
-                onChange={(e) => setMarketingOptIn(e.target.checked)}
-                style={{ accentColor: "#fbbf24", flexShrink: 0, width: 18, height: 18 }}
-              />
-              <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>privacy policy</a></span>
-            </label>
+            <>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "rgba(255,255,255,0.35)", cursor: "pointer", textAlign: "left", margin: "12px 0 6px", padding: 0, minHeight: 44 }}>
+                <input
+                  type="checkbox"
+                  checked={marketingOptIn}
+                  onChange={(e) => setMarketingOptIn(e.target.checked)}
+                  style={{ accentColor: "#fbbf24", flexShrink: 0, width: 18, height: 18 }}
+                />
+                <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>privacy policy</a></span>
+              </label>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: "0 2px 16px", lineHeight: 1.5, textAlign: "left" }}>
+                The organiser may occasionally email you about future events you might like — unsubscribe anytime. We never sell your details or share them with other organisers.
+              </p>
+            </>
           )}
 
           {/* Submit — single gorgeous button, no cancel */}

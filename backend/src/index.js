@@ -2770,37 +2770,28 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       }
     }
 
-    // If user opted in to marketing, upsert into newsletter_subscriptions
-    // AND mirror the consent flag onto people.marketing_consent so the
-    // admin email audience ("Opted in only") sees them. The terms/privacy
-    // checkbox on the RSVP form is treated as marketing opt-in for
-    // PullUp's purposes — every guest who RSVP'd has explicitly agreed.
+    // The RSVP agreement checkbox is the guest's acceptance of our terms +
+    // privacy policy — it is NOT consent to PullUp's own marketing. We
+    // deliberately do NOT enrol RSVP guests into PullUp's newsletter list
+    // (`newsletter_subscriptions`) here: PullUp is a separate data controller
+    // and its own newsletter requires its own explicit opt-in (the dedicated
+    // newsletter signup). Bundling that into a mandatory RSVP checkbox is not
+    // valid GDPR consent and would mean a host's guests get PullUp marketing
+    // they never asked for.
+    //
+    // The host, by contrast, is the controller of their own guest list and may
+    // contact their attendees about their future events under legitimate
+    // interest (occasional + relevant, one-click unsubscribe in every email).
+    // We record that contactability on the host-scoped people row so the
+    // host's CRM audience reflects it — this is a legitimate-interest marker,
+    // not GDPR consent. Sending never depends on this flag (the campaign
+    // sender's sendableOnly only drops no-email / unsubscribed / suppressed).
     if (marketingOptIn === true && result.rsvp?.email) {
       try {
         const { supabase } = await import("./supabase.js");
         const rsvpEmail = result.rsvp.email.trim().toLowerCase();
         const rsvpNow = new Date().toISOString();
-        const unsubToken = generateUnsubscribeToken();
 
-        await supabase
-          .from("newsletter_subscriptions")
-          .upsert(
-            {
-              email: rsvpEmail,
-              status: "confirmed",
-              source: "rsvp_opt_in",
-              confirmed_at: rsvpNow,
-              created_at: rsvpNow,
-              updated_at: rsvpNow,
-              unsubscribe_token: unsubToken,
-              consent_given: true,
-              consent_at: rsvpNow,
-            },
-            { onConflict: "email" }
-          );
-
-        // Set marketing_consent on the master people row(s) — only when not
-        // already set, so we don't overwrite an admin-set false.
         await supabase
           .from("people")
           .update({
@@ -2818,8 +2809,8 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           .eq("email", rsvpEmail)
           .eq("marketing_consent", false);
       } catch (nlErr) {
-        console.error("[rsvp] Failed to upsert newsletter subscription:", nlErr);
-        // Don't block the RSVP on newsletter failure
+        console.error("[rsvp] Failed to update guest contactability:", nlErr);
+        // Don't block the RSVP on this.
       }
     }
 
@@ -6495,6 +6486,49 @@ app.patch("/host/crm/campaigns/:campaignId", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Error patching campaign:", error);
     res.status(500).json({ error: "Failed to update campaign", message: error.message });
+  }
+});
+
+// POST /me/deletion-request — record a GDPR erasure/access request. We do NOT
+// run a self-serve cascade delete: payment records must be kept 7 years under
+// Swedish accounting law, and we can't remove events other guests have RSVP'd
+// to. Instead we durably log it and notify ops, and the account is erased
+// manually within 30 days as the privacy policy states. This exists so the
+// "Delete My Account" button backs up a promise we actually keep.
+app.post("/me/deletion-request", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userEmail = req.user.email || "(unknown)";
+    const rawReason = typeof req.body?.reason === "string" ? req.body.reason.slice(0, 2000) : "";
+    const reason = rawReason
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    // Durable record (server log) — the reliable trail even if email fails.
+    console.log(`[deletion-request] user=${userId} email=${userEmail}${rawReason ? ` reason=${JSON.stringify(rawReason)}` : ""}`);
+
+    // Best-effort ops notification so a human actually processes it.
+    try {
+      const { sendEmail } = await import("./email/index.js");
+      await sendEmail({
+        to: "hello@pullup.se",
+        subject: `Account deletion request — ${userEmail}`,
+        html: `<p>A user requested deletion of their account and personal data (GDPR right to erasure).</p>
+<ul><li>User ID: ${userId}</li><li>Email: ${userEmail}</li></ul>
+${reason ? `<p>Reason: ${reason}</p>` : ""}
+<p>Erase within 30 days. Keep payment records 7 years; don't remove events other guests RSVP'd to.</p>`,
+        text: `Account deletion request\nUser ID: ${userId}\nEmail: ${userEmail}\n${rawReason ? `Reason: ${rawReason}\n` : ""}Erase within 30 days.`,
+        idempotencyKey: `deletion-request:${userId}:${new Date().toISOString().slice(0, 10)}`,
+      });
+    } catch (mailErr) {
+      console.error("[deletion-request] ops notification email failed:", mailErr?.message);
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[deletion-request] error:", error.message);
+    res.status(500).json({ error: "Failed to submit deletion request" });
   }
 });
 

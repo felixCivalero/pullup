@@ -4985,6 +4985,23 @@ export async function deleteEmailCampaign(campaignId, userId) {
 }
 
 /**
+ * GDPR right-to-erasure: anonymise all PII for a data subject identified by
+ * email. Delegates to the atomic anonymize_person() Postgres function so the
+ * scrub across ~10 tables (people, rsvps, campaign_sends, person_notes,
+ * email_outbox, email_opens/clicks, newsletter_subscriptions, email_suppressions,
+ * vip_invites, event_host_invitations, ideas) either fully applies or not at
+ * all. Keeps the de-identified skeleton (attendance counts) + financial
+ * aggregates required by accounting law. Returns the function's summary.
+ */
+export async function anonymizePersonByEmail(email) {
+  const clean = String(email || "").trim().toLowerCase();
+  if (!clean) throw new Error("email required");
+  const { data, error } = await supabase.rpc("anonymize_person", { p_email: clean });
+  if (error) throw new Error(`anonymize_person failed: ${error.message}`);
+  return data;
+}
+
+/**
  * Update email campaign status and stats
  */
 /**

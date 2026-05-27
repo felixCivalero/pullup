@@ -4955,6 +4955,36 @@ export async function listEmailCampaigns(userId, { status, limit = 50, offset = 
 }
 
 /**
+ * Delete a campaign the host owns. Only DRAFT and SCHEDULED campaigns can be
+ * removed: sent/sending campaigns are kept so analytics history stays intact
+ * and an in-flight send isn't yanked out from under the worker. Draft and
+ * scheduled campaigns have no campaign_sends rows yet, so there's nothing to
+ * cascade. Returns { deleted, reason?, status? } so the route can map to the
+ * right HTTP status.
+ */
+export async function deleteEmailCampaign(campaignId, userId) {
+  const { data: existing, error: fetchErr } = await supabase
+    .from("campaign_campaigns")
+    .select("id, status")
+    .eq("id", campaignId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (fetchErr) throw new Error(`Failed to load campaign: ${fetchErr.message}`);
+  if (!existing) return { deleted: false, reason: "not_found" };
+  if (existing.status !== "draft" && existing.status !== "scheduled") {
+    return { deleted: false, reason: "immutable", status: existing.status };
+  }
+
+  const { error: delErr } = await supabase
+    .from("campaign_campaigns")
+    .delete()
+    .eq("id", campaignId)
+    .eq("user_id", userId);
+  if (delErr) throw new Error(`Failed to delete campaign: ${delErr.message}`);
+  return { deleted: true };
+}
+
+/**
  * Update email campaign status and stats
  */
 /**

@@ -6498,6 +6498,33 @@ app.patch("/host/crm/campaigns/:campaignId", requireAuth, async (req, res) => {
   }
 });
 
+// DELETE /host/crm/campaigns/:campaignId - remove a draft/scheduled campaign.
+// Sent/sending campaigns are immutable (409) so analytics history is preserved
+// and in-flight sends aren't interrupted.
+app.delete("/host/crm/campaigns/:campaignId", requireAuth, async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const { deleteEmailCampaign } = await import("./data.js");
+    const result = await deleteEmailCampaign(campaignId, req.user.id);
+    if (!result.deleted) {
+      if (result.reason === "not_found") {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+      if (result.reason === "immutable") {
+        return res.status(409).json({
+          error: "Cannot delete",
+          message: `Campaign is ${result.status} and can't be deleted.`,
+        });
+      }
+      return res.status(400).json({ error: "Cannot delete campaign" });
+    }
+    res.json({ deleted: true, campaignId });
+  } catch (error) {
+    console.error("Error deleting campaign:", error);
+    res.status(500).json({ error: "Failed to delete campaign", message: error.message });
+  }
+});
+
 // POST /host/crm/campaigns/:campaignId/send - Send campaign
 app.post(
   "/host/crm/campaigns/:campaignId/send",

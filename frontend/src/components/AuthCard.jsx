@@ -5,17 +5,69 @@ import { authenticatedFetch } from "../lib/api.js";
 import { trackEvent } from "../lib/analytics.js";
 import { colors } from "../theme/colors.js";
 
-const inputStyle = {
+// Two surface palettes. `dark` is the original (used on /reset-password,
+// /forgot-password, etc.). `light` matches the white landing shell —
+// white bg, ink text, hot-pink primary CTA.
+const THEMES = {
+  dark: {
+    inputBg: "rgba(255,255,255,0.04)",
+    inputBorder: "rgba(255,255,255,0.10)",
+    inputColor: "#fff",
+    dividerLine: "rgba(255,255,255,0.06)",
+    dividerLabel: "rgba(255,255,255,0.35)",
+    submitBg: colors.gradientGold,
+    submitColor: "#111",
+    legalText: "rgba(255,255,255,0.4)",
+    legalLink: "rgba(255,255,255,0.65)",
+    forgotLink: "rgba(255,255,255,0.55)",
+    errorText: "rgba(255,119,119,0.95)",
+    googleBg: "#fff",
+    googleBorder: "rgba(0,0,0,0.16)",
+    googleColor: "#3c4043",
+    createPanelBg: "rgba(255,255,255,0.05)",
+    createPanelBorder: "rgba(255,255,255,0.12)",
+    createPanelText: "rgba(255,255,255,0.7)",
+    createPanelStrong: "#fff",
+    createButtonBorder: "rgba(255,255,255,0.2)",
+    createButtonColor: "#fff",
+    createSecondaryColor: "rgba(255,255,255,0.55)",
+  },
+  light: {
+    inputBg: "#fff",
+    inputBorder: "rgba(10,10,10,0.16)",
+    inputColor: "#0a0a0a",
+    dividerLine: "rgba(10,10,10,0.10)",
+    dividerLabel: "rgba(10,10,10,0.45)",
+    submitBg: "#EC178F",
+    submitColor: "#fff",
+    legalText: "rgba(10,10,10,0.55)",
+    legalLink: "rgba(10,10,10,0.78)",
+    forgotLink: "rgba(10,10,10,0.55)",
+    errorText: "#c0392b",
+    googleBg: "#fff",
+    googleBorder: "rgba(10,10,10,0.18)",
+    googleColor: "#0a0a0a",
+    createPanelBg: "rgba(10,10,10,0.03)",
+    createPanelBorder: "rgba(10,10,10,0.10)",
+    createPanelText: "rgba(10,10,10,0.72)",
+    createPanelStrong: "#0a0a0a",
+    createButtonBorder: "rgba(10,10,10,0.22)",
+    createButtonColor: "#0a0a0a",
+    createSecondaryColor: "rgba(10,10,10,0.55)",
+  },
+};
+
+const buildInputStyle = (t) => ({
   width: "100%",
   padding: "13px 14px",
   borderRadius: 12,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  color: "#fff",
+  background: t.inputBg,
+  border: `1px solid ${t.inputBorder}`,
+  color: t.inputColor,
   fontSize: 15,
   outline: "none",
   boxSizing: "border-box",
-};
+});
 
 const GoogleIcon = (
   <svg
@@ -64,7 +116,10 @@ export function AuthCard({
   trackingPrefix = "auth",
   funnelTrack = false,
   showForgotPassword = false,
+  theme = "dark",
 }) {
+  const t = THEMES[theme] || THEMES.dark;
+  const inputStyle = buildInputStyle(t);
   const { signInWithGoogle, signInWithEmailPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -173,15 +228,15 @@ export function AuthCard({
         style={{
           width: "100%",
           borderRadius: 999,
-          border: "1px solid rgba(0,0,0,0.16)",
-          background: "#fff",
+          border: `1px solid ${t.googleBorder}`,
+          background: t.googleBg,
           padding: "13px 14px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           gap: 10,
           cursor: signingIn ? "wait" : "pointer",
-          color: "#3c4043",
+          color: t.googleColor,
           fontSize: 14,
           fontWeight: 500,
         }}
@@ -198,22 +253,18 @@ export function AuthCard({
           margin: "2px 0",
         }}
       >
-        <div
-          style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }}
-        />
+        <div style={{ flex: 1, height: 1, background: t.dividerLine }} />
         <span
           style={{
             fontSize: 11,
             textTransform: "uppercase",
             letterSpacing: "0.16em",
-            color: "rgba(255,255,255,0.35)",
+            color: t.dividerLabel,
           }}
         >
           or email
         </span>
-        <div
-          style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }}
-        />
+        <div style={{ flex: 1, height: 1, background: t.dividerLine }} />
       </div>
 
       <input
@@ -244,7 +295,7 @@ export function AuthCard({
             onClick={() => trackEvent(`${trackingPrefix}_forgot_password_click`)}
             style={{
               fontSize: 12,
-              color: "rgba(255,255,255,0.55)",
+              color: t.forgotLink,
               textDecoration: "none",
             }}
           >
@@ -261,8 +312,8 @@ export function AuthCard({
           padding: "14px 0",
           borderRadius: 999,
           border: "none",
-          background: colors.gradientGold,
-          color: "#111",
+          background: t.submitBg,
+          color: t.submitColor,
           fontSize: 14,
           fontWeight: 700,
           cursor: signingIn ? "wait" : "pointer",
@@ -281,7 +332,7 @@ export function AuthCard({
           margin: "2px 0 0",
           fontSize: 11.5,
           lineHeight: 1.5,
-          color: "rgba(255,255,255,0.4)",
+          color: t.legalText,
           textAlign: "center",
         }}
       >
@@ -290,7 +341,7 @@ export function AuthCard({
           href="/terms"
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}
+          style={{ color: t.legalLink, textDecoration: "underline" }}
         >
           terms
         </a>{" "}
@@ -299,7 +350,7 @@ export function AuthCard({
           href="/privacy"
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: "rgba(255,255,255,0.65)", textDecoration: "underline" }}
+          style={{ color: t.legalLink, textDecoration: "underline" }}
         >
           privacy policy
         </a>
@@ -310,7 +361,7 @@ export function AuthCard({
         <div
           style={{
             fontSize: 12,
-            color: "rgba(255,119,119,0.95)",
+            color: t.errorText,
             textAlign: "center",
           }}
         >
@@ -322,20 +373,20 @@ export function AuthCard({
         <div
           style={{
             fontSize: 12,
-            color: "rgba(255,255,255,0.85)",
+            color: t.createPanelText,
             textAlign: "center",
             padding: "10px 12px",
             borderRadius: 8,
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.12)",
+            background: t.createPanelBg,
+            border: `1px solid ${t.createPanelBorder}`,
             display: "flex",
             flexDirection: "column",
             gap: 8,
           }}
         >
-          <div style={{ color: "rgba(255,255,255,0.7)" }}>
+          <div style={{ color: t.createPanelText }}>
             No account found for{" "}
-            <strong style={{ color: "#fff" }}>{email.trim()}</strong>.
+            <strong style={{ color: t.createPanelStrong }}>{email.trim()}</strong>.
           </div>
           <button
             type="button"
@@ -344,9 +395,9 @@ export function AuthCard({
             style={{
               width: "100%",
               borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.2)",
+              border: `1px solid ${t.createButtonBorder}`,
               background: "transparent",
-              color: "#fff",
+              color: t.createButtonColor,
               padding: "10px 14px",
               cursor: signingIn ? "wait" : "pointer",
               fontSize: 13,
@@ -362,7 +413,7 @@ export function AuthCard({
             style={{
               background: "transparent",
               border: "none",
-              color: "rgba(255,255,255,0.55)",
+              color: t.createSecondaryColor,
               fontSize: 12,
               padding: "4px 0",
               cursor: "pointer",

@@ -1,7 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { LandingPage } from "./pages/LandingPage";
-import { OnboardingPage } from "./pages/OnboardingPage";
-import { LoginPage } from "./pages/LoginPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { NewsletterPage } from "./pages/NewsletterPage";
@@ -46,10 +44,14 @@ function App() {
       {/* useRecentChatActivity gate inside IdeaWidget).                       */}
       <IdeaWidget />
       <Routes>
-        {/* Public */}
+        {/* Public — landing page renders the slide shell. /login and
+            /start point at the same component so the URL still works
+            (refresh, deep link, back/forward) but the visual is a
+            horizontal slide between the hero, login, and onboarding
+            panels instead of a hard page swap. */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/start" element={<OnboardingPage />} />
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/start" element={<LandingPage />} />
+        <Route path="/login" element={<LandingPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />

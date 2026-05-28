@@ -10045,20 +10045,24 @@ app.get("/host/analytics", requireAuth, async (req, res) => {
         allVisitors.add(v.visitor_id);
         if (v.utm_source === "pullup_newsletter") newsletterViews++;
 
-        // Per-event source tracking
+        // Per-event source tracking. A recognized social referrer beats
+        // utm_source: the UTM can be baked into a shared link (e.g.
+        // ?utm_source=chatgpt.com pasted on Instagram), but the referrer
+        // header reflects where the click physically came from.
         let source = "direct";
-        if (v.utm_source) {
-          source = v.utm_source;
-        } else if (v.referrer) {
+        if (v.referrer) {
           try {
             const host = new URL(v.referrer).hostname.replace("www.", "");
             if (host.includes("instagram")) source = "instagram";
             else if (host.includes("facebook") || host.includes("fb.")) source = "facebook";
             else if (host.includes("twitter") || host.includes("x.com")) source = "twitter";
             else if (host.includes("linkedin")) source = "linkedin";
+            else if (v.utm_source) source = v.utm_source;
             else if (host.includes("pullup")) source = "pullup";
             else source = host;
-          } catch { source = "other"; }
+          } catch { source = v.utm_source || "other"; }
+        } else if (v.utm_source) {
+          source = v.utm_source;
         }
         if (!eventSourceMap[v.event_id]) eventSourceMap[v.event_id] = {};
         if (!eventSourceMap[v.event_id][source]) eventSourceMap[v.event_id][source] = new Set();
@@ -10632,23 +10636,27 @@ app.get("/host/events/:id/analytics", requireAuth, async (req, res) => {
     device_split.desktop = deviceVisitors.desktop.size;
     device_split.unknown = deviceVisitors.unknown.size;
 
-    // Source detection helper
+    // Source detection helper. A recognized social referrer beats
+    // utm_source: the UTM can be baked into a shared link (e.g.
+    // ?utm_source=chatgpt.com pasted on Instagram), but the referrer
+    // header reflects where the click physically came from.
     function detectSource(v) {
       let source = "direct";
-      if (v.utm_source) {
-        source = v.utm_source;
-      } else if (v.referrer) {
+      if (v.referrer) {
         try {
           const host = new URL(v.referrer).hostname.replace("www.", "");
           if (host.includes("instagram")) source = "instagram";
           else if (host.includes("facebook") || host.includes("fb.")) source = "facebook";
           else if (host.includes("twitter") || host.includes("x.com")) source = "twitter";
           else if (host.includes("linkedin")) source = "linkedin";
+          else if (v.utm_source) source = v.utm_source;
           else if (host.includes("pullup")) source = "pullup";
           else source = host;
         } catch {
-          source = "other";
+          source = v.utm_source || "other";
         }
+      } else if (v.utm_source) {
+        source = v.utm_source;
       }
       return source;
     }

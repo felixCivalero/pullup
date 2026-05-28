@@ -101,14 +101,14 @@ export function IdeaWidget() {
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
   const [open, setOpen] = useState(false);
 
-  // The floating slot has four modes derived from auth + MCP connection
+  // The floating slot has three modes derived from auth + MCP connection
   // status + whether the current page declares a host resource:
-  //   - promo-marketing : not logged in (landing page promo)
   //   - promo-connect   : logged in, no MCP connection (CTA to settings)
   //   - coach           : logged in, MCP connected, on a host resource
   //   - brand           : logged in, MCP connected, no resource (homepage,
   //                       settings, etc.) — brand presence + handoff
-  // null hides the slot entirely (mobile, public event pages, mid-load).
+  // null hides the slot entirely (logged-out visitors, mobile, public
+  // event pages, mid-load).
   const resource = useHostResource();
   const { hasActivity: _hasActivity, lastAction } = useRecentChatActivity({
     enabled: !!resource,
@@ -123,10 +123,8 @@ export function IdeaWidget() {
 
   let mode = null;
   const isEventPagePath = pathname.startsWith("/e/") || pathname.startsWith("/events/");
-  if (isDesktop && !isEventPagePath) {
-    if (!user) {
-      mode = "promo-marketing";
-    } else if (mcpStatus.loading) {
+  if (isDesktop && !isEventPagePath && user) {
+    if (mcpStatus.loading) {
       mode = null; // brief hide while we check connection state
     } else if (!mcpStatus.connected) {
       mode = "promo-connect";
@@ -137,7 +135,7 @@ export function IdeaWidget() {
     }
   }
   const inAiMode = mode === "coach" || mode === "brand";
-  const isPromo = mode === "promo-marketing" || mode === "promo-connect";
+  const isPromo = mode === "promo-connect";
 
   // Coach suggestions for the AI mode panel. Fetched once we enter coach
   // mode (which requires a resource — brand mode skips this entirely).
@@ -322,14 +320,9 @@ export function IdeaWidget() {
 
   if (mode === null) return null;
 
-  // Promo modes: replace the old "Have an idea?" affordance with an MCP
-  // pitch. promo-marketing for not-logged-in visitors (landing page),
-  // promo-connect for hosts who haven't wired up an MCP token yet.
+  // Promo mode: MCP pitch for hosts who haven't wired up a token yet.
   if (isPromo) {
-    const isMarketing = mode === "promo-marketing";
-    const cta = isMarketing
-      ? { label: "Get started", href: "/start" }
-      : { label: "Connect MCP", href: "/settings" };
+    const cta = { label: "Connect MCP", href: "/settings" };
     return (
       <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
         {open && (
@@ -384,9 +377,7 @@ export function IdeaWidget() {
               </button>
             </div>
             <div style={{ fontSize: 13, lineHeight: 1.5, color: "rgba(255,255,255,0.85)", marginBottom: 14 }}>
-              {isMarketing
-                ? "Talk to your events from claude.ai or any AI you already use. PullUp connects in one click — your AI then knows your RSVPs, CRM, drafts, and can publish, send, refund."
-                : "Connect PullUp to claude.ai (or any MCP-capable AI). Once linked, you can draft events, send campaigns, and answer 'who's coming on Saturday' from chat. Takes ~30 seconds."}
+              Connect PullUp to claude.ai (or any MCP-capable AI). Once linked, you can draft events, send campaigns, and answer 'who's coming on Saturday' from chat. Takes ~30 seconds.
             </div>
             <a
               href={cta.href}
@@ -443,7 +434,7 @@ export function IdeaWidget() {
         >
           <Sparkles size={18} />
           <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
-            {isMarketing ? "Try PullUp MCP" : "Connect MCP"}
+            Connect MCP
           </span>
         </button>
       </div>

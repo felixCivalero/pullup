@@ -256,7 +256,7 @@ function ProtectedLayoutInner() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 16px",
+          padding: "0 16px 0 12px",
           zIndex: 20,
           background: "rgba(5, 4, 10, 0.85)",
           backdropFilter: "blur(12px)",
@@ -298,23 +298,26 @@ function ProtectedLayoutInner() {
         ) : (
           <button
             onClick={() => handleNav("/events")}
+            aria-label="PullUp"
             style={{
               background: "transparent",
               border: "none",
-              color: isAdmin && isAdminPage ? "#fbbf24" : "#fff",
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              fontSize: "12px",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
               cursor: "pointer",
-              transition: "color 0.3s ease",
+              transition: "filter 0.3s ease",
               filter:
                 isAdmin && isAdminPage
                   ? "drop-shadow(0 0 4px rgba(251, 191, 36, 0.5))"
                   : "none",
             }}
           >
-            PullUp
+            <img
+              src="/pullup-logo.svg"
+              alt="PullUp"
+              style={{ height: "44px", width: "auto", display: "block" }}
+            />
           </button>
         )}
 

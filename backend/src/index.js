@@ -111,6 +111,11 @@ import {
   handleIgWebhookDelivery,
 } from "./instagram/webhooks/metaIgWebhook.js";
 import {
+  startInstagramConnect,
+  instagramConnectCallback,
+  getInstagramConnectionStatus,
+} from "./instagram/oauth/connectRoutes.js";
+import {
   startVerification as startPhoneVerification,
   redeemToken as redeemMagicLinkToken,
 } from "./services/phoneVerification.js";
@@ -865,6 +870,15 @@ app.post("/webhooks/whatsapp", handleWhatsappWebhookDelivery);
 // strips /api): https://pullup.se/api/webhooks/instagram
 app.get("/webhooks/instagram", handleIgWebhookVerification);
 app.post("/webhooks/instagram", handleIgWebhookDelivery);
+
+// ---------------------------
+// INSTAGRAM CONNECT (per-host OAuth — PullUp as client to Meta)
+// ---------------------------
+// start = redirect host to IG authorize (authed); callback = store the
+// connection; status = Settings UI state.
+app.get("/oauth/instagram/start", requireAuth, startInstagramConnect);
+app.get("/oauth/instagram/callback", instagramConnectCallback);
+app.get("/instagram/connection", requireAuth, getInstagramConnectionStatus);
 
 // ---------------------------
 // PHONE VERIFICATION: magic-link via WhatsApp
@@ -3015,6 +3029,15 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
               dateRevealHint: result.event.dateRevealHint || "",
               revealHint: result.event.revealHint || "",
               ...hostBrand,
+              // Host visual brand (migration 046). Falls back to PullUp's
+              // dark/gold default when null on every field.
+              brand: {
+                primaryColor: hostProfileFull?.brandPrimaryColor || null,
+                background:   hostProfileFull?.brandBackground || null,
+                textColor:    hostProfileFull?.brandTextColor || null,
+                fontFamily:   hostProfileFull?.brandFontFamily || null,
+                logoUrl:      hostProfileFull?.brandLogoUrl || null,
+              },
             }),
           },
           context: {

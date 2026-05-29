@@ -107,6 +107,10 @@ import {
   handleEventDelivery as handleWhatsappWebhookDelivery,
 } from "./whatsapp/webhooks/metaWebhook.js";
 import {
+  handleIgWebhookVerification,
+  handleIgWebhookDelivery,
+} from "./instagram/webhooks/metaIgWebhook.js";
+import {
   startVerification as startPhoneVerification,
   redeemToken as redeemMagicLinkToken,
 } from "./services/phoneVerification.js";
@@ -854,6 +858,15 @@ app.get("/webhooks/whatsapp", handleWhatsappWebhookVerification);
 app.post("/webhooks/whatsapp", handleWhatsappWebhookDelivery);
 
 // ---------------------------
+// WEBHOOKS: Instagram (Meta Graph — app "pullup dm")
+// ---------------------------
+// GET = Meta's verification challenge. POST = comments + inbound DMs.
+// Same rawBody-based signature validation as WhatsApp. Public URL (nginx
+// strips /api): https://pullup.se/api/webhooks/instagram
+app.get("/webhooks/instagram", handleIgWebhookVerification);
+app.post("/webhooks/instagram", handleIgWebhookDelivery);
+
+// ---------------------------
 // PHONE VERIFICATION: magic-link via WhatsApp
 // ---------------------------
 // Kick off a verification — fired in the background as soon as the
@@ -1454,8 +1467,41 @@ app.get("/events/:slug", optionalAuth, async (req, res) => {
       }
     }
 
+    // Inline host brand identity (migration 045) so the event page can
+    // render the host's chosen background / text / accent / font in one
+    // round-trip. NULL on every field = host hasn't set a brand → frontend
+    // falls back to PullUp's default dark theme.
+    let hostBrand = null;
+    if (event.hostId) {
+      try {
+        const { data: hostProfile } = await supabase
+          .from("profiles")
+          .select("brand_primary_color, brand_background, brand_text_color, brand_font_family, brand_logo_url, name, brand, whatsapp_signature")
+          .eq("id", event.hostId)
+          .maybeSingle();
+        if (hostProfile) {
+          hostBrand = {
+            primaryColor: hostProfile.brand_primary_color || null,
+            background:   hostProfile.brand_background || null,
+            textColor:    hostProfile.brand_text_color || null,
+            fontFamily:   hostProfile.brand_font_family || null,
+            logoUrl:      hostProfile.brand_logo_url || null,
+            hostName:     hostProfile.name || hostProfile.brand || null,
+            // Voice carrier (already used elsewhere; exposed here too so
+            // event-page hero can lead with "Hosted by …" naturally).
+            signature:    hostProfile.whatsapp_signature || null,
+          };
+        }
+      } catch (brandErr) {
+        // Brand lookup never blocks event rendering. Worst case the host
+        // gets PullUp defaults.
+        console.warn("[events/:slug] brand lookup failed", brandErr?.message);
+      }
+    }
+
     res.json({
       ...publicEvent,
+      hostBrand,
       _attendance: {
         confirmed,
         waitlist,

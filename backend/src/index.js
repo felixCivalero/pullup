@@ -110,6 +110,7 @@ import {
   startVerification as startPhoneVerification,
   redeemToken as redeemMagicLinkToken,
 } from "./services/phoneVerification.js";
+import { dispatch as dispatchMessage } from "./messaging/index.js";
 import {
   metadataPRM,
   metadataAS,
@@ -862,12 +863,19 @@ app.post("/webhooks/whatsapp", handleWhatsappWebhookDelivery);
 // proxying, matching the rest of the codebase's route convention.
 app.post("/verify/phone/start", async (req, res) => {
   try {
-    const { phone, intent = "verify_phone", payload = {}, defaultCountry = null } = req.body || {};
+    const {
+      phone,
+      intent = "verify_phone",
+      payload = {},
+      defaultCountry = null,
+      templateKey,
+    } = req.body || {};
     const result = await startPhoneVerification({
       phone,
       intent,
       payload,
       defaultCountry,
+      templateKey: templateKey || undefined,
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"] || null,
     });
@@ -2780,33 +2788,94 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           result.rsvp.bookingStatus === "WAITLIST" ||
           result.rsvp.status === "waitlist";
 
-        await sendEmail({
-          to: result.rsvp.email,
-          subject: isWaitlistEmail
-            ? "You’re on the waitlist"
-            : "Your spot is confirmed",
-          html: signupConfirmationEmail({
-            name: result.rsvp.name || name,
-            eventTitle: result.event.title,
-            date: new Date(result.event.startsAt).toLocaleString(),
-            isWaitlist: isWaitlistEmail,
-            imageUrl: result.event.coverImageUrl || result.event.imageUrl || "",
-            location: result.event.location || "",
-            startsAt: result.event.startsAt || "",
-            endsAt: result.event.endsAt || "",
-            timezone: result.event.timezone || "",
-            plusOnes: Number(result.rsvp.plusOnes) || 0,
-            slug: result.event.slug || "",
-            frontendUrl: getFrontendUrl(),
-            spotifyUrl: result.event.spotify || "",
-            ticketPrice: result.event.ticketPrice ? (Number(result.event.ticketPrice) / 100).toFixed(2) : 0,
-            ticketCurrency: result.event.ticketCurrency || "",
-            hideDate: result.event.hideDate || false,
-            hideLocation: result.event.hideLocation || false,
-            dateRevealHint: result.event.dateRevealHint || "",
-            revealHint: result.event.revealHint || "",
-            ...hostBrand,
-          }),
+        // Resolve the person record so the channel router can decide
+        // WA vs email per recipient (phone_verified + opt-in => WA).
+        let recipientPerson = null;
+        if (result.rsvp.personId) {
+          const { data: p } = await supabase
+            .from("people")
+            .select("id, email, phone_e164, phone_verified_at, do_not_contact")
+            .eq("id", result.rsvp.personId)
+            .maybeSingle();
+          recipientPerson = p;
+        }
+        const recipient = recipientPerson || {
+          id: null,
+          email: result.rsvp.email,
+          phone_e164: null,
+          phone_verified_at: null,
+        };
+
+        // Fetch the full host profile (we already have brand bits; need
+        // whatsapp_enabled + whatsapp_signature too).
+        const hostProfileFull = await getUserProfile(result.event.hostId);
+
+        const friendlyDate = (() => {
+          try {
+            const d = new Date(result.event.startsAt);
+            return d.toLocaleString("en-US", {
+              weekday: "long",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            });
+          } catch {
+            return new Date(result.event.startsAt).toLocaleString();
+          }
+        })();
+
+        const firstName = (result.rsvp.name || name || "").split(/\s+/)[0] || "there";
+        const hostSig =
+          hostProfileFull?.whatsappSignature ||
+          (hostProfileFull?.name
+            ? `It's me, ${hostProfileFull.name.split(/\s+/)[0]}`
+            : "");
+
+        await dispatchMessage({
+          recipient,
+          hostProfile: hostProfileFull,
+          whatsapp: isWaitlistEmail
+            ? null
+            : {
+                templateKey: "rsvp_confirm",
+                variables: {
+                  guest_first_name: firstName,
+                  event_title: result.event.title || "the event",
+                  event_when: friendlyDate,
+                  host_signature: hostSig || "PullUp",
+                },
+              },
+          email: {
+            subject: isWaitlistEmail
+              ? "You’re on the waitlist"
+              : "Your spot is confirmed",
+            htmlBody: signupConfirmationEmail({
+              name: result.rsvp.name || name,
+              eventTitle: result.event.title,
+              date: new Date(result.event.startsAt).toLocaleString(),
+              isWaitlist: isWaitlistEmail,
+              imageUrl: result.event.coverImageUrl || result.event.imageUrl || "",
+              location: result.event.location || "",
+              startsAt: result.event.startsAt || "",
+              endsAt: result.event.endsAt || "",
+              timezone: result.event.timezone || "",
+              plusOnes: Number(result.rsvp.plusOnes) || 0,
+              slug: result.event.slug || "",
+              frontendUrl: getFrontendUrl(),
+              spotifyUrl: result.event.spotify || "",
+              ticketPrice: result.event.ticketPrice ? (Number(result.event.ticketPrice) / 100).toFixed(2) : 0,
+              ticketCurrency: result.event.ticketCurrency || "",
+              hideDate: result.event.hideDate || false,
+              hideLocation: result.event.hideLocation || false,
+              dateRevealHint: result.event.dateRevealHint || "",
+              revealHint: result.event.revealHint || "",
+              ...hostBrand,
+            }),
+          },
+          context: {
+            personId: result.rsvp.personId || null,
+            hostProfileId: result.event.hostId || null,
+          },
         });
       } catch (emailErr) {
         logger?.error?.("Failed to send signup confirmation email", {

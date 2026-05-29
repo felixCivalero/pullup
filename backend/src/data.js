@@ -4810,6 +4810,20 @@ function mapProfileFromDb(dbProfile) {
     phone_verified_at:     dbProfile.phone_verified_at || null,
     whatsapp_signature:    dbProfile.whatsapp_signature || "",
     whatsapp_enabled:      dbProfile.whatsapp_enabled === false ? false : true,
+    // Host brand identity (migration 045). Travels with every guest-facing
+    // surface — event pages, email confirms, WhatsApp signature/voice.
+    // Surfaced under camelCase + snake_case so settings UI + render code
+    // can use either convention.
+    brandPrimaryColor:     dbProfile.brand_primary_color || null,
+    brandBackground:       dbProfile.brand_background || null,
+    brandTextColor:        dbProfile.brand_text_color || null,
+    brandFontFamily:       dbProfile.brand_font_family || null,
+    brandLogoUrl:          dbProfile.brand_logo_url || null,
+    brand_primary_color:   dbProfile.brand_primary_color || null,
+    brand_background:      dbProfile.brand_background || null,
+    brand_text_color:      dbProfile.brand_text_color || null,
+    brand_font_family:     dbProfile.brand_font_family || null,
+    brand_logo_url:        dbProfile.brand_logo_url || null,
     createdAt: dbProfile.created_at,
     updatedAt: dbProfile.updated_at,
   };
@@ -4863,6 +4877,23 @@ function mapProfileToDb(profile) {
     dbProfile.whatsapp_enabled = !!profile.whatsappEnabled;
   else if (profile.whatsapp_enabled !== undefined)
     dbProfile.whatsapp_enabled = !!profile.whatsapp_enabled;
+
+  // Brand tokens (migration 045). Accept either casing.
+  // Empty string is treated as "clear" — back to null + auto/fallback.
+  const brandFields = [
+    ["brandPrimaryColor", "brand_primary_color"],
+    ["brandBackground",   "brand_background"],
+    ["brandTextColor",    "brand_text_color"],
+    ["brandFontFamily",   "brand_font_family"],
+    ["brandLogoUrl",      "brand_logo_url"],
+  ];
+  for (const [camel, snake] of brandFields) {
+    if (profile[camel] !== undefined) {
+      dbProfile[snake] = profile[camel] === "" ? null : profile[camel];
+    } else if (profile[snake] !== undefined) {
+      dbProfile[snake] = profile[snake] === "" ? null : profile[snake];
+    }
+  }
   return dbProfile;
 }
 

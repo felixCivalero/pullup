@@ -103,6 +103,14 @@ import trackingRoutes from "./email/tracking/trackingRoutes.js";
 import { emitIntent, sourceFromRequest } from "./services/intentLog.js";
 import { handleMcp, mcpCorsPreflight } from "./mcp/httpHandler.js";
 import {
+  handleVerification as handleWhatsappWebhookVerification,
+  handleEventDelivery as handleWhatsappWebhookDelivery,
+} from "./whatsapp/webhooks/metaWebhook.js";
+import {
+  startVerification as startPhoneVerification,
+  redeemToken as redeemMagicLinkToken,
+} from "./services/phoneVerification.js";
+import {
   metadataPRM,
   metadataAS,
   register as oauthRegister,
@@ -831,6 +839,70 @@ app.post("/webhooks/ses-eventbridge", async (req, res) => {
       ok: false,
       error: "Failed to process SES EventBridge webhook",
     });
+  }
+});
+
+// ---------------------------
+// WEBHOOKS: WhatsApp (Meta Cloud API)
+// ---------------------------
+// GET = Meta's one-time verification challenge when registering the URL.
+// POST = ongoing event delivery (status updates + inbound messages).
+// Signature validation uses req.rawBody (captured by the global json
+// middleware's `verify` hook above).
+app.get("/webhooks/whatsapp", handleWhatsappWebhookVerification);
+app.post("/webhooks/whatsapp", handleWhatsappWebhookDelivery);
+
+// ---------------------------
+// PHONE VERIFICATION: magic-link via WhatsApp
+// ---------------------------
+// Kick off a verification — fired in the background as soon as the
+// signup form's phone field becomes valid E.164. Body:
+//   { phone, intent?, payload?, defaultCountry? }
+app.post("/api/verify/phone/start", async (req, res) => {
+  try {
+    const { phone, intent = "verify_phone", payload = {}, defaultCountry = null } = req.body || {};
+    const result = await startPhoneVerification({
+      phone,
+      intent,
+      payload,
+      defaultCountry,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"] || null,
+    });
+    if (!result.ok) return res.status(400).json(result);
+    return res.json(result);
+  } catch (err) {
+    console.error("[verify/phone/start] error", err);
+    return res.status(500).json({ ok: false, error: "internal error" });
+  }
+});
+
+// Magic-link redemption. Hit by tapping the WhatsApp link.
+// Marks phone_verified_at, records the opt-in, and 302s the user
+// back into whatever flow they were in (payload.redirect_url).
+app.get("/v/:token", async (req, res) => {
+  try {
+    const result = await redeemMagicLinkToken({
+      rawToken: req.params.token,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"] || null,
+    });
+    if (!result.ok) {
+      return res
+        .status(400)
+        .send(
+          `Sorry — this link is no longer valid (${result.error}). Try signing in again.`,
+        );
+    }
+    const redirect =
+      result.payload?.redirect_url ||
+      (result.intent === "host_signup"
+        ? "/onboarding?phone_verified=1"
+        : "/?phone_verified=1");
+    return res.redirect(302, redirect);
+  } catch (err) {
+    console.error("[/v/:token] redeem error", err);
+    return res.status(500).send("Something went wrong. Try again in a moment.");
   }
 });
 
@@ -1641,6 +1713,9 @@ app.post("/events", requireAuth, async (req, res) => {
     // Custom RSVP form fields
     formFields,
 
+    // Per-event RSVP contact channel: 'email' | 'whatsapp' | 'both'.
+    contactChannel,
+
     // Reveal & waitlist features
     hideLocation,
     hideDate,
@@ -1710,6 +1785,7 @@ app.post("/events", requireAuth, async (req, res) => {
     soundcloud,
     sections,
     formFields,
+    contactChannel,
     hideLocation,
     hideDate,
     instantWaitlist,
@@ -4042,6 +4118,9 @@ app.put(
       // Custom RSVP form fields
       formFields,
 
+      // Per-event RSVP contact channel: 'email' | 'whatsapp' | 'both'.
+      contactChannel,
+
       // Reveal & waitlist features
       hideLocation,
       hideDate,
@@ -4200,6 +4279,7 @@ app.put(
         soundcloud,
         sections: processedSections,
         formFields,
+        contactChannel,
         hideLocation,
         hideDate,
         instantWaitlist,

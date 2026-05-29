@@ -187,6 +187,7 @@ export async function mapEventFromDb(dbEvent) {
     sections: dbEvent.sections || [],
     adminTags: Array.isArray(dbEvent.admin_tags) ? dbEvent.admin_tags : [],
     formFields: dbEvent.form_fields || [],
+    contactChannel: dbEvent.contact_channel || "email",
     hideLocation: dbEvent.hide_location || false,
     hideDate: dbEvent.hide_date || false,
     instantWaitlist: dbEvent.instant_waitlist || false,
@@ -724,6 +725,7 @@ function mapEventToDb(eventData) {
   if (eventData.titleSettings !== undefined) dbData.title_settings = eventData.titleSettings;
   if (eventData.sections !== undefined) dbData.sections = eventData.sections;
   if (eventData.formFields !== undefined) dbData.form_fields = eventData.formFields;
+  if (eventData.contactChannel !== undefined) dbData.contact_channel = eventData.contactChannel;
   if (eventData.hideLocation !== undefined) dbData.hide_location = eventData.hideLocation;
   if (eventData.hideDate !== undefined) dbData.hide_date = eventData.hideDate;
   if (eventData.instantWaitlist !== undefined) dbData.instant_waitlist = eventData.instantWaitlist;
@@ -798,6 +800,9 @@ export async function createEvent({
 
   // Custom RSVP form fields
   formFields,
+
+  // Per-event RSVP contact channel: 'email' | 'whatsapp' | 'both'.
+  contactChannel = "email",
 
   // Reveal & waitlist features
   hideLocation = false,
@@ -882,6 +887,7 @@ export async function createEvent({
     soundcloud,
     sections: Array.isArray(sections) ? sections : [],
     formFields: Array.isArray(formFields) ? formFields : [],
+    contactChannel: ["email","whatsapp","both"].includes(contactChannel) ? contactChannel : "email",
     hideLocation: !!hideLocation,
     hideDate: !!hideDate,
     instantWaitlist: !!instantWaitlist,

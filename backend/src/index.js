@@ -858,7 +858,9 @@ app.post("/webhooks/whatsapp", handleWhatsappWebhookDelivery);
 // Kick off a verification — fired in the background as soon as the
 // signup form's phone field becomes valid E.164. Body:
 //   { phone, intent?, payload?, defaultCountry? }
-app.post("/api/verify/phone/start", async (req, res) => {
+// Mounted at /verify/* (no /api prefix) — nginx strips /api/ before
+// proxying, matching the rest of the codebase's route convention.
+app.post("/verify/phone/start", async (req, res) => {
   try {
     const { phone, intent = "verify_phone", payload = {}, defaultCountry = null } = req.body || {};
     const result = await startPhoneVerification({

@@ -888,8 +888,70 @@ app.post("/verify/phone/start", async (req, res) => {
 });
 
 // Magic-link redemption. Hit by tapping the WhatsApp link.
-// Marks phone_verified_at, records the opt-in, and 302s the user
-// back into whatever flow they were in (payload.redirect_url).
+// Marks phone_verified_at, records the opt-in, and renders a polished
+// server-side confirmation page (or 302s into the caller's flow if a
+// redirect_url was set in the token payload).
+//
+// The success page is self-contained inline HTML so it doesn't depend
+// on any specific frontend route being deployed. New-brand palette:
+// white canvas, near-black ink, screamy-pink accent, calm-green check.
+function renderVerifyHtml({ ok, message }) {
+  const tone = ok
+    ? { color: "#16a34a", glyph: "✓", title: "Phone verified" }
+    : { color: "#dc2626", glyph: "!", title: "Link no longer valid" };
+  const body = ok
+    ? "You're all set. Reminders, RSVPs, and future mobile-payment rails all key off this verified number. You can close this and head back to PullUp."
+    : `That magic link didn't redeem (${message || "expired or already used"}). Open PullUp again and we'll send a fresh one.`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${ok ? "Phone verified · PullUp" : "Link expired · PullUp"}</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100dvh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: #ffffff; color: #0a0a0a;
+      display: flex; align-items: center; justify-content: center; padding: 24px;
+    }
+    .card {
+      width: 100%; max-width: 420px; text-align: center; padding: 8px 4px 0;
+    }
+    .glyph {
+      width: 84px; height: 84px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 44px; font-weight: 700; color: #fff;
+      background: ${tone.color};
+      box-shadow: 0 8px 24px ${tone.color}33;
+      margin-bottom: 18px;
+    }
+    h1 { font-size: 26px; font-weight: 700; margin: 0 0 10px; letter-spacing: -0.01em; }
+    p  { font-size: 15px; line-height: 1.55; color: rgba(10,10,10,0.62); margin: 0 0 22px; }
+    a.cta {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 12px 22px; border-radius: 999px; text-decoration: none;
+      background: #ec178f; color: #fff; font-size: 14px; font-weight: 700;
+      box-shadow: 0 6px 18px rgba(236, 23, 143, 0.28);
+    }
+    .wordmark { margin-top: 28px; font-size: 11px; letter-spacing: 0.16em;
+      text-transform: uppercase; color: rgba(10,10,10,0.45); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="glyph">${tone.glyph}</div>
+    <h1>${tone.title}</h1>
+    <p>${body}</p>
+    <a class="cta" href="https://pullup.se">Open PullUp</a>
+    <div class="wordmark">pullup</div>
+  </div>
+</body>
+</html>`;
+}
+
 app.get("/v/:token", async (req, res) => {
   try {
     const result = await redeemMagicLinkToken({
@@ -898,21 +960,23 @@ app.get("/v/:token", async (req, res) => {
       userAgent: req.headers["user-agent"] || null,
     });
     if (!result.ok) {
-      return res
-        .status(400)
-        .send(
-          `Sorry — this link is no longer valid (${result.error}). Try signing in again.`,
-        );
+      res.set("Content-Type", "text/html; charset=utf-8");
+      return res.status(400).send(renderVerifyHtml({ ok: false, message: result.error }));
     }
-    const redirect =
-      result.payload?.redirect_url ||
-      (result.intent === "host_signup"
-        ? "/onboarding?phone_verified=1"
-        : "/?phone_verified=1");
-    return res.redirect(302, redirect);
+    // Explicit redirect_url overrides the default confirmation page —
+    // used for flows like RSVP that want to drop the user back where
+    // they came from with the verify badge already lit.
+    if (result.payload?.redirect_url) {
+      return res.redirect(302, result.payload.redirect_url);
+    }
+    res.set("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(renderVerifyHtml({ ok: true }));
   } catch (err) {
     console.error("[/v/:token] redeem error", err);
-    return res.status(500).send("Something went wrong. Try again in a moment.");
+    res.set("Content-Type", "text/html; charset=utf-8");
+    return res
+      .status(500)
+      .send(renderVerifyHtml({ ok: false, message: "something went wrong" }));
   }
 });
 

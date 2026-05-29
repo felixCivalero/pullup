@@ -952,20 +952,55 @@ function renderVerifyHtml({ ok, message }) {
 </html>`;
 }
 
+// User-Agent patterns of crawlers that pre-fetch URLs in messages they
+// route. If we redeemed on first hit, WhatsApp's own preview crawler
+// (facebookexternalhit) would consume the token in ~3 seconds, before
+// the human ever tapped. We serve them a success-looking preview but
+// DO NOT redeem; the token stays valid for the real tap.
+const URL_PREVIEW_BOTS = [
+  "facebookexternalhit",
+  "whatsapp",
+  "twitterbot",
+  "linkedinbot",
+  "slackbot",
+  "discordbot",
+  "telegrambot",
+  "applebot",
+  "googlebot",
+  "bingbot",
+  "yandexbot",
+  "duckduckbot",
+  "baiduspider",
+];
+function isUrlPreviewBot(ua) {
+  if (!ua) return false;
+  const lower = ua.toLowerCase();
+  return URL_PREVIEW_BOTS.some((p) => lower.includes(p));
+}
+
 app.get("/v/:token", async (req, res) => {
+  const ua = req.headers["user-agent"] || null;
+
+  // Skip redeem for link-preview crawlers. Render a benign success-looking
+  // page so the chat-bubble preview looks polished without burning the
+  // token. The actual redemption happens on the real human tap below.
+  if (isUrlPreviewBot(ua)) {
+    res.set("Content-Type", "text/html; charset=utf-8");
+    return res
+      .status(200)
+      .send(renderVerifyHtml({ ok: true }));
+  }
+
   try {
     const result = await redeemMagicLinkToken({
       rawToken: req.params.token,
       ipAddress: req.ip,
-      userAgent: req.headers["user-agent"] || null,
+      userAgent: ua,
     });
     if (!result.ok) {
       res.set("Content-Type", "text/html; charset=utf-8");
       return res.status(400).send(renderVerifyHtml({ ok: false, message: result.error }));
     }
-    // Explicit redirect_url overrides the default confirmation page —
-    // used for flows like RSVP that want to drop the user back where
-    // they came from with the verify badge already lit.
     if (result.payload?.redirect_url) {
       return res.redirect(302, result.payload.redirect_url);
     }

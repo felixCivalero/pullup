@@ -1824,6 +1824,16 @@ function mapPersonFromDb(dbPerson) {
     // Marketing-unsubscribe timestamp surfaces here so callers can decide
     // sendability without re-querying.
     marketingUnsubscribedAt: dbPerson.marketing_unsubscribed_at || null,
+    // Phone-as-identity (migration 037). Surfaced under both camelCase
+    // and snake_case so the CRM UI can use whichever convention.
+    phoneE164:           dbPerson.phone_e164 || null,
+    phoneCountry:        dbPerson.phone_country || null,
+    phoneVerifiedAt:     dbPerson.phone_verified_at || null,
+    whatsappCapableAt:   dbPerson.whatsapp_capable_at || null,
+    phone_e164:          dbPerson.phone_e164 || null,
+    phone_country:       dbPerson.phone_country || null,
+    phone_verified_at:   dbPerson.phone_verified_at || null,
+    whatsapp_capable_at: dbPerson.whatsapp_capable_at || null,
     createdAt: dbPerson.created_at,
     updatedAt: dbPerson.updated_at,
   };
@@ -4786,6 +4796,20 @@ function mapProfileFromDb(dbProfile) {
     stripeConnectedAccountId: dbProfile.stripe_connected_account_id || null,
     isAdmin: dbProfile.is_admin || false,
     hostBrief: dbProfile.host_brief || "",
+    // Phone-as-identity + WhatsApp host preferences (migrations 037 + 044).
+    // Surfaced under both camelCase and snake_case so the settings UI
+    // (which keys off snake_case to match DB column names) and any
+    // existing camelCase callers both keep working.
+    phoneE164:             dbProfile.phone_e164 || null,
+    phoneCountry:          dbProfile.phone_country || null,
+    phoneVerifiedAt:       dbProfile.phone_verified_at || null,
+    whatsappSignature:     dbProfile.whatsapp_signature || "",
+    whatsappEnabled:       dbProfile.whatsapp_enabled === false ? false : true,
+    phone_e164:            dbProfile.phone_e164 || null,
+    phone_country:         dbProfile.phone_country || null,
+    phone_verified_at:     dbProfile.phone_verified_at || null,
+    whatsapp_signature:    dbProfile.whatsapp_signature || "",
+    whatsapp_enabled:      dbProfile.whatsapp_enabled === false ? false : true,
     createdAt: dbProfile.created_at,
     updatedAt: dbProfile.updated_at,
   };
@@ -4828,6 +4852,17 @@ function mapProfileToDb(profile) {
   // The admin flag is granted out-of-band via scripts/grant_admin.js, which
   // writes the column directly.
   if (profile.hostBrief !== undefined) dbProfile.host_brief = profile.hostBrief;
+  // WhatsApp host prefs (migration 044). Accept either camelCase or
+  // snake_case so the settings UI can save with the DB column names
+  // directly without an extra mapping layer on the frontend.
+  if (profile.whatsappSignature !== undefined)
+    dbProfile.whatsapp_signature = profile.whatsappSignature;
+  else if (profile.whatsapp_signature !== undefined)
+    dbProfile.whatsapp_signature = profile.whatsapp_signature;
+  if (profile.whatsappEnabled !== undefined)
+    dbProfile.whatsapp_enabled = !!profile.whatsappEnabled;
+  else if (profile.whatsapp_enabled !== undefined)
+    dbProfile.whatsapp_enabled = !!profile.whatsapp_enabled;
   return dbProfile;
 }
 

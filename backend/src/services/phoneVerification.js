@@ -79,6 +79,7 @@ export async function startVerification({
   userAgent = null,
   personId = null,
   profileId = null,
+  templateKey = "auth_magic_link",
 }) {
   if (!VALID_INTENTS.has(intent)) {
     return { ok: false, error: `invalid intent '${intent}'` };
@@ -125,7 +126,7 @@ export async function startVerification({
   try {
     await sendTemplate({
       to: norm.e164,
-      templateKey: "auth_magic_link",
+      templateKey,
       variables: { link },
       personId,
       profileId,

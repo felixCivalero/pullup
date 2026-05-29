@@ -15,14 +15,19 @@
 
 export const TEMPLATES = {
   // Magic-link phone verification at signup or RSVP.
+  // Submitted to Meta under the UTILITY category (not Authentication — Meta's
+  // Authentication category is hard-wired to OTP-code patterns and refuses
+  // URL bodies). Meta also forbids the body from ending with a variable, so
+  // we tail with a short expiry line that doubles as a security cue.
   auth_magic_link: {
     name: "auth_magic_link",
-    category: "authentication",
+    category: "utility",
     locale: "en",
     status: "draft",
-    body: "Tap to finish on PullUp: {{1}}",
+    body: "Tap to finish on PullUp: {{1}}\nLink expires in 15 minutes.",
     variables: ["link"],
-    render: ({ link }) => `Tap to finish on PullUp: ${link}`,
+    render: ({ link }) =>
+      `Tap to finish on PullUp: ${link}\nLink expires in 15 minutes.`,
   },
 
   // First-touch hello after RSVP. Opens the 24h conversation window.

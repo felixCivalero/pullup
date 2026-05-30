@@ -810,6 +810,14 @@ export function CreateEventPage() {
   // separately persists these tokens to the profile as the next-event default.
   const [brand, setBrand] = useState(draft?.brand || null);
   const [savingBrandDefault, setSavingBrandDefault] = useState(false);
+
+  // Create-mode: a DRAFT event is lazily created the moment the first media
+  // is added, so media uploads straight to storage (no in-memory-only files,
+  // no "leaving page loses your media", and the preview shows real content).
+  // Publish = flip this draft DRAFT→PUBLISHED. Edit mode ignores all this.
+  const [draftEventId, setDraftEventId] = useState(draft?.draftEventId || null);
+  const draftEventIdRef = useRef(null);   // sync mirror for async upload paths
+  const draftCreationRef = useRef(null);  // in-flight creation promise (dedupe)
   const thumbnailInputRef = useRef(null);
   // Carousel settings
   const [carouselAutoscroll, setCarouselAutoscroll] = useState(true);
@@ -1076,7 +1084,10 @@ export function CreateEventPage() {
   const [isDragging, setIsDragging] = useState(false);
 
   // Warn before navigating away if there are unsaved media files
-  const hasUnsavedMedia = mediaFiles.length > 0;
+  // Media now uploads to storage the moment it's added (to a draft event in
+  // create mode), so the only "unsaved" media is something still uploading or
+  // that failed to upload — those are the only cases worth warning about.
+  const hasUnsavedMedia = mediaFiles.some((m) => m.file && !m.serverId);
   const hasUnsavedMediaRef = useRef(false);
   hasUnsavedMediaRef.current = hasUnsavedMedia;
 
@@ -1145,6 +1156,7 @@ export function CreateEventPage() {
         const draftData = {
           title, titleVisible, titleAlign, titleFont, titleSize, titleColor, detailsColor, detailsGradient, detailsGradientEnabled,
           brand,
+          draftEventId: draftEventIdRef.current,
           description, location, locationLat, locationLng, hideLocation, hideDate, revealHint, dateRevealHint,
           startsAt, endsAt, timezone, maxAttendees, waitlistEnabled, instantWaitlist,
           sellTicketsEnabled, ticketPrice, ticketCurrency,
@@ -1255,6 +1267,46 @@ export function CreateEventPage() {
     setDinnerSlotsConfig([]);
     setInstagram(""); setSpotify(""); setTiktok(""); setSoundcloud("");
   }, [editEventId]);
+
+  // Create-mode reload: reconnect to the DRAFT event saved in localStorage and
+  // hydrate its already-uploaded media, so the preview shows real content and
+  // newly added media attaches to the SAME draft (no orphans).
+  useEffect(() => {
+    if (isEditMode) return;
+    const id = draft?.draftEventId;
+    if (!id) return;
+    draftEventIdRef.current = id;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authenticatedFetch(`/host/events/${id}`);
+        if (!res.ok) throw new Error("draft gone");
+        const ev = await res.json();
+        if (cancelled) return;
+        if (ev.media && ev.media.length > 0) {
+          setMediaMode(ev.media[0].mediaType === "video" ? "video" : "images");
+          const loaded = ev.media.map((m) => ({
+            id: m.id,
+            serverId: m.id,
+            file: null,
+            preview: m.thumbnailUrl || m.url,
+            previewUrl: m.url,
+            mediaType: m.mediaType || "image",
+            url: m.url,
+          }));
+          setMediaFiles(loaded);
+          setImagePreview(loaded[0].previewUrl || loaded[0].preview);
+        }
+      } catch {
+        // Draft was published/deleted in the meantime — start fresh.
+        if (!cancelled) {
+          draftEventIdRef.current = null;
+          setDraftEventId(null);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Create mode: pre-fill the theme picker from the host's saved default
   // brand (profiles.brand_*), so a new event starts in their look. The
@@ -1623,9 +1675,61 @@ export function CreateEventPage() {
     });
   }
 
+  // Patch one media item in place (by local id).
+  const patchMediaItem = (id, patch) =>
+    setMediaFiles((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+
+  // Resolve the event id media should attach to. Edit mode → the event being
+  // edited. Create mode → a DRAFT event, created on demand exactly once
+  // (concurrent first-adds share the same in-flight promise).
+  async function ensureDraftEvent() {
+    if (isEditMode) return editEventId;
+    if (draftEventIdRef.current) return draftEventIdRef.current;
+    if (draftCreationRef.current) return draftCreationRef.current;
+
+    draftCreationRef.current = (async () => {
+      // startsAt has a sensible default; guard against empty/past so the
+      // DRAFT passes POST /events validation. Real values land on publish.
+      let draftStartsAt;
+      try {
+        const d = startsAt ? new Date(startsAt) : null;
+        draftStartsAt = d && d > new Date() ? d : new Date(Date.now() + 7 * 24 * 3600 * 1000);
+      } catch {
+        draftStartsAt = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+      }
+      const res = await authenticatedFetch("/events", {
+        method: "POST",
+        body: JSON.stringify({
+          title: title || "Untitled event",
+          startsAt: draftStartsAt.toISOString(),
+          timezone,
+          createdVia: "create",
+          status: "DRAFT",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to start draft");
+      }
+      const created = await res.json();
+      draftEventIdRef.current = created.id;
+      setDraftEventId(created.id);
+      return created.id;
+    })();
+
+    try {
+      return await draftCreationRef.current;
+    } catch (err) {
+      draftCreationRef.current = null; // allow retry on next add
+      throw err;
+    }
+  }
+
   async function handleMediaAdd(files) {
     const fileList = Array.isArray(files) ? files : [files];
     const maxItems = 10;
+    const addedItems = [];          // items accepted this batch, in order
+    const baseIndex = mediaFiles.length; // their positions start here
 
     for (const file of fileList) {
       const validation = validateMediaFile(file);
@@ -1728,9 +1832,38 @@ export function CreateEventPage() {
 
       // Set media mode
       setMediaMode(isVideo ? "video" : "images");
+      addedItems.push(mediaItem);
     }
 
-    showToast(`Media added! It will be uploaded when you ${isEditMode ? "save" : "create the event"}.`, "success");
+    if (addedItems.length === 0) return;
+
+    // Persist immediately. Create mode lazily spins up a DRAFT event so the
+    // direct-to-storage pipeline (same as edit mode) has an id to attach to.
+    let eventId;
+    try {
+      eventId = await ensureDraftEvent();
+    } catch (err) {
+      console.error("[handleMediaAdd] could not start draft", err);
+      showToast("Couldn't start the upload — it'll retry when you create the event", "warning");
+      return; // items stay in mediaFiles without serverId → submit uploads them
+    }
+
+    addedItems.forEach((item, k) => {
+      patchMediaItem(item.id, { uploading: true, uploadError: false });
+      uploadQueuedMedia(eventId, item, baseIndex + k)
+        .then((row) =>
+          patchMediaItem(item.id, {
+            uploading: false,
+            serverId: row.id,
+            url: row.url || item.preview,
+          }),
+        )
+        .catch((err) => {
+          console.error("[handleMediaAdd] upload failed", err);
+          patchMediaItem(item.id, { uploading: false, uploadError: true });
+          showToast("A file failed to upload — it'll retry when you save", "error");
+        });
+    });
   }
 
   // Upload a single queued media item via the direct-to-Supabase pipeline.
@@ -1787,10 +1920,12 @@ export function CreateEventPage() {
   }
 
   function handleMediaRemove(id) {
-    // If editing and item is already on server, delete it
+    // If the item is already on the server (edit event OR the create-mode
+    // draft), delete it there too.
     const item = mediaFiles.find((m) => m.id === id);
-    if (isEditMode && item?.serverId) {
-      deleteEventMedia(editEventId, item.serverId).catch((err) =>
+    const ownerEventId = isEditMode ? editEventId : draftEventIdRef.current;
+    if (item?.serverId && ownerEventId) {
+      deleteEventMedia(ownerEventId, item.serverId).catch((err) =>
         console.error("Failed to delete media from server:", err)
       );
     }
@@ -2118,8 +2253,76 @@ export function CreateEventPage() {
         setUploadStatus(null);
         showToast("Event updated successfully!", "success");
         navigate(`/app/events/${editEventId}/guests`);
+      } else if (draftEventIdRef.current) {
+        // --- CREATE MODE (draft exists): publish the draft ---
+        // Media already uploaded straight to this draft as it was added; here
+        // we just save the final fields and flip DRAFT → PUBLISHED.
+        const draftId = draftEventIdRef.current;
+        let finalEvent;
+
+        // Safety net: persist any media that didn't upload on-add.
+        const pending = mediaFiles.filter((m) => m.file && !m.serverId);
+        if (pending.length > 0) {
+          setUploadStatus({ done: 0, total: pending.length });
+          let done = 0;
+          const settled = await Promise.allSettled(
+            pending.map((m) =>
+              uploadQueuedMedia(draftId, m, mediaFiles.indexOf(m)).then((r) => {
+                patchMediaItem(m.id, { uploading: false, serverId: r.id });
+                done += 1;
+                setUploadStatus({ done, total: pending.length });
+                return r;
+              }),
+            ),
+          );
+          const failed = settled.filter((s) => s.status === "rejected").length;
+          if (failed > 0) showToast(`${failed} of ${pending.length} files failed to upload`, "warning");
+        }
+
+        const res = await authenticatedFetch(`/host/events/${draftId}`, {
+          method: "PUT",
+          body: JSON.stringify({ ...requestBody, status: "PUBLISHED" }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to publish event");
+        }
+        finalEvent = await res.json();
+
+        // Reorder media to match the current UI order.
+        const serverItems = mediaFiles.filter((m) => m.serverId);
+        if (serverItems.length > 1) {
+          try {
+            await reorderEventMedia(
+              draftId,
+              serverItems.map((m) => ({ id: m.serverId, position: mediaFiles.indexOf(m) })),
+            );
+          } catch (e) {
+            console.error("Error reordering media:", e);
+          }
+        }
+
+        // Custom thumbnail (overrides auto cover).
+        if (customThumbnail?.file) {
+          try {
+            await uploadEventImageDirect({ eventId: draftId, file: customThumbnail.file });
+          } catch (e) {
+            console.error("Error uploading custom thumbnail:", e);
+          }
+        }
+
+        // Refresh so the success page gets final media order + thumbnail.
+        try {
+          const r2 = await authenticatedFetch(`/host/events/${draftId}`);
+          if (r2.ok) finalEvent = await r2.json();
+        } catch (_) {}
+
+        setUploadStatus(null);
+        clearDraft();
+        showToast("Event created successfully!", "success");
+        navigate(`/events/${finalEvent.slug}/success`, { state: { event: finalEvent } });
       } else {
-        // --- CREATE MODE: POST new event ---
+        // --- CREATE MODE (no media): POST new event ---
         const res = await authenticatedFetch("/events", {
           method: "POST",
           body: JSON.stringify(requestBody),

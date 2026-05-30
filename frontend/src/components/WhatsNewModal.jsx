@@ -20,8 +20,6 @@ import {
 
 const IG_GRADIENT =
   "linear-gradient(45deg,#f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)";
-const WA_GREEN = "#25d366";
-const WA_READ = "#34b7f1";
 
 // ── Scenes ──────────────────────────────────────────────────────────────────
 // Each scene fills the media area (full card width, fixed height) and loops.
@@ -35,45 +33,14 @@ function WelcomeScene() {
       </div>
       <div className="wn-chips">
         <span className="wn-chip" style={{ animationDelay: "0s" }}>
-          WhatsApp
-        </span>
-        <span className="wn-chip" style={{ animationDelay: ".5s" }}>
           Your brand
         </span>
-        <span className="wn-chip" style={{ animationDelay: "1s" }}>
+        <span className="wn-chip" style={{ animationDelay: ".5s" }}>
           AI control
         </span>
-      </div>
-    </div>
-  );
-}
-
-function WhatsAppScene() {
-  return (
-    <div
-      className="wn-scene"
-      style={{ background: "rgba(37, 211, 102, 0.07)", justifyContent: "center" }}
-    >
-      <div className="wn-chat">
-        <div className="wn-bubble wn-bubble-in">
-          Is there still room for Friday?
-        </div>
-        <div className="wn-bubble wn-bubble-out" style={{ background: WA_GREEN }}>
-          You're on the list — see you at 8 🎉
-          <span className="wn-ticks">
-            <svg width="18" height="11" viewBox="0 0 18 11" fill="none">
-              <path
-                className="wn-tick"
-                d="M1 6l3 3 6-7M6 9l1 1 7-8"
-                stroke="#0a0a0a"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </svg>
-          </span>
-        </div>
+        <span className="wn-chip" style={{ animationDelay: "1s" }}>
+          Instagram
+        </span>
       </div>
     </div>
   );
@@ -157,20 +124,11 @@ const SLIDES = [
     accent: colors.accent,
   },
   {
-    id: "whatsapp",
-    Scene: WhatsAppScene,
-    eyebrow: "Live now",
-    title: "Reach guests on WhatsApp",
-    body: "Confirmations and reminders land where people actually reply. Verify your number and PullUp handles the rest.",
-    accent: WA_GREEN,
-    cta: { label: "Set up WhatsApp", path: "/settings" },
-  },
-  {
     id: "brand",
     Scene: BrandScene,
     eyebrow: "Live now",
     title: "Make the page yours",
-    body: "Your colors, your identity — carried from your event page into emails and WhatsApp. Get creative with the form; the page updates as you go.",
+    body: "Your colors, your identity — carried from your event page into your emails. Get creative with the form; the page updates as you go.",
     accent: colors.secondary,
     cta: { label: "Style your page", path: "/settings" },
   },
@@ -410,30 +368,6 @@ const styles = `
   @keyframes wn-pulse { 0%,100% { transform: scale(.9); opacity: .7; } 50% { transform: scale(1.08); opacity: 1; } }
   @keyframes wn-floatup { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 
-  /* ── WhatsApp ── */
-  .wn-chat { width: 280px; display: flex; flex-direction: column; gap: 10px; }
-  .wn-bubble {
-    font-size: 13.5px; line-height: 1.4; padding: 9px 13px; max-width: 82%;
-    box-shadow: 0 2px 6px rgba(10,10,10,0.08); opacity: 0;
-  }
-  .wn-bubble-in {
-    align-self: flex-start; background: #fff; color: ${colors.text};
-    border-radius: 14px 14px 14px 4px; animation: wn-in-l .4s ease forwards .2s;
-  }
-  .wn-bubble-out {
-    align-self: flex-end; color: #fff; border-radius: 14px 14px 4px 14px;
-    position: relative; padding-right: 30px; animation: wn-in-r .4s ease forwards 1.1s;
-  }
-  .wn-ticks { position: absolute; right: 9px; bottom: 7px; }
-  .wn-tick {
-    stroke-dasharray: 30; stroke-dashoffset: 30;
-    animation: wn-draw .5s ease forwards 1.7s, wn-readcolor .3s ease forwards 2.5s;
-  }
-  @keyframes wn-in-l { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
-  @keyframes wn-in-r { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
-  @keyframes wn-draw { to { stroke-dashoffset: 0; } }
-  @keyframes wn-readcolor { to { stroke: ${WA_READ}; } }
-
   /* ── Brand ── */
   .wn-card {
     width: 168px; background: #fff; border: 1px solid ${colors.border};
@@ -522,4 +456,6 @@ const styles = `
     opacity: 0; animation: wn-in-r .4s ease forwards 1.5s;
   }
   .wn-ig-pill { color: #fff; font-size: 11px; font-weight: 800; padding: 5px 10px; border-radius: 999px; }
+  @keyframes wn-in-l { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+  @keyframes wn-in-r { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 `;

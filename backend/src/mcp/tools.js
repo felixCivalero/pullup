@@ -17,6 +17,7 @@ import dns from "dns/promises";
 import net from "net";
 
 import { makeApi, frontendUrl } from "./api.js";
+import { generateWaitlistToken } from "../utils/waitlistTokens.js";
 import { eventBanner, toolResultText, toolError } from "./format.js";
 import {
   analyzeEvent,
@@ -592,7 +593,7 @@ function buildFormFieldsFromExtras(extras) {
   return [...locked, ...custom];
 }
 
-function buildHandlers(api, _hostId) {
+function buildHandlers(api, hostId) {
   const resolveEventBySlug = resolveEventBySlugVia(api);
 
   async function createEvent(args) {
@@ -975,13 +976,22 @@ function buildHandlers(api, _hostId) {
   // in one place. Requires the host be signed in to PullUp in that browser.
   async function getMediaUploadLink(args) {
     const existing = await resolveEventBySlug(args.slug);
+    // Short-lived, single-event capability. The host opens it from chat, drops
+    // a file, and the focused page (frontend /m/:token) attaches it straight to
+    // the event — no full editor, no separate login. See the /media-link/:token
+    // routes in index.js.
+    const token = generateWaitlistToken(
+      { type: "media_upload", eventId: existing.id, hostId: hostId || null },
+      { expiresIn: "2h" }
+    );
+    const url = frontendUrl(`/m/${token}`);
     return toolResultText(
       [
-        `Open the edit page for "${existing.title}":`,
+        `Quick upload link for "${existing.title}" — drop a video (up to 500MB) or photos (up to 50MB) and they attach straight to the event:`,
         ``,
-        `  ${editUrlForEventId(existing.id)}`,
+        `  ${url}`,
         ``,
-        `Drop a video (up to 500MB) or image (up to 50MB) onto the media area and it'll attach to the event.`,
+        `It's a focused uploader, not the full editor. Once the file lands, close the tab and come back here — tell me "done" and I'll confirm it's on the event. Link's good for 2 hours.`,
       ].join("\n")
     );
   }
@@ -2405,9 +2415,9 @@ export function buildTools(ctx) {
     },
     {
       name: "get_media_upload_link",
-      title: "Get the event edit page link for local files",
+      title: "Get a focused upload link for local files",
       description:
-        "Returns the event's edit page URL, where the host drag-and-drops a media file (image up to 50MB or video up to 500MB) and tunes media display settings (fit, focus, loop/autoplay/audio for videos) alongside the rest of the event. Use this whenever the host has a local file with no public URL — claude.ai web has no filesystem access and the MCP envelope can't carry large videos. The host must be signed in to PullUp in that browser.",
+        "Returns a short-lived (2h) link to a focused, single-purpose uploader where the host drag-and-drops a local media file (image up to 50MB or video up to 500MB) and it attaches straight to the event. No full editor, no separate sign-in — the link itself authorizes the upload, and the host closes the tab to return to the chat. Use this whenever the host has a local file with no public URL: claude.ai web has no filesystem access and the MCP envelope can't carry large videos. After the host says they've uploaded, call get_event to confirm the media landed.",
       inputSchema: MediaUploadLinkInput,
       handler: h.getMediaUploadLink,
     },

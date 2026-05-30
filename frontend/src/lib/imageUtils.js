@@ -1,7 +1,7 @@
 // frontend/src/lib/imageUtils.js
 // Centralized image upload and compression utilities
 
-import { authenticatedFetch } from "./api.js";
+import { authenticatedFetch, API_BASE } from "./api.js";
 import { supabase } from "./supabase.js";
 
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -342,6 +342,88 @@ export async function uploadEventMediaDirect({
   }
   if (onProgress) onProgress(100);
   return await recordRes.json();
+}
+
+/**
+ * Token-gated sibling of uploadEventMediaDirect, used by the MCP "media link"
+ * uploader (frontend/src/pages/MediaUploadPage.jsx). Same three-step pipeline —
+ * mint a signed URL, PUT the file to Storage, record the row — but it talks to
+ * the public /media-link/:token endpoints with no session: the token in the URL
+ * is the only credential, and the event is pinned server-side by the token.
+ */
+export async function uploadEventMediaViaLink({
+  token,
+  file,
+  mediaType,            // "image" | "video" | "gif"
+  position = 0,
+  thumbnailBlob = null, // optional: for videos, the still-frame as JPEG Blob
+  onProgress,
+  signal,
+}) {
+  const post = async (path, body) => {
+    const res = await fetch(
+      `${API_BASE}/media-link/${encodeURIComponent(token)}${path}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const e = new Error(err.error || "Upload failed");
+      e.status = res.status;
+      throw e;
+    }
+    return res.json();
+  };
+
+  // 1) Mint + upload the main file.
+  const main = await post("/storage-token", {
+    mimeType: file.type,
+    position,
+    kind: "main",
+  });
+  await uploadBlobToSignedUrl({
+    url: main.uploadUrl,
+    blob: file,
+    mimeType: file.type,
+    onProgress: onProgress ? (p) => onProgress(thumbnailBlob ? p * 0.9 : p) : undefined,
+    signal,
+  });
+
+  // 2) Optionally mint + upload a thumbnail (videos/gifs). Best-effort.
+  let thumbnailPath = null;
+  if (thumbnailBlob) {
+    try {
+      const thumb = await post("/storage-token", {
+        mimeType: thumbnailBlob.type || "image/jpeg",
+        position,
+        kind: "thumb",
+      });
+      await uploadBlobToSignedUrl({
+        url: thumb.uploadUrl,
+        blob: thumbnailBlob,
+        mimeType: thumbnailBlob.type || "image/jpeg",
+        onProgress: onProgress ? (p) => onProgress(90 + p * 0.1) : undefined,
+        signal,
+      });
+      thumbnailPath = thumb.path;
+    } catch (e) {
+      console.warn("[uploadEventMediaViaLink] thumbnail upload failed", e);
+    }
+  }
+
+  // 3) Record the media row.
+  const row = await post("/attach", {
+    storagePath: main.path,
+    thumbnailStoragePath: thumbnailPath,
+    mediaType,
+    mimeType: file.type,
+    position,
+  });
+  if (onProgress) onProgress(100);
+  return row;
 }
 
 /**

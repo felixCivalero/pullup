@@ -101,6 +101,10 @@ import { processSesEvent } from "./email/events/processSesEvent.js";
 import { handleProviderEvent, enqueueOutbox, sendEmail as infraSendEmail } from "./email/index.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
 import { emitIntent, sourceFromRequest } from "./services/intentLog.js";
+import {
+  mintMediaStorageToken,
+  attachDirectUploadMedia,
+} from "./services/eventMediaService.js";
 import { handleMcp, mcpCorsPreflight } from "./mcp/httpHandler.js";
 import {
   handleVerification as handleWhatsappWebhookVerification,
@@ -8406,6 +8410,111 @@ function extensionFromMime(mimeType) {
   if (ext === "jpeg") return "jpg";
   return ext || "jpg";
 }
+
+// ---------------------------
+// PUBLIC (token-gated): MCP "media upload link".
+//
+// The host asks Claude to add a video/photo from chat; get_media_upload_link
+// (src/mcp/tools.js) hands back a focused link to /m/:token. The token is a
+// short-lived (2h), single-event capability — no web session required, so the
+// uploader works even in a fresh tab. The page does ONE thing (drop media →
+// attach) and bounces the host back to their chat. eventId is read FROM the
+// token, never from the URL, so a token can't be retargeted at another event.
+// ---------------------------
+function verifyMediaLinkToken(rawToken) {
+  const decoded = verifyWaitlistToken(rawToken); // throws "Token expired" / "Invalid token"
+  if (decoded?.type !== "media_upload" || !decoded.eventId) {
+    throw new Error("Invalid token");
+  }
+  return decoded; // { type, eventId, hostId, iat, exp }
+}
+
+function mediaLinkErrorStatus(err) {
+  if (err?.message === "Token expired") return 410;
+  if (err?.message === "Invalid token") return 400;
+  return 500;
+}
+
+// Token preflight — the page calls this on load to show the event title and
+// how many media items are already attached.
+app.get("/media-link/:token", async (req, res) => {
+  try {
+    const decoded = verifyMediaLinkToken(req.params.token);
+    const event = await findEventById(decoded.eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const { supabase } = await import("./supabase.js");
+    const { count } = await supabase
+      .from("event_media")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", decoded.eventId);
+
+    res.json({ eventTitle: event.title, mediaCount: count || 0 });
+  } catch (err) {
+    res
+      .status(mediaLinkErrorStatus(err))
+      .json({ error: err.message || "This upload link isn't valid." });
+  }
+});
+
+// Mint a signed storage URL for the bearer of a valid media-link token.
+app.post("/media-link/:token/storage-token", async (req, res) => {
+  try {
+    const decoded = verifyMediaLinkToken(req.params.token);
+    const { mimeType, kind = "main", position } = req.body || {};
+    const result = await mintMediaStorageToken({
+      eventId: decoded.eventId,
+      mimeType,
+      kind,
+      position,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("[media-link storage-token]", err);
+    res
+      .status(mediaLinkErrorStatus(err))
+      .json({ error: err.message || "Could not mint upload URL" });
+  }
+});
+
+// Attach an uploaded object to the token's event.
+app.post("/media-link/:token/attach", async (req, res) => {
+  try {
+    const decoded = verifyMediaLinkToken(req.params.token);
+    const { storagePath, thumbnailStoragePath, mediaType, mimeType, position } =
+      req.body || {};
+
+    const result = await attachDirectUploadMedia({
+      eventId: decoded.eventId,
+      storagePath,
+      thumbnailStoragePath,
+      mediaType,
+      mimeType,
+      position,
+    });
+
+    emitIntent({
+      hostId: decoded.hostId || null,
+      tool: "upload_event_media",
+      args: {
+        eventId: decoded.eventId,
+        mediaUrl: result.url,
+        mediaType: result.mediaType,
+        setAsCover: result.isCover,
+      },
+      source: "mcp",
+      target: { type: "event", id: decoded.eventId },
+      result: { mediaId: result.id, url: result.url, isCover: result.isCover },
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error("[media-link attach]", err);
+    res
+      .status(mediaLinkErrorStatus(err))
+      .json({ error: err.message || "Failed to attach media" });
+  }
+});
 
 // ---------------------------
 // PROTECTED: Mint a Supabase signed upload URL for direct-to-storage upload.

@@ -30,6 +30,7 @@ import { ContentPlannerPage } from "./pages/ContentPlannerPage";
 import { OAuthAuthorizePage } from "./pages/OAuthAuthorizePage";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { WhatsappVerifyPage } from "./pages/WhatsappVerifyPage";
+import { MediaUploadPage } from "./pages/MediaUploadPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { IdeaWidget } from "./components/IdeaWidget";
@@ -62,6 +63,7 @@ function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/cookies" element={<CookiesPage />} />
         <Route path="/u/:token" element={<UnsubscribePage />} />
+        <Route path="/m/:token" element={<MediaUploadPage />} />
         <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
         <Route
           path="/e/:slug"

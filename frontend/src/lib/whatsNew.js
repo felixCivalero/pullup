@@ -4,7 +4,7 @@
 // the 2026 redesign, scoped to desktop. A host on two computers seeing it twice
 // is acceptable; it saves a profiles migration + round-trip. Bump the version
 // suffix to re-trigger for everyone on the next big release.
-export const WHATS_NEW_KEY = "pullup_whatsnew_2026_seen";
+export const WHATS_NEW_KEY = "pullup_whatsnew_2026_seen_v2";
 
 // Fired to re-open the walkthrough on demand (Settings → "What's new").
 // A global event keeps the trigger decoupled from where the modal is mounted.

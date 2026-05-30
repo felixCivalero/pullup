@@ -109,6 +109,10 @@ function InstagramScene() {
             RSVP →
           </span>
         </div>
+        <div className="wn-ig-arrow wn-ig-arrow-wa">↓ confirm on WhatsApp</div>
+        <div className="wn-ig-wa">
+          You're in — see you Fri, 8pm ✓
+        </div>
       </div>
     </div>
   );
@@ -145,8 +149,8 @@ const SLIDES = [
     id: "instagram",
     Scene: InstagramScene,
     eyebrow: "Coming in 2 weeks",
-    title: "Instagram DMs, on autopilot",
-    body: "Someone comments on your post — PullUp slides into their DMs with a sign-up link. Comment → DM → guest, hands-free.",
+    title: "Instagram DMs & WhatsApp, on autopilot",
+    body: "Someone comments on your post — PullUp slides into their DMs with a sign-up link. Then confirmations and reminders land on WhatsApp, where people actually reply. Both arriving in 2 weeks.",
     accent: "#dc2743",
   },
 ];
@@ -456,6 +460,13 @@ const styles = `
     opacity: 0; animation: wn-in-r .4s ease forwards 1.5s;
   }
   .wn-ig-pill { color: #fff; font-size: 11px; font-weight: 800; padding: 5px 10px; border-radius: 999px; }
+  .wn-ig-arrow-wa { animation-delay: 2s; }
+  .wn-ig-wa {
+    align-self: flex-start; background: #25d366; color: #0a0a0a;
+    border-radius: 12px 12px 12px 4px; padding: 8px 12px; font-size: 13px; font-weight: 600;
+    box-shadow: 0 4px 12px rgba(37,211,102,0.22); opacity: 0;
+    animation: wn-in-l .4s ease forwards 2.4s;
+  }
   @keyframes wn-in-l { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
   @keyframes wn-in-r { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 `;

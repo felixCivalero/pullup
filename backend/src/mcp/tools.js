@@ -158,6 +158,101 @@ function normalizeBrand(brand) {
   return out;
 }
 
+// ─── Event-page content: title typography + section blocks ────────────
+
+// Title typography (events.title_settings). Mirrors the editor's title controls.
+const TitleSettingsInput = z
+  .object({
+    visible: z.boolean().optional().describe("Show the title on the page. Default true."),
+    align: z.enum(["left", "center", "right"]).optional().describe("Title alignment. Default 'left'."),
+    font: z
+      .enum(["default", "serif", "mono", "condensed"])
+      .optional()
+      .describe("Title font style. Default 'default'."),
+    size: z.enum(["sm", "md", "lg"]).optional().describe("Title size. Default 'md'."),
+    color: z.string().optional().describe("Title color, hex. Default white (#ffffff)."),
+    detailsColor: z
+      .string()
+      .optional()
+      .describe("Color of the date/location line under the title, hex."),
+    detailsGradient: z
+      .string()
+      .optional()
+      .describe("Scrim/gradient color behind the title area, hex. Only used when detailsGradientEnabled is true."),
+    detailsGradientEnabled: z
+      .boolean()
+      .optional()
+      .describe("Enable a gradient behind the title for legibility over the cover image."),
+  })
+  .optional()
+  .describe("Title typography + color (events.title_settings).");
+
+// One content block on the event page (events.sections). Heterogeneous by
+// `type`; only the fields relevant to that type are read.
+const SectionInput = z.object({
+  type: z
+    .enum([
+      "title",
+      "location",
+      "datetime",
+      "text",
+      "hostedby",
+      "socials",
+      "spotify",
+      "applemusic",
+      "soundcloud",
+      "youtube",
+    ])
+    .describe(
+      "Block type. 'title'/'location'/'datetime' render the event's own title/place/time — include them to set their order and per-block font/color. 'text' = a heading+body block. 'hostedby' = a host/sponsor credit. 'socials' = a social-icon row. 'spotify'/'applemusic'/'soundcloud'/'youtube' = an embedded player."
+    ),
+  // text
+  title: z.string().optional().describe("'text' block: the heading."),
+  text: z.string().optional().describe("'text' block: the body (line breaks preserved)."),
+  // hostedby
+  name: z.string().optional().describe("'hostedby': the host/sponsor name (required for it to render)."),
+  logo: z.string().optional().describe("'hostedby': logo image URL."),
+  email: z.string().optional().describe("'hostedby': contact email."),
+  website: z.string().optional().describe("'hostedby': website URL."),
+  // socials
+  instagram: z.string().optional().describe("'socials': Instagram URL."),
+  spotify: z.string().optional().describe("'socials': Spotify URL."),
+  tiktok: z.string().optional().describe("'socials': TikTok URL."),
+  soundcloud: z.string().optional().describe("'socials': SoundCloud URL."),
+  // music embeds
+  url: z
+    .string()
+    .optional()
+    .describe("Music blocks (spotify/applemusic/soundcloud/youtube): the share URL to embed."),
+  // per-section theming (applies to title/location/datetime/text/hostedby)
+  fontFamily: z
+    .string()
+    .optional()
+    .describe(
+      "Per-block font — a curated font name (Inter, DM Sans, Manrope, Space Grotesk, Outfit, Helvetica, Playfair Display, Lora, Cormorant Garamond, Georgia, Space Mono, IBM Plex Mono)."
+    ),
+  fontColor: z.string().optional().describe("Per-block text color, hex."),
+});
+
+const SectionsInput = z
+  .array(SectionInput)
+  .optional()
+  .describe(
+    "The event page body as ordered content blocks (events.sections) — the rich alternative to the flat `description`. Typical order: a 'title' block, then 'datetime', 'location', then 'text' blocks / 'hostedby' credits / music embeds / a 'socials' row. Each block can carry its own fontFamily + fontColor. If you omit the structural 'title'/'location'/'datetime' blocks they're added automatically so the event's title/time/place still show. Omit `sections` entirely to leave the page body untouched."
+  );
+
+// Ensure the structural blocks exist so the title/time/place always render —
+// mirrors the editor, which always seeds them. Only used on CREATE; on update
+// the caller's section list is taken as authoritative.
+function normalizeSections(sections) {
+  if (!Array.isArray(sections)) return sections;
+  const present = new Set(sections.map((s) => s && s.type));
+  const missing = ["title", "location", "datetime"]
+    .filter((t) => !present.has(t))
+    .map((type) => ({ type }));
+  return [...missing, ...sections];
+}
+
 const CreateEventInput = {
   title: z.string().describe("Event title."),
   startsAt: z.string().describe(
@@ -174,7 +269,14 @@ const CreateEventInput = {
   locationLng: z.number().optional().describe(
     "Longitude (decimal degrees) of the venue, for the map pin on the public page."
   ),
-  description: z.string().optional(),
+  description: z.string().optional().describe(
+    "Short flat description — fine for a simple page. For a rich, styled page body use `sections` instead (text blocks, hosted-by, music embeds, per-block fonts/colors)."
+  ),
+  titleSettings: TitleSettingsInput,
+  sections: SectionsInput,
+  contactChannel: z.enum(["email", "whatsapp", "both"]).optional().describe(
+    "How guests reach the host from the event page. Default 'email'. 'whatsapp' or 'both' surfaces a WhatsApp contact."
+  ),
   maxAttendees: z.number().int().positive().optional(),
   imageUrl: z.string().optional().describe(
     "URL of a hosted cover image. Tip: call list_cover_image_gallery first to reuse one of the host's existing images, or call upload_event_image after create to attach a new one. For local files (videos, phone photos), use get_media_upload_link after create — claude.ai web can't read file paths."
@@ -662,6 +764,7 @@ function buildHandlers(api, hostId) {
       payload.formFields = buildFormFieldsFromExtras(extraRsvpFields);
     }
     if (payload.brand) payload.brand = normalizeBrand(payload.brand);
+    if (Array.isArray(payload.sections)) payload.sections = normalizeSections(payload.sections);
     const event = await api("POST", "/events", { body: payload });
     const { completeness, performance, top } = await buildEventCoaching(event);
 
@@ -2405,7 +2508,7 @@ export function buildTools(ctx) {
       name: "create_event",
       title: "Create a PullUp event",
       description:
-        "Creates a new event on PullUp. Defaults to DRAFT so the host can preview before going public. Returns the preview/share URLs. Pass status='PUBLISHED' to publish immediately. Use `brand` to theme the page (background + register-button color/text/font) to match the host's identity — pull the look from their IG/website.",
+        "Creates a new event on PullUp. Defaults to DRAFT so the host can preview before going public. Returns the preview/share URLs. Pass status='PUBLISHED' to publish immediately. Build a rich page: `sections` for the styled body (text blocks, hosted-by credits, music embeds, per-block fonts/colors), `titleSettings` for title typography, and `brand` to theme the page (background + register-button color/text/font) — pull the look from the host's IG/website.",
       inputSchema: CreateEventInput,
       handler: h.createEvent,
     },
@@ -2413,7 +2516,7 @@ export function buildTools(ctx) {
       name: "update_event",
       title: "Update a PullUp event",
       description:
-        "Updates fields on an existing event. Pass only the fields you want to change. Works on DRAFT and PUBLISHED events alike. Pass `brand` to re-theme (page background + register button), or brand=null to clear back to PullUp's standard dark theme.",
+        "Updates fields on an existing event. Pass only the fields you want to change. Works on DRAFT and PUBLISHED events alike. Pass `sections` to replace the page body (ordered content blocks), `titleSettings` for title typography, `brand` to re-theme (or brand=null to clear to PullUp standard). Note: `sections` REPLACES the whole body — pass the complete set of blocks you want, not just a delta. For tweaking one block on an existing rich page, the host's editor is better.",
       inputSchema: UpdateEventInput,
       handler: h.updateEvent,
     },

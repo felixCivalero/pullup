@@ -48,7 +48,7 @@ export function NewsletterPage() {
         if (!response.ok) {
           const code = String(payload?.code || "").toLowerCase();
           let message =
-            "We couldn’t update your preferences. Try again later or use the latest email you received.";
+            "We couldn't update your preferences. Try again later or use the latest email you received.";
 
           if (code === "invalid_token") {
             message =
@@ -72,7 +72,7 @@ export function NewsletterPage() {
             status: "unsubscribed",
             error: false,
             message:
-              "You’re unsubscribed. You won’t get Pullup invites at this address.",
+              "You're unsubscribed. You won't get Pullup invites at this address.",
           });
         } else if (status === "already_unsubscribed") {
           setState({
@@ -87,7 +87,7 @@ export function NewsletterPage() {
             status: "suppressed",
             error: false,
             message:
-              "You’re not currently subscribed at this address. Nothing more to do.",
+              "You're not currently subscribed at this address. Nothing more to do.",
           });
         } else {
           setState({
@@ -95,7 +95,7 @@ export function NewsletterPage() {
             status: "unknown",
             error: false,
             message:
-              "Your email preferences were updated. If this wasn’t you, ignore this change.",
+              "Your email preferences were updated. If this wasn't you, ignore this change.",
           });
         }
       } catch (error) {
@@ -105,7 +105,7 @@ export function NewsletterPage() {
           status: "error",
           error: true,
           message:
-            "We couldn’t reach the server. Check your connection and try again.",
+            "We couldn't reach the server. Check your connection and try again.",
         });
       }
     }
@@ -119,13 +119,13 @@ export function NewsletterPage() {
 
   const title =
     state.status === "unsubscribed"
-      ? "You’re off the list"
+      ? "You're off the list"
       : state.status === "already_unsubscribed"
       ? "Already unsubscribed"
       : state.status === "suppressed"
       ? "Nothing to update"
       : state.error
-      ? "We couldn’t update this link"
+      ? "We couldn't update this link"
       : "Updating your preferences";
 
   return (
@@ -141,7 +141,7 @@ export function NewsletterPage() {
         right: 0,
         bottom: 0,
         overflow: "hidden",
-        background: `${colors.gradientGlow}, ${colors.background}`,
+        background: colors.background,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -154,10 +154,9 @@ export function NewsletterPage() {
           maxWidth: "360px",
           width: "100%",
           borderRadius: "24px",
-          background:
-            "linear-gradient(145deg, rgba(11,10,20,0.98), rgba(17,15,30,0.98))",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
-          border: "1px solid rgba(255,255,255,0.12)",
+          background: "#ffffff",
+          boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
+          border: `1px solid ${colors.border}`,
           padding: "20px 20px 16px",
           textAlign: "left",
         }}
@@ -167,7 +166,7 @@ export function NewsletterPage() {
             fontSize: "11px",
             textTransform: "uppercase",
             letterSpacing: "0.16em",
-            opacity: 0.6,
+            color: colors.textSubtle,
             marginBottom: 10,
           }}
         >
@@ -179,7 +178,7 @@ export function NewsletterPage() {
             fontWeight: 700,
             margin: 0,
             marginBottom: 8,
-            color: "#fff",
+            color: colors.text,
           }}
         >
           {title}
@@ -188,7 +187,7 @@ export function NewsletterPage() {
           style={{
             fontSize: "13px",
             lineHeight: 1.6,
-            color: "rgba(255,255,255,0.8)",
+            color: colors.textMuted,
             margin: 0,
             marginBottom: 16,
           }}
@@ -206,9 +205,8 @@ export function NewsletterPage() {
             padding: "10px 0",
             borderRadius: "999px",
             border: "none",
-            background:
-              "linear-gradient(135deg, #f5f5f5 0%, #c7c7c7 60%, #a1a1a1 100%)",
-            color: "#121212",
+            background: colors.accent,
+            color: "#ffffff",
             fontSize: "12px",
             fontWeight: 600,
             letterSpacing: "0.08em",
@@ -222,4 +220,3 @@ export function NewsletterPage() {
     </div>
   );
 }
-

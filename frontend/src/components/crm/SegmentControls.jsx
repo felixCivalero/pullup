@@ -2,10 +2,12 @@
 // the admin email page (AdminEmailPage). Kept dependency-free and
 // styled inline so they slot into either surface without theme conflicts.
 
+import { colors } from "../../theme/colors.js";
+
 // SegmentedControl — single-select pill row with a sliding accent thumb.
 // Use it for small, stable option sets (3–5 items) where the user picks
 // exactly one. The thumb glides between positions.
-export function SegmentedControl({ value, options, onChange, accent = "#fff" }) {
+export function SegmentedControl({ value, options, onChange, accent = colors.accent }) {
   const idx = Math.max(
     0,
     options.findIndex((o) => String(o.key) === String(value)),
@@ -18,9 +20,9 @@ export function SegmentedControl({ value, options, onChange, accent = "#fff" }) 
         position: "relative",
         display: "flex",
         padding: 3,
-        background: "rgba(255,255,255,0.03)",
+        background: colors.surface,
         borderRadius: 10,
-        border: "1px solid rgba(255,255,255,0.05)",
+        border: `1px solid ${colors.border}`,
       }}
     >
       <div
@@ -32,8 +34,8 @@ export function SegmentedControl({ value, options, onChange, accent = "#fff" }) 
           left: `calc(${idx * widthPct}% + 3px)`,
           width: `calc(${widthPct}% - 6px)`,
           borderRadius: 7,
-          background: `linear-gradient(135deg, ${accent}26, ${accent}14)`,
-          border: `1px solid ${accent}40`,
+          background: colors.accentSoft,
+          border: `1px solid ${colors.accentBorder}`,
           transition: "left 0.22s cubic-bezier(0.4, 0, 0.2, 1)",
           pointerEvents: "none",
         }}
@@ -57,7 +59,7 @@ export function SegmentedControl({ value, options, onChange, accent = "#fff" }) 
               fontSize: 11.5,
               fontWeight: active ? 600 : 500,
               letterSpacing: "0.01em",
-              color: active ? "#fff" : "rgba(255,255,255,0.5)",
+              color: active ? colors.accent : colors.textSubtle,
               transition: "color 0.18s ease",
               zIndex: 1,
             }}
@@ -72,7 +74,7 @@ export function SegmentedControl({ value, options, onChange, accent = "#fff" }) 
 
 // ChipCloud — multi-select chip row with optional mono counts. Use it for
 // tag clouds, status lists, and other variable-length option sets.
-export function ChipCloud({ items, selected, onToggle, accent = "#fff", emptyLabel }) {
+export function ChipCloud({ items, selected, onToggle, accent = colors.accent, emptyLabel }) {
   const selectedSet = new Set(
     (selected || []).map((s) => String(s).toLowerCase()),
   );
@@ -81,7 +83,7 @@ export function ChipCloud({ items, selected, onToggle, accent = "#fff", emptyLab
       <div
         style={{
           fontSize: 11,
-          color: "rgba(255,255,255,0.35)",
+          color: colors.textFaded,
           fontStyle: "italic",
         }}
       >
@@ -109,10 +111,10 @@ export function ChipCloud({ items, selected, onToggle, accent = "#fff", emptyLab
               fontWeight: 500,
               cursor: "pointer",
               border: active
-                ? `1px solid ${accent}66`
-                : "1px solid rgba(255,255,255,0.08)",
-              background: active ? `${accent}1c` : "rgba(255,255,255,0.02)",
-              color: active ? "#fff" : "rgba(255,255,255,0.55)",
+                ? `1px solid ${colors.accentBorder}`
+                : `1px solid ${colors.border}`,
+              background: active ? colors.accentSoft : colors.surface,
+              color: active ? colors.accent : colors.textMuted,
               whiteSpace: "nowrap",
               transition: "all 0.14s ease",
             }}
@@ -124,7 +126,7 @@ export function ChipCloud({ items, selected, onToggle, accent = "#fff", emptyLab
                   fontFamily:
                     "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
                   fontSize: 10,
-                  color: active ? accent : "rgba(255,255,255,0.35)",
+                  color: active ? colors.accent : colors.textFaded,
                   opacity: 0.85,
                 }}
               >
@@ -141,7 +143,7 @@ export function ChipCloud({ items, selected, onToggle, accent = "#fff", emptyLab
 // FilterGroup — labeled section with a status dot that fills in when the
 // group has an active (non-default) value. Use to wrap any of the above
 // controls inside a card so visual rhythm stays consistent.
-export function FilterGroup({ label, active, accent = "#fff", children }) {
+export function FilterGroup({ label, active, accent = colors.accent, children }) {
   return (
     <div>
       <div
@@ -158,15 +160,15 @@ export function FilterGroup({ label, active, accent = "#fff", children }) {
             width: 7,
             height: 7,
             borderRadius: 999,
-            background: active ? accent : "rgba(255,255,255,0.14)",
-            boxShadow: active ? `0 0 0 3px ${accent}1a` : "none",
+            background: active ? accent : colors.borderStrong,
+            boxShadow: active ? `0 0 0 3px ${colors.accentSoft}` : "none",
             transition: "all 0.18s ease",
           }}
         />
         <span
           style={{
             fontSize: 11,
-            color: active ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.5)",
+            color: active ? colors.text : colors.textSubtle,
             letterSpacing: "0.04em",
             fontWeight: 500,
           }}

@@ -1,18 +1,20 @@
 // Section — a tinted card that groups related fields in the composer rail.
-// Two visual treatments: "setup" (cool blue) for envelope-y fields like
-// template/event/subject/preview, "content" (warm gold) for what the
+// Two visual treatments: "setup" (accent tint) for envelope-y fields like
+// template/event/subject/preview, "content" (surface) for what the
 // recipient actually reads (greeting, blocks, signoff).
+
+import { colors } from "../../theme/colors.js";
 
 const VARIANTS = {
   setup: {
-    background: "rgba(96,165,250,0.04)",
-    border: "1px solid rgba(96,165,250,0.14)",
-    label: "rgba(147,197,253,0.7)",
+    background: colors.accentSoft,
+    border: `1px solid ${colors.accentBorder}`,
+    label: colors.accent,
   },
   content: {
-    background: "rgba(255,255,255,0.02)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    label: "rgba(255,255,255,0.45)",
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    label: colors.textSubtle,
   },
 };
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../components/Toast";
 import { authenticatedFetch } from "../lib/api.js";
+import { colors } from "../theme/colors.js";
 import { ProfileHeader } from "../components/HomeProfileHeader.jsx";
 
 export function ProfilePage() {
@@ -49,7 +50,7 @@ export function ProfilePage() {
       if (res.ok) {
         const updated = await res.json();
         setUser(updated);
-        showToast("Profile updated! ✨", "success");
+        showToast("Profile updated!", "success");
         return true;
       } else {
         throw new Error("Failed to save profile");
@@ -67,21 +68,19 @@ export function ProfilePage() {
         className="page-with-header"
         style={{
           minHeight: "100vh",
-          position: "relative",
-          background:
-            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
+          background: colors.background,
         }}
       >
         <div className="responsive-container responsive-container-wide">
           <div
             className="responsive-card"
             style={{
-              background: "rgba(12, 10, 18, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              background: "#fff",
+              border: `1px solid ${colors.border}`,
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             }}
           >
-            <div style={{ fontSize: "18px", opacity: 0.8 }}>
+            <div style={{ fontSize: "18px", color: colors.textMuted }}>
               Loading profile…
             </div>
           </div>
@@ -100,9 +99,7 @@ export function ProfilePage() {
       className="page-with-header"
       style={{
         minHeight: "100vh",
-        position: "relative",
-        background:
-          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
+        background: colors.background,
         paddingBottom: "clamp(20px, 5vw, 40px)",
       }}
     >
@@ -113,9 +110,9 @@ export function ProfilePage() {
         <div
           className="responsive-card"
           style={{
-            background: "rgba(12, 10, 18, 0.6)",
-            backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255,255,255,0.05)",
+            background: "#fff",
+            border: `1px solid ${colors.border}`,
+            boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
           }}
         >
           <ProfileHeader
@@ -130,4 +127,3 @@ export function ProfilePage() {
     </div>
   );
 }
-

@@ -6,7 +6,7 @@ import { Mail, ClipboardList, RefreshCw, Check } from "lucide-react";
 import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { WaitlistStatusBadge } from "./WaitlistStatusBadge.jsx";
-import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { colors } from "../theme/colors.js";
 
 function getWaitlistLinkStatus(rsvp) {
   if (rsvp.bookingStatus !== "WAITLIST") {
@@ -105,19 +105,23 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
           style={{
             padding: "6px 12px",
             fontSize: "12px",
-            background: "rgba(59, 130, 246, 0.2)",
-            border: "1px solid rgba(59, 130, 246, 0.5)",
-            borderRadius: "6px",
-            color: "#3b82f6",
+            background: colors.accentSoft,
+            border: `1px solid ${colors.accentBorder}`,
+            borderRadius: "999px",
+            color: colors.accent,
             cursor: generating ? "not-allowed" : "pointer",
             opacity: generating ? 0.6 : 1,
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
           }}
         >
           {generating
             ? "Processing..."
             : event?.ticketType === "paid" && event?.ticketPrice
-            ? <><SilverIcon as={Mail} size={14} /> Send Payment Link</>
-            : <><SilverIcon as={Check} size={14} /> Confirm Guest</>}
+            ? <><Mail size={14} /> Send Payment Link</>
+            : <><Check size={14} /> Confirm Guest</>}
         </button>
       )}
 
@@ -128,14 +132,18 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
             style={{
               padding: "4px 8px",
               fontSize: "11px",
-              background: "rgba(59, 130, 246, 0.1)",
-              border: "1px solid rgba(59, 130, 246, 0.3)",
-              borderRadius: "4px",
-              color: "#3b82f6",
+              background: colors.secondarySoft,
+              border: `1px solid ${colors.secondaryBorder}`,
+              borderRadius: "999px",
+              color: colors.secondary,
               cursor: "pointer",
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
             }}
           >
-            <SilverIcon as={ClipboardList} size={12} /> Copy
+            <ClipboardList size={12} /> Copy
           </button>
           <button
             onClick={handleGenerateLink}
@@ -143,15 +151,19 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
             style={{
               padding: "4px 8px",
               fontSize: "11px",
-              background: "rgba(245, 158, 11, 0.1)",
-              border: "1px solid rgba(245, 158, 11, 0.3)",
-              borderRadius: "4px",
-              color: "#f59e0b",
+              background: `${colors.warningRgba}`,
+              border: `1px solid rgba(180, 83, 9, 0.3)`,
+              borderRadius: "999px",
+              color: colors.warning,
               cursor: generating ? "not-allowed" : "pointer",
               opacity: generating ? 0.6 : 1,
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
             }}
           >
-            {generating ? "..." : <><SilverIcon as={RefreshCw} size={12} /> Regenerate</>}
+            {generating ? "..." : <><RefreshCw size={12} /> Regenerate</>}
           </button>
         </div>
       )}
@@ -163,21 +175,25 @@ export function WaitlistLinkActions({ guest, event, onLinkGenerated }) {
           style={{
             padding: "6px 12px",
             fontSize: "12px",
-            background: "rgba(245, 158, 11, 0.2)",
-            border: "1px solid rgba(245, 158, 11, 0.5)",
-            borderRadius: "6px",
-            color: "#f59e0b",
+            background: `${colors.warningRgba}`,
+            border: `1px solid rgba(180, 83, 9, 0.3)`,
+            borderRadius: "999px",
+            color: colors.warning,
             cursor: generating ? "not-allowed" : "pointer",
             opacity: generating ? 0.6 : 1,
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
           }}
         >
-          {generating ? "Generating..." : <><SilverIcon as={RefreshCw} size={12} /> Generate New Link</>}
+          {generating ? "Generating..." : <><RefreshCw size={12} /> Generate New Link</>}
         </button>
       )}
 
       {linkStatus === "CONFIRMED" && (
-        <span style={{ fontSize: "11px", opacity: 0.7 }}>
-          <SilverIcon as={Check} size={12} /> Paid & Confirmed
+        <span style={{ fontSize: "11px", color: colors.textMuted, display: "flex", alignItems: "center", gap: "4px" }}>
+          <Check size={12} style={{ color: colors.success }} /> Paid & Confirmed
         </span>
       )}
     </div>

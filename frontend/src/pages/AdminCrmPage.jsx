@@ -23,24 +23,24 @@ import { colors } from "../theme/colors.js";
 import { AutoTagButton, AutoTagFlashStyle } from "../components/crm/AutoTagButton.jsx";
 
 const STATUS_COLORS = {
-  new: { bg: "rgba(59,130,246,0.12)", text: "#60a5fa", border: "rgba(59,130,246,0.25)" },
-  contacted: { bg: "rgba(168,85,247,0.12)", text: "#c084fc", border: "rgba(168,85,247,0.25)" },
-  qualified: { bg: "rgba(245,158,11,0.12)", text: "#fbbf24", border: "rgba(245,158,11,0.25)" },
-  proposal: { bg: "rgba(236,72,153,0.12)", text: "#f472b6", border: "rgba(236,72,153,0.25)" },
-  won: { bg: "rgba(34,197,94,0.12)", text: "#4ade80", border: "rgba(34,197,94,0.25)" },
-  lost: { bg: "rgba(239,68,68,0.12)", text: "#f87171", border: "rgba(239,68,68,0.25)" },
-  churned: { bg: "rgba(107,114,128,0.12)", text: "#9ca3af", border: "rgba(107,114,128,0.25)" },
-  user: { bg: "rgba(255,255,255,0.04)", text: "rgba(255,255,255,0.5)", border: "rgba(255,255,255,0.08)" },
+  new: { bg: "rgba(59,130,246,0.10)", text: "#2563eb", border: "rgba(59,130,246,0.25)" },
+  contacted: { bg: "rgba(168,85,247,0.10)", text: "#7c3aed", border: "rgba(168,85,247,0.25)" },
+  qualified: { bg: "rgba(180,83,9,0.10)", text: "#b45309", border: "rgba(180,83,9,0.25)" },
+  proposal: { bg: "rgba(236,23,143,0.10)", text: "#ec178f", border: "rgba(236,23,143,0.25)" },
+  won: { bg: "rgba(22,163,74,0.10)", text: "#16a34a", border: "rgba(22,163,74,0.25)" },
+  lost: { bg: "rgba(220,38,38,0.10)", text: "#dc2626", border: "rgba(220,38,38,0.25)" },
+  churned: { bg: "rgba(107,114,128,0.10)", text: "#6b7280", border: "rgba(107,114,128,0.25)" },
+  user: { bg: "rgba(10,10,10,0.04)", text: "rgba(10,10,10,0.45)", border: "rgba(10,10,10,0.10)" },
 };
 const STATUS_OPTIONS = ["new", "contacted", "qualified", "proposal", "won", "lost", "churned"];
 const SOURCE_OPTIONS = ["referral", "instagram", "google", "linkedin", "facebook", "direct", "other"];
 
 const PRIORITY_OPTIONS = ["low", "normal", "high", "vip"];
 const PRIORITY_COLORS = {
-  low: { bg: "rgba(107,114,128,0.12)", text: "#9ca3af", border: "rgba(107,114,128,0.3)" },
-  normal: { bg: "rgba(255,255,255,0.04)", text: "rgba(255,255,255,0.55)", border: "rgba(255,255,255,0.12)" },
-  high: { bg: "rgba(245,158,11,0.12)", text: "#fbbf24", border: "rgba(245,158,11,0.3)" },
-  vip: { bg: "rgba(168,85,247,0.14)", text: "#c084fc", border: "rgba(168,85,247,0.35)" },
+  low: { bg: "rgba(107,114,128,0.10)", text: "#6b7280", border: "rgba(107,114,128,0.25)" },
+  normal: { bg: "rgba(10,10,10,0.04)", text: "rgba(10,10,10,0.45)", border: "rgba(10,10,10,0.10)" },
+  high: { bg: "rgba(180,83,9,0.10)", text: "#b45309", border: "rgba(180,83,9,0.25)" },
+  vip: { bg: "rgba(168,85,247,0.10)", text: "#7c3aed", border: "rgba(168,85,247,0.25)" },
 };
 
 const ACTIVITY_OPTIONS = [
@@ -142,7 +142,7 @@ function EventFeatures({ ev }) {
         key="dinner"
         icon={Utensils}
         label={`Dinner${ev.dinnerSeats ? ` ${ev.dinnerSeats}` : ""}`}
-        color="#fbbf24"
+        color={colors.gold}
       />,
     );
   }
@@ -228,11 +228,11 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
       style={{
         padding: "10px 12px",
         borderRadius: 10,
-        background: "rgba(255,255,255,0.02)",
+        background: "#fff",
         border: isTagging
-          ? "1px solid rgba(251,191,36,0.5)"
-          : "1px solid rgba(255,255,255,0.04)",
-        boxShadow: isTagging ? "0 0 0 2px rgba(251,191,36,0.15)" : "none",
+          ? "1px solid rgba(180,83,9,0.35)"
+          : "1px solid rgba(10,10,10,0.08)",
+        boxShadow: isTagging ? "0 0 0 2px rgba(180,83,9,0.10)" : "0 1px 4px rgba(10,10,10,0.04)",
         display: "flex",
         flexDirection: "column",
         gap: 8,
@@ -254,7 +254,7 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
           style={{
             flex: "1 1 240px",
             minWidth: 0,
-            color: "#fff",
+            color: colors.text,
             textDecoration: "none",
             fontSize: 13,
             fontWeight: 500,
@@ -273,7 +273,7 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
         <span
           style={{
             fontSize: 11,
-            color: "rgba(255,255,255,0.4)",
+            color: colors.textFaded,
             whiteSpace: "nowrap",
           }}
         >
@@ -282,7 +282,7 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
         <span
           style={{
             fontSize: 11,
-            color: "rgba(255,255,255,0.4)",
+            color: colors.textFaded,
             whiteSpace: "nowrap",
             minWidth: 50,
             textAlign: "right",
@@ -298,7 +298,7 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
       {(currentTags.length > 0 || isTagging) && (
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 17 }}>
           {isTagging && currentTags.length === 0 && (
-            <span style={{ fontSize: 10, color: "rgba(251,191,36,0.8)", fontStyle: "italic" }}>
+            <span style={{ fontSize: 10, color: colors.gold, fontStyle: "italic" }}>
               Generating tags…
             </span>
           )}
@@ -313,14 +313,14 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
                   borderRadius: 999,
                   fontSize: 10,
                   fontWeight: 600,
-                  background: isNew ? "rgba(251,191,36,0.22)" : "rgba(251,191,36,0.10)",
-                  color: isNew ? "#fde68a" : "rgba(251,191,36,0.85)",
+                  background: isNew ? "rgba(180,83,9,0.18)" : "rgba(180,83,9,0.10)",
+                  color: isNew ? "#92400e" : colors.gold,
                   border: isNew
-                    ? "1px solid rgba(251,191,36,0.55)"
-                    : "1px solid rgba(251,191,36,0.18)",
+                    ? "1px solid rgba(180,83,9,0.40)"
+                    : "1px solid rgba(180,83,9,0.18)",
                   textTransform: "lowercase",
                   letterSpacing: "0.02em",
-                  boxShadow: isNew ? "0 0 8px rgba(251,191,36,0.35)" : "none",
+                  boxShadow: "none",
                 }}
               >
                 {tag}
@@ -333,7 +333,7 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
       {/* Tag input — admin classifies the event, count rolls into the
           host's top-tag distribution above. */}
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <Tag size={11} style={{ color: "rgba(251,191,36,0.6)", flexShrink: 0 }} />
+        <Tag size={11} style={{ color: colors.gold, flexShrink: 0 }} />
         <input
           type="text"
           value={currentDraft}
@@ -349,9 +349,9 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
             flex: 1,
             padding: "6px 10px",
             borderRadius: 8,
-            border: "1px solid rgba(255,255,255,0.06)",
-            background: "rgba(12,10,20,0.6)",
-            color: "rgba(255,255,255,0.85)",
+            border: `1px solid ${colors.border}`,
+            background: colors.surface,
+            color: colors.text,
             fontSize: 12,
             outline: "none",
           }}
@@ -366,10 +366,10 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
             border: "none",
             background:
               !dirty || saving
-                ? "rgba(255,255,255,0.05)"
-                : "rgba(251,191,36,0.18)",
+                ? colors.surfaceMuted
+                : "rgba(180,83,9,0.12)",
             color:
-              !dirty || saving ? "rgba(255,255,255,0.3)" : "#fbbf24",
+              !dirty || saving ? colors.textFaded : colors.gold,
             fontSize: 11,
             fontWeight: 600,
             cursor: !dirty || saving ? "default" : "pointer",
@@ -397,7 +397,7 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
           <span
             style={{
               fontSize: 10,
-              color: "rgba(255,255,255,0.3)",
+              color: colors.textFaded,
               textTransform: "uppercase",
               letterSpacing: "0.06em",
               alignSelf: "center",
@@ -420,12 +420,12 @@ function EventRow({ ev, hostId, draft, setDraft, onSave, saving, knownTags, isTa
                   fontWeight: 500,
                   cursor: "pointer",
                   border: active
-                    ? "1px solid rgba(251,191,36,0.45)"
-                    : "1px solid rgba(255,255,255,0.08)",
+                    ? "1px solid rgba(180,83,9,0.30)"
+                    : `1px solid ${colors.border}`,
                   background: active
-                    ? "rgba(251,191,36,0.15)"
+                    ? "rgba(180,83,9,0.10)"
                     : "transparent",
-                  color: active ? "#fbbf24" : "rgba(255,255,255,0.5)",
+                  color: active ? colors.gold : colors.textSubtle,
                   whiteSpace: "nowrap",
                 }}
               >
@@ -445,7 +445,7 @@ function Stat({ label, value, accent }) {
       <span
         style={{
           fontSize: 10,
-          color: "rgba(255,255,255,0.35)",
+          color: colors.textFaded,
           textTransform: "uppercase",
           letterSpacing: "0.08em",
         }}
@@ -456,7 +456,7 @@ function Stat({ label, value, accent }) {
         style={{
           fontSize: 14,
           fontWeight: 600,
-          color: accent || "#fff",
+          color: accent || colors.text,
           whiteSpace: "nowrap",
         }}
       >
@@ -822,10 +822,10 @@ export function AdminCrmPage() {
         className="page-with-header"
         style={{
           minHeight: "100vh",
-          background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.1) 0%, transparent 50%), #05040a",
+          background: colors.background,
           padding: "80px 16px",
           textAlign: "center",
-          color: "rgba(255,255,255,0.5)",
+          color: colors.textMuted,
         }}
       >
         Loading customer CRM…
@@ -838,8 +838,7 @@ export function AdminCrmPage() {
       className="page-with-header"
       style={{
         minHeight: "100vh",
-        background:
-          "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.1) 0%, transparent 50%), #05040a",
+        background: colors.background,
       }}
     >
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 16px 40px" }}>
@@ -857,13 +856,13 @@ export function AdminCrmPage() {
               style={{
                 fontSize: 28,
                 fontWeight: 700,
-                color: "#fff",
+                color: colors.text,
                 marginBottom: 4,
               }}
             >
               Customer CRM
             </h1>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)" }}>
+            <p style={{ fontSize: 13, color: colors.textSubtle }}>
               One row per customer — signed-up hosts and manual prospects in
               one place. Leads auto-link by email when they sign up.
             </p>
@@ -883,11 +882,11 @@ export function AdminCrmPage() {
                 gap: 6,
                 padding: "10px 16px",
                 borderRadius: 999,
-                border: "1px solid rgba(251,191,36,0.35)",
+                border: "1px solid rgba(180,83,9,0.25)",
                 background: showAdd
-                  ? "rgba(251,191,36,0.18)"
-                  : "rgba(251,191,36,0.08)",
-                color: "#fbbf24",
+                  ? "rgba(180,83,9,0.12)"
+                  : "rgba(180,83,9,0.06)",
+                color: colors.gold,
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -907,8 +906,8 @@ export function AdminCrmPage() {
             style={{
               padding: 16,
               borderRadius: 14,
-              background: "rgba(251,191,36,0.04)",
-              border: "1px solid rgba(251,191,36,0.18)",
+              background: "rgba(180,83,9,0.04)",
+              border: "1px solid rgba(180,83,9,0.18)",
               marginBottom: 18,
               display: "flex",
               flexDirection: "column",
@@ -919,7 +918,7 @@ export function AdminCrmPage() {
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: "#fbbf24",
+                color: colors.gold,
                 textTransform: "uppercase",
                 letterSpacing: "0.06em",
               }}
@@ -1008,7 +1007,7 @@ export function AdminCrmPage() {
                     border: `1px solid ${
                       addForm.status === s
                         ? STATUS_COLORS[s].border
-                        : "rgba(255,255,255,0.08)"
+                        : colors.border
                     }`,
                     background:
                       addForm.status === s
@@ -1017,7 +1016,7 @@ export function AdminCrmPage() {
                     color:
                       addForm.status === s
                         ? STATUS_COLORS[s].text
-                        : "rgba(255,255,255,0.4)",
+                        : colors.textSubtle,
                     fontSize: 11,
                     fontWeight: 600,
                     textTransform: "uppercase",
@@ -1039,7 +1038,7 @@ export function AdminCrmPage() {
               <span
                 style={{
                   fontSize: 10,
-                  color: "rgba(255,255,255,0.4)",
+                  color: colors.textSubtle,
                   textTransform: "uppercase",
                   letterSpacing: "0.06em",
                   marginRight: 2,
@@ -1058,7 +1057,7 @@ export function AdminCrmPage() {
                     border: `1px solid ${
                       addForm.priority === p
                         ? PRIORITY_COLORS[p].border
-                        : "rgba(255,255,255,0.08)"
+                        : colors.border
                     }`,
                     background:
                       addForm.priority === p
@@ -1067,7 +1066,7 @@ export function AdminCrmPage() {
                     color:
                       addForm.priority === p
                         ? PRIORITY_COLORS[p].text
-                        : "rgba(255,255,255,0.4)",
+                        : colors.textSubtle,
                     fontSize: 11,
                     fontWeight: 600,
                     textTransform: "uppercase",
@@ -1104,9 +1103,9 @@ export function AdminCrmPage() {
                 style={{
                   padding: "8px 14px",
                   borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  border: `1px solid ${colors.border}`,
                   background: "transparent",
-                  color: "rgba(255,255,255,0.6)",
+                  color: colors.textMuted,
                   fontSize: 12,
                   cursor: "pointer",
                 }}
@@ -1121,7 +1120,7 @@ export function AdminCrmPage() {
                   borderRadius: 8,
                   border: "none",
                   background: colors.gradientGold,
-                  color: "#000",
+                  color: "#fff",
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: adding ? "default" : "pointer",
@@ -1144,24 +1143,25 @@ export function AdminCrmPage() {
           }}
         >
           {[
-            { label: "Total hosts", value: stats.total, accent: "#fff" },
-            { label: "With events", value: stats.withEvents, accent: "#60a5fa" },
-            { label: "Repeat (5+)", value: stats.repeat, accent: "#fbbf24" },
-            { label: "Total events", value: stats.totalEvents, accent: "#4ade80" },
+            { label: "Total hosts", value: stats.total, accent: colors.text },
+            { label: "With events", value: stats.withEvents, accent: "#2563eb" },
+            { label: "Repeat (5+)", value: stats.repeat, accent: colors.gold },
+            { label: "Total events", value: stats.totalEvents, accent: colors.success },
           ].map((s) => (
             <div
               key={s.label}
               style={{
                 padding: "12px 14px",
                 borderRadius: 12,
-                background: "rgba(20,16,30,0.5)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: "#fff",
+                border: `1px solid ${colors.border}`,
+                boxShadow: "0 2px 8px rgba(10,10,10,0.04)",
               }}
             >
               <div
                 style={{
                   fontSize: 10,
-                  color: "rgba(255,255,255,0.4)",
+                  color: colors.textFaded,
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
                   marginBottom: 4,
@@ -1194,11 +1194,11 @@ export function AdminCrmPage() {
               gap: 8,
               padding: "8px 12px",
               borderRadius: 999,
-              background: "rgba(20,16,30,0.6)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: colors.surface,
+              border: `1px solid ${colors.border}`,
             }}
           >
-            <Search size={14} style={{ color: "rgba(255,255,255,0.35)" }} />
+            <Search size={14} style={{ color: colors.textFaded }} />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1207,7 +1207,7 @@ export function AdminCrmPage() {
                 flex: 1,
                 background: "transparent",
                 border: "none",
-                color: "#fff",
+                color: colors.text,
                 outline: "none",
                 fontSize: 13,
               }}
@@ -1252,7 +1252,7 @@ export function AdminCrmPage() {
             <span
               style={{
                 fontSize: 10,
-                color: "rgba(255,255,255,0.35)",
+                color: colors.textFaded,
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
                 alignSelf: "center",
@@ -1270,10 +1270,10 @@ export function AdminCrmPage() {
                     padding: "3px 10px",
                     borderRadius: 999,
                     border: `1px solid ${
-                      active ? "rgba(251,191,36,0.5)" : "rgba(255,255,255,0.08)"
+                      active ? "rgba(180,83,9,0.30)" : colors.border
                     }`,
-                    background: active ? "rgba(251,191,36,0.12)" : "transparent",
-                    color: active ? "#fbbf24" : "rgba(255,255,255,0.5)",
+                    background: active ? "rgba(180,83,9,0.10)" : "transparent",
+                    color: active ? colors.gold : colors.textSubtle,
                     fontSize: 11,
                     cursor: "pointer",
                   }}
@@ -1288,9 +1288,9 @@ export function AdminCrmPage() {
                 style={{
                   padding: "3px 10px",
                   borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.06)",
+                  border: `1px solid ${colors.borderFaint}`,
                   background: "transparent",
-                  color: "rgba(255,255,255,0.4)",
+                  color: colors.textFaded,
                   fontSize: 11,
                   cursor: "pointer",
                 }}
@@ -1308,7 +1308,7 @@ export function AdminCrmPage() {
               style={{
                 textAlign: "center",
                 padding: "40px 0",
-                color: "rgba(255,255,255,0.3)",
+                color: colors.textFaded,
               }}
             >
               No hosts match the current filters.
@@ -1322,12 +1322,13 @@ export function AdminCrmPage() {
                 <div
                   key={h.id}
                   style={{
-                    background: "rgba(20,16,30,0.5)",
+                    background: "#fff",
                     border: `1px solid ${
-                      isExpanded ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)"
+                      isExpanded ? colors.borderStrong : colors.border
                     }`,
                     borderRadius: 14,
                     overflow: "hidden",
+                    boxShadow: "0 2px 8px rgba(10,10,10,0.04)",
                   }}
                 >
                   {/* Row header */}
@@ -1351,7 +1352,7 @@ export function AdminCrmPage() {
                         style={{
                           fontSize: 14,
                           fontWeight: 600,
-                          color: "#fff",
+                          color: colors.text,
                           display: "flex",
                           alignItems: "center",
                           gap: 8,
@@ -1364,7 +1365,7 @@ export function AdminCrmPage() {
                             style={{
                               fontWeight: 400,
                               fontSize: 12,
-                              color: "rgba(255,255,255,0.4)",
+                              color: colors.textFaded,
                             }}
                           >
                             · {h.brand}
@@ -1379,9 +1380,9 @@ export function AdminCrmPage() {
                               fontWeight: 700,
                               letterSpacing: "0.08em",
                               textTransform: "uppercase",
-                              background: "rgba(251,191,36,0.12)",
-                              color: "#fbbf24",
-                              border: "1px solid rgba(251,191,36,0.3)",
+                              background: "rgba(180,83,9,0.10)",
+                              color: colors.gold,
+                              border: "1px solid rgba(180,83,9,0.25)",
                             }}
                           >
                             Lead
@@ -1410,11 +1411,11 @@ export function AdminCrmPage() {
                             key={t.tag}
                             style={{
                               fontSize: 10,
-                              color: "rgba(251,191,36,0.85)",
+                              color: "rgba(180,83,9,0.85)",
                               padding: "1px 7px",
                               borderRadius: 999,
-                              background: "rgba(251,191,36,0.06)",
-                              border: "1px solid rgba(251,191,36,0.18)",
+                              background: "rgba(180,83,9,0.08)",
+                              border: "1px solid rgba(180,83,9,0.18)",
                             }}
                           >
                             {t.tag}
@@ -1427,7 +1428,7 @@ export function AdminCrmPage() {
                       <div
                         style={{
                           fontSize: 11,
-                          color: "rgba(255,255,255,0.35)",
+                          color: colors.textFaded,
                           marginTop: 3,
                         }}
                       >
@@ -1448,7 +1449,7 @@ export function AdminCrmPage() {
                       <Stat
                         label="Events"
                         value={h.events.total}
-                        accent={h.events.total ? "#fff" : "rgba(255,255,255,0.3)"}
+                        accent={h.events.total ? colors.text : colors.textFaded}
                       />
                       <Stat
                         label="Freq/mo"
@@ -1472,12 +1473,12 @@ export function AdminCrmPage() {
                       {isExpanded ? (
                         <ChevronUp
                           size={16}
-                          style={{ color: "rgba(255,255,255,0.4)" }}
+                          style={{ color: colors.textSubtle }}
                         />
                       ) : (
                         <ChevronDown
                           size={16}
-                          style={{ color: "rgba(255,255,255,0.4)" }}
+                          style={{ color: colors.textSubtle }}
                         />
                       )}
                     </div>
@@ -1487,7 +1488,7 @@ export function AdminCrmPage() {
                   {isExpanded && (
                     <div
                       style={{
-                        borderTop: "1px solid rgba(255,255,255,0.06)",
+                        borderTop: `1px solid ${colors.borderFaint}`,
                         padding: "14px 16px",
                       }}
                     >
@@ -1499,9 +1500,9 @@ export function AdminCrmPage() {
                           gap: 10,
                           marginBottom: 14,
                           padding: "10px 12px",
-                          background: "rgba(255,255,255,0.02)",
+                          background: colors.surface,
                           borderRadius: 10,
-                          border: "1px solid rgba(255,255,255,0.04)",
+                          border: `1px solid ${colors.borderFaint}`,
                         }}
                       >
                         <Stat label="Total" value={h.events.total} />
@@ -1528,7 +1529,7 @@ export function AdminCrmPage() {
                           flexWrap: "wrap",
                           gap: "6px 16px",
                           fontSize: 12,
-                          color: "rgba(255,255,255,0.5)",
+                          color: colors.textMuted,
                           marginBottom: 14,
                         }}
                       >
@@ -1579,7 +1580,7 @@ export function AdminCrmPage() {
                               ...addInputStyle,
                               opacity: 0.55,
                               cursor: "not-allowed",
-                              background: "rgba(255,255,255,0.02)",
+                              background: colors.surface,
                             };
                             const ownedHint = (
                               <span
@@ -1588,7 +1589,7 @@ export function AdminCrmPage() {
                                   fontWeight: 500,
                                   textTransform: "none",
                                   letterSpacing: 0,
-                                  color: "rgba(255,255,255,0.3)",
+                                  color: colors.textFaded,
                                   fontSize: 10,
                                 }}
                               >
@@ -1597,7 +1598,7 @@ export function AdminCrmPage() {
                             );
                             const labelStyle = {
                               fontSize: 11,
-                              color: "rgba(255,255,255,0.5)",
+                              color: colors.textMuted,
                               marginBottom: 4,
                               textTransform: "uppercase",
                               letterSpacing: "0.05em",
@@ -1608,8 +1609,8 @@ export function AdminCrmPage() {
                               <div
                                 style={{
                                   padding: 16,
-                                  background: "rgba(255,255,255,0.02)",
-                                  border: "1px solid rgba(255,255,255,0.06)",
+                                  background: colors.surface,
+                                  border: `1px solid ${colors.borderFaint}`,
                                   borderRadius: 12,
                                   marginBottom: 12,
                                 }}
@@ -1618,7 +1619,7 @@ export function AdminCrmPage() {
                                   style={{
                                     fontSize: 11,
                                     fontWeight: 600,
-                                    color: "rgba(255,255,255,0.5)",
+                                    color: colors.textMuted,
                                     textTransform: "uppercase",
                                     letterSpacing: "0.08em",
                                     marginBottom: 12,
@@ -1632,7 +1633,7 @@ export function AdminCrmPage() {
                                         fontWeight: 400,
                                         textTransform: "none",
                                         letterSpacing: 0,
-                                        color: "rgba(255,255,255,0.35)",
+                                        color: colors.textFaded,
                                       }}
                                     >
                                       · name, email + brand controlled by the user
@@ -1744,8 +1745,8 @@ export function AdminCrmPage() {
                           <div
                             style={{
                               padding: 16,
-                              background: "rgba(255,255,255,0.02)",
-                              border: "1px solid rgba(255,255,255,0.06)",
+                              background: colors.surface,
+                              border: `1px solid ${colors.borderFaint}`,
                               borderRadius: 12,
                               marginBottom: 14,
                             }}
@@ -1754,7 +1755,7 @@ export function AdminCrmPage() {
                               style={{
                                 fontSize: 11,
                                 fontWeight: 600,
-                                color: "rgba(255,255,255,0.5)",
+                                color: colors.textMuted,
                                 textTransform: "uppercase",
                                 letterSpacing: "0.08em",
                                 marginBottom: 10,
@@ -1766,7 +1767,7 @@ export function AdminCrmPage() {
                                   fontWeight: 400,
                                   textTransform: "none",
                                   letterSpacing: 0,
-                                  color: "rgba(255,255,255,0.4)",
+                                  color: colors.textSubtle,
                                 }}
                               >
                                 {h.events.total} event
@@ -1776,7 +1777,7 @@ export function AdminCrmPage() {
                             <div
                               style={{
                                 fontSize: 11,
-                                color: "rgba(255,255,255,0.5)",
+                                color: colors.textMuted,
                                 marginBottom: 6,
                                 textTransform: "uppercase",
                                 letterSpacing: "0.05em",
@@ -1805,7 +1806,7 @@ export function AdminCrmPage() {
                                     border: `1px solid ${
                                       editForm.status === s
                                         ? STATUS_COLORS[s].border
-                                        : "rgba(255,255,255,0.08)"
+                                        : colors.border
                                     }`,
                                     background:
                                       editForm.status === s
@@ -1814,7 +1815,7 @@ export function AdminCrmPage() {
                                     color:
                                       editForm.status === s
                                         ? STATUS_COLORS[s].text
-                                        : "rgba(255,255,255,0.4)",
+                                        : colors.textSubtle,
                                     fontSize: 11,
                                     fontWeight: 600,
                                     textTransform: "uppercase",
@@ -1830,7 +1831,7 @@ export function AdminCrmPage() {
                             <div
                               style={{
                                 fontSize: 11,
-                                color: "rgba(255,255,255,0.5)",
+                                color: colors.textMuted,
                                 marginBottom: 6,
                                 textTransform: "uppercase",
                                 letterSpacing: "0.05em",
@@ -1859,7 +1860,7 @@ export function AdminCrmPage() {
                                     border: `1px solid ${
                                       editForm.priority === p
                                         ? PRIORITY_COLORS[p].border
-                                        : "rgba(255,255,255,0.08)"
+                                        : colors.border
                                     }`,
                                     background:
                                       editForm.priority === p
@@ -1868,7 +1869,7 @@ export function AdminCrmPage() {
                                     color:
                                       editForm.priority === p
                                         ? PRIORITY_COLORS[p].text
-                                        : "rgba(255,255,255,0.4)",
+                                        : colors.textSubtle,
                                     fontSize: 11,
                                     fontWeight: 600,
                                     textTransform: "uppercase",
@@ -1892,7 +1893,7 @@ export function AdminCrmPage() {
                                 <div
                                   style={{
                                     fontSize: 11,
-                                    color: "rgba(255,255,255,0.5)",
+                                    color: colors.textMuted,
                                     marginBottom: 6,
                                     textTransform: "uppercase",
                                     letterSpacing: "0.05em",
@@ -1926,7 +1927,7 @@ export function AdminCrmPage() {
                                 <div
                                   style={{
                                     fontSize: 11,
-                                    color: "rgba(255,255,255,0.5)",
+                                    color: colors.textMuted,
                                     marginBottom: 6,
                                     textTransform: "uppercase",
                                     letterSpacing: "0.05em",
@@ -1948,9 +1949,9 @@ export function AdminCrmPage() {
                                     minHeight: 80,
                                     padding: "10px 12px",
                                     borderRadius: 10,
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    background: "rgba(12,10,20,0.7)",
-                                    color: "#fff",
+                                    border: `1px solid ${colors.border}`,
+                                    background: colors.surface,
+                                    color: colors.text,
                                     fontSize: 13,
                                     outline: "none",
                                     resize: "vertical",
@@ -1970,7 +1971,7 @@ export function AdminCrmPage() {
                           <div
                             style={{
                               fontSize: 11,
-                              color: "rgba(255,255,255,0.4)",
+                              color: colors.textSubtle,
                               marginBottom: 6,
                               textTransform: "uppercase",
                               letterSpacing: "0.06em",
@@ -1989,11 +1990,11 @@ export function AdminCrmPage() {
                                 key={t.tag}
                                 style={{
                                   fontSize: 11,
-                                  color: "rgba(251,191,36,0.85)",
+                                  color: "rgba(180,83,9,0.85)",
                                   padding: "3px 10px",
                                   borderRadius: 999,
-                                  background: "rgba(251,191,36,0.06)",
-                                  border: "1px solid rgba(251,191,36,0.18)",
+                                  background: "rgba(180,83,9,0.08)",
+                                  border: "1px solid rgba(180,83,9,0.18)",
                                 }}
                               >
                                 {t.tag} <span style={{ opacity: 0.6 }}>×{t.count}</span>
@@ -2011,7 +2012,7 @@ export function AdminCrmPage() {
                           <div
                             style={{
                               fontSize: 11,
-                              color: "rgba(255,255,255,0.4)",
+                              color: colors.textSubtle,
                               marginBottom: 6,
                               textTransform: "uppercase",
                               letterSpacing: "0.06em",
@@ -2053,7 +2054,7 @@ export function AdminCrmPage() {
                               <div
                                 style={{
                                   fontSize: 11,
-                                  color: "rgba(255,255,255,0.3)",
+                                  color: colors.textFaded,
                                   paddingLeft: 10,
                                 }}
                               >
@@ -2079,11 +2080,11 @@ export function AdminCrmPage() {
                             padding: "12px 14px",
                             borderRadius: 12,
                             background: dirty
-                              ? "rgba(251,191,36,0.08)"
-                              : "rgba(255,255,255,0.02)",
+                              ? "rgba(180,83,9,0.08)"
+                              : colors.surface,
                             border: dirty
-                              ? "1px solid rgba(251,191,36,0.28)"
-                              : "1px solid rgba(255,255,255,0.06)",
+                              ? "1px solid rgba(180,83,9,0.25)"
+                              : `1px solid ${colors.border}`,
                             display: "flex",
                             alignItems: "center",
                             gap: 8,
@@ -2098,9 +2099,9 @@ export function AdminCrmPage() {
                               style={{
                                 padding: "8px 14px",
                                 borderRadius: 8,
-                                border: "1px solid rgba(239,68,68,0.2)",
-                                background: "rgba(239,68,68,0.08)",
-                                color: "#f87171",
+                                border: "1px solid rgba(220,38,38,0.20)",
+                                background: "rgba(220,38,38,0.06)",
+                                color: colors.danger,
                                 fontSize: 12,
                                 cursor:
                                   savingId === h.id ? "default" : "pointer",
@@ -2113,7 +2114,7 @@ export function AdminCrmPage() {
                             <span
                               style={{
                                 fontSize: 12,
-                                color: "rgba(251,191,36,0.85)",
+                                color: "rgba(180,83,9,0.85)",
                                 fontWeight: 500,
                               }}
                             >
@@ -2130,9 +2131,9 @@ export function AdminCrmPage() {
                                 style={{
                                   padding: "8px 14px",
                                   borderRadius: 8,
-                                  border: "1px solid rgba(255,255,255,0.1)",
+                                  border: `1px solid ${colors.border}`,
                                   background: "transparent",
-                                  color: "rgba(255,255,255,0.6)",
+                                  color: colors.textMuted,
                                   fontSize: 12,
                                   cursor:
                                     savingId === h.id ? "default" : "pointer",
@@ -2149,7 +2150,7 @@ export function AdminCrmPage() {
                                   borderRadius: 8,
                                   border: "none",
                                   background: colors.gradientGold,
-                                  color: "#000",
+                                  color: "#fff",
                                   fontSize: 12,
                                   fontWeight: 700,
                                   cursor:
@@ -2177,9 +2178,9 @@ export function AdminCrmPage() {
 const selectStyle = {
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(20,16,30,0.6)",
-  color: "rgba(255,255,255,0.8)",
+  border: `1px solid ${colors.border}`,
+  background: colors.surface,
+  color: colors.text,
   fontSize: 13,
   outline: "none",
   cursor: "pointer",
@@ -2188,9 +2189,9 @@ const selectStyle = {
 const addInputStyle = {
   padding: "9px 12px",
   borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(12,10,20,0.7)",
-  color: "#fff",
+  border: `1px solid ${colors.border}`,
+  background: colors.surface,
+  color: colors.text,
   fontSize: 13,
   outline: "none",
   width: "100%",

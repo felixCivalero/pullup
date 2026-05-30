@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { colors } from "../theme/colors.js";
-import { ParticleField } from "../components/ParticleField";
 import { trackEvent } from "../lib/analytics.js";
 
 // Dedicated OAuth landing route. Every Google sign-in redirects here
@@ -99,10 +98,9 @@ export function AuthCallbackPage() {
   return (
     <div
       style={{
-        position: "relative",
         minHeight: "100dvh",
         background: colors.background,
-        color: "#fff",
+        color: colors.text,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -111,23 +109,8 @@ export function AuthCallbackPage() {
         padding: "24px",
       }}
     >
-      <ParticleField intensity={1} zIndex={0} />
-
       <div
         style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.7) 100%)",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      />
-
-      <div
-        style={{
-          position: "relative",
-          zIndex: 2,
           width: "min(420px, 100%)",
           textAlign: "center",
         }}
@@ -139,7 +122,7 @@ export function AuthCallbackPage() {
               flexDirection: "column",
               alignItems: "center",
               gap: 16,
-              color: "rgba(255,255,255,0.6)",
+              color: colors.textMuted,
             }}
           >
             <div
@@ -147,8 +130,8 @@ export function AuthCallbackPage() {
                 width: 28,
                 height: 28,
                 borderRadius: "50%",
-                border: "2px solid rgba(255,255,255,0.15)",
-                borderTopColor: "rgba(255,255,255,0.7)",
+                border: `2px solid ${colors.border}`,
+                borderTopColor: colors.accent,
                 animation: "authSpin 0.8s linear infinite",
               }}
             />
@@ -164,7 +147,7 @@ export function AuthCallbackPage() {
                 fontSize: 11,
                 letterSpacing: "0.22em",
                 textTransform: "uppercase",
-                color: "rgba(255,255,255,0.38)",
+                color: colors.textSubtle,
               }}
             >
               Sign-in didn't finish
@@ -176,25 +159,17 @@ export function AuthCallbackPage() {
                 fontWeight: 700,
                 margin: 0,
                 letterSpacing: "-0.02em",
+                color: colors.text,
               }}
             >
               Let's try that{" "}
-              <span
-                style={{
-                  background: colors.gradientGold,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}
-              >
-                again
-              </span>
-              .
+              <span style={{ color: colors.accent }}>again</span>.
             </h1>
             <p
               style={{
                 fontSize: 14,
                 lineHeight: 1.6,
-                color: "rgba(255,255,255,0.55)",
+                color: colors.textMuted,
                 margin: 0,
               }}
             >
@@ -214,8 +189,8 @@ export function AuthCallbackPage() {
                 padding: "14px 0",
                 borderRadius: 999,
                 border: "none",
-                background: colors.gradientGold,
-                color: "#111",
+                background: colors.accent,
+                color: "#fff",
                 fontSize: 14,
                 fontWeight: 700,
                 cursor: "pointer",
@@ -227,11 +202,12 @@ export function AuthCallbackPage() {
               to="/"
               style={{
                 fontSize: 12,
-                color: "rgba(255,255,255,0.5)",
+                color: colors.textMuted,
                 textDecoration: "none",
               }}
             >
-              Back to <span style={{ color: "#fff" }}>home</span>
+              Back to{" "}
+              <span style={{ color: colors.text, fontWeight: 600 }}>home</span>
             </Link>
           </div>
         )}

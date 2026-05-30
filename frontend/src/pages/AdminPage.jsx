@@ -81,7 +81,7 @@ export function AdminPage() {
   const [weeklyCategoryFilter, setWeeklyCategoryFilter] = useState("all");
   const [weeklyCityFilter, setWeeklyCityFilter] = useState("all");
 
-  // Fixed template: we’re using the event-style Resend template
+  // Fixed template: we're using the event-style Resend template
   // backed by Supabase event data, same as CRM.
   const templateType = "event";
   const TEMPLATE_EVENT_ID = "5e7abfb7-70a5-4bd3-b820-42dd04d1e0c7";
@@ -469,7 +469,7 @@ export function AdminPage() {
           background: colors.background,
         }}
       >
-        <div style={{ color: "#fff" }}>Loading admin...</div>
+        <div style={{ color: colors.textMuted, fontSize: 14 }}>Loading admin...</div>
       </div>
     );
   }
@@ -492,11 +492,10 @@ export function AdminPage() {
             maxWidth: "420px",
             width: "100%",
             borderRadius: "20px",
-            background:
-              "linear-gradient(145deg, rgba(11,10,20,0.96), rgba(17,15,30,0.98))",
-            border: "1px solid rgba(255,255,255,0.12)",
+            background: "#fff",
+            border: `1px solid ${colors.border}`,
             padding: "20px 20px 18px",
-            color: "#fff",
+            boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
           }}
         >
           <h1
@@ -504,6 +503,7 @@ export function AdminPage() {
               fontSize: "18px",
               margin: 0,
               marginBottom: "8px",
+              color: colors.text,
             }}
           >
             Admin access required
@@ -512,7 +512,7 @@ export function AdminPage() {
             style={{
               fontSize: "13px",
               lineHeight: 1.6,
-              opacity: 0.8,
+              color: colors.textMuted,
               margin: 0,
             }}
           >
@@ -539,12 +539,11 @@ export function AdminPage() {
           width: "100%",
           maxWidth: "640px",
           borderRadius: "24px",
-          background:
-            "linear-gradient(145deg, rgba(11,10,20,0.96), rgba(17,15,30,0.98))",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.8)",
-          border: "1px solid rgba(255,255,255,0.12)",
+          background: "#fff",
+          boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
+          border: `1px solid ${colors.border}`,
           padding: "24px 24px 20px",
-          color: "#fff",
+          color: colors.text,
         }}
       >
         <h1
@@ -553,6 +552,7 @@ export function AdminPage() {
             fontWeight: 600,
             margin: 0,
             marginBottom: 4,
+            color: colors.text,
           }}
         >
           Newsletter Sendout
@@ -561,7 +561,7 @@ export function AdminPage() {
           style={{
             fontSize: "13px",
             lineHeight: 1.6,
-            opacity: 0.6,
+            color: colors.textMuted,
             margin: 0,
             marginBottom: 20,
           }}
@@ -590,7 +590,7 @@ export function AdminPage() {
             <label
               style={{
                 fontSize: "12px",
-                opacity: 0.85,
+                color: colors.textMuted,
               }}
             >
               Recipients
@@ -609,15 +609,7 @@ export function AdminPage() {
                   setExcludedIds(new Set());
                 }
               }}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(12,10,20,0.9)",
-                color: "#fff",
-                fontSize: "13px",
-                outline: "none",
-              }}
+              style={fieldInputStyle}
             >
               <option value="" disabled>
                 Choose recipients
@@ -629,8 +621,8 @@ export function AdminPage() {
           {/* Category targeting */}
           {recipientSource === "newsletter" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: "12px", opacity: 0.85 }}>
-                Target by interest {targetCategories.length > 0 && <span style={{ opacity: 0.6 }}>(filtering)</span>}
+              <label style={{ fontSize: "12px", color: colors.textMuted }}>
+                Target by interest {targetCategories.length > 0 && <span style={{ color: colors.textFaded }}>(filtering)</span>}
               </label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {WEEKLY_CATEGORIES.filter((c) => c.key !== "all").map((cat) => {
@@ -651,9 +643,9 @@ export function AdminPage() {
                       style={{
                         padding: "5px 12px",
                         borderRadius: "999px",
-                        border: active ? "1px solid rgba(251,191,36,0.5)" : "1px solid rgba(255,255,255,0.12)",
-                        background: active ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.04)",
-                        color: active ? "rgba(251,191,36,0.95)" : "rgba(255,255,255,0.6)",
+                        border: active ? `1px solid rgba(180,83,9,0.25)` : `1px solid ${colors.border}`,
+                        background: active ? "rgba(180,83,9,0.10)" : colors.surfaceMuted,
+                        color: active ? colors.gold : colors.textMuted,
                         fontSize: "12px",
                         cursor: "pointer",
                         fontWeight: active ? 600 : 400,
@@ -676,9 +668,9 @@ export function AdminPage() {
                     style={{
                       padding: "5px 10px",
                       borderRadius: "999px",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.04)",
-                      color: "rgba(255,255,255,0.45)",
+                      border: `1px solid ${colors.borderFaint}`,
+                      background: colors.surfaceMuted,
+                      color: colors.textFaded,
                       fontSize: "11px",
                       cursor: "pointer",
                     }}
@@ -698,7 +690,7 @@ export function AdminPage() {
               marginTop: 4,
               marginBottom: 4,
               fontSize: "12px",
-              opacity: 0.85,
+              color: colors.textMuted,
             }}
           >
             <span>
@@ -711,7 +703,7 @@ export function AdminPage() {
                   ? "unknown"
                   : `${recipientCount} confirmed subscribers`}
               {unfilteredTotal != null && targetCategories.length > 0 && (
-                <span style={{ opacity: 0.5 }}> (of {unfilteredTotal} total)</span>
+                <span style={{ color: colors.textFaded }}> (of {unfilteredTotal} total)</span>
               )}
             </span>
           </div>
@@ -722,8 +714,8 @@ export function AdminPage() {
                 marginBottom: 8,
                 padding: "8px 10px",
                 borderRadius: "10px",
-                background: "rgba(10,10,18,0.9)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: colors.surface,
+                border: `1px solid ${colors.border}`,
                 maxHeight: 180,
                 overflowY: "auto",
               }}
@@ -737,7 +729,7 @@ export function AdminPage() {
                   fontSize: "11px",
                   textTransform: "uppercase",
                   letterSpacing: "0.14em",
-                  opacity: 0.7,
+                  color: colors.textMuted,
                 }}
               >
                 <span>Segment</span>
@@ -758,11 +750,11 @@ export function AdminPage() {
                         padding: "6px 8px",
                         borderRadius: "8px",
                         background: isExcluded
-                          ? "rgba(40,10,10,0.9)"
-                          : "rgba(18,18,30,0.95)",
+                          ? "rgba(220,38,38,0.04)"
+                          : colors.surfaceMuted,
                         border: isExcluded
-                          ? "1px solid rgba(255,120,120,0.5)"
-                          : "1px solid rgba(255,255,255,0.06)",
+                          ? `1px solid rgba(220,38,38,0.2)`
+                          : `1px solid ${colors.borderFaint}`,
                       }}
                     >
                       <div
@@ -775,7 +767,7 @@ export function AdminPage() {
                       >
                         <span
                           style={{
-                            opacity: isExcluded ? 0.5 : 0.9,
+                            color: isExcluded ? colors.textFaded : colors.text,
                             textDecoration: isExcluded
                               ? "line-through"
                               : "none",
@@ -787,7 +779,7 @@ export function AdminPage() {
                           <span
                             style={{
                               fontSize: "10px",
-                              opacity: 0.6,
+                              color: colors.textFaded,
                             }}
                           >
                             Linked user
@@ -809,7 +801,7 @@ export function AdminPage() {
                         }}
                         style={{
                           borderRadius: "999px",
-                          border: "none",
+                          border: `1px solid ${colors.border}`,
                           width: 24,
                           height: 24,
                           display: "flex",
@@ -818,9 +810,9 @@ export function AdminPage() {
                           fontSize: "14px",
                           cursor: "pointer",
                           background: isExcluded
-                            ? "linear-gradient(135deg, #402020, #803030)"
-                            : "linear-gradient(135deg, #1f1f2f, #3a3a5a)",
-                          color: "#fff",
+                            ? "rgba(220,38,38,0.08)"
+                            : colors.surfaceMuted,
+                          color: isExcluded ? colors.danger : colors.textMuted,
                         }}
                       >
                         {isExcluded ? "↺" : "×"}
@@ -843,7 +835,7 @@ export function AdminPage() {
             <label
               style={{
                 fontSize: "12px",
-                opacity: 0.85,
+                color: colors.textMuted,
               }}
             >
               Template
@@ -854,15 +846,7 @@ export function AdminPage() {
                 const value = e.target.value;
                 setSelectedTemplate(value);
               }}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(12,10,20,0.9)",
-                color: "#fff",
-                fontSize: "13px",
-                outline: "none",
-              }}
+              style={fieldInputStyle}
             >
               <option value="" disabled>
                 Choose template
@@ -875,7 +859,7 @@ export function AdminPage() {
             <label
               style={{
                 fontSize: "12px",
-                opacity: 0.85,
+                color: colors.textMuted,
               }}
             >
               Subject
@@ -885,15 +869,7 @@ export function AdminPage() {
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Pullup newsletter"
-              style={{
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(12,10,20,0.9)",
-                color: "#fff",
-                fontSize: "13px",
-                outline: "none",
-              }}
+              style={fieldInputStyle}
             />
           </div>
 
@@ -903,10 +879,10 @@ export function AdminPage() {
                 marginTop: 8,
                 marginBottom: 12,
                 borderRadius: "16px",
-                background: "rgba(12,10,18,0.9)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: "#fff",
+                border: `1px solid ${colors.border}`,
                 overflow: "hidden",
-                boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
+                boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
               }}
             >
               {heroImageUrl && (
@@ -949,8 +925,8 @@ export function AdminPage() {
                         fontSize: "11px",
                         letterSpacing: "0.14em",
                         textTransform: "uppercase",
-                        background: "rgba(0,0,0,0.65)",
-                        color: "#f5f5f5",
+                        background: "rgba(0,0,0,0.55)",
+                        color: "#fff",
                         border: "1px solid rgba(255,255,255,0.4)",
                       }}
                     >
@@ -984,9 +960,9 @@ export function AdminPage() {
                       textAlign: "center",
                       marginBottom: "12px",
                       background: "transparent",
-                      border: "1px dashed rgba(255,255,255,0.3)",
+                      border: `1px dashed ${colors.borderStrong}`,
                       borderRadius: "4px",
-                      color: "#fff",
+                      color: colors.text,
                       outline: "none",
                     }}
                   />
@@ -1002,6 +978,7 @@ export function AdminPage() {
                       fontWeight: 600,
                       textAlign: "center",
                       marginBottom: "12px",
+                      color: colors.text,
                       cursor: "pointer",
                       borderRadius: "8px",
                       transition: "all 0.2s ease",
@@ -1041,10 +1018,9 @@ export function AdminPage() {
                       textAlign: "center",
                       fontStyle: "italic",
                       background: "transparent",
-                      border: "1px dashed rgba(255,255,255,0.3)",
+                      border: `1px dashed ${colors.borderStrong}`,
                       borderRadius: "4px",
-                      color: "#fff",
-                      opacity: 0.9,
+                      color: colors.text,
                       outline: "none",
                     }}
                   />
@@ -1059,14 +1035,14 @@ export function AdminPage() {
                       paddingBottom: "8px",
                       textAlign: "center",
                       fontStyle: "italic",
-                      opacity: introQuote ? 0.9 : 0.4,
+                      color: introQuote ? colors.text : colors.textFaded,
                       cursor: "pointer",
                       borderRadius: "8px",
                       minHeight: "32px",
                       transition: "all 0.2s ease",
                       border: introQuote
                         ? "none"
-                        : "1px dashed rgba(255,255,255,0.2)",
+                        : `1px dashed ${colors.border}`,
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background = colors.silverRgbaHover;
@@ -1105,10 +1081,9 @@ export function AdminPage() {
                       paddingBottom: "8px",
                       textAlign: "center",
                       background: "transparent",
-                      border: "1px dashed rgba(255,255,255,0.3)",
+                      border: `1px dashed ${colors.borderStrong}`,
                       borderRadius: "4px",
-                      color: "#fff",
-                      opacity: 0.85,
+                      color: colors.text,
                       outline: "none",
                       resize: "vertical",
                       fontFamily: "inherit",
@@ -1124,7 +1099,7 @@ export function AdminPage() {
                       paddingTop: "8px",
                       paddingBottom: "8px",
                       textAlign: "center",
-                      opacity: 0.85,
+                      color: colors.textMuted,
                       cursor: "pointer",
                       borderRadius: "8px",
                       minHeight: "24px",
@@ -1145,7 +1120,7 @@ export function AdminPage() {
                   style={{
                     width: "100%",
                     border: "none",
-                    borderTop: "1px solid rgba(255,255,255,0.1)",
+                    borderTop: `1px solid ${colors.border}`,
                     paddingBottom: "12px",
                     marginTop: "12px",
                     marginBottom: "12px",
@@ -1175,10 +1150,9 @@ export function AdminPage() {
                       paddingBottom: "8px",
                       textAlign: "center",
                       background: "transparent",
-                      border: "1px dashed rgba(255,255,255,0.3)",
+                      border: `1px dashed ${colors.borderStrong}`,
                       borderRadius: "4px",
-                      color: "#fff",
-                      opacity: 0.85,
+                      color: colors.text,
                       outline: "none",
                     }}
                   />
@@ -1192,7 +1166,7 @@ export function AdminPage() {
                       paddingTop: "8px",
                       paddingBottom: "8px",
                       textAlign: "center",
-                      opacity: 0.85,
+                      color: colors.textMuted,
                       cursor: "pointer",
                       borderRadius: "8px",
                       minHeight: "24px",
@@ -1206,7 +1180,7 @@ export function AdminPage() {
                     }}
                   >
                     {introGreeting || (
-                      <span style={{ fontSize: "12px" }}>
+                      <span style={{ fontSize: "12px", color: colors.textFaded }}>
                         Click to add greeting
                       </span>
                     )}
@@ -1236,10 +1210,9 @@ export function AdminPage() {
                       paddingBottom: "8px",
                       textAlign: "center",
                       background: "transparent",
-                      border: "1px dashed rgba(255,255,255,0.3)",
+                      border: `1px dashed ${colors.borderStrong}`,
                       borderRadius: "4px",
-                      color: "#fff",
-                      opacity: 0.85,
+                      color: colors.text,
                       outline: "none",
                     }}
                   />
@@ -1253,7 +1226,7 @@ export function AdminPage() {
                       paddingTop: "8px",
                       paddingBottom: "8px",
                       textAlign: "center",
-                      opacity: 0.85,
+                      color: colors.textMuted,
                       cursor: "pointer",
                       borderRadius: "8px",
                       minHeight: "24px",
@@ -1267,7 +1240,7 @@ export function AdminPage() {
                     }}
                   >
                     {introNote || (
-                      <span style={{ fontSize: "12px" }}>
+                      <span style={{ fontSize: "12px", color: colors.textFaded }}>
                         Click to add credits / note
                       </span>
                     )}
@@ -1301,9 +1274,9 @@ export function AdminPage() {
                         flex: 1,
                         padding: "8px 10px",
                         borderRadius: "999px",
-                        border: "1px solid rgba(255,255,255,0.2)",
-                        background: "rgba(8,8,16,0.9)",
-                        color: "#fff",
+                        border: `1px solid ${colors.border}`,
+                        background: colors.surfaceMuted,
+                        color: colors.text,
                         fontSize: "11px",
                         outline: "none",
                       }}
@@ -1317,9 +1290,9 @@ export function AdminPage() {
                         flex: 2,
                         padding: "8px 10px",
                         borderRadius: "999px",
-                        border: "1px solid rgba(255,255,255,0.2)",
-                        background: "rgba(8,8,16,0.9)",
-                        color: "#fff",
+                        border: `1px solid ${colors.border}`,
+                        background: colors.surfaceMuted,
+                        color: colors.text,
                         fontSize: "11px",
                         outline: "none",
                       }}
@@ -1336,9 +1309,8 @@ export function AdminPage() {
                       fontWeight: 600,
                       letterSpacing: "0.12em",
                       textTransform: "uppercase",
-                      background:
-                        "linear-gradient(135deg, rgba(250,250,250,0.98), rgba(200,200,200,0.98))",
-                      color: "#111",
+                      background: colors.text,
+                      color: "#fff",
                       cursor: "default",
                       marginTop: 4,
                     }}
@@ -1370,10 +1342,9 @@ export function AdminPage() {
                       paddingBottom: "8px",
                       textAlign: "center",
                       background: "transparent",
-                      border: "1px dashed rgba(255,255,255,0.3)",
+                      border: `1px dashed ${colors.borderStrong}`,
                       borderRadius: "4px",
-                      color: "#fff",
-                      opacity: 0.85,
+                      color: colors.text,
                       outline: "none",
                     }}
                   />
@@ -1387,7 +1358,7 @@ export function AdminPage() {
                       paddingTop: "8px",
                       paddingBottom: "8px",
                       textAlign: "center",
-                      opacity: 0.85,
+                      color: colors.textMuted,
                       cursor: "pointer",
                       borderRadius: "8px",
                       minHeight: "24px",
@@ -1401,7 +1372,7 @@ export function AdminPage() {
                     }}
                   >
                     {signoffText || (
-                      <span style={{ fontSize: "12px" }}>
+                      <span style={{ fontSize: "12px", color: colors.textFaded }}>
                         Click to add signoff
                       </span>
                     )}
@@ -1417,10 +1388,10 @@ export function AdminPage() {
                 marginTop: 8,
                 marginBottom: 12,
                 borderRadius: "16px",
-                background: "rgba(12,10,18,0.9)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: "#fff",
+                border: `1px solid ${colors.border}`,
                 overflow: "hidden",
-                boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
+                boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
               }}
             >
               <div style={{ padding: "16px 20px 12px" }}>
@@ -1437,10 +1408,10 @@ export function AdminPage() {
                     type="button"
                     onClick={() => setWeekOffset((o) => o - 1)}
                     style={{
-                      background: "rgba(255,255,255,0.08)",
-                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: colors.surfaceMuted,
+                      border: `1px solid ${colors.border}`,
                       borderRadius: "8px",
-                      color: "#fff",
+                      color: colors.text,
                       width: 32,
                       height: 32,
                       display: "flex",
@@ -1459,7 +1430,7 @@ export function AdminPage() {
                       textAlign: "center",
                       fontSize: "13px",
                       fontWeight: 500,
-                      color: "rgba(255,255,255,0.85)",
+                      color: colors.textMuted,
                     }}
                   >
                     {formatWeekLabel(weekOffset)}
@@ -1468,10 +1439,10 @@ export function AdminPage() {
                     type="button"
                     onClick={() => setWeekOffset((o) => o + 1)}
                     style={{
-                      background: "rgba(255,255,255,0.08)",
-                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: colors.surfaceMuted,
+                      border: `1px solid ${colors.border}`,
                       borderRadius: "8px",
-                      color: "#fff",
+                      color: colors.text,
                       width: 32,
                       height: 32,
                       display: "flex",
@@ -1496,7 +1467,7 @@ export function AdminPage() {
                   }}
                 >
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4, paddingLeft: 2 }}>
+                    <div style={{ fontSize: "10px", color: colors.textFaded, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4, paddingLeft: 2 }}>
                       Category
                     </div>
                     <select
@@ -1506,15 +1477,15 @@ export function AdminPage() {
                         width: "100%",
                         padding: "7px 28px 7px 10px",
                         borderRadius: "8px",
-                        border: `1px solid ${weeklyCategoryFilter !== "all" ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.1)"}`,
-                        background: weeklyCategoryFilter !== "all" ? "rgba(192,192,192,0.08)" : "rgba(255,255,255,0.04)",
-                        color: weeklyCategoryFilter !== "all" ? colors.silverText : "rgba(255,255,255,0.5)",
+                        border: `1px solid ${weeklyCategoryFilter !== "all" ? "rgba(180,83,9,0.25)" : colors.border}`,
+                        background: weeklyCategoryFilter !== "all" ? "rgba(180,83,9,0.10)" : colors.surfaceMuted,
+                        color: weeklyCategoryFilter !== "all" ? colors.gold : colors.textMuted,
                         fontSize: "12px",
                         cursor: "pointer",
                         outline: "none",
                         WebkitAppearance: "none",
                         appearance: "none",
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.4)' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(10,10,10,0.4)' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`,
                         backgroundRepeat: "no-repeat",
                         backgroundPosition: "right 10px center",
                       }}
@@ -1525,7 +1496,7 @@ export function AdminPage() {
                     </select>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4, paddingLeft: 2 }}>
+                    <div style={{ fontSize: "10px", color: colors.textFaded, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4, paddingLeft: 2 }}>
                       City
                     </div>
                     <select
@@ -1535,15 +1506,15 @@ export function AdminPage() {
                         width: "100%",
                         padding: "7px 28px 7px 10px",
                         borderRadius: "8px",
-                        border: `1px solid ${weeklyCityFilter !== "all" ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.1)"}`,
-                        background: weeklyCityFilter !== "all" ? "rgba(192,192,192,0.08)" : "rgba(255,255,255,0.04)",
-                        color: weeklyCityFilter !== "all" ? colors.silverText : "rgba(255,255,255,0.5)",
+                        border: `1px solid ${weeklyCityFilter !== "all" ? "rgba(180,83,9,0.25)" : colors.border}`,
+                        background: weeklyCityFilter !== "all" ? "rgba(180,83,9,0.10)" : colors.surfaceMuted,
+                        color: weeklyCityFilter !== "all" ? colors.gold : colors.textMuted,
                         fontSize: "12px",
                         cursor: "pointer",
                         outline: "none",
                         WebkitAppearance: "none",
                         appearance: "none",
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.4)' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(10,10,10,0.4)' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`,
                         backgroundRepeat: "no-repeat",
                         backgroundPosition: "right 10px center",
                       }}
@@ -1575,9 +1546,9 @@ export function AdminPage() {
                       fontWeight: 600,
                       textAlign: "center",
                       background: "transparent",
-                      border: "1px dashed rgba(255,255,255,0.3)",
+                      border: `1px dashed ${colors.borderStrong}`,
                       borderRadius: "4px",
-                      color: "#fff",
+                      color: colors.text,
                       outline: "none",
                       boxSizing: "border-box",
                     }}
@@ -1591,6 +1562,7 @@ export function AdminPage() {
                       fontSize: "22px",
                       fontWeight: 600,
                       textAlign: "center",
+                      color: colors.text,
                       cursor: "pointer",
                       borderRadius: "8px",
                       transition: "all 0.2s ease",
@@ -1622,10 +1594,9 @@ export function AdminPage() {
                       fontSize: "14px",
                       textAlign: "center",
                       background: "transparent",
-                      border: "1px dashed rgba(255,255,255,0.3)",
+                      border: `1px dashed ${colors.borderStrong}`,
                       borderRadius: "4px",
-                      color: "#fff",
-                      opacity: 0.85,
+                      color: colors.text,
                       outline: "none",
                       resize: "vertical",
                       fontFamily: "inherit",
@@ -1640,13 +1611,13 @@ export function AdminPage() {
                       padding: "8px 12px",
                       fontSize: "14px",
                       textAlign: "center",
-                      opacity: weeklyIntroBody ? 0.8 : 0.38,
+                      color: weeklyIntroBody ? colors.textMuted : colors.textFaded,
                       cursor: "pointer",
                       borderRadius: "8px",
                       minHeight: "24px",
                       border: weeklyIntroBody
                         ? "none"
-                        : "1px dashed rgba(255,255,255,0.15)",
+                        : `1px dashed ${colors.border}`,
                       transition: "all 0.2s ease",
                     }}
                     onMouseEnter={(e) => {
@@ -1669,7 +1640,7 @@ export function AdminPage() {
                   <div
                     style={{
                       fontSize: "13px",
-                      opacity: 0.5,
+                      color: colors.textFaded,
                       textAlign: "center",
                       padding: "12px 0",
                     }}
@@ -1680,7 +1651,7 @@ export function AdminPage() {
                   <div
                     style={{
                       fontSize: "13px",
-                      opacity: 0.4,
+                      color: colors.textFaded,
                       textAlign: "center",
                       padding: "12px 0",
                       fontStyle: "italic",
@@ -1692,7 +1663,7 @@ export function AdminPage() {
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", textAlign: "center", marginBottom: 2 }}>
+                    <div style={{ fontSize: "11px", color: colors.textFaded, textAlign: "center", marginBottom: 2 }}>
                       {filteredWeeklyEvents.length} event{filteredWeeklyEvents.length !== 1 ? "s" : ""}
                       {(weeklyCategoryFilter !== "all" || weeklyCityFilter !== "all") && weeklyEvents.length !== filteredWeeklyEvents.length
                         ? ` of ${weeklyEvents.length}`
@@ -1707,8 +1678,8 @@ export function AdminPage() {
                           gap: 10,
                           padding: "10px 12px",
                           borderRadius: "10px",
-                          background: "rgba(255,255,255,0.04)",
-                          border: "1px solid rgba(255,255,255,0.07)",
+                          background: colors.surfaceMuted,
+                          border: `1px solid ${colors.border}`,
                         }}
                       >
                         {ev.image_url && (
@@ -1729,7 +1700,7 @@ export function AdminPage() {
                             style={{
                               fontWeight: 600,
                               fontSize: "13px",
-                              color: "#fff",
+                              color: colors.text,
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
@@ -1740,7 +1711,7 @@ export function AdminPage() {
                           <div
                             style={{
                               fontSize: "11px",
-                              color: "rgba(255,255,255,0.45)",
+                              color: colors.textFaded,
                               marginTop: 2,
                               overflow: "hidden",
                               textOverflow: "ellipsis",
@@ -1759,7 +1730,7 @@ export function AdminPage() {
                           }
                           style={{
                             borderRadius: "999px",
-                            border: "none",
+                            border: `1px solid ${colors.border}`,
                             width: 24,
                             height: 24,
                             display: "flex",
@@ -1767,8 +1738,8 @@ export function AdminPage() {
                             justifyContent: "center",
                             fontSize: "14px",
                             cursor: "pointer",
-                            background: "linear-gradient(135deg, #1f1f2f, #3a3a5a)",
-                            color: "rgba(255,255,255,0.7)",
+                            background: colors.surfaceMuted,
+                            color: colors.textMuted,
                             flexShrink: 0,
                           }}
                         >
@@ -1786,7 +1757,7 @@ export function AdminPage() {
             <div
               style={{
                 fontSize: "11px",
-                color: "rgba(255, 180, 180, 0.96)",
+                color: colors.danger,
               }}
             >
               {sendError}
@@ -1797,7 +1768,7 @@ export function AdminPage() {
             <div
               style={{
                 fontSize: "11px",
-                color: "rgba(180, 255, 200, 0.96)",
+                color: colors.success,
               }}
             >
               Newsletter queued to {sendResult.enqueued} of{" "}
@@ -1814,14 +1785,14 @@ export function AdminPage() {
               padding: "11px 0",
               borderRadius: "999px",
               border: "none",
-              background:
-                "linear-gradient(135deg, #f5f5f5 0%, #c7c7c7 60%, #a1a1a1 100%)",
-              color: "#121212",
+              background: colors.gold,
+              color: "#fff",
               fontSize: "13px",
               fontWeight: 600,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
               cursor: sending ? "wait" : "pointer",
+              opacity: sending ? 0.7 : 1,
             }}
           >
             {sending ? "Sending..." : "Send newsletter"}
@@ -1831,3 +1802,15 @@ export function AdminPage() {
     </div>
   );
 }
+
+const fieldInputStyle = {
+  padding: "10px 12px",
+  borderRadius: "10px",
+  border: `1px solid rgba(10,10,10,0.16)`,
+  background: "#fafafa",
+  color: "#0a0a0a",
+  fontSize: "13px",
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+};

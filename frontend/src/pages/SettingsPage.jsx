@@ -3,6 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../components/Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { SettingsTab } from "../components/HomeSettingsTab.jsx";
+import { colors } from "../theme/colors.js";
 
 export function SettingsPage() {
   const { user: authUser } = useAuth();
@@ -67,20 +68,19 @@ export function SettingsPage() {
         style={{
           minHeight: "100vh",
           position: "relative",
-          background:
-            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
+          background: colors.background,
         }}
       >
         <div className="responsive-container responsive-container-wide">
           <div
             className="responsive-card"
             style={{
-              background: "rgba(12, 10, 18, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              background: colors.backgroundCard,
+              border: `1px solid ${colors.border}`,
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             }}
           >
-            <div style={{ fontSize: "18px", opacity: 0.8 }}>
+            <div style={{ fontSize: "18px", color: colors.textMuted }}>
               Loading settings…
             </div>
           </div>
@@ -95,8 +95,7 @@ export function SettingsPage() {
       style={{
         minHeight: "100vh",
         position: "relative",
-        background:
-          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
+        background: colors.background,
         paddingBottom: "clamp(20px, 5vw, 40px)",
       }}
     >
@@ -107,9 +106,9 @@ export function SettingsPage() {
         <div
           className="responsive-card"
           style={{
-            background: "rgba(12, 10, 18, 0.6)",
-            backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255,255,255,0.05)",
+            background: colors.backgroundCard,
+            border: `1px solid ${colors.border}`,
+            boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
           }}
         >
           <h1
@@ -117,6 +116,7 @@ export function SettingsPage() {
               fontSize: "clamp(22px, 5vw, 28px)",
               fontWeight: 700,
               marginBottom: "16px",
+              color: colors.text,
             }}
           >
             Settings
@@ -132,4 +132,3 @@ export function SettingsPage() {
     </div>
   );
 }
-

@@ -4,6 +4,7 @@ import ImageBlockEditor from "./blocks/ImageBlockEditor";
 import ButtonBlockEditor from "./blocks/ButtonBlockEditor";
 import SocialsBlockEditor from "./blocks/SocialsBlockEditor";
 import EventCardBlockEditor from "./blocks/EventCardBlockEditor";
+import { colors } from "../../theme/colors.js";
 
 const TYPE_LABEL = {
   text: "Text",
@@ -91,13 +92,14 @@ export default function BlockEditorList({
             onMouseLeave={() => setHoveredKey?.(null)}
             style={{
               padding: "14px 16px",
-              background: "rgba(255,255,255,0.04)",
+              background: "#fff",
               border: hovered
-                ? "1px solid rgba(163, 230, 53, 0.5)"
-                : "1px solid rgba(255,255,255,0.1)",
+                ? `1px solid ${colors.secondaryBorder}`
+                : `1px solid ${colors.border}`,
               borderRadius: 12,
               transition: "border-color 0.15s ease",
               position: "relative",
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             }}
           >
             {/* Header: chevrons + type label + delete */}
@@ -151,14 +153,14 @@ export default function BlockEditorList({
                 onClick={() => addBlock(item.type)}
                 style={addItemStyle}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                  e.currentTarget.style.background = colors.accentSoft;
                   const ic = e.currentTarget.querySelector("[data-icon]");
-                  if (ic) ic.style.color = "#a3e635";
+                  if (ic) ic.style.color = colors.accent;
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = "transparent";
                   const ic = e.currentTarget.querySelector("[data-icon]");
-                  if (ic) ic.style.color = "rgba(255,255,255,0.35)";
+                  if (ic) ic.style.color = colors.textFaded;
                 }}
               >
                 <span data-icon style={addIconStyle}><Icon size={20} /></span>
@@ -175,7 +177,7 @@ export default function BlockEditorList({
 const chevronStyle = (disabled) => ({
   background: "none",
   border: "none",
-  color: disabled ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)",
+  color: disabled ? colors.borderStrong : colors.textSubtle,
   cursor: disabled ? "default" : "pointer",
   padding: 0,
   fontSize: 12,
@@ -187,7 +189,7 @@ const typeLabelStyle = {
   fontWeight: 600,
   textTransform: "uppercase",
   letterSpacing: "0.06em",
-  color: "rgba(255,255,255,0.25)",
+  color: colors.textFaded,
   flexShrink: 0,
   userSelect: "none",
 };
@@ -195,7 +197,7 @@ const typeLabelStyle = {
 const removeStyle = {
   background: "none",
   border: "none",
-  color: "rgba(255,255,255,0.3)",
+  color: colors.textFaded,
   fontSize: 18,
   cursor: "pointer",
   padding: "0 4px",
@@ -204,15 +206,15 @@ const removeStyle = {
 
 const addTrayStyle = {
   borderRadius: 12,
-  border: "1px dashed rgba(255,255,255,0.12)",
-  background: "rgba(12,10,18,0.6)",
+  border: `1px dashed ${colors.border}`,
+  background: colors.surface,
   padding: "10px 8px 8px",
 };
 
 const addTrayTitleStyle = {
   fontSize: 11,
   fontWeight: 500,
-  color: "rgba(255,255,255,0.3)",
+  color: colors.textFaded,
   textAlign: "center",
   marginBottom: 8,
 };
@@ -234,7 +236,7 @@ const addIconStyle = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  color: "rgba(255,255,255,0.35)",
+  color: colors.textFaded,
   transition: "color 0.15s ease",
   lineHeight: 1,
 };
@@ -242,7 +244,7 @@ const addIconStyle = {
 const addLabelStyle = {
   fontSize: 9,
   fontWeight: 500,
-  color: "rgba(255,255,255,0.4)",
+  color: colors.textSubtle,
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",

@@ -11,9 +11,9 @@ export const TIMELINE_Y = 0; // vertical centre of the timeline band
 export const BAND_H = 30; // slim band — its bold borders carry the structure, not its mass
 export const BAND_TOP = TIMELINE_Y - BAND_H / 2;
 export const BAND_BOTTOM = TIMELINE_Y + BAND_H / 2;
-export const TODAY_COLOR = "#fbbf24"; // gold — "now", fixed in every colour mode
-export const TIMELINE_COLOR = "rgba(255,255,255,0.6)"; // events share the band's neutral tone in platform mode
-export const NEUTRAL_LINK = "rgba(148,163,184,0.95)"; // content with no channel / no event
+export const TODAY_COLOR = "#b45309"; // warm amber — "now", stands out on a light canvas
+export const TIMELINE_COLOR = "#0d9488"; // teal — events on the band in platform mode
+export const NEUTRAL_LINK = "rgba(10,10,10,0.28)"; // content with no channel / no event
 // Distinct hues for "event" colour mode — assigned per event, chronologically. Gold is reserved for "today".
 export const EVENT_PALETTE = ["#60a5fa", "#f472b6", "#34d399", "#a78bfa", "#fb923c", "#22d3ee", "#f87171", "#a3e635"];
 export const CARD_W = 188; // card (and media) width — resizable

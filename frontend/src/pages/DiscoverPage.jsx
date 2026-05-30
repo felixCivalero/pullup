@@ -103,14 +103,15 @@ function EventCard({ event, onStatusChange, onSpotifyChange }) {
     <div
       style={{
         borderRadius: "16px",
-        background: "linear-gradient(145deg, rgba(14,12,24,0.97), rgba(20,17,34,0.98))",
+        background: "#fff",
         border: `1px solid ${
           isSent
-            ? "rgba(251, 191, 36, 0.2)"
+            ? "rgba(180, 83, 9, 0.20)"
             : isQueued
-              ? "rgba(34,197,94,0.3)"
-              : "rgba(255,255,255,0.1)"
+              ? "rgba(22,163,74,0.25)"
+              : colors.border
         }`,
+        boxShadow: "0 2px 12px rgba(10,10,10,0.05)",
         overflow: "hidden",
         transition: "border-color 0.2s",
       }}
@@ -151,7 +152,7 @@ function EventCard({ event, onStatusChange, onSpotifyChange }) {
                 fontSize: "11px",
                 textTransform: "uppercase",
                 letterSpacing: "0.1em",
-                color: colors.silverMuted,
+                color: colors.textMuted,
                 display: "flex",
                 alignItems: "center",
                 gap: "4px",
@@ -160,7 +161,7 @@ function EventCard({ event, onStatusChange, onSpotifyChange }) {
               {CATEGORY_EMOJI[event.category] || "✨"} {event.category}
             </span>
           )}
-          <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "11px" }}>·</span>
+          <span style={{ color: colors.textFaded, fontSize: "11px" }}>·</span>
           <span style={{ fontSize: "11px", color: colors.textFaded }}>
             {event.source?.replace(/_/g, " ")}
           </span>
@@ -208,14 +209,14 @@ function EventCard({ event, onStatusChange, onSpotifyChange }) {
           }}
         >
           {event.starts_at && (
-            <span style={{ fontSize: "12px", color: colors.silverMuted }}>
+            <span style={{ fontSize: "12px", color: colors.textMuted }}>
               📅 {event.ends_at
                 ? formatDateRange(event.starts_at, event.ends_at)
                 : formatDate(event.starts_at)}
             </span>
           )}
           {event.location && (
-            <span style={{ fontSize: "12px", color: colors.silverMuted }}>
+            <span style={{ fontSize: "12px", color: colors.textMuted }}>
               📍 {event.location}
             </span>
           )}
@@ -231,8 +232,8 @@ function EventCard({ event, onStatusChange, onSpotifyChange }) {
               style={{
                 padding: "7px 14px",
                 borderRadius: "8px",
-                border: "1px solid rgba(34,197,94,0.4)",
-                background: "rgba(34,197,94,0.1)",
+                border: "1px solid rgba(22,163,74,0.30)",
+                background: "rgba(22,163,74,0.08)",
                 color: colors.success,
                 fontSize: "12px",
                 fontWeight: 600,
@@ -250,7 +251,7 @@ function EventCard({ event, onStatusChange, onSpotifyChange }) {
               style={{
                 padding: "7px 14px",
                 borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.1)",
+                border: `1px solid ${colors.border}`,
                 background: "transparent",
                 color: colors.textFaded,
                 fontSize: "12px",
@@ -282,7 +283,7 @@ function EventCard({ event, onStatusChange, onSpotifyChange }) {
               style={{
                 padding: "7px 10px",
                 borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.08)",
+                border: `1px solid ${colors.border}`,
                 color: colors.textFaded,
                 fontSize: "12px",
                 textDecoration: "none",
@@ -301,7 +302,7 @@ function EventCard({ event, onStatusChange, onSpotifyChange }) {
               marginLeft: event.newsletter_sent_at ? "0" : "auto",
               padding: "7px 10px",
               borderRadius: "8px",
-              border: `1px solid ${event.spotify_url ? "rgba(30,215,96,0.35)" : "rgba(255,255,255,0.08)"}`,
+              border: `1px solid ${event.spotify_url ? "rgba(30,215,96,0.35)" : colors.border}`,
               background: event.spotify_url ? "rgba(30,215,96,0.1)" : "transparent",
               color: event.spotify_url ? "#1ed760" : colors.textFaded,
               fontSize: "14px",
@@ -696,8 +697,8 @@ export function DiscoverPage() {
     width: "100%",
     padding: "9px 12px",
     borderRadius: "9px",
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "rgba(255,255,255,0.04)",
+    border: `1px solid ${colors.border}`,
+    background: colors.surfaceMuted,
     color: colors.text,
     fontSize: "13px",
     outline: "none",
@@ -716,9 +717,9 @@ export function DiscoverPage() {
     return {
       padding: "7px 12px",
       borderRadius: "999px",
-      border: "none",
-      background: isActive ? "rgba(192,192,192,0.12)" : "rgba(255,255,255,0.04)",
-      color: isActive ? colors.silverText : colors.textFaded,
+      border: `1px solid ${isActive ? "rgba(180,83,9,0.25)" : colors.border}`,
+      background: isActive ? "rgba(180,83,9,0.08)" : colors.surfaceMuted,
+      color: isActive ? colors.gold : colors.textMuted,
       fontSize: "12px",
       cursor: "pointer",
       outline: "none",
@@ -726,7 +727,7 @@ export function DiscoverPage() {
       WebkitAppearance: "none",
       appearance: "none",
       paddingRight: "24px",
-      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.4)' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`,
+      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(10,10,10,0.4)' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`,
       backgroundRepeat: "no-repeat",
       backgroundPosition: "right 10px center",
     };
@@ -783,11 +784,11 @@ export function DiscoverPage() {
               style={{
                 padding: "8px 14px",
                 borderRadius: "999px",
-                border: "1px solid rgba(192,192,192,0.25)",
+                border: `1px solid ${colors.border}`,
                 background: scraping
-                  ? "rgba(192,192,192,0.05)"
-                  : "rgba(192,192,192,0.08)",
-                color: colors.silverText,
+                  ? colors.surface
+                  : colors.surfaceMuted,
+                color: colors.textMuted,
                 fontSize: "12px",
                 fontWeight: 600,
                 cursor: scraping ? "not-allowed" : "pointer",
@@ -837,9 +838,9 @@ export function DiscoverPage() {
               gap: "6px",
               padding: "8px 14px",
               borderRadius: "999px",
-              border: `1px solid ${manualOpen ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.08)"}`,
-              background: manualOpen ? "rgba(192,192,192,0.08)" : "transparent",
-              color: manualOpen ? colors.silverText : colors.textFaded,
+              border: `1px solid ${manualOpen ? "rgba(180,83,9,0.25)" : colors.border}`,
+              background: manualOpen ? "rgba(180,83,9,0.08)" : "transparent",
+              color: manualOpen ? colors.gold : colors.textMuted,
               fontSize: "12px",
               fontWeight: 600,
               cursor: "pointer",
@@ -858,9 +859,9 @@ export function DiscoverPage() {
               gap: "6px",
               padding: "8px 14px",
               borderRadius: "999px",
-              border: `1px solid ${sourcesOpen ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.08)"}`,
-              background: sourcesOpen ? "rgba(192,192,192,0.08)" : "transparent",
-              color: sourcesOpen ? colors.silverText : colors.textFaded,
+              border: `1px solid ${sourcesOpen ? "rgba(180,83,9,0.25)" : colors.border}`,
+              background: sourcesOpen ? "rgba(180,83,9,0.08)" : "transparent",
+              color: sourcesOpen ? colors.gold : colors.textMuted,
               fontSize: "12px",
               fontWeight: 600,
               cursor: "pointer",
@@ -883,8 +884,8 @@ export function DiscoverPage() {
               style={{
                 marginTop: "12px",
                 borderRadius: "16px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "linear-gradient(145deg, rgba(14,12,24,0.97), rgba(20,17,34,0.98))",
+                border: `1px solid ${colors.border}`,
+                background: "#fff",
                 padding: "20px",
                 display: "flex",
                 flexDirection: "column",
@@ -911,9 +912,9 @@ export function DiscoverPage() {
                   style={{
                     padding: "9px 14px",
                     borderRadius: "9px",
-                    border: "1px solid rgba(192,192,192,0.2)",
-                    background: "rgba(192,192,192,0.06)",
-                    color: colors.silverMuted,
+                    border: `1px solid ${colors.border}`,
+                    background: colors.surfaceMuted,
+                    color: colors.textMuted,
                     fontSize: "12px",
                     cursor: manualLoading || !manualForm.url.trim() ? "not-allowed" : "pointer",
                     whiteSpace: "nowrap",
@@ -1051,7 +1052,7 @@ export function DiscoverPage() {
                   style={{
                     padding: "9px 18px",
                     borderRadius: "10px",
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    border: `1px solid ${colors.border}`,
                     background: "transparent",
                     color: colors.textFaded,
                     fontSize: "13px",
@@ -1066,8 +1067,8 @@ export function DiscoverPage() {
                   style={{
                     padding: "9px 22px",
                     borderRadius: "10px",
-                    border: "1px solid rgba(34,197,94,0.4)",
-                    background: "rgba(34,197,94,0.12)",
+                    border: "1px solid rgba(22,163,74,0.30)",
+                    background: "rgba(22,163,74,0.10)",
                     color: colors.success,
                     fontSize: "13px",
                     fontWeight: 600,
@@ -1087,8 +1088,8 @@ export function DiscoverPage() {
             <div
               style={{
                 borderRadius: "16px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "linear-gradient(145deg, rgba(14,12,24,0.97), rgba(20,17,34,0.98))",
+                border: `1px solid ${colors.border}`,
+                background: "#fff",
                 padding: "clamp(14px, 3vw, 20px)",
               }}
             >
@@ -1101,8 +1102,8 @@ export function DiscoverPage() {
                   style={{
                     padding: "6px 14px",
                     borderRadius: "8px",
-                    border: "1px solid rgba(34,197,94,0.3)",
-                    background: "rgba(34,197,94,0.08)",
+                    border: "1px solid rgba(22,163,74,0.25)",
+                    background: "rgba(22,163,74,0.06)",
                     color: colors.success,
                     fontSize: "12px",
                     fontWeight: 600,
@@ -1120,8 +1121,8 @@ export function DiscoverPage() {
                     marginBottom: "16px",
                     padding: "16px",
                     borderRadius: "12px",
-                    border: "1px solid rgba(34,197,94,0.15)",
-                    background: "rgba(34,197,94,0.03)",
+                    border: "1px solid rgba(22,163,74,0.18)",
+                    background: "rgba(22,163,74,0.04)",
                     display: "flex",
                     flexDirection: "column",
                     gap: "10px",
@@ -1216,8 +1217,8 @@ export function DiscoverPage() {
                       style={{
                         padding: "8px 20px",
                         borderRadius: "8px",
-                        border: "1px solid rgba(34,197,94,0.4)",
-                        background: "rgba(34,197,94,0.12)",
+                        border: "1px solid rgba(22,163,74,0.30)",
+                        background: "rgba(22,163,74,0.10)",
                         color: colors.success,
                         fontSize: "12px",
                         fontWeight: 600,
@@ -1250,8 +1251,8 @@ export function DiscoverPage() {
                         gap: "12px",
                         padding: "10px 14px",
                         borderRadius: "10px",
-                        background: source.enabled ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.01)",
-                        border: "1px solid rgba(255,255,255,0.06)",
+                        background: colors.surface,
+                        border: `1px solid ${colors.borderFaint}`,
                         opacity: source.enabled ? 1 : 0.5,
                         transition: "opacity 0.15s",
                       }}
@@ -1264,7 +1265,7 @@ export function DiscoverPage() {
                           height: "20px",
                           borderRadius: "10px",
                           border: "none",
-                          background: source.enabled ? "rgba(34,197,94,0.4)" : "rgba(255,255,255,0.1)",
+                          background: source.enabled ? "rgba(22,163,74,0.35)" : colors.surface,
                           cursor: "pointer",
                           position: "relative",
                           flexShrink: 0,
@@ -1276,7 +1277,7 @@ export function DiscoverPage() {
                             width: "14px",
                             height: "14px",
                             borderRadius: "50%",
-                            background: source.enabled ? "#22c55e" : "rgba(255,255,255,0.3)",
+                            background: source.enabled ? colors.success : colors.border,
                             position: "absolute",
                             top: "3px",
                             left: source.enabled ? "19px" : "3px",
@@ -1312,7 +1313,7 @@ export function DiscoverPage() {
                         fontSize: "10px",
                         padding: "2px 8px",
                         borderRadius: "6px",
-                        background: "rgba(255,255,255,0.05)",
+                        background: colors.surfaceMuted,
                         color: colors.textFaded,
                         flexShrink: 0,
                       }}>
@@ -1427,7 +1428,7 @@ export function DiscoverPage() {
                   padding: "7px 12px",
                   borderRadius: "999px",
                   border: "none",
-                  background: "rgba(255,255,255,0.04)",
+                  background: colors.surfaceMuted,
                   color: colors.textFaded,
                   fontSize: "12px",
                   cursor: "pointer",

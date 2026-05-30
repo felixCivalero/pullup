@@ -6,6 +6,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Search, X, Calendar, MapPin, Music2 } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
+import { colors } from "../../theme/colors.js";
 
 function formatDate(iso) {
   if (!iso) return null;
@@ -35,10 +36,10 @@ function PickerCard({ ev, onPick }) {
         display: "flex",
         width: "100%",
         textAlign: "left",
-        background: hover ? "rgba(163,230,53,0.06)" : "rgba(255,255,255,0.02)",
+        background: hover ? colors.secondarySoft : "#fff",
         border: hover
-          ? "1px solid rgba(163,230,53,0.4)"
-          : "1px solid rgba(255,255,255,0.06)",
+          ? `1px solid ${colors.secondaryBorder}`
+          : `1px solid ${colors.border}`,
         borderRadius: 8,
         overflow: "hidden",
         cursor: "pointer",
@@ -58,7 +59,7 @@ function PickerCard({ ev, onPick }) {
           width: 56,
           minWidth: 56,
           height: 56,
-          background: "rgba(255,255,255,0.04)",
+          background: colors.surface,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -79,7 +80,7 @@ function PickerCard({ ev, onPick }) {
             }}
           />
         ) : (
-          <Calendar size={18} color="rgba(255,255,255,0.2)" />
+          <Calendar size={18} color={colors.textFaded} />
         )}
       </div>
       <div
@@ -97,7 +98,7 @@ function PickerCard({ ev, onPick }) {
           style={{
             fontSize: 13,
             fontWeight: 500,
-            color: "#fff",
+            color: colors.text,
             lineHeight: 1.3,
             whiteSpace: "nowrap",
             overflow: "hidden",
@@ -109,7 +110,7 @@ function PickerCard({ ev, onPick }) {
         <div
           style={{
             fontSize: 11,
-            color: "rgba(255,255,255,0.45)",
+            color: colors.textSubtle,
             display: "flex",
             gap: 10,
             alignItems: "center",
@@ -191,7 +192,7 @@ export default function EventPickerModal({ source, onClose, onPick }) {
         position: "fixed",
         inset: 0,
         zIndex: 200,
-        background: "rgba(0,0,0,0.6)",
+        background: "rgba(10,10,10,0.55)",
         backdropFilter: "blur(8px)",
         display: "flex",
         alignItems: "center",
@@ -205,14 +206,14 @@ export default function EventPickerModal({ source, onClose, onPick }) {
           width: "100%",
           maxWidth: 760,
           maxHeight: "85vh",
-          background: "rgba(15,12,25,0.98)",
-          border: "1px solid rgba(255,255,255,0.1)",
+          background: "#fff",
+          border: `1px solid ${colors.border}`,
           borderRadius: 16,
           padding: 20,
           display: "flex",
           flexDirection: "column",
           gap: 14,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+          boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
         }}
       >
         {/* Header */}
@@ -228,7 +229,7 @@ export default function EventPickerModal({ source, onClose, onPick }) {
             <div
               style={{
                 fontSize: 11,
-                color: source === "discover" ? "#a3e635" : "#fbbf24",
+                color: source === "discover" ? colors.secondary : colors.accent,
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
                 fontWeight: 600,
@@ -237,7 +238,7 @@ export default function EventPickerModal({ source, onClose, onPick }) {
             >
               {source === "discover" ? "Discover events" : "PullUp events"}
             </div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: colors.text }}>
               Pick an event to embed
             </div>
           </div>
@@ -246,7 +247,7 @@ export default function EventPickerModal({ source, onClose, onPick }) {
             style={{
               background: "none",
               border: "none",
-              color: "rgba(255,255,255,0.5)",
+              color: colors.textSubtle,
               cursor: "pointer",
               padding: 4,
             }}
@@ -264,11 +265,11 @@ export default function EventPickerModal({ source, onClose, onPick }) {
             gap: 8,
             padding: "8px 12px",
             borderRadius: 10,
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: colors.surface,
+            border: `1px solid ${colors.border}`,
           }}
         >
-          <Search size={14} style={{ color: "rgba(255,255,255,0.4)" }} />
+          <Search size={14} style={{ color: colors.textFaded }} />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -278,7 +279,7 @@ export default function EventPickerModal({ source, onClose, onPick }) {
               border: "none",
               background: "transparent",
               outline: "none",
-              color: "#fff",
+              color: colors.text,
               fontSize: 14,
             }}
           />
@@ -303,7 +304,7 @@ export default function EventPickerModal({ source, onClose, onPick }) {
                 gridColumn: "1 / -1",
                 textAlign: "center",
                 padding: "32px 0",
-                color: "rgba(255,255,255,0.4)",
+                color: colors.textSubtle,
                 fontSize: 13,
               }}
             >
@@ -315,7 +316,7 @@ export default function EventPickerModal({ source, onClose, onPick }) {
                 gridColumn: "1 / -1",
                 textAlign: "center",
                 padding: "32px 0",
-                color: "rgba(255,255,255,0.4)",
+                color: colors.textSubtle,
                 fontSize: 13,
               }}
             >

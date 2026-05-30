@@ -3,7 +3,9 @@ import { ScrollText, Calendar } from "lucide-react";
 import { DashboardEventCard } from "./DashboardEventCard";
 import { SubTabToggle } from "./HomeTabs";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { PullupEyes } from "./PullupEyes.jsx";
 import { authenticatedFetch } from "../lib/api.js";
+import { colors } from "../theme/colors.js";
 
 const createBtnStyle = {
   width: "100%",
@@ -12,13 +14,13 @@ const createBtnStyle = {
   padding: "14px 28px",
   borderRadius: "999px",
   border: "none",
-  background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+  background: colors.accent,
   color: "#fff",
   fontWeight: 600,
   fontSize: "15px",
   cursor: "pointer",
   transition: "all 0.3s ease",
-  boxShadow: "0 4px 16px rgba(192, 192, 192, 0.3)",
+  boxShadow: colors.accentShadow,
   touchAction: "manipulation",
 };
 
@@ -41,7 +43,7 @@ export function EventsTab({
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 0 12px" }}>
-        <h3 style={{ fontSize: "15px", fontWeight: 600, margin: 0 }}>Events</h3>
+        <h3 style={{ fontSize: "15px", fontWeight: 600, margin: 0, color: colors.text }}>Events</h3>
         <SubTabToggle
           leftLabel="Coming"
           leftCount={safeUpcoming.length}
@@ -58,7 +60,7 @@ export function EventsTab({
           style={{
             textAlign: "center",
             padding: "40px 20px",
-            opacity: 0.7,
+            color: colors.textMuted,
           }}
         >
           <div style={{ fontSize: "clamp(16px, 4vw, 18px)", fontWeight: 600 }}>
@@ -70,22 +72,24 @@ export function EventsTab({
           <div
             style={{
               textAlign: "center",
-              padding: "40px 20px",
-              opacity: 0.6,
+              padding: "48px 20px 40px",
             }}
           >
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-              {eventFilter === "past" ? (
-                <SilverIcon as={ScrollText} size={18} />
-              ) : (
-                <SilverIcon as={Calendar} size={18} />
-              )}
-            </div>
+            {eventFilter === "upcoming" ? (
+              <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+                <PullupEyes variant="small" style={{ width: 64, height: 56 }} />
+              </div>
+            ) : (
+              <div style={{ fontSize: "40px", marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+                <SilverIcon as={ScrollText} size={36} />
+              </div>
+            )}
             <div
               style={{
                 fontSize: "clamp(16px, 4vw, 18px)",
-                fontWeight: 600,
+                fontWeight: 700,
                 marginBottom: "8px",
+                color: colors.text,
               }}
             >
               No {eventFilter} events
@@ -93,7 +97,7 @@ export function EventsTab({
             <div
               style={{
                 fontSize: "clamp(13px, 3vw, 14px)",
-                opacity: 0.7,
+                color: colors.textMuted,
                 marginBottom: eventFilter === "upcoming" ? "24px" : "0",
               }}
             >
@@ -106,12 +110,14 @@ export function EventsTab({
                 onClick={() => navigate("/create")}
                 style={createBtnStyle}
                 onMouseEnter={(e) => {
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 12px 30px rgba(192, 192, 192, 0.5)";
+                  e.currentTarget.style.background = colors.accentHover;
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 12px 30px rgba(236,23,143,0.35)";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "0 4px 16px rgba(192, 192, 192, 0.3)";
+                  e.currentTarget.style.background = colors.accent;
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = colors.accentShadow;
                 }}
               >
                 Create Event
@@ -166,12 +172,14 @@ export function EventsTab({
                   fontSize: "14px",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 12px 30px rgba(192, 192, 192, 0.5)";
+                  e.currentTarget.style.background = colors.accentHover;
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 12px 30px rgba(236,23,143,0.35)";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "0 4px 16px rgba(192, 192, 192, 0.3)";
+                  e.currentTarget.style.background = colors.accent;
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = colors.accentShadow;
                 }}
               >
                 Create Event

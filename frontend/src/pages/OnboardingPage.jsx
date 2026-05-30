@@ -5,7 +5,6 @@ import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { trackEvent, getVisitorId } from "../lib/analytics.js";
 import { colors } from "../theme/colors.js";
-import { ParticleField } from "../components/ParticleField";
 import { AuthCard } from "../components/AuthCard";
 
 const DRAFT_KEY = "pullup_onboarding_draft";
@@ -49,18 +48,18 @@ const inputStyle = {
   width: "100%",
   padding: "16px 18px",
   borderRadius: 14,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  color: "#fff",
+  background: "#fff",
+  border: `1px solid ${colors.borderStrong}`,
+  color: colors.text,
   fontSize: 17,
   outline: "none",
   boxSizing: "border-box",
   fontFamily: "inherit",
 };
 
-const inputFocusGlow = {
-  boxShadow: "0 0 0 3px rgba(251,191,36,0.10)",
-  borderColor: "rgba(251,191,36,0.5)",
+const inputFocusStyle = {
+  boxShadow: `0 0 0 3px ${colors.accentSoftStrong}`,
+  borderColor: colors.accentBorder,
 };
 
 function FieldInput({ value, onChange, placeholder, type = "text", autoFocus, ...rest }) {
@@ -76,7 +75,7 @@ function FieldInput({ value, onChange, placeholder, type = "text", autoFocus, ..
       onBlur={() => setFocused(false)}
       style={{
         ...inputStyle,
-        ...(focused ? inputFocusGlow : null),
+        ...(focused ? inputFocusStyle : null),
       }}
       {...rest}
     />
@@ -94,13 +93,9 @@ function StepDots({ current, total }) {
             width: i === current ? 28 : 14,
             borderRadius: 2,
             background:
-              i < current
-                ? colors.gradientGold
-                : i === current
-                ? colors.gradientGold
-                : "rgba(255,255,255,0.10)",
+              i <= current ? colors.accent : colors.border,
             transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
-            opacity: i <= current ? 1 : 0.6,
+            opacity: i <= current ? 1 : 0.5,
           }}
         />
       ))}
@@ -143,7 +138,7 @@ function StepFrame({ stepKey, kicker, headline, sub, children, footer, direction
             fontSize: 11,
             letterSpacing: "0.22em",
             textTransform: "uppercase",
-            color: "rgba(255,255,255,0.38)",
+            color: colors.textSubtle,
           }}
         >
           {kicker}
@@ -156,6 +151,7 @@ function StepFrame({ stepKey, kicker, headline, sub, children, footer, direction
           fontWeight: 700,
           margin: 0,
           letterSpacing: "-0.02em",
+          color: colors.text,
         }}
       >
         {headline}
@@ -164,7 +160,7 @@ function StepFrame({ stepKey, kicker, headline, sub, children, footer, direction
         <p
           style={{
             margin: 0,
-            color: "rgba(255,255,255,0.55)",
+            color: colors.textMuted,
             fontSize: 15,
             lineHeight: 1.5,
           }}
@@ -280,14 +276,13 @@ export function OnboardingPage() {
         style={{
           height: "100dvh",
           background: colors.background,
-          color: "#fff",
+          color: colors.textMuted,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: 14,
           letterSpacing: "0.18em",
           textTransform: "uppercase",
-          opacity: 0.7,
         }}
       >
         Setting up your space…
@@ -302,24 +297,11 @@ export function OnboardingPage() {
         height: "100dvh",
         overflow: "hidden",
         background: colors.background,
-        color: "#fff",
+        color: colors.text,
         display: "flex",
         flexDirection: "column",
       }}
     >
-      <ParticleField intensity={1.4} zIndex={0} />
-
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0.65) 100%)",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      />
-
       {/* Top bar — wordmark + step dots */}
       <div
         style={{
@@ -335,7 +317,7 @@ export function OnboardingPage() {
         <a
           href="/"
           style={{
-            color: "#fff",
+            color: colors.text,
             textDecoration: "none",
             fontWeight: 800,
             letterSpacing: "-0.02em",
@@ -345,27 +327,20 @@ export function OnboardingPage() {
             gap: 8,
           }}
         >
-          <span
-            style={{
-              background: colors.gradientGold,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            pullup
-          </span>
+          <span style={{ color: colors.accent }}>pullup</span>
         </a>
         <StepDots current={step} total={TOTAL_STEPS} />
         <a
           href="/login"
           style={{
             fontSize: 12,
-            color: "rgba(255,255,255,0.5)",
+            color: colors.textMuted,
             textDecoration: "none",
             letterSpacing: "0.04em",
           }}
         >
-          Already in? <span style={{ color: "#fff" }}>Log in</span>
+          Already in?{" "}
+          <span style={{ color: colors.text, fontWeight: 600 }}>Log in</span>
         </a>
       </div>
 
@@ -389,16 +364,7 @@ export function OnboardingPage() {
             headline={
               <>
                 What should we{" "}
-                <span
-                  style={{
-                    background: colors.gradientGold,
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                  }}
-                >
-                  call you
-                </span>
-                ?
+                <span style={{ color: colors.accent }}>call you</span>?
               </>
             }
             sub="Your name shows on invites and event pages."
@@ -417,7 +383,12 @@ export function OnboardingPage() {
             stepKey="1"
             direction={direction}
             kicker="Step 2 of 3 · Your brand"
-            headline="Have a brand or studio?"
+            headline={
+              <>
+                Have a brand or{" "}
+                <span style={{ color: colors.accent }}>studio</span>?
+              </>
+            }
             sub="If you host under a brand, drop the name. Skip if it's just you for now — you can add this later in settings."
           >
             <FieldInput
@@ -435,9 +406,19 @@ export function OnboardingPage() {
             direction={direction}
             kicker="Step 3 of 3 · Claim it"
             headline={
-              draft.name
-                ? `Welcome, ${draft.name.split(" ")[0]}.`
-                : "Almost there."
+              draft.name ? (
+                <>
+                  Welcome,{" "}
+                  <span style={{ color: colors.accent }}>
+                    {draft.name.split(" ")[0]}
+                  </span>
+                  .
+                </>
+              ) : (
+                <>
+                  Almost <span style={{ color: colors.accent }}>there</span>.
+                </>
+              )
             }
             sub="Sign in to lock everything in. Google is fastest."
           >
@@ -445,6 +426,7 @@ export function OnboardingPage() {
               redirectTo="/start"
               submitLabel="Create my account"
               trackingPrefix="onboarding"
+              theme="light"
               funnelTrack
               onSuccess={() => finalize()}
             />
@@ -465,7 +447,7 @@ export function OnboardingPage() {
           zIndex: 5,
           padding: "16px 20px calc(16px + env(safe-area-inset-bottom))",
           background:
-            "linear-gradient(180deg, rgba(5,4,10,0) 0%, rgba(5,4,10,0.85) 50%, rgba(5,4,10,1) 100%)",
+            "linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,1) 100%)",
           display: "flex",
           alignItems: "center",
           gap: 12,
@@ -487,9 +469,9 @@ export function OnboardingPage() {
             style={{
               padding: "12px 16px",
               borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.02)",
-              color: "rgba(255,255,255,0.7)",
+              border: `1px solid ${colors.borderStrong}`,
+              background: "#fff",
+              color: colors.textMuted,
               cursor: step === 0 ? "default" : "pointer",
               opacity: step === 0 ? 0.4 : 1,
               display: "flex",
@@ -514,7 +496,7 @@ export function OnboardingPage() {
                 borderRadius: 999,
                 border: "none",
                 background: "transparent",
-                color: "rgba(255,255,255,0.5)",
+                color: colors.textSubtle,
                 cursor: "pointer",
                 fontSize: 13,
               }}
@@ -538,19 +520,15 @@ export function OnboardingPage() {
                 padding: "14px 22px",
                 borderRadius: 999,
                 border: "none",
-                background: canAdvance
-                  ? colors.gradientGold
-                  : "rgba(255,255,255,0.08)",
-                color: canAdvance ? "#111" : "rgba(255,255,255,0.4)",
+                background: canAdvance ? colors.accent : colors.surfaceMuted,
+                color: canAdvance ? "#fff" : colors.textSubtle,
                 fontWeight: 700,
                 fontSize: 14,
                 cursor: canAdvance ? "pointer" : "not-allowed",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                boxShadow: canAdvance
-                  ? "0 12px 30px rgba(245,158,11,0.35)"
-                  : "none",
+                boxShadow: canAdvance ? colors.accentShadow : "none",
                 transition: "all 0.2s ease",
               }}
             >

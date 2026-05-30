@@ -16,7 +16,8 @@ import { useToast } from "../components/Toast";
 import { FaPaperPlane, FaCalendar } from "react-icons/fa";
 import { getEventShareUrl } from "../lib/urlUtils";
 import { logger } from "../lib/logger.js";
-import { SilverIcon } from "../components/ui/SilverIcon.jsx";
+import { PullupEyes } from "../components/PullupEyes.jsx";
+import { NativeLaneActions } from "../components/NativeLaneActions.jsx";
 
 import { authenticatedFetch, API_BASE } from "../lib/api.js";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
@@ -804,17 +805,16 @@ export function EventGuestsPage() {
         style={{
           minHeight: "100vh",
           position: "relative",
-          background:
-            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.1) 0%, transparent 50%), #05040a",
+          background: colors.background,
         }}
       >
         <div className="responsive-container">
           <div
             className="responsive-card"
             style={{
-              background: "rgba(12, 10, 18, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
+              color: colors.textMuted,
             }}
           >
             Loading guests…
@@ -831,8 +831,7 @@ export function EventGuestsPage() {
         style={{
           minHeight: "100vh",
           position: "relative",
-          background:
-            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.1) 0%, transparent 50%), #05040a",
+          background: colors.background,
         }}
       >
         <div className="responsive-container">
@@ -840,15 +839,14 @@ export function EventGuestsPage() {
             className="responsive-card"
             style={{
               textAlign: "center",
-              background: "rgba(12, 10, 18, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
             }}
           >
-            <h2 style={{ marginBottom: "8px", fontSize: "24px" }}>
+            <h2 style={{ marginBottom: "8px", fontSize: "24px", color: colors.text }}>
               Connection Error
             </h2>
-            <p style={{ opacity: 0.7, marginBottom: "16px" }}>
+            <p style={{ color: colors.textMuted, marginBottom: "16px" }}>
               Unable to connect to the server. Please check your internet
               connection and try again.
             </p>
@@ -858,7 +856,7 @@ export function EventGuestsPage() {
                 padding: "12px 24px",
                 borderRadius: "999px",
                 border: "none",
-                background: "linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 100%)",
+                background: colors.accent,
                 color: "#fff",
                 fontWeight: 600,
                 fontSize: "14px",
@@ -880,17 +878,16 @@ export function EventGuestsPage() {
         style={{
           minHeight: "100vh",
           position: "relative",
-          background:
-            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.1) 0%, transparent 50%), #05040a",
+          background: colors.background,
         }}
       >
         <div className="responsive-container">
           <div
             className="responsive-card"
             style={{
-              background: "rgba(12, 10, 18, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
+              color: colors.textMuted,
             }}
           >
             Event not found.
@@ -973,8 +970,7 @@ export function EventGuestsPage() {
       style={{
         minHeight: "100vh",
         position: "relative",
-        background:
-          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
+        background: colors.background,
         paddingBottom: "40px",
       }}
     >
@@ -993,7 +989,7 @@ export function EventGuestsPage() {
             position: sticky !important;
             top: 0 !important;
             z-index: 50 !important;
-            background: #05040a !important;
+            background: #ffffff !important;
             padding-top: 12px !important;
             padding-bottom: 4px !important;
             margin-bottom: 12px !important;
@@ -1061,12 +1057,12 @@ export function EventGuestsPage() {
                   }
                 }}
                 style={{
-                  padding: "12px 20px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(192, 192, 192, 0.3)",
-                  background: "rgba(192, 192, 192, 0.1)",
-                  color: "#e5e5e5",
-                  fontSize: "16px",
+                  padding: "10px 18px",
+                  borderRadius: "999px",
+                  border: `1px solid ${colors.borderStrong}`,
+                  background: colors.background,
+                  color: colors.text,
+                  fontSize: "14px",
                   fontWeight: 500,
                   cursor: "pointer",
                   transition: "all 0.2s ease",
@@ -1078,15 +1074,15 @@ export function EventGuestsPage() {
                   WebkitTapHighlightColor: "transparent",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.background = "rgba(192, 192, 192, 0.2)";
-                  e.target.style.borderColor = "rgba(192, 192, 192, 0.5)";
+                  e.currentTarget.style.background = colors.surfaceMuted;
+                  e.currentTarget.style.borderColor = colors.borderStrong;
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.background = "rgba(192, 192, 192, 0.1)";
-                  e.target.style.borderColor = "rgba(192, 192, 192, 0.3)";
+                  e.currentTarget.style.background = colors.background;
+                  e.currentTarget.style.borderColor = colors.borderStrong;
                 }}
               >
-                <SilverIcon as={Download} size={18} />
+                <Download size={18} style={{ color: colors.textMuted }} />
                 Export CSV
               </button>
             </div>
@@ -1100,24 +1096,24 @@ export function EventGuestsPage() {
               padding: "0 20px",
             }}>
               {[
-                { label: "Total", value: attending, cap: totalCapacity, color: totalCapacity != null && attending > totalCapacity ? "#f59e0b" : "rgba(255,255,255,0.9)" },
-                { label: "List", value: stats.cocktailsOnly, cap: cocktailCapacity, color: cocktailCapacity != null && stats.cocktailsOnly > cocktailCapacity ? "#f59e0b" : "rgba(255,255,255,0.9)" },
-                ...(event.dinnerEnabled ? [{ label: "Dinner", value: stats.dinnerConfirmed, cap: foodCapacity, color: "#10b981" }] : []),
-                { label: "Waitlist", value: stats.waitlist, cap: null, color: "rgba(192,192,192,0.8)" },
+                { label: "Total", value: attending, cap: totalCapacity, color: totalCapacity != null && attending > totalCapacity ? colors.warning : colors.text },
+                { label: "List", value: stats.cocktailsOnly, cap: cocktailCapacity, color: cocktailCapacity != null && stats.cocktailsOnly > cocktailCapacity ? colors.warning : colors.text },
+                ...(event.dinnerEnabled ? [{ label: "Dinner", value: stats.dinnerConfirmed, cap: foodCapacity, color: colors.success }] : []),
+                { label: "Waitlist", value: stats.waitlist, cap: null, color: colors.textMuted },
               ].map((s) => (
                 <div key={s.label} style={{
                   padding: "6px 12px",
                   borderRadius: "8px",
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.06)",
+                  background: colors.surface,
+                  border: `1px solid ${colors.border}`,
                   display: "flex",
                   alignItems: "baseline",
                   gap: "6px",
                 }}>
                   <span style={{ fontSize: "15px", fontWeight: 700, color: s.color }}>
-                    {s.value}{s.cap != null ? <span style={{ fontSize: "11px", fontWeight: 500, color: "rgba(255,255,255,0.25)" }}>/{s.cap}</span> : null}
+                    {s.value}{s.cap != null ? <span style={{ fontSize: "11px", fontWeight: 500, color: colors.textFaded }}>/{s.cap}</span> : null}
                   </span>
-                  <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", fontWeight: 500 }}>{s.label}</span>
+                  <span style={{ fontSize: "11px", color: colors.textSubtle, fontWeight: 500 }}>{s.label}</span>
                 </div>
               ))}
             </div>
@@ -1127,9 +1123,7 @@ export function EventGuestsPage() {
               className="guests-search-sticky"
               style={{
                 marginBottom: "24px",
-                padding: "16px 20px",
-                background: "rgba(255, 255, 255, 0.25)",
-                borderRadius: "16px",
+                padding: "0",
                 margin: "0 16px 24px",
               }}
             >
@@ -1142,24 +1136,24 @@ export function EventGuestsPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "16px 18px",
+                    padding: "14px 18px",
                     paddingRight: searchQuery ? "48px" : "18px",
                     borderRadius: "14px",
-                    border: "1px solid rgba(255,255,255,0.25)",
-                    background: "rgba(255, 255, 255, 0.15)",
-                    color: "#fff",
+                    border: `1px solid ${colors.borderStrong}`,
+                    background: colors.background,
+                    color: colors.text,
                     fontSize: "16px",
                     outline: "none",
                     boxSizing: "border-box",
                     transition: "all 0.2s ease",
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = "rgba(255, 255, 255, 0.4)";
-                    e.target.style.background = "rgba(255, 255, 255, 0.2)";
+                    e.target.style.borderColor = colors.accentBorder;
+                    e.target.style.boxShadow = `0 0 0 3px ${colors.accentSoft}`;
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = "rgba(255,255,255,0.25)";
-                    e.target.style.background = "rgba(255, 255, 255, 0.15)";
+                    e.target.style.borderColor = colors.borderStrong;
+                    e.target.style.boxShadow = "none";
                   }}
                 />
                 {searchQuery && (
@@ -1174,7 +1168,7 @@ export function EventGuestsPage() {
                       right: "8px",
                       top: "50%",
                       transform: "translateY(-50%)",
-                      background: "rgba(255,255,255,0.1)",
+                      background: colors.surfaceMuted,
                       border: "none",
                       borderRadius: "8px",
                       width: "32px",
@@ -1183,7 +1177,7 @@ export function EventGuestsPage() {
                       alignItems: "center",
                       justifyContent: "center",
                       cursor: "pointer",
-                      color: "rgba(255,255,255,0.5)",
+                      color: colors.textSubtle,
                       fontSize: "16px",
                       WebkitTapHighlightColor: "transparent",
                     }}
@@ -1212,7 +1206,7 @@ export function EventGuestsPage() {
                     gap: "8px",
                     cursor: "pointer",
                     fontSize: "13px",
-                    color: "rgba(255,255,255,0.6)",
+                    color: colors.textMuted,
                     userSelect: "none",
                   }}
                 >
@@ -1224,7 +1218,7 @@ export function EventGuestsPage() {
                       width: "16px",
                       height: "16px",
                       cursor: "pointer",
-                      accentColor: "#9ca3af",
+                      accentColor: colors.accent,
                     }}
                   />
                   Show cancelled ({cancelledCount})
@@ -1236,24 +1230,24 @@ export function EventGuestsPage() {
             {sortedGuests.length === 0 ? (
               <div
                 style={{
-                  background: "rgb(12 10 18 / 10%)",
-                  padding: "40px 24px",
+                  background: colors.background,
+                  padding: "60px 24px",
                   borderRadius: "16px",
                   textAlign: "center",
-                  border: "1px solid rgba(255,255,255,0.05)",
-                  backdropFilter: "blur(10px)",
+                  border: `1px solid ${colors.border}`,
                 }}
               >
-                <div
-                  style={{
-                    fontSize: "48px",
-                    marginBottom: "16px",
-                    opacity: 0.5,
-                  }}
-                >
-                  <SilverIcon as={Users} size={18} />
-                </div>
-                <div style={{ fontSize: "16px", opacity: 0.7 }}>
+                {!searchQuery.trim() && (
+                  <div style={{ marginBottom: "20px", display: "flex", justifyContent: "center" }}>
+                    <PullupEyes variant="small" style={{ width: 72, height: 63 }} />
+                  </div>
+                )}
+                {searchQuery.trim() && (
+                  <div style={{ marginBottom: "16px" }}>
+                    <Users size={32} style={{ color: colors.textFaded }} />
+                  </div>
+                )}
+                <div style={{ fontSize: "16px", color: colors.textMuted }}>
                   {searchQuery.trim()
                     ? `No guests found matching "${searchQuery}"`
                     : "No guests yet."}
@@ -1289,21 +1283,21 @@ export function EventGuestsPage() {
                       }}
                       style={{
                         background: allPulledUp
-                          ? "rgba(16, 185, 129, 0.06)"
+                          ? colors.successRgba
                           : hasPartial
-                          ? "rgba(245, 158, 11, 0.04)"
-                          : "rgba(20, 16, 30, 0.5)",
+                          ? colors.warningRgba
+                          : colors.background,
                         borderRadius: "16px",
                         border: allPulledUp
-                          ? "1px solid rgba(16, 185, 129, 0.2)"
+                          ? `1px solid rgba(22, 163, 74, 0.2)`
                           : hasPartial
-                          ? "1px solid rgba(245, 158, 11, 0.15)"
-                          : "1px solid rgba(255,255,255,0.08)",
+                          ? `1px solid rgba(180, 83, 9, 0.15)`
+                          : `1px solid ${colors.border}`,
                         padding: "16px",
                         cursor: isConfirmed && !allPulledUp ? "pointer" : "default",
                         WebkitTapHighlightColor: "transparent",
                         transition: "all 0.15s ease",
-                        opacity: allPulledUp ? 0.6 : 1,
+                        opacity: allPulledUp ? 0.75 : 1,
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1312,7 +1306,7 @@ export function EventGuestsPage() {
                           <div style={{
                             fontWeight: 600,
                             fontSize: "17px",
-                            color: "#fff",
+                            color: colors.text,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -1320,10 +1314,10 @@ export function EventGuestsPage() {
                           }}>
                             {g.name || "Guest"}
                           </div>
-                          <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.25)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div style={{ fontSize: "12px", color: colors.textFaded, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {g.email}
                           </div>
-                          <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.45)", marginTop: "2px" }}>
+                          <div style={{ fontSize: "13px", color: colors.textSubtle, marginTop: "2px" }}>
                             {partySize} {partySize === 1 ? "guest" : "guests"}
                           </div>
                         </div>
@@ -1334,7 +1328,7 @@ export function EventGuestsPage() {
                             <div style={{
                               fontSize: "13px",
                               fontWeight: 600,
-                              color: "#10b981",
+                              color: colors.success,
                               display: "flex",
                               alignItems: "center",
                               gap: "4px",
@@ -1346,7 +1340,7 @@ export function EventGuestsPage() {
                             <div style={{
                               fontSize: "13px",
                               fontWeight: 600,
-                              color: "#f59e0b",
+                              color: colors.warning,
                             }}>
                               {totalArrived}/{totalExpected} arrived
                             </div>
@@ -1354,7 +1348,7 @@ export function EventGuestsPage() {
                           {!allPulledUp && !hasPartial && isConfirmed && (
                             <div style={{
                               fontSize: "12px",
-                              color: "rgba(255,255,255,0.3)",
+                              color: colors.textFaded,
                               fontStyle: "italic",
                             }}>
                               tap to check in
@@ -1371,12 +1365,12 @@ export function EventGuestsPage() {
               <div
                 className="guests-desktop-table"
                 style={{
-                  background: "rgba(20, 16, 30, 0.5)",
-                  borderRadius: "20px",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: colors.background,
+                  borderRadius: "16px",
+                  border: `1px solid ${colors.border}`,
                   overflow: "hidden",
                   overflowX: "auto",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                  boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
                 }}
               >
                 <table
@@ -1389,9 +1383,8 @@ export function EventGuestsPage() {
                   <thead>
                     <tr
                       style={{
-                        background:
-                          "linear-gradient(135deg, rgba(192, 192, 192, 0.15) 0%, rgba(232, 232, 232, 0.1) 100%)",
-                        borderBottom: "2px solid rgba(192, 192, 192, 0.3)",
+                        background: colors.surface,
+                        borderBottom: `1px solid ${colors.border}`,
                       }}
                     >
                       <SortableHeader
@@ -1466,14 +1459,13 @@ export function EventGuestsPage() {
                       />
                       <th
                         style={{
-                          padding: "20px 24px",
+                          padding: "16px 24px",
                           textAlign: "center",
                           fontSize: "11px",
                           fontWeight: 700,
                           textTransform: "uppercase",
                           letterSpacing: "0.12em",
-                          opacity: 0.95,
-                          color: "#fff",
+                          color: colors.textSubtle,
                           width: "140px",
                         }}
                       >
@@ -1481,14 +1473,13 @@ export function EventGuestsPage() {
                       </th>
                       <th
                         style={{
-                          padding: "20px 24px",
+                          padding: "16px 24px",
                           textAlign: "center",
                           fontSize: "11px",
                           fontWeight: 700,
                           textTransform: "uppercase",
                           letterSpacing: "0.12em",
-                          opacity: 0.95,
-                          color: "#fff",
+                          color: colors.textSubtle,
                           width: "120px",
                         }}
                       >
@@ -1504,35 +1495,32 @@ export function EventGuestsPage() {
                         style={{
                           borderBottom:
                             idx < sortedGuests.length - 1
-                              ? "1px solid rgba(255,255,255,0.06)"
+                              ? `1px solid ${colors.border}`
                               : "none",
-                          transition: "all 0.2s ease",
+                          transition: "background 0.15s ease",
                           background:
                             idx % 2 === 0
-                              ? "transparent"
-                              : "rgba(255,255,255,0.01)",
+                              ? colors.background
+                              : colors.surface,
                           cursor: "pointer",
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.background =
-                            "rgba(192, 192, 192, 0.08)";
-                          e.currentTarget.style.transform = "scale(1.002)";
+                          e.currentTarget.style.background = colors.surfaceMuted;
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.background =
                             idx % 2 === 0
-                              ? "transparent"
-                              : "rgba(255,255,255,0.01)";
-                          e.currentTarget.style.transform = "scale(1)";
+                              ? colors.background
+                              : colors.surface;
                         }}
                       >
-                        <td style={{ padding: "20px 24px" }}>
+                        <td style={{ padding: "18px 24px" }}>
                           <div
                             style={{
                               fontWeight: 600,
-                              marginBottom: "6px",
+                              marginBottom: "4px",
                               fontSize: "15px",
-                              color: "#fff",
+                              color: colors.text,
                             }}
                           >
                             {g.name || "—"}
@@ -1540,9 +1528,8 @@ export function EventGuestsPage() {
                           <div
                             style={{
                               fontSize: "13px",
-                              opacity: 0.7,
                               wordBreak: "break-word",
-                              color: "#e5e7eb",
+                              color: colors.textMuted,
                             }}
                           >
                             {g.email}
@@ -1585,13 +1572,11 @@ export function EventGuestsPage() {
                                     <div
                                       style={{
                                         fontSize: "11px",
-                                        opacity: 0.9,
                                         padding: "4px 10px",
-                                        background: "rgba(245, 158, 11, 0.15)",
+                                        background: colors.warningRgba,
                                         borderRadius: "6px",
-                                        border:
-                                          "1px solid rgba(245, 158, 11, 0.3)",
-                                        color: "#f59e0b",
+                                        border: `1px solid rgba(180, 83, 9, 0.25)`,
+                                        color: colors.warning,
                                         fontWeight: 600,
                                         display: "inline-block",
                                       }}
@@ -1605,8 +1590,7 @@ export function EventGuestsPage() {
                                   <span
                                     style={{
                                       fontSize: "14px",
-                                      opacity: 0.5,
-                                      color: "#fff",
+                                      color: colors.textFaded,
                                     }}
                                   >
                                     —
@@ -1640,10 +1624,10 @@ export function EventGuestsPage() {
                                         fontSize: "16px",
                                         fontWeight: 700,
                                         color: isConfirmed
-                                          ? "#10b981"
+                                          ? colors.success
                                           : isWaitlist
-                                            ? "#f472b6"
-                                            : "#f59e0b",
+                                            ? colors.warning
+                                            : colors.warning,
                                       }}
                                     >
                                       {dinnerPartySize}
@@ -1655,7 +1639,7 @@ export function EventGuestsPage() {
                                   <span
                                     style={{
                                       fontSize: "13px",
-                                      opacity: 0.4,
+                                      color: colors.textFaded,
                                       fontStyle: "italic",
                                     }}
                                   >
@@ -1676,7 +1660,7 @@ export function EventGuestsPage() {
                                     style={{
                                       fontSize: "18px",
                                       fontWeight: 700,
-                                      color: "#fff",
+                                      color: colors.text,
                                     }}
                                   >
                                     {partySize}
@@ -1691,9 +1675,8 @@ export function EventGuestsPage() {
                                 <div
                                   style={{
                                     fontSize: "13px",
-                                    opacity: 0.9,
                                     fontWeight: 600,
-                                    color: "#fff",
+                                    color: colors.secondary,
                                   }}
                                 >
                                   {formatEventTime(g.dinnerTimeSlot, event?.timezone)}
@@ -1702,7 +1685,7 @@ export function EventGuestsPage() {
                                 <span
                                   style={{
                                     fontSize: "13px",
-                                    opacity: 0.4,
+                                    color: colors.textFaded,
                                     fontStyle: "italic",
                                   }}
                                 >
@@ -1718,7 +1701,7 @@ export function EventGuestsPage() {
                               style={{
                                 fontSize: "18px",
                                 fontWeight: 700,
-                                color: "#fff",
+                                color: colors.text,
                               }}
                             >
                               {g.partySize || 1}
@@ -1727,12 +1710,11 @@ export function EventGuestsPage() {
                               <div
                                 style={{
                                   fontSize: "11px",
-                                  opacity: 0.8,
                                   padding: "3px 8px",
-                                  background: "rgba(192, 192, 192, 0.15)",
+                                  background: colors.surface,
                                   borderRadius: "6px",
-                                  border: "1px solid rgba(192, 192, 192, 0.3)",
-                                  color: "#e5e5e5",
+                                  border: `1px solid ${colors.border}`,
+                                  color: colors.textMuted,
                                   fontWeight: 600,
                                   marginTop: "4px",
                                 }}
@@ -1747,8 +1729,7 @@ export function EventGuestsPage() {
                             padding: "20px",
                             textAlign: "right",
                             fontSize: "13px",
-                            opacity: 0.7,
-                            color: "#d1d5db",
+                            color: colors.textMuted,
                           }}
                         >
                           {formatEventDate(g.createdAt)}
@@ -1777,8 +1758,7 @@ export function EventGuestsPage() {
                                   <span
                                     style={{
                                       fontSize: "12px",
-                                      opacity: 0.5,
-                                      color: "rgba(255,255,255,0.5)",
+                                      color: colors.textFaded,
                                       fontStyle: "italic",
                                     }}
                                   >
@@ -1794,15 +1774,17 @@ export function EventGuestsPage() {
                                       style={{
                                         fontSize: "12px",
                                         fontWeight: 600,
-                                        color: "#f59e0b",
+                                        color: colors.warning,
                                         padding: "4px 8px",
-                                        background: "rgba(245, 158, 11, 0.15)",
+                                        background: colors.warningRgba,
                                         borderRadius: "6px",
-                                        border:
-                                          "1px solid rgba(245, 158, 11, 0.3)",
+                                        border: `1px solid rgba(180, 83, 9, 0.25)`,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px",
                                       }}
                                     >
-                                      <SilverIcon as={Wine} size={14} />{" "}
+                                      <Wine size={14} style={{ color: colors.warning }} />{" "}
                                       {cocktailsPulledUp}
                                     </div>
                                   )}
@@ -1811,17 +1793,19 @@ export function EventGuestsPage() {
                                       style={{
                                         fontSize: "12px",
                                         fontWeight: 600,
-                                        color: "#10b981",
+                                        color: colors.success,
                                         padding: "4px 8px",
-                                        background: "rgba(16, 185, 129, 0.15)",
+                                        background: colors.successRgba,
                                         borderRadius: "6px",
-                                        border:
-                                          "1px solid rgba(16, 185, 129, 0.3)",
+                                        border: `1px solid rgba(22, 163, 74, 0.25)`,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px",
                                       }}
                                     >
-                                      <SilverIcon
-                                        as={UtensilsCrossed}
+                                      <UtensilsCrossed
                                         size={14}
+                                        style={{ color: colors.success }}
                                       />{" "}
                                       {dinnerPulledUp}
                                     </div>
@@ -1849,27 +1833,20 @@ export function EventGuestsPage() {
                                   }}
                                   style={{
                                     padding: "6px 12px",
-                                    borderRadius: "8px",
-                                    border:
-                                      "1px solid rgba(192, 192, 192, 0.4)",
-                                    background: "rgba(192, 192, 192, 0.1)",
-                                    color: "#e5e5e5",
+                                    borderRadius: "999px",
+                                    border: `1px solid ${colors.borderStrong}`,
+                                    background: colors.background,
+                                    color: colors.text,
                                     fontSize: "12px",
                                     fontWeight: 600,
                                     cursor: "pointer",
-                                    transition: "all 0.2s ease",
+                                    transition: "all 0.15s ease",
                                   }}
                                   onMouseEnter={(e) => {
-                                    e.target.style.background =
-                                      "rgba(192, 192, 192, 0.2)";
-                                    e.target.style.borderColor =
-                                      "rgba(192, 192, 192, 0.6)";
+                                    e.currentTarget.style.background = colors.surfaceMuted;
                                   }}
                                   onMouseLeave={(e) => {
-                                    e.target.style.background =
-                                      "rgba(192, 192, 192, 0.1)";
-                                    e.target.style.borderColor =
-                                      "rgba(192, 192, 192, 0.4)";
+                                    e.currentTarget.style.background = colors.background;
                                   }}
                                 >
                                   Edit
@@ -1881,27 +1858,20 @@ export function EventGuestsPage() {
                                   }}
                                   style={{
                                     padding: "6px 12px",
-                                    borderRadius: "8px",
-                                    border:
-                                      "1px solid rgba(232, 232, 232, 0.4)",
-                                    background: "rgba(232, 232, 232, 0.1)",
-                                    color: "#f472b6",
+                                    borderRadius: "999px",
+                                    border: `1px solid ${colors.dangerRgba}`,
+                                    background: colors.dangerRgba,
+                                    color: colors.danger,
                                     fontSize: "12px",
                                     fontWeight: 600,
                                     cursor: "pointer",
-                                    transition: "all 0.2s ease",
+                                    transition: "all 0.15s ease",
                                   }}
                                   onMouseEnter={(e) => {
-                                    e.target.style.background =
-                                      "rgba(232, 232, 232, 0.2)";
-                                    e.target.style.borderColor =
-                                      "rgba(232, 232, 232, 0.6)";
+                                    e.currentTarget.style.background = `rgba(220, 38, 38, 0.16)`;
                                   }}
                                   onMouseLeave={(e) => {
-                                    e.target.style.background =
-                                      "rgba(232, 232, 232, 0.1)";
-                                    e.target.style.borderColor =
-                                      "rgba(232, 232, 232, 0.4)";
+                                    e.currentTarget.style.background = colors.dangerRgba;
                                   }}
                                 >
                                   Delete
@@ -2015,25 +1985,24 @@ export function EventGuestsPage() {
 }
 
 function StatCard({ icon, label, value, color }) {
-  const isGradient = color.includes("gradient");
+  const isGradient = typeof color === "string" && color.includes("gradient");
   return (
     <div
       style={{
         padding: "20px",
-        background: "rgb(12 10 18 / 10%)",
+        background: colors.background,
         borderRadius: "16px",
-        border: "1px solid rgba(255,255,255,0.05)",
-        backdropFilter: "blur(10px)",
-        transition: "all 0.3s ease",
+        border: `1px solid ${colors.border}`,
+        transition: "all 0.2s ease",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.borderColor = "rgba(192, 192, 192, 0.3)";
-        e.currentTarget.style.boxShadow = "0 8px 24px rgba(192, 192, 192, 0.2)";
+        e.currentTarget.style.borderColor = colors.borderStrong;
+        e.currentTarget.style.boxShadow = "0 8px 24px rgba(10,10,10,0.08)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+        e.currentTarget.style.borderColor = colors.border;
         e.currentTarget.style.boxShadow = "none";
       }}
     >
@@ -2041,7 +2010,6 @@ function StatCard({ icon, label, value, color }) {
         style={{
           fontSize: "24px",
           marginBottom: "8px",
-          opacity: 0.9,
         }}
       >
         {icon}
@@ -2049,7 +2017,7 @@ function StatCard({ icon, label, value, color }) {
       <div
         style={{
           fontSize: "10px",
-          opacity: 0.7,
+          color: colors.textSubtle,
           marginBottom: "8px",
           textTransform: "uppercase",
           letterSpacing: "0.1em",
@@ -2091,26 +2059,25 @@ function SortableHeader({
     <th
       onClick={() => onSort(column)}
       style={{
-        padding: "20px 24px",
+        padding: "16px 24px",
         textAlign: align,
         fontSize: "11px",
         fontWeight: 700,
         textTransform: "uppercase",
         letterSpacing: "0.12em",
-        opacity: 0.95,
-        color: "#fff",
+        color: isActive ? colors.accent : colors.textSubtle,
         cursor: "pointer",
         userSelect: "none",
-        transition: "all 0.2s ease",
+        transition: "all 0.15s ease",
         position: "relative",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "rgba(192, 192, 192, 0.1)";
-        e.currentTarget.style.opacity = "1";
+        e.currentTarget.style.background = colors.surfaceMuted;
+        e.currentTarget.style.color = colors.text;
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = "transparent";
-        e.currentTarget.style.opacity = "0.95";
+        e.currentTarget.style.color = isActive ? colors.accent : colors.textSubtle;
       }}
     >
       <div
@@ -2142,8 +2109,8 @@ function SortableHeader({
               lineHeight: "1",
               color:
                 isActive && sortDirection === "asc"
-                  ? "#c0c0c0"
-                  : "rgba(255, 255, 255, 0.6)",
+                  ? colors.accent
+                  : colors.textFaded,
             }}
           >
             ▲
@@ -2154,8 +2121,8 @@ function SortableHeader({
               lineHeight: "1",
               color:
                 isActive && sortDirection === "desc"
-                  ? "#c0c0c0"
-                  : "rgba(255, 255, 255, 0.6)",
+                  ? colors.accent
+                  : colors.textFaded,
             }}
           >
             ▼
@@ -2242,64 +2209,57 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
   if (bookingStatus === "PENDING_PAYMENT") {
     // Awaiting payment - RSVP created but not yet paid
     label = "AWAITING PAYMENT";
-    bg = "rgba(245, 158, 11, 0.2)";
-    border = "rgba(245, 158, 11, 0.5)";
-    color = "#f59e0b";
+    bg = colors.warningRgba;
+    border = "rgba(180, 83, 9, 0.35)";
+    color = colors.warning;
   } else if (bookingStatus === "CONFIRMED") {
     // For paid events, check payment status
     if (isPaidEvent) {
       if (paymentStatus === "paid") {
         // Confirmed and paid
         label = "CONFIRMED";
-        bg = "rgba(16, 185, 129, 0.2)";
-        border = "rgba(16, 185, 129, 0.5)";
-        color = "#10b981";
+        bg = colors.successRgba;
+        border = "rgba(22, 163, 74, 0.35)";
+        color = colors.success;
       } else if (paymentStatus === "pending") {
         // Payment initiated but not yet confirmed
         label = "AWAITING PAYMENT";
-        bg = "rgba(245, 158, 11, 0.2)";
-        border = "rgba(245, 158, 11, 0.5)";
-        color = "#f59e0b";
+        bg = colors.warningRgba;
+        border = "rgba(180, 83, 9, 0.35)";
+        color = colors.warning;
       } else {
         // Confirmed but unpaid (unpaid or null)
         label = "UNPAID";
-        bg = "rgba(239, 68, 68, 0.2)";
-        border = "rgba(239, 68, 68, 0.5)";
-        color = "#ef4444";
+        bg = colors.dangerRgba;
+        border = "rgba(220, 38, 38, 0.35)";
+        color = colors.danger;
       }
     } else {
       // Free event - just show confirmed
       label = "CONFIRMED";
-      bg = "rgba(16, 185, 129, 0.2)";
-      border = "rgba(16, 185, 129, 0.5)";
-      color = "#10b981";
+      bg = colors.successRgba;
+      border = "rgba(22, 163, 74, 0.35)";
+      color = colors.success;
     }
   } else if (bookingStatus === "WAITLIST") {
     // Entire booking is on waitlist (all-or-nothing)
-    // For paid events on waitlist, payment status doesn't matter (they pay when they get a link)
     label = "WAITLIST";
-    bg = "rgba(232, 232, 232, 0.2)";
-    border = "rgba(232, 232, 232, 0.5)";
-    color = "#f472b6";
+    bg = colors.warningRgba;
+    border = "rgba(180, 83, 9, 0.30)";
+    color = colors.warning;
   } else if (bookingStatus === "CANCELLED") {
     label = "CANCELLED";
-    bg = "rgba(107, 114, 128, 0.2)";
-    border = "rgba(107, 114, 128, 0.5)";
-    color = "#9ca3af";
+    bg = colors.surface;
+    border = colors.border;
+    color = colors.textSubtle;
   }
 
   // Fallback
   if (!label) {
     label = status === "attending" ? "Attending" : "Waitlist";
-    bg =
-      status === "attending"
-        ? "rgba(192, 192, 192, 0.2)"
-        : "rgba(232, 232, 232, 0.2)";
-    border =
-      status === "attending"
-        ? "rgba(192, 192, 192, 0.5)"
-        : "rgba(232, 232, 232, 0.5)";
-    color = status === "attending" ? "#e5e5e5" : "#f472b6";
+    bg = status === "attending" ? colors.successRgba : colors.warningRgba;
+    border = status === "attending" ? "rgba(22, 163, 74, 0.35)" : "rgba(180, 83, 9, 0.30)";
+    color = status === "attending" ? colors.success : colors.warning;
   }
 
   // Add arrival status indicator (only for truly CONFIRMED bookings, not PENDING_PAYMENT)
@@ -2409,9 +2369,9 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
               fontWeight: 600,
               padding: "4px 8px",
               borderRadius: "999px",
-              background: "rgba(245, 158, 11, 0.2)",
-              border: "1px solid rgba(245, 158, 11, 0.4)",
-              color: "#f59e0b",
+              background: colors.warningRgba,
+              border: `1px solid rgba(180, 83, 9, 0.30)`,
+              color: colors.warning,
               textTransform: "none",
               letterSpacing: "0.02em",
               cursor: "help",
@@ -2429,10 +2389,10 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
             fontWeight: 500,
             color:
               pullUpStatus === "FULL"
-                ? "#10b981"
+                ? colors.success
                 : pullUpStatus === "PARTIAL"
-                  ? "#f59e0b"
-                  : "rgba(255,255,255,0.5)",
+                  ? colors.warning
+                  : colors.textSubtle,
             textTransform: "none",
             letterSpacing: "0.02em",
             marginTop: "2px",
@@ -2453,27 +2413,30 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
             }}
             disabled={generatingLink}
             style={{
-              padding: "4px 8px",
+              padding: "4px 10px",
               fontSize: "10px",
               fontWeight: 600,
               background:
                 linkStatus === "SENT" || linkStatus === "EXPIRED"
-                  ? "rgba(245, 158, 11, 0.15)"
-                  : "rgba(59, 130, 246, 0.15)",
+                  ? colors.warningRgba
+                  : colors.accentSoft,
               border:
                 linkStatus === "SENT" || linkStatus === "EXPIRED"
-                  ? "1px solid rgba(245, 158, 11, 0.4)"
-                  : "1px solid rgba(59, 130, 246, 0.4)",
-              borderRadius: "6px",
+                  ? `1px solid rgba(180, 83, 9, 0.30)`
+                  : `1px solid ${colors.accentBorder}`,
+              borderRadius: "999px",
               color:
                 linkStatus === "SENT" || linkStatus === "EXPIRED"
-                  ? "#f59e0b"
-                  : "#3b82f6",
+                  ? colors.warning
+                  : colors.accent,
               cursor: generatingLink ? "not-allowed" : "pointer",
               opacity: generatingLink ? 0.6 : 1,
-              transition: "all 0.2s ease",
+              transition: "all 0.15s ease",
               marginTop: "4px",
               alignSelf: "flex-start",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
             }}
             onMouseEnter={(e) => {
               if (!generatingLink) {
@@ -2490,15 +2453,15 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
               "Sending..."
             ) : linkStatus === "SENT" ? (
               <>
-                <SilverIcon as={RefreshCw} size={14} /> Resend
+                <RefreshCw size={14} /> Resend
               </>
             ) : linkStatus === "EXPIRED" ? (
               <>
-                <SilverIcon as={RefreshCw} size={14} /> New Link
+                <RefreshCw size={14} /> New Link
               </>
             ) : (
               <>
-                <SilverIcon as={Link2} size={14} /> Send Payment Link
+                <Link2 size={14} /> Send Payment Link
               </>
             )}
           </button>
@@ -2513,13 +2476,13 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
             gap: "6px",
             marginTop: "4px",
             padding: "8px",
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: "8px",
+            background: colors.surface,
+            border: `1px solid ${colors.border}`,
+            borderRadius: "10px",
             alignSelf: "flex-start",
           }}
         >
-          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", fontWeight: 600 }}>
+          <div style={{ fontSize: "10px", color: colors.textSubtle, fontWeight: 600 }}>
             Expires in
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
@@ -2538,10 +2501,10 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
                   padding: "2px 8px",
                   fontSize: "10px",
                   fontWeight: 600,
-                  background: selectedExpiry === opt.value ? "rgba(59,130,246,0.3)" : "rgba(255,255,255,0.06)",
-                  border: selectedExpiry === opt.value ? "1px solid rgba(59,130,246,0.6)" : "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "4px",
-                  color: selectedExpiry === opt.value ? "#60a5fa" : "rgba(255,255,255,0.6)",
+                  background: selectedExpiry === opt.value ? colors.accentSoftStrong : colors.background,
+                  border: selectedExpiry === opt.value ? `1px solid ${colors.accentBorder}` : `1px solid ${colors.borderStrong}`,
+                  borderRadius: "6px",
+                  color: selectedExpiry === opt.value ? colors.accent : colors.textMuted,
                   cursor: "pointer",
                 }}
               >
@@ -2557,10 +2520,10 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
                 padding: "4px 10px",
                 fontSize: "10px",
                 fontWeight: 600,
-                background: "rgba(59,130,246,0.2)",
-                border: "1px solid rgba(59,130,246,0.4)",
-                borderRadius: "4px",
-                color: "#3b82f6",
+                background: colors.accent,
+                border: "none",
+                borderRadius: "6px",
+                color: "#fff",
                 cursor: generatingLink ? "not-allowed" : "pointer",
                 opacity: generatingLink ? 0.6 : 1,
               }}
@@ -2573,9 +2536,9 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
                 padding: "4px 8px",
                 fontSize: "10px",
                 background: "transparent",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: "4px",
-                color: "rgba(255,255,255,0.4)",
+                border: `1px solid ${colors.border}`,
+                borderRadius: "6px",
+                color: colors.textSubtle,
                 cursor: "pointer",
               }}
             >
@@ -2595,16 +2558,16 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
             }}
             disabled={promoting}
             style={{
-              padding: "3px 8px",
+              padding: "3px 10px",
               fontSize: "10px",
               fontWeight: 600,
-              background: "rgba(16, 185, 129, 0.15)",
-              border: "1px solid rgba(16, 185, 129, 0.4)",
-              borderRadius: "6px",
-              color: "#10b981",
+              background: colors.successRgba,
+              border: `1px solid rgba(22, 163, 74, 0.30)`,
+              borderRadius: "999px",
+              color: colors.success,
               cursor: promoting ? "not-allowed" : "pointer",
               opacity: promoting ? 0.6 : 1,
-              transition: "all 0.2s ease",
+              transition: "all 0.15s ease",
               whiteSpace: "nowrap",
             }}
           >
@@ -2618,16 +2581,16 @@ function CombinedStatusBadge({ guest, event, eventId, onLinkGenerated, onPromote
             }}
             disabled={promoting}
             style={{
-              padding: "3px 8px",
+              padding: "3px 10px",
               fontSize: "10px",
               fontWeight: 600,
-              background: "rgba(59, 130, 246, 0.15)",
-              border: "1px solid rgba(59, 130, 246, 0.4)",
-              borderRadius: "6px",
-              color: "#3b82f6",
+              background: colors.accentSoft,
+              border: `1px solid ${colors.accentBorder}`,
+              borderRadius: "999px",
+              color: colors.accent,
               cursor: promoting ? "not-allowed" : "pointer",
               opacity: promoting ? 0.6 : 1,
-              transition: "all 0.2s ease",
+              transition: "all 0.15s ease",
               whiteSpace: "nowrap",
             }}
           >
@@ -2643,15 +2606,15 @@ function StatusBadge({ status }) {
   const config = {
     attending: {
       label: "Attending",
-      bg: "rgba(192, 192, 192, 0.2)",
-      border: "rgba(192, 192, 192, 0.5)",
-      color: "#e5e5e5",
+      bg: colors.successRgba,
+      border: "rgba(22, 163, 74, 0.35)",
+      color: colors.success,
     },
     waitlist: {
       label: "Waitlist",
-      bg: "rgba(232, 232, 232, 0.2)",
-      border: "rgba(232, 232, 232, 0.5)",
-      color: "#f472b6",
+      bg: colors.warningRgba,
+      border: "rgba(180, 83, 9, 0.30)",
+      color: colors.warning,
     },
   };
 
@@ -2681,31 +2644,31 @@ function DinnerStatusBadge({ status }) {
   const config = {
     confirmed: {
       label: "Confirmed",
-      icon: <SilverIcon as={Check} size={12} />,
-      bg: "rgba(16, 185, 129, 0.2)",
-      border: "rgba(16, 185, 129, 0.5)",
-      color: "#10b981",
+      icon: <Check size={12} style={{ color: colors.success }} />,
+      bg: colors.successRgba,
+      border: "rgba(22, 163, 74, 0.35)",
+      color: colors.success,
     },
     waitlist: {
       label: "Waitlist",
-      icon: <SilverIcon as={Clock} size={12} />,
-      bg: "rgba(232, 232, 232, 0.2)",
-      border: "rgba(232, 232, 232, 0.5)",
-      color: "#f472b6",
+      icon: <Clock size={12} style={{ color: colors.warning }} />,
+      bg: colors.warningRgba,
+      border: "rgba(180, 83, 9, 0.30)",
+      color: colors.warning,
     },
     cocktails: {
       label: "List",
-      icon: <SilverIcon as={Wine} size={12} />,
-      bg: "rgba(245, 158, 11, 0.2)",
-      border: "rgba(245, 158, 11, 0.5)",
-      color: "#f59e0b",
+      icon: <Wine size={12} style={{ color: colors.warning }} />,
+      bg: colors.warningRgba,
+      border: "rgba(180, 83, 9, 0.30)",
+      color: colors.warning,
     },
     cocktails_waitlist: {
       label: "Both",
-      icon: <SilverIcon as={Wine} size={12} />,
-      bg: "rgba(192, 192, 192, 0.2)",
-      border: "rgba(192, 192, 192, 0.5)",
-      color: "#e5e5e5",
+      icon: <Wine size={12} style={{ color: colors.textMuted }} />,
+      bg: colors.surface,
+      border: colors.border,
+      color: colors.textMuted,
     },
   };
 
@@ -2957,7 +2920,7 @@ function EditGuestModal({
       style={{
         position: "fixed",
         top: 0, left: 0, right: 0, bottom: 0,
-        background: "rgba(0, 0, 0, 0.85)",
+        background: "rgba(10, 10, 10, 0.55)",
         backdropFilter: "blur(4px)",
         zIndex: 1000,
         display: "flex",
@@ -2969,16 +2932,15 @@ function EditGuestModal({
     >
       <div
         style={{
-          background: editIsMobile ? "#0c0a12" : "rgba(12, 10, 18, 0.95)",
-          backdropFilter: editIsMobile ? "none" : "blur(20px)",
-          border: editIsMobile ? "none" : "1px solid rgba(255,255,255,0.1)",
+          background: colors.background,
+          border: editIsMobile ? "none" : `1px solid ${colors.border}`,
           borderRadius: editIsMobile ? "0" : "24px",
           padding: editIsMobile ? "20px 16px 32px" : "32px",
           maxWidth: editIsMobile ? "100%" : "600px",
           width: "100%",
           maxHeight: editIsMobile ? "100vh" : "90vh",
           overflowY: "auto",
-          boxShadow: editIsMobile ? "none" : "0 20px 60px rgba(0,0,0,0.5)",
+          boxShadow: editIsMobile ? "none" : "0 8px 30px rgba(10,10,10,0.12)",
           WebkitOverflowScrolling: "touch",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -2996,6 +2958,7 @@ function EditGuestModal({
               fontSize: editIsMobile ? "20px" : "24px",
               fontWeight: 700,
               margin: 0,
+              color: colors.text,
             }}
           >
             Edit Guest
@@ -3005,7 +2968,7 @@ function EditGuestModal({
             style={{
               background: "transparent",
               border: "none",
-              color: "#9ca3af",
+              color: colors.textSubtle,
               fontSize: "24px",
               cursor: "pointer",
               padding: "0",
@@ -3018,12 +2981,12 @@ function EditGuestModal({
               transition: "all 0.2s ease",
             }}
             onMouseEnter={(e) => {
-              e.target.style.background = "rgba(255,255,255,0.1)";
-              e.target.style.color = "#fff";
+              e.target.style.background = colors.surfaceMuted;
+              e.target.style.color = colors.text;
             }}
             onMouseLeave={(e) => {
               e.target.style.background = "transparent";
-              e.target.style.color = "#9ca3af";
+              e.target.style.color = colors.textSubtle;
             }}
           >
             ×
@@ -3038,8 +3001,8 @@ function EditGuestModal({
               style={{
                 marginBottom: "20px",
                 padding: "16px",
-                background: "rgba(16, 185, 129, 0.08)",
-                border: "1px solid rgba(16, 185, 129, 0.2)",
+                background: colors.successRgba,
+                border: `1px solid rgba(22, 163, 74, 0.20)`,
                 borderRadius: "14px",
               }}
             >
@@ -3047,7 +3010,7 @@ function EditGuestModal({
                 style={{
                   fontSize: "13px",
                   fontWeight: 600,
-                  color: "#10b981",
+                  color: colors.success,
                   marginBottom: "12px",
                 }}
               >
@@ -3060,7 +3023,7 @@ function EditGuestModal({
                   gap: "8px",
                   cursor: "pointer",
                   fontSize: "12px",
-                  color: "rgba(255,255,255,0.7)",
+                  color: colors.textMuted,
                   marginBottom: "12px",
                   userSelect: "none",
                 }}
@@ -3073,7 +3036,7 @@ function EditGuestModal({
                     width: "16px",
                     height: "16px",
                     cursor: "pointer",
-                    accentColor: "#10b981",
+                    accentColor: colors.accent,
                   }}
                 />
                 Send confirmation email
@@ -3093,9 +3056,9 @@ function EditGuestModal({
                 style={{
                   width: "100%",
                   padding: "10px 16px",
-                  borderRadius: "10px",
+                  borderRadius: "999px",
                   border: "none",
-                  background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                  background: colors.success,
                   color: "#fff",
                   fontSize: "14px",
                   fontWeight: 600,
@@ -3120,7 +3083,7 @@ function EditGuestModal({
                   fontSize: "12px",
                   fontWeight: 600,
                   marginBottom: "8px",
-                  opacity: 0.8,
+                  color: colors.textSubtle,
                   textTransform: "uppercase",
                   letterSpacing: "0.1em",
                 }}
@@ -3135,9 +3098,9 @@ function EditGuestModal({
                   width: "100%",
                   padding: "12px 16px",
                   borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
+                  border: `1px solid ${colors.borderStrong}`,
+                  background: colors.background,
+                  color: colors.text,
                   fontSize: "15px",
                   outline: "none",
                   boxSizing: "border-box",
@@ -3153,7 +3116,7 @@ function EditGuestModal({
                   fontSize: "12px",
                   fontWeight: 600,
                   marginBottom: "8px",
-                  opacity: 0.8,
+                  color: colors.textSubtle,
                   textTransform: "uppercase",
                   letterSpacing: "0.1em",
                 }}
@@ -3169,9 +3132,9 @@ function EditGuestModal({
                   width: "100%",
                   padding: "12px 16px",
                   borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
+                  border: `1px solid ${colors.borderStrong}`,
+                  background: colors.background,
+                  color: colors.text,
                   fontSize: "15px",
                   outline: "none",
                   boxSizing: "border-box",
@@ -3187,7 +3150,7 @@ function EditGuestModal({
                   fontSize: "12px",
                   fontWeight: 600,
                   marginBottom: "8px",
-                  opacity: 0.8,
+                  color: colors.textSubtle,
                   textTransform: "uppercase",
                   letterSpacing: "0.1em",
                 }}
@@ -3199,11 +3162,10 @@ function EditGuestModal({
                   display: "flex",
                   alignItems: "center",
                   gap: "12px",
-                  background: "rgb(12 10 18 / 10%)",
+                  background: colors.surface,
                   borderRadius: "12px",
                   padding: "8px",
-                  border: "1px solid rgba(255,255,255,0.05)",
-                  backdropFilter: "blur(10px)",
+                  border: `1px solid ${colors.border}`,
                 }}
               >
                 <button
@@ -3220,9 +3182,9 @@ function EditGuestModal({
                     border: "none",
                     background:
                       plusOnes <= 0
-                        ? "rgba(255, 255, 255, 0.05)"
-                        : "rgba(192, 192, 192, 0.2)",
-                    color: plusOnes <= 0 ? "rgba(255, 255, 255, 0.3)" : "#fff",
+                        ? colors.surfaceMuted
+                        : colors.surfaceMuted,
+                    color: plusOnes <= 0 ? colors.textFaded : colors.text,
                     fontSize: "22px",
                     fontWeight: 600,
                     cursor: plusOnes <= 0 ? "not-allowed" : "pointer",
@@ -3241,7 +3203,7 @@ function EditGuestModal({
                     textAlign: "center",
                     fontSize: "24px",
                     fontWeight: 700,
-                    color: "#fff",
+                    color: colors.text,
                   }}
                 >
                   {plusOnes}
@@ -3260,12 +3222,12 @@ function EditGuestModal({
                     border: "none",
                     background:
                       plusOnes >= maxPlusOnes
-                        ? "rgba(255, 255, 255, 0.05)"
-                        : "rgba(192, 192, 192, 0.2)",
+                        ? colors.surfaceMuted
+                        : colors.surfaceMuted,
                     color:
                       plusOnes >= maxPlusOnes
-                        ? "rgba(255, 255, 255, 0.3)"
-                        : "#fff",
+                        ? colors.textFaded
+                        : colors.text,
                     fontSize: "22px",
                     fontWeight: 600,
                     cursor: plusOnes >= maxPlusOnes ? "not-allowed" : "pointer",
@@ -3288,7 +3250,7 @@ function EditGuestModal({
                   fontSize: "12px",
                   fontWeight: 600,
                   marginBottom: "8px",
-                  opacity: 0.8,
+                  color: colors.textSubtle,
                   textTransform: "uppercase",
                   letterSpacing: "0.1em",
                 }}
@@ -3303,11 +3265,9 @@ function EditGuestModal({
                   width: "100%",
                   padding: "12px 16px",
                   borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: canChangeStatus
-                    ? "rgba(20, 16, 30, 0.6)"
-                    : "rgba(20, 16, 30, 0.3)",
-                  color: canChangeStatus ? "#fff" : "rgba(255, 255, 255, 0.5)",
+                  border: `1px solid ${colors.borderStrong}`,
+                  background: colors.background,
+                  color: canChangeStatus ? colors.text : colors.textSubtle,
                   fontSize: "15px",
                   outline: "none",
                   boxSizing: "border-box",
@@ -3326,11 +3286,11 @@ function EditGuestModal({
                   style={{
                     marginTop: "8px",
                     padding: "8px 12px",
-                    background: "rgba(245, 158, 11, 0.15)",
-                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                    background: colors.warningRgba,
+                    border: `1px solid rgba(180, 83, 9, 0.25)`,
                     borderRadius: "8px",
                     fontSize: "12px",
-                    color: "#fbbf24",
+                    color: colors.warning,
                     lineHeight: "1.4",
                   }}
                 >
@@ -3381,7 +3341,7 @@ function EditGuestModal({
                           fontSize: "12px",
                           fontWeight: 600,
                           marginBottom: "8px",
-                          opacity: 0.8,
+                          color: colors.textSubtle,
                           textTransform: "uppercase",
                           letterSpacing: "0.1em",
                         }}
@@ -3395,9 +3355,9 @@ function EditGuestModal({
                           width: "100%",
                           padding: "12px 16px",
                           borderRadius: "12px",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          background: "rgba(20, 16, 30, 0.6)",
-                          color: "#fff",
+                          border: `1px solid ${colors.borderStrong}`,
+                          background: colors.background,
+                          color: colors.text,
                           fontSize: "15px",
                           outline: "none",
                           boxSizing: "border-box",
@@ -3420,7 +3380,7 @@ function EditGuestModal({
                           fontSize: "12px",
                           fontWeight: 600,
                           marginBottom: "8px",
-                          opacity: 0.8,
+                          color: colors.textSubtle,
                           textTransform: "uppercase",
                           letterSpacing: "0.1em",
                         }}
@@ -3432,11 +3392,10 @@ function EditGuestModal({
                           display: "flex",
                           alignItems: "center",
                           gap: "12px",
-                          background: "rgb(12 10 18 / 10%)",
+                          background: colors.surface,
                           borderRadius: "12px",
                           padding: "8px",
-                          border: "1px solid rgba(255,255,255,0.05)",
-                          backdropFilter: "blur(10px)",
+                          border: `1px solid ${colors.border}`,
                         }}
                       >
                         <button
@@ -3453,12 +3412,12 @@ function EditGuestModal({
                             border: "none",
                             background:
                               dinnerPartySize <= 1
-                                ? "rgba(255, 255, 255, 0.05)"
-                                : "rgba(16, 185, 129, 0.2)",
+                                ? colors.surfaceMuted
+                                : colors.successRgba,
                             color:
                               dinnerPartySize <= 1
-                                ? "rgba(255, 255, 255, 0.3)"
-                                : "#10b981",
+                                ? colors.textFaded
+                                : colors.success,
                             fontSize: "22px",
                             fontWeight: 600,
                             cursor:
@@ -3478,7 +3437,7 @@ function EditGuestModal({
                             textAlign: "center",
                             fontSize: "24px",
                             fontWeight: 700,
-                            color: "#10b981",
+                            color: colors.success,
                           }}
                         >
                           {dinnerPartySize}
@@ -3497,12 +3456,12 @@ function EditGuestModal({
                             border: "none",
                             background:
                               dinnerPartySize >= 8
-                                ? "rgba(255, 255, 255, 0.05)"
-                                : "rgba(16, 185, 129, 0.2)",
+                                ? colors.surfaceMuted
+                                : colors.successRgba,
                             color:
                               dinnerPartySize >= 8
-                                ? "rgba(255, 255, 255, 0.3)"
-                                : "#10b981",
+                                ? colors.textFaded
+                                : colors.success,
                             fontSize: "22px",
                             fontWeight: 600,
                             cursor:
@@ -3520,7 +3479,7 @@ function EditGuestModal({
                       <div
                         style={{
                           fontSize: "10px",
-                          opacity: 0.6,
+                          color: colors.textSubtle,
                           marginTop: "4px",
                           fontStyle: "italic",
                         }}
@@ -3540,7 +3499,7 @@ function EditGuestModal({
                   fontSize: "12px",
                   fontWeight: 600,
                   marginBottom: "12px",
-                  opacity: 0.8,
+                  color: colors.textSubtle,
                   textTransform: "uppercase",
                   letterSpacing: "0.1em",
                 }}
@@ -3580,17 +3539,20 @@ function EditGuestModal({
                       width: "20px",
                       height: "20px",
                       cursor: "pointer",
-                      accentColor: "#f59e0b",
+                      accentColor: colors.warning,
                     }}
                   />
                   <span
                     style={{
                       fontSize: "13px",
                       fontWeight: 600,
-                      color: pulledUpForCocktails !== null ? "#f59e0b" : "#fff",
+                      color: pulledUpForCocktails !== null ? colors.warning : colors.text,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
                     }}
                   >
-                    <SilverIcon as={Wine} size={18} /> List
+                    <Wine size={18} style={{ color: pulledUpForCocktails !== null ? colors.warning : colors.textSubtle }} /> List
                   </span>
                 </label>
                 {pulledUpForCocktails !== null && (
@@ -3608,10 +3570,10 @@ function EditGuestModal({
                             display: "flex",
                             alignItems: "center",
                             gap: "12px",
-                            background: "rgba(245, 158, 11, 0.1)",
+                            background: colors.warningRgba,
                             borderRadius: "12px",
                             padding: "8px",
-                            border: "1px solid rgba(245, 158, 11, 0.3)",
+                            border: `1px solid rgba(180, 83, 9, 0.25)`,
                           }}
                         >
                           <button
@@ -3630,12 +3592,12 @@ function EditGuestModal({
                               border: "none",
                               background:
                                 currentValue <= 0
-                                  ? "rgba(255, 255, 255, 0.05)"
-                                  : "rgba(245, 158, 11, 0.2)",
+                                  ? colors.surfaceMuted
+                                  : `rgba(180, 83, 9, 0.15)`,
                               color:
                                 currentValue <= 0
-                                  ? "rgba(255, 255, 255, 0.3)"
-                                  : "#f59e0b",
+                                  ? colors.textFaded
+                                  : colors.warning,
                               fontSize: "22px",
                               fontWeight: 600,
                               cursor:
@@ -3655,7 +3617,7 @@ function EditGuestModal({
                               textAlign: "center",
                               fontSize: "24px",
                               fontWeight: 700,
-                              color: "#f59e0b",
+                              color: colors.warning,
                             }}
                           >
                             {currentValue}
@@ -3677,12 +3639,12 @@ function EditGuestModal({
                               border: "none",
                               background:
                                 currentValue >= cocktailsMax
-                                  ? "rgba(255, 255, 255, 0.05)"
-                                  : "rgba(245, 158, 11, 0.2)",
+                                  ? colors.surfaceMuted
+                                  : `rgba(180, 83, 9, 0.15)`,
                               color:
                                 currentValue >= cocktailsMax
-                                  ? "rgba(255, 255, 255, 0.3)"
-                                  : "#f59e0b",
+                                  ? colors.textFaded
+                                  : colors.warning,
                               fontSize: "22px",
                               fontWeight: 600,
                               cursor:
@@ -3704,10 +3666,9 @@ function EditGuestModal({
                     <div
                       style={{
                         fontSize: "11px",
-                        opacity: 0.6,
                         marginTop: "6px",
                         textAlign: "center",
-                        color: "#f59e0b",
+                        color: colors.textSubtle,
                       }}
                     >
                       Max:{" "}
@@ -3768,17 +3729,20 @@ function EditGuestModal({
                         width: "20px",
                         height: "20px",
                         cursor: "pointer",
-                        accentColor: "#10b981",
+                        accentColor: colors.success,
                       }}
                     />
                     <span
                       style={{
                         fontSize: "13px",
                         fontWeight: 600,
-                        color: pulledUpForDinner !== null ? "#10b981" : "#fff",
+                        color: pulledUpForDinner !== null ? colors.success : colors.text,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
                       }}
                     >
-                      <SilverIcon as={UtensilsCrossed} size={18} /> Dinner
+                      <UtensilsCrossed size={18} style={{ color: pulledUpForDinner !== null ? colors.success : colors.textSubtle }} /> Dinner
                     </span>
                   </label>
                   {pulledUpForDinner !== null && (
@@ -3792,10 +3756,10 @@ function EditGuestModal({
                               display: "flex",
                               alignItems: "center",
                               gap: "12px",
-                              background: "rgba(16, 185, 129, 0.1)",
+                              background: colors.successRgba,
                               borderRadius: "12px",
                               padding: "8px",
-                              border: "1px solid rgba(16, 185, 129, 0.3)",
+                              border: `1px solid rgba(22, 163, 74, 0.25)`,
                             }}
                           >
                             <button
@@ -3814,12 +3778,12 @@ function EditGuestModal({
                                 border: "none",
                                 background:
                                   currentValue <= 0
-                                    ? "rgba(255, 255, 255, 0.05)"
-                                    : "rgba(16, 185, 129, 0.2)",
+                                    ? colors.surfaceMuted
+                                    : `rgba(22, 163, 74, 0.15)`,
                                 color:
                                   currentValue <= 0
-                                    ? "rgba(255, 255, 255, 0.3)"
-                                    : "#10b981",
+                                    ? colors.textFaded
+                                    : colors.success,
                                 fontSize: "22px",
                                 fontWeight: 600,
                                 cursor:
@@ -3839,7 +3803,7 @@ function EditGuestModal({
                                 textAlign: "center",
                                 fontSize: "24px",
                                 fontWeight: 700,
-                                color: "#10b981",
+                                color: colors.success,
                               }}
                             >
                               {currentValue}
@@ -3861,12 +3825,12 @@ function EditGuestModal({
                                 border: "none",
                                 background:
                                   currentValue >= dinnerMax
-                                    ? "rgba(255, 255, 255, 0.05)"
-                                    : "rgba(16, 185, 129, 0.2)",
+                                    ? colors.surfaceMuted
+                                    : `rgba(22, 163, 74, 0.15)`,
                                 color:
                                   currentValue >= dinnerMax
-                                    ? "rgba(255, 255, 255, 0.3)"
-                                    : "#10b981",
+                                    ? colors.textFaded
+                                    : colors.success,
                                 fontSize: "22px",
                                 fontWeight: 600,
                                 cursor:
@@ -3888,10 +3852,9 @@ function EditGuestModal({
                       <div
                         style={{
                           fontSize: "11px",
-                          opacity: 0.6,
                           marginTop: "6px",
                           textAlign: "center",
-                          color: "#10b981",
+                          color: colors.textSubtle,
                         }}
                       >
                         Max: {dinnerPartySize || 1}{" "}
@@ -3911,11 +3874,11 @@ function EditGuestModal({
               style={{
                 marginTop: "20px",
                 padding: "16px 20px",
-                background: "rgba(239, 68, 68, 0.15)",
+                background: colors.dangerRgba,
                 borderRadius: "14px",
-                border: "1px solid rgba(239, 68, 68, 0.3)",
+                border: `1px solid rgba(220, 38, 38, 0.20)`,
                 fontSize: "13px",
-                color: "#f87171",
+                color: colors.danger,
                 lineHeight: "1.6",
               }}
             >
@@ -3929,10 +3892,9 @@ function EditGuestModal({
                   fontSize: "14px",
                 }}
               >
-                <SilverIcon
-                  as={AlertTriangle}
+                <AlertTriangle
                   size={18}
-                  style={{ color: "#f59e0b" }}
+                  style={{ color: colors.warning }}
                 />
                 <span>You're overriding capacity</span>
               </div>
@@ -3978,10 +3940,10 @@ function EditGuestModal({
               style={{
                 flex: 1,
                 padding: editIsMobile ? "16px 24px" : "14px 24px",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.2)",
-                background: "rgba(255,255,255,0.05)",
-                color: "#fff",
+                borderRadius: "999px",
+                border: `1px solid ${colors.borderStrong}`,
+                background: colors.background,
+                color: colors.text,
                 fontSize: editIsMobile ? "16px" : "15px",
                 fontWeight: 600,
                 cursor: "pointer",
@@ -3996,13 +3958,13 @@ function EditGuestModal({
               style={{
                 flex: 1,
                 padding: editIsMobile ? "16px 24px" : "14px 24px",
-                borderRadius: "12px",
+                borderRadius: "999px",
                 border: "none",
                 background:
                   capacityCheck.willExceedCocktail ||
                   capacityCheck.willExceedDinner
-                    ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
-                    : "linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 100%)",
+                    ? colors.danger
+                    : colors.accent,
                 color: "#fff",
                 fontSize: editIsMobile ? "16px" : "15px",
                 fontWeight: 600,
@@ -4030,7 +3992,7 @@ function EditGuestModal({
                 style={{
                   marginTop: "24px",
                   paddingTop: "24px",
-                  borderTop: "1px solid rgba(255,255,255,0.1)",
+                  borderTop: `1px solid ${colors.border}`,
                 }}
               >
                 <button
@@ -4044,22 +4006,20 @@ function EditGuestModal({
                   style={{
                     width: "100%",
                     padding: "14px 24px",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(245, 158, 11, 0.4)",
-                    background: "rgba(245, 158, 11, 0.1)",
-                    color: "#f59e0b",
+                    borderRadius: "999px",
+                    border: `1px solid rgba(180, 83, 9, 0.30)`,
+                    background: colors.warningRgba,
+                    color: colors.warning,
                     fontSize: "15px",
                     fontWeight: 600,
                     cursor: "pointer",
                     transition: "all 0.2s ease",
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = "rgba(245, 158, 11, 0.2)";
-                    e.target.style.borderColor = "rgba(245, 158, 11, 0.6)";
+                    e.currentTarget.style.background = `rgba(180, 83, 9, 0.16)`;
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.background = "rgba(245, 158, 11, 0.1)";
-                    e.target.style.borderColor = "rgba(245, 158, 11, 0.4)";
+                    e.currentTarget.style.background = colors.warningRgba;
                   }}
                 >
                   Process Refund
@@ -4138,7 +4098,7 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
       style={{
         position: "fixed",
         top: 0, left: 0, right: 0, bottom: 0,
-        background: "rgba(0, 0, 0, 0.55)",
+        background: "rgba(10, 10, 10, 0.40)",
         backdropFilter: "blur(2px)",
         zIndex: 1000,
         display: "flex",
@@ -4151,14 +4111,13 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
       <div
         style={{
           position: "relative",
-          background: "rgba(12, 10, 18, 0.98)",
-          backdropFilter: "blur(20px)",
-          border: isMobileView ? "none" : "1px solid rgba(255,255,255,0.1)",
+          background: colors.background,
+          border: isMobileView ? "none" : `1px solid ${colors.border}`,
           borderRadius: isMobileView ? "24px 24px 0 0" : "24px",
           padding: isMobileView ? "24px 20px 36px" : "32px",
           maxWidth: isMobileView ? "100%" : "420px",
           width: "100%",
-          boxShadow: "0 -10px 40px rgba(0,0,0,0.5)",
+          boxShadow: "0 -4px 20px rgba(10,10,10,0.08)",
           overflow: "hidden",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -4166,7 +4125,7 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
         {/* Drag indicator for mobile */}
         {isMobileView && (
           <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
-            <div style={{ width: "40px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)" }} />
+            <div style={{ width: "40px", height: "4px", borderRadius: "2px", background: colors.border }} />
           </div>
         )}
 
@@ -4175,21 +4134,26 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
           <div style={{
             fontSize: isMobileView ? "22px" : "20px",
             fontWeight: 700,
-            color: "#fff",
+            color: colors.text,
             marginBottom: "2px",
           }}>
             {guest.name || "Guest"}
           </div>
           <div style={{
             fontSize: "12px",
-            color: "rgba(255,255,255,0.25)",
+            color: colors.textFaded,
             marginBottom: "4px",
           }}>
             {guest.email}
           </div>
+          {/* Native lane: tel:, wa.me, mailto: — when host wants the
+              "where are you" gesture during an event */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
+            <NativeLaneActions person={guest} compact />
+          </div>
           <div style={{
             fontSize: "14px",
-            color: "rgba(255,255,255,0.45)",
+            color: colors.textSubtle,
           }}>
             {totalExpected} {totalExpected === 1 ? "guest" : "guests"} expected
           </div>
@@ -4210,13 +4174,13 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
             style={{
               width: btnSize, height: btnSize,
               borderRadius: "14px",
-              border: "none",
+              border: `1px solid ${colors.border}`,
               background: total <= 0
-                ? "rgba(255, 255, 255, 0.05)"
-                : "rgba(255, 255, 255, 0.1)",
+                ? colors.surfaceMuted
+                : colors.surface,
               color: total <= 0
-                ? "rgba(255, 255, 255, 0.2)"
-                : "#fff",
+                ? colors.textFaded
+                : colors.text,
               fontSize: btnFontSize, fontWeight: 600,
               cursor: total <= 0 ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -4229,11 +4193,11 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
           <div style={{
             fontSize: counterFontSize,
             fontWeight: 700,
-            color: "#fff",
+            color: colors.text,
             minWidth: "80px",
             textAlign: "center",
           }}>
-            {total}<span style={{ fontSize: "0.55em", fontWeight: 500, color: "rgba(255,255,255,0.35)" }}>/{totalExpected}</span>
+            {total}<span style={{ fontSize: "0.55em", fontWeight: 500, color: colors.textFaded }}>/{totalExpected}</span>
           </div>
           <button
             type="button"
@@ -4242,13 +4206,13 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
             style={{
               width: btnSize, height: btnSize,
               borderRadius: "14px",
-              border: "none",
+              border: `1px solid ${colors.border}`,
               background: total >= totalExpected
-                ? "rgba(255, 255, 255, 0.05)"
-                : "rgba(255, 255, 255, 0.1)",
+                ? colors.surfaceMuted
+                : colors.surface,
               color: total >= totalExpected
-                ? "rgba(255, 255, 255, 0.2)"
-                : "#fff",
+                ? colors.textFaded
+                : colors.text,
               fontSize: btnFontSize, fontWeight: 600,
               cursor: total >= totalExpected ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -4271,12 +4235,12 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
             borderRadius: "14px",
             border: "none",
             background: !changed
-              ? "rgba(255, 255, 255, 0.05)"
+              ? colors.surfaceMuted
               : total < alreadyArrived
-              ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
-              : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+              ? colors.danger
+              : colors.success,
             color: !changed
-              ? "rgba(255, 255, 255, 0.3)"
+              ? colors.textFaded
               : "#fff",
             fontSize: isMobileView ? "17px" : "16px",
             fontWeight: 700,
@@ -4304,7 +4268,7 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
           style={{
             position: "fixed",
             top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(0,0,0,0.6)",
+            background: "rgba(10,10,10,0.45)",
             zIndex: 1100,
             display: "flex",
             alignItems: "center",
@@ -4315,14 +4279,13 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
         >
           <div
             style={{
-              background: "rgba(20, 16, 30, 0.98)",
-              backdropFilter: "blur(20px)",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
               borderRadius: "20px",
               padding: "28px 24px 20px",
               maxWidth: "300px",
               width: "100%",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+              boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
               textAlign: "center",
             }}
             onClick={(e) => e.stopPropagation()}
@@ -4330,14 +4293,14 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
             <div style={{
               fontSize: "17px",
               fontWeight: 700,
-              color: "#fff",
+              color: colors.text,
               marginBottom: "6px",
             }}>
               Unsaved changes
             </div>
             <div style={{
               fontSize: "14px",
-              color: "rgba(255,255,255,0.45)",
+              color: colors.textSubtle,
               marginBottom: "24px",
             }}>
               You have unsaved check-in changes for {guest.name || "this guest"}.
@@ -4349,11 +4312,11 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
                 style={{
                   width: "100%",
                   padding: "14px",
-                  borderRadius: "12px",
+                  borderRadius: "999px",
                   border: "none",
                   background: total < alreadyArrived
-                    ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
-                    : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                    ? colors.danger
+                    : colors.success,
                   color: "#fff",
                   fontSize: "15px",
                   fontWeight: 700,
@@ -4369,10 +4332,10 @@ function PulledUpModal({ guest, event, onClose, onSave, onCheckInComplete }) {
                 style={{
                   width: "100%",
                   padding: "14px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "999px",
+                  border: `1px solid ${colors.borderStrong}`,
                   background: "transparent",
-                  color: "rgba(255,255,255,0.5)",
+                  color: colors.textMuted,
                   fontSize: "15px",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -4398,7 +4361,7 @@ function DeleteConfirmModal({ guest, onClose, onConfirm }) {
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0, 0, 0, 0.8)",
+        background: "rgba(10, 10, 10, 0.55)",
         backdropFilter: "blur(4px)",
         zIndex: 1000,
         display: "flex",
@@ -4410,14 +4373,13 @@ function DeleteConfirmModal({ guest, onClose, onConfirm }) {
     >
       <div
         style={{
-          background: "rgba(12, 10, 18, 0.95)",
-          backdropFilter: "blur(20px)",
-          border: "1px solid rgba(255,255,255,0.1)",
+          background: colors.background,
+          border: `1px solid ${colors.border}`,
           borderRadius: "24px",
           padding: "32px",
           maxWidth: "500px",
           width: "100%",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -4426,6 +4388,7 @@ function DeleteConfirmModal({ guest, onClose, onConfirm }) {
             fontSize: "24px",
             fontWeight: 700,
             marginBottom: "16px",
+            color: colors.text,
           }}
         >
           Delete Guest?
@@ -4433,13 +4396,13 @@ function DeleteConfirmModal({ guest, onClose, onConfirm }) {
         <p
           style={{
             fontSize: "15px",
-            opacity: 0.8,
+            color: colors.textMuted,
             marginBottom: "24px",
             lineHeight: "1.6",
           }}
         >
           Are you sure you want to delete{" "}
-          <strong>{guest.name || guest.email}</strong>? This action cannot be
+          <strong style={{ color: colors.text }}>{guest.name || guest.email}</strong>? This action cannot be
           undone.
         </p>
         <div
@@ -4453,20 +4416,20 @@ function DeleteConfirmModal({ guest, onClose, onConfirm }) {
             style={{
               flex: 1,
               padding: "14px 24px",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.2)",
-              background: "rgba(255,255,255,0.05)",
-              color: "#fff",
+              borderRadius: "999px",
+              border: `1px solid ${colors.borderStrong}`,
+              background: colors.background,
+              color: colors.text,
               fontSize: "15px",
               fontWeight: 600,
               cursor: "pointer",
-              transition: "all 0.2s ease",
+              transition: "all 0.15s ease",
             }}
             onMouseEnter={(e) => {
-              e.target.style.background = "rgba(255,255,255,0.1)";
+              e.currentTarget.style.background = colors.surfaceMuted;
             }}
             onMouseLeave={(e) => {
-              e.target.style.background = "rgba(255,255,255,0.05)";
+              e.currentTarget.style.background = colors.background;
             }}
           >
             Cancel
@@ -4476,20 +4439,14 @@ function DeleteConfirmModal({ guest, onClose, onConfirm }) {
             style={{
               flex: 1,
               padding: "14px 24px",
-              borderRadius: "12px",
+              borderRadius: "999px",
               border: "none",
-              background: "linear-gradient(135deg, #a8a8a8 0%, #dc2626 100%)",
+              background: colors.danger,
               color: "#fff",
               fontSize: "15px",
               fontWeight: 600,
               cursor: "pointer",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = "scale(1.02)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = "scale(1)";
+              transition: "all 0.15s ease",
             }}
           >
             Delete
@@ -4517,7 +4474,7 @@ function RefundConfirmModal({ guest, event, refunding, onClose, onConfirm }) {
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0, 0, 0, 0.8)",
+        background: "rgba(10, 10, 10, 0.55)",
         backdropFilter: "blur(4px)",
         zIndex: 1000,
         display: "flex",
@@ -4529,14 +4486,13 @@ function RefundConfirmModal({ guest, event, refunding, onClose, onConfirm }) {
     >
       <div
         style={{
-          background: "rgba(12, 10, 18, 0.95)",
-          backdropFilter: "blur(20px)",
-          border: "1px solid rgba(255,255,255,0.1)",
+          background: colors.background,
+          border: `1px solid ${colors.border}`,
           borderRadius: "24px",
           padding: "32px",
           maxWidth: "500px",
           width: "100%",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -4545,7 +4501,7 @@ function RefundConfirmModal({ guest, event, refunding, onClose, onConfirm }) {
             fontSize: "24px",
             fontWeight: 700,
             marginBottom: "16px",
-            color: "#f59e0b",
+            color: colors.warning,
           }}
         >
           Process Refund?
@@ -4553,20 +4509,20 @@ function RefundConfirmModal({ guest, event, refunding, onClose, onConfirm }) {
         <p
           style={{
             fontSize: "15px",
-            opacity: 0.9,
+            color: colors.textMuted,
             marginBottom: "20px",
             lineHeight: "1.6",
           }}
         >
           You are about to refund the payment for{" "}
-          <strong>{guest.name || guest.email}</strong>.
+          <strong style={{ color: colors.text }}>{guest.name || guest.email}</strong>.
         </p>
 
         <div
           style={{
             padding: "16px",
-            background: "rgba(245, 158, 11, 0.1)",
-            border: "1px solid rgba(245, 158, 11, 0.3)",
+            background: colors.warningRgba,
+            border: `1px solid rgba(180, 83, 9, 0.25)`,
             borderRadius: "12px",
             marginBottom: "24px",
           }}
@@ -4576,7 +4532,7 @@ function RefundConfirmModal({ guest, event, refunding, onClose, onConfirm }) {
               fontSize: "14px",
               fontWeight: 600,
               marginBottom: "8px",
-              color: "#fbbf24",
+              color: colors.warning,
             }}
           >
             What happens next:
@@ -4584,7 +4540,7 @@ function RefundConfirmModal({ guest, event, refunding, onClose, onConfirm }) {
           <ul
             style={{
               fontSize: "13px",
-              opacity: 0.9,
+              color: colors.textMuted,
               lineHeight: "1.8",
               margin: 0,
               paddingLeft: "20px",
@@ -4618,24 +4574,24 @@ function RefundConfirmModal({ guest, event, refunding, onClose, onConfirm }) {
             style={{
               flex: 1,
               padding: "14px 24px",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.2)",
-              background: "rgba(255,255,255,0.05)",
-              color: "#fff",
+              borderRadius: "999px",
+              border: `1px solid ${colors.borderStrong}`,
+              background: colors.background,
+              color: colors.text,
               fontSize: "15px",
               fontWeight: 600,
               cursor: refunding ? "not-allowed" : "pointer",
               opacity: refunding ? 0.5 : 1,
-              transition: "all 0.2s ease",
+              transition: "all 0.15s ease",
             }}
             onMouseEnter={(e) => {
               if (!refunding) {
-                e.target.style.background = "rgba(255,255,255,0.1)";
+                e.currentTarget.style.background = colors.surfaceMuted;
               }
             }}
             onMouseLeave={(e) => {
               if (!refunding) {
-                e.target.style.background = "rgba(255,255,255,0.05)";
+                e.currentTarget.style.background = colors.background;
               }
             }}
           >
@@ -4647,26 +4603,16 @@ function RefundConfirmModal({ guest, event, refunding, onClose, onConfirm }) {
             style={{
               flex: 1,
               padding: "14px 24px",
-              borderRadius: "12px",
+              borderRadius: "999px",
               border: "none",
               background: refunding
-                ? "rgba(245, 158, 11, 0.3)"
-                : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                ? colors.warningRgba
+                : colors.warning,
               color: "#fff",
               fontSize: "15px",
               fontWeight: 600,
               cursor: refunding ? "not-allowed" : "pointer",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              if (!refunding) {
-                e.target.style.transform = "scale(1.02)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!refunding) {
-                e.target.style.transform = "scale(1)";
-              }
+              transition: "all 0.15s ease",
             }}
           >
             {refunding ? "Processing..." : "Process Refund"}

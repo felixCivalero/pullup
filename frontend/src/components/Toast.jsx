@@ -6,6 +6,7 @@ import {
   useCallback,
   useRef,
 } from "react";
+import { colors } from "../theme/colors.js";
 
 const ToastContext = createContext(null);
 
@@ -50,6 +51,14 @@ function ToastContainer({ toasts, removeToast }) {
   );
 }
 
+// Left accent bar color and icon tint per type
+function getAccentColor(type) {
+  if (type === "success") return colors.success;
+  if (type === "error") return colors.danger;
+  if (type === "warning") return colors.warning;
+  return colors.accent; // info / default → pink
+}
+
 function Toast({
   message,
   type = "info",
@@ -73,14 +82,7 @@ function Toast({
     }
   }, [duration]); // Removed onClose from dependencies
 
-  const bgColor =
-    type === "success"
-      ? "#10b981"
-      : type === "error"
-      ? "#ef4444"
-      : type === "warning"
-      ? "#f59e0b"
-      : "#3b82f6";
+  const accent = getAccentColor(type);
 
   return (
     <div
@@ -89,34 +91,51 @@ function Toast({
         bottom: "20px",
         left: "50%",
         transform: "translateX(-50%)",
-        background: bgColor,
-        color: "#fff",
-        padding: subtext ? "14px 20px" : "12px 20px",
+        background: "#ffffff",
+        color: colors.text,
+        padding: subtext ? "14px 20px 14px 16px" : "12px 20px 12px 16px",
         borderRadius: "12px",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+        border: `1px solid ${colors.border}`,
+        boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
         zIndex: 1000,
         fontSize: "14px",
         fontWeight: 500,
         maxWidth: "90%",
-        textAlign: "center",
+        textAlign: "left",
         animation: "slideUp 0.3s ease-out",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "12px",
+        minWidth: 220,
       }}
     >
-      <div style={{ fontWeight: 600, marginBottom: subtext ? "4px" : "0" }}>
-        {message}
-      </div>
-      {subtext && (
-        <div
-          style={{
-            fontSize: "12px",
-            opacity: 0.9,
-            marginTop: "4px",
-            fontWeight: 400,
-          }}
-        >
-          {subtext}
+      {/* Left accent bar */}
+      <div
+        style={{
+          width: 3,
+          borderRadius: 2,
+          background: accent,
+          alignSelf: "stretch",
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 600, color: colors.text, marginBottom: subtext ? "4px" : "0" }}>
+          {message}
         </div>
-      )}
+        {subtext && (
+          <div
+            style={{
+              fontSize: "12px",
+              color: colors.textMuted,
+              marginTop: "4px",
+              fontWeight: 400,
+            }}
+          >
+            {subtext}
+          </div>
+        )}
+      </div>
       <style>{`
         @keyframes slideUp {
           from {

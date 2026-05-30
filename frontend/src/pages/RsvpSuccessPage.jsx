@@ -20,6 +20,7 @@ import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
 import { useToast } from "../components/Toast";
 import { publicFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
+import { PhoneVerifyBanner } from "../components/PhoneVerifyBanner.jsx";
 
 // Single Share Button Component (Instagram-style with conditional logic)
 // URL-only sharing to ensure rich previews (OG tags) are shown
@@ -563,6 +564,11 @@ export function RsvpSuccessPage() {
               boxSizing: "border-box",
             }}
           >
+            {/* WhatsApp phone-verify banner — renders only when RsvpForm
+                set sessionStorage right after submit. Self-clears after
+                5 min so a stale visit doesn't show a fossil. */}
+            <PhoneVerifyBanner variant="dark" />
+
             {/* Centered card container */}
             <div
               style={{

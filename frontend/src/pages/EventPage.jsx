@@ -31,6 +31,7 @@ import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "../components/EventCTA"
 import { Badge } from "../components/ui/Badge";
 import { publicFetch } from "../lib/api.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
+import { resolveBrand, loadBrandFont, softColor } from "../lib/brand.js";
 import { logger } from "../lib/logger.js";
 import { colors } from "../theme/colors.js";
 
@@ -236,6 +237,27 @@ export function EventPage() {
     const spotsLeft = event._attendance?.cocktailSpotsLeft;
     return spotsLeft !== null && spotsLeft !== undefined && spotsLeft <= 0;
   }, [event]);
+
+  // Host brand identity — five tokens resolved from event.hostBrand with
+  // PullUp defaults when null. Surfaced as CSS variables on the page
+  // container so child components (RsvpForm, EventCTA, EventPageContent)
+  // can pick them up via var(--brand-primary) etc. without prop drilling.
+  const brand = useMemo(() => resolveBrand(event?.hostBrand), [event?.hostBrand]);
+  useEffect(() => {
+    loadBrandFont(brand);
+  }, [brand]);
+  const brandCssVars = useMemo(
+    () => ({
+      "--brand-primary":         brand.primaryColor,
+      "--brand-primary-soft":    softColor(brand.primaryColor, 0.14),
+      "--brand-primary-border":  softColor(brand.primaryColor, 0.30),
+      "--brand-ink-on-primary":  brand.inkOnPrimary,
+      "--brand-bg":              brand.background,
+      "--brand-text":            brand.textColor,
+      "--brand-font":            brand.fontCss,
+    }),
+    [brand],
+  );
 
   // Detect mobile file-sharing support (for "Add to Story" button)
   useEffect(() => {
@@ -800,7 +822,18 @@ export function EventPage() {
         @supports (height: 100dvh) { body, html { height: 100dvh; } }
         * { box-sizing: border-box; }
       `}</style>
-      <div style={{ width: "100%", height: "100vh", height: "100dvh", overflow: "hidden", background: "#05040a" }}>
+      <div
+        style={{
+          width: "100%",
+          height: "100vh",
+          height: "100dvh",
+          overflow: "hidden",
+          background: brand.background,
+          color: brand.textColor,
+          fontFamily: brand.fontCss,
+          ...brandCssVars,
+        }}
+      >
         {(() => {
           const renderRsvp = !isDisabled
             ? ({ onClose }) => (

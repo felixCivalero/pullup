@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
+import { colors } from "../../theme/colors.js";
 
 // Pill button that walks a list of events sequentially, asking the backend
 // to generate tags for each one. Designed to be dropped into any CRM-style
@@ -131,7 +132,7 @@ export function AutoTagButton({
           <div
             style={{
               fontSize: 12,
-              color: "rgba(255,255,255,0.75)",
+              color: "#92400e",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -151,8 +152,8 @@ export function AutoTagButton({
             padding: 4,
             borderRadius: 6,
             border: "none",
-            background: "rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.7)",
+            background: "rgba(251,191,36,0.2)",
+            color: "#92400e",
             cursor: "pointer",
             flexShrink: 0,
           }}
@@ -179,9 +180,9 @@ export function AutoTagButton({
           gap: 8,
           padding: "8px 14px",
           borderRadius: 999,
-          border: "1px solid rgba(34,197,94,0.35)",
-          background: "rgba(34,197,94,0.12)",
-          color: "#4ade80",
+          border: `1px solid rgba(22,163,74,0.30)`,
+          background: colors.successRgba,
+          color: colors.success,
           fontSize: 12,
           fontWeight: 600,
           ...buttonStyle,
@@ -204,9 +205,9 @@ export function AutoTagButton({
           gap: 8,
           padding: "10px 14px",
           borderRadius: 14,
-          border: "1px solid rgba(251,191,36,0.35)",
-          background: "rgba(20,16,30,0.95)",
-          boxShadow: "0 14px 40px rgba(0,0,0,0.55)",
+          border: `1px solid ${colors.border}`,
+          background: "#fff",
+          boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
           minWidth: 260,
           ...buttonStyle,
         }}
@@ -215,7 +216,7 @@ export function AutoTagButton({
           style={{
             fontSize: 11,
             fontWeight: 700,
-            color: "#fbbf24",
+            color: "#b45309",
             textTransform: "uppercase",
             letterSpacing: "0.08em",
             display: "flex",
@@ -225,9 +226,9 @@ export function AutoTagButton({
         >
           <Sparkles size={12} /> AI auto-tag
         </div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
+        <div style={{ fontSize: 12, color: colors.textMuted }}>
           Will scan{" "}
-          <span style={{ color: "#fff", fontWeight: 700 }}>
+          <span style={{ color: colors.text, fontWeight: 700 }}>
             {targetCount} event{targetCount === 1 ? "" : "s"}
           </span>{" "}
           and add tags. Manual edits are preserved.
@@ -238,7 +239,7 @@ export function AutoTagButton({
             alignItems: "center",
             gap: 6,
             fontSize: 11,
-            color: "rgba(255,255,255,0.6)",
+            color: colors.textSubtle,
             cursor: events.length === untaggedCount ? "default" : "pointer",
             opacity: events.length === untaggedCount ? 0.4 : 1,
           }}
@@ -259,9 +260,9 @@ export function AutoTagButton({
             style={{
               padding: "6px 12px",
               borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.1)",
+              border: `1px solid ${colors.border}`,
               background: "transparent",
-              color: "rgba(255,255,255,0.6)",
+              color: colors.textSubtle,
               fontSize: 11,
               cursor: "pointer",
             }}
@@ -276,11 +277,8 @@ export function AutoTagButton({
               padding: "6px 14px",
               borderRadius: 8,
               border: "none",
-              background:
-                targetCount === 0
-                  ? "rgba(255,255,255,0.06)"
-                  : "linear-gradient(135deg, rgba(251,191,36,0.85), rgba(251,191,36,0.55))",
-              color: targetCount === 0 ? "rgba(255,255,255,0.4)" : "#1a1410",
+              background: targetCount === 0 ? colors.surface : colors.accent,
+              color: targetCount === 0 ? colors.textFaded : "#fff",
               fontSize: 11,
               fontWeight: 700,
               cursor: targetCount === 0 ? "default" : "pointer",

@@ -1,76 +1,97 @@
 /**
- * PullUp theme: crisp, fresh, modern with a bling silver feel.
- * Inspired by high-fashion runway — silver metallics, deep black, clean contrast.
+ * PullUp theme — the brand, carried inward.
+ * White canvas, near-black ink, one screamy-pink accent, a calm teal for
+ * functional highlights (dates, hover-to-preview). Strict and simple.
+ *
+ * Old silver/gold token names are kept as light-theme aliases so existing
+ * consumers keep working; prefer the semantic names (accent / secondary /
+ * text / border / surface) in new and migrated code.
  */
 
 export const colors = {
-  // Base
-  background: "#05040a",
-  backgroundElevated: "rgba(12, 10, 18, 0.6)",
-  backgroundCard: "rgba(20, 16, 30, 0.6)",
-  backgroundOverlay: "rgba(12, 10, 18, 0.95)",
+  // ── Base: light canvas ──
+  background: "#ffffff",
+  backgroundElevated: "#ffffff",
+  backgroundCard: "#ffffff",
+  backgroundOverlay: "rgba(255, 255, 255, 0.96)",
+  surface: "#fafafa",
+  surfaceMuted: "#f4f4f5",
 
-  // Silver / bling primary
-  silver: "#c0c0c0",
-  silverLight: "#e8e8e8",
-  silverBright: "#f0f0f0",
-  silverMuted: "#a8a8a8",
-  silverText: "#e5e5e5",
-  silverTextMuted: "#d4d4d4",
+  // ── Brand accent: screamy pink (the one loud accent) ──
+  accent: "#ec178f",
+  accentHover: "#d1147f",
+  accentActive: "#b81270",
+  accentSoft: "rgba(236, 23, 143, 0.08)",
+  accentSoftStrong: "rgba(236, 23, 143, 0.14)",
+  accentBorder: "rgba(236, 23, 143, 0.30)",
+  accentText: "#ec178f",
+  accentShadow: "0 6px 18px rgba(236, 23, 143, 0.28)",
 
-  // Gradients (replacing purple/pink)
-  gradientPrimary:
-    "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-  gradientPrimarySoft:
-    "linear-gradient(135deg, rgba(240, 240, 240, 0.15) 0%, rgba(192, 192, 192, 0.2) 100%)",
-  gradientGlow:
-    "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.12) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%)",
-  gradientCursorGlow: "radial-gradient(circle, rgba(192, 192, 192, 0.1) 0%, transparent 70%)",
+  // ── Secondary: calm teal (dates, hover-to-preview, email-preview accents) ──
+  secondary: "#0d9488",
+  secondaryHover: "#0f766e",
+  secondarySoft: "rgba(13, 148, 136, 0.08)",
+  secondarySoftStrong: "rgba(13, 148, 136, 0.14)",
+  secondaryBorder: "rgba(13, 148, 136, 0.28)",
 
-  // Gold / VIP accents (blingy, similar to silver but warm)
-  gold: "#fbbf24",
-  gradientGold:
-    "linear-gradient(135deg, #fbbf24 0%, #f59e0b 45%, #d97706 100%)",
-  goldRgba: "rgba(245, 158, 11, 0.9)",
-  goldShadow: "0 0 14px rgba(245, 158, 11, 0.75)",
+  // ── Text: near-black on white ──
+  text: "#0a0a0a",
+  textMuted: "rgba(10, 10, 10, 0.62)",
+  textSubtle: "rgba(10, 10, 10, 0.45)",
+  textFaded: "rgba(10, 10, 10, 0.30)",
 
-  // RGBA for shadows, borders, hovers
-  silverRgba: "rgba(192, 192, 192, 0.3)",
-  silverRgbaLight: "rgba(232, 232, 232, 0.25)",
-  silverRgbaBorder: "rgba(255, 255, 255, 0.15)",
-  silverRgbaHover: "rgba(192, 192, 192, 0.2)",
-  silverRgbaStrong: "rgba(192, 192, 192, 0.4)",
-  silverShadow: "rgba(192, 192, 192, 0.25)",
-  silverShadowHover: "rgba(192, 192, 192, 0.35)",
+  // ── Borders / hairlines ──
+  border: "rgba(10, 10, 10, 0.10)",
+  borderStrong: "rgba(10, 10, 10, 0.16)",
+  borderFaint: "rgba(10, 10, 10, 0.06)",
 
-  // Text
-  text: "#fff",
-  textMuted: "rgba(255, 255, 255, 0.85)",
-  textSubtle: "rgba(255, 255, 255, 0.7)",
-  textFaded: "rgba(255, 255, 255, 0.5)",
+  // ── Status ──
+  live: "#16a34a",
+  draft: "rgba(10, 10, 10, 0.40)",
+  success: "#16a34a",
+  successRgba: "rgba(22, 163, 74, 0.12)",
+  warning: "#b45309",
+  warningRgba: "rgba(180, 83, 9, 0.12)",
+  danger: "#dc2626",
+  dangerRgba: "rgba(220, 38, 38, 0.10)",
+  info: "#0d9488",
+  infoRgba: "rgba(13, 148, 136, 0.12)",
 
-  // Semantic (keep for success/warning/error)
-  success: "#22c55e",
-  successRgba: "rgba(34, 197, 94, 0.25)",
-  warning: "#f59e0b",
-  warningRgba: "rgba(245, 158, 11, 0.25)",
-  danger: "rgba(239, 68, 68, 0.8)",
-  info: "#3b82f6",
-  infoRgba: "rgba(59, 130, 246, 0.2)",
+  // ── Admin: deep amber, legible on white (gold dies on a light canvas) ──
+  gold: "#b45309",
+  goldRgba: "rgba(180, 83, 9, 0.9)",
+  goldShadow: "0 0 0 rgba(0,0,0,0)",
+  gradientGold: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
+
+  // ── Backward-compat aliases (old silver names → light-theme values) ──
+  silver: "#0a0a0a",
+  silverLight: "#0a0a0a",
+  silverBright: "#0a0a0a",
+  silverMuted: "rgba(10, 10, 10, 0.62)",
+  silverText: "#0a0a0a",
+  silverTextMuted: "rgba(10, 10, 10, 0.62)",
+  gradientPrimary: "#ec178f",
+  gradientPrimarySoft: "rgba(236, 23, 143, 0.08)",
+  gradientGlow: "none",
+  gradientCursorGlow: "none",
+  silverRgba: "rgba(10, 10, 10, 0.10)",
+  silverRgbaLight: "rgba(10, 10, 10, 0.06)",
+  silverRgbaBorder: "rgba(10, 10, 10, 0.10)",
+  silverRgbaHover: "rgba(10, 10, 10, 0.05)",
+  silverRgbaStrong: "rgba(10, 10, 10, 0.16)",
+  silverShadow: "rgba(10, 10, 10, 0.08)",
+  silverShadowHover: "rgba(10, 10, 10, 0.12)",
 };
 
-/** Silver detail styling for Lucide icons — use as default for icon color/size */
+/** Default styling for Lucide icons — near-black ink, no glow on white. */
 export const iconStyle = {
-  color: colors.silverText,
-  opacity: 0.95,
+  color: colors.text,
+  opacity: 0.9,
   flexShrink: 0,
 };
 
-/** Glitter: silver diamond / jewelry lit in darkness — soft glow + shimmer */
+/** Kept for compatibility — no glow on the light canvas. */
 export const glitter = {
-  // Multi-layer drop-shadow so icons look lit from within (like silver in low light)
-  filter:
-    "drop-shadow(0 0 1px rgba(255,255,255,0.95)) drop-shadow(0 0 4px rgba(232,232,255,0.6)) drop-shadow(0 0 10px rgba(192,192,220,0.25))",
-  filterMuted:
-    "drop-shadow(0 0 1px rgba(255,255,255,0.7)) drop-shadow(0 0 3px rgba(232,232,255,0.35))",
+  filter: "none",
+  filterMuted: "none",
 };

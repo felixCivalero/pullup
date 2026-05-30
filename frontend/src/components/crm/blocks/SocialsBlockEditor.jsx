@@ -1,5 +1,6 @@
 import { AlignLeft, AlignCenter, AlignRight, Globe } from "lucide-react";
 import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud, FaYoutube } from "react-icons/fa";
+import { colors } from "../../../theme/colors.js";
 
 const DEFAULT_ALIGN = "center";
 
@@ -83,17 +84,17 @@ const inputRowStyle = {
   alignItems: "center",
   gap: 10,
   padding: "8px 10px",
-  background: "rgba(12,10,18,0.6)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "#fff",
+  border: `1px solid ${colors.border}`,
   borderRadius: 8,
-  color: "#fff",
+  color: colors.text,
 };
 
 const inputStyle = {
   flex: 1,
   background: "transparent",
   border: "none",
-  color: "#fff",
+  color: colors.text,
   fontSize: 13,
   outline: "none",
   padding: 0,
@@ -105,8 +106,8 @@ const fieldGroupStyle = {
   gap: 6,
   padding: "8px 10px",
   borderRadius: 8,
-  background: "rgba(255,255,255,0.02)",
-  border: "1px solid rgba(255,255,255,0.06)",
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
 };
 
 const fieldLabelStyle = {
@@ -116,16 +117,16 @@ const fieldLabelStyle = {
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.04em",
-  color: "rgba(255,255,255,0.65)",
+  color: colors.textSubtle,
 };
 
 const alignBtnStyle = (active) => ({
   flex: 1,
   padding: "6px 0",
   borderRadius: 6,
-  border: `1px solid ${active ? "rgba(212,175,55,0.5)" : "rgba(255,255,255,0.1)"}`,
-  background: active ? "rgba(212,175,55,0.15)" : "rgba(12,10,18,0.6)",
-  color: active ? "#d4af37" : "rgba(255,255,255,0.7)",
+  border: `1px solid ${active ? colors.accentBorder : colors.border}`,
+  background: active ? colors.accentSoft : "#fff",
+  color: active ? colors.accent : colors.textMuted,
   cursor: "pointer",
   display: "flex",
   alignItems: "center",

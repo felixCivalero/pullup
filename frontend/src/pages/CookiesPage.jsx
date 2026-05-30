@@ -1,18 +1,19 @@
 import { colors } from "../theme/colors.js";
 
 const s = {
-  page: { minHeight: "100vh", background: colors.background, color: "#fff", padding: "80px clamp(16px, 5vw, 40px) 60px" },
-  wrap: { maxWidth: 720, margin: "0 auto", lineHeight: 1.7 },
-  h1: { fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 800, marginBottom: 8 },
-  updated: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 40 },
-  h2: { fontSize: 20, fontWeight: 700, marginTop: 40, marginBottom: 12 },
-  p: { fontSize: 14, color: "rgba(255,255,255,0.7)", marginBottom: 14 },
-  ul: { fontSize: 14, color: "rgba(255,255,255,0.7)", paddingLeft: 24, marginBottom: 14 },
+  page: { minHeight: "100vh", background: colors.background, color: colors.text, padding: "80px clamp(16px, 5vw, 40px) 60px" },
+  wrap: { maxWidth: 720, margin: "0 auto", lineHeight: 1.8 },
+  h1: { fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 800, marginBottom: 8, color: colors.text },
+  updated: { fontSize: 13, color: colors.textSubtle, marginBottom: 40 },
+  h2: { fontSize: 20, fontWeight: 700, marginTop: 40, marginBottom: 12, color: colors.text },
+  p: { fontSize: 14, color: colors.textMuted, marginBottom: 14 },
+  ul: { fontSize: 14, color: colors.textMuted, paddingLeft: 24, marginBottom: 14 },
   li: { marginBottom: 6 },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 20 },
-  th: { textAlign: "left", padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.85)", fontWeight: 600 },
-  td: { padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)" },
-  back: { display: "inline-block", marginBottom: 24, fontSize: 13, color: "rgba(255,255,255,0.5)", textDecoration: "none" },
+  table: { width: "100%", borderCollapse: "collapse", fontSize: 13, color: colors.textMuted, marginBottom: 20 },
+  th: { textAlign: "left", padding: "8px 12px", borderBottom: `1px solid ${colors.borderStrong}`, color: colors.text, fontWeight: 600 },
+  td: { padding: "8px 12px", borderBottom: `1px solid ${colors.border}` },
+  back: { display: "inline-block", marginBottom: 24, fontSize: 13, color: colors.textSubtle, textDecoration: "none" },
+  link: { color: colors.accent },
 };
 
 export function CookiesPage() {
@@ -70,8 +71,8 @@ export function CookiesPage() {
         <p style={s.p}>Some third-party services we use may set their own storage:</p>
         <ul style={s.ul}>
           <li style={s.li}><strong>Supabase:</strong> Authentication tokens stored in local storage to maintain your session.</li>
-          <li style={s.li}><strong>Stripe:</strong> When processing payments, Stripe may use its own cookies and local storage as required for fraud prevention and payment processing. See <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "rgba(255,255,255,0.85)" }}>Stripe's privacy policy</a>.</li>
-          <li style={s.li}><strong>Google Maps:</strong> When used for location autocomplete, Google may set cookies as described in <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "rgba(255,255,255,0.85)" }}>Google's privacy policy</a>.</li>
+          <li style={s.li}><strong>Stripe:</strong> When processing payments, Stripe may use its own cookies and local storage as required for fraud prevention and payment processing. See <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" style={s.link}>Stripe's privacy policy</a>.</li>
+          <li style={s.li}><strong>Google Maps:</strong> When used for location autocomplete, Google may set cookies as described in <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" style={s.link}>Google's privacy policy</a>.</li>
         </ul>
 
         <h2 style={s.h2}>5. Email tracking</h2>

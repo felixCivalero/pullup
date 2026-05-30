@@ -1,0 +1,152 @@
+// backend/src/instagram/providers/igGraphClient.js
+//
+// Thin client over the "Instagram API with Instagram Login" Graph endpoints.
+// Mirrors the role whatsapp/providers/metaCloudClient.js plays for WhatsApp.
+//
+// Every network call short-circuits in sandbox mode (IG_SANDBOX_MODE) and
+// returns a synthetic, shape-correct response so the connect flow + comment
+// triggers are fully exercisable in dev/CI before App Review lands.
+//
+// Endpoints used:
+//   OAuth code → short-lived token   POST  api.instagram.com/oauth/access_token
+//   short → long-lived (60d)         GET   graph.instagram.com/access_token
+//   refresh long-lived               GET   graph.instagram.com/refresh_access_token
+//   who am I (id + username)         GET   graph.instagram.com/me
+//   send message / private reply     POST  graph.instagram.com/{ig-id}/messages
+
+import {
+  IG_SANDBOX_MODE,
+  IG_APP_ID,
+  IG_APP_SECRET,
+  IG_OAUTH_REDIRECT_URI,
+  IG_TOKEN_URL,
+  IG_GRAPH_HOST,
+  META_GRAPH_VERSION,
+} from "../config.js";
+import { logger } from "../../logger.js";
+
+async function postForm(url, params) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(params).toString(),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      `[igGraphClient] ${url} → ${res.status} ${json?.error_message || json?.error?.message || ""}`,
+    );
+  }
+  return json;
+}
+
+async function getJson(url) {
+  const res = await fetch(url);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      `[igGraphClient] GET ${url} → ${res.status} ${json?.error?.message || ""}`,
+    );
+  }
+  return json;
+}
+
+/**
+ * Exchange an OAuth `code` (from the redirect) for a short-lived token +
+ * the connected IG user id. Then immediately upgrade to a 60-day token.
+ * Returns { igUserId, accessToken, expiresInSeconds }.
+ */
+export async function exchangeCodeForToken(code) {
+  if (IG_SANDBOX_MODE) {
+    return {
+      igUserId: "sbx-ig-17841400000000000",
+      accessToken: "sbx-ig-longlived-token",
+      expiresInSeconds: 60 * 24 * 3600,
+      sandbox: true,
+    };
+  }
+
+  // 1. code → short-lived token (+ user_id)
+  const short = await postForm(IG_TOKEN_URL, {
+    client_id: IG_APP_ID,
+    client_secret: IG_APP_SECRET,
+    grant_type: "authorization_code",
+    redirect_uri: IG_OAUTH_REDIRECT_URI,
+    code,
+  });
+  const igUserId = String(short.user_id ?? short.user_id);
+  const shortToken = short.access_token;
+
+  // 2. short → long-lived (60 days)
+  const longUrl =
+    `${IG_GRAPH_HOST}/access_token?grant_type=ig_exchange_token` +
+    `&client_secret=${encodeURIComponent(IG_APP_SECRET)}` +
+    `&access_token=${encodeURIComponent(shortToken)}`;
+  const long = await getJson(longUrl);
+
+  return {
+    igUserId,
+    accessToken: long.access_token || shortToken,
+    expiresInSeconds: long.expires_in || 60 * 24 * 3600,
+  };
+}
+
+/** Refresh a long-lived token (call before token_expires_at). */
+export async function refreshLongLivedToken(accessToken) {
+  if (IG_SANDBOX_MODE) {
+    return { accessToken: "sbx-ig-longlived-token-refreshed", expiresInSeconds: 60 * 24 * 3600 };
+  }
+  const url =
+    `${IG_GRAPH_HOST}/refresh_access_token?grant_type=ig_refresh_token` +
+    `&access_token=${encodeURIComponent(accessToken)}`;
+  const json = await getJson(url);
+  return { accessToken: json.access_token, expiresInSeconds: json.expires_in };
+}
+
+/** Fetch the connected account's id + username for display. */
+export async function fetchAccount(accessToken) {
+  if (IG_SANDBOX_MODE) {
+    return { id: "sbx-ig-17841400000000000", username: "sandbox_creator" };
+  }
+  const url = `${IG_GRAPH_HOST}/me?fields=user_id,username&access_token=${encodeURIComponent(accessToken)}`;
+  const json = await getJson(url);
+  return { id: String(json.user_id || json.id), username: json.username || null };
+}
+
+/**
+ * Send a DM from the connected IG account to a recipient (by IGSID).
+ * Used both for direct DMs and as the delivery for a private reply.
+ * `igUserId` is the sender (the host's connected account).
+ */
+export async function sendMessage({ igUserId, accessToken, recipientId, text }) {
+  if (IG_SANDBOX_MODE) {
+    logger?.info?.("[igGraphClient] (sandbox) sendMessage", { recipientId, text });
+    return { ok: true, sandbox: true, message_id: `sbx-msg-${recipientId}` };
+  }
+  const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${igUserId}/messages`;
+  const json = await postForm(url, {
+    recipient: JSON.stringify({ id: recipientId }),
+    message: JSON.stringify({ text }),
+    access_token: accessToken,
+  });
+  return { ok: true, message_id: json.message_id || json.id || null };
+}
+
+/**
+ * Private Reply: DM a user in response to THEIR comment. The eligibility
+ * key is the comment id (one reply per comment, 7-day window). This is the
+ * "comment X → get a DM" primitive.
+ */
+export async function sendPrivateReply({ igUserId, accessToken, commentId, text }) {
+  if (IG_SANDBOX_MODE) {
+    logger?.info?.("[igGraphClient] (sandbox) sendPrivateReply", { commentId, text });
+    return { ok: true, sandbox: true, message_id: `sbx-priv-${commentId}` };
+  }
+  const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${igUserId}/messages`;
+  const json = await postForm(url, {
+    recipient: JSON.stringify({ comment_id: commentId }),
+    message: JSON.stringify({ text }),
+    access_token: accessToken,
+  });
+  return { ok: true, message_id: json.message_id || json.id || null };
+}

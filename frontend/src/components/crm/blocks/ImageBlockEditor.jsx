@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { Upload, Image as ImageIcon, X, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import ImagePickerModal from "../ImagePickerModal";
 import { authenticatedFetch } from "../../../lib/api.js";
+import { colors } from "../../../theme/colors.js";
 
 const DEFAULT_WIDTH = 100;
 const DEFAULT_ALIGN = "center";
@@ -125,18 +126,18 @@ export default function ImageBlockEditor({ block, onChange }) {
             <div style={iconCircleStyle(dragActive)}>
               {uploading ? <Spinner /> : dragActive ? <Upload size={22} /> : <ImageIcon size={22} />}
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>
               {uploading ? "Uploading…" : dragActive ? "Drop to upload" : "Drag an image here"}
             </div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-              or <span style={{ color: "#d4af37", textDecoration: "underline" }}>click to choose</span> from your computer
+            <div style={{ fontSize: 12, color: colors.textMuted }}>
+              or <span style={{ color: colors.accent, textDecoration: "underline" }}>click to choose</span> from your computer
             </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>PNG, JPG, GIF or WebP · up to 2 MB</div>
+            <div style={{ fontSize: 11, color: colors.textFaded }}>PNG, JPG, GIF or WebP · up to 2 MB</div>
           </div>
         </div>
       )}
 
-      {error && <div style={{ color: "#fca5a5", fontSize: 12 }}>{error}</div>}
+      {error && <div style={{ color: colors.danger, fontSize: 12 }}>{error}</div>}
 
       <input
         ref={fileInputRef}
@@ -171,7 +172,7 @@ export default function ImageBlockEditor({ block, onChange }) {
               step={5}
               value={block.width ?? DEFAULT_WIDTH}
               onChange={(e) => onChange({ ...block, width: Number(e.target.value) })}
-              style={{ width: "100%", accentColor: "#d4af37" }}
+              style={{ width: "100%", accentColor: colors.accent }}
             />
           </div>
           <div style={fieldGroupStyle}>
@@ -246,8 +247,8 @@ function Spinner() {
       style={{
         width: 22,
         height: 22,
-        border: "2px solid rgba(212,175,55,0.25)",
-        borderTopColor: "#d4af37",
+        border: `2px solid ${colors.accentSoft}`,
+        borderTopColor: colors.accent,
         borderRadius: "50%",
         animation: "crm-img-spin 0.7s linear infinite",
       }}
@@ -259,10 +260,8 @@ const dropzoneStyle = (dragActive, uploading) => ({
   position: "relative",
   padding: "32px 20px",
   borderRadius: 14,
-  border: `2px dashed ${dragActive ? "rgba(212,175,55,0.6)" : "rgba(255,255,255,0.18)"}`,
-  background: dragActive
-    ? "rgba(212,175,55,0.08)"
-    : "linear-gradient(135deg, rgba(20,16,30,0.6), rgba(12,10,18,0.4))",
+  border: `2px dashed ${dragActive ? colors.accentBorder : colors.border}`,
+  background: dragActive ? colors.accentSoft : colors.surface,
   cursor: uploading ? "wait" : "pointer",
   textAlign: "center",
   transition: "background 0.18s ease, border-color 0.18s ease, transform 0.18s ease",
@@ -277,9 +276,9 @@ const iconCircleStyle = (dragActive) => ({
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: dragActive ? "rgba(212,175,55,0.18)" : "rgba(255,255,255,0.05)",
-  color: dragActive ? "#d4af37" : "rgba(255,255,255,0.6)",
-  border: `1px solid ${dragActive ? "rgba(212,175,55,0.4)" : "rgba(255,255,255,0.08)"}`,
+  background: dragActive ? colors.accentSoftStrong : "#fff",
+  color: dragActive ? colors.accent : colors.textSubtle,
+  border: `1px solid ${dragActive ? colors.accentBorder : colors.border}`,
   transition: "all 0.18s ease",
 });
 
@@ -291,8 +290,8 @@ const removeBtnStyle = {
   height: 28,
   borderRadius: "50%",
   border: "none",
-  background: "rgba(0,0,0,0.6)",
-  color: "#fca5a5",
+  background: "rgba(10,10,10,0.55)",
+  color: "#fff",
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
@@ -303,9 +302,9 @@ const removeBtnStyle = {
 const ghostBtnStyle = {
   padding: "7px 12px",
   borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.12)",
+  border: `1px solid ${colors.borderStrong}`,
   background: "transparent",
-  color: "rgba(255,255,255,0.85)",
+  color: colors.text,
   fontSize: 12,
   cursor: "pointer",
 };
@@ -316,8 +315,8 @@ const fieldGroupStyle = {
   gap: 6,
   padding: "8px 10px",
   borderRadius: 8,
-  background: "rgba(255,255,255,0.02)",
-  border: "1px solid rgba(255,255,255,0.06)",
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
 };
 
 const fieldLabelStyle = {
@@ -327,16 +326,16 @@ const fieldLabelStyle = {
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.04em",
-  color: "rgba(255,255,255,0.65)",
+  color: colors.textSubtle,
 };
 
 const alignBtnStyle = (active) => ({
   flex: 1,
   padding: "6px 0",
   borderRadius: 6,
-  border: `1px solid ${active ? "rgba(212,175,55,0.5)" : "rgba(255,255,255,0.1)"}`,
-  background: active ? "rgba(212,175,55,0.15)" : "rgba(12,10,18,0.6)",
-  color: active ? "#d4af37" : "rgba(255,255,255,0.7)",
+  border: `1px solid ${active ? colors.accentBorder : colors.border}`,
+  background: active ? colors.accentSoft : "#fff",
+  color: active ? colors.accent : colors.textMuted,
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
@@ -347,9 +346,9 @@ const ratioBtnStyle = (active) => ({
   flex: 1,
   padding: "6px 0",
   borderRadius: 6,
-  border: `1px solid ${active ? "rgba(212,175,55,0.5)" : "rgba(255,255,255,0.1)"}`,
-  background: active ? "rgba(212,175,55,0.15)" : "rgba(12,10,18,0.6)",
-  color: active ? "#d4af37" : "rgba(255,255,255,0.7)",
+  border: `1px solid ${active ? colors.accentBorder : colors.border}`,
+  background: active ? colors.accentSoft : "#fff",
+  color: active ? colors.accent : colors.textMuted,
   cursor: "pointer",
   fontSize: 11,
   fontWeight: active ? 600 : 500,
@@ -359,9 +358,9 @@ const altInputStyle = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(12,10,18,0.8)",
-  color: "#fff",
+  border: `1px solid ${colors.border}`,
+  background: "#fff",
+  color: colors.text,
   fontSize: 13,
   boxSizing: "border-box",
 };

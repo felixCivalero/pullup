@@ -23,12 +23,12 @@ export function getEventStatus(event) {
 }
 
 const shareChannels = [
-  { key: "instagram", icon: FaInstagram, color: "rgba(225,48,108,0.8)", label: "Instagram" },
-  { key: "tiktok", icon: FaTiktok, color: "rgba(255,255,255,0.7)", label: "TikTok" },
-  { key: "facebook", icon: FaFacebookF, color: "rgba(66,103,178,0.8)", label: "Facebook" },
-  { key: "twitter", icon: FaXTwitter, color: "rgba(255,255,255,0.7)", label: "X" },
-  { key: "linkedin", icon: FaLinkedinIn, color: "rgba(10,102,194,0.8)", label: "LinkedIn" },
-  { key: "direct", icon: LinkIcon, color: "rgba(255,255,255,0.4)", label: "Direct link" },
+  { key: "instagram", icon: FaInstagram, color: "#ec178f", label: "Instagram" },
+  { key: "tiktok", icon: FaTiktok, color: colors.text, label: "TikTok" },
+  { key: "facebook", icon: FaFacebookF, color: "#1877f2", label: "Facebook" },
+  { key: "twitter", icon: FaXTwitter, color: colors.text, label: "X" },
+  { key: "linkedin", icon: FaLinkedinIn, color: "#0a66c2", label: "LinkedIn" },
+  { key: "direct", icon: LinkIcon, color: colors.textMuted, label: "Direct link" },
 ];
 
 export function DashboardEventCard({ event, onPreview, onManage, onDelete, index = 0 }) {
@@ -47,8 +47,6 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
   const [copiedSource, setCopiedSource] = useState(null);
 
   const baseShareUrl = getEventShareUrl(event.slug);
-
-  const isEven = index % 2 === 0;
 
   const hasViews = event._stats && event._stats.views > 0;
   const hasRsvps = event._stats && event._stats.confirmed > 0;
@@ -87,7 +85,7 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
           transform: translateX(-4px);
         }
         .dashboard-card:hover .dashboard-card-chevron {
-          opacity: 0.4;
+          opacity: 0.35;
           transform: translateX(0);
         }
         @media (min-width: 768px) {
@@ -108,10 +106,17 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
       <div
         style={{
           borderRadius: "14px",
-          border: "1px solid rgba(255,255,255,0.05)",
-          background: isEven ? "rgba(20, 16, 30, 0.6)" : "rgba(28, 22, 42, 0.6)",
+          border: `1px solid ${colors.border}`,
+          background: colors.background,
+          boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
           transition: "all 0.3s ease",
           overflow: "hidden",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.boxShadow = "0 12px 36px rgba(10,10,10,0.10)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.boxShadow = "0 8px 30px rgba(10,10,10,0.06)";
         }}
       >
         <div
@@ -120,10 +125,10 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
             padding: "16px",
             cursor: "pointer",
             position: "relative",
-            transition: "all 0.3s ease",
+            transition: "background 0.2s ease",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+            e.currentTarget.style.background = colors.surface;
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";
@@ -137,7 +142,7 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
               style={{
                 borderRadius: "10px",
                 overflow: "hidden",
-                background: "rgba(0,0,0,0.2)",
+                background: colors.surfaceMuted,
                 marginBottom: event.imageUrl ? undefined : 0,
               }}
             >
@@ -157,22 +162,23 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                 <div style={{
                   fontSize: "17px", fontWeight: 600,
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  color: colors.text,
                 }}>
                   {event.title}
                 </div>
-                <div style={{ fontSize: "13px", opacity: 0.5, marginTop: "2px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                <div style={{ fontSize: "13px", color: colors.secondary, marginTop: "2px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                   <span>{event.hideDate ? "Date TBA" : formatReadableDateTime(event.startsAt, event.timezone)}</span>
-                  {event.hideLocation && <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: "rgba(163,230,53,0.12)", color: "rgba(163,230,53,0.7)" }}>Location hidden</span>}
-                  {event.instantWaitlist && <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: "rgba(251,191,36,0.12)", color: "rgba(251,191,36,0.7)" }}>Waitlist-only</span>}
+                  {event.hideLocation && <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: colors.secondarySoft, color: colors.secondary }}>Location hidden</span>}
+                  {event.instantWaitlist && <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: colors.warningRgba, color: colors.warning }}>Waitlist-only</span>}
                 </div>
               </div>
 
               {isLive && (
                 <div style={{
                   padding: "3px 10px", borderRadius: "10px",
-                  background: "rgba(34, 197, 94, 0.25)", fontSize: "10px",
+                  background: colors.successRgba, fontSize: "10px",
                   fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em",
-                  whiteSpace: "nowrap", color: "#bbf7d0", flexShrink: 0,
+                  whiteSpace: "nowrap", color: colors.live, flexShrink: 0,
                 }}>
                   Live
                 </div>
@@ -195,12 +201,12 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                         padding: "4px 8px", borderRadius: "8px",
                         transition: "background 0.15s",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = colors.surface; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                       title="View analytics"
                     >
-                      <div style={{ fontSize: "9px", opacity: 0.3, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Views</div>
-                      <div style={{ fontSize: "13px", opacity: 0.5, fontWeight: 600 }}>{event._stats.views}</div>
+                      <div style={{ fontSize: "9px", color: colors.textFaded, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Views</div>
+                      <div style={{ fontSize: "13px", color: colors.textMuted, fontWeight: 600 }}>{event._stats.views}</div>
                     </div>
                   )}
                   {hasRsvps && (
@@ -214,13 +220,13 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                         padding: "4px 8px", borderRadius: "8px",
                         transition: "background 0.15s",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = colors.surface; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                       title="View guest list"
                     >
-                      <div style={{ fontSize: "9px", opacity: 0.3, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>RSVPs</div>
-                      <div style={{ fontSize: "13px", opacity: 0.5, fontWeight: 600 }}>
-                        {event._stats.confirmed}{event._stats.totalCapacity != null && <span style={{ opacity: 0.6 }}> / {event._stats.totalCapacity}</span>}
+                      <div style={{ fontSize: "9px", color: colors.textFaded, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>RSVPs</div>
+                      <div style={{ fontSize: "13px", color: colors.textMuted, fontWeight: 600 }}>
+                        {event._stats.confirmed}{event._stats.totalCapacity != null && <span style={{ color: colors.textSubtle }}> / {event._stats.totalCapacity}</span>}
                       </div>
                     </div>
                   )}
@@ -229,11 +235,11 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
 
               {/* Chevron indicating clickability */}
               <div className="dashboard-card-chevron" style={{ flexShrink: 0 }}>
-                <ChevronRight size={16} style={{ opacity: 0.5 }} />
+                <ChevronRight size={16} style={{ color: colors.textSubtle }} />
               </div>
             </div>
 
-            {/* Action buttons - grouped: primary | secondary tools */}
+            {/* Action buttons */}
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
               {/* Primary action */}
               <button
@@ -243,17 +249,17 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                 }}
                 style={{
                   padding: "6px 14px", borderRadius: "999px", border: "none",
-                  background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+                  background: colors.accent,
                   color: "#fff", fontWeight: 600, fontSize: "12px",
                   cursor: "pointer", transition: "all 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.transform = "translateY(-1px)";
-                  e.target.style.boxShadow = "0 6px 16px rgba(192, 192, 192, 0.3)";
+                  e.currentTarget.style.background = colors.accentHover;
+                  e.currentTarget.style.transform = "translateY(-1px)";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "none";
+                  e.currentTarget.style.background = colors.accent;
+                  e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
                 {event.myRole === "analytics" ? "Analytics" : "Manage"}
@@ -262,9 +268,9 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
               {event.myRole !== "analytics" && (
               <>
               {/* Subtle separator */}
-              <div style={{ width: "1px", height: "16px", background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
+              <div style={{ width: "1px", height: "16px", background: colors.border, margin: "0 2px" }} />
 
-              {/* Secondary tools — unified style */}
+              {/* Secondary tools */}
               {[
                 { key: "team", label: "Team", icon: <Users size={12} />, isOpen: showTeam, toggle: () => { setShowTeam(!showTeam); if (!showTeam) { setShowVip(false); setShowShare(false); } } },
                 { key: "vip", label: "VIP", icon: <Link2 size={12} />, isOpen: showVip, toggle: () => { setShowVip(!showVip); if (!showVip) { setShowTeam(false); setShowShare(false); } } },
@@ -276,21 +282,27 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                   style={{
                     padding: "6px 14px", borderRadius: "999px",
                     border: btn.isOpen
-                      ? "1px solid rgba(255,255,255,0.3)"
-                      : "1px solid rgba(255,255,255,0.15)",
+                      ? `1px solid ${colors.borderStrong}`
+                      : `1px solid ${colors.border}`,
                     background: btn.isOpen
-                      ? "rgba(255,255,255,0.1)"
-                      : "rgba(255,255,255,0.05)",
-                    color: "#fff",
+                      ? colors.surfaceMuted
+                      : colors.surface,
+                    color: btn.isOpen ? colors.text : colors.textMuted,
                     fontWeight: 500, fontSize: "12px", cursor: "pointer",
                     transition: "all 0.2s ease",
                     display: "flex", alignItems: "center", gap: "5px",
                   }}
                   onMouseEnter={(e) => {
-                    if (!btn.isOpen) e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+                    if (!btn.isOpen) {
+                      e.currentTarget.style.background = colors.surfaceMuted;
+                      e.currentTarget.style.color = colors.text;
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    if (!btn.isOpen) e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                    if (!btn.isOpen) {
+                      e.currentTarget.style.background = colors.surface;
+                      e.currentTarget.style.color = colors.textMuted;
+                    }
                   }}
                   title={btn.label}
                 >
@@ -301,23 +313,23 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
               </>
               )}
 
-              {/* Delete — owner only, no registrations */}
+              {/* Delete — owner only */}
               {event.myRole === "owner" && onDelete && (
                 <>
-                  <div style={{ width: "1px", height: "16px", background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
+                  <div style={{ width: "1px", height: "16px", background: colors.border, margin: "0 2px" }} />
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
                     style={{
                       padding: "6px 8px", borderRadius: "999px",
-                      border: "1px solid rgba(239,68,68,0.15)",
-                      background: "rgba(239,68,68,0.05)",
-                      color: "rgba(239,68,68,0.6)",
+                      border: `1px solid ${colors.dangerRgba}`,
+                      background: colors.dangerRgba,
+                      color: colors.danger,
                       cursor: "pointer",
                       transition: "all 0.2s ease",
                       display: "flex", alignItems: "center",
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.15)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.05)"; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(220,38,38,0.15)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = colors.dangerRgba; }}
                     title="Delete event"
                   >
                     <Trash2 size={12} />
@@ -326,7 +338,7 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
               )}
             </div>
 
-            {/* Empty state nudge - only for upcoming events with no traction */}
+            {/* Empty state nudge */}
             {noTraction && status === "upcoming" && (
               <div
                 onClick={(e) => {
@@ -338,22 +350,22 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                 style={{
                   display: "flex", alignItems: "center", gap: "8px",
                   padding: "8px 12px", borderRadius: "10px",
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px dashed rgba(255,255,255,0.1)",
+                  background: colors.surface,
+                  border: `1px dashed ${colors.border}`,
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+                  e.currentTarget.style.background = colors.surfaceMuted;
+                  e.currentTarget.style.borderColor = colors.borderStrong;
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.03)";
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                  e.currentTarget.style.background = colors.surface;
+                  e.currentTarget.style.borderColor = colors.border;
                 }}
               >
-                <Megaphone size={14} style={{ opacity: 0.4, flexShrink: 0 }} />
-                <span style={{ fontSize: "12px", opacity: 0.45 }}>
+                <Megaphone size={14} style={{ color: colors.textSubtle, flexShrink: 0 }} />
+                <span style={{ fontSize: "12px", color: colors.textSubtle }}>
                   Share your event to start driving traffic
                 </span>
               </div>
@@ -361,13 +373,13 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
           </div>
         </div>
 
-        {/* Expandable panels — unified styling */}
+        {/* Expandable panels */}
         {(showTeam || showVip || showShare) && (
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               padding: "0 16px 16px",
-              borderTop: "1px solid rgba(255,255,255,0.06)",
+              borderTop: `1px solid ${colors.border}`,
             }}
           >
             <div style={{
@@ -376,7 +388,7 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
               textTransform: "uppercase",
               letterSpacing: "0.1em",
               fontWeight: 600,
-              opacity: 0.5,
+              color: colors.textSubtle,
               marginBottom: showShare ? "4px" : "10px",
             }}>
               {showTeam && "Team"}
@@ -387,7 +399,7 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
             {showShare && (
               <div style={{
                 fontSize: "11px",
-                opacity: 0.3,
+                color: colors.textFaded,
                 marginBottom: "10px",
               }}>
                 Add these to your stories, bios, and posts — then check this event's Analytics to see which channels drive the most traffic
@@ -424,9 +436,8 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                         display: "flex", alignItems: "center", gap: "6px",
                         padding: "6px 12px",
                         borderRadius: "8px",
-                        border: "1px solid " + (isCopied ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.08)"),
-                        background: isCopied ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.03)",
-                        color: isCopied ? colors.success : ch.color,
+                        border: `1px solid ${isCopied ? colors.successRgba : colors.border}`,
+                        background: isCopied ? colors.successRgba : colors.surface,
                         cursor: "pointer",
                         transition: "all 0.15s",
                         fontSize: "12px",
@@ -434,19 +445,21 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                       }}
                       onMouseEnter={(e) => {
                         if (!isCopied) {
-                          e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-                          e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+                          e.currentTarget.style.background = colors.surfaceMuted;
+                          e.currentTarget.style.borderColor = colors.borderStrong;
                         }
                       }}
                       onMouseLeave={(e) => {
                         if (!isCopied) {
-                          e.currentTarget.style.background = "rgba(255,255,255,0.03)";
-                          e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                          e.currentTarget.style.background = colors.surface;
+                          e.currentTarget.style.borderColor = colors.border;
                         }
                       }}
                     >
-                      {isCopied ? <Check size={14} /> : <Icon size={14} />}
-                      <span style={{ color: isCopied ? colors.success : "rgba(255,255,255,0.6)" }}>
+                      {isCopied
+                        ? <Check size={14} style={{ color: colors.success }} />
+                        : <Icon size={14} style={{ color: ch.color }} />}
+                      <span style={{ color: isCopied ? colors.success : colors.textMuted }}>
                         {isCopied ? "Copied!" : ch.label}
                       </span>
                     </button>
@@ -464,7 +477,7 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
           style={{
             position: "fixed",
             top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(0,0,0,0.6)",
+            background: "rgba(10,10,10,0.45)",
             zIndex: 1100,
             display: "flex",
             alignItems: "center",
@@ -475,24 +488,23 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
         >
           <div
             style={{
-              background: "rgba(20, 16, 30, 0.98)",
-              backdropFilter: "blur(20px)",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
               borderRadius: "20px",
               padding: "28px 24px 20px",
               maxWidth: "320px",
               width: "100%",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+              boxShadow: "0 20px 60px rgba(10,10,10,0.15)",
               textAlign: "center",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {hasRsvps ? (
               <>
-                <div style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>
+                <div style={{ fontSize: "17px", fontWeight: 700, color: colors.text, marginBottom: "6px" }}>
                   Can't delete this event
                 </div>
-                <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.45)", marginBottom: "24px" }}>
+                <div style={{ fontSize: "14px", color: colors.textMuted, marginBottom: "24px" }}>
                   This event has {event._stats.confirmed} registered {event._stats.confirmed === 1 ? "guest" : "guests"}. Remove all registrations from the guest list before deleting.
                 </div>
                 <button
@@ -500,8 +512,8 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                   onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
                   style={{
                     width: "100%", padding: "14px", borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "transparent", color: "rgba(255,255,255,0.5)",
+                    border: `1px solid ${colors.border}`,
+                    background: "transparent", color: colors.textMuted,
                     fontSize: "15px", fontWeight: 600, cursor: "pointer",
                     WebkitTapHighlightColor: "transparent",
                   }}
@@ -511,10 +523,10 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
               </>
             ) : (
               <>
-                <div style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>
+                <div style={{ fontSize: "17px", fontWeight: 700, color: colors.text, marginBottom: "6px" }}>
                   Delete "{event.title}"?
                 </div>
-                <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.45)", marginBottom: "24px" }}>
+                <div style={{ fontSize: "14px", color: colors.textMuted, marginBottom: "24px" }}>
                   This action cannot be undone.
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -530,7 +542,7 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                     }}
                     style={{
                       width: "100%", padding: "14px", borderRadius: "12px", border: "none",
-                      background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                      background: colors.danger,
                       color: "#fff", fontSize: "15px", fontWeight: 700,
                       cursor: deleting ? "not-allowed" : "pointer",
                       opacity: deleting ? 0.7 : 1,
@@ -544,8 +556,8 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                     onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
                     style={{
                       width: "100%", padding: "14px", borderRadius: "12px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "transparent", color: "rgba(255,255,255,0.5)",
+                      border: `1px solid ${colors.border}`,
+                      background: "transparent", color: colors.textMuted,
                       fontSize: "15px", fontWeight: 600, cursor: "pointer",
                       WebkitTapHighlightColor: "transparent",
                     }}

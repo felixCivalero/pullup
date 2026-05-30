@@ -4,6 +4,30 @@ import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { trackEvent } from "../lib/analytics.js";
 import { colors } from "../theme/colors.js";
+import { FaWhatsapp } from "react-icons/fa6";
+import { API_BASE } from "../lib/env.js";
+
+// Common dial-code shortlist for the signup-phone country picker.
+// Order = rough priority for PullUp's audience (Stockholm → Nairobi → west).
+const PHONE_COUNTRIES = [
+  { code: "SE", dial: "+46", flag: "🇸🇪", name: "Sweden" },
+  { code: "KE", dial: "+254", flag: "🇰🇪", name: "Kenya" },
+  { code: "US", dial: "+1", flag: "🇺🇸", name: "United States" },
+  { code: "GB", dial: "+44", flag: "🇬🇧", name: "United Kingdom" },
+  { code: "DE", dial: "+49", flag: "🇩🇪", name: "Germany" },
+  { code: "FR", dial: "+33", flag: "🇫🇷", name: "France" },
+  { code: "ES", dial: "+34", flag: "🇪🇸", name: "Spain" },
+  { code: "IT", dial: "+39", flag: "🇮🇹", name: "Italy" },
+  { code: "NL", dial: "+31", flag: "🇳🇱", name: "Netherlands" },
+  { code: "DK", dial: "+45", flag: "🇩🇰", name: "Denmark" },
+  { code: "NO", dial: "+47", flag: "🇳🇴", name: "Norway" },
+  { code: "FI", dial: "+358", flag: "🇫🇮", name: "Finland" },
+  { code: "BR", dial: "+55", flag: "🇧🇷", name: "Brazil" },
+  { code: "MX", dial: "+52", flag: "🇲🇽", name: "Mexico" },
+  { code: "NG", dial: "+234", flag: "🇳🇬", name: "Nigeria" },
+  { code: "ZA", dial: "+27", flag: "🇿🇦", name: "South Africa" },
+  { code: "IN", dial: "+91", flag: "🇮🇳", name: "India" },
+];
 
 // Two surface palettes. `dark` is the original (used on /reset-password,
 // /forgot-password, etc.). `light` matches the white landing shell —
@@ -15,8 +39,8 @@ const THEMES = {
     inputColor: "#fff",
     dividerLine: "rgba(255,255,255,0.06)",
     dividerLabel: "rgba(255,255,255,0.35)",
-    submitBg: colors.gradientGold,
-    submitColor: "#111",
+    submitBg: colors.accent,
+    submitColor: "#fff",
     legalText: "rgba(255,255,255,0.4)",
     legalLink: "rgba(255,255,255,0.65)",
     forgotLink: "rgba(255,255,255,0.55)",
@@ -116,19 +140,63 @@ export function AuthCard({
   trackingPrefix = "auth",
   funnelTrack = false,
   showForgotPassword = false,
-  theme = "dark",
+  theme = "light",
 }) {
   const t = THEMES[theme] || THEMES.dark;
   const inputStyle = buildInputStyle(t);
   const { signInWithGoogle, signInWithEmailPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState("SE");
+  const [phoneLocal, setPhoneLocal] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [formError, setFormError] = useState("");
+  // Set after a successful auth-with-phone hands the verification to Meta.
+  // Drives the inline "we sent you a WhatsApp link" notice.
+  const [phoneVerifyPending, setPhoneVerifyPending] = useState(null);
   // When sign-in fails with invalid credentials we surface a
   // "Create new account with this email?" CTA instead of silently
   // creating one (typos would mint orphan accounts otherwise).
   const [offerCreate, setOfferCreate] = useState(false);
+
+  // Compose the full E.164 candidate. Backend re-validates via libphonenumber,
+  // so we don't need to be strict here — just stitch dial code + local digits.
+  const phoneCandidate = (() => {
+    const local = phoneLocal.trim();
+    if (!local) return null;
+    const dial = PHONE_COUNTRIES.find((c) => c.code === phoneCountry)?.dial || "+46";
+    // Already-international input (user typed full +46…) takes precedence.
+    if (local.startsWith("+")) return local.replace(/\s+/g, "");
+    return `${dial}${local.replace(/[^\d]/g, "")}`;
+  })();
+
+  // Fire-and-forget phone verification after auth. We don't await — by the
+  // time the user reads "Check your WhatsApp", the message is usually
+  // already in their notifications (background-fire architecture).
+  const fireVerifyIfNeeded = async () => {
+    if (!phoneCandidate) return;
+    try {
+      const res = await fetch(`${API_BASE}/verify/phone/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: phoneCandidate,
+          intent: "host_signup",
+          defaultCountry: phoneCountry,
+          payload: { source: "auth_card", redirect_url: redirectTo },
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok) {
+        setPhoneVerifyPending({
+          e164: json.e164 || phoneCandidate,
+          sandbox_link: json.sandbox_link || null,
+        });
+      }
+    } catch {
+      // Verification is non-blocking — failure here doesn't break signin.
+    }
+  };
 
   // Consent is now implicit: clicking either "Continue with Google" or the
   // submit button counts as agreement (the fine-print below the form spells
@@ -149,6 +217,10 @@ export function AuthCard({
         allowAutoCreate,
       });
       recordConsent();
+      // Fire phone-verification in parallel — non-blocking. The WhatsApp
+      // link is on its way to the user's phone by the time onSuccess
+      // navigates them onward.
+      fireVerifyIfNeeded();
       // signed_in fires from the parent (OnboardingPage's finalize) so the
       // event is unified across both email and Google OAuth completion paths
       // and only fires for the create-account flow.
@@ -287,6 +359,40 @@ export function AuthCard({
         style={inputStyle}
       />
 
+      {/* WhatsApp phone — optional but encouraged. Provided here means we
+          send a one-tap magic-link to the number on signup; lets us reach
+          you for reminders + future payment rails. Returning users can
+          leave it blank. */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <select
+          value={phoneCountry}
+          onChange={(e) => setPhoneCountry(e.target.value)}
+          aria-label="Phone country"
+          style={{
+            ...inputStyle,
+            flex: "0 0 92px",
+            padding: "13px 8px",
+            textAlignLast: "center",
+            cursor: "pointer",
+          }}
+        >
+          {PHONE_COUNTRIES.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.flag} {c.dial}
+            </option>
+          ))}
+        </select>
+        <input
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel-national"
+          value={phoneLocal}
+          onChange={(e) => setPhoneLocal(e.target.value)}
+          placeholder="WhatsApp number (optional)"
+          style={{ ...inputStyle, flex: 1 }}
+        />
+      </div>
+
       {showForgotPassword && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -4 }}>
           <Link
@@ -366,6 +472,59 @@ export function AuthCard({
           }}
         >
           {formError}
+        </div>
+      )}
+
+      {/* Inline notice when phone-verify is in flight. Renders the same
+          WhatsApp-bubble preview we use elsewhere so the user has visual
+          continuity with what their phone is about to show. */}
+      {phoneVerifyPending && (
+        <div
+          style={{
+            marginTop: 4,
+            padding: "12px 14px",
+            borderRadius: 14,
+            border: `1px solid ${colors.secondaryBorder}`,
+            background: colors.secondarySoft,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              color: colors.text,
+            }}
+          >
+            <FaWhatsapp size={16} color={colors.secondary} />
+            <span>Tap the link in WhatsApp</span>
+          </div>
+          <div style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.45 }}>
+            We sent a one-tap verification link to{" "}
+            <strong style={{ color: colors.text }}>{phoneVerifyPending.e164}</strong>. Open
+            WhatsApp and tap it — your phone is then verified for reminders, RSVPs and
+            future mobile-payment rails.
+          </div>
+          {phoneVerifyPending.sandbox_link && (
+            <a
+              href={phoneVerifyPending.sandbox_link}
+              style={{
+                display: "block",
+                fontSize: 12,
+                color: colors.secondary,
+                textDecoration: "underline",
+                textAlign: "center",
+                padding: "4px 0",
+              }}
+            >
+              Sandbox: tap to redeem here
+            </a>
+          )}
         </div>
       )}
 

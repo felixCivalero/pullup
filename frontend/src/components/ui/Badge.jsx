@@ -4,24 +4,29 @@ import { colors } from "../../theme/colors.js";
 export function Badge({ children, variant = "default", ...props }) {
   const variants = {
     default: {
-      background: colors.silverRgbaHover,
-      border: `1px solid ${colors.silverRgba}`,
-      color: colors.silverText,
+      background: colors.surfaceMuted,
+      border: `1px solid ${colors.border}`,
+      color: colors.textMuted,
+    },
+    accent: {
+      background: colors.accentSoft,
+      border: `1px solid ${colors.accentBorder}`,
+      color: colors.accent,
     },
     success: {
-      background: "rgba(16, 185, 129, 0.2)",
-      border: "1px solid rgba(16, 185, 129, 0.4)",
-      color: "#10b981",
+      background: colors.successRgba,
+      border: `1px solid rgba(22, 163, 74, 0.30)`,
+      color: colors.success,
     },
     warning: {
-      background: "rgba(245, 158, 11, 0.2)",
-      border: "1px solid rgba(245, 158, 11, 0.4)",
-      color: "#f59e0b",
+      background: colors.warningRgba,
+      border: `1px solid rgba(180, 83, 9, 0.30)`,
+      color: colors.warning,
     },
     danger: {
-      background: "rgba(239, 68, 68, 0.2)",
-      border: "1px solid rgba(239, 68, 68, 0.4)",
-      color: "#ef4444",
+      background: colors.dangerRgba,
+      border: `1px solid rgba(220, 38, 38, 0.30)`,
+      color: colors.danger,
     },
   };
 
@@ -31,9 +36,9 @@ export function Badge({ children, variant = "default", ...props }) {
         display: "inline-flex",
         alignItems: "center",
         gap: "6px",
-        padding: "6px 12px",
-        borderRadius: "8px",
-        fontSize: "13px",
+        padding: "5px 11px",
+        borderRadius: "999px",
+        fontSize: "12px",
         fontWeight: 600,
         ...variants[variant],
         ...props.style,

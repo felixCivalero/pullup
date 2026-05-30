@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { FileText, Link2, X, StickyNote, CalendarDays, ImagePlus, Loader2, Image as ImageIcon, Palette, Pencil, BarChart3, RotateCcw, GripVertical, ListFilter, Trash2, Plus, Check, Keyboard } from "lucide-react";
+import { colors } from "../../theme/colors.js";
 import { mediaKind, loadViewport, saveViewport } from "../../lib/plannerStore.js";
 import { DAY_MS, startOfDay, addDays } from "../../lib/plannerTime.js";
 import { authenticatedFetch } from "../../lib/api.js";
@@ -812,16 +813,16 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
         const files = [...(e.dataTransfer?.files || [])];
         if (files.length) addFiles(files, screenToWorld(e.clientX, e.clientY));
       }}
-      style={{ position: "absolute", inset: 0, overflow: "hidden", cursor: panning ? "grabbing" : spaceDown ? "grab" : "default", background: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0) 0 0 / 28px 28px, rgba(8,7,12,0.6)", touchAction: "none" }}
+      style={{ position: "absolute", inset: 0, overflow: "hidden", cursor: panning ? "grabbing" : spaceDown ? "grab" : "default", background: `radial-gradient(circle at 1px 1px, ${colors.borderFaint} 1px, transparent 0) 0 0 / 28px 28px, ${colors.surface}`, touchAction: "none" }}
     >
       {ready && (
         <div style={{ position: "absolute", left: 0, top: 0, transform: `translate(${panX}px, ${panY}px) scale(${scale})`, transformOrigin: "0 0" }}>
           {/* The past — everything left of Today is settled. A cool wash sets it apart… */}
-          <div style={{ position: "absolute", left: -100000, top: -100000, width: 100000, height: 200000, background: "rgba(10,13,24,0.5)", pointerEvents: "none" }} />
-          {/* …with a sudden deepening right at the seam. */}
-          <div style={{ position: "absolute", left: -90, top: -100000, width: 90, height: 200000, background: "linear-gradient(90deg, transparent, rgba(6,8,16,0.55))", pointerEvents: "none" }} />
-          {/* The seam itself — a clean gold line cutting the whole canvas at Today. */}
-          <div style={{ position: "absolute", left: 0, top: -100000, width: 1.5, height: 200000, background: TODAY_COLOR, opacity: 0.5, transform: "translateX(-0.75px)", pointerEvents: "none" }} />
+          <div style={{ position: "absolute", left: -100000, top: -100000, width: 100000, height: 200000, background: "rgba(10,10,10,0.03)", pointerEvents: "none" }} />
+          {/* …with a subtle gradient right at the seam. */}
+          <div style={{ position: "absolute", left: -90, top: -100000, width: 90, height: 200000, background: "linear-gradient(90deg, transparent, rgba(10,10,10,0.04))", pointerEvents: "none" }} />
+          {/* The seam itself — an amber line cutting the whole canvas at Today. */}
+          <div style={{ position: "absolute", left: 0, top: -100000, width: 1.5, height: 200000, background: TODAY_COLOR, opacity: 0.6, transform: "translateX(-0.75px)", pointerEvents: "none" }} />
 
           {/* Each lane's group tint — a soft band behind everything it owns, so the grouping reads */}
           {timelines.map((lane) => {
@@ -848,8 +849,8 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
                   const showMonth = isToday || d.getDate() === 1;
                   return (
                     <div key={`${lane.id}-${o}`} style={{ position: "absolute", left: o * PX_PER_DAY, top: bandBottom + 5, transform: "translateX(-50%)", textAlign: "center", pointerEvents: "none" }}>
-                      {isToday ? <div style={{ height: 6 }} /> : <div style={{ width: 1, height: 6, margin: "0 auto", background: "rgba(255,255,255,0.28)" }} />}
-                      <div style={{ marginTop: 3, fontSize: 9, lineHeight: 1.15, color: isToday ? TODAY_COLOR : "rgba(255,255,255,0.45)", fontWeight: isToday ? 700 : 400, whiteSpace: "nowrap" }}>
+                      {isToday ? <div style={{ height: 6 }} /> : <div style={{ width: 1, height: 6, margin: "0 auto", background: "rgba(10,10,10,0.18)" }} />}
+                      <div style={{ marginTop: 3, fontSize: 9, lineHeight: 1.15, color: isToday ? TODAY_COLOR : "rgba(10,10,10,0.45)", fontWeight: isToday ? 700 : 400, whiteSpace: "nowrap" }}>
                         <div style={{ opacity: isToday ? 1 : 0.7 }}>{isToday ? "Today" : WEEKDAYS[d.getDay()]}</div>
                         <div>{showMonth ? `${d.getDate()} ${MONTHS[d.getMonth()]}` : d.getDate()}</div>
                       </div>
@@ -878,7 +879,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
 
           {/* Draggable date dots (change / drag off to remove) */}
           {connectors.map((c) => (
-            <div key={`${c.key}-dot`} onPointerDown={(e) => startRelink(e, c.cardId, c.linkId)} title="Drag to change the date · drag off the line to remove" style={{ position: "absolute", left: c.x2 - 7, top: c.y2 - 7, width: 14, height: 14, borderRadius: "50%", background: c.color, border: "2px solid rgba(8,7,12,0.9)", cursor: "ew-resize" }} />
+            <div key={`${c.key}-dot`} onPointerDown={(e) => startRelink(e, c.cardId, c.linkId)} title="Drag to change the date · drag off the line to remove" style={{ position: "absolute", left: c.x2 - 7, top: c.y2 - 7, width: 14, height: 14, borderRadius: "50%", background: c.color, border: `2px solid ${colors.background}`, cursor: "ew-resize" }} />
           ))}
 
           {/* Event banners — filtered per lane, sit on that lane's mark */}
@@ -930,7 +931,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
 
           {/* Rubber-band selection rectangle */}
           {marquee && (
-            <div style={{ position: "absolute", left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0), background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.7)", borderRadius: 2, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0), background: "rgba(236,23,143,0.06)", border: `1px solid ${colors.accentBorder}`, borderRadius: 2, pointerEvents: "none" }} />
           )}
         </div>
       )}
@@ -974,7 +975,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
       <button
         onPointerDown={(e) => e.stopPropagation()}
         onClick={createTimeline}
-        style={{ position: "absolute", left: 14, bottom: 22, zIndex: 16, display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 11, background: "rgba(18,15,26,0.92)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,0.45)", backdropFilter: "blur(8px)" }}
+        style={{ position: "absolute", left: 14, bottom: 22, zIndex: 16, display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 11, background: colors.background, border: `1px solid ${colors.border}`, color: colors.text, fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 14px rgba(10,10,10,0.08)" }}
       >
         <Plus size={16} /> Add timeline
       </button>
@@ -984,13 +985,13 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => setShowShortcuts((v) => !v)}
         title="Keyboard shortcuts"
-        style={{ position: "absolute", left: 14, bottom: 70, zIndex: 16, width: 34, height: 34, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", background: showShortcuts ? "rgba(255,255,255,0.16)" : "rgba(18,15,26,0.92)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.7)", cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,0.45)", backdropFilter: "blur(8px)" }}
+        style={{ position: "absolute", left: 14, bottom: 70, zIndex: 16, width: 34, height: 34, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", background: showShortcuts ? colors.accentSoft : colors.background, border: `1px solid ${showShortcuts ? colors.accentBorder : colors.border}`, color: showShortcuts ? colors.accent : colors.textMuted, cursor: "pointer", boxShadow: "0 4px 14px rgba(10,10,10,0.08)" }}
       >
         <Keyboard size={16} />
       </button>
       {showShortcuts && (
-        <div onPointerDown={(e) => e.stopPropagation()} style={{ position: "absolute", left: 14, bottom: 112, zIndex: 30, width: 270, padding: "12px 14px", borderRadius: 12, background: "rgba(16,13,22,0.99)", border: "1px solid rgba(255,255,255,0.14)", boxShadow: "0 16px 44px rgba(0,0,0,0.6)" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", marginBottom: 9 }}>Shortcuts</div>
+        <div onPointerDown={(e) => e.stopPropagation()} style={{ position: "absolute", left: 14, bottom: 112, zIndex: 30, width: 270, padding: "12px 14px", borderRadius: 12, background: colors.background, border: `1px solid ${colors.border}`, boxShadow: "0 12px 36px rgba(10,10,10,0.12)" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: colors.text, marginBottom: 9 }}>Shortcuts</div>
           {[
             ["Duplicate (hold + drag)", "⌥ drag"],
             ["Duplicate in place", "⌘ D"],
@@ -1004,8 +1005,8 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
             ["Zoom · reset", "⌘± · ⌘0"],
           ].map(([label, keys]) => (
             <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "3px 0", fontSize: 11.5 }}>
-              <span style={{ color: "rgba(255,255,255,0.7)" }}>{label}</span>
-              <span style={{ color: "#fff", fontWeight: 600, whiteSpace: "nowrap" }}>{keys}</span>
+              <span style={{ color: colors.textMuted }}>{label}</span>
+              <span style={{ color: colors.text, fontWeight: 600, whiteSpace: "nowrap" }}>{keys}</span>
             </div>
           ))}
         </div>
@@ -1014,16 +1015,16 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
       {/* Colour-mode toggle — top-right. Flips what the content colour-coding means. */}
       <div
         onPointerDown={(e) => e.stopPropagation()}
-        style={{ position: "absolute", top: 14, right: 14, display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 6px 5px 10px", borderRadius: 11, background: "rgba(18,15,26,0.92)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 6px 20px rgba(0,0,0,0.45)", backdropFilter: "blur(8px)", zIndex: 20 }}
+        style={{ position: "absolute", top: 14, right: 14, display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 6px 5px 10px", borderRadius: 11, background: colors.background, border: `1px solid ${colors.border}`, boxShadow: "0 4px 14px rgba(10,10,10,0.08)", zIndex: 20 }}
       >
-        <Palette size={14} color="rgba(255,255,255,0.5)" />
-        <div style={{ display: "inline-flex", padding: 3, borderRadius: 8, background: "rgba(255,255,255,0.05)" }}>
+        <Palette size={14} color={colors.textSubtle} />
+        <div style={{ display: "inline-flex", padding: 3, borderRadius: 8, background: colors.surface }}>
           {[["platform", "Platform"], ["event", "Event"]].map(([m, label]) => (
             <button
               key={m}
               onClick={() => setColorMode(m)}
               title={m === "platform" ? "Colour content by platform — read channel spread" : "Colour content by event — read event distribution"}
-              style={{ padding: "5px 11px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: colorMode === m ? "rgba(255,255,255,0.14)" : "transparent", color: colorMode === m ? "#fff" : "rgba(255,255,255,0.55)" }}
+              style={{ padding: "5px 11px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: colorMode === m ? colors.background : "transparent", color: colorMode === m ? colors.text : colors.textSubtle }}
             >
               {label}
             </button>
@@ -1032,7 +1033,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
       </div>
 
       {!loaded && (
-        <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 999, background: "rgba(18,15,26,0.9)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)", fontSize: 12 }}>
+        <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 999, background: colors.background, border: `1px solid ${colors.border}`, color: colors.textMuted, fontSize: 12 }}>
           <Loader2 size={13} style={{ animation: "crm-spin 0.9s linear infinite" }} /> Loading…
         </div>
       )}
@@ -1048,24 +1049,24 @@ function LaneHeading({ lane, top, shown, soleLane, filterOpen, onStartDrag, onRe
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      style={{ position: "absolute", left: 14, top, zIndex: 15, display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 8px 0 4px", borderRadius: 10, background: "rgba(14,12,20,0.95)", border: `1px solid ${lane.color}66`, boxShadow: `0 6px 18px rgba(0,0,0,0.45), 0 0 0 1px ${lane.color}1f`, backdropFilter: "blur(8px)", maxWidth: 340 }}
+      style={{ position: "absolute", left: 14, top, zIndex: 15, display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 8px 0 4px", borderRadius: 10, background: colors.background, border: `1px solid ${lane.color}88`, boxShadow: `0 4px 14px rgba(10,10,10,0.08), 0 0 0 1px ${lane.color}22`, maxWidth: 340 }}
     >
-      <span onPointerDown={onStartDrag} title="Drag to move this timeline" style={{ display: "flex", alignItems: "center", color: "rgba(255,255,255,0.4)", cursor: "grab", flexShrink: 0 }}>
+      <span onPointerDown={onStartDrag} title="Drag to move this timeline" style={{ display: "flex", alignItems: "center", color: colors.textSubtle, cursor: "grab", flexShrink: 0 }}>
         <GripVertical size={15} />
       </span>
-      <button onClick={onRecolor} title="Change colour" style={{ width: 14, height: 14, borderRadius: "50%", background: lane.color, border: "1px solid rgba(255,255,255,0.25)", cursor: "pointer", padding: 0, flexShrink: 0 }} />
+      <button onClick={onRecolor} title="Change colour" style={{ width: 14, height: 14, borderRadius: "50%", background: lane.color, border: `1px solid ${colors.border}`, cursor: "pointer", padding: 0, flexShrink: 0 }} />
       <input
         value={lane.name}
         onChange={(e) => onRename(e.target.value)}
         onFocus={(e) => e.target.select()}
         spellCheck={false}
-        style={{ minWidth: 0, width: Math.min(150, Math.max(54, (lane.name?.length || 8) * 8)), background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 13, fontWeight: 700 }}
+        style={{ minWidth: 0, width: Math.min(150, Math.max(54, (lane.name?.length || 8) * 8)), background: "transparent", border: "none", outline: "none", color: colors.text, fontSize: 13, fontWeight: 700 }}
       />
-      <button onClick={onOpenFilter} title="Choose which events show on this timeline" style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, padding: "4px 8px", borderRadius: 7, background: filterOpen ? "rgba(255,255,255,0.16)" : filtered ? `${lane.color}26` : "rgba(255,255,255,0.06)", border: `1px solid ${filtered ? lane.color + "66" : "rgba(255,255,255,0.1)"}`, color: filtered ? "#fff" : "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+      <button onClick={onOpenFilter} title="Choose which events show on this timeline" style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, padding: "4px 8px", borderRadius: 7, background: filterOpen ? colors.accentSoft : filtered ? `${lane.color}18` : colors.borderFaint, border: `1px solid ${filtered ? lane.color + "55" : colors.border}`, color: filtered ? colors.text : colors.textMuted, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
         <ListFilter size={12} /> {filtered ? `${shown} event${shown === 1 ? "" : "s"}` : "All events"}
       </button>
       {!soleLane && (
-        <button onClick={onDelete} title="Delete this timeline" style={{ display: "flex", alignItems: "center", flexShrink: 0, color: "rgba(248,113,113,0.8)", background: "none", border: "none", cursor: "pointer", padding: 1 }}>
+        <button onClick={onDelete} title="Delete this timeline" style={{ display: "flex", alignItems: "center", flexShrink: 0, color: colors.danger, background: "none", border: "none", cursor: "pointer", padding: 1 }}>
           <Trash2 size={13} />
         </button>
       )}
@@ -1075,9 +1076,9 @@ function LaneHeading({ lane, top, shown, soleLane, filterOpen, onStartDrag, onRe
 
 function FilterRow({ checked, color, onClick, children }) {
   return (
-    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "7px 9px", borderRadius: 8, border: "none", background: "transparent", color: "#fff", cursor: "pointer", textAlign: "left" }}>
-      <span style={{ width: 16, height: 16, borderRadius: 5, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: checked ? color || "#60a5fa" : "rgba(255,255,255,0.08)", border: `1px solid ${checked ? color || "#60a5fa" : "rgba(255,255,255,0.18)"}` }}>
-        {checked && <Check size={11} color="#0b0a10" strokeWidth={3} />}
+    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "7px 9px", borderRadius: 8, border: "none", background: "transparent", color: colors.text, cursor: "pointer", textAlign: "left" }}>
+      <span style={{ width: 16, height: 16, borderRadius: 5, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: checked ? color || colors.secondary : colors.borderFaint, border: `1px solid ${checked ? color || colors.secondary : colors.border}` }}>
+        {checked && <Check size={11} color="#fff" strokeWidth={3} />}
       </span>
       {children}
     </button>
@@ -1095,23 +1096,23 @@ function LaneFilterPopup({ lane, events, left, top, onChange, onClose }) {
     else onChange({ mode: "selected", eventIds: ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id] });
   };
   return (
-    <div onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} style={{ position: "absolute", left, top, width: 264, maxHeight: 348, display: "flex", flexDirection: "column", zIndex: 30, borderRadius: 12, background: "rgba(16,13,22,0.99)", border: "1px solid rgba(255,255,255,0.14)", boxShadow: "0 16px 44px rgba(0,0,0,0.6)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>Events on “{lane.name}”</span>
-        <button onClick={onClose} style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(255,255,255,0.08)", border: "none", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}><X size={13} /></button>
+    <div onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} style={{ position: "absolute", left, top, width: 264, maxHeight: 348, display: "flex", flexDirection: "column", zIndex: 30, borderRadius: 12, background: colors.background, border: `1px solid ${colors.border}`, boxShadow: "0 12px 36px rgba(10,10,10,0.12)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderBottom: `1px solid ${colors.border}` }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: colors.text }}>Events on "{lane.name}"</span>
+        <button onClick={onClose} style={{ width: 22, height: 22, borderRadius: 6, background: colors.borderFaint, border: "none", color: colors.textMuted, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}><X size={13} /></button>
       </div>
       <div style={{ overflowY: "auto", padding: 6 }}>
         <FilterRow checked={mode === "all"} color={lane.color} onClick={toggleAll}><span style={{ fontSize: 12.5, fontWeight: 600 }}>All events</span></FilterRow>
-        <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 8px" }} />
-        {events.length === 0 && <div style={{ padding: "8px 9px", fontSize: 11.5, color: "rgba(255,255,255,0.4)" }}>No events yet.</div>}
+        <div style={{ height: 1, background: colors.border, margin: "4px 8px" }} />
+        {events.length === 0 && <div style={{ padding: "8px 9px", fontSize: 11.5, color: colors.textSubtle }}>No events yet.</div>}
         {events.map((ev) => (
           <FilterRow key={ev.id} checked={shows(ev.id)} color={lane.color} onClick={() => toggleOne(ev.id)}>
-            <span style={{ width: 22, height: 22, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "rgba(255,255,255,0.08)" }}>
+            <span style={{ width: 22, height: 22, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: colors.borderFaint }}>
               {ev.thumb && <img src={ev.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
             </span>
             <span style={{ minWidth: 0, flex: 1 }}>
               <span style={{ display: "block", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
-              <span style={{ display: "block", fontSize: 10, color: "rgba(255,255,255,0.4)" }}>{ev.startsAt ? fmtDate(new Date(ev.startsAt)) : "Unscheduled"}</span>
+              <span style={{ display: "block", fontSize: 10, color: colors.textSubtle }}>{ev.startsAt ? fmtDate(new Date(ev.startsAt)) : "Unscheduled"}</span>
             </span>
           </FilterRow>
         ))}
@@ -1131,7 +1132,7 @@ function FlipTab({ accent, flipped, phase, onToggle }) {
       onPointerDown={(e) => e.stopPropagation()}
       onClick={onToggle}
       title={title}
-      style={{ position: "absolute", left: -11, top: "50%", transform: "translateY(-50%)", width: 22, height: 42, borderRadius: 8, border: "1.5px solid rgba(8,7,12,0.85)", background: accent, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, boxShadow: "0 3px 10px rgba(0,0,0,0.5)", zIndex: 8 }}
+      style={{ position: "absolute", left: -11, top: "50%", transform: "translateY(-50%)", width: 22, height: 42, borderRadius: 8, border: `1.5px solid ${colors.border}`, background: accent, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, boxShadow: "0 3px 10px rgba(10,10,10,0.15)", zIndex: 8 }}
     >
       <Icon size={12} />
     </button>
@@ -1171,7 +1172,7 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
   const boxW = outerW - 12;
   const ch = card.channel ? CHANNELS[card.channel] : null;
   const ty = TYPES[card.contentType] || TYPES.image;
-  const accent = ch?.color || "rgba(255,255,255,0.14)";
+  const accent = ch?.color || colors.borderStrong;
   const mediaH = Math.round(boxW * ty.ratio);
   const stop = (e) => e.stopPropagation();
 
@@ -1188,25 +1189,25 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
   const dim = phase === "past" && !flipped; // settled look for content that already ran
 
   const linkHandle = (where) => (
-    <button onPointerDown={(e) => onStartLink(e, card.id)} title="Drag onto a timeline to set a date" style={{ position: "absolute", left: "50%", [where]: -9, transform: "translateX(-50%)", width: 18, height: 18, borderRadius: "50%", background: linkColor, border: "2px solid rgba(8,7,12,0.9)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "crosshair", padding: 0, zIndex: 3 }}>
-      <Link2 size={9} color="rgba(8,7,12,0.95)" />
+    <button onPointerDown={(e) => onStartLink(e, card.id)} title="Drag onto a timeline to set a date" style={{ position: "absolute", left: "50%", [where]: -9, transform: "translateX(-50%)", width: 18, height: 18, borderRadius: "50%", background: linkColor, border: `2px solid ${colors.background}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "crosshair", padding: 0, zIndex: 3 }}>
+      <Link2 size={9} color="#fff" />
     </button>
   );
 
   return (
-    <div style={{ position: "absolute", left: card.x, top: card.y, width: wrapperW, height: wrapperH, perspective: 1400, transform: flipped ? "scale(1.03)" : "none", transition: "transform 0.35s ease, height 0.4s cubic-bezier(0.4,0,0.2,1), width 0.4s cubic-bezier(0.4,0,0.2,1)", borderRadius: 6, boxShadow: selected ? "0 0 0 2px #38bdf8, 0 0 0 6px rgba(56,189,248,0.22)" : "none", zIndex: flipped ? 20 : raised || selected ? 10 : 1 }}>
+    <div style={{ position: "absolute", left: card.x, top: card.y, width: wrapperW, height: wrapperH, perspective: 1400, transform: flipped ? "scale(1.03)" : "none", transition: "transform 0.35s ease, height 0.4s cubic-bezier(0.4,0,0.2,1), width 0.4s cubic-bezier(0.4,0,0.2,1)", borderRadius: 6, boxShadow: selected ? `0 0 0 2px ${colors.accent}, 0 0 0 6px ${colors.accentSoft}` : "none", zIndex: flipped ? 20 : raised || selected ? 10 : 1 }}>
       <div style={{ position: "relative", width: "100%", height: "100%", transformStyle: "preserve-3d", transition: "transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform: flipped ? "rotateY(180deg)" : "none" }}>
         {/* ── FRONT — the visual identity ── */}
         <div
           onPointerDown={(e) => { onRaise(); onMove(e, card.id); }}
-          style={{ position: "absolute", top: 0, left: 0, width: outerW, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", borderRadius: 4, background: "rgba(20,16,30,0.97)", border: `1px solid ${linkColor}`, boxShadow: "0 2px 9px rgba(0,0,0,0.5)", cursor: "grab", userSelect: "none", opacity: dim ? 0.78 : 1, filter: dim ? "saturate(0.82)" : "none", transition: "opacity 0.3s, filter 0.3s" }}
+          style={{ position: "absolute", top: 0, left: 0, width: outerW, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", borderRadius: 4, background: colors.background, border: `1px solid ${linkColor}`, boxShadow: "0 8px 30px rgba(10,10,10,0.06)", cursor: "grab", userSelect: "none", opacity: dim ? 0.72 : 1, filter: dim ? "saturate(0.75)" : "none", transition: "opacity 0.3s, filter 0.3s" }}
         >
           {/* Media */}
           <div style={{ padding: 6 }}>
-            <div style={{ position: "relative", width: "100%", height: mediaH, borderRadius: 2, overflow: "hidden", background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ position: "relative", width: "100%", height: mediaH, borderRadius: 2, overflow: "hidden", background: colors.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {isPlaceholder ? (
                 uploading ? (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.5)" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: colors.textSubtle }}>
                     <Loader2 size={20} style={{ animation: "crm-spin 0.9s linear infinite" }} />
                     <span style={{ fontSize: 11 }}>Uploading…</span>
                   </div>
@@ -1215,7 +1216,7 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
                     onPointerDown={stop}
                     onClick={() => fileRef.current?.click()}
                     title="Add content"
-                    style={{ position: "absolute", inset: 4, borderRadius: 2, border: "1.5px dashed rgba(255,255,255,0.22)", background: "transparent", color: "rgba(255,255,255,0.45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}
+                    style={{ position: "absolute", inset: 4, borderRadius: 2, border: `1.5px dashed ${colors.border}`, background: "transparent", color: colors.textSubtle, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}
                   >
                     <ImagePlus size={22} />
                     <span style={{ fontSize: 11, fontWeight: 600 }}>Add content</span>
@@ -1223,7 +1224,7 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
                 )
               ) : (
                 <>
-                  {card.contentType === "carousel" && <div style={{ position: "absolute", inset: "4px -5px 4px 5px", borderRadius: 2, border: "1px solid rgba(255,255,255,0.14)" }} />}
+                  {card.contentType === "carousel" && <div style={{ position: "absolute", inset: "4px -5px 4px 5px", borderRadius: 2, border: `1px solid ${colors.border}` }} />}
                   {card.mediaKind === "image" ? (
                     <img src={url} alt={card.mediaName || ""} draggable={false} style={{ position: "relative", width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : card.mediaKind === "video" ? (
@@ -1231,7 +1232,7 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
                   ) : card.mediaKind === "audio" ? (
                     <div style={{ width: "100%", padding: "0 6px" }}><audio src={url} controls style={{ width: "100%" }} /></div>
                   ) : (
-                    <a href={url} target="_blank" rel="noopener noreferrer" onPointerDown={stop} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.6)", padding: 12, textDecoration: "none" }}>
+                    <a href={url} target="_blank" rel="noopener noreferrer" onPointerDown={stop} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: colors.textMuted, padding: 12, textDecoration: "none" }}>
                       <FileText size={20} />
                       <span style={{ fontSize: 11, textAlign: "center", wordBreak: "break-word" }}>{card.mediaName || "File"}</span>
                     </a>
@@ -1249,16 +1250,16 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
               )}
               {/* Note indicator */}
               {card.note?.trim() && (
-                <div title={card.note} style={{ position: "absolute", bottom: 6, left: 6, width: 22, height: 22, borderRadius: 3, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.85)" }}>
+                <div title={card.note} style={{ position: "absolute", bottom: 6, left: 6, width: 22, height: 22, borderRadius: 3, background: "rgba(10,10,10,0.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
                   <StickyNote size={12} />
                 </div>
               )}
               {/* Co-post badge — shared across multiple timelines (CC for email) */}
               {coLanes && (
-                <div title={`Shared on ${coLanes.map((l) => l.name).join(" · ")}`} style={{ position: "absolute", top: 6, right: 6, display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 7px", borderRadius: 999, background: "rgba(0,0,0,0.62)", border: "1px solid rgba(255,255,255,0.2)", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.04em", color: "#fff" }}>
+                <div title={`Shared on ${coLanes.map((l) => l.name).join(" · ")}`} style={{ position: "absolute", top: 6, right: 6, display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 7px", borderRadius: 999, background: "rgba(255,255,255,0.9)", border: `1px solid ${colors.border}`, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.04em", color: colors.text }}>
                   <span style={{ display: "inline-flex" }}>
                     {coLanes.slice(0, 3).map((l, i) => (
-                      <span key={l.id} style={{ width: 7, height: 7, borderRadius: "50%", background: l.color, marginLeft: i ? -2 : 0, border: "1px solid rgba(0,0,0,0.6)" }} />
+                      <span key={l.id} style={{ width: 7, height: 7, borderRadius: "50%", background: l.color, marginLeft: i ? -2 : 0, border: `1px solid ${colors.border}` }} />
                     ))}
                   </span>
                   {card.channel === "email" ? "CC" : "Co-post"}
@@ -1271,18 +1272,18 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
           {(linkedEvent || (card.links || []).length > 0) && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "0 8px 8px" }} onPointerDown={stop}>
               {linkedEvent && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "#93c5fd", background: "rgba(96,165,250,0.14)", borderRadius: 2, padding: "2px 6px", maxWidth: "100%" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: colors.secondary, background: colors.secondarySoft, borderRadius: 2, padding: "2px 6px", maxWidth: "100%" }}>
                   <CalendarDays size={11} />
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{linkedEvent.title}</span>
-                  <button onClick={() => onSet(card.id, { eventId: null })} style={{ background: "none", border: "none", color: "#93c5fd", cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
+                  <button onClick={() => onSet(card.id, { eventId: null })} style={{ background: "none", border: "none", color: colors.secondary, cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
                 </span>
               )}
               {(card.links || []).map((l) => {
                 const d = new Date(`${l.date}T00:00:00`);
                 return (
-                  <span key={l.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "#fbbf24", background: "rgba(251,191,36,0.12)", borderRadius: 2, padding: "2px 6px" }}>
+                  <span key={l.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: TODAY_COLOR, background: "rgba(180,83,9,0.09)", borderRadius: 2, padding: "2px 6px" }}>
                     {WEEKDAYS[d.getDay()]} {d.getDate()} {MONTHS[d.getMonth()]}
-                    <button onClick={() => onRemoveLink(card.id, l.id)} style={{ background: "none", border: "none", color: "#fbbf24", cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
+                    <button onClick={() => onRemoveLink(card.id, l.id)} style={{ background: "none", border: "none", color: TODAY_COLOR, cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
                   </span>
                 );
               })}
@@ -1294,7 +1295,7 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
 
           {/* Resize grip — scales the media (proportions locked) */}
           <div onPointerDown={(e) => onStartResize(e, card.id)} title="Drag to resize" style={{ position: "absolute", right: 3, bottom: 3, width: 13, height: 13, cursor: "nwse-resize", zIndex: 3 }}>
-            <div style={{ width: "100%", height: "100%", borderRight: "2px solid rgba(255,255,255,0.4)", borderBottom: "2px solid rgba(255,255,255,0.4)", borderBottomRightRadius: 2 }} />
+            <div style={{ width: "100%", height: "100%", borderRight: `2px solid ${colors.borderStrong}`, borderBottom: `2px solid ${colors.borderStrong}`, borderBottomRightRadius: 2 }} />
           </div>
         </div>
 
@@ -1303,7 +1304,7 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
           ref={backRef}
           onPointerDown={stop}
           onWheel={stop}
-          style={{ position: "absolute", top: 0, left: 0, width: flipW, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 10, overflow: "hidden", background: "rgba(16,13,22,0.99)", border: `1px solid ${linkColor}`, boxShadow: "0 14px 38px rgba(0,0,0,0.6)" }}
+          style={{ position: "absolute", top: 0, left: 0, width: flipW, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 10, overflow: "hidden", background: colors.background, border: `1px solid ${linkColor}`, boxShadow: "0 14px 38px rgba(10,10,10,0.10)" }}
         >
           {showingEdit ? (
             <EditFace card={card} events={events} timelines={timelines} accent={linkColor} onSet={onSet} onRemove={onRemove} />
@@ -1342,15 +1343,15 @@ function EventBanner({ ev, x, laneY, color, phase, flipped, raised, onRaise, onT
       <div onPointerDownCapture={onRaise} style={{ position: "absolute", left: x, top, width: wrapperW, height: h, transform: `translateX(-50%) ${flipped ? "scale(1.03)" : ""}`, perspective: 1400, transition: "height 0.4s cubic-bezier(0.4,0,0.2,1), width 0.4s cubic-bezier(0.4,0,0.2,1), transform 0.35s ease", zIndex: flipped ? 21 : raised ? 12 : 2 }}>
         <div style={{ position: "relative", width: "100%", height: "100%", transformStyle: "preserve-3d", transition: "transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform: flipped ? "rotateY(180deg)" : "none" }}>
           {/* FRONT */}
-          <div onPointerDown={(e) => e.stopPropagation()} style={{ position: "absolute", left: "50%", top: 0, transform: "translateX(-50%)", width: EVENT_W, height: EVENT_FRONT_H, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", display: "flex", alignItems: "center", gap: 9, padding: "0 12px 0 7px", borderRadius: 12, background: "rgba(22,22,28,0.97)", border: `2px solid ${color}`, opacity: dim ? 0.82 : 1, filter: dim ? "saturate(0.85)" : "none", overflow: "hidden", cursor: "pointer" }}>
-            <span style={{ width: 40, height: 40, borderRadius: 9, overflow: "hidden", flexShrink: 0, background: "rgba(255,255,255,0.08)" }}>
+          <div onPointerDown={(e) => e.stopPropagation()} style={{ position: "absolute", left: "50%", top: 0, transform: "translateX(-50%)", width: EVENT_W, height: EVENT_FRONT_H, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", display: "flex", alignItems: "center", gap: 9, padding: "0 12px 0 7px", borderRadius: 12, background: colors.background, border: `2px solid ${color}`, opacity: dim ? 0.78 : 1, filter: dim ? "saturate(0.75)" : "none", overflow: "hidden", cursor: "pointer", boxShadow: "0 8px 30px rgba(10,10,10,0.06)" }}>
+            <span style={{ width: 40, height: 40, borderRadius: 9, overflow: "hidden", flexShrink: 0, background: colors.surface }}>
               {ev.thumb && <img src={ev.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
             </span>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 2, fontSize: 10.5, color: "rgba(255,255,255,0.55)" }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</div>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 2, fontSize: 10.5, color: colors.textMuted }}>
                 <CalendarDays size={11} /> {ev.startsAt ? fmtDate(new Date(ev.startsAt)) : "Unscheduled"}
-                <span style={{ marginLeft: 4, padding: "1px 6px", borderRadius: 999, fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color, background: `${color}22` }}>{phase === "past" ? "Recap" : "Upcoming"}</span>
+                <span style={{ marginLeft: 4, padding: "1px 6px", borderRadius: 999, fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color, background: `${color}18` }}>{phase === "past" ? "Recap" : "Upcoming"}</span>
               </div>
             </div>
           </div>
@@ -1360,7 +1361,7 @@ function EventBanner({ ev, x, laneY, color, phase, flipped, raised, onRaise, onT
             ref={backRef}
             onPointerDown={(e) => e.stopPropagation()}
             onWheel={(e) => e.stopPropagation()}
-            style={{ position: "absolute", top: 0, left: 0, width: EVENT_FLIP_W, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 12, overflow: "hidden", background: "rgba(16,14,22,0.99)", border: `2px solid ${color}`, boxShadow: "0 14px 38px rgba(0,0,0,0.6)" }}
+            style={{ position: "absolute", top: 0, left: 0, width: EVENT_FLIP_W, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 12, overflow: "hidden", background: colors.background, border: `2px solid ${color}`, boxShadow: "0 14px 38px rgba(10,10,10,0.10)" }}
           >
             {phase === "past" ? <EventAnalytics ev={ev} color={color} /> : <EventEdit ev={ev} color={color} />}
           </div>
@@ -1389,44 +1390,44 @@ function EventAnalytics({ ev, color }) {
     { label: "Revenue", value: `$${revenue.toLocaleString()}` },
   ];
   return (
-    <div style={{ display: "flex", flexDirection: "column", color: "#fff" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", background: `linear-gradient(90deg, ${color}22, transparent)` }}>
-        <BarChart3 size={13} /> <span style={{ fontSize: 11.5, fontWeight: 700 }}>How it went</span>
+    <div style={{ display: "flex", flexDirection: "column", color: colors.text }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderBottom: `1px solid ${colors.border}`, background: `linear-gradient(90deg, ${color}14, transparent)` }}>
+        <BarChart3 size={13} color={color} /> <span style={{ fontSize: 11.5, fontWeight: 700 }}>How it went</span>
       </div>
       <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</div>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</div>
         {stats.map((s) => (
-          <div key={s.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.5)" }}>{s.label}</span>
-            <span style={{ fontSize: 16, fontWeight: 700 }}>{s.value}</span>
+          <div key={s.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: 8, background: colors.surface, border: `1px solid ${colors.border}` }}>
+            <span style={{ fontSize: 10.5, color: colors.textSubtle }}>{s.label}</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: colors.text }}>{s.value}</span>
           </div>
         ))}
       </div>
-      <div style={{ padding: "7px 12px", borderTop: "1px solid rgba(255,255,255,0.07)", fontSize: 9, color: "rgba(255,255,255,0.35)" }}>Demo data</div>
+      <div style={{ padding: "7px 12px", borderTop: `1px solid ${colors.border}`, fontSize: 9, color: colors.textFaded }}>Demo data</div>
     </div>
   );
 }
 
 function EventEdit({ ev, color }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", color: "#fff" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", background: `linear-gradient(90deg, ${color}26, transparent)` }}>
-        <Pencil size={13} /> <span style={{ fontSize: 11.5, fontWeight: 700 }}>Event</span>
+    <div style={{ display: "flex", flexDirection: "column", color: colors.text }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderBottom: `1px solid ${colors.border}`, background: `linear-gradient(90deg, ${color}14, transparent)` }}>
+        <Pencil size={13} color={color} /> <span style={{ fontSize: 11.5, fontWeight: 700 }}>Event</span>
       </div>
       <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Title</div>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.title}</div>
+          <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: colors.textSubtle, marginBottom: 3 }}>Title</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>{ev.title}</div>
         </div>
         <div>
-          <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>When</div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5 }}>
-            <CalendarDays size={13} color="rgba(255,255,255,0.6)" /> {ev.startsAt ? fmtDate(new Date(ev.startsAt)) : "Unscheduled"}
+          <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: colors.textSubtle, marginBottom: 3 }}>When</div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, color: colors.text }}>
+            <CalendarDays size={13} color={colors.secondary} /> {ev.startsAt ? fmtDate(new Date(ev.startsAt)) : "Unscheduled"}
           </div>
         </div>
       </div>
-      <div style={{ padding: 12, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-        <a href={`/app/events/${ev.id}/edit`} onClick={(e) => e.stopPropagation()} style={{ display: "block", textAlign: "center", padding: "8px", borderRadius: 8, background: `${color}22`, border: `1px solid ${color}`, color: "#fff", fontSize: 11.5, fontWeight: 600, textDecoration: "none" }}>
+      <div style={{ padding: 12, borderTop: `1px solid ${colors.border}` }}>
+        <a href={`/app/events/${ev.id}/edit`} onClick={(e) => e.stopPropagation()} style={{ display: "block", textAlign: "center", padding: "8px", borderRadius: 8, background: `${color}14`, border: `1px solid ${color}`, color, fontSize: 11.5, fontWeight: 600, textDecoration: "none" }}>
           Open full editor →
         </a>
       </div>

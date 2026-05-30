@@ -7,6 +7,8 @@ import { authenticatedFetch } from "../lib/api.js";
 import { EventNavProvider, useEventNav } from "../contexts/EventNavContext.jsx";
 import { ChevronLeft, Settings } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { PullupEyes } from "./PullupEyes.jsx";
+import { colors } from "../theme/colors.js";
 
 function ProtectedLayoutInner() {
   const navigate = useNavigate();
@@ -164,8 +166,6 @@ function ProtectedLayoutInner() {
     { label: "CRM", path: "/admin/crm" },
     { label: "Email", path: "/admin/email" },
     { label: "Analytics", path: "/admin/analytics" },
-    { label: "Ideas", path: "/admin/ideas" },
-    { label: "Presentation", path: "/admin/presentation" },
   ];
 
   // Event tab items — analytics-only users see just the Analytics tab
@@ -216,7 +216,7 @@ function ProtectedLayoutInner() {
           justifyContent: "center",
         }}
       >
-        <div style={{ color: "#fff" }}>Loading...</div>
+        <div style={{ color: colors.text }}>Loading...</div>
       </div>
     );
   }
@@ -238,8 +238,8 @@ function ProtectedLayoutInner() {
           height: "2px",
           background:
             isAdmin && isAdminPage
-              ? "linear-gradient(90deg, transparent 0%, #fbbf24 20%, #f59e0b 50%, #fbbf24 80%, transparent 100%)"
-              : "linear-gradient(90deg, transparent 0%, #a8a8a8 20%, #e8e8e8 50%, #a8a8a8 80%, transparent 100%)",
+              ? "linear-gradient(90deg, transparent 0%, #d97706 20%, #b45309 50%, #d97706 80%, transparent 100%)"
+              : "linear-gradient(90deg, transparent 0%, #ec178f 20%, #ec178f 50%, #ec178f 80%, transparent 100%)",
           zIndex: 22,
           transition: "background 0.3s ease",
         }}
@@ -258,10 +258,10 @@ function ProtectedLayoutInner() {
           justifyContent: "space-between",
           padding: "0 16px 0 12px",
           zIndex: 20,
-          background: "rgba(5, 4, 10, 0.85)",
+          background: "rgba(255, 255, 255, 0.85)",
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
-          borderBottom: "1px solid rgba(255,255,255,0.04)",
+          borderBottom: `1px solid ${colors.borderFaint}`,
         }}
       >
         {/* Left side */}
@@ -271,7 +271,7 @@ function ProtectedLayoutInner() {
             style={{
               background: "transparent",
               border: "none",
-              color: "rgba(255,255,255,0.6)",
+              color: colors.textMuted,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -284,11 +284,11 @@ function ProtectedLayoutInner() {
               flexShrink: 0,
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = "#fff";
-              e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+              e.currentTarget.style.color = colors.text;
+              e.currentTarget.style.background = colors.surfaceMuted;
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = "rgba(255,255,255,0.6)";
+              e.currentTarget.style.color = colors.textMuted;
               e.currentTarget.style.background = "transparent";
             }}
           >
@@ -302,21 +302,24 @@ function ProtectedLayoutInner() {
             style={{
               background: "transparent",
               border: "none",
-              padding: 0,
+              padding: "4px 8px",
               display: "flex",
               alignItems: "center",
+              gap: "9px",
               cursor: "pointer",
-              transition: "filter 0.3s ease",
-              filter:
-                isAdmin && isAdminPage
-                  ? "drop-shadow(0 0 4px rgba(251, 191, 36, 0.5))"
-                  : "none",
             }}
           >
+            {/* Small eyes = the event platform. They track the cursor here too,
+                so the brand stays alive inside the app — paired with the pink
+                star mark, as on the landing page. */}
+            <PullupEyes
+              variant="small"
+              style={{ width: "34px", height: "30px", display: "block" }}
+            />
             <img
               src="/pullup-logo.svg"
               alt="PullUp"
-              style={{ height: "44px", width: "auto", display: "block" }}
+              style={{ height: "26px", width: "auto", display: "block" }}
             />
           </button>
         )}
@@ -340,7 +343,7 @@ function ProtectedLayoutInner() {
                   style={{
                     fontSize: "13px",
                     fontWeight: 600,
-                    color: "#fff",
+                    color: colors.text,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -354,7 +357,7 @@ function ProtectedLayoutInner() {
                   style={{
                     width: "1px",
                     height: "20px",
-                    background: "rgba(255,255,255,0.1)",
+                    background: colors.border,
                     margin: "0 6px",
                     flexShrink: 0,
                   }}
@@ -367,13 +370,13 @@ function ProtectedLayoutInner() {
                 onClick={() => handleNav(path)}
                 style={{
                   background: isEventTabActive(tab)
-                    ? "rgba(255,255,255,0.08)"
+                    ? colors.accentSoft
                     : "transparent",
                   border: "none",
-                  color: isEventTabActive(tab) ? "#fff" : "rgba(255,255,255,0.5)",
+                  color: isEventTabActive(tab) ? colors.accent : colors.textSubtle,
                   fontSize: "13px",
-                  fontWeight: isEventTabActive(tab) ? 600 : 400,
-                  letterSpacing: "0.03em",
+                  fontWeight: isEventTabActive(tab) ? 600 : 500,
+                  letterSpacing: "0.01em",
                   cursor: "pointer",
                   padding: "6px 14px",
                   borderRadius: "999px",
@@ -382,13 +385,13 @@ function ProtectedLayoutInner() {
                 }}
                 onMouseEnter={(e) => {
                   if (!isEventTabActive(tab)) {
-                    e.target.style.color = "rgba(255,255,255,0.8)";
-                    e.target.style.background = "rgba(255,255,255,0.04)";
+                    e.target.style.color = colors.text;
+                    e.target.style.background = colors.surfaceMuted;
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isEventTabActive(tab)) {
-                    e.target.style.color = "rgba(255,255,255,0.5)";
+                    e.target.style.color = colors.textSubtle;
                     e.target.style.background = "transparent";
                   }
                 }}
@@ -409,13 +412,13 @@ function ProtectedLayoutInner() {
                 onClick={() => handleNav(path)}
                 style={{
                   background: isActive(path)
-                    ? "rgba(255,255,255,0.08)"
+                    ? colors.accentSoft
                     : "transparent",
                   border: "none",
-                  color: isActive(path) ? "#fff" : "rgba(255,255,255,0.5)",
+                  color: isActive(path) ? colors.accent : colors.textSubtle,
                   fontSize: "13px",
-                  fontWeight: isActive(path) ? 600 : 400,
-                  letterSpacing: "0.03em",
+                  fontWeight: isActive(path) ? 600 : 500,
+                  letterSpacing: "0.01em",
                   cursor: "pointer",
                   padding: "6px 14px",
                   borderRadius: "999px",
@@ -423,13 +426,13 @@ function ProtectedLayoutInner() {
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive(path)) {
-                    e.target.style.color = "rgba(255,255,255,0.8)";
-                    e.target.style.background = "rgba(255,255,255,0.04)";
+                    e.target.style.color = colors.text;
+                    e.target.style.background = colors.surfaceMuted;
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive(path)) {
-                    e.target.style.color = "rgba(255,255,255,0.5)";
+                    e.target.style.color = colors.textSubtle;
                     e.target.style.background = "transparent";
                   }
                 }}
@@ -438,14 +441,14 @@ function ProtectedLayoutInner() {
               </button>
             ))}
 
-            {/* Admin section with gold divider */}
+            {/* Admin section with amber divider */}
             {isAdmin && (
               <>
                 <div
                   style={{
                     width: "1px",
                     height: "20px",
-                    background: "rgba(251, 191, 36, 0.2)",
+                    background: "rgba(180, 83, 9, 0.25)",
                     margin: "0 8px",
                   }}
                 />
@@ -455,17 +458,17 @@ function ProtectedLayoutInner() {
                     onClick={() => handleNav(path)}
                     style={{
                       background: isActive(path)
-                        ? "rgba(251, 191, 36, 0.12)"
+                        ? "rgba(180, 83, 9, 0.10)"
                         : "transparent",
                       border: isActive(path)
-                        ? "1px solid rgba(251, 191, 36, 0.2)"
+                        ? "1px solid rgba(180, 83, 9, 0.25)"
                         : "1px solid transparent",
                       color: isActive(path)
-                        ? "#fbbf24"
-                        : "rgba(251, 191, 36, 0.45)",
+                        ? "#b45309"
+                        : "rgba(180, 83, 9, 0.6)",
                       fontSize: "13px",
-                      fontWeight: isActive(path) ? 600 : 400,
-                      letterSpacing: "0.03em",
+                      fontWeight: isActive(path) ? 600 : 500,
+                      letterSpacing: "0.01em",
                       cursor: "pointer",
                       padding: "6px 14px",
                       borderRadius: "999px",
@@ -473,13 +476,13 @@ function ProtectedLayoutInner() {
                     }}
                     onMouseEnter={(e) => {
                       if (!isActive(path)) {
-                        e.target.style.color = "rgba(251, 191, 36, 0.85)";
-                        e.target.style.background = "rgba(251, 191, 36, 0.06)";
+                        e.target.style.color = "#b45309";
+                        e.target.style.background = "rgba(180, 83, 9, 0.06)";
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (!isActive(path)) {
-                        e.target.style.color = "rgba(251, 191, 36, 0.45)";
+                        e.target.style.color = "rgba(180, 83, 9, 0.6)";
                         e.target.style.background = "transparent";
                       }
                     }}
@@ -507,9 +510,9 @@ function ProtectedLayoutInner() {
                 gap: "7px",
                 padding: "6px 14px",
                 borderRadius: "999px",
-                border: "1px solid rgba(255,255,255,0.15)",
-                background: "rgba(255,255,255,0.05)",
-                color: "#fff",
+                border: `1px solid ${colors.borderStrong}`,
+                background: "#fff",
+                color: colors.text,
                 fontWeight: 500,
                 fontSize: "12px",
                 cursor: "pointer",
@@ -518,10 +521,10 @@ function ProtectedLayoutInner() {
                 whiteSpace: "nowrap",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+                e.currentTarget.style.background = colors.surfaceMuted;
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                e.currentTarget.style.background = "#fff";
               }}
             >
               <span
@@ -545,7 +548,7 @@ function ProtectedLayoutInner() {
                 width: 32,
                 height: 32,
                 borderRadius: "999px",
-                border: "1px solid rgba(255,255,255,0.08)",
+                border: `1px solid ${colors.border}`,
                 background: "transparent",
                 display: "flex",
                 alignItems: "center",
@@ -554,7 +557,7 @@ function ProtectedLayoutInner() {
                 padding: 0,
                 transition: "background 0.2s",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceMuted; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
               <SilverIcon as={Settings} size={16} />
@@ -570,7 +573,7 @@ function ProtectedLayoutInner() {
                 width: 36,
                 height: 36,
                 borderRadius: "999px",
-                border: "1px solid rgba(255,255,255,0.08)",
+                border: `1px solid ${colors.border}`,
                 background: "transparent",
                 display: "flex",
                 flexDirection: "column",
@@ -608,28 +611,26 @@ function ProtectedLayoutInner() {
                 padding: "10px 18px",
                 borderRadius: "999px",
                 border: "none",
-                background:
-                  "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+                background: colors.accent,
                 color: "#fff",
-                fontWeight: 600,
+                fontWeight: 700,
                 fontSize: "clamp(11px, 2.5vw, 12px)",
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
+                letterSpacing: "0.02em",
                 cursor: "pointer",
-                transition: "all 0.3s ease",
-                boxShadow: "0 4px 12px rgba(192, 192, 192, 0.3)",
+                transition: "all 0.2s ease",
+                boxShadow: colors.accentShadow,
                 whiteSpace: "nowrap",
                 touchAction: "manipulation",
               }}
               onMouseEnter={(e) => {
                 e.target.style.transform = "translateY(-1px)";
-                e.target.style.boxShadow =
-                  "0 6px 16px rgba(192, 192, 192, 0.4)";
+                e.target.style.background = colors.accentHover;
+                e.target.style.boxShadow = "0 8px 22px rgba(236, 23, 143, 0.34)";
               }}
               onMouseLeave={(e) => {
                 e.target.style.transform = "translateY(0)";
-                e.target.style.boxShadow =
-                  "0 4px 12px rgba(192, 192, 192, 0.3)";
+                e.target.style.background = colors.accent;
+                e.target.style.boxShadow = colors.accentShadow;
               }}
             >
               {isCreatingEvent ? "Back" : "+ create"}
@@ -666,13 +667,12 @@ function ProtectedLayoutInner() {
               right: 0,
               bottom: 0,
               width: "min(300px, 80vw)",
-              background: "rgba(12, 10, 18, 0.97)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
+              background: "#fff",
+              boxShadow: "-12px 0 48px rgba(10, 10, 10, 0.16)",
               borderLeft:
                 isAdmin && isAdminPage
-                  ? "1px solid rgba(251, 191, 36, 0.15)"
-                  : "1px solid rgba(255,255,255,0.06)",
+                  ? "1px solid rgba(180, 83, 9, 0.20)"
+                  : `1px solid ${colors.border}`,
               zIndex: 999,
               animation:
                 "menuSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -688,7 +688,7 @@ function ProtectedLayoutInner() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "16px 20px",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                borderBottom: `1px solid ${colors.border}`,
               }}
             >
               {/* Profile in drawer */}
@@ -704,8 +704,8 @@ function ProtectedLayoutInner() {
                     width: 40,
                     height: 40,
                     borderRadius: "999px",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(12,10,18,0.9)",
+                    border: `1px solid ${colors.border}`,
+                    background: colors.surfaceMuted,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -728,7 +728,7 @@ function ProtectedLayoutInner() {
                   ) : (
                     <span
                       style={{
-                        color: "#fff",
+                        color: colors.text,
                         fontSize: "14px",
                         fontWeight: 600,
                         textTransform: "uppercase",
@@ -741,7 +741,7 @@ function ProtectedLayoutInner() {
                 <div style={{ minWidth: 0 }}>
                   <div
                     style={{
-                      color: "#fff",
+                      color: colors.text,
                       fontSize: "14px",
                       fontWeight: 600,
                       overflow: "hidden",
@@ -761,7 +761,7 @@ function ProtectedLayoutInner() {
                         fontWeight: 600,
                         letterSpacing: "0.1em",
                         textTransform: "uppercase",
-                        color: "#fbbf24",
+                        color: "#b45309",
                         marginTop: "2px",
                       }}
                     >
@@ -778,8 +778,8 @@ function ProtectedLayoutInner() {
                   height: 32,
                   borderRadius: "999px",
                   border: "none",
-                  background: "rgba(255,255,255,0.06)",
-                  color: "rgba(255,255,255,0.6)",
+                  background: colors.surfaceMuted,
+                  color: colors.textMuted,
                   fontSize: "18px",
                   cursor: "pointer",
                   display: "flex",
@@ -803,7 +803,7 @@ function ProtectedLayoutInner() {
                         padding: "8px 16px 16px",
                         fontSize: "15px",
                         fontWeight: 700,
-                        color: "#fff",
+                        color: colors.text,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -826,13 +826,13 @@ function ProtectedLayoutInner() {
                         borderRadius: "12px",
                         border: "none",
                         background: isEventTabActive(tab)
-                          ? "rgba(255,255,255,0.06)"
+                          ? colors.accentSoft
                           : "transparent",
                         color: isEventTabActive(tab)
-                          ? "#fff"
-                          : "rgba(255,255,255,0.6)",
+                          ? colors.accent
+                          : colors.textMuted,
                         fontSize: "15px",
-                        fontWeight: isEventTabActive(tab) ? 600 : 400,
+                        fontWeight: isEventTabActive(tab) ? 600 : 500,
                         cursor: "pointer",
                         textAlign: "left",
                         transition: "all 0.15s ease",
@@ -848,7 +848,7 @@ function ProtectedLayoutInner() {
                     style={{
                       margin: "12px 16px 8px",
                       height: "1px",
-                      background: "rgba(255,255,255,0.06)",
+                      background: colors.border,
                     }}
                   />
 
@@ -864,7 +864,7 @@ function ProtectedLayoutInner() {
                       borderRadius: "12px",
                       border: "none",
                       background: "transparent",
-                      color: "rgba(255,255,255,0.5)",
+                      color: colors.textMuted,
                       fontSize: "15px",
                       fontWeight: 400,
                       cursor: "pointer",
@@ -890,9 +890,9 @@ function ProtectedLayoutInner() {
                         width: "100%",
                         padding: "14px 16px",
                         borderRadius: "12px",
-                        color: "rgba(255,255,255,0.5)",
+                        color: colors.textMuted,
                         fontSize: "15px",
-                        fontWeight: 400,
+                        fontWeight: 500,
                         textDecoration: "none",
                         touchAction: "manipulation",
                       }}
@@ -924,13 +924,13 @@ function ProtectedLayoutInner() {
                         borderRadius: "12px",
                         border: "none",
                         background: isActive(path)
-                          ? "rgba(255,255,255,0.06)"
+                          ? colors.accentSoft
                           : "transparent",
                         color: isActive(path)
-                          ? "#fff"
-                          : "rgba(255,255,255,0.6)",
+                          ? colors.accent
+                          : colors.textMuted,
                         fontSize: "15px",
-                        fontWeight: isActive(path) ? 600 : 400,
+                        fontWeight: isActive(path) ? 600 : 500,
                         cursor: "pointer",
                         textAlign: "left",
                         transition: "all 0.15s ease",
@@ -957,18 +957,16 @@ function ProtectedLayoutInner() {
                             flex: 1,
                             height: "1px",
                             background:
-                              "linear-gradient(90deg, rgba(251, 191, 36, 0.3), transparent)",
+                              "linear-gradient(90deg, rgba(180, 83, 9, 0.35), transparent)",
                           }}
                         />
                         <span
                           style={{
                             fontSize: "10px",
-                            fontWeight: 600,
+                            fontWeight: 700,
                             letterSpacing: "0.15em",
                             textTransform: "uppercase",
-                            color: "#fbbf24",
-                            filter:
-                              "drop-shadow(0 0 3px rgba(251, 191, 36, 0.4))",
+                            color: "#b45309",
                           }}
                         >
                           Admin
@@ -978,7 +976,7 @@ function ProtectedLayoutInner() {
                             flex: 1,
                             height: "1px",
                             background:
-                              "linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.3))",
+                              "linear-gradient(90deg, transparent, rgba(180, 83, 9, 0.35))",
                           }}
                         />
                       </div>
@@ -995,13 +993,13 @@ function ProtectedLayoutInner() {
                             borderRadius: "12px",
                             border: "none",
                             background: isActive(path)
-                              ? "rgba(251, 191, 36, 0.08)"
+                              ? "rgba(180, 83, 9, 0.10)"
                               : "transparent",
                             color: isActive(path)
-                              ? "#fbbf24"
-                              : "rgba(251, 191, 36, 0.45)",
+                              ? "#b45309"
+                              : "rgba(180, 83, 9, 0.6)",
                             fontSize: "15px",
-                            fontWeight: isActive(path) ? 600 : 400,
+                            fontWeight: isActive(path) ? 600 : 500,
                             cursor: "pointer",
                             textAlign: "left",
                             transition: "all 0.15s ease",
@@ -1042,7 +1040,7 @@ function ProtectedLayoutInner() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "rgba(255,255,255,0.5)",
+              color: colors.textMuted,
             }}
           >
             {profileChecked ? null : "Loading..."}
@@ -1070,8 +1068,9 @@ function ProtectedLayoutInner() {
               position: "fixed",
               top: "50%", left: "50%",
               transform: "translate(-50%, -50%)",
-              background: "rgba(18, 16, 24, 0.98)",
-              border: "1px solid rgba(255,255,255,0.1)",
+              background: "#fff",
+              border: `1px solid ${colors.border}`,
+              boxShadow: "0 24px 64px rgba(10, 10, 10, 0.22)",
               borderRadius: "20px",
               padding: "32px",
               maxWidth: "360px",
@@ -1080,17 +1079,17 @@ function ProtectedLayoutInner() {
               textAlign: "center",
             }}
           >
-            <div style={{ fontSize: "32px", marginBottom: "16px" }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(251, 191, 36, 0.9)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div style={{ fontSize: "32px", marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
                 <line x1="12" y1="9" x2="12" y2="13"/>
                 <line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
             </div>
-            <div style={{ fontSize: "16px", fontWeight: 700, color: "#fff", marginBottom: "8px" }}>
+            <div style={{ fontSize: "16px", fontWeight: 700, color: colors.text, marginBottom: "8px" }}>
               Unsaved media
             </div>
-            <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", lineHeight: 1.5, marginBottom: "24px" }}>
+            <div style={{ fontSize: "13px", color: colors.textMuted, lineHeight: 1.5, marginBottom: "24px" }}>
               Your uploaded images and video haven't been saved yet. If you leave now, they'll be lost.
             </div>
             <div style={{ display: "flex", gap: "10px" }}>
@@ -1099,10 +1098,10 @@ function ProtectedLayoutInner() {
                 style={{
                   flex: 1,
                   padding: "12px",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  background: "transparent",
-                  color: "#fff",
+                  borderRadius: "999px",
+                  border: `1px solid ${colors.borderStrong}`,
+                  background: "#fff",
+                  color: colors.text,
                   fontSize: "14px",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -1115,10 +1114,10 @@ function ProtectedLayoutInner() {
                 style={{
                   flex: 1,
                   padding: "12px",
-                  borderRadius: "10px",
+                  borderRadius: "999px",
                   border: "none",
-                  background: "rgba(239, 68, 68, 0.15)",
-                  color: "#ef4444",
+                  background: colors.dangerRgba,
+                  color: colors.danger,
                   fontSize: "14px",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -1146,5 +1145,5 @@ const barStyle = {
   width: 14,
   height: 2,
   borderRadius: 999,
-  background: "#fff",
+  background: "#0a0a0a",
 };

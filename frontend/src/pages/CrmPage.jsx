@@ -11,6 +11,7 @@ import ConfirmSendDialog from "../components/crm/ConfirmSendDialog";
 import DraftSwitcher from "../components/crm/DraftSwitcher";
 import { useHostActions } from "../lib/useHostActions.js";
 import { useSetHostResource } from "../contexts/useHostResource.js";
+import { colors } from "../theme/colors.js";
 
 // Normalize a campaign's stored filterCriteria into the shape CrmTab expects.
 // MCP-drafted campaigns use a slightly different shape (singular attendedEventId,
@@ -765,14 +766,13 @@ export function CrmPage() {
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
-        background:
-          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.06) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.05) 0%, transparent 50%), #05040a",
+        background: colors.background,
       }}
     >
       <style>{`
         @media (max-width: 900px) {
           .crm-split { flex-direction: column !important; }
-          .crm-rail { width: 100% !important; min-width: 0 !important; max-width: none !important; border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.06) !important; max-height: 60vh; }
+          .crm-rail { width: 100% !important; min-width: 0 !important; max-width: none !important; border-right: none !important; border-bottom: 1px solid ${colors.border} !important; max-height: 60vh; }
           .crm-canvas { padding: 12px !important; }
         }
       `}</style>
@@ -794,9 +794,8 @@ export function CrmPage() {
             maxWidth: "440px",
             display: "flex",
             flexDirection: "column",
-            borderRight: "1px solid rgba(255,255,255,0.06)",
-            background: "rgba(12, 10, 18, 0.55)",
-            backdropFilter: "blur(10px)",
+            borderRight: `1px solid ${colors.border}`,
+            background: colors.surface,
             minHeight: 0,
           }}
         >
@@ -806,10 +805,9 @@ export function CrmPage() {
               position: "sticky",
               top: 0,
               zIndex: 10,
-              background: "rgba(12, 10, 18, 0.95)",
-              backdropFilter: "blur(12px)",
+              background: colors.surface,
               flexShrink: 0,
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              borderBottom: `1px solid ${colors.border}`,
             }}
           >
             <div style={{ display: "flex", position: "relative" }}>
@@ -831,7 +829,7 @@ export function CrmPage() {
                       fontWeight: 600,
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
-                      color: active ? "#fff" : "rgba(255,255,255,0.3)",
+                      color: active ? colors.accent : colors.textSubtle,
                       transition: "color 0.2s ease",
                     }}
                   >
@@ -848,7 +846,7 @@ export function CrmPage() {
                     : `${TABS.findIndex((t) => t.id === activeTab) * (100 / TABS.length)}%`,
                   width: isPhone ? "100%" : `${100 / TABS.length}%`,
                   height: "2px",
-                  background: "linear-gradient(90deg, rgba(192,192,192,0.6), rgba(232,232,232,0.4))",
+                  background: colors.accent,
                   transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
               />
@@ -926,12 +924,11 @@ export function CrmPage() {
               justifyContent: "space-between",
               gap: "12px",
               padding: "12px 16px",
-              borderTop: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(12,10,18,0.95)",
-              backdropFilter: "blur(8px)",
+              borderTop: `1px solid ${colors.border}`,
+              background: colors.surface,
             }}
           >
-            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)", display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ fontSize: "12px", color: colors.textMuted, display: "flex", flexDirection: "column", gap: 2 }}>
               <span>
                 {segmentSelection.total.toLocaleString()}{" "}
                 {segmentSelection.total === 1 ? "recipient" : "recipients"}
@@ -942,7 +939,7 @@ export function CrmPage() {
                 </span>
               )}
               {currentDraftId && draftStatus === "scheduled" && (
-                <span style={{ fontSize: "10.5px", color: "#fde68a", letterSpacing: 0.3 }}>
+                <span style={{ fontSize: "10.5px", color: colors.secondary, letterSpacing: 0.3 }}>
                   Scheduled for{" "}
                   {scheduledAt
                     ? new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
@@ -950,7 +947,7 @@ export function CrmPage() {
                 </span>
               )}
               {currentDraftId && draftStatus && draftStatus !== "draft" && draftStatus !== "scheduled" && (
-                <span style={{ fontSize: "10.5px", color: "#fde68a", letterSpacing: 0.3 }}>
+                <span style={{ fontSize: "10.5px", color: colors.textMuted, letterSpacing: 0.3 }}>
                   Already {draftStatus} — read only
                 </span>
               )}
@@ -962,10 +959,10 @@ export function CrmPage() {
                   onClick={handleCancelSchedule}
                   style={{
                     padding: "10px 16px",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(253,230,138,0.3)",
-                    background: "rgba(253,230,138,0.08)",
-                    color: "#fde68a",
+                    borderRadius: "999px",
+                    border: `1px solid ${colors.secondaryBorder}`,
+                    background: colors.secondarySoft,
+                    color: colors.secondary,
                     fontSize: "13px",
                     fontWeight: 600,
                     cursor: "pointer",
@@ -983,10 +980,10 @@ export function CrmPage() {
                     disabled={isSavingDraft || (draftStatus && draftStatus !== "draft")}
                     style={{
                       padding: "10px 14px",
-                      borderRadius: "10px",
-                      border: "1px solid rgba(255,255,255,0.14)",
-                      background: "rgba(255,255,255,0.04)",
-                      color: isSavingDraft ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.88)",
+                      borderRadius: "999px",
+                      border: `1px solid ${colors.borderStrong}`,
+                      background: "#fff",
+                      color: isSavingDraft ? colors.textSubtle : colors.text,
                       fontSize: "13px",
                       fontWeight: 600,
                       cursor: isSavingDraft || (draftStatus && draftStatus !== "draft") ? "not-allowed" : "pointer",
@@ -1002,18 +999,14 @@ export function CrmPage() {
                     disabled={sendDisabled || (draftStatus && draftStatus !== "draft")}
                     style={{
                       padding: "10px 18px",
-                      borderRadius: "10px",
+                      borderRadius: "999px",
                       border: "none",
-                      background: sendDisabled
-                        ? "rgba(34,197,94,0.12)"
-                        : "linear-gradient(135deg, rgba(34,197,94,0.35), rgba(34,197,94,0.18))",
-                      color: sendDisabled ? "rgba(255,255,255,0.3)" : "#4ade80",
+                      background: sendDisabled ? colors.accentSoft : colors.accent,
+                      color: sendDisabled ? colors.accentText : "#fff",
                       fontSize: "13px",
                       fontWeight: 600,
                       cursor: sendDisabled ? "not-allowed" : "pointer",
-                      boxShadow: sendDisabled
-                        ? "none"
-                        : "0 0 0 1px rgba(34,197,94,0.3), 0 4px 12px rgba(0,0,0,0.3)",
+                      boxShadow: sendDisabled ? "none" : colors.accentShadow,
                       transition: "all 0.2s ease",
                     }}
                   >
@@ -1035,6 +1028,7 @@ export function CrmPage() {
             overflow: "auto",
             display: isPhone ? "none" : "flex",
             flexDirection: "column",
+            background: colors.surfaceMuted,
           }}
         >
           <EmailCanvas
@@ -1077,7 +1071,7 @@ const phoneNoteStyle = {
   padding: "14px 16px",
   marginBottom: 16,
   borderRadius: 12,
-  background: "rgba(96,165,250,0.06)",
-  border: "1px solid rgba(96,165,250,0.18)",
-  color: "rgba(255,255,255,0.85)",
+  background: colors.accentSoft,
+  border: `1px solid ${colors.accentBorder}`,
+  color: colors.text,
 };

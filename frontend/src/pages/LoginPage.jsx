@@ -2,8 +2,8 @@ import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { colors } from "../theme/colors.js";
-import { ParticleField } from "../components/ParticleField";
 import { AuthCard } from "../components/AuthCard";
+import { PullupEyes } from "../components/PullupEyes.jsx";
 
 // Where to send the user after sign-in. Honors ?next= (used by the OAuth
 // consent flow so users land back on the consent page after auth). Only
@@ -29,32 +29,16 @@ export function LoginPage() {
   return (
     <div
       style={{
-        position: "relative",
         minHeight: "100dvh",
         background: colors.background,
-        color: "#fff",
+        color: colors.text,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
       }}
     >
-      <ParticleField intensity={1} zIndex={0} />
-
       <div
         style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.7) 100%)",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      />
-
-      <div
-        style={{
-          position: "relative",
-          zIndex: 3,
           padding: "20px 24px",
           display: "flex",
           alignItems: "center",
@@ -64,40 +48,31 @@ export function LoginPage() {
         <a
           href="/"
           style={{
-            color: "#fff",
+            color: colors.text,
             textDecoration: "none",
             fontWeight: 800,
             letterSpacing: "-0.02em",
             fontSize: 18,
           }}
         >
-          <span
-            style={{
-              background: colors.gradientGold,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            pullup
-          </span>
+          <span style={{ color: colors.accent }}>pullup</span>
         </a>
         <a
           href="/start"
           style={{
             fontSize: 12,
-            color: "rgba(255,255,255,0.5)",
+            color: colors.textMuted,
             textDecoration: "none",
           }}
         >
-          New here? <span style={{ color: "#fff" }}>Get started</span>
+          New here?{" "}
+          <span style={{ color: colors.text, fontWeight: 600 }}>Get started</span>
         </a>
       </div>
 
       <div
         style={{
           flex: 1,
-          position: "relative",
-          zIndex: 2,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -109,48 +84,44 @@ export function LoginPage() {
             width: "min(420px, 100%)",
             display: "flex",
             flexDirection: "column",
-            gap: 22,
+            gap: 28,
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.22em",
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.38)",
-                marginBottom: 12,
-              }}
-            >
-              Welcome back
-            </div>
-            <h1
-              style={{
-                fontSize: "clamp(28px, 4.6vw, 38px)",
-                lineHeight: 1.1,
-                fontWeight: 700,
-                margin: 0,
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Step back into{" "}
-              <span
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <PullupEyes variant="small" style={{ width: 48, height: 42 }} />
+            <div>
+              <div
                 style={{
-                  background: colors.gradientGold,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
+                  fontSize: 11,
+                  letterSpacing: "0.22em",
+                  textTransform: "uppercase",
+                  color: colors.textSubtle,
+                  marginBottom: 10,
                 }}
               >
-                pullup
-              </span>
-              .
-            </h1>
+                Welcome back
+              </div>
+              <h1
+                style={{
+                  fontSize: "clamp(28px, 4.6vw, 38px)",
+                  lineHeight: 1.1,
+                  fontWeight: 700,
+                  margin: 0,
+                  letterSpacing: "-0.02em",
+                  color: colors.text,
+                }}
+              >
+                Step back into{" "}
+                <span style={{ color: colors.accent }}>pullup</span>.
+              </h1>
+            </div>
           </div>
 
           <AuthCard
             redirectTo={next}
             submitLabel="Log in"
             trackingPrefix="login"
+            theme="light"
             showForgotPassword
             onSuccess={() => navigate(next, { replace: true })}
           />

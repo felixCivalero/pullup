@@ -1,7 +1,6 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
-import { AlertTriangle } from "lucide-react";
-import { iconStyle } from "../theme/colors.js";
+import { colors } from "../theme/colors.js";
+import { PullupEyes } from "./PullupEyes.jsx";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -43,45 +42,48 @@ class ErrorBoundary extends React.Component {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background:
-              "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
+            background: colors.background,
             padding: "20px",
           }}
         >
           <div
             style={{
-              maxWidth: "500px",
+              maxWidth: "480px",
               width: "100%",
               padding: "40px",
-              background: "rgba(20, 16, 30, 0.8)",
+              background: "#ffffff",
               borderRadius: "20px",
-              border: "1px solid rgba(255,255,255,0.1)",
+              border: `1px solid ${colors.border}`,
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
               textAlign: "center",
             }}
           >
+            {/* Eyes looking around — lost */}
             <div style={{ marginBottom: "24px", display: "flex", justifyContent: "center" }}>
-              <AlertTriangle size={64} strokeWidth={1.5} style={{ ...iconStyle, color: "#f59e0b" }} />
+              <PullupEyes
+                variant="small"
+                style={{ width: 72, height: 63 }}
+              />
             </div>
             <h1
               style={{
-                fontSize: "24px",
+                fontSize: "22px",
                 fontWeight: 700,
-                marginBottom: "12px",
-                color: "#fff",
+                marginBottom: "10px",
+                color: colors.text,
               }}
             >
               Something went wrong
             </h1>
             <p
               style={{
-                fontSize: "16px",
-                opacity: 0.7,
+                fontSize: "15px",
+                color: colors.textMuted,
                 marginBottom: "32px",
-                color: "#fff",
+                lineHeight: 1.6,
               }}
             >
-              We encountered an unexpected error. Please try refreshing the page
-              or go back to the home page.
+              We hit an unexpected error. Try refreshing the page or go back home.
             </p>
             <div
               style={{
@@ -94,21 +96,21 @@ class ErrorBoundary extends React.Component {
               <button
                 onClick={this.handleReset}
                 style={{
-                  padding: "12px 24px",
-                  borderRadius: "12px",
-                  border: "none",
-                  background: "rgba(255,255,255,0.1)",
-                  color: "#fff",
+                  padding: "11px 24px",
+                  borderRadius: "999px",
+                  border: `1px solid ${colors.borderStrong}`,
+                  background: "#ffffff",
+                  color: colors.text,
                   fontWeight: 600,
                   fontSize: "14px",
                   cursor: "pointer",
-                  transition: "all 0.3s ease",
+                  transition: "all 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.background = "rgba(255,255,255,0.15)";
+                  e.currentTarget.style.background = colors.surface;
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.background = "rgba(255,255,255,0.1)";
+                  e.currentTarget.style.background = "#ffffff";
                 }}
               >
                 Try Again
@@ -118,25 +120,22 @@ class ErrorBoundary extends React.Component {
                   window.location.href = "/";
                 }}
                 style={{
-                  padding: "12px 24px",
-                  borderRadius: "12px",
+                  padding: "11px 24px",
+                  borderRadius: "999px",
                   border: "none",
-                  background:
-                    "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                  color: "#fff",
+                  background: colors.accent,
+                  color: "#ffffff",
                   fontWeight: 600,
                   fontSize: "14px",
                   cursor: "pointer",
-                  transition: "all 0.3s ease",
+                  transition: "all 0.2s ease",
+                  boxShadow: colors.accentShadow,
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow =
-                    "0 8px 20px rgba(192, 192, 192, 0.4)";
+                  e.currentTarget.style.background = colors.accentHover;
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "none";
+                  e.currentTarget.style.background = colors.accent;
                 }}
               >
                 Go Home
@@ -147,15 +146,15 @@ class ErrorBoundary extends React.Component {
                 style={{
                   marginTop: "32px",
                   padding: "16px",
-                  background: "rgba(0,0,0,0.3)",
+                  background: colors.surfaceMuted,
                   borderRadius: "8px",
                   textAlign: "left",
                   fontSize: "12px",
-                  color: "#fff",
-                  opacity: 0.7,
+                  color: colors.textMuted,
+                  border: `1px solid ${colors.border}`,
                 }}
               >
-                <summary style={{ cursor: "pointer", marginBottom: "8px" }}>
+                <summary style={{ cursor: "pointer", marginBottom: "8px", color: colors.text }}>
                   Error Details (Development Only)
                 </summary>
                 <pre
@@ -164,6 +163,7 @@ class ErrorBoundary extends React.Component {
                     maxHeight: "200px",
                     fontSize: "11px",
                     fontFamily: "monospace",
+                    color: colors.textMuted,
                   }}
                 >
                   {this.state.error.toString()}

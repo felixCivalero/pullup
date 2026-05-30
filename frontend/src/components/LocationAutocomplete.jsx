@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { MapPin } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { loadGooglePlaces } from "../lib/loadGooglePlaces.js";
+import { colors } from "../theme/colors.js";
 
 // Enhanced location picker with autocomplete and current location
 // Uses backend endpoint which supports Google Places API (with fallback to Nominatim)
@@ -283,11 +284,11 @@ export function LocationAutocomplete({
             right: 0,
             marginTop: "4px",
             padding: "12px 16px",
-            background: "rgba(12, 10, 18, 0.98)",
-            backdropFilter: "blur(20px)",
+            background: colors.background,
             borderRadius: "12px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            color: "#fff",
+            border: `1px solid ${colors.border}`,
+            boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
+            color: colors.textMuted,
             fontSize: "14px",
             textAlign: "center",
             zIndex: 10000,
@@ -306,11 +307,10 @@ export function LocationAutocomplete({
             left: 0,
             right: 0,
             marginTop: "4px",
-            background: "rgba(12, 10, 18, 0.98)",
-            backdropFilter: "blur(20px)",
+            background: colors.background,
             borderRadius: "12px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            border: `1px solid ${colors.border}`,
+            boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
             zIndex: 10000,
             maxHeight: "300px",
             overflowY: "auto",
@@ -339,22 +339,22 @@ export function LocationAutocomplete({
                 onClick={() => handleSelectSuggestion(suggestion)}
                 style={{
                   width: "100%",
-                  padding: "14px 16px",
+                  padding: "12px 16px",
                   background: isSelected
-                    ? "rgba(192, 192, 192, 0.2)"
+                    ? colors.secondarySoft
                     : "transparent",
                   border: "none",
                   textAlign: "left",
                   cursor: "pointer",
-                  color: "#fff",
+                  color: colors.text,
                   fontSize: "14px",
                   display: "flex",
                   alignItems: "flex-start",
                   gap: "12px",
-                  transition: "all 0.15s ease",
+                  transition: "background 0.15s ease",
                   borderBottom:
                     index < suggestions.length - 1
-                      ? "1px solid rgba(255,255,255,0.05)"
+                      ? `1px solid ${colors.borderFaint}`
                       : "none",
                 }}
                 onMouseEnter={() => setSelectedIndex(index)}
@@ -362,23 +362,22 @@ export function LocationAutocomplete({
               >
                 <span
                   style={{
-                    fontSize: "18px",
-                    opacity: 0.8,
                     flexShrink: 0,
                     marginTop: "2px",
+                    color: colors.secondary,
                   }}
                 >
-                  <SilverIcon as={MapPin} size={18} />
+                  <MapPin size={16} />
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
                       fontWeight: 500,
-                      marginBottom: "4px",
+                      marginBottom: "2px",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
-                      color: "#fff",
+                      color: colors.text,
                     }}
                   >
                     {mainText}
@@ -387,11 +386,10 @@ export function LocationAutocomplete({
                     <div
                       style={{
                         fontSize: "12px",
-                        opacity: 0.65,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
-                        color: "rgba(255,255,255,0.8)",
+                        color: colors.textSubtle,
                       }}
                     >
                       {secondaryText}

@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Cloud, Globe } from "lucide-react";
 import { applyTokens, buildPreviewContext, parseInlineSegments } from "../../lib/emailTokens";
+import { colors } from "../../theme/colors.js";
 
 // Match the backend renderer's SOCIAL_ICONS paths byte-for-byte so the
 // canvas previews exactly what recipients receive. Filled brand marks
@@ -135,8 +136,8 @@ export default function EmailCanvas({
   if (!isFollowup && !isEvent) {
     return (
       <div style={canvasOuterStyle}>
-        <div style={{ ...emailFrameStyle, borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
-          <div style={{ opacity: 0.4, fontSize: 14, padding: 40 }}>
+        <div style={{ ...emailFrameStyle, borderRadius: 12, border: `1px solid ${colors.border}`, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", background: "#fff" }}>
+          <div style={{ color: colors.textSubtle, fontSize: 14, padding: 40 }}>
             Pick a template in the Email tab to start composing.
           </div>
         </div>
@@ -184,23 +185,24 @@ function InboxHeader({ subject, previewText, theme, onThemeToggle }) {
       style={{
         padding: "14px 18px",
         borderRadius: "12px 12px 0 0",
-        background: "rgba(20,16,30,0.7)",
-        border: "1px solid rgba(255,255,255,0.06)",
+        background: "#fff",
+        border: `1px solid ${colors.border}`,
         borderBottom: "none",
         display: "flex",
         alignItems: "flex-start",
         gap: 12,
+        boxShadow: "0 1px 0 rgba(10,10,10,0.04)",
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: "11px", opacity: 0.5, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        <div style={{ fontSize: "11px", color: colors.textFaded, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
           Subject
         </div>
-        <div style={{ fontSize: "15px", fontWeight: 600, color: "#fff" }}>
-          {subject || <span style={{ opacity: 0.4 }}>(no subject)</span>}
+        <div style={{ fontSize: "15px", fontWeight: 700, color: colors.text }}>
+          {subject || <span style={{ color: colors.textFaded }}>(no subject)</span>}
         </div>
         {previewText && (
-          <div style={{ fontSize: "12px", opacity: 0.55, marginTop: 4 }}>{previewText}</div>
+          <div style={{ fontSize: "12px", color: colors.textMuted, marginTop: 4 }}>{previewText}</div>
         )}
       </div>
       <button
@@ -211,9 +213,9 @@ function InboxHeader({ subject, previewText, theme, onThemeToggle }) {
           flexShrink: 0,
           padding: "6px 10px",
           borderRadius: 999,
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(255,255,255,0.04)",
-          color: "rgba(255,255,255,0.75)",
+          border: `1px solid ${colors.borderStrong}`,
+          background: colors.surface,
+          color: colors.textMuted,
           fontSize: 11,
           fontWeight: 500,
           letterSpacing: "0.04em",
@@ -518,7 +520,7 @@ function FollowupBody({ blocks, t, inline, hoveredKey, theme }) {
   );
 }
 
-// Wraps a section in the canvas with a lime-green outline when its sibling
+// Wraps a section in the canvas with a teal outline when its sibling
 // row in the editor rail is being hovered. The data-hover-key attribute is
 // what the auto-scroll effect targets via querySelector. Mirrors the
 // CreateEventPage / EventPreview pattern.
@@ -529,7 +531,7 @@ function Highlightable({ hoverKey, hovered, children }) {
       style={{
         borderRadius: 4,
         outline: hovered
-          ? "1px solid rgba(163, 230, 53, 0.5)"
+          ? `1px solid ${colors.secondaryBorder}`
           : "1px solid transparent",
         outlineOffset: 4,
         transition: "outline-color 0.15s ease",
@@ -804,10 +806,11 @@ const emailFrameStyle = {
   overflowY: "auto",
   padding: "24px",
   borderRadius: "0 0 12px 12px",
-  background: "rgba(12,10,18,0.9)",
-  border: "1px solid rgba(255,255,255,0.06)",
+  background: "#ffffff",
+  border: `1px solid ${colors.border}`,
   borderTop: "none",
-  color: "#fff",
+  color: colors.text,
+  boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
 };
 
 // Email body in real clients caps at 600px; mirror that in the preview so

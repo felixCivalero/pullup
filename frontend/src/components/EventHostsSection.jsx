@@ -2,20 +2,20 @@ import { useState, useEffect } from "react";
 import { useToast } from "./Toast";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { authenticatedFetch } from "../lib/api.js";
+import { colors } from "../theme/colors.js";
 
 const inputStyle = {
   width: "100%",
   marginTop: "8px",
   padding: "12px 16px",
   borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(20, 16, 30, 0.6)",
-  color: "#fff",
+  border: `1px solid ${colors.border}`,
+  background: colors.background,
+  color: colors.text,
   fontSize: "16px",
   outline: "none",
   boxSizing: "border-box",
-  transition: "all 0.3s ease",
-  backdropFilter: "blur(10px)",
+  transition: "border-color 0.2s ease",
   minHeight: "44px",
 };
 
@@ -214,14 +214,14 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
       style={{
         padding: compact ? "12px 14px" : "16px 20px",
         borderRadius: "12px",
-        border: "1px solid rgba(255,255,255,0.08)",
-        background: "rgba(12, 10, 18, 0.8)",
+        border: `1px solid ${colors.border}`,
+        background: colors.surface,
       }}
     >
       {loading ? (
-        <div style={{ fontSize: "13px", opacity: 0.7 }}>Loading hosts...</div>
+        <div style={{ fontSize: "13px", color: colors.textMuted }}>Loading hosts...</div>
       ) : hosts.length === 0 && pendingInvitations.length === 0 ? (
-        <div style={{ fontSize: "13px", opacity: 0.7 }}>No arrangers yet.</div>
+        <div style={{ fontSize: "13px", color: colors.textMuted }}>No arrangers yet.</div>
       ) : (
         <div
           style={{
@@ -240,8 +240,8 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                 justifyContent: "space-between",
                 padding: compact ? "8px 10px" : "10px 12px",
                 borderRadius: "8px",
-                background: "rgba(20, 16, 30, 0.6)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: colors.background,
+                border: `1px solid ${colors.borderFaint}`,
                 fontSize: "13px",
                 gap: compact ? "8px" : "12px",
                 flexWrap: "wrap",
@@ -255,12 +255,12 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                   minWidth: 0,
                 }}
               >
-                <span style={{ fontWeight: 600, color: "#fff", fontSize: compact ? "12px" : "13px" }}>
+                <span style={{ fontWeight: 600, color: colors.text, fontSize: compact ? "12px" : "13px" }}>
                   {host.email || host.profile?.name || "Unknown user"}
                 </span>
                 {!compact && (
                   <span
-                    style={{ opacity: 0.6, color: "#9ca3af", fontSize: "12px" }}
+                    style={{ color: colors.textMuted, fontSize: "12px" }}
                   >
                     {host.email ? host.email : `ID: ${host.userId}`}
                   </span>
@@ -282,9 +282,10 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                       letterSpacing: "0.08em",
                       padding: compact ? "2px 8px" : "4px 10px",
                       borderRadius: "999px",
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      color: "#fff",
-                      background: "rgba(255,255,255,0.08)",
+                      border: `1px solid ${colors.accentBorder}`,
+                      color: colors.accent,
+                      background: colors.accentSoft,
+                      fontWeight: 600,
                     }}
                   >
                     Owner
@@ -318,9 +319,10 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                       letterSpacing: "0.08em",
                       padding: compact ? "2px 8px" : "4px 8px",
                       borderRadius: "999px",
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      color: "#fff",
-                      background: "rgba(255,255,255,0.08)",
+                      border: `1px solid ${colors.border}`,
+                      color: colors.text,
+                      background: colors.surfaceMuted,
+                      fontWeight: 600,
                     }}
                   >
                     {host.role}
@@ -345,9 +347,9 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                         width: compact ? 24 : 28,
                         height: compact ? 24 : 28,
                         borderRadius: "999px",
-                        border: "1px solid rgba(148,163,184,0.5)",
-                        background: "rgba(15,23,42,0.8)",
-                        color: "#e5e7eb",
+                        border: `1px solid ${colors.border}`,
+                        background: colors.background,
+                        color: colors.text,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -367,9 +369,9 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                         width: compact ? 24 : 28,
                         height: compact ? 24 : 28,
                         borderRadius: "999px",
-                        border: "1px solid rgba(248,113,113,0.7)",
-                        background: "rgba(127,29,29,0.5)",
-                        color: "#fecaca",
+                        border: `1px solid rgba(220, 38, 38, 0.30)`,
+                        background: colors.dangerRgba,
+                        color: colors.danger,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -396,8 +398,8 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                 justifyContent: "space-between",
                 padding: compact ? "8px 10px" : "10px 12px",
                 borderRadius: "8px",
-                background: "rgba(20, 16, 30, 0.5)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: colors.surfaceMuted,
+                border: `1px solid ${colors.borderFaint}`,
                 fontSize: "13px",
                 gap: compact ? "8px" : "12px",
                 flexWrap: "wrap",
@@ -412,12 +414,12 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                 }}
               >
                 <span
-                  style={{ fontWeight: 600, color: "rgba(255,255,255,0.9)", fontSize: compact ? "12px" : "13px" }}
+                  style={{ fontWeight: 600, color: colors.text, fontSize: compact ? "12px" : "13px" }}
                 >
                   {inv.email}
                 </span>
                 <span
-                  style={{ opacity: 0.6, color: "#9ca3af", fontSize: compact ? "11px" : "12px" }}
+                  style={{ color: colors.textMuted, fontSize: compact ? "11px" : "12px" }}
                 >
                   Invitation sent – awaiting sign up
                 </span>
@@ -437,9 +439,10 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                     letterSpacing: "0.08em",
                     padding: compact ? "2px 8px" : "4px 10px",
                     borderRadius: "999px",
-                    border: "1px solid rgba(234,179,8,0.6)",
-                    color: "#fef08a",
-                    background: "rgba(234,179,8,0.2)",
+                    border: `1px solid rgba(180, 83, 9, 0.35)`,
+                    color: colors.warning,
+                    background: colors.warningRgba,
+                    fontWeight: 600,
                   }}
                 >
                   Pending
@@ -449,7 +452,8 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                     fontSize: "11px",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
-                    color: "rgba(255,255,255,0.6)",
+                    color: colors.textMuted,
+                    fontWeight: 600,
                   }}
                 >
                   {inv.role}
@@ -461,9 +465,9 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                     style={{
                       padding: compact ? "2px 8px" : "4px 10px",
                       borderRadius: "8px",
-                      border: "1px solid rgba(239,68,68,0.5)",
-                      background: "rgba(239,68,68,0.1)",
-                      color: "#fecaca",
+                      border: `1px solid rgba(220, 38, 38, 0.30)`,
+                      background: colors.dangerRgba,
+                      color: colors.danger,
                       fontSize: "11px",
                       fontWeight: 600,
                       cursor: "pointer",
@@ -535,24 +539,29 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
               disabled={adding || !newHostEmail.trim()}
               style={{
                 padding: "8px 16px",
-                borderRadius: "8px",
+                borderRadius: "999px",
                 border: "none",
                 background:
                   !newHostEmail.trim() || adding
-                    ? "rgba(255,255,255,0.08)"
-                    : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                color: "#fff",
+                    ? colors.surfaceMuted
+                    : colors.accent,
+                color:
+                  !newHostEmail.trim() || adding
+                    ? colors.textMuted
+                    : "#fff",
                 fontSize: "13px",
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor:
                   !newHostEmail.trim() || adding ? "not-allowed" : "pointer",
                 whiteSpace: "nowrap",
+                boxShadow:
+                  !newHostEmail.trim() || adding ? "none" : colors.accentShadow,
               }}
             >
               {adding ? "Adding..." : "Add"}
             </button>
           </div>
-          <div style={{ fontSize: "11px", opacity: 0.4, marginTop: "6px", padding: compact ? "0 10px" : "0 12px" }}>
+          <div style={{ fontSize: "11px", color: colors.textSubtle, marginTop: "6px", padding: compact ? "0 10px" : "0 12px" }}>
             {(() => {
               switch (newHostRole) {
                 case "admin":

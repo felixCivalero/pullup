@@ -34,6 +34,7 @@ export function RsvpForm({
 }) {
   const [email, setEmail] = useState(vipOffer?.invite?.email || "");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [wantsDinner, setWantsDinner] = useState(false);
   const [dinnerTimeSlot, setDinnerTimeSlot] = useState(null);
@@ -45,22 +46,37 @@ export function RsvpForm({
   const [capacityExceeded, setCapacityExceeded] = useState(false);
   const [customAnswers, setCustomAnswers] = useState({});
 
-  // Render-order: walk event.formFields, inserting locked name/email sentinels
-  // at the front if the event doesn't already place them. customFields excludes
-  // the sentinels — those are rendered via the dedicated Name/Email inputs.
+  // Render-order: walk event.formFields, padding with the locked sentinels
+  // the event's contact channel requires. WhatsApp events lock a verified
+  // phone instead of email; "both" locks both. customFields excludes the
+  // sentinels — those are rendered via dedicated inputs below.
   const NAME_FIELD_ID = "__name__";
   const EMAIL_FIELD_ID = "__email__";
+  const PHONE_FIELD_ID = "__phone__";
   const rawFields = Array.isArray(event?.formFields) ? event.formFields : [];
+  const channel = ["email", "whatsapp", "both"].includes(event?.contactChannel)
+    ? event.contactChannel
+    : "email";
+  const wantsEmail = channel === "email" || channel === "both";
+  const wantsPhone = channel === "whatsapp" || channel === "both";
   const orderedFields = (() => {
     const hasName  = rawFields.some((f) => f && f.id === NAME_FIELD_ID);
     const hasEmail = rawFields.some((f) => f && f.id === EMAIL_FIELD_ID);
+    const hasPhone = rawFields.some((f) => f && f.id === PHONE_FIELD_ID);
     const prefix = [];
-    if (!hasName)  prefix.push({ id: NAME_FIELD_ID,  type: "name"  });
-    if (!hasEmail) prefix.push({ id: EMAIL_FIELD_ID, type: "email" });
+    if (!hasName)                  prefix.push({ id: NAME_FIELD_ID,  type: "name"  });
+    if (wantsEmail && !hasEmail)   prefix.push({ id: EMAIL_FIELD_ID, type: "email" });
+    if (wantsPhone && !hasPhone)   prefix.push({ id: PHONE_FIELD_ID, type: "phone", verify: "whatsapp" });
     return [...prefix, ...rawFields];
   })();
   const customFields = orderedFields.filter(
-    (f) => f && f.id && f.id !== NAME_FIELD_ID && f.id !== EMAIL_FIELD_ID && (f.label || "").trim()
+    (f) =>
+      f &&
+      f.id &&
+      f.id !== NAME_FIELD_ID &&
+      f.id !== EMAIL_FIELD_ID &&
+      f.id !== PHONE_FIELD_ID &&
+      (f.label || "").trim(),
   );
 
   useEffect(() => {
@@ -240,6 +256,8 @@ export function RsvpForm({
         const result = await onSubmit({
           email: isVipInvite ? (vipOffer.invite?.email || "").trim() : email.trim(),
           name: name.trim() || null,
+          phone: wantsPhone ? phone.trim() : (phone.trim() || null),
+          contactChannel: channel,
           plusOnes: cocktailGuests,
           wantsDinner,
           dinnerTimeSlot: wantsDinner ? dinnerTimeSlot : null,
@@ -254,6 +272,38 @@ export function RsvpForm({
           } else {
             setError(result.error);
           }
+        } else if ((phone || "").trim()) {
+          // RSVP succeeded AND guest gave a phone — fire the magic-link
+          // verification in parallel. Stash the result in sessionStorage
+          // so RsvpSuccessPage can render the "tap the link in WhatsApp"
+          // notice without coupling navigation timing to the verify call.
+          publicFetch("/verify/phone/start", {
+            method: "POST",
+            body: JSON.stringify({
+              phone: phone.trim(),
+              intent: "rsvp_verify",
+              payload: {
+                source: "rsvp_form",
+                event_slug: event?.slug || null,
+              },
+            }),
+          })
+            .then((r) => r.json())
+            .then((json) => {
+              if (json?.ok) {
+                try {
+                  sessionStorage.setItem(
+                    "pullup_pending_phone_verify",
+                    JSON.stringify({
+                      e164: json.e164,
+                      sandbox_link: json.sandbox_link || null,
+                      ts: Date.now(),
+                    }),
+                  );
+                } catch { /* private mode / no storage */ }
+              }
+            })
+            .catch(() => { /* non-blocking */ });
         }
       } catch (err) {
         console.error("RSVP submission error:", err);
@@ -389,11 +439,11 @@ export function RsvpForm({
             return (
               <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                 <label style={fieldLabelStyle}>
-                  Email<span style={requiredMarkStyle}>*</span>
+                  Email{wantsEmail && <span style={requiredMarkStyle}>*</span>}
                 </label>
                 <input
                   type="email"
-                  required
+                  required={wantsEmail}
                   value={email}
                   onChange={(e) => { if (!isVipInvite) { setEmail(e.target.value); setError(""); } }}
                   placeholder="you@example.com"
@@ -411,6 +461,32 @@ export function RsvpForm({
                     {error}
                   </div>
                 )}
+              </div>
+            );
+          }
+          if (f.id === PHONE_FIELD_ID) {
+            return (
+              <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={fieldLabelStyle}>
+                  WhatsApp number<span style={requiredMarkStyle}>*</span>
+                </label>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => { setPhone(e.target.value); setError(""); }}
+                  placeholder="+46 70 123 45 67"
+                  disabled={loading}
+                  style={{
+                    ...inputStyle,
+                    borderColor: error && error.toLowerCase().includes("phone") ? "rgba(239, 68, 68, 0.5)" : undefined,
+                  }}
+                />
+                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.45)", paddingLeft: "2px", lineHeight: 1.45 }}>
+                  We'll WhatsApp you a one-tap link to confirm — no codes to type.
+                </div>
               </div>
             );
           }

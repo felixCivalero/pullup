@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { UploadCloud, Check, AlertCircle, Loader2, Play } from "lucide-react";
+import { UploadCloud, Check, AlertCircle, Loader2, Play, X } from "lucide-react";
 
 import { API_BASE } from "../lib/env.js";
 import { colors } from "../theme/colors.js";
@@ -39,6 +39,7 @@ export function MediaUploadPage() {
   const [uploadError, setUploadError] = useState("");
   const [gallery, setGallery] = useState([]); // current media on the event
   const [newIds, setNewIds] = useState(() => new Set()); // added this session
+  const [deletingId, setDeletingId] = useState(null);
   const addedCount = newIds.size;
 
   // Preflight the token: show the event title + the media already on the event.
@@ -159,6 +160,36 @@ export function MediaUploadPage() {
     return m.thumbnailUrl || (m.mediaType === "gif" ? m.url : null);
   }
 
+  async function handleDelete(mediaId) {
+    if (deletingId) return;
+    if (!window.confirm("Remove this from the event?")) return;
+    setDeletingId(mediaId);
+    setUploadError("");
+    try {
+      const res = await fetch(
+        `${API_BASE}/media-link/${encodeURIComponent(token)}/${encodeURIComponent(mediaId)}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || "Couldn't remove that.");
+      }
+      const data = await res.json();
+      const media = Array.isArray(data.media) ? data.media : [];
+      setGallery(media); // server-authoritative — cover may have moved
+      posRef.current = media.length;
+      setNewIds((prev) => {
+        const n = new Set(prev);
+        n.delete(mediaId);
+        return n;
+      });
+    } catch (e) {
+      setUploadError(e.message || "Couldn't remove that.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div style={pageStyle}>
       <div style={cardStyle}>
@@ -212,12 +243,25 @@ export function MediaUploadPage() {
                           </div>
                         )}
                         {m.mediaType === "video" && (
-                          <span style={videoBadge}>
-                            <Play size={10} fill="#fff" color="#fff" />
+                          <span style={playOverlay}>
+                            <Play size={14} fill="#fff" color="#fff" />
                           </span>
                         )}
                         {m.isCover && <span style={coverTag}>Cover</span>}
                         {isNew && <span style={newTag}>New</span>}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(m.id)}
+                          disabled={deletingId === m.id}
+                          style={deleteBtn}
+                          aria-label="Remove from event"
+                        >
+                          {deletingId === m.id ? (
+                            <Loader2 size={11} color="#fff" className="spin" />
+                          ) : (
+                            <X size={12} color="#fff" />
+                          )}
+                        </button>
                       </div>
                     );
                   })}
@@ -418,17 +462,35 @@ const thumbFallback = {
   justifyContent: "center",
 };
 
-const videoBadge = {
+const playOverlay = {
   position: "absolute",
-  top: 4,
-  right: 4,
-  width: 16,
-  height: 16,
+  top: "50%",
+  left: "50%",
+  transform: "translate(-50%, -50%)",
+  width: 22,
+  height: 22,
   borderRadius: 999,
-  background: "rgba(10,10,10,0.55)",
+  background: "rgba(10,10,10,0.5)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  pointerEvents: "none",
+};
+
+const deleteBtn = {
+  position: "absolute",
+  top: 3,
+  right: 3,
+  width: 18,
+  height: 18,
+  borderRadius: 999,
+  border: "none",
+  padding: 0,
+  background: "rgba(10,10,10,0.6)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
 };
 
 const coverTag = {

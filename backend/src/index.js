@@ -105,6 +105,7 @@ import {
   mintMediaStorageToken,
   attachDirectUploadMedia,
   listEventMedia,
+  deleteEventMedia,
 } from "./services/eventMediaService.js";
 import { handleMcp, mcpCorsPreflight } from "./mcp/httpHandler.js";
 import {
@@ -8511,6 +8512,31 @@ app.post("/media-link/:token/attach", async (req, res) => {
     res
       .status(mediaLinkErrorStatus(err))
       .json({ error: err.message || "Failed to attach media" });
+  }
+});
+
+// Delete a media item from the token's event. Returns the fresh gallery so the
+// uploader can resync (cover may have moved). mediaId is scoped to the token's
+// event inside deleteEventMedia — a token can't reach another event's media.
+app.delete("/media-link/:token/:mediaId", async (req, res) => {
+  try {
+    const decoded = verifyMediaLinkToken(req.params.token);
+    const media = await deleteEventMedia(decoded.eventId, req.params.mediaId);
+
+    emitIntent({
+      hostId: decoded.hostId || null,
+      tool: "delete_event_media",
+      args: { eventId: decoded.eventId, mediaId: req.params.mediaId },
+      source: "mcp",
+      target: { type: "event", id: decoded.eventId },
+      result: { remaining: media.length },
+    });
+
+    res.json({ ok: true, media });
+  } catch (err) {
+    console.error("[media-link delete]", err);
+    const status = err.code === "not_found" ? 404 : mediaLinkErrorStatus(err);
+    res.status(status).json({ error: err.message || "Failed to delete media" });
   }
 });
 

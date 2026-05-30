@@ -33,6 +33,7 @@ export function MediaUploadPage() {
   const [progress, setProgress] = useState(0);
   const [uploadError, setUploadError] = useState("");
   const [done, setDone] = useState([]); // [{ name, mediaType }]
+  const [doneClicked, setDoneClicked] = useState(false);
 
   // Preflight the token: show the event title + seed the position counter.
   useEffect(() => {
@@ -139,6 +140,15 @@ export function MediaUploadPage() {
     if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
   }
 
+  function handleDone() {
+    // window.close() only succeeds for tabs a script opened. MCP clients open
+    // this link in a normal tab, where the browser refuses (and logs a warning)
+    // — so we attempt it for the cases where it works, then fall back to an
+    // explicit "you can close this now" acknowledgement.
+    window.close();
+    setDoneClicked(true);
+  }
+
   return (
     <div style={pageStyle}>
       <div style={cardStyle}>
@@ -229,21 +239,31 @@ export function MediaUploadPage() {
                     {done.length} {done.length === 1 ? "file" : "files"} added to {eventTitle}
                   </span>
                 </div>
-                <p style={{ ...bodyStyle, fontSize: 13, margin: "10px 0 16px" }}>
-                  You're set. Close this tab and head back to your chat — tell Claude
-                  "done" and it'll confirm it's on the event.
-                </p>
-                <button type="button" onClick={() => window.close()} style={doneBtn}>
-                  Done — close this tab
-                </button>
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  style={addAnotherBtn}
-                  disabled={busy}
-                >
-                  Add another
-                </button>
+
+                {doneClicked ? (
+                  <p style={{ ...bodyStyle, fontSize: 13, margin: "10px 0 0" }}>
+                    All set — you can close this tab now and head back to your chat.
+                    Tell Claude "done" and it'll confirm it's on the event.
+                  </p>
+                ) : (
+                  <>
+                    <p style={{ ...bodyStyle, fontSize: 13, margin: "10px 0 16px" }}>
+                      You're set. Head back to your chat — tell Claude "done" and it'll
+                      confirm it's on the event.
+                    </p>
+                    <button type="button" onClick={handleDone} style={doneBtn}>
+                      Done
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => inputRef.current?.click()}
+                      style={addAnotherBtn}
+                      disabled={busy}
+                    >
+                      Add another
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

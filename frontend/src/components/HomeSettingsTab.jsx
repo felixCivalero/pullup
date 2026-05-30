@@ -10,8 +10,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { colors } from "../theme/colors.js";
+import { openWhatsNew } from "../lib/whatsNew.js";
 import { SettingsProfileSection } from "./SettingsProfileSection.jsx";
-import { SettingsBrandSection } from "./SettingsBrandSection.jsx";
 import { SettingsWhatsappSection } from "./SettingsWhatsappSection.jsx";
 import { SettingsMcpIntegration } from "./SettingsMcpIntegration.jsx";
 
@@ -239,16 +239,10 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
         showToast={showToast}
       />
 
-      {/* BRAND — five-token host identity that travels with every
-          guest-facing surface (event page, email confirms, WhatsApp
-          cover overlay). Lives above WhatsApp because the WhatsApp
-          signature is *part of* the brand voice. */}
-      <SettingsBrandSection
-        user={user}
-        setUser={setUser}
-        onSave={onSave}
-        showToast={showToast}
-      />
+      {/* Brand/theme moved into the event creator (migration 047): the host
+          picks a theme per event and "Save as my brand design" stores the
+          default. profiles.brand_* is now just that pre-fill default, edited
+          from the create flow — no standalone Settings section. */}
 
       {/* WHATSAPP — phone-verify + host signature + channel toggle. */}
       <SettingsWhatsappSection
@@ -264,6 +258,23 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
         description="Manage your events conversationally from any AI assistant that speaks MCP — Claude, ChatGPT, Cursor, and more."
       >
         <SettingsMcpIntegration showToast={showToast} />
+        <button
+          onClick={openWhatsNew}
+          style={{
+            marginTop: "16px",
+            background: "none",
+            border: "none",
+            padding: 0,
+            color: colors.textMuted,
+            fontSize: "13px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = colors.text)}
+          onMouseLeave={(e) => (e.currentTarget.style.color = colors.textMuted)}
+        >
+          Replay the “What’s new” tour →
+        </button>
       </SettingsSection>
 
       {/* INTEGRATIONS */}

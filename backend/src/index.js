@@ -1487,35 +1487,43 @@ app.get("/events/:slug", optionalAuth, async (req, res) => {
       }
     }
 
-    // Inline host brand identity (migration 045) so the event page can
-    // render the host's chosen background / text / accent / font in one
-    // round-trip. NULL on every field = host hasn't set a brand → frontend
-    // falls back to PullUp's default dark theme.
-    let hostBrand = null;
+    // Inline host brand for the event page in one round-trip.
+    //
+    // Theme tokens (color/background/font/logo) come from the EVENT's own
+    // snapshot (migration 047), taken at creation — NOT a live cascade from
+    // the profile. So existing events (brand=null) and any event the host
+    // didn't theme fall back to PullUp's standard theme on the frontend,
+    // and editing the host's default brand never re-themes past events.
+    //
+    // Identity (hostName / signature) is NOT a snapshot — it's the host's
+    // current name/voice — so it's still read live from the profile.
+    const eventBrand = event.brand && typeof event.brand === "object" ? event.brand : null;
+    let hostBrand = {
+      // Event-level theme snapshot (mig 047): page background + register
+      // button (color/text/font). null on a field → frontend default.
+      backgroundColor:  eventBrand?.backgroundColor || null,
+      buttonColor:      eventBrand?.buttonColor || null,
+      buttonTextColor:  eventBrand?.buttonTextColor || null,
+      buttonFontFamily: eventBrand?.buttonFontFamily || null,
+      hostName:         null,
+      signature:        null,
+    };
     if (event.hostId) {
       try {
         const { data: hostProfile } = await supabase
           .from("profiles")
-          .select("brand_primary_color, brand_background, brand_text_color, brand_font_family, brand_logo_url, name, brand, whatsapp_signature")
+          .select("name, brand, whatsapp_signature")
           .eq("id", event.hostId)
           .maybeSingle();
         if (hostProfile) {
-          hostBrand = {
-            primaryColor: hostProfile.brand_primary_color || null,
-            background:   hostProfile.brand_background || null,
-            textColor:    hostProfile.brand_text_color || null,
-            fontFamily:   hostProfile.brand_font_family || null,
-            logoUrl:      hostProfile.brand_logo_url || null,
-            hostName:     hostProfile.name || hostProfile.brand || null,
-            // Voice carrier (already used elsewhere; exposed here too so
-            // event-page hero can lead with "Hosted by …" naturally).
-            signature:    hostProfile.whatsapp_signature || null,
-          };
+          hostBrand.hostName  = hostProfile.name || hostProfile.brand || null;
+          // Voice carrier (already used elsewhere; exposed here too so
+          // event-page hero can lead with "Hosted by …" naturally).
+          hostBrand.signature = hostProfile.whatsapp_signature || null;
         }
       } catch (brandErr) {
-        // Brand lookup never blocks event rendering. Worst case the host
-        // gets PullUp defaults.
-        console.warn("[events/:slug] brand lookup failed", brandErr?.message);
+        // Identity lookup never blocks event rendering.
+        console.warn("[events/:slug] host identity lookup failed", brandErr?.message);
       }
     }
 
@@ -1841,6 +1849,7 @@ app.post("/events", requireAuth, async (req, res) => {
     waitlistEnabled,
     imageUrl,
     theme,
+    brand,
     calendar,
     visibility,
     ticketType,
@@ -1931,6 +1940,7 @@ app.post("/events", requireAuth, async (req, res) => {
     waitlistEnabled,
     imageUrl,
     theme,
+    brand,
     calendar,
     visibility,
     ticketType,
@@ -3035,15 +3045,15 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
               dateRevealHint: result.event.dateRevealHint || "",
               revealHint: result.event.revealHint || "",
               ...hostBrand,
-              // Host visual brand (migration 046). Falls back to PullUp's
-              // dark/gold default when null on every field.
-              brand: {
-                primaryColor: hostProfileFull?.brandPrimaryColor || null,
-                background:   hostProfileFull?.brandBackground || null,
-                textColor:    hostProfileFull?.brandTextColor || null,
-                fontFamily:   hostProfileFull?.brandFontFamily || null,
-                logoUrl:      hostProfileFull?.brandLogoUrl || null,
-              },
+              // Visual brand for the email = the EVENT's own snapshot
+              // (migration 047): backgroundColor → canvas, buttonColor →
+              // accent/button. {} → PullUp defaults.
+              brand: result.event.brand
+                ? {
+                    background:   result.event.brand.backgroundColor || null,
+                    primaryColor: result.event.brand.buttonColor || null,
+                  }
+                : {},
             }),
           },
           context: {
@@ -3081,6 +3091,12 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             dateRevealHint: result.event.dateRevealHint || "",
             revealHint: result.event.revealHint || "",
             ...hostBrand,
+            brand: result.event.brand
+              ? {
+                  background:   result.event.brand.backgroundColor || null,
+                  primaryColor: result.event.brand.buttonColor || null,
+                }
+              : {},
           }),
         });
       } catch (emailErr) {
@@ -3743,6 +3759,14 @@ app.post(
               dateRevealHint: event.dateRevealHint || "",
               revealHint: event.revealHint || "",
               ...hostBrand,
+              // Event's own brand snapshot (migration 047): backgroundColor →
+              // canvas, buttonColor → accent/button. {} → PullUp default.
+              brand: event.brand
+                ? {
+                    background:   event.brand.backgroundColor || null,
+                    primaryColor: event.brand.buttonColor || null,
+                  }
+                : {},
             }),
           });
         } catch (emailErr) {
@@ -3836,6 +3860,12 @@ app.post(
             dateRevealHint: event.dateRevealHint || "",
             revealHint: event.revealHint || "",
             ...hostBrand,
+            brand: event.brand
+              ? {
+                  background:   event.brand.backgroundColor || null,
+                  primaryColor: event.brand.buttonColor || null,
+                }
+              : {},
           }),
         });
       } catch (emailErr) {
@@ -4316,6 +4346,7 @@ app.put(
       waitlistEnabled,
       imageUrl,
       theme,
+      brand,
       calendar,
       visibility,
       ticketType,
@@ -4492,6 +4523,7 @@ app.put(
         waitlistEnabled,
         imageUrl,
         theme,
+        brand,
         calendar,
         visibility,
         ticketType,
@@ -5241,6 +5273,12 @@ app.delete(
               slug: event.slug || "",
               frontendUrl: getFrontendUrl(),
               ...hostBrand,
+              brand: event.brand
+                ? {
+                    background:   event.brand.backgroundColor || null,
+                    primaryColor: event.brand.buttonColor || null,
+                  }
+                : {},
             }),
           });
         } catch (emailErr) {
@@ -5546,6 +5584,12 @@ app.post(
               slug: event.slug || "",
               frontendUrl: getFrontendUrl(),
               ...hostBrand,
+              brand: event.brand
+                ? {
+                    background:   event.brand.backgroundColor || null,
+                    primaryColor: event.brand.buttonColor || null,
+                  }
+                : {},
             }),
           });
         } catch (emailErr) {
@@ -7545,6 +7589,12 @@ app.post(
                 currency: refund.currency || event.ticketCurrency || "usd",
                 isFullRefund,
                 ...hostBrand,
+                brand: event.brand
+                  ? {
+                      background:   event.brand.backgroundColor || null,
+                      primaryColor: event.brand.buttonColor || null,
+                    }
+                  : {},
               }),
             });
           }
@@ -14201,7 +14251,7 @@ app.listen(PORT, HOST, async () => {
       // 1. Find published events starting in the next 25 hours
       const { data: events, error: eventsErr } = await supabase
         .from("events")
-        .select("id, title, slug, starts_at, timezone, location, cover_image_url, image_url, host_id")
+        .select("id, title, slug, starts_at, timezone, location, cover_image_url, image_url, host_id, brand")
         .eq("status", "PUBLISHED")
         .gt("starts_at", now.toISOString())
         .lt("starts_at", windowEnd.toISOString());
@@ -14294,6 +14344,12 @@ app.listen(PORT, HOST, async () => {
                 dateRevealHint: event.date_reveal_hint || "",
                 revealHint: event.reveal_hint || "",
                 ...hostBrand,
+                brand: event.brand
+                  ? {
+                      background:   event.brand.backgroundColor || null,
+                      primaryColor: event.brand.buttonColor || null,
+                    }
+                  : {},
               }),
               idempotencyKey,
             });

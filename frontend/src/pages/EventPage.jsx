@@ -31,7 +31,7 @@ import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "../components/EventCTA"
 import { Badge } from "../components/ui/Badge";
 import { publicFetch } from "../lib/api.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
-import { resolveBrand, loadBrandFont, softColor } from "../lib/brand.js";
+import { softColor, pickTextColor, fontStack, loadFont } from "../lib/brand.js";
 import { logger } from "../lib/logger.js";
 import { colors } from "../theme/colors.js";
 
@@ -238,25 +238,35 @@ export function EventPage() {
     return spotsLeft !== null && spotsLeft !== undefined && spotsLeft <= 0;
   }, [event]);
 
-  // Host brand identity — five tokens resolved from event.hostBrand with
-  // PullUp defaults when null. Surfaced as CSS variables on the page
-  // container so child components (RsvpForm, EventCTA, EventPageContent)
-  // can pick them up via var(--brand-primary) etc. without prop drilling.
-  const brand = useMemo(() => resolveBrand(event?.hostBrand), [event?.hostBrand]);
+  // Per-event theme (migration 047), snapshotted on the event: the page
+  // background + the register button's color / text color / font. null →
+  // PullUp standard. Date & other text colors are per-section (read straight
+  // off each section). Surfaced as CSS vars so children read var(--brand-*).
+  const backgroundColor = event?.hostBrand?.backgroundColor || "#05040a";
+  const buttonColor = event?.hostBrand?.buttonColor || "#ffffff";
+  const buttonTextColor =
+    event?.hostBrand?.buttonTextColor ||
+    (event?.hostBrand?.buttonColor ? pickTextColor(event.hostBrand.buttonColor) : "#000000");
+  const buttonFont = event?.hostBrand?.buttonFontFamily || null;
   useEffect(() => {
-    loadBrandFont(brand);
-  }, [brand]);
+    if (buttonFont) loadFont(buttonFont);
+  }, [buttonFont]);
   const brandCssVars = useMemo(
     () => ({
-      "--brand-primary":         brand.primaryColor,
-      "--brand-primary-soft":    softColor(brand.primaryColor, 0.14),
-      "--brand-primary-border":  softColor(brand.primaryColor, 0.30),
-      "--brand-ink-on-primary":  brand.inkOnPrimary,
-      "--brand-bg":              brand.background,
-      "--brand-text":            brand.textColor,
-      "--brand-font":            brand.fontCss,
+      "--brand-bg":              backgroundColor,
+      "--brand-primary":         buttonColor,
+      "--brand-primary-soft":    softColor(buttonColor, 0.14),
+      "--brand-primary-border":  softColor(buttonColor, 0.30),
+      "--brand-ink-on-primary":  buttonTextColor,
+      "--brand-btn-font":        buttonFont ? (fontStack(buttonFont) || "inherit") : "inherit",
+      // Auto-contrast ink for chrome that sits directly on the background
+      // (recap strip + RSVP form), so it reads on any bg. Tiered via opacity.
+      "--brand-on-bg":           pickTextColor(backgroundColor),
+      "--brand-on-bg-soft":      softColor(pickTextColor(backgroundColor), 0.6),
+      "--brand-on-bg-faint":     softColor(pickTextColor(backgroundColor), 0.4),
+      "--brand-hairline":        softColor(pickTextColor(backgroundColor), 0.14),
     }),
-    [brand],
+    [backgroundColor, buttonColor, buttonTextColor, buttonFont],
   );
 
   // Detect mobile file-sharing support (for "Add to Story" button)
@@ -823,14 +833,14 @@ export function EventPage() {
         * { box-sizing: border-box; }
       `}</style>
       <div
+        className="brand-scope"
         style={{
           width: "100%",
           height: "100vh",
           height: "100dvh",
           overflow: "hidden",
-          background: brand.background,
-          color: brand.textColor,
-          fontFamily: brand.fontCss,
+          background: backgroundColor,
+          color: "#fff",
           ...brandCssVars,
         }}
       >

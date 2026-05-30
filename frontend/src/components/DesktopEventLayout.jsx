@@ -184,7 +184,7 @@ export function DesktopEventLayout({
         width: "100%",
         height: "100%",
         overflow: "hidden",
-        background: "#05040a",
+        background: "var(--brand-bg, #05040a)",
         position: "relative",
       }}
     >
@@ -337,16 +337,16 @@ export function DesktopEventLayout({
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
+                    <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--brand-on-bg, #fff)" }}>
                       {priceLabel}
                     </div>
                     <div
                       style={{
                         fontSize: "11px",
                         fontWeight: 600,
-                        color: "#a3e635",
+                        color: "var(--brand-on-bg, #fff)",
                         marginTop: "1px",
-                        opacity: hideDate ? 0.5 : 1,
+                        opacity: hideDate ? 0.4 : 0.7,
                       }}
                     >
                       {formattedDate}
@@ -358,7 +358,7 @@ export function DesktopEventLayout({
                   style={{
                     marginBottom: "16px",
                     paddingBottom: "12px",
-                    borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    borderBottom: "1px solid var(--brand-hairline, rgba(255,255,255,0.08))",
                   }}
                 >
                   {title && (
@@ -366,7 +366,7 @@ export function DesktopEventLayout({
                       style={{
                         fontSize: "14px",
                         fontWeight: 800,
-                        color: "#fff",
+                        color: "var(--brand-on-bg, #fff)",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -380,7 +380,8 @@ export function DesktopEventLayout({
                       style={{
                         fontSize: "12px",
                         fontWeight: 500,
-                        color: "rgba(255,255,255,0.4)",
+                        color: "var(--brand-on-bg, #fff)",
+                        opacity: 0.5,
                         marginTop: "1px",
                       }}
                     >
@@ -443,8 +444,9 @@ export function DesktopEventLayout({
                   onClick={scrollToRsvp}
                   style={{
                     padding: "10px 22px",
-                    background: "#fff",
-                    color: "#000",
+                    background: "var(--brand-primary, #fff)",
+                    color: "var(--brand-ink-on-primary, #000)",
+                    fontFamily: "var(--brand-btn-font, inherit)",
                     border: "none",
                     borderRadius: "4px",
                     fontSize: "13px",

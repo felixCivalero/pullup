@@ -44,6 +44,16 @@ export const FONTS = [
 
 const FONTS_BY_NAME = Object.fromEntries(FONTS.map((f) => [f.name, f]));
 
+/**
+ * Resolve a curated font NAME to its full CSS font-family stack.
+ * Returns null for unknown / empty names (caller falls back to inherit).
+ * Used by per-section font controls on the event page.
+ */
+export function fontStack(name) {
+  const e = FONTS_BY_NAME[name];
+  return e ? e.family : null;
+}
+
 /** Five starter palettes. Editor surfaces these as one-click swatches. */
 export const PALETTES = [
   { name: "Editorial",          primaryColor: "#0a0a0a", background: "#ffffff", textColor: "#0a0a0a", fontFamily: "Playfair Display" },

@@ -1,8 +1,9 @@
-import { useNavigate, useLocation, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams, Link, Navigate } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { ArrowRight, ArrowLeft } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { AuthCard } from "../components/AuthCard";
+import { hasStoredSession } from "../lib/session.js";
 import { publicFetch, authenticatedFetch } from "../lib/api.js";
 import { trackEvent, getVisitorId } from "../lib/analytics.js";
 import { PullupEyes, SVG_W, SVG_H } from "../components/PullupEyes.jsx";
@@ -373,6 +374,16 @@ export function LandingPage() {
     return "hero";
   }, [location.pathname]);
 
+  // Pre-paint session gate. If a returning user lands on /, /login (or any
+  // non-onboarding entry) with a stored Supabase session, redirect to /events
+  // on the FIRST frame — before the marketing/login shell paints — so they
+  // never see it flash in and jump away. /start (onboarding) is exempt: that
+  // flow flushes the name+brand draft to the profile before forwarding.
+  const sessionGate = useMemo(() => {
+    if (location.pathname === "/start") return false;
+    return hasStoredSession();
+  }, [location.pathname]);
+
   const handleNavCta = () => {
     trackEvent("cta_click", { location: "nav", user_logged_in: !!user });
     navigate(user ? "/events" : "/login");
@@ -446,6 +457,11 @@ export function LandingPage() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Returning user with a stored session — skip the shell entirely.
+  if (sessionGate) {
+    return <Navigate to="/events" replace />;
+  }
 
   return (
     <div

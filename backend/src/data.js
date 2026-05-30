@@ -154,6 +154,10 @@ export async function mapEventFromDb(dbEvent) {
     coverImageUrl: coverImageUrl || imageUrl,
     media,
     theme: dbEvent.theme,
+    // Per-event brand/theme snapshot (migration 047). NULL → frontend
+    // resolveBrand() falls back to the PullUp standard theme. Existing
+    // events created before this column have brand=null by design.
+    brand: dbEvent.brand || null,
     calendar: dbEvent.calendar_category,
     visibility: dbEvent.visibility,
     requireApproval: dbEvent.require_approval,
@@ -668,6 +672,9 @@ function mapEventToDb(eventData) {
     }
   }
   if (eventData.theme !== undefined) dbData.theme = eventData.theme;
+  // Per-event brand snapshot (migration 047). A plain object of brand
+  // tokens, or null to clear back to the PullUp standard theme.
+  if (eventData.brand !== undefined) dbData.brand = eventData.brand;
   if (eventData.calendar !== undefined)
     dbData.calendar_category = eventData.calendar;
   if (eventData.visibility !== undefined)
@@ -751,6 +758,8 @@ export async function createEvent({
   waitlistEnabled = true,
   imageUrl = null,
   theme = "minimal",
+  // Per-event brand snapshot (migration 047). null = PullUp standard.
+  brand = null,
   calendar = "personal",
   visibility = "public",
   ticketType = "free",
@@ -842,6 +851,7 @@ export async function createEvent({
     waitlistEnabled,
     imageUrl,
     theme,
+    brand: brand && typeof brand === "object" ? brand : null,
     calendar,
     visibility,
     requireApproval,

@@ -789,16 +789,16 @@ export function RsvpForm({
           />
           {!pendingPayment && PaymentFormComponent && (
             <>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.5)", cursor: "pointer", textAlign: "left", margin: "12px 0", padding: "0 2px", minHeight: 44 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--brand-on-bg-soft, rgba(255,255,255,0.5))", cursor: "pointer", textAlign: "left", margin: "12px 0", padding: "0 2px", minHeight: 44 }}>
                 <input
                   type="checkbox"
                   checked={marketingOptIn}
                   onChange={(e) => setMarketingOptIn(e.target.checked)}
-                  style={{ accentColor: "#fbbf24", flexShrink: 0, width: 18, height: 18 }}
+                  style={{ accentColor: "var(--brand-primary, #fbbf24)", flexShrink: 0, width: 18, height: 18 }}
                 />
-                <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "underline" }}>privacy policy</a></span>
+                <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-on-bg, #fff)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-on-bg, #fff)", textDecoration: "underline" }}>privacy policy</a></span>
               </label>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "-4px 2px 10px", lineHeight: 1.5, textAlign: "left" }}>
+              <p style={{ fontSize: 11, color: "var(--brand-on-bg-faint, rgba(255,255,255,0.4))", margin: "-4px 2px 10px", lineHeight: 1.5, textAlign: "left" }}>
                 The organiser may occasionally email you about future events you might like — unsubscribe anytime. We never sell your details or share them with other organisers.
               </p>
               <button
@@ -941,16 +941,16 @@ export function RsvpForm({
               free events, inside payment section for paid) */}
           {!(isPaidEvent && ticketPrice && !willGoToWaitlist) && (
             <>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "rgba(255,255,255,0.35)", cursor: "pointer", textAlign: "left", margin: "12px 0 6px", padding: 0, minHeight: 44 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--brand-on-bg-soft, rgba(255,255,255,0.35))", cursor: "pointer", textAlign: "left", margin: "12px 0 6px", padding: 0, minHeight: 44 }}>
                 <input
                   type="checkbox"
                   checked={marketingOptIn}
                   onChange={(e) => setMarketingOptIn(e.target.checked)}
-                  style={{ accentColor: "#fbbf24", flexShrink: 0, width: 18, height: 18 }}
+                  style={{ accentColor: "var(--brand-primary, #fbbf24)", flexShrink: 0, width: 18, height: 18 }}
                 />
-                <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgba(255,255,255,0.5)", textDecoration: "underline" }}>privacy policy</a></span>
+                <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-on-bg, #fff)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-on-bg, #fff)", textDecoration: "underline" }}>privacy policy</a></span>
               </label>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: "0 2px 16px", lineHeight: 1.5, textAlign: "left" }}>
+              <p style={{ fontSize: 11, color: "var(--brand-on-bg-faint, rgba(255,255,255,0.35))", margin: "0 2px 16px", lineHeight: 1.5, textAlign: "left" }}>
                 The organiser may occasionally email you about future events you might like — unsubscribe anytime. We never sell your details or share them with other organisers.
               </p>
             </>
@@ -1114,9 +1114,9 @@ const inputStyle = {
   padding: "12px 0",
   borderRadius: "0",
   border: "none",
-  borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
+  borderBottom: "1px solid var(--brand-hairline, rgba(255, 255, 255, 0.12))",
   background: "transparent",
-  color: "#fff",
+  color: "var(--brand-on-bg, #fff)",
   fontSize: "15px",
   outline: "none",
   boxSizing: "border-box",
@@ -1129,7 +1129,7 @@ const inputStyle = {
 const fieldLabelStyle = {
   fontSize: "11px",
   fontWeight: 600,
-  color: "rgba(255,255,255,0.55)",
+  color: "var(--brand-on-bg-soft, rgba(255,255,255,0.55))",
   textTransform: "uppercase",
   letterSpacing: "0.08em",
 };
@@ -1145,10 +1145,13 @@ function submitButtonStyle(disabled) {
     padding: "14px",
     borderRadius: "4px",
     border: "none",
+    // Wears the event's register-button theme (migration 047) via CSS vars
+    // set on the event-page container. Falls back to white/black/inherit.
     background: disabled
       ? "rgba(255, 255, 255, 0.08)"
-      : "#fff",
-    color: disabled ? "rgba(255, 255, 255, 0.4)" : "#000",
+      : "var(--brand-primary, #fff)",
+    color: disabled ? "rgba(255, 255, 255, 0.4)" : "var(--brand-ink-on-primary, #000)",
+    fontFamily: "var(--brand-btn-font, inherit)",
     fontSize: "14px",
     fontWeight: 800,
     letterSpacing: "0.06em",

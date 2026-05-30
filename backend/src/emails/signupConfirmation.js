@@ -449,15 +449,18 @@ export function reminder24hEmail({
   brandWebsite = "",
   contactEmail = "",
   unsubscribeUrl = "",
+  brand = {},
 }) {
+  const b = resolveEmailBrand(brand);
   const dateFormatted = resolveDateText({ startsAt, timezone, hideDate, dateRevealHint });
   const locationText = resolveLocationText({ location, hideLocation, revealHint });
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
 
   const content = `
+${logoHeader(b)}
 <!-- Badge -->
 <tr><td align="center" style="padding:24px 0 16px;">
-  ${badge("HAPPENING SOON")}
+  ${badge("HAPPENING SOON", b)}
 </td></tr>
 
 ${imageUrl ? `<!-- Event Image -->
@@ -467,23 +470,23 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${b.ink};line-height:1.3;font-family:${b.fontStack};">${eventTitle}</h1>
 </td></tr>
 
 <!-- Message -->
 <tr><td style="padding:8px 20px;text-align:center;">
-  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+  <p style="margin:0;font-size:15px;color:${rgbaFromHex(b.ink, 0.7)};line-height:1.5;font-family:${b.fontStack};">
     Hi ${name}, <strong translate="no" class="notranslate">${eventTitle}</strong> is tomorrow!
   </p>
 </td></tr>
 
 <!-- Details Card -->
 <tr><td align="center" style="padding:16px 0 8px;">
-  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:rgba(255,255,255,0.04);border:1px solid ${SUBTLE};border-radius:12px;">
+  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:${rgbaFromHex(b.ink, 0.04)};border:1px solid ${b.subtle};border-radius:12px;">
     <tr><td style="padding:14px 20px;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation">
-        ${dateFormatted ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${MUTED};">When</td><td style="font-size:14px;color:${WHITE};font-weight:600;">${dateFormatted}</td></tr>` : ""}
-        ${locationText ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${MUTED};">Where</td><td style="font-size:14px;color:${WHITE};font-weight:600;">${locationText}</td></tr>` : ""}
+        ${dateFormatted ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${b.muted};font-family:${b.fontStack};">When</td><td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${dateFormatted}</td></tr>` : ""}
+        ${locationText ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td><td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationText}</td></tr>` : ""}
       </table>
     </td></tr>
   </table>
@@ -491,12 +494,12 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- CTA -->
 <tr><td align="center" style="padding:20px 0;">
-  ${ctaButton(eventUrl, "VIEW EVENT")}
+  ${ctaButton(eventUrl, "VIEW EVENT", b)}
 </td></tr>
 
-${emailFooter({ message: "See you tomorrow!", brandName, brandWebsite, contactEmail, frontendUrl, unsubscribeUrl })}`;
+${emailFooter({ message: "See you tomorrow!", brandName, brandWebsite, contactEmail, frontendUrl, unsubscribeUrl }, b)}`;
 
-  return emailShell(content);
+  return emailShell(content, b);
 }
 
 /* ══════════════════════════════════════════
@@ -522,7 +525,9 @@ export function reservationEmail({
   brandName = "",
   brandWebsite = "",
   contactEmail = "",
+  brand = {},
 }) {
+  const b = resolveEmailBrand(brand);
   const dateFormatted = resolveDateText({ startsAt, timezone, hideDate, dateRevealHint });
   const locationText = resolveLocationText({ location, hideLocation, revealHint });
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
@@ -532,9 +537,10 @@ export function reservationEmail({
     : "1 guest";
 
   const content = `
+${logoHeader(b)}
 <!-- Status Badge -->
 <tr><td align="center" style="padding:24px 0 16px;">
-  ${badge("RESERVED", { bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.3)", color: "#60a5fa" })}
+  ${badge("RESERVED", b, { bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.3)", color: "#60a5fa" })}
 </td></tr>
 
 ${imageUrl ? `<!-- Event Image -->
@@ -544,35 +550,35 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${b.ink};line-height:1.3;font-family:${b.fontStack};">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
 <tr><td style="padding:8px 20px 0;text-align:center;">
-  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+  <p style="margin:0;font-size:15px;color:${rgbaFromHex(b.ink, 0.7)};line-height:1.5;font-family:${b.fontStack};">
     Hi ${name}, your spot is reserved for ${holdMinutes} minutes. Complete your payment to confirm.
   </p>
 </td></tr>
 
 <!-- Event Details Card -->
 <tr><td align="center" style="padding:20px 0 8px;">
-  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:rgba(255,255,255,0.04);border:1px solid ${SUBTLE};border-radius:12px;width:100%;max-width:440px;">
+  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:${rgbaFromHex(b.ink, 0.04)};border:1px solid ${b.subtle};border-radius:12px;width:100%;max-width:440px;">
     ${dateFormatted ? `<tr><td style="padding:14px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
-        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">When</td>
-        <td style="font-size:14px;color:${WHITE};font-weight:600;">${dateFormatted}</td>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">When</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${dateFormatted}</td>
       </tr></table>
     </td></tr>` : ""}
     ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
-        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Where</td>
-        <td style="font-size:14px;color:${WHITE};font-weight:600;">${locationText}</td>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationText}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px 14px;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
-        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Guests</td>
-        <td style="font-size:14px;color:${WHITE};font-weight:600;">${partyText}</td>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Guests</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${partyText}</td>
       </tr></table>
     </td></tr>
   </table>
@@ -580,12 +586,12 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- CTA Button -->
 <tr><td align="center" style="padding:20px 0 8px;">
-  ${ctaButton(eventUrl, "COMPLETE PAYMENT")}
+  ${ctaButton(eventUrl, "COMPLETE PAYMENT", b)}
 </td></tr>
 
-${emailFooter({ message: `Your spot will be released if payment is not completed within ${holdMinutes} minutes.`, brandName, brandWebsite, contactEmail, frontendUrl })}`;
+${emailFooter({ message: `Your spot will be released if payment is not completed within ${holdMinutes} minutes.`, brandName, brandWebsite, contactEmail, frontendUrl }, b)}`;
 
-  return emailShell(content);
+  return emailShell(content, b);
 }
 
 /* ══════════════════════════════════════════
@@ -614,7 +620,9 @@ export function waitlistOfferEmail({
   brandName = "",
   brandWebsite = "",
   contactEmail = "",
+  brand = {},
 }) {
+  const b = resolveEmailBrand(brand);
   const dateFormatted = resolveDateText({ startsAt, timezone, hideDate, dateRevealHint });
   const locationText = resolveLocationText({ location, hideLocation, revealHint });
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
@@ -633,9 +641,10 @@ export function waitlistOfferEmail({
     : "1 guest";
 
   const content = `
+${logoHeader(b)}
 <!-- Status Badge -->
 <tr><td align="center" style="padding:24px 0 16px;">
-  ${badge("SPOT AVAILABLE", { bg: "rgba(34,197,94,0.15)", border: "rgba(34,197,94,0.3)", color: "#4ade80" })}
+  ${badge("SPOT AVAILABLE", b, { bg: "rgba(34,197,94,0.15)", border: "rgba(34,197,94,0.3)", color: "#4ade80" })}
 </td></tr>
 
 ${imageUrl ? `<!-- Event Image -->
@@ -645,12 +654,12 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${b.ink};line-height:1.3;font-family:${b.fontStack};">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
 <tr><td style="padding:8px 20px 0;text-align:center;">
-  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+  <p style="margin:0;font-size:15px;color:${rgbaFromHex(b.ink, 0.7)};line-height:1.5;font-family:${b.fontStack};">
     Hi ${name}, a spot has opened up for <span translate="no" class="notranslate">${eventTitle}</span>!
     ${isPaidEvent ? " Complete your payment to secure your spot." : " Confirm your booking below."}
   </p>
@@ -658,23 +667,23 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Details Card -->
 <tr><td align="center" style="padding:20px 0 8px;">
-  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:rgba(255,255,255,0.04);border:1px solid ${SUBTLE};border-radius:12px;width:100%;max-width:440px;">
+  <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:${rgbaFromHex(b.ink, 0.04)};border:1px solid ${b.subtle};border-radius:12px;width:100%;max-width:440px;">
     ${dateFormatted ? `<tr><td style="padding:14px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
-        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">When</td>
-        <td style="font-size:14px;color:${WHITE};font-weight:600;">${dateFormatted}</td>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">When</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${dateFormatted}</td>
       </tr></table>
     </td></tr>` : ""}
     ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
-        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Where</td>
-        <td style="font-size:14px;color:${WHITE};font-weight:600;">${locationText}</td>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationText}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px 14px;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
-        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${MUTED};">Guests</td>
-        <td style="font-size:14px;color:${WHITE};font-weight:600;">${partyText}</td>
+        <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Guests</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${partyText}</td>
       </tr></table>
     </td></tr>
   </table>
@@ -682,12 +691,12 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- CTA Button -->
 <tr><td align="center" style="padding:20px 0 8px;">
-  ${ctaButton(ctaHref, "CONFIRM YOUR SPOT")}
+  ${ctaButton(ctaHref, "CONFIRM YOUR SPOT", b)}
 </td></tr>
 
-${emailFooter({ message: `This offer expires in ${expiryText}. After that, your spot may be offered to someone else.`, brandName, brandWebsite, contactEmail, frontendUrl })}`;
+${emailFooter({ message: `This offer expires in ${expiryText}. After that, your spot may be offered to someone else.`, brandName, brandWebsite, contactEmail, frontendUrl }, b)}`;
 
-  return emailShell(content);
+  return emailShell(content, b);
 }
 
 /* ══════════════════════════════════════════
@@ -705,13 +714,16 @@ export function refundEmail({
   brandName = "",
   brandWebsite = "",
   contactEmail = "",
+  brand = {},
 }) {
+  const b = resolveEmailBrand(brand);
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
 
   const content = `
+${logoHeader(b)}
 <!-- Status Badge -->
 <tr><td align="center" style="padding:24px 0 16px;">
-  ${badge("REFUND PROCESSED", { bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.12)", color: MUTED })}
+  ${badge("REFUND PROCESSED", b, { bg: rgbaFromHex(b.ink, 0.06), border: rgbaFromHex(b.ink, 0.12), color: b.muted })}
 </td></tr>
 
 ${imageUrl ? `<!-- Event Image -->
@@ -721,12 +733,12 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${b.ink};line-height:1.3;font-family:${b.fontStack};">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
 <tr><td style="padding:8px 20px 0;text-align:center;">
-  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+  <p style="margin:0;font-size:15px;color:${rgbaFromHex(b.ink, 0.7)};line-height:1.5;font-family:${b.fontStack};">
     ${isFullRefund
       ? `Hi ${name}, your payment for <span translate="no" class="notranslate">${eventTitle}</span> has been fully refunded.`
       : `Hi ${name}, a partial refund of ${refundAmount} ${currency.toUpperCase()} has been processed for <span translate="no" class="notranslate">${eventTitle}</span>.`}
@@ -735,19 +747,19 @@ ${imageUrl ? `<!-- Event Image -->
 
 ${isFullRefund ? `<!-- Waitlist note -->
 <tr><td style="padding:8px 20px 0;text-align:center;">
-  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+  <p style="margin:0;font-size:15px;color:${rgbaFromHex(b.ink, 0.7)};line-height:1.5;font-family:${b.fontStack};">
     Your booking has been moved to the waitlist. The host will contact you if a spot opens up again.
   </p>
 </td></tr>` : ""}
 
 <!-- CTA Button -->
 <tr><td align="center" style="padding:20px 0 8px;">
-  ${ctaButton(eventUrl, "VIEW EVENT")}
+  ${ctaButton(eventUrl, "VIEW EVENT", b)}
 </td></tr>
 
-${emailFooter({ brandName, brandWebsite, contactEmail, frontendUrl })}`;
+${emailFooter({ brandName, brandWebsite, contactEmail, frontendUrl }, b)}`;
 
-  return emailShell(content);
+  return emailShell(content, b);
 }
 
 /* ══════════════════════════════════════════
@@ -762,13 +774,16 @@ export function cancellationEmail({
   brandName = "",
   brandWebsite = "",
   contactEmail = "",
+  brand = {},
 }) {
+  const b = resolveEmailBrand(brand);
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
 
   const content = `
+${logoHeader(b)}
 <!-- Status Badge -->
 <tr><td align="center" style="padding:24px 0 16px;">
-  ${badge("BOOKING CANCELLED", { bg: "rgba(239,68,68,0.15)", border: "rgba(239,68,68,0.3)", color: "#f87171" })}
+  ${badge("BOOKING CANCELLED", b, { bg: "rgba(239,68,68,0.15)", border: "rgba(239,68,68,0.3)", color: "#f87171" })}
 </td></tr>
 
 ${imageUrl ? `<!-- Event Image -->
@@ -778,29 +793,29 @@ ${imageUrl ? `<!-- Event Image -->
 
 <!-- Event Title -->
 <tr><td style="padding:20px 0 4px;text-align:center;">
-  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${WHITE};line-height:1.3;">${eventTitle}</h1>
+  <h1 translate="no" class="pu-text notranslate" style="margin:0;font-size:26px;font-weight:700;color:${b.ink};line-height:1.3;font-family:${b.fontStack};">${eventTitle}</h1>
 </td></tr>
 
 <!-- Greeting -->
 <tr><td style="padding:8px 20px 0;text-align:center;">
-  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
+  <p style="margin:0;font-size:15px;color:${rgbaFromHex(b.ink, 0.7)};line-height:1.5;font-family:${b.fontStack};">
     Hi ${name}, your booking for <span translate="no" class="notranslate">${eventTitle}</span> has been cancelled by the host.
   </p>
 </td></tr>
 
 <!-- Additional info -->
 <tr><td style="padding:8px 20px 0;text-align:center;">
-  <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;">
-    If you believe this was a mistake, please ${contactEmail ? `contact the organizer at <a href="mailto:${contactEmail}" style="color:rgba(255,255,255,0.7);">${contactEmail}</a>` : "contact the event organizer"}.
+  <p style="margin:0;font-size:15px;color:${rgbaFromHex(b.ink, 0.7)};line-height:1.5;font-family:${b.fontStack};">
+    If you believe this was a mistake, please ${contactEmail ? `contact the organizer at <a href="mailto:${contactEmail}" style="color:${rgbaFromHex(b.ink, 0.7)};">${contactEmail}</a>` : "contact the event organizer"}.
   </p>
 </td></tr>
 
 <!-- CTA Button -->
 <tr><td align="center" style="padding:20px 0 8px;">
-  ${ctaButton(eventUrl, "VIEW EVENT")}
+  ${ctaButton(eventUrl, "VIEW EVENT", b)}
 </td></tr>
 
-${emailFooter({ brandName, brandWebsite, contactEmail, frontendUrl })}`;
+${emailFooter({ brandName, brandWebsite, contactEmail, frontendUrl }, b)}`;
 
-  return emailShell(content);
+  return emailShell(content, b);
 }

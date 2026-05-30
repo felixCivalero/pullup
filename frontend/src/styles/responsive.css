@@ -2,6 +2,15 @@
    Responsive Base Layout
 ---------------------------- */
 
+/* Guest event page: form placeholders auto-contrast with the host's chosen
+   background (migration 047). Scoped to .brand-scope so the light dashboard
+   is untouched. Falls back to the dark-theme grey. */
+.brand-scope input::placeholder,
+.brand-scope textarea::placeholder {
+  color: var(--brand-on-bg-faint, rgba(255, 255, 255, 0.4));
+  opacity: 1;
+}
+
 /* 1. Mobile-first background + spacing */
 html,
 body {

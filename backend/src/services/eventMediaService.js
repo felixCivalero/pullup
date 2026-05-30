@@ -44,6 +44,43 @@ export async function mintMediaStorageToken({ eventId, mimeType, kind = "main", 
   return { path, token: data.token, uploadUrl: data.signedUrl };
 }
 
+// List an event's media as display-ready rows (public URLs resolved), ordered
+// by position. Used by both the editor's list route and the media-link preflight
+// so the focused uploader can show what's already on the event.
+export async function listEventMedia(eventId) {
+  const { data: rows, error } = await supabase
+    .from("event_media")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("position", { ascending: true });
+  if (error) {
+    const e = new Error("Failed to fetch media");
+    e.cause = error;
+    throw e;
+  }
+  return (rows || []).map((m) => {
+    const { data: { publicUrl } } = supabase.storage
+      .from("event-images")
+      .getPublicUrl(m.storage_path);
+    let thumbnailUrl = null;
+    if (m.thumbnail_path) {
+      const { data: { publicUrl: tUrl } } = supabase.storage
+        .from("event-images")
+        .getPublicUrl(m.thumbnail_path);
+      thumbnailUrl = tUrl;
+    }
+    return {
+      id: m.id,
+      mediaType: m.media_type,
+      url: publicUrl,
+      thumbnailUrl,
+      position: m.position,
+      isCover: m.is_cover,
+      mimeType: m.mime_type,
+    };
+  });
+}
+
 // Attach an already-uploaded storage object to an event as an event_media row.
 // The first media item on an event becomes its cover (syncs cover_image_url +
 // image_url so the dashboard, emails, and OG tags pick it up). Paths must live

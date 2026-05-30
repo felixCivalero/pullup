@@ -104,6 +104,7 @@ import { emitIntent, sourceFromRequest } from "./services/intentLog.js";
 import {
   mintMediaStorageToken,
   attachDirectUploadMedia,
+  listEventMedia,
 } from "./services/eventMediaService.js";
 import { handleMcp, mcpCorsPreflight } from "./mcp/httpHandler.js";
 import {
@@ -8443,13 +8444,10 @@ app.get("/media-link/:token", async (req, res) => {
     const event = await findEventById(decoded.eventId);
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    const { supabase } = await import("./supabase.js");
-    const { count } = await supabase
-      .from("event_media")
-      .select("id", { count: "exact", head: true })
-      .eq("event_id", decoded.eventId);
-
-    res.json({ eventTitle: event.title, mediaCount: count || 0 });
+    // Return the current gallery so the focused uploader can show what's
+    // already on the event (add-vs-replace clarity) and the new thumbnail.
+    const media = await listEventMedia(decoded.eventId);
+    res.json({ eventTitle: event.title, mediaCount: media.length, media });
   } catch (err) {
     res
       .status(mediaLinkErrorStatus(err))

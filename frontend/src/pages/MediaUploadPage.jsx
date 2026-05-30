@@ -1,12 +1,16 @@
 // Public, token-gated uploader reached from the chat via get_media_upload_link
-// (MCP) — route /m/:token. It does ONE thing: drop a video/photo and attach it
+// (MCP) — route /m/:token. It does ONE thing: drop a video/photo and it attaches
 // straight to the event, no full editor, no separate sign-in. The token in the
 // URL is the only credential (it pins the event server-side, expires in 2h).
-// When the file lands, the host closes the tab and heads back to their chat.
+//
+// This is intentionally NOT a "flow" with a finish button — it's a plain upload
+// utility. It shows the event's current media so the host can tell add-vs-
+// replace, new uploads pop in as thumbnails, and the host just heads back to
+// their AI chat to keep editing. No completion/close ceremony.
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { UploadCloud, Check, AlertCircle, Loader2 } from "lucide-react";
+import { UploadCloud, Check, AlertCircle, Loader2, Play } from "lucide-react";
 
 import { API_BASE } from "../lib/env.js";
 import { colors } from "../theme/colors.js";
@@ -15,6 +19,7 @@ import {
   generateVideoThumbnail,
   processImageForUpload,
   uploadEventMediaViaLink,
+  transformedImageUrl,
 } from "../lib/imageUtils.js";
 
 const ACCEPT = "image/*,video/mp4,video/quicktime,video/webm";
@@ -32,10 +37,11 @@ export function MediaUploadPage() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadError, setUploadError] = useState("");
-  const [done, setDone] = useState([]); // [{ name, mediaType }]
-  const [doneClicked, setDoneClicked] = useState(false);
+  const [gallery, setGallery] = useState([]); // current media on the event
+  const [newIds, setNewIds] = useState(() => new Set()); // added this session
+  const addedCount = newIds.size;
 
-  // Preflight the token: show the event title + seed the position counter.
+  // Preflight the token: show the event title + the media already on the event.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -52,7 +58,9 @@ export function MediaUploadPage() {
         const data = await res.json();
         if (cancelled) return;
         setEventTitle(data.eventTitle || "your event");
-        posRef.current = Number(data.mediaCount) || 0;
+        const media = Array.isArray(data.media) ? data.media : [];
+        setGallery(media);
+        posRef.current = media.length || Number(data.mediaCount) || 0;
       } catch (e) {
         if (!cancelled) setLinkError(e.message);
       } finally {
@@ -114,7 +122,7 @@ export function MediaUploadPage() {
 
         const fileForUpload = blob instanceof File ? blob : uploadFile;
 
-        await uploadEventMediaViaLink({
+        const row = await uploadEventMediaViaLink({
           token,
           file: fileForUpload,
           mediaType: v.mediaType,
@@ -124,7 +132,12 @@ export function MediaUploadPage() {
         });
 
         posRef.current += 1;
-        setDone((prev) => [...prev, { name: file.name, mediaType: v.mediaType }]);
+        // Append the just-uploaded item to the live gallery and flag it as new
+        // so it pops in with a highlight — answering "did this add or replace?".
+        if (row && row.id) {
+          setGallery((prev) => [...prev, row]);
+          setNewIds((prev) => new Set(prev).add(row.id));
+        }
       } catch (e) {
         setUploadError(e.message || "Upload failed. Try again.");
       } finally {
@@ -140,13 +153,10 @@ export function MediaUploadPage() {
     if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
   }
 
-  function handleDone() {
-    // window.close() only succeeds for tabs a script opened. MCP clients open
-    // this link in a normal tab, where the browser refuses (and logs a warning)
-    // — so we attempt it for the cases where it works, then fall back to an
-    // explicit "you can close this now" acknowledgement.
-    window.close();
-    setDoneClicked(true);
+  // Pick the best small image to represent a media item in the strip.
+  function thumbSrc(m) {
+    if (m.mediaType === "image") return transformedImageUrl(m.url, { width: 160 });
+    return m.thumbnailUrl || (m.mediaType === "gif" ? m.url : null);
   }
 
   return (
@@ -176,9 +186,48 @@ export function MediaUploadPage() {
             </div>
             <h1 style={titleStyle}>Add media to {eventTitle}</h1>
             <p style={bodyStyle}>
-              Drop a video (up to 500MB) or photos (up to 50MB) and they'll attach
-              straight to the event.
+              Drop a video (up to 500MB) or photos (up to 50MB) and they attach
+              straight to the event. This page just uploads — keep editing back in
+              your chat.
             </p>
+
+            {/* Current gallery — what's already on the event, plus this session's
+                uploads as they land. Lets the host see add-vs-replace at a glance. */}
+            {gallery.length > 0 ? (
+              <div style={{ marginBottom: 18 }}>
+                <div style={galleryLabel}>
+                  On this event · {gallery.length}
+                </div>
+                <div style={thumbRow}>
+                  {gallery.map((m) => {
+                    const src = thumbSrc(m);
+                    const isNew = newIds.has(m.id);
+                    return (
+                      <div key={m.id} style={thumbWrap(isNew)}>
+                        {src ? (
+                          <img src={src} alt="" style={thumbImg} loading="lazy" />
+                        ) : (
+                          <div style={thumbFallback}>
+                            <Play size={16} style={{ color: colors.textSubtle }} />
+                          </div>
+                        )}
+                        {m.mediaType === "video" && (
+                          <span style={videoBadge}>
+                            <Play size={10} fill="#fff" color="#fff" />
+                          </span>
+                        )}
+                        {m.isCover && <span style={coverTag}>Cover</span>}
+                        {isNew && <span style={newTag}>New</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p style={{ ...bodyStyle, fontSize: 13, marginTop: -4 }}>
+                No media yet — your first upload becomes the cover.
+              </p>
+            )}
 
             {/* Dropzone */}
             <button
@@ -230,40 +279,15 @@ export function MediaUploadPage() {
               </p>
             )}
 
-            {/* Success log + return-to-chat (hold-with-button) */}
-            {done.length > 0 && (
-              <div style={doneBox}>
-                <div style={{ ...centerRow, color: colors.success, fontWeight: 600 }}>
-                  <Check size={18} />
-                  <span>
-                    {done.length} {done.length === 1 ? "file" : "files"} added to {eventTitle}
-                  </span>
-                </div>
-
-                {doneClicked ? (
-                  <p style={{ ...bodyStyle, fontSize: 13, margin: "10px 0 0" }}>
-                    All set — you can close this tab now and head back to your chat.
-                    Tell Claude "done" and it'll confirm it's on the event.
-                  </p>
-                ) : (
-                  <>
-                    <p style={{ ...bodyStyle, fontSize: 13, margin: "10px 0 16px" }}>
-                      You're set. Head back to your chat — tell Claude "done" and it'll
-                      confirm it's on the event.
-                    </p>
-                    <button type="button" onClick={handleDone} style={doneBtn}>
-                      Done
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => inputRef.current?.click()}
-                      style={addAnotherBtn}
-                      disabled={busy}
-                    >
-                      Add another
-                    </button>
-                  </>
-                )}
+            {/* Quiet confirmation — no finish button; the host just goes back to
+                their chat to keep editing. */}
+            {addedCount > 0 && !busy && (
+              <div style={{ ...centerRow, color: colors.success, marginTop: 14, fontSize: 13 }}>
+                <Check size={16} />
+                <span>
+                  {addedCount} added — it's on the event. Drop more, or head back to
+                  your chat to keep editing.
+                </span>
               </div>
             )}
           </div>
@@ -352,37 +376,86 @@ const barFill = {
   transition: "width 0.2s ease",
 };
 
-const doneBox = {
-  marginTop: 20,
-  padding: 18,
-  borderRadius: 14,
-  background: colors.successRgba,
-  border: `1px solid rgba(22,163,74,0.18)`,
-};
-
-const buttonBase = {
-  display: "block",
-  width: "100%",
-  padding: "11px 20px",
-  borderRadius: 999,
-  border: "none",
-  fontSize: 14,
+const galleryLabel = {
+  fontSize: 12,
   fontWeight: 600,
-  cursor: "pointer",
-  transition: "all 0.2s ease",
+  textTransform: "uppercase",
+  letterSpacing: 0.4,
+  color: colors.textSubtle,
+  marginBottom: 8,
 };
 
-const doneBtn = {
-  ...buttonBase,
+const thumbRow = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+};
+
+const thumbWrap = (isNew) => ({
+  position: "relative",
+  width: 64,
+  height: 64,
+  borderRadius: 10,
+  overflow: "hidden",
+  background: "rgba(10,10,10,0.04)",
+  border: isNew ? `2px solid ${colors.accent}` : `1px solid ${colors.border}`,
+  boxShadow: isNew ? colors.accentShadow : "none",
+  flex: "0 0 auto",
+});
+
+const thumbImg = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+  display: "block",
+};
+
+const thumbFallback = {
+  width: "100%",
+  height: "100%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const videoBadge = {
+  position: "absolute",
+  top: 4,
+  right: 4,
+  width: 16,
+  height: 16,
+  borderRadius: 999,
+  background: "rgba(10,10,10,0.55)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const coverTag = {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  fontSize: 9,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0.3,
+  textAlign: "center",
+  color: "#fff",
+  background: "rgba(10,10,10,0.55)",
+  padding: "1px 0",
+};
+
+const newTag = {
+  position: "absolute",
+  top: 4,
+  left: 4,
+  fontSize: 9,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0.3,
+  color: "#fff",
   background: colors.accent,
-  color: "#ffffff",
-  boxShadow: colors.accentShadow,
-};
-
-const addAnotherBtn = {
-  ...buttonBase,
-  marginTop: 10,
-  background: "transparent",
-  color: colors.textMuted,
-  border: `1px solid ${colors.border}`,
+  borderRadius: 4,
+  padding: "1px 4px",
 };

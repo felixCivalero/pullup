@@ -1,33 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { trackEvent } from "../lib/analytics.js";
 import { colors } from "../theme/colors.js";
 import { FaWhatsapp } from "react-icons/fa6";
-import { API_BASE } from "../lib/env.js";
-
-// Common dial-code shortlist for the signup-phone country picker.
-// Order = rough priority for PullUp's audience (Stockholm → Nairobi → west).
-const PHONE_COUNTRIES = [
-  { code: "SE", dial: "+46", flag: "🇸🇪", name: "Sweden" },
-  { code: "KE", dial: "+254", flag: "🇰🇪", name: "Kenya" },
-  { code: "US", dial: "+1", flag: "🇺🇸", name: "United States" },
-  { code: "GB", dial: "+44", flag: "🇬🇧", name: "United Kingdom" },
-  { code: "DE", dial: "+49", flag: "🇩🇪", name: "Germany" },
-  { code: "FR", dial: "+33", flag: "🇫🇷", name: "France" },
-  { code: "ES", dial: "+34", flag: "🇪🇸", name: "Spain" },
-  { code: "IT", dial: "+39", flag: "🇮🇹", name: "Italy" },
-  { code: "NL", dial: "+31", flag: "🇳🇱", name: "Netherlands" },
-  { code: "DK", dial: "+45", flag: "🇩🇰", name: "Denmark" },
-  { code: "NO", dial: "+47", flag: "🇳🇴", name: "Norway" },
-  { code: "FI", dial: "+358", flag: "🇫🇮", name: "Finland" },
-  { code: "BR", dial: "+55", flag: "🇧🇷", name: "Brazil" },
-  { code: "MX", dial: "+52", flag: "🇲🇽", name: "Mexico" },
-  { code: "NG", dial: "+234", flag: "🇳🇬", name: "Nigeria" },
-  { code: "ZA", dial: "+27", flag: "🇿🇦", name: "South Africa" },
-  { code: "IN", dial: "+91", flag: "🇮🇳", name: "India" },
-];
+import { Mail, ArrowLeft } from "lucide-react";
 
 // Two surface palettes. `dark` is the original (used on /reset-password,
 // /forgot-password, etc.). `light` matches the white landing shell —
@@ -37,7 +15,6 @@ const THEMES = {
     inputBg: "rgba(255,255,255,0.04)",
     inputBorder: "rgba(255,255,255,0.10)",
     inputColor: "#fff",
-    dividerLine: "rgba(255,255,255,0.06)",
     dividerLabel: "rgba(255,255,255,0.35)",
     submitBg: colors.accent,
     submitColor: "#fff",
@@ -45,9 +22,16 @@ const THEMES = {
     legalLink: "rgba(255,255,255,0.65)",
     forgotLink: "rgba(255,255,255,0.55)",
     errorText: "rgba(255,119,119,0.95)",
-    googleBg: "#fff",
-    googleBorder: "rgba(0,0,0,0.16)",
-    googleColor: "#3c4043",
+    optionBg: "rgba(255,255,255,0.03)",
+    optionBorder: "rgba(255,255,255,0.14)",
+    optionColor: "#fff",
+    optionHoverBg: "rgba(255,255,255,0.07)",
+    mutedBg: "rgba(255,255,255,0.02)",
+    mutedBorder: "rgba(255,255,255,0.08)",
+    mutedColor: "rgba(255,255,255,0.4)",
+    pillBg: "rgba(255,255,255,0.10)",
+    pillColor: "rgba(255,255,255,0.6)",
+    backColor: "rgba(255,255,255,0.6)",
     createPanelBg: "rgba(255,255,255,0.05)",
     createPanelBorder: "rgba(255,255,255,0.12)",
     createPanelText: "rgba(255,255,255,0.7)",
@@ -60,7 +44,6 @@ const THEMES = {
     inputBg: "#fff",
     inputBorder: "rgba(10,10,10,0.16)",
     inputColor: "#0a0a0a",
-    dividerLine: "rgba(10,10,10,0.10)",
     dividerLabel: "rgba(10,10,10,0.45)",
     submitBg: "#EC178F",
     submitColor: "#fff",
@@ -68,9 +51,16 @@ const THEMES = {
     legalLink: "rgba(10,10,10,0.78)",
     forgotLink: "rgba(10,10,10,0.55)",
     errorText: "#c0392b",
-    googleBg: "#fff",
-    googleBorder: "rgba(10,10,10,0.18)",
-    googleColor: "#0a0a0a",
+    optionBg: "#fff",
+    optionBorder: "rgba(10,10,10,0.18)",
+    optionColor: "#0a0a0a",
+    optionHoverBg: "rgba(10,10,10,0.03)",
+    mutedBg: "rgba(10,10,10,0.02)",
+    mutedBorder: "rgba(10,10,10,0.10)",
+    mutedColor: "rgba(10,10,10,0.40)",
+    pillBg: "rgba(10,10,10,0.06)",
+    pillColor: "rgba(10,10,10,0.50)",
+    backColor: "rgba(10,10,10,0.55)",
     createPanelBg: "rgba(10,10,10,0.03)",
     createPanelBorder: "rgba(10,10,10,0.10)",
     createPanelText: "rgba(10,10,10,0.72)",
@@ -92,6 +82,44 @@ const buildInputStyle = (t) => ({
   outline: "none",
   boxSizing: "border-box",
 });
+
+// Outlined pill used by all three method buttons, so Google / WhatsApp /
+// email read as siblings in one stack.
+const optionButtonStyle = (t, { muted = false, disabled = false } = {}) => ({
+  width: "100%",
+  borderRadius: 999,
+  border: `1px solid ${muted ? t.mutedBorder : t.optionBorder}`,
+  background: muted ? t.mutedBg : t.optionBg,
+  padding: "13px 16px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 10,
+  cursor: disabled ? "default" : "pointer",
+  color: muted ? t.mutedColor : t.optionColor,
+  fontSize: 14,
+  fontWeight: 500,
+  position: "relative",
+  transition: "background 0.15s ease",
+});
+
+// grid-rows 0fr↔1fr gives a clean height collapse/expand with no JS
+// measuring. Paired with overflow:hidden on the inner wrapper.
+const collapsible = (open) => ({
+  display: "grid",
+  gridTemplateRows: open ? "1fr" : "0fr",
+  opacity: open ? 1 : 0,
+  pointerEvents: open ? "auto" : "none",
+  transition:
+    "grid-template-rows 0.34s cubic-bezier(0.16,1,0.3,1), opacity 0.22s ease",
+});
+const collapsibleInner = {
+  overflow: "hidden",
+  minHeight: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+};
 
 const GoogleIcon = (
   <svg
@@ -119,19 +147,26 @@ const GoogleIcon = (
 );
 
 /**
- * AuthCard — email/password + Google OAuth + consent.
- * Used by OnboardingPage (final screen) and LoginPage.
+ * AuthCard — method picker for sign-in / create-account.
+ * Used by the landing LoginPanel + OnboardingPanel.
+ *
+ * Default state shows three sibling buttons and nothing else:
+ *   • Continue with Google   → OAuth redirect
+ *   • Continue with WhatsApp → disabled ("Coming soon") for now
+ *   • Continue with email    → expands in-place into the email form
+ *
+ * Choosing email collapses the picker and reveals email + password + the
+ * pink submit (the pink CTA only exists while the email form is open). A
+ * "back" affordance returns to the three-button picker.
  *
  * Props:
- *   onSuccess(method)   – called after a successful sign-in (NOT for Google,
- *                         which redirects). Use to flush localStorage drafts.
+ *   onSuccess(method)   – after a successful email sign-in (Google redirects).
  *   redirectTo          – path to land on after Google OAuth round-trip.
- *   submitLabel         – CTA label, e.g. "Enter pullup" or "Create my account"
+ *   submitLabel         – pink CTA label, e.g. "Log in" | "Create my account"
  *   trackingPrefix      – per-surface gtag tag, e.g. "onboarding" | "login"
- *   funnelTrack         – when true, also fire `auth_start` (so the event lands
- *                         in landing_page_events for the admin funnel). Login
- *                         surfaces should leave this off so returning users
- *                         don't pollute the create-account funnel.
+ *   funnelTrack         – when true, also fire `auth_start` for the funnel.
+ *   showForgotPassword  – render the "Forgot password?" link in the email form.
+ *   theme               – "light" (default) | "dark"
  */
 export function AuthCard({
   onSuccess,
@@ -147,66 +182,38 @@ export function AuthCard({
   const { signInWithGoogle, signInWithEmailPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [phoneCountry, setPhoneCountry] = useState("SE");
-  const [phoneLocal, setPhoneLocal] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [formError, setFormError] = useState("");
-  // Set after a successful auth-with-phone hands the verification to Meta.
-  // Drives the inline "we sent you a WhatsApp link" notice.
-  const [phoneVerifyPending, setPhoneVerifyPending] = useState(null);
+  // Which method the user has committed to. null = the three-button picker.
+  const [emailOpen, setEmailOpen] = useState(false);
   // When sign-in fails with invalid credentials we surface a
   // "Create new account with this email?" CTA instead of silently
   // creating one (typos would mint orphan accounts otherwise).
   const [offerCreate, setOfferCreate] = useState(false);
+  const emailRef = useRef(null);
 
-  // Compose the full E.164 candidate. Backend re-validates via libphonenumber,
-  // so we don't need to be strict here — just stitch dial code + local digits.
-  const phoneCandidate = (() => {
-    const local = phoneLocal.trim();
-    if (!local) return null;
-    const dial = PHONE_COUNTRIES.find((c) => c.code === phoneCountry)?.dial || "+46";
-    // Already-international input (user typed full +46…) takes precedence.
-    if (local.startsWith("+")) return local.replace(/\s+/g, "");
-    return `${dial}${local.replace(/[^\d]/g, "")}`;
-  })();
-
-  // Fire-and-forget phone verification after auth. We don't await — by the
-  // time the user reads "Check your WhatsApp", the message is usually
-  // already in their notifications (background-fire architecture).
-  const fireVerifyIfNeeded = async () => {
-    if (!phoneCandidate) return;
-    try {
-      const res = await fetch(`${API_BASE}/verify/phone/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: phoneCandidate,
-          intent: "host_signup",
-          defaultCountry: phoneCountry,
-          payload: { source: "auth_card", redirect_url: redirectTo },
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json?.ok) {
-        setPhoneVerifyPending({
-          e164: json.e164 || phoneCandidate,
-          sandbox_link: json.sandbox_link || null,
-        });
-      }
-    } catch {
-      // Verification is non-blocking — failure here doesn't break signin.
-    }
-  };
-
-  // Consent is now implicit: clicking either "Continue with Google" or the
-  // submit button counts as agreement (the fine-print below the form spells
-  // this out). Standard pattern from Google/Apple/Meta. We still hit
-  // /auth/record-consent on every successful sign-in so the audit trail
-  // exists in case a host later disputes acceptance.
+  // Consent is implicit: clicking any "Continue" / submit button counts as
+  // agreement (the fine-print below spells this out). We still hit
+  // /auth/record-consent on success so the audit trail exists.
   const recordConsent = () =>
     authenticatedFetch("/auth/record-consent", { method: "POST" }).catch(
       () => {},
     );
+
+  const openEmail = () => {
+    if (signingIn) return;
+    setFormError("");
+    setEmailOpen(true);
+    trackEvent(`${trackingPrefix}_email_open`);
+    // Focus once the expand transition has started.
+    setTimeout(() => emailRef.current?.focus(), 80);
+  };
+
+  const closeEmail = () => {
+    setEmailOpen(false);
+    setOfferCreate(false);
+    setFormError("");
+  };
 
   const submitAuth = async ({ allowAutoCreate }) => {
     setFormError("");
@@ -217,13 +224,8 @@ export function AuthCard({
         allowAutoCreate,
       });
       recordConsent();
-      // Fire phone-verification in parallel — non-blocking. The WhatsApp
-      // link is on its way to the user's phone by the time onSuccess
-      // navigates them onward.
-      fireVerifyIfNeeded();
       // signed_in fires from the parent (OnboardingPage's finalize) so the
-      // event is unified across both email and Google OAuth completion paths
-      // and only fires for the create-account flow.
+      // event is unified across both email and Google OAuth completion paths.
       onSuccess?.("email");
     } catch (err) {
       const msg = (err?.message || "").toLowerCase();
@@ -254,7 +256,7 @@ export function AuthCard({
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
-    if (signingIn) return;
+    if (signingIn || !emailOpen) return;
     trackEvent(`${trackingPrefix}_email_submit`);
     if (funnelTrack) trackEvent("auth_start", { method: "email" });
     await submitAuth({ allowAutoCreate: false });
@@ -293,146 +295,214 @@ export function AuthCard({
         width: "100%",
       }}
     >
-      <button
-        type="button"
-        onClick={handleGoogle}
-        disabled={signingIn}
-        style={{
-          width: "100%",
-          borderRadius: 999,
-          border: `1px solid ${t.googleBorder}`,
-          background: t.googleBg,
-          padding: "13px 14px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 10,
-          cursor: signingIn ? "wait" : "pointer",
-          color: t.googleColor,
-          fontSize: 14,
-          fontWeight: 500,
-        }}
-      >
-        {GoogleIcon}
-        <span>Continue with Google</span>
-      </button>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          margin: "2px 0",
-        }}
-      >
-        <div style={{ flex: 1, height: 1, background: t.dividerLine }} />
-        <span
-          style={{
-            fontSize: 11,
-            textTransform: "uppercase",
-            letterSpacing: "0.16em",
-            color: t.dividerLabel,
-          }}
-        >
-          or email
-        </span>
-        <div style={{ flex: 1, height: 1, background: t.dividerLine }} />
-      </div>
-
-      <input
-        type="email"
-        inputMode="email"
-        autoComplete="email"
-        required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="you@example.com"
-        style={inputStyle}
-      />
-      <input
-        type="password"
-        autoComplete="current-password"
-        required
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
-        style={inputStyle}
-      />
-
-      {/* WhatsApp phone — optional but encouraged. Provided here means we
-          send a one-tap magic-link to the number on signup; lets us reach
-          you for reminders + future payment rails. Returning users can
-          leave it blank. */}
-      <div style={{ display: "flex", gap: 8 }}>
-        <select
-          value={phoneCountry}
-          onChange={(e) => setPhoneCountry(e.target.value)}
-          aria-label="Phone country"
-          style={{
-            ...inputStyle,
-            flex: "0 0 92px",
-            padding: "13px 8px",
-            textAlignLast: "center",
-            cursor: "pointer",
-          }}
-        >
-          {PHONE_COUNTRIES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.flag} {c.dial}
-            </option>
-          ))}
-        </select>
-        <input
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel-national"
-          value={phoneLocal}
-          onChange={(e) => setPhoneLocal(e.target.value)}
-          placeholder="WhatsApp number (optional)"
-          style={{ ...inputStyle, flex: 1 }}
-        />
-      </div>
-
-      {showForgotPassword && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -4 }}>
-          <Link
-            to="/forgot-password"
-            state={{ email: email.trim() }}
-            onClick={() => trackEvent(`${trackingPrefix}_forgot_password_click`)}
-            style={{
-              fontSize: 12,
-              color: t.forgotLink,
-              textDecoration: "none",
+      {/* ── Method picker (Google / WhatsApp / email). Collapses when the
+          email form opens, handing its slot to the form below. ── */}
+      <div style={collapsible(!emailOpen)} aria-hidden={emailOpen}>
+        <div style={collapsibleInner}>
+          <button
+            type="button"
+            onClick={handleGoogle}
+            disabled={signingIn}
+            style={{ ...optionButtonStyle(t), cursor: signingIn ? "wait" : "pointer" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = t.optionHoverBg;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = t.optionBg;
             }}
           >
-            Forgot password?
-          </Link>
+            {GoogleIcon}
+            <span>Continue with Google</span>
+          </button>
+
+          {/* WhatsApp — visible but disabled until the passwordless backend
+              lands. Structurally ready to become a phone input then. */}
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            title="WhatsApp sign-in is coming soon"
+            style={optionButtonStyle(t, { muted: true, disabled: true })}
+          >
+            <FaWhatsapp size={18} color={t.mutedColor} />
+            <span>Continue with WhatsApp</span>
+            <span
+              style={{
+                position: "absolute",
+                right: 14,
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                padding: "3px 8px",
+                borderRadius: 999,
+                background: t.pillBg,
+                color: t.pillColor,
+              }}
+            >
+              Coming soon
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={openEmail}
+            disabled={signingIn}
+            style={optionButtonStyle(t)}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = t.optionHoverBg;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = t.optionBg;
+            }}
+          >
+            <Mail size={18} />
+            <span>Continue with email</span>
+          </button>
         </div>
-      )}
+      </div>
 
-      <button
-        type="submit"
-        disabled={signingIn}
-        style={{
-          width: "100%",
-          padding: "14px 0",
-          borderRadius: 999,
-          border: "none",
-          background: t.submitBg,
-          color: t.submitColor,
-          fontSize: 14,
-          fontWeight: 700,
-          cursor: signingIn ? "wait" : "pointer",
-          opacity: signingIn ? 0.7 : 1,
-          marginTop: 2,
-        }}
-      >
-        {signingIn ? "Entering…" : submitLabel}
-      </button>
+      {/* ── Email form. Expands into the picker's slot. The pink CTA only
+          exists while this is open. ── */}
+      <div style={collapsible(emailOpen)} aria-hidden={!emailOpen}>
+        <div style={collapsibleInner}>
+          <button
+            type="button"
+            onClick={closeEmail}
+            style={{
+              alignSelf: "flex-start",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "transparent",
+              border: "none",
+              padding: "2px 0",
+              cursor: "pointer",
+              color: t.backColor,
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            <ArrowLeft size={15} />
+            Other ways to sign in
+          </button>
 
-      {/* Implicit consent — clicking either button above counts as agreement.
-          Same legal weight as a ticked box per most jurisdictions, and matches
-          the standard pattern (Google/Apple/Meta all do it this way). */}
+          <input
+            ref={emailRef}
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            tabIndex={emailOpen ? 0 : -1}
+            style={inputStyle}
+          />
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            tabIndex={emailOpen ? 0 : -1}
+            style={inputStyle}
+          />
+
+          {showForgotPassword && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -2 }}>
+              <Link
+                to="/forgot-password"
+                state={{ email: email.trim() }}
+                onClick={() => trackEvent(`${trackingPrefix}_forgot_password_click`)}
+                tabIndex={emailOpen ? 0 : -1}
+                style={{ fontSize: 12, color: t.forgotLink, textDecoration: "none" }}
+              >
+                Forgot password?
+              </Link>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={signingIn}
+            tabIndex={emailOpen ? 0 : -1}
+            style={{
+              width: "100%",
+              padding: "14px 0",
+              borderRadius: 999,
+              border: "none",
+              background: t.submitBg,
+              color: t.submitColor,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: signingIn ? "wait" : "pointer",
+              opacity: signingIn ? 0.7 : 1,
+              marginTop: 2,
+            }}
+          >
+            {signingIn ? "Entering…" : submitLabel}
+          </button>
+
+          {offerCreate && (
+            <div
+              style={{
+                fontSize: 12,
+                color: t.createPanelText,
+                textAlign: "center",
+                padding: "10px 12px",
+                borderRadius: 8,
+                background: t.createPanelBg,
+                border: `1px solid ${t.createPanelBorder}`,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <div style={{ color: t.createPanelText }}>
+                No account found for{" "}
+                <strong style={{ color: t.createPanelStrong }}>{email.trim()}</strong>.
+              </div>
+              <button
+                type="button"
+                onClick={handleConfirmCreate}
+                disabled={signingIn}
+                style={{
+                  width: "100%",
+                  borderRadius: 999,
+                  border: `1px solid ${t.createButtonBorder}`,
+                  background: "transparent",
+                  color: t.createButtonColor,
+                  padding: "10px 14px",
+                  cursor: signingIn ? "wait" : "pointer",
+                  fontSize: 13,
+                  fontWeight: 500,
+                }}
+              >
+                Create a new account with this email
+              </button>
+              <button
+                type="button"
+                onClick={() => setOfferCreate(false)}
+                disabled={signingIn}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: t.createSecondaryColor,
+                  fontSize: 12,
+                  padding: "4px 0",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                Or check the email — I had a typo
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Implicit consent — clicking any button above counts as agreement.
+          Matches the standard pattern (Google/Apple/Meta all do it this way). */}
       <p
         style={{
           margin: "2px 0 0",
@@ -464,123 +534,8 @@ export function AuthCard({
       </p>
 
       {formError && (
-        <div
-          style={{
-            fontSize: 12,
-            color: t.errorText,
-            textAlign: "center",
-          }}
-        >
+        <div style={{ fontSize: 12, color: t.errorText, textAlign: "center" }}>
           {formError}
-        </div>
-      )}
-
-      {/* Inline notice when phone-verify is in flight. Renders the same
-          WhatsApp-bubble preview we use elsewhere so the user has visual
-          continuity with what their phone is about to show. */}
-      {phoneVerifyPending && (
-        <div
-          style={{
-            marginTop: 4,
-            padding: "12px 14px",
-            borderRadius: 14,
-            border: `1px solid ${colors.secondaryBorder}`,
-            background: colors.secondarySoft,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              color: colors.text,
-            }}
-          >
-            <FaWhatsapp size={16} color={colors.secondary} />
-            <span>Tap the link in WhatsApp</span>
-          </div>
-          <div style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.45 }}>
-            We sent a one-tap verification link to{" "}
-            <strong style={{ color: colors.text }}>{phoneVerifyPending.e164}</strong>. Open
-            WhatsApp and tap it — your phone is then verified for reminders, RSVPs and
-            future mobile-payment rails.
-          </div>
-          {phoneVerifyPending.sandbox_link && (
-            <a
-              href={phoneVerifyPending.sandbox_link}
-              style={{
-                display: "block",
-                fontSize: 12,
-                color: colors.secondary,
-                textDecoration: "underline",
-                textAlign: "center",
-                padding: "4px 0",
-              }}
-            >
-              Sandbox: tap to redeem here
-            </a>
-          )}
-        </div>
-      )}
-
-      {offerCreate && (
-        <div
-          style={{
-            fontSize: 12,
-            color: t.createPanelText,
-            textAlign: "center",
-            padding: "10px 12px",
-            borderRadius: 8,
-            background: t.createPanelBg,
-            border: `1px solid ${t.createPanelBorder}`,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
-          <div style={{ color: t.createPanelText }}>
-            No account found for{" "}
-            <strong style={{ color: t.createPanelStrong }}>{email.trim()}</strong>.
-          </div>
-          <button
-            type="button"
-            onClick={handleConfirmCreate}
-            disabled={signingIn}
-            style={{
-              width: "100%",
-              borderRadius: 999,
-              border: `1px solid ${t.createButtonBorder}`,
-              background: "transparent",
-              color: t.createButtonColor,
-              padding: "10px 14px",
-              cursor: signingIn ? "wait" : "pointer",
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            Create a new account with this email
-          </button>
-          <button
-            type="button"
-            onClick={() => setOfferCreate(false)}
-            disabled={signingIn}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: t.createSecondaryColor,
-              fontSize: 12,
-              padding: "4px 0",
-              cursor: "pointer",
-              textDecoration: "underline",
-            }}
-          >
-            Or check the email — I had a typo
-          </button>
         </div>
       )}
     </form>

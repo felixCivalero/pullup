@@ -8,6 +8,7 @@ import { EventNavProvider, useEventNav } from "../contexts/EventNavContext.jsx";
 import { ChevronLeft, Settings } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { PullupEyes } from "./PullupEyes.jsx";
+import { WhatsNewModal } from "./WhatsNewModal.jsx";
 import { colors } from "../theme/colors.js";
 
 function ProtectedLayoutInner() {
@@ -1049,6 +1050,9 @@ function ProtectedLayoutInner() {
           <Outlet />
         )}
       </main>
+
+      {/* First-login-after-redesign walkthrough (desktop-only, once per browser) */}
+      <WhatsNewModal />
 
       {/* Unsaved media confirm dialog */}
       {navConfirm && (

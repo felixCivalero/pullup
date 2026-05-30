@@ -52,6 +52,8 @@ import { useHostActions } from "../lib/useHostActions.js";
 import { useSetHostResource } from "../contexts/useHostResource.js";
 import { useAuth } from "../contexts/AuthContext";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
+import { BrandThemeEditor } from "../components/BrandThemeEditor.jsx";
+import { pickTextColor, fontStack, softColor, FONTS } from "../lib/brand.js";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
@@ -801,6 +803,13 @@ export function CreateEventPage() {
   const [videoAutoplay, setVideoAutoplay] = useState(true);
   const [videoAudio, setVideoAudio] = useState(false);
   const [customThumbnail, setCustomThumbnail] = useState(null); // { file, preview }
+
+  // Per-event brand/theme snapshot (migration 047). null = PullUp standard.
+  // Chosen here at creation and stored ON the event, so it only affects this
+  // event — existing events keep their own look. "Save as my brand design"
+  // separately persists these tokens to the profile as the next-event default.
+  const [brand, setBrand] = useState(draft?.brand || null);
+  const [savingBrandDefault, setSavingBrandDefault] = useState(false);
   const thumbnailInputRef = useRef(null);
   // Carousel settings
   const [carouselAutoscroll, setCarouselAutoscroll] = useState(true);
@@ -1135,6 +1144,7 @@ export function CreateEventPage() {
       try {
         const draftData = {
           title, titleVisible, titleAlign, titleFont, titleSize, titleColor, detailsColor, detailsGradient, detailsGradientEnabled,
+          brand,
           description, location, locationLat, locationLng, hideLocation, hideDate, revealHint, dateRevealHint,
           startsAt, endsAt, timezone, maxAttendees, waitlistEnabled, instantWaitlist,
           sellTicketsEnabled, ticketPrice, ticketCurrency,
@@ -1246,6 +1256,84 @@ export function CreateEventPage() {
     setInstagram(""); setSpotify(""); setTiktok(""); setSoundcloud("");
   }, [editEventId]);
 
+  // Create mode: pre-fill the theme picker from the host's saved default
+  // brand (profiles.brand_*), so a new event starts in their look. The
+  // default is what "Save as my brand design" writes. Never overrides a
+  // draft (which already carries the host's chosen theme).
+  useEffect(() => {
+    if (editEventId) return;
+    if (draft?.brand) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authenticatedFetch("/host/profile");
+        if (!res.ok) return;
+        const p = await res.json();
+        if (cancelled || !p) return;
+        // The profile's brand_* columns are repurposed as the host's default:
+        // background + register-button color/text/font.
+        const def = {
+          backgroundColor:  p.brand_background ?? p.brandBackground ?? null,
+          buttonColor:      p.brand_primary_color ?? p.brandPrimaryColor ?? null,
+          buttonTextColor:  p.brand_text_color ?? p.brandTextColor ?? null,
+          buttonFontFamily: p.brand_font_family ?? p.brandFontFamily ?? null,
+        };
+        if (def.backgroundColor || def.buttonColor || def.buttonTextColor || def.buttonFontFamily) {
+          setBrand(def);
+        }
+      } catch {
+        /* defaults already in place — PullUp standard */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editEventId]);
+
+  // Persist the current theme to the host's profile as their default brand
+  // (profiles.brand_*). This only sets the pre-fill for the NEXT new event —
+  // it does not retheme this event or any other; each event keeps its own
+  // snapshot.
+  const handleSaveAsMyBrand = async () => {
+    if (savingBrandDefault || !brand) return;
+    setSavingBrandDefault(true);
+    try {
+      const res = await authenticatedFetch("/host/profile", {
+        method: "PUT",
+        body: JSON.stringify({
+          // Repurposed default columns: background + register-button styling.
+          brand_background:    brand.backgroundColor || null,
+          brand_primary_color: brand.buttonColor || null,
+          brand_text_color:    brand.buttonTextColor || null,
+          brand_font_family:   brand.buttonFontFamily || null,
+        }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      showToast("Saved as your brand design — new events start here", "success");
+    } catch {
+      showToast("Couldn't save your brand design", "error");
+    } finally {
+      setSavingBrandDefault(false);
+    }
+  };
+
+  // True once the host has picked any theme value.
+  const hasBrand = !!(
+    brand &&
+    (brand.backgroundColor || brand.buttonColor || brand.buttonTextColor || brand.buttonFontFamily)
+  );
+
+  // CSS vars so the live preview reflects the chosen theme. Defaults equal
+  // the hardcoded fallbacks, so an un-themed event previews unchanged.
+  const brandPreviewVars = {
+    "--brand-bg":             brand?.backgroundColor || "#05040a",
+    "--brand-primary":        brand?.buttonColor || "#fff",
+    "--brand-ink-on-primary": brand?.buttonTextColor || (brand?.buttonColor ? pickTextColor(brand.buttonColor) : "#000"),
+    "--brand-btn-font":       brand?.buttonFontFamily ? (fontStack(brand.buttonFontFamily) || "inherit") : "inherit",
+    "--brand-on-bg":          pickTextColor(brand?.backgroundColor || "#05040a"),
+    "--brand-on-bg-soft":     softColor(pickTextColor(brand?.backgroundColor || "#05040a"), 0.6),
+    "--brand-on-bg-faint":    softColor(pickTextColor(brand?.backgroundColor || "#05040a"), 0.4),
+    "--brand-hairline":       softColor(pickTextColor(brand?.backgroundColor || "#05040a"), 0.14),
+  };
+
   // Load existing event data when in edit mode
   useEffect(() => {
     if (!editEventId) return;
@@ -1289,6 +1377,8 @@ export function CreateEventPage() {
           if (ev.titleSettings.detailsGradient) setDetailsGradient(ev.titleSettings.detailsGradient);
           if (ev.titleSettings.detailsGradientEnabled !== undefined) setDetailsGradientEnabled(ev.titleSettings.detailsGradientEnabled);
         }
+        // Per-event brand snapshot (migration 047). null → PullUp standard.
+        setBrand(ev.brand || null);
         setDescription(ev.description || "");
         (() => {
           const saved = ev.sections || [];
@@ -1904,6 +1994,8 @@ export function CreateEventPage() {
         waitlistEnabled,
         instantWaitlist,
         theme,
+        // Per-event brand snapshot (migration 047). null = PullUp standard.
+        brand: brand || null,
         calendar,
         visibility,
         ticketType: sellTicketsEnabled ? "paid" : "free",
@@ -3160,6 +3252,37 @@ export function CreateEventPage() {
               {isEditMode ? "PULLUP · EDIT EVENT" : "PULLUP · CREATE EVENT"}
             </div>
 
+            {/* Theme — background + register-button styling for THIS event
+                (migration 047). Date/text are styled per-section below.
+                Snapshotted on save; existing/un-themed events stay standard. */}
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.15em", color: colors.textSubtle, fontWeight: 600 }}>
+                  Theme
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  {hasBrand && (
+                    <button
+                      type="button"
+                      onClick={() => setBrand(null)}
+                      style={{ background: "none", border: "none", color: colors.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSaveAsMyBrand}
+                    disabled={savingBrandDefault || !hasBrand}
+                    style={{ background: "none", border: "none", color: hasBrand ? colors.accent : colors.textFaded, fontSize: 12, fontWeight: 700, cursor: (savingBrandDefault || !hasBrand) ? "default" : "pointer", padding: 0 }}
+                  >
+                    {savingBrandDefault ? "Saving…" : "Save as my brand design"}
+                  </button>
+                </span>
+              </div>
+              <BrandThemeEditor value={brand} onChange={setBrand} />
+            </div>
+
             {chatActivity && (
               <div
                 style={{
@@ -4040,6 +4163,45 @@ export function CreateEventPage() {
                       />
                     </>
                   )}
+
+                  {/* Per-section font (migration 047): family + color for this
+                      section's text. Hidden for media / embed / social types. */}
+                  {!["socials", "spotify", "applemusic", "soundcloud", "youtube"].includes(section.type) && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px", paddingTop: "10px", borderTop: `1px solid ${colors.border}` }}>
+                      <Type size={13} color={colors.textFaded} style={{ flexShrink: 0 }} />
+                      <select
+                        value={section.fontFamily || ""}
+                        onChange={(e) => {
+                          const u = [...sections]; u[i] = { ...u[i], fontFamily: e.target.value || null }; setSections(u);
+                        }}
+                        style={{ flex: 1, minWidth: 0, padding: "6px 8px", borderRadius: "8px", border: `1px solid ${colors.border}`, background: "#fff", color: colors.text, fontSize: "12px", cursor: "pointer" }}
+                      >
+                        <option value="">Default font</option>
+                        {FONTS.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
+                      </select>
+                      <div style={{ position: "relative", width: 30, height: 30, flexShrink: 0 }}>
+                        <input
+                          type="color"
+                          value={section.fontColor || "#ffffff"}
+                          onChange={(e) => {
+                            const u = [...sections]; u[i] = { ...u[i], fontColor: e.target.value }; setSections(u);
+                          }}
+                          style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
+                          aria-label="Section font color"
+                        />
+                        <div style={{ position: "absolute", inset: 0, borderRadius: "8px", border: `1px solid ${colors.border}`, background: section.fontColor || "transparent", pointerEvents: "none" }} />
+                      </div>
+                      {section.fontColor && (
+                        <button
+                          type="button"
+                          onClick={() => { const u = [...sections]; u[i] = { ...u[i], fontColor: null }; setSections(u); }}
+                          style={{ background: "none", border: "none", color: colors.textFaded, fontSize: "11px", cursor: "pointer", padding: 0, flexShrink: 0 }}
+                        >
+                          clear
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -4084,6 +4246,7 @@ export function CreateEventPage() {
                 </div>
               </div>
             </div>
+
             </div>
 
             {/* === STEP 3 (tab position): SOCIALS === */}
@@ -5127,9 +5290,13 @@ export function CreateEventPage() {
                     />
                   ),
                 };
-                return desktopPreviewMode === "desktop"
-                  ? <DesktopEventLayout {...previewProps} onFocusDrag={makeFocusDragHandler("desktop")} />
-                  : <EventPreview {...previewProps} compact onFocusDrag={makeFocusDragHandler("phone")} />;
+                return (
+                  <div className="brand-scope" style={{ display: "contents", ...brandPreviewVars }}>
+                    {desktopPreviewMode === "desktop"
+                      ? <DesktopEventLayout {...previewProps} onFocusDrag={makeFocusDragHandler("desktop")} />
+                      : <EventPreview {...previewProps} compact onFocusDrag={makeFocusDragHandler("phone")} />}
+                  </div>
+                );
               })()}
               </div>
               {/* Phone bottom Safari toolbar */}
@@ -5167,7 +5334,7 @@ export function CreateEventPage() {
       {/* MOBILE: Full-screen preview overlay (outside transform container) */}
       {mobileView === "preview" && (
         <div
-          className="create-event-preview-mobile"
+          className="create-event-preview-mobile brand-scope"
           style={{
             position: "fixed",
             top: 0,
@@ -5176,7 +5343,8 @@ export function CreateEventPage() {
             height: "100vh",
             height: "100dvh",
             zIndex: 100,
-            background: "#05040a",
+            background: brand?.backgroundColor || "#05040a",
+            ...brandPreviewVars,
           }}
         >
           <EventPreview

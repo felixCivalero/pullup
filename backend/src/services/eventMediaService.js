@@ -165,3 +165,56 @@ export async function attachDirectUploadMedia({
     mimeType: mimeType || null,
   };
 }
+
+// Delete one media item from an event: removes the storage object(s) and the
+// event_media row, and if it was the cover, promotes the next item (lowest
+// position) — or clears the event cover if nothing's left. Returns the fresh
+// gallery so callers can resync. Mirrors the editor's delete route.
+export async function deleteEventMedia(eventId, mediaId) {
+  const { data: mediaRow } = await supabase
+    .from("event_media")
+    .select("*")
+    .eq("id", mediaId)
+    .eq("event_id", eventId)
+    .single();
+  if (!mediaRow) {
+    const e = new Error("Media not found");
+    e.code = "not_found";
+    throw e;
+  }
+
+  await supabase.storage.from("event-images").remove([mediaRow.storage_path]);
+  if (mediaRow.thumbnail_path) {
+    await supabase.storage.from("event-images").remove([mediaRow.thumbnail_path]);
+  }
+  await supabase.from("event_media").delete().eq("id", mediaId);
+
+  if (mediaRow.is_cover) {
+    const { data: remaining } = await supabase
+      .from("event_media")
+      .select("*")
+      .eq("event_id", eventId)
+      .order("position", { ascending: true })
+      .limit(1);
+
+    if (remaining && remaining.length > 0) {
+      const next = remaining[0];
+      await supabase.from("event_media").update({ is_cover: true }).eq("id", next.id);
+      const coverPath =
+        (next.media_type === "video" || next.media_type === "gif") && next.thumbnail_path
+          ? next.thumbnail_path
+          : next.storage_path;
+      await supabase
+        .from("events")
+        .update({ cover_image_url: coverPath, image_url: coverPath })
+        .eq("id", eventId);
+    } else {
+      await supabase
+        .from("events")
+        .update({ cover_image_url: null, image_url: null })
+        .eq("id", eventId);
+    }
+  }
+
+  return listEventMedia(eventId);
+}

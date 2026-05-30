@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, MapPin, Music2, Trash2, Search, Check, Pencil, X, User, LayoutPanelTop, Columns2, LayoutList } from "lucide-react";
 import { authenticatedFetch } from "../../../lib/api.js";
 import { DateRangePicker } from "../../DateRangePicker.jsx";
+import { colors } from "../../../theme/colors.js";
 
 function startOfDay(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -263,8 +264,8 @@ export default function EventCardBlockEditor({ block, onChange }) {
           gap: 4,
           padding: 4,
           borderRadius: 999,
-          background: "rgba(12,10,20,0.7)",
-          border: "1px solid rgba(255,255,255,0.06)",
+          background: colors.surface,
+          border: `1px solid ${colors.border}`,
           alignSelf: "flex-start",
         }}
       >
@@ -305,14 +306,14 @@ export default function EventCardBlockEditor({ block, onChange }) {
             gap: 6,
             padding: "8px 10px",
             borderRadius: 10,
-            background: "rgba(12,10,20,0.7)",
+            background: "#fff",
             border: searchOpen
-              ? "1px solid rgba(163,230,53,0.4)"
-              : "1px solid rgba(255,255,255,0.1)",
+              ? `1px solid ${colors.secondaryBorder}`
+              : `1px solid ${colors.border}`,
             transition: "border-color 0.15s",
           }}
         >
-          <Search size={13} style={{ color: "rgba(255,255,255,0.4)", flexShrink: 0 }} />
+          <Search size={13} style={{ color: colors.textFaded, flexShrink: 0 }} />
           <input
             type="text"
             value={searchQuery}
@@ -332,7 +333,7 @@ export default function EventCardBlockEditor({ block, onChange }) {
               border: "none",
               background: "transparent",
               outline: "none",
-              color: "#fff",
+              color: colors.text,
               fontSize: 12.5,
             }}
           />
@@ -359,7 +360,7 @@ export default function EventCardBlockEditor({ block, onChange }) {
           <span
             style={{
               fontSize: 9.5,
-              color: "rgba(255,255,255,0.35)",
+              color: colors.textFaded,
               textTransform: "uppercase",
               letterSpacing: "0.06em",
               marginRight: 2,
@@ -381,10 +382,10 @@ export default function EventCardBlockEditor({ block, onChange }) {
                   fontWeight: 500,
                   cursor: "pointer",
                   border: active
-                    ? "1px solid rgba(251,191,36,0.45)"
-                    : "1px solid rgba(255,255,255,0.08)",
-                  background: active ? "rgba(251,191,36,0.15)" : "transparent",
-                  color: active ? "#fbbf24" : "rgba(255,255,255,0.5)",
+                    ? `1px solid ${colors.accentBorder}`
+                    : `1px solid ${colors.border}`,
+                  background: active ? colors.accentSoft : "transparent",
+                  color: active ? colors.accent : colors.textSubtle,
                   whiteSpace: "nowrap",
                 }}
               >
@@ -402,9 +403,9 @@ export default function EventCardBlockEditor({ block, onChange }) {
                 fontSize: 10,
                 fontWeight: 500,
                 cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.06)",
+                border: `1px solid ${colors.border}`,
                 background: "transparent",
-                color: "rgba(255,255,255,0.4)",
+                color: colors.textSubtle,
               }}
             >
               clear
@@ -420,8 +421,9 @@ export default function EventCardBlockEditor({ block, onChange }) {
             maxHeight: 280,
             overflowY: "auto",
             borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(8,6,14,0.96)",
+            border: `1px solid ${colors.border}`,
+            background: "#fff",
+            boxShadow: "0 8px 30px rgba(10,10,10,0.08)",
             display: "flex",
             flexDirection: "column",
             gap: 2,
@@ -433,7 +435,7 @@ export default function EventCardBlockEditor({ block, onChange }) {
               style={{
                 padding: "16px 8px",
                 fontSize: 12,
-                color: "rgba(255,255,255,0.35)",
+                color: colors.textSubtle,
                 textAlign: "center",
               }}
             >
@@ -478,7 +480,7 @@ export default function EventCardBlockEditor({ block, onChange }) {
         <div
           style={{
             fontSize: 11,
-            color: "rgba(251,191,36,0.7)",
+            color: colors.warning,
             textAlign: "center",
             padding: "4px 0",
           }}
@@ -534,9 +536,9 @@ function SearchResultRow({ ev, selected, onToggle }) {
         width: "100%",
         flexShrink: 0,
         textAlign: "left",
-        background: selected ? "rgba(163,230,53,0.08)" : "transparent",
+        background: selected ? colors.secondarySoft : "transparent",
         border: selected
-          ? "1px solid rgba(163,230,53,0.3)"
+          ? `1px solid ${colors.secondaryBorder}`
           : "1px solid transparent",
         borderRadius: 8,
         padding: 0,
@@ -545,7 +547,7 @@ function SearchResultRow({ ev, selected, onToggle }) {
         overflow: "hidden",
       }}
       onMouseEnter={(e) => {
-        if (!selected) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+        if (!selected) e.currentTarget.style.background = colors.surface;
       }}
       onMouseLeave={(e) => {
         if (!selected) e.currentTarget.style.background = "transparent";
@@ -556,7 +558,7 @@ function SearchResultRow({ ev, selected, onToggle }) {
           width: 44,
           minWidth: 44,
           height: 44,
-          background: "rgba(255,255,255,0.04)",
+          background: colors.surface,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -571,7 +573,7 @@ function SearchResultRow({ ev, selected, onToggle }) {
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />
         ) : (
-          <Calendar size={14} color="rgba(255,255,255,0.2)" />
+          <Calendar size={14} color={colors.textFaded} />
         )}
       </div>
       <div
@@ -589,7 +591,7 @@ function SearchResultRow({ ev, selected, onToggle }) {
           style={{
             fontSize: 12,
             fontWeight: 500,
-            color: "#fff",
+            color: colors.text,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -600,7 +602,7 @@ function SearchResultRow({ ev, selected, onToggle }) {
         <div
           style={{
             fontSize: 10.5,
-            color: "rgba(255,255,255,0.4)",
+            color: colors.textSubtle,
             display: "flex",
             gap: 8,
             whiteSpace: "nowrap",
@@ -620,7 +622,7 @@ function SearchResultRow({ ev, selected, onToggle }) {
           display: "flex",
           alignItems: "center",
           padding: "0 10px",
-          color: selected ? "#a3e635" : "rgba(255,255,255,0.25)",
+          color: selected ? colors.secondary : colors.textFaded,
         }}
       >
         {selected ? <Check size={14} /> : <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>}
@@ -636,8 +638,8 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
       style={{
         display: "flex",
         flexDirection: "column",
-        background: "rgba(255,255,255,0.02)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        background: "#fff",
+        border: `1px solid ${colors.border}`,
         borderRadius: 10,
         overflow: "hidden",
         flexShrink: 0,
@@ -649,7 +651,7 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
           width: 56,
           minWidth: 56,
           height: 56,
-          background: "rgba(255,255,255,0.04)",
+          background: colors.surface,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -663,7 +665,7 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />
         ) : (
-          <Calendar size={16} color="rgba(255,255,255,0.2)" />
+          <Calendar size={16} color={colors.textFaded} />
         )}
       </div>
       <div
@@ -681,7 +683,7 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
           style={{
             fontSize: 12.5,
             fontWeight: 600,
-            color: "#fff",
+            color: colors.text,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -692,7 +694,7 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
         <div
           style={{
             fontSize: 10.5,
-            color: "rgba(255,255,255,0.45)",
+            color: colors.textSubtle,
             display: "flex",
             gap: 8,
             whiteSpace: "nowrap",
@@ -735,7 +737,7 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
           padding: "6px 4px",
           justifyContent: "center",
           alignItems: "center",
-          borderLeft: "1px solid rgba(255,255,255,0.04)",
+          borderLeft: `1px solid ${colors.borderFaint}`,
         }}
       >
         <button type="button" onClick={onMoveUp} disabled={isFirst} style={miniBtn(isFirst)} aria-label="Move up">
@@ -751,7 +753,7 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
           onClick={() => setExpanded((v) => !v)}
           style={{
             ...editChevronBtn,
-            color: expanded ? "#a3e635" : "rgba(163,230,53,0.6)",
+            color: expanded ? colors.secondary : colors.secondaryBorder,
           }}
           aria-label={expanded ? "Close editor" : "Edit details"}
           title={expanded ? "Close editor" : "Edit details"}
@@ -773,9 +775,9 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
       {expanded && (
         <div
           style={{
-            borderTop: "1px solid rgba(255,255,255,0.06)",
+            borderTop: `1px solid ${colors.border}`,
             padding: "10px 12px 12px",
-            background: "rgba(0,0,0,0.18)",
+            background: colors.surface,
             display: "flex",
             flexDirection: "column",
             gap: 8,
@@ -816,8 +818,8 @@ function LayoutOption({ icon: Icon, label, active, onClick }) {
         padding: "5px 10px",
         borderRadius: 999,
         border: "none",
-        background: active ? "rgba(163,230,53,0.16)" : "transparent",
-        color: active ? "#a3e635" : "rgba(255,255,255,0.5)",
+        background: active ? colors.accentSoft : "transparent",
+        color: active ? colors.accent : colors.textSubtle,
         fontSize: 11,
         fontWeight: 500,
         cursor: "pointer",
@@ -836,7 +838,7 @@ function InlineField({ icon: Icon, iconColor, label, value, placeholder, onChang
       <div
         style={{
           fontSize: 9.5,
-          color: "rgba(255,255,255,0.4)",
+          color: colors.textSubtle,
           textTransform: "uppercase",
           letterSpacing: "0.06em",
           marginBottom: 3,
@@ -845,7 +847,7 @@ function InlineField({ icon: Icon, iconColor, label, value, placeholder, onChang
           gap: 4,
         }}
       >
-        {Icon && <Icon size={9} color={iconColor || "currentColor"} />}
+        {Icon && <Icon size={9} color={iconColor || colors.textSubtle} />}
         {label}
       </div>
       <input
@@ -858,9 +860,9 @@ function InlineField({ icon: Icon, iconColor, label, value, placeholder, onChang
           boxSizing: "border-box",
           padding: "6px 10px",
           borderRadius: 6,
-          border: "1px solid rgba(255,255,255,0.08)",
-          background: "rgba(12,10,20,0.7)",
-          color: "#fff",
+          border: `1px solid ${colors.border}`,
+          background: "#fff",
+          color: colors.text,
           fontSize: 11.5,
           outline: "none",
         }}
@@ -872,7 +874,7 @@ function InlineField({ icon: Icon, iconColor, label, value, placeholder, onChang
 const miniBtn = (disabled) => ({
   background: "none",
   border: "none",
-  color: disabled ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)",
+  color: disabled ? colors.borderStrong : colors.textSubtle,
   cursor: disabled ? "default" : "pointer",
   padding: 0,
   fontSize: 9,
@@ -884,7 +886,7 @@ const miniBtn = (disabled) => ({
 const removeBtn = {
   background: "none",
   border: "none",
-  color: "rgba(239,68,68,0.65)",
+  color: colors.danger,
   cursor: "pointer",
   padding: 4,
   display: "inline-flex",
@@ -894,7 +896,7 @@ const removeBtn = {
 const editChevronBtn = {
   background: "none",
   border: "none",
-  color: "rgba(255,255,255,0.45)",
+  color: colors.textSubtle,
   cursor: "pointer",
   padding: 4,
   display: "inline-flex",

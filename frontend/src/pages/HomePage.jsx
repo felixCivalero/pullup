@@ -4,6 +4,7 @@ import { EventsTab } from "../components/HomeEventsTab";
 import { authenticatedFetch } from "../lib/api.js";
 import { useHostActions } from "../lib/useHostActions.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
+import { colors } from "../theme/colors.js";
 
 export function HomePage() {
   const { showToast } = useToast();
@@ -16,15 +17,6 @@ export function HomePage() {
   const [networkError, setNetworkError] = useState(false);
 
   const [eventFilter, setEventFilter] = useState("upcoming"); // "upcoming" | "past"
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-
-  useEffect(() => {
-    function handleMouseMove(e) {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    }
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
 
   async function loadUpcomingEvents() {
     setNetworkError(false);
@@ -96,21 +88,19 @@ export function HomePage() {
         className="page-with-header"
         style={{
           minHeight: "100vh",
-          position: "relative",
-          background:
-            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
+          background: colors.background,
         }}
       >
         <div className="responsive-container responsive-container-wide">
           <div
             className="responsive-card"
             style={{
-              background: "rgba(12, 10, 18, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             }}
           >
-            <div style={{ fontSize: "18px", opacity: 0.8 }}>
+            <div style={{ fontSize: "18px", color: colors.textMuted }}>
               Loading events…
             </div>
           </div>
@@ -125,24 +115,22 @@ export function HomePage() {
         className="page-with-header"
         style={{
           minHeight: "100vh",
-          position: "relative",
-          background:
-            "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
+          background: colors.background,
         }}
       >
         <div className="responsive-container responsive-container-wide">
           <div
             className="responsive-card"
             style={{
-              background: "rgba(12, 10, 18, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             }}
           >
-            <h2 style={{ marginBottom: "8px", fontSize: "24px" }}>
+            <h2 style={{ marginBottom: "8px", fontSize: "24px", color: colors.text }}>
               Connection Error
             </h2>
-            <p style={{ opacity: 0.7, marginBottom: "16px" }}>
+            <p style={{ color: colors.textMuted, marginBottom: "16px" }}>
               Unable to connect to the server. Please check your internet
               connection and try again.
             </p>
@@ -160,32 +148,13 @@ export function HomePage() {
       className="page-with-header"
       style={{
         minHeight: "100vh",
-        position: "relative",
-        background:
-          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
+        background: colors.background,
         paddingBottom: "clamp(20px, 5vw, 40px)",
       }}
     >
-      {/* Cursor glow effect */}
-      <div
-        style={{
-          position: "fixed",
-          width: "600px",
-          height: "600px",
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, rgba(192, 192, 192, 0.08) 0%, transparent 70%)",
-          left: mousePosition.x - 300,
-          top: mousePosition.y - 300,
-          pointerEvents: "none",
-          transition: "all 0.3s ease-out",
-          zIndex: 1,
-        }}
-      />
-
       <div
         className="responsive-container responsive-container-wide"
-        style={{ position: "relative", zIndex: 2 }}
+        style={{ position: "relative" }}
       >
         <style>{`
           @media (max-width: 767px) {
@@ -202,9 +171,9 @@ export function HomePage() {
         <div
           className="responsive-card"
           style={{
-            background: "rgba(12, 10, 18, 0.6)",
-            backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255,255,255,0.05)",
+            background: colors.background,
+            border: `1px solid ${colors.border}`,
+            boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
           }}
         >
           <EventsTab
@@ -229,7 +198,7 @@ const primaryBtn = {
   padding: "12px 24px",
   borderRadius: "999px",
   border: "none",
-  background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+  background: colors.accent,
   color: "#fff",
   fontWeight: 600,
   fontSize: 14,

@@ -7,6 +7,7 @@ import { useHostResource } from "../contexts/useHostResource.js";
 import { useRecentChatActivity } from "../lib/useRecentChatActivity.js";
 import { addSpotifySection, addInstagramField } from "../lib/coachMutations.js";
 import { useMcpStatus } from "../lib/useMcpStatus.js";
+import { colors } from "../theme/colors.js";
 
 // "publish_event" → "Published this", "draft_campaign" → "Drafted a campaign", etc.
 // Pure presentation — keeps the narration line readable without a round-trip.
@@ -214,8 +215,8 @@ export function IdeaWidget() {
     lastPulsedRef.current = lastAction.id;
     triggerRef.current?.animate(
       [
-        { boxShadow: "0 4px 16px rgba(0,0,0,0.3), 0 0 28px rgba(240,216,120,0.85)" },
-        { boxShadow: "0 4px 16px rgba(0,0,0,0.3), 0 0 12px rgba(232,200,102,0.15)" },
+        { boxShadow: `0 4px 16px ${colors.silverShadow}, 0 0 28px rgba(180, 83, 9, 0.35)` },
+        { boxShadow: `0 4px 16px ${colors.silverShadow}, 0 0 12px rgba(180, 83, 9, 0.08)` },
       ],
       { duration: 1800, easing: "ease-out" },
     );
@@ -332,13 +333,11 @@ export function IdeaWidget() {
               bottom: 56,
               right: 0,
               width: 320,
-              background: "rgba(12, 10, 18, 0.92)",
-              border: "1px solid rgba(255,255,255,0.1)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
               borderRadius: 16,
               padding: 18,
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             }}
           >
             <div
@@ -349,7 +348,7 @@ export function IdeaWidget() {
                 marginBottom: 10,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 7, color: "#f0d878" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, color: colors.gold }}>
                 <Sparkles size={14} />
                 <span
                   style={{
@@ -369,14 +368,14 @@ export function IdeaWidget() {
                   border: "none",
                   cursor: "pointer",
                   padding: 4,
-                  color: "rgba(255,255,255,0.4)",
+                  color: colors.textSubtle,
                 }}
                 aria-label="Close"
               >
                 <X size={16} />
               </button>
             </div>
-            <div style={{ fontSize: 13, lineHeight: 1.5, color: "rgba(255,255,255,0.85)", marginBottom: 14 }}>
+            <div style={{ fontSize: 13, lineHeight: 1.5, color: colors.textMuted, marginBottom: 14 }}>
               Connect PullUp to claude.ai (or any MCP-capable AI). Once linked, you can draft events, send campaigns, and answer 'who's coming on Saturday' from chat. Takes ~30 seconds.
             </div>
             <a
@@ -393,9 +392,9 @@ export function IdeaWidget() {
                 gap: 6,
                 padding: "10px 14px",
                 borderRadius: 10,
-                border: "1px solid rgba(232,200,102,0.5)",
-                background: "rgba(232,200,102,0.18)",
-                color: "#f0d878",
+                border: `1px solid rgba(180, 83, 9, 0.35)`,
+                background: `rgba(180, 83, 9, 0.06)`,
+                color: colors.gold,
                 fontSize: 13,
                 fontWeight: 600,
                 textDecoration: "none",
@@ -412,24 +411,22 @@ export function IdeaWidget() {
           title="Connect PullUp to your AI"
           style={{
             borderRadius: 999,
-            border: "1px solid rgba(232, 200, 102, 0.28)",
-            background: "rgba(232, 200, 102, 0.08)",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+            border: `1px solid rgba(180, 83, 9, 0.25)`,
+            background: `rgba(180, 83, 9, 0.06)`,
+            boxShadow: "0 4px 16px rgba(10,10,10,0.08)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: 7,
-            color: "#f0d878",
+            color: colors.gold,
             transition: "all 0.15s ease",
             padding: "10px 14px 10px 12px",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(232, 200, 102, 0.14)";
+            e.currentTarget.style.background = `rgba(180, 83, 9, 0.10)`;
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(232, 200, 102, 0.08)";
+            e.currentTarget.style.background = `rgba(180, 83, 9, 0.06)`;
           }}
         >
           <Sparkles size={18} />
@@ -451,13 +448,11 @@ export function IdeaWidget() {
               bottom: 56,
               right: 0,
               width: 340,
-              background: "rgba(12, 10, 18, 0.92)",
-              border: "1px solid rgba(232, 200, 102, 0.25)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
               borderRadius: 16,
               padding: 18,
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(232,200,102,0.05)",
+              boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
             }}
           >
             <div
@@ -468,7 +463,7 @@ export function IdeaWidget() {
                 marginBottom: 12,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 7, color: "#f0d878" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, color: colors.gold }}>
                 <Sparkles size={14} />
                 <span
                   style={{
@@ -488,7 +483,7 @@ export function IdeaWidget() {
                   border: "none",
                   cursor: "pointer",
                   padding: 4,
-                  color: "rgba(255,255,255,0.4)",
+                  color: colors.textSubtle,
                 }}
                 aria-label="Hide for this session"
                 title="Hide for this session"
@@ -502,7 +497,7 @@ export function IdeaWidget() {
                 style={{
                   marginBottom: 12,
                   paddingBottom: 12,
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                  borderBottom: `1px solid ${colors.border}`,
                   display: "flex",
                   flexDirection: "column",
                   gap: 4,
@@ -513,7 +508,7 @@ export function IdeaWidget() {
                     fontSize: 10,
                     letterSpacing: 0.7,
                     textTransform: "uppercase",
-                    color: "rgba(255,255,255,0.4)",
+                    color: colors.textFaded,
                     fontWeight: 600,
                     marginBottom: 2,
                   }}
@@ -524,7 +519,7 @@ export function IdeaWidget() {
                   const intent = narrationIntent(a);
                   const baseStyle = {
                     fontSize: 12.5,
-                    color: "rgba(255,255,255,0.78)",
+                    color: colors.textMuted,
                     display: "flex",
                     alignItems: "baseline",
                     justifyContent: "space-between",
@@ -538,10 +533,10 @@ export function IdeaWidget() {
                   };
                   const inner = (
                     <>
-                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", color: intent ? "#fff" : "rgba(255,255,255,0.78)" }}>
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", color: intent ? colors.text : colors.textMuted }}>
                         {narrateAction(a)}
                       </span>
-                      <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap" }}>
+                      <span style={{ fontSize: 10.5, color: colors.textFaded, whiteSpace: "nowrap" }}>
                         {relTime(a.created_at)}
                       </span>
                     </>
@@ -569,15 +564,15 @@ export function IdeaWidget() {
             )}
 
             {!resource && (
-              <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)", padding: "4px 0 8px", lineHeight: 1.5 }}>
+              <div style={{ fontSize: 12.5, color: colors.textMuted, padding: "4px 0 8px", lineHeight: 1.5 }}>
                 Your AI is connected. Open it from any host page for in-context coaching, or jump straight into claude.ai below.
               </div>
             )}
             {resource && coachItems === null && (
-              <div style={{ fontSize: 12, opacity: 0.5, padding: "8px 0" }}>Loading…</div>
+              <div style={{ fontSize: 12, color: colors.textSubtle, padding: "8px 0" }}>Loading…</div>
             )}
             {resource && coachItems && coachItems.length === 0 && (
-              <div style={{ fontSize: 12, opacity: 0.6, padding: "8px 0", lineHeight: 1.5 }}>
+              <div style={{ fontSize: 12, color: colors.textMuted, padding: "8px 0", lineHeight: 1.5 }}>
                 Nothing left to suggest right now — looks tight from here.
               </div>
             )}
@@ -612,11 +607,21 @@ export function IdeaWidget() {
                         alignItems: "center",
                         padding: "10px 12px",
                         borderRadius: 10,
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        background: isInfo ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.04)",
-                        color: "#fff",
+                        border: `1px solid ${isInfo ? colors.border : colors.borderStrong}`,
+                        background: isInfo ? colors.surface : colors.background,
+                        color: colors.text,
                         cursor: isInfo ? "default" : isMutating ? "wait" : "pointer",
                         opacity: isMutating ? 0.7 : 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isInfo && !isMutating) {
+                          e.currentTarget.style.background = colors.surfaceMuted;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isInfo && !isMutating) {
+                          e.currentTarget.style.background = colors.background;
+                        }
                       }}
                     >
                       <span
@@ -626,6 +631,7 @@ export function IdeaWidget() {
                           fontSize: 13.5,
                           fontWeight: 600,
                           lineHeight: 1.3,
+                          color: colors.text,
                         }}
                       >
                         {isMutating ? "Adding…" : it.headline}
@@ -636,7 +642,7 @@ export function IdeaWidget() {
                             gridColumn: 1,
                             gridRow: 2,
                             fontSize: 11.5,
-                            color: "rgba(255,255,255,0.55)",
+                            color: colors.textMuted,
                             lineHeight: 1.4,
                           }}
                         >
@@ -650,7 +656,7 @@ export function IdeaWidget() {
                             gridColumn: 2,
                             gridRow: "1 / span 2",
                             alignSelf: "center",
-                            opacity: 0.55,
+                            color: colors.textSubtle,
                           }}
                         />
                       )}
@@ -665,7 +671,7 @@ export function IdeaWidget() {
                 style={{
                   marginTop: 8,
                   fontSize: 11.5,
-                  color: "#fda4af",
+                  color: colors.danger,
                   lineHeight: 1.4,
                 }}
               >
@@ -686,9 +692,9 @@ export function IdeaWidget() {
                   gap: 6,
                   padding: "8px 12px",
                   borderRadius: 10,
-                  border: "1px solid rgba(232,200,102,0.2)",
-                  background: "rgba(232,200,102,0.06)",
-                  color: "#f0d878",
+                  border: `1px solid rgba(180, 83, 9, 0.20)`,
+                  background: `rgba(180, 83, 9, 0.04)`,
+                  color: colors.gold,
                   fontSize: 12.5,
                   fontWeight: 600,
                   textDecoration: "none",
@@ -703,37 +709,37 @@ export function IdeaWidget() {
           </div>
         )}
 
-        {/* AI-mode trigger pill — gold-tinted to signal "AI is here" */}
+        {/* AI-mode trigger pill — amber-tinted to signal "AI is here" */}
         <button
           ref={triggerRef}
           onClick={() => setOpen((prev) => !prev)}
           title="PullUp"
           style={{
             borderRadius: 999,
-            border: "1px solid rgba(232, 200, 102, 0.35)",
-            background: "rgba(232, 200, 102, 0.12)",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.3), 0 0 12px rgba(232,200,102,0.15)",
+            border: `1px solid rgba(180, 83, 9, 0.28)`,
+            background: colors.background,
+            boxShadow: "0 4px 16px rgba(10,10,10,0.08)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: 7,
-            color: "#f0d878",
+            color: colors.gold,
             transition: "all 0.15s ease",
             padding: "10px 14px 10px 12px",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(232, 200, 102, 0.18)";
+            e.currentTarget.style.background = colors.surface;
+            e.currentTarget.style.boxShadow = "0 4px 16px rgba(10,10,10,0.12)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(232, 200, 102, 0.12)";
+            e.currentTarget.style.background = colors.background;
+            e.currentTarget.style.boxShadow = "0 4px 16px rgba(10,10,10,0.08)";
           }}
         >
           <span ref={sparkleRef} style={{ display: "inline-flex", alignItems: "center" }}>
             <Sparkles size={18} />
           </span>
-          <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", color: colors.gold }}>
             PullUp
             {coachItems && coachItems.length > 0 ? ` · ${coachItems.length}` : ""}
           </span>

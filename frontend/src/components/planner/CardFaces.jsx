@@ -10,6 +10,7 @@ import {
   Trash2, CalendarDays, Sparkles, BarChart3, Hash, X, Send,
 } from "lucide-react";
 import { CHANNELS, TYPES } from "./plannerConstants.js";
+import { colors } from "../../theme/colors.js";
 
 // ── Deterministic demo numbers, seeded by card id ───────────────────
 function seeded(id) {
@@ -65,23 +66,23 @@ export function AnalyticsFace({ card, accent, ranOn, linkedEvent, onEdit }) {
   const r = seeded(card.id + "drove");
   const drove = linkedEvent ? 4 + Math.round(r() * 26) : 0;
   return (
-    <div style={{ display: "flex", flexDirection: "column", color: "#fff" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 11px", borderBottom: "1px solid rgba(255,255,255,0.08)", background: `linear-gradient(90deg, ${accent}22, transparent)` }}>
+    <div style={{ display: "flex", flexDirection: "column", color: colors.text }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 11px", borderBottom: `1px solid ${colors.border}`, background: `linear-gradient(90deg, ${accent}14, transparent)` }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.02em" }}>
-          <BarChart3 size={13} /> Performance
+          <BarChart3 size={13} color={accent} /> Performance
         </span>
-        {ranOn && <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.45)" }}>{ranOn}</span>}
+        {ranOn && <span style={{ fontSize: 9.5, color: colors.textSubtle }}>{ranOn}</span>}
       </div>
 
       <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 9 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
           {m.stats.map((s) => (
-            <div key={s.label} style={{ borderRadius: 8, background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.06)", padding: "8px 9px" }}>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.42)" }}>
+            <div key={s.label} style={{ borderRadius: 8, background: colors.surface, border: `1px solid ${colors.border}`, padding: "8px 9px" }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em", color: colors.textSubtle }}>
                 <s.Icon size={11} /> {s.label}
               </div>
               <div style={{ marginTop: 3, display: "flex", alignItems: "baseline", gap: 5 }}>
-                <span style={{ fontSize: 18, fontWeight: 700, lineHeight: 1 }}>{s.value}</span>
+                <span style={{ fontSize: 18, fontWeight: 700, lineHeight: 1, color: colors.text }}>{s.value}</span>
                 {s.sub && <span style={{ fontSize: 10, color: accent, fontWeight: 600 }}>{s.sub}</span>}
               </div>
             </div>
@@ -97,17 +98,17 @@ export function AnalyticsFace({ card, accent, ranOn, linkedEvent, onEdit }) {
         )}
 
         {linkedEvent && (
-          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 9px", borderRadius: 8, background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)" }}>
-            <CalendarDays size={13} color="#93c5fd" />
-            <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.8)", lineHeight: 1.25 }}>
-              Drove <b style={{ color: "#bfdbfe" }}>+{drove} RSVPs</b> to {linkedEvent.title}
+          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 9px", borderRadius: 8, background: colors.secondarySoft, border: `1px solid ${colors.secondaryBorder}` }}>
+            <CalendarDays size={13} color={colors.secondary} />
+            <span style={{ fontSize: 10.5, color: colors.textMuted, lineHeight: 1.25 }}>
+              Drove <b style={{ color: colors.secondary }}>+{drove} RSVPs</b> to {linkedEvent.title}
             </span>
           </div>
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, color: "rgba(255,255,255,0.35)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", borderTop: `1px solid ${colors.border}` }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, color: colors.textFaded }}>
           <Sparkles size={10} /> Demo data
         </span>
         <button onClick={onEdit} style={linkBtn}>Edit post</button>
@@ -136,9 +137,9 @@ export function EditFace({ card, events, timelines = [], accent, onSet, onRemove
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", color: "#fff" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 11px", borderBottom: "1px solid rgba(255,255,255,0.08)", background: `linear-gradient(90deg, ${accent}26, transparent)` }}>
-        {ch ? <ch.Icon size={14} color="#fff" /> : <Hash size={13} color="rgba(255,255,255,0.6)" />}
+    <div style={{ display: "flex", flexDirection: "column", color: colors.text }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 11px", borderBottom: `1px solid ${colors.border}`, background: `linear-gradient(90deg, ${accent}14, transparent)` }}>
+        {ch ? <ch.Icon size={14} color={accent} /> : <Hash size={13} color={colors.textSubtle} />}
         <span style={{ fontSize: 11.5, fontWeight: 700 }}>{ch ? `Compose · ${ch.label}` : "Compose"}</span>
       </div>
 
@@ -202,7 +203,7 @@ export function EditFace({ card, events, timelines = [], accent, onSet, onRemove
                 {timelines.map((t) => {
                   const sel = on.includes(t.id);
                   return (
-                    <button key={t.id} onClick={() => toggle(t.id)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, cursor: "pointer", fontSize: 11, fontWeight: 600, background: sel ? `${t.color}26` : "rgba(255,255,255,0.05)", border: `1px solid ${sel ? t.color + "88" : "rgba(255,255,255,0.12)"}`, color: sel ? "#fff" : "rgba(255,255,255,0.55)" }}>
+                    <button key={t.id} onClick={() => toggle(t.id)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, cursor: "pointer", fontSize: 11, fontWeight: 600, background: sel ? `${t.color}18` : colors.borderFaint, border: `1px solid ${sel ? t.color + "77" : colors.border}`, color: sel ? colors.text : colors.textSubtle }}>
                       <span style={{ width: 8, height: 8, borderRadius: "50%", background: t.color }} />
                       {t.name}
                     </button>
@@ -218,7 +219,7 @@ export function EditFace({ card, events, timelines = [], accent, onSet, onRemove
         </Field>
       </div>
 
-      <div style={{ padding: "8px 10px", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+      <div style={{ padding: "8px 10px", borderTop: `1px solid ${colors.border}` }}>
         <button onClick={() => onRemove(card.id)} style={deleteBtnStyle}><Trash2 size={12} /> Delete</button>
       </div>
     </div>
@@ -234,9 +235,9 @@ function TagInput({ tags, accent, onChange }) {
     setDraft("");
   };
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "6px 7px", borderRadius: 7, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "6px 7px", borderRadius: 7, background: colors.surface, border: `1px solid ${colors.border}` }}>
       {tags.map((t) => (
-        <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, color: accent, background: `${accent}22`, borderRadius: 5, padding: "2px 4px 2px 6px" }}>
+        <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, color: accent, background: `${accent}18`, borderRadius: 5, padding: "2px 4px 2px 6px" }}>
           #{t}
           <button onClick={() => onChange(tags.filter((x) => x !== t))} style={{ background: "none", border: "none", color: accent, cursor: "pointer", padding: 0, display: "inline-flex" }}><X size={10} /></button>
         </span>
@@ -247,7 +248,7 @@ function TagInput({ tags, accent, onChange }) {
         onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && draft.trim()) { e.preventDefault(); commit(draft); } else if (e.key === "Backspace" && !draft && tags.length) onChange(tags.slice(0, -1)); }}
         onBlur={() => draft.trim() && commit(draft)}
         placeholder={tags.length ? "" : "#tag"}
-        style={{ flex: 1, minWidth: 44, background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 11 }}
+        style={{ flex: 1, minWidth: 44, background: "transparent", border: "none", outline: "none", color: colors.text, fontSize: 11 }}
       />
     </div>
   );
@@ -256,7 +257,7 @@ function TagInput({ tags, accent, onChange }) {
 function Field({ label, children, grow }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 4, ...(grow ? { flex: 1 } : {}) }}>
-      <span style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.42)" }}>{label}</span>
+      <span style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: colors.textSubtle }}>{label}</span>
       {children}
     </label>
   );
@@ -265,11 +266,11 @@ const FieldRow = ({ children }) => <div style={{ display: "flex", gap: 7 }}>{chi
 
 const baseInput = {
   width: "100%", boxSizing: "border-box", minWidth: 0, fontSize: 11.5,
-  borderRadius: 7, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-  color: "#fff", outline: "none",
+  borderRadius: 7, background: colors.surface, border: `1px solid ${colors.border}`,
+  color: colors.text, outline: "none",
 };
-const selectStyle = { ...baseInput, padding: "7px 8px", colorScheme: "dark", cursor: "pointer", flex: 1 };
+const selectStyle = { ...baseInput, padding: "7px 8px", colorScheme: "light", cursor: "pointer", flex: 1 };
 const inputStyle = { ...baseInput, padding: "7px 9px" };
 const textareaStyle = { ...baseInput, padding: "7px 9px", resize: "none", fontFamily: "inherit", lineHeight: 1.45 };
-const linkBtn = { background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 10.5, fontWeight: 600, cursor: "pointer", padding: "2px 4px", textDecoration: "underline", textUnderlineOffset: 2 };
-const deleteBtnStyle = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "7px", borderRadius: 7, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.28)", color: "rgba(248,113,113,0.95)", fontSize: 11.5, fontWeight: 600, cursor: "pointer" };
+const linkBtn = { background: "none", border: "none", color: colors.textMuted, fontSize: 10.5, fontWeight: 600, cursor: "pointer", padding: "2px 4px", textDecoration: "underline", textUnderlineOffset: 2 };
+const deleteBtnStyle = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "7px", borderRadius: 7, background: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.22)", color: "#dc2626", fontSize: 11.5, fontWeight: 600, cursor: "pointer" };

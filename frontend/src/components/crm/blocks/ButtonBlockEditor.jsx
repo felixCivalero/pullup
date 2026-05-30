@@ -1,5 +1,6 @@
 import { AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import TokenizedInput from "../TokenizedInput";
+import { colors } from "../../../theme/colors.js";
 
 const DEFAULT_BG = "#d4af37";
 const DEFAULT_SIZE = 100;
@@ -61,7 +62,7 @@ export default function ButtonBlockEditor({ block, onChange, tokens }) {
           step={5}
           value={size}
           onChange={(e) => onChange({ ...block, size: Number(e.target.value) })}
-          style={{ width: "100%", accentColor: "#d4af37" }}
+          style={{ width: "100%", accentColor: colors.accent }}
         />
       </div>
 
@@ -98,7 +99,7 @@ export default function ButtonBlockEditor({ block, onChange, tokens }) {
             onChange={(e) => onChange({ ...block, bgColor: e.target.value })}
             style={{
               width: 36, height: 36,
-              border: "1px solid rgba(255,255,255,0.15)",
+              border: `1px solid ${colors.border}`,
               borderRadius: 8, padding: 0, background: "transparent", cursor: "pointer",
             }}
           />
@@ -125,9 +126,9 @@ const inputStyle = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: "10px",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(12,10,18,0.8)",
-  color: "#fff",
+  border: `1px solid ${colors.border}`,
+  background: "#fff",
+  color: colors.text,
   fontSize: "14px",
   boxSizing: "border-box",
 };
@@ -135,7 +136,7 @@ const inputStyle = {
 const labelStyle = {
   display: "block",
   fontSize: "10px",
-  opacity: 0.6,
+  color: colors.textSubtle,
   marginBottom: "4px",
   textTransform: "uppercase",
   letterSpacing: "0.04em",
@@ -147,8 +148,8 @@ const fieldGroupStyle = {
   gap: 6,
   padding: "8px 10px",
   borderRadius: 8,
-  background: "rgba(255,255,255,0.02)",
-  border: "1px solid rgba(255,255,255,0.06)",
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
 };
 
 const fieldLabelStyle = {
@@ -158,16 +159,16 @@ const fieldLabelStyle = {
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.04em",
-  color: "rgba(255,255,255,0.65)",
+  color: colors.textSubtle,
 };
 
 const alignBtnStyle = (active) => ({
   flex: 1,
   padding: "6px 0",
   borderRadius: 6,
-  border: `1px solid ${active ? "rgba(212,175,55,0.5)" : "rgba(255,255,255,0.1)"}`,
-  background: active ? "rgba(212,175,55,0.15)" : "rgba(12,10,18,0.6)",
-  color: active ? "#d4af37" : "rgba(255,255,255,0.7)",
+  border: `1px solid ${active ? colors.accentBorder : colors.border}`,
+  background: active ? colors.accentSoft : "#fff",
+  color: active ? colors.accent : colors.textMuted,
   cursor: "pointer",
   display: "flex",
   alignItems: "center",

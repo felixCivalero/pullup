@@ -181,7 +181,7 @@ export function AnalyticsPage() {
       style={{
         minHeight: "100vh",
         padding: "72px clamp(12px, 3vw, 24px) 60px",
-        background: colors.background,
+        background: "#fff",
         boxSizing: "border-box",
       }}
     >
@@ -231,9 +231,9 @@ export function AnalyticsPage() {
               style={{
                 padding: "6px 16px",
                 borderRadius: "999px",
-                border: tab === t.key ? "1px solid rgba(255,255,255,0.2)" : "1px solid transparent",
-                background: tab === t.key ? "rgba(255,255,255,0.1)" : "transparent",
-                color: tab === t.key ? "#fff" : "rgba(255,255,255,0.4)",
+                border: tab === t.key ? `1px solid ${colors.accentBorder}` : `1px solid transparent`,
+                background: tab === t.key ? colors.accentSoft : "transparent",
+                color: tab === t.key ? colors.accent : colors.textSubtle,
                 fontSize: "13px",
                 fontWeight: tab === t.key ? 600 : 400,
                 cursor: "pointer",
@@ -255,7 +255,7 @@ export function AnalyticsPage() {
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <SectionLabel>Landing Page — pullup.se</SectionLabel>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+              <div style={{ fontSize: 11, color: colors.textFaded }}>
                 last {periodDays}d
               </div>
             </div>
@@ -263,25 +263,25 @@ export function AnalyticsPage() {
             {/* Stats row */}
             <div style={{ display: "flex", gap: 16, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                <span style={{ fontSize: "24px", fontWeight: 700, color: "#fff" }}>
+                <span style={{ fontSize: "24px", fontWeight: 700, color: colors.text }}>
                   {pageviews.totalViews.toLocaleString()}
                 </span>
-                <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>views</span>
+                <span style={{ fontSize: "12px", color: colors.textSubtle }}>views</span>
                 <ChangeIndicator value={pageviews.viewsChange} />
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                <span style={{ fontSize: "24px", fontWeight: 700, color: "rgba(59,130,246,0.9)" }}>
+                <span style={{ fontSize: "24px", fontWeight: 700, color: colors.accent }}>
                   {pageviews.uniqueVisitors.toLocaleString()}
                 </span>
-                <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>unique</span>
+                <span style={{ fontSize: "12px", color: colors.textSubtle }}>unique</span>
                 <ChangeIndicator value={pageviews.uniqueChange} />
               </div>
               {signupsSeries && (
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                  <span style={{ fontSize: "24px", fontWeight: 700, color: "#fbbf24" }}>
+                  <span style={{ fontSize: "24px", fontWeight: 700, color: colors.secondary }}>
                     {(signupsSeries.totalSignups ?? 0).toLocaleString()}
                   </span>
-                  <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>new users</span>
+                  <span style={{ fontSize: "12px", color: colors.textSubtle }}>new users</span>
                   <ChangeIndicator value={signupsSeries.signupsChange} />
                 </div>
               )}
@@ -301,7 +301,7 @@ export function AnalyticsPage() {
                   signupsSeries?.buckets?.length > 0
                     ? {
                         label: "New users",
-                        color: "#fbbf24",
+                        color: colors.secondary,
                         byDate: Object.fromEntries(
                           signupsSeries.buckets.map((b) => [b.date, b.signups]),
                         ),
@@ -318,12 +318,12 @@ export function AnalyticsPage() {
                   <div key={s.source} style={{
                     display: "flex", alignItems: "center", gap: 8,
                     padding: "5px 10px", borderRadius: 8,
-                    background: "rgba(255,255,255,0.02)",
+                    background: colors.surface,
                   }}>
                     <div style={{ width: 6, height: 6, borderRadius: 2, background: getLandingSourceColor(s.source), flexShrink: 0 }} />
-                    <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)", flex: 1 }}>{s.source}</span>
-                    <span style={{ fontSize: "12px", fontWeight: 600, color: "#fff" }}>{s.count}</span>
-                    <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", minWidth: 36, textAlign: "right" }}>{s.percentage}%</span>
+                    <span style={{ fontSize: "12px", color: colors.textMuted, flex: 1 }}>{s.source}</span>
+                    <span style={{ fontSize: "12px", fontWeight: 600, color: colors.text }}>{s.count}</span>
+                    <span style={{ fontSize: "11px", color: colors.textFaded, minWidth: 36, textAlign: "right" }}>{s.percentage}%</span>
                   </div>
                 ))}
               </div>
@@ -337,13 +337,14 @@ export function AnalyticsPage() {
             <SectionLabel>Conversion Funnel</SectionLabel>
             <div style={{
               borderRadius: 14,
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.06)",
+              background: "#fff",
+              border: `1px solid ${colors.border}`,
               padding: "16px",
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             }}>
               <div style={{
                 fontSize: 11,
-                color: "rgba(255,255,255,0.4)",
+                color: colors.textSubtle,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
                 marginBottom: 12,
@@ -361,19 +362,19 @@ export function AnalyticsPage() {
                     <div style={{
                       display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4,
                     }}>
-                      <span style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{s.label}</span>
-                      <span style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>{s.count}</span>
+                      <span style={{ fontSize: 13, color: colors.text, fontWeight: 500 }}>{s.label}</span>
+                      <span style={{ fontSize: 13, color: colors.text, fontWeight: 700 }}>{s.count}</span>
                       <span style={{ flex: 1 }} />
                       {i > 0 && (
                         <span style={{
                           fontSize: 11,
-                          color: isLeak ? "rgba(255,255,255,0.45)" : "rgba(135,211,124,0.8)",
+                          color: isLeak ? colors.textSubtle : colors.success,
                         }}>
                           {s.pctOfPrev}% of previous
                         </span>
                       )}
                       <span style={{
-                        fontSize: 11, color: "rgba(255,255,255,0.35)", minWidth: 46, textAlign: "right",
+                        fontSize: 11, color: colors.textFaded, minWidth: 46, textAlign: "right",
                       }}>
                         {s.pctOfView}% of view
                       </span>
@@ -381,15 +382,15 @@ export function AnalyticsPage() {
                     <div style={{
                       height: 8,
                       borderRadius: 4,
-                      background: "rgba(255,255,255,0.04)",
+                      background: colors.borderFaint,
                       overflow: "hidden",
                     }}>
                       <div style={{
                         width: `${widthPct}%`,
                         height: "100%",
                         background: s.key === "signed_in"
-                          ? "linear-gradient(90deg, rgba(251,191,36,0.9), rgba(251,191,36,0.6))"
-                          : "linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.2))",
+                          ? `linear-gradient(90deg, ${colors.gold}, rgba(180,83,9,0.6))`
+                          : `linear-gradient(90deg, ${colors.accent}, ${colors.accentSoftStrong})`,
                         transition: "width 0.4s ease",
                       }} />
                     </div>
@@ -398,9 +399,9 @@ export function AnalyticsPage() {
               })}
 
               {funnel.sources && funnel.sources.length > 0 && (
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${colors.borderFaint}` }}>
                   <div style={{
-                    fontSize: 10, color: "rgba(255,255,255,0.35)",
+                    fontSize: 10, color: colors.textFaded,
                     letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8,
                   }}>
                     By source
@@ -414,16 +415,16 @@ export function AnalyticsPage() {
                         <div key={s.source} style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "5px 10px", borderRadius: 8,
-                          background: "rgba(255,255,255,0.02)",
+                          background: colors.surface,
                           fontSize: 12,
                         }}>
-                          <span style={{ color: "rgba(255,255,255,0.65)", flex: 1 }}>{s.source}</span>
-                          <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                          <span style={{ color: colors.textMuted, flex: 1 }}>{s.source}</span>
+                          <span style={{ color: colors.textSubtle }}>
                             {s.view} → {s.cta_click} → {s.auth_start} → {s.signed_in}
                           </span>
                           <span style={{
                             fontWeight: 600,
-                            color: rate > 0 ? colors.gold : "rgba(255,255,255,0.3)",
+                            color: rate > 0 ? colors.gold : colors.textFaded,
                             minWidth: 46, textAlign: "right",
                           }}>
                             {rate}%
@@ -446,16 +447,17 @@ export function AnalyticsPage() {
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <SectionLabel>Activity</SectionLabel>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+              <div style={{ fontSize: 11, color: colors.textFaded }}>
                 Events created &middot; emails collected · last {activitySeries.periodDays}d
               </div>
             </div>
             <div
               style={{
                 borderRadius: 14,
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: "#fff",
+                border: `1px solid ${colors.border}`,
                 padding: 16,
+                boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
               }}
             >
               {(() => {
@@ -473,19 +475,19 @@ export function AnalyticsPage() {
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      <span style={{ fontSize: 24, fontWeight: 700, color: "#4ade80" }}>
+                      <span style={{ fontSize: 24, fontWeight: 700, color: colors.secondary }}>
                         {totalEvents.toLocaleString()}
                       </span>
-                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+                      <span style={{ fontSize: 12, color: colors.textSubtle }}>
                         events created
                       </span>
                       <ChangeIndicator value={activitySeries.eventsChange} />
                     </div>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      <span style={{ fontSize: 24, fontWeight: 700, color: "#fbbf24" }}>
+                      <span style={{ fontSize: 24, fontWeight: 700, color: colors.accent }}>
                         {totalRsvps.toLocaleString()}
                       </span>
-                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+                      <span style={{ fontSize: 12, color: colors.textSubtle }}>
                         emails collected (RSVPs)
                       </span>
                       <ChangeIndicator value={activitySeries.rsvpsChange} />
@@ -495,8 +497,8 @@ export function AnalyticsPage() {
               })()}
               <TimeSeriesChart
                 buckets={activitySeries.buckets}
-                bars={{ key: "eventsCreated", label: "Events created", color: "rgba(74,222,128,0.7)" }}
-                line={{ key: "rsvps", label: "Emails collected", color: "#fbbf24" }}
+                bars={{ key: "eventsCreated", label: "Events created", color: colors.secondary }}
+                line={{ key: "rsvps", label: "Emails collected", color: colors.accent }}
               />
             </div>
           </div>
@@ -508,37 +510,38 @@ export function AnalyticsPage() {
             <SectionLabel>Partner Clicks</SectionLabel>
             <div style={{
               borderRadius: 14,
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.06)",
+              background: "#fff",
+              border: `1px solid ${colors.border}`,
               padding: "16px",
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             }}>
               {/* Partner rows */}
               {partnerClicks.partners.map((p, i) => (
                 <div key={p.slug} style={{
                   display: "flex", alignItems: "center", gap: 12,
                   padding: "8px 0",
-                  borderBottom: i < partnerClicks.partners.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                  borderBottom: i < partnerClicks.partners.length - 1 ? `1px solid ${colors.borderFaint}` : "none",
                 }}>
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: "#fff", textTransform: "capitalize", minWidth: 100 }}>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: colors.text, textTransform: "capitalize", minWidth: 100 }}>
                     {p.slug}
                   </span>
                   {/* Mini bar */}
-                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.04)", overflow: "hidden" }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: colors.borderFaint, overflow: "hidden" }}>
                     <div style={{
                       height: "100%", borderRadius: 3,
                       width: `${Math.min(100, (p.total / Math.max(...partnerClicks.partners.map(x => x.total))) * 100)}%`,
-                      background: "linear-gradient(90deg, rgba(251,191,36,0.5), rgba(251,191,36,0.25))",
+                      background: `linear-gradient(90deg, ${colors.gold}, rgba(180,83,9,0.4))`,
                     }} />
                   </div>
-                  <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff", minWidth: 28, textAlign: "right" }}>{p.total}</span>
-                  <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", minWidth: 50 }}>{p.unique} uniq</span>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: colors.text, minWidth: 28, textAlign: "right" }}>{p.total}</span>
+                  <span style={{ fontSize: "11px", color: colors.textFaded, minWidth: 50 }}>{p.unique} uniq</span>
                 </div>
               ))}
 
               {/* Top events */}
               {partnerClicks.topEvents && partnerClicks.topEvents.length > 0 && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
+                  <div style={{ fontSize: "11px", color: colors.textFaded, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     By event
                   </div>
                   {partnerClicks.topEvents.map((ev) => (
@@ -546,11 +549,11 @@ export function AnalyticsPage() {
                       display: "flex", alignItems: "center", gap: 8,
                       padding: "4px 0",
                     }}>
-                      <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ fontSize: "12px", color: colors.textSubtle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {ev.title}
                       </span>
                       {Object.entries(ev.byPartner).map(([partner, count]) => (
-                        <span key={partner} style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", textTransform: "capitalize" }}>
+                        <span key={partner} style={{ fontSize: "11px", color: colors.textFaded, textTransform: "capitalize" }}>
                           {partner} {count}
                         </span>
                       ))}
@@ -561,27 +564,27 @@ export function AnalyticsPage() {
 
               {/* Per-click detail: who clicked, which event, when */}
               {partnerClicks.recentClicks && partnerClicks.recentClicks.length > 0 && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
+                  <div style={{ fontSize: "11px", color: colors.textFaded, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Recent clicks
                   </div>
                   {partnerClicks.recentClicks.map((c) => (
                     <div key={c.id} style={{
                       display: "flex", alignItems: "center", gap: 8,
                       padding: "5px 0",
-                      borderBottom: "1px solid rgba(255,255,255,0.03)",
+                      borderBottom: `1px solid ${colors.borderFaint}`,
                       fontSize: "12px",
                     }}>
-                      <span style={{ textTransform: "capitalize", color: "rgba(251,191,36,0.7)", fontWeight: 600, minWidth: 84 }}>
+                      <span style={{ textTransform: "capitalize", color: colors.gold, fontWeight: 600, minWidth: 84 }}>
                         {c.partnerSlug}
                       </span>
-                      <span style={{ flex: 1, minWidth: 0, color: "rgba(255,255,255,0.55)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ flex: 1, minWidth: 0, color: colors.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {c.host ? (c.host.name || c.host.email || "Host") : (
-                          <span style={{ fontStyle: "italic", color: "rgba(255,255,255,0.3)" }}>Anonymous</span>
+                          <span style={{ fontStyle: "italic", color: colors.textFaded }}>Anonymous</span>
                         )}
-                        <span style={{ color: "rgba(255,255,255,0.25)" }}> · {c.eventTitle}</span>
+                        <span style={{ color: colors.textFaded }}> · {c.eventTitle}</span>
                       </span>
-                      <span style={{ color: "rgba(255,255,255,0.25)", whiteSpace: "nowrap" }}>
+                      <span style={{ color: colors.textFaded, whiteSpace: "nowrap" }}>
                         {new Date(c.clickedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                       </span>
                     </div>
@@ -603,7 +606,7 @@ export function AnalyticsPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 24 }}>
               <OverviewCard label="Campaigns" value={overview.total_campaigns} />
               <OverviewCard label="Emails Sent" value={overview.total_sent} />
-              <OverviewCard label="Avg Open Rate" value={`${overview.avg_open_rate}%`} color="rgba(59,130,246,0.8)" />
+              <OverviewCard label="Avg Open Rate" value={`${overview.avg_open_rate}%`} color={colors.accent} />
               <OverviewCard label="Avg Click Rate" value={`${overview.avg_click_rate}%`} color={colors.success} />
             </div>
 
@@ -649,17 +652,18 @@ export function AnalyticsPage() {
                     width: "100%",
                     padding: "16px",
                     borderRadius: selectedCampaign === c.campaign_tag ? "14px 14px 0 0" : "14px",
-                    border: `1px solid ${selectedCampaign === c.campaign_tag ? "rgba(192,192,192,0.2)" : "rgba(255,255,255,0.08)"}`,
+                    border: `1px solid ${selectedCampaign === c.campaign_tag ? colors.accentBorder : colors.border}`,
                     background: selectedCampaign === c.campaign_tag
-                      ? "rgba(192,192,192,0.06)"
-                      : "linear-gradient(145deg, rgba(14,12,24,0.97), rgba(20,17,34,0.98))",
-                    color: "#fff",
+                      ? colors.accentSoft
+                      : "#fff",
+                    color: colors.text,
                     cursor: "pointer",
                     textAlign: "left",
                     display: "flex",
                     flexDirection: "column",
                     gap: 10,
                     borderBottom: selectedCampaign === c.campaign_tag ? "none" : undefined,
+                    boxShadow: selectedCampaign === c.campaign_tag ? "none" : "0 8px 30px rgba(10,10,10,0.06)",
                   }}
                 >
                   {/* Title + date */}
@@ -667,7 +671,7 @@ export function AnalyticsPage() {
                     <span style={{ fontWeight: 600, fontSize: "14px" }}>
                       {formatTag(c.campaign_tag)}
                     </span>
-                    <span style={{ fontSize: "11px", color: colors.textFaded }}>
+                    <span style={{ fontSize: "11px", color: colors.textSubtle }}>
                       {formatDate(c.sent_at)}
                     </span>
                   </div>
@@ -675,7 +679,7 @@ export function AnalyticsPage() {
                   {/* Stats row */}
                   <div style={{ display: "flex", gap: "clamp(12px, 3vw, 24px)", flexWrap: "wrap" }}>
                     <StatPill label="Sent" value={c.total_sent} />
-                    <StatPill label="Opens" value={c.unique_opens} sub={`${c.open_rate}%`} color="rgba(59,130,246,0.8)" />
+                    <StatPill label="Opens" value={c.unique_opens} sub={`${c.open_rate}%`} color={colors.accent} />
                     <StatPill label="Clicks" value={c.unique_clicks} sub={`${c.click_rate}%`} color={colors.success} />
                   </div>
                 </button>
@@ -686,9 +690,9 @@ export function AnalyticsPage() {
                     style={{
                       padding: "16px",
                       borderRadius: "0 0 14px 14px",
-                      border: "1px solid rgba(192,192,192,0.2)",
-                      borderTop: "1px solid rgba(255,255,255,0.06)",
-                      background: "rgba(192,192,192,0.03)",
+                      border: `1px solid ${colors.accentBorder}`,
+                      borderTop: `1px solid ${colors.border}`,
+                      background: colors.surface,
                     }}
                   >
                     {detailLoading ? (
@@ -703,7 +707,7 @@ export function AnalyticsPage() {
                       <>
                         {/* Rates bar */}
                         <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
-                          <RateBar label="Open rate" rate={detail.open_rate} color="rgba(59,130,246,0.7)" />
+                          <RateBar label="Open rate" rate={detail.open_rate} color={colors.accent} />
                           <RateBar label="Click rate" rate={detail.click_rate} color={colors.success} />
                         </div>
 
@@ -722,38 +726,39 @@ export function AnalyticsPage() {
                                     style={{
                                       padding: "10px 12px",
                                       borderRadius: "10px",
-                                      background: "rgba(255,255,255,0.03)",
-                                      border: "1px solid rgba(255,255,255,0.05)",
+                                      background: "#fff",
+                                      border: `1px solid ${colors.border}`,
+                                      boxShadow: "0 2px 8px rgba(10,10,10,0.04)",
                                     }}
                                   >
                                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                       <span style={{
                                         width: 24, height: 24, borderRadius: 7,
-                                        background: i === 0 ? colors.gold : i === 1 ? "rgba(192,192,192,0.3)" : "rgba(255,255,255,0.08)",
+                                        background: i === 0 ? colors.accentSoft : i === 1 ? colors.surface : colors.borderFaint,
                                         display: "flex", alignItems: "center", justifyContent: "center",
                                         fontSize: "11px", fontWeight: 700,
-                                        color: i === 0 ? "#000" : "#fff",
+                                        color: i === 0 ? colors.accent : colors.textMuted,
                                         flexShrink: 0,
                                       }}>
                                         {i + 1}
                                       </span>
                                       <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{
-                                          fontSize: "13px", fontWeight: 600, color: "#fff",
+                                          fontSize: "13px", fontWeight: 600, color: colors.text,
                                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                                         }}>
                                           {ev.title}
                                         </div>
                                       </div>
-                                      <div style={{ width: 60, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", flexShrink: 0 }}>
+                                      <div style={{ width: 60, height: 6, borderRadius: 3, background: colors.borderFaint, flexShrink: 0 }}>
                                         <div style={{
                                           height: "100%", borderRadius: 3,
-                                          background: i === 0 ? colors.gold : colors.success,
+                                          background: i === 0 ? colors.accent : colors.success,
                                           width: `${Math.round((ev.total_clicks / maxClicks) * 100)}%`,
                                         }} />
                                       </div>
                                       <div style={{ textAlign: "right", flexShrink: 0, minWidth: 50 }}>
-                                        <div style={{ fontSize: "14px", fontWeight: 700, color: i === 0 ? colors.gold : "#fff" }}>
+                                        <div style={{ fontSize: "14px", fontWeight: 700, color: i === 0 ? colors.accent : colors.text }}>
                                           {ev.unique_clicks} <span style={{ fontSize: "10px", fontWeight: 400, color: colors.textFaded }}>/ {ev.total_clicks}</span>
                                         </div>
                                         <div style={{ fontSize: "10px", color: colors.textFaded }}>
@@ -767,13 +772,13 @@ export function AnalyticsPage() {
                                         <div key={li} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                           <span style={{
                                             width: 6, height: 6, borderRadius: "50%",
-                                            background: l.label === "spotify" ? "rgba(30,215,96,0.8)" : colors.success,
+                                            background: l.label === "spotify" ? "#16a34a" : colors.secondary,
                                             flexShrink: 0,
                                           }} />
                                           <span style={{ fontSize: "11px", color: colors.textFaded }}>
                                             {formatLinkLabel(l.label)}
                                           </span>
-                                          <span style={{ fontSize: "11px", fontWeight: 600, color: l.label === "spotify" ? "rgba(30,215,96,0.8)" : "rgba(255,255,255,0.6)" }}>
+                                          <span style={{ fontSize: "11px", fontWeight: 600, color: l.label === "spotify" ? "#16a34a" : colors.textMuted }}>
                                             {l.total_clicks}
                                           </span>
                                         </div>
@@ -803,27 +808,27 @@ export function AnalyticsPage() {
                                   style={{
                                     padding: "8px 12px",
                                     borderRadius: "8px",
-                                    background: "rgba(255,255,255,0.03)",
-                                    border: "1px solid rgba(255,255,255,0.05)",
+                                    background: "#fff",
+                                    border: `1px solid ${colors.border}`,
                                   }}
                                 >
                                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                     <div style={{
                                       width: 6, height: 6, borderRadius: "50%",
-                                      background: r.clicked ? colors.success : r.opened ? "rgba(59,130,246,0.7)" : "rgba(255,255,255,0.15)",
+                                      background: r.clicked ? colors.success : r.opened ? colors.accent : colors.border,
                                       flexShrink: 0,
                                     }} />
-                                    <div style={{ flex: 1, fontSize: "12px", color: "#fff", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    <div style={{ flex: 1, fontSize: "12px", color: colors.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                       {r.email}
                                     </div>
                                     <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                                       {r.opened && (
-                                        <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: 4, background: "rgba(59,130,246,0.15)", color: "rgba(59,130,246,0.8)" }}>
+                                        <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: 4, background: colors.accentSoft, color: colors.accent }}>
                                           opened
                                         </span>
                                       )}
                                       {r.clicked && (
-                                        <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: 4, background: "rgba(74,222,128,0.12)", color: colors.success }}>
+                                        <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: 4, background: colors.successRgba, color: colors.success }}>
                                           clicked
                                         </span>
                                       )}
@@ -833,10 +838,10 @@ export function AnalyticsPage() {
                                     <div style={{ marginTop: 4, marginLeft: 14, display: "flex", flexDirection: "column", gap: 2 }}>
                                       {r.clicks.map((c, ci) => (
                                         <div key={ci} style={{ fontSize: "11px", color: colors.textFaded, display: "flex", gap: 6 }}>
-                                          <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                                          <span style={{ color: colors.textSubtle }}>
                                             {c.event_title || truncateUrl(c.link_url)}
                                           </span>
-                                          <span style={{ color: c.link_label === "spotify" ? "rgba(30,215,96,0.7)" : "rgba(255,255,255,0.25)" }}>
+                                          <span style={{ color: c.link_label === "spotify" ? colors.success : colors.textFaded }}>
                                             {formatLinkLabel(c.link_label)}
                                           </span>
                                         </div>
@@ -866,9 +871,9 @@ export function AnalyticsPage() {
 // Derive a live/upcoming/past status from the event's start/end the same way
 // the admin Platform Events page does, so badges read consistently.
 const EVENT_STATUS_BADGE = {
-  live: { bg: "rgba(16,185,129,0.15)", text: "#10b981", border: "rgba(16,185,129,0.3)", label: "Live" },
-  upcoming: { bg: "rgba(59,130,246,0.15)", text: "#60a5fa", border: "rgba(59,130,246,0.3)", label: "Upcoming" },
-  past: { bg: "rgba(107,114,128,0.15)", text: "#9ca3af", border: "rgba(107,114,128,0.3)", label: "Past" },
+  live: { bg: "rgba(22,163,74,0.10)", text: "#16a34a", border: "rgba(22,163,74,0.25)", label: "Live" },
+  upcoming: { bg: "rgba(236,23,143,0.08)", text: "#ec178f", border: "rgba(236,23,143,0.25)", label: "Upcoming" },
+  past: { bg: "rgba(10,10,10,0.06)", text: "rgba(10,10,10,0.45)", border: "rgba(10,10,10,0.12)", label: "Past" },
 };
 
 function eventStatus(ev) {
@@ -971,7 +976,7 @@ function AllEventsTab({ onOpenFull }) {
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+      <div style={{ textAlign: "center", padding: "40px 0", color: colors.textFaded, fontSize: 13 }}>
         Loading…
       </div>
     );
@@ -979,7 +984,7 @@ function AllEventsTab({ onOpenFull }) {
 
   if (events.length === 0) {
     return (
-      <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+      <div style={{ textAlign: "center", padding: "40px 0", color: colors.textFaded, fontSize: 13 }}>
         No events found
       </div>
     );
@@ -1001,11 +1006,12 @@ function AllEventsTab({ onOpenFull }) {
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(ev); } }}
               style={{
                 cursor: "pointer",
-                background: "rgba(20,16,30,0.5)",
-                border: isOpen ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.06)",
+                background: isOpen ? colors.surface : "#fff",
+                border: isOpen ? `1px solid ${colors.borderStrong}` : `1px solid ${colors.border}`,
                 borderRadius: isOpen ? "14px 14px 0 0" : 14,
                 padding: "14px 16px",
                 display: "flex", alignItems: "center", gap: 10,
+                boxShadow: isOpen ? "none" : "0 2px 8px rgba(10,10,10,0.04)",
               }}
             >
               <span style={{
@@ -1017,21 +1023,21 @@ function AllEventsTab({ onOpenFull }) {
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {ev.title || "Untitled"}
                   </span>
                   {ev.host && (
                     <span style={{
-                      fontSize: 11, color: "rgba(255,255,255,0.35)", flexShrink: 0,
+                      fontSize: 11, color: colors.textSubtle, flexShrink: 0,
                       padding: "1px 7px", borderRadius: "999px",
-                      background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
+                      background: colors.surface, border: `1px solid ${colors.border}`,
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200,
                     }}>
                       {ev.host.name || ev.host.email}
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 12, color: colors.textSubtle, marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
                   {ev.location && (
                     <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                       <MapPin size={10} /> {ev.location.length > 30 ? ev.location.slice(0, 30) + "…" : ev.location}
@@ -1042,11 +1048,11 @@ function AllEventsTab({ onOpenFull }) {
                   </span>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, fontSize: 13, fontWeight: 600, color: colors.textMuted }}>
                 <Users size={14} />
                 {ev.confirmedGuests}{ev.capacity > 0 && <span style={{ opacity: 0.5 }}>/{ev.capacity}</span>}
               </div>
-              <div style={{ flexShrink: 0, color: "rgba(255,255,255,0.3)", display: "flex" }}>
+              <div style={{ flexShrink: 0, color: colors.textSubtle, display: "flex" }}>
                 {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </div>
             </div>
@@ -1054,8 +1060,8 @@ function AllEventsTab({ onOpenFull }) {
             {/* Inline analytics overview */}
             {isOpen && (
               <div style={{
-                background: "rgba(15,12,24,0.6)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                background: colors.surface,
+                border: `1px solid ${colors.borderStrong}`,
                 borderTop: "none",
                 borderRadius: "0 0 14px 14px",
                 padding: "14px 16px 16px",
@@ -1074,9 +1080,9 @@ function AllEventsTab({ onOpenFull }) {
           disabled={loadingMore}
           style={{
             marginTop: 4, padding: "10px 16px", borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(255,255,255,0.03)",
-            color: loadingMore ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.6)",
+            border: `1px solid ${colors.border}`,
+            background: "#fff",
+            color: loadingMore ? colors.textFaded : colors.textMuted,
             fontSize: 13, fontWeight: 500, cursor: loadingMore ? "default" : "pointer",
           }}
         >
@@ -1091,11 +1097,11 @@ function AllEventsTab({ onOpenFull }) {
 // numbers + top sources; "Open full analytics" jumps to the host page.
 function EventOverview({ entry, onOpenFull }) {
   if (!entry || entry.loading) {
-    return <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", padding: "8px 0" }}>Loading analytics…</div>;
+    return <div style={{ fontSize: 13, color: colors.textFaded, padding: "8px 0" }}>Loading analytics…</div>;
   }
   const d = entry.data;
   if (!d) {
-    return <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", padding: "8px 0" }}>Couldn’t load analytics.</div>;
+    return <div style={{ fontSize: 13, color: colors.textFaded, padding: "8px 0" }}>Couldn’t load analytics.</div>;
   }
   const noData = (d.total_views || 0) === 0 && (d.unique_visitors || 0) === 0;
   const sources = (d.sources || []).slice(0, 4);
@@ -1103,18 +1109,18 @@ function EventOverview({ entry, onOpenFull }) {
   return (
     <div>
       {noData ? (
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", padding: "4px 0 10px" }}>
+        <div style={{ fontSize: 13, color: colors.textFaded, padding: "4px 0 10px" }}>
           No visitors recorded yet.
         </div>
       ) : (
         <>
           <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: sources.length ? 12 : 4 }}>
-            <Stat label="Unique" value={(d.unique_visitors || 0).toLocaleString()} color="rgba(59,130,246,0.9)" />
+            <Stat label="Unique" value={(d.unique_visitors || 0).toLocaleString()} color={colors.accent} />
             <Stat label="Views" value={(d.total_views || 0).toLocaleString()} />
-            <Stat label="RSVPs" value={(d.rsvp_count || 0).toLocaleString()} color="rgba(139,92,246,0.9)" />
-            <Stat label="Pulled up" value={(d.pulled_up || 0).toLocaleString()} color="rgba(74,222,128,0.9)" />
+            <Stat label="RSVPs" value={(d.rsvp_count || 0).toLocaleString()} color={colors.secondary} />
+            <Stat label="Pulled up" value={(d.pulled_up || 0).toLocaleString()} color={colors.success} />
             {d.is_paid && (
-              <Stat label="Revenue" value={fmtRevenue(d.revenue, d.ticket_currency)} color="#fbbf24" />
+              <Stat label="Revenue" value={fmtRevenue(d.revenue, d.ticket_currency)} color={colors.gold} />
             )}
           </div>
 
@@ -1123,13 +1129,13 @@ function EventOverview({ entry, onOpenFull }) {
               {sources.map((s) => (
                 <span key={s.source} style={{
                   display: "flex", alignItems: "center", gap: 5,
-                  fontSize: 11, color: "rgba(255,255,255,0.55)",
+                  fontSize: 11, color: colors.textMuted,
                   padding: "3px 9px", borderRadius: 999,
-                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                  background: colors.surface, border: `1px solid ${colors.border}`,
                 }}>
                   <span style={{ width: 6, height: 6, borderRadius: 2, background: getSourceColorLocal(s.source) }} />
                   <span style={{ textTransform: "capitalize" }}>{s.source}</span>
-                  <span style={{ color: "#fff", fontWeight: 600 }}>{s.count}</span>
+                  <span style={{ color: colors.text, fontWeight: 600 }}>{s.count}</span>
                 </span>
               ))}
             </div>
@@ -1142,8 +1148,8 @@ function EventOverview({ entry, onOpenFull }) {
         style={{
           marginTop: 12, display: "inline-flex", alignItems: "center", gap: 5,
           padding: "5px 12px", borderRadius: 999,
-          border: "1px solid rgba(251,191,36,0.25)", background: "rgba(251,191,36,0.06)",
-          color: "rgba(251,191,36,0.95)", fontSize: 12, fontWeight: 500, cursor: "pointer",
+          border: `1px solid ${colors.accentBorder}`, background: colors.accentSoft,
+          color: colors.accent, fontSize: 12, fontWeight: 500, cursor: "pointer",
         }}
       >
         Open full analytics <ExternalLink size={12} />
@@ -1155,8 +1161,8 @@ function EventOverview({ entry, onOpenFull }) {
 function Stat({ label, value, color }) {
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: color || "#fff", lineHeight: 1.1 }}>{value}</div>
-      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: color || colors.text, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 11, color: colors.textSubtle, marginTop: 2 }}>{label}</div>
     </div>
   );
 }
@@ -1173,15 +1179,15 @@ function fmtRevenue(cents, currency = "sek") {
 // Local copy of the per-event source palette (the host analytics page has its
 // own); keeps the inline source pills colour-consistent without a shared dep.
 const ALL_EVENTS_SOURCE_COLORS = {
-  direct: "rgba(255,255,255,0.35)",
-  instagram: "rgba(225,48,108,0.75)",
-  facebook: "rgba(66,103,178,0.75)",
-  twitter: "rgba(29,155,240,0.75)",
-  linkedin: "rgba(10,102,194,0.75)",
-  tiktok: "rgba(255,255,255,0.6)",
-  pullup: "rgba(192,192,192,0.6)",
-  pullup_newsletter: "rgba(251,191,36,0.7)",
-  other: "rgba(168,85,247,0.5)",
+  direct: "rgba(10,10,10,0.45)",
+  instagram: "rgba(225,48,108,0.85)",
+  facebook: "rgba(66,103,178,0.85)",
+  twitter: "rgba(29,155,240,0.85)",
+  linkedin: "rgba(10,102,194,0.85)",
+  tiktok: "rgba(10,10,10,0.55)",
+  pullup: "rgba(10,10,10,0.35)",
+  pullup_newsletter: "#b45309",
+  other: "rgba(168,85,247,0.7)",
 };
 function getSourceColorLocal(name) {
   return ALL_EVENTS_SOURCE_COLORS[name]
@@ -1193,11 +1199,12 @@ function OverviewCard({ label, value, color }) {
     <div style={{
       padding: 14,
       borderRadius: 12,
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      background: "#fff",
+      border: `1px solid ${colors.border}`,
+      boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
     }}>
       <div style={{ fontSize: "11px", color: colors.textFaded, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: "22px", fontWeight: 700, color: color || "#fff" }}>{value}</div>
+      <div style={{ fontSize: "22px", fontWeight: 700, color: color || colors.text }}>{value}</div>
     </div>
   );
 }
@@ -1206,7 +1213,7 @@ function SectionLabel({ children }) {
   return (
     <div style={{
       fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.1em",
-      fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 10,
+      fontWeight: 600, color: colors.textSubtle, marginBottom: 10,
     }}>
       {children}
     </div>
@@ -1216,7 +1223,7 @@ function SectionLabel({ children }) {
 function StatPill({ label, value, sub, color }) {
   return (
     <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-      <span style={{ fontSize: "16px", fontWeight: 600, color: color || "#fff" }}>
+      <span style={{ fontSize: "16px", fontWeight: 600, color: color || colors.text }}>
         {value}
       </span>
       <span style={{ fontSize: "11px", color: colors.textFaded }}>
@@ -1235,10 +1242,10 @@ function RateBar({ label, rate, color }) {
   return (
     <div style={{ flex: 1 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: "11px", color: colors.textFaded }}>{label}</span>
+        <span style={{ fontSize: "11px", color: colors.textSubtle }}>{label}</span>
         <span style={{ fontSize: "12px", fontWeight: 600, color }}>{rate}%</span>
       </div>
-      <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)" }}>
+      <div style={{ height: 6, borderRadius: 3, background: colors.borderFaint }}>
         <div style={{
           height: "100%", borderRadius: 3,
           background: color,
@@ -1273,9 +1280,10 @@ function TopList({ items, color }) {
   return (
     <div style={{
       borderRadius: 14,
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      background: "#fff",
+      border: `1px solid ${colors.border}`,
       overflow: "hidden",
+      boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
     }}>
       {items.map((item, i) => (
         <div
@@ -1285,26 +1293,26 @@ function TopList({ items, color }) {
             alignItems: "center",
             gap: 10,
             padding: "10px 14px",
-            borderBottom: i < items.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+            borderBottom: i < items.length - 1 ? `1px solid ${colors.borderFaint}` : "none",
           }}
         >
           <span style={{
             width: 22, height: 22, borderRadius: 6,
-            background: i === 0 ? colors.gold : i === 1 ? "rgba(192,192,192,0.3)" : i === 2 ? "rgba(205,127,50,0.3)" : "rgba(255,255,255,0.06)",
+            background: i === 0 ? colors.accentSoft : i === 1 ? colors.surface : colors.borderFaint,
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: "11px", fontWeight: 700,
-            color: i === 0 ? "#000" : "#fff",
+            color: i === 0 ? colors.accent : colors.textMuted,
             flexShrink: 0,
           }}>
             {i + 1}
           </span>
           <div style={{
-            flex: 1, minWidth: 0, fontSize: "12px", fontWeight: 500, color: "#fff",
+            flex: 1, minWidth: 0, fontSize: "12px", fontWeight: 500, color: colors.text,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             {item.title}
           </div>
-          <div style={{ width: 60, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", flexShrink: 0 }}>
+          <div style={{ width: 60, height: 4, borderRadius: 2, background: colors.borderFaint, flexShrink: 0 }}>
             <div style={{
               height: "100%", borderRadius: 2, background: color,
               width: `${Math.round((item.clicks / max) * 100)}%`,
@@ -1324,7 +1332,7 @@ function ChangeIndicator({ value }) {
   const isUp = value > 0;
   const isDown = value < 0;
   const Icon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;
-  const color = isUp ? "#4ade80" : isDown ? "#f87171" : "rgba(255,255,255,0.3)";
+  const color = isUp ? colors.success : isDown ? colors.danger : colors.textFaded;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: "11px", fontWeight: 600, color }}>
       <Icon size={12} />
@@ -1334,14 +1342,14 @@ function ChangeIndicator({ value }) {
 }
 
 const LANDING_SOURCE_COLORS = {
-  direct: "rgba(255,255,255,0.35)",
-  instagram: "rgba(225,48,108,0.75)",
-  facebook: "rgba(66,103,178,0.75)",
-  twitter: "rgba(29,155,240,0.75)",
-  linkedin: "rgba(10,102,194,0.75)",
-  google: "rgba(66,133,244,0.75)",
-  pullup: "rgba(192,192,192,0.6)",
-  other: "rgba(168,85,247,0.5)",
+  direct: "rgba(10,10,10,0.45)",
+  instagram: "rgba(225,48,108,0.85)",
+  facebook: "rgba(66,103,178,0.85)",
+  twitter: "rgba(29,155,240,0.85)",
+  linkedin: "rgba(10,102,194,0.85)",
+  google: "rgba(66,133,244,0.85)",
+  pullup: "rgba(10,10,10,0.35)",
+  other: "rgba(168,85,247,0.7)",
 };
 
 function getLandingSourceColor(name) {
@@ -1362,27 +1370,27 @@ function DeviceDonut({ mobile, desktop }) {
       <svg width="56" height="56" viewBox="0 0 56 56">
         {/* Desktop arc */}
         <circle cx={cx} cy={cy} r={r} fill="none"
-          stroke="rgba(59,130,246,0.6)" strokeWidth={stroke}
+          stroke={colors.accent} strokeWidth={stroke}
           strokeDasharray={`${desktopArc} ${circ}`}
           strokeDashoffset={0}
           transform={`rotate(-90 ${cx} ${cy})`}
         />
         {/* Mobile arc */}
         <circle cx={cx} cy={cy} r={r} fill="none"
-          stroke="rgba(16,185,129,0.7)" strokeWidth={stroke}
+          stroke={colors.secondary} strokeWidth={stroke}
           strokeDasharray={`${mobileArc} ${circ}`}
           strokeDashoffset={-desktopArc}
           transform={`rotate(-90 ${cx} ${cy})`}
         />
       </svg>
       <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: "11px" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 4, color: "rgba(255,255,255,0.5)" }}>
-          <Smartphone size={11} style={{ color: "rgba(16,185,129,0.7)" }} />
-          {mobile} <span style={{ color: "rgba(255,255,255,0.25)" }}>({Math.round(mobileP * 100)}%)</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, color: colors.textMuted }}>
+          <Smartphone size={11} style={{ color: colors.secondary }} />
+          {mobile} <span style={{ color: colors.textFaded }}>({Math.round(mobileP * 100)}%)</span>
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 4, color: "rgba(255,255,255,0.5)" }}>
-          <Monitor size={11} style={{ color: "rgba(59,130,246,0.6)" }} />
-          {desktop} <span style={{ color: "rgba(255,255,255,0.25)" }}>({Math.round((1 - mobileP) * 100)}%)</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, color: colors.textMuted }}>
+          <Monitor size={11} style={{ color: colors.accent }} />
+          {desktop} <span style={{ color: colors.textFaded }}>({Math.round((1 - mobileP) * 100)}%)</span>
         </span>
       </div>
     </div>
@@ -1425,9 +1433,10 @@ function LandingDailyChart({ daily, allSources, lineOverlay }) {
 
   return (
     <div style={{
-      borderRadius: 14, background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      borderRadius: 14, background: "#fff",
+      border: `1px solid ${colors.border}`,
       padding: "14px 12px 8px", position: "relative",
+      boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
     }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}
         onMouseLeave={() => setHoverDay(null)}
@@ -1439,15 +1448,15 @@ function LandingDailyChart({ daily, allSources, lineOverlay }) {
           return (
             <g key={f}>
               <line x1={PAD.left} y1={y} x2={PAD.left + chartW} y2={y}
-                stroke="rgba(255,255,255,0.06)" strokeDasharray="4,4" />
-              <text x={PAD.left - 6} y={y + 3} textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize="10">{val}</text>
+                stroke="rgba(10,10,10,0.07)" strokeDasharray="4,4" />
+              <text x={PAD.left - 6} y={y + 3} textAnchor="end" fill="rgba(10,10,10,0.35)" fontSize="10">{val}</text>
               {lineOverlay && (
                 <text
                   x={PAD.left + chartW + 6}
                   y={y + 3}
                   textAnchor="start"
                   fill={lineOverlay.color}
-                  opacity={0.55}
+                  opacity={0.8}
                   fontSize="10"
                 >
                   {Math.round(maxLine * f)}
@@ -1522,7 +1531,7 @@ function LandingDailyChart({ daily, allSources, lineOverlay }) {
             y1={PAD.top}
             x2={PAD.left + (hoverDay / (daily.length - 1 || 1)) * chartW}
             y2={PAD.top + chartH}
-            stroke="rgba(255,255,255,0.15)" strokeWidth="1"
+            stroke="rgba(10,10,10,0.12)" strokeWidth="1"
           />
         )}
 
@@ -1530,7 +1539,7 @@ function LandingDailyChart({ daily, allSources, lineOverlay }) {
         {xLabels.map(i => {
           const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
           const label = new Date(daily[i].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-          return <text key={i} x={x} y={H - 4} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="10">{label}</text>;
+          return <text key={i} x={x} y={H - 4} textAnchor="middle" fill="rgba(10,10,10,0.35)" fontSize="10">{label}</text>;
         })}
       </svg>
 
@@ -1541,14 +1550,14 @@ function LandingDailyChart({ daily, allSources, lineOverlay }) {
           left: `${((PAD.left + (hoverDay / (daily.length - 1 || 1)) * chartW) / W) * 100}%`,
           top: 12,
           transform: `translateX(${hoverDay > daily.length * 0.65 ? "calc(-100% - 10px)" : "10px"})`,
-          background: "rgba(15,12,25,0.95)", border: "1px solid rgba(255,255,255,0.12)",
-          borderRadius: 8, padding: "8px 12px", fontSize: "12px", color: "#fff",
-          lineHeight: 1.6, backdropFilter: "blur(12px)", pointerEvents: "none", zIndex: 10, whiteSpace: "nowrap",
+          background: "#fff", border: `1px solid ${colors.border}`,
+          borderRadius: 8, padding: "8px 12px", fontSize: "12px", color: colors.text,
+          lineHeight: 1.6, boxShadow: "0 4px 16px rgba(10,10,10,0.10)", pointerEvents: "none", zIndex: 10, whiteSpace: "nowrap",
         }}>
           <div style={{ fontWeight: 600, marginBottom: 2 }}>
             {new Date(daily[hoverDay].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
           </div>
-          <div style={{ color: "rgba(255,255,255,0.5)" }}>{daily[hoverDay].views} unique visitors</div>
+          <div style={{ color: colors.textMuted }}>{daily[hoverDay].views} unique visitors</div>
           {lineOverlay && (
             <div
               style={{
@@ -1576,7 +1585,7 @@ function LandingDailyChart({ daily, allSources, lineOverlay }) {
           {Object.entries(daily[hoverDay].bySource || {}).sort((a, b) => b[1] - a[1]).map(([src, count]) => (
             <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
               <div style={{ width: 5, height: 5, borderRadius: 1, background: getLandingSourceColor(src), flexShrink: 0 }} />
-              <span style={{ color: "rgba(255,255,255,0.4)" }}>{src}: {count}</span>
+              <span style={{ color: colors.textSubtle }}>{src}: {count}</span>
             </div>
           ))}
         </div>
@@ -1586,13 +1595,13 @@ function LandingDailyChart({ daily, allSources, lineOverlay }) {
       {(allSources.length > 0 || lineOverlay) && (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8, paddingLeft: PAD.left }}>
           {allSources.map(src => (
-            <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
+            <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10px", color: colors.textSubtle }}>
               <div style={{ width: 7, height: 7, borderRadius: 1.5, background: getLandingSourceColor(src) }} />
               {src}
             </div>
           ))}
           {lineOverlay && (
-            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10px", color: "rgba(255,255,255,0.5)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10px", color: colors.textMuted }}>
               <div style={{ width: 14, height: 2, background: lineOverlay.color }} />
               {lineOverlay.label}
             </div>
@@ -1698,14 +1707,14 @@ function TimeSeriesChart({ buckets, bars, line, height = 180 }) {
                 x2={W - padR}
                 y1={y}
                 y2={y}
-                stroke="rgba(255,255,255,0.05)"
+                stroke="rgba(10,10,10,0.07)"
                 strokeWidth={1}
               />
               <text
                 x={padL - 4}
                 y={y + 3}
                 textAnchor="end"
-                fill="rgba(255,255,255,0.3)"
+                fill="rgba(10,10,10,0.35)"
                 fontSize={9}
               >
                 {t.value.toLocaleString()}
@@ -1782,7 +1791,7 @@ function TimeSeriesChart({ buckets, bars, line, height = 180 }) {
             x2={hoverX}
             y1={padT}
             y2={padT + innerH}
-            stroke="rgba(255,255,255,0.18)"
+            stroke="rgba(10,10,10,0.12)"
             strokeWidth={1}
           />
         )}
@@ -1811,7 +1820,7 @@ function TimeSeriesChart({ buckets, bars, line, height = 180 }) {
               x={x}
               y={H - 8}
               textAnchor="middle"
-              fill="rgba(255,255,255,0.35)"
+              fill="rgba(10,10,10,0.35)"
               fontSize={9}
             >
               {fmtDate(b.date)}
@@ -1829,14 +1838,14 @@ function TimeSeriesChart({ buckets, bars, line, height = 180 }) {
             left: `${(hoverX / W) * 100}%`,
             top: 8,
             transform: `translateX(${hoverIndex > buckets.length * 0.65 ? "calc(-100% - 10px)" : "10px"})`,
-            background: "rgba(15,12,25,0.95)",
-            border: "1px solid rgba(255,255,255,0.12)",
+            background: "#fff",
+            border: `1px solid ${colors.border}`,
             borderRadius: 8,
             padding: "8px 12px",
             fontSize: 12,
-            color: "#fff",
+            color: colors.text,
             lineHeight: 1.6,
-            backdropFilter: "blur(12px)",
+            boxShadow: "0 4px 16px rgba(10,10,10,0.10)",
             pointerEvents: "none",
             zIndex: 10,
             whiteSpace: "nowrap",
@@ -1850,7 +1859,7 @@ function TimeSeriesChart({ buckets, bars, line, height = 180 }) {
               display: "flex",
               alignItems: "center",
               gap: 6,
-              color: "rgba(255,255,255,0.75)",
+              color: colors.textMuted,
             }}
           >
             <span
@@ -1869,7 +1878,7 @@ function TimeSeriesChart({ buckets, bars, line, height = 180 }) {
               display: "flex",
               alignItems: "center",
               gap: 6,
-              color: "rgba(255,255,255,0.75)",
+              color: colors.textMuted,
             }}
           >
             <span
@@ -1891,7 +1900,7 @@ function TimeSeriesChart({ buckets, bars, line, height = 180 }) {
           display: "flex",
           gap: 16,
           fontSize: 11,
-          color: "rgba(255,255,255,0.55)",
+          color: colors.textMuted,
           marginTop: 6,
         }}
       >

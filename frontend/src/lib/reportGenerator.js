@@ -44,8 +44,8 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
   const eventsList = data.events_list || [];
   const eventChartSvg = buildEventByEventChartSvg(dailyByEvent, eventsList);
   const eventLegendHtml = eventsList.map(ev =>
-    `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:1.5px;background:${ev.color};"></div><span style="font-size:8px;color:rgba(255,255,255,0.5);">${escHtml(ev.name)}</span></div>`
-  ).join("") + (Math.max(...dailyByEvent.map(d => d.rsvps || 0), 0) > 0 ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:10px;height:2px;border-radius:1px;background:rgba(74,222,128,0.7);"></div><span style="font-size:8px;color:rgba(255,255,255,0.5);">RSVPs</span></div>` : "");
+    `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:1.5px;background:${ev.color};"></div><span style="font-size:8px;color:rgba(10,10,10,0.45);">${escHtml(ev.name)}</span></div>`
+  ).join("") + (Math.max(...dailyByEvent.map(d => d.rsvps || 0), 0) > 0 ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:10px;height:2px;border-radius:1px;background:#16a34a;"></div><span style="font-size:8px;color:rgba(10,10,10,0.45);">RSVPs</span></div>` : "");
 
   // Build source rows
   const sourceRowsHtml = sources.slice(0, 8).map(s => {
@@ -62,8 +62,8 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
   const campaigns = data.campaigns || [];
   const campaignHtml = campaigns.length > 0 ? campaigns.slice(0, 4).map(c => {
     const funnelColors = {
-      sent: "rgba(139,92,246,0.7)", opened: "rgba(59,130,246,0.7)",
-      clicked: "rgba(251,191,36,0.7)", visited: "rgba(74,222,128,0.7)", rsvps: "rgba(236,72,153,0.7)",
+      sent: "rgba(10,10,10,0.45)", opened: "#ec178f",
+      clicked: "#0d9488", visited: "#16a34a", rsvps: "#b45309",
     };
     const stages = [
       { label: "Sent", value: c.sent, color: funnelColors.sent },
@@ -76,24 +76,24 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
     const bars = stages.map(s => {
       const pct = Math.max(2, (s.value / maxVal) * 100);
       return `<div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:9px;color:rgba(255,255,255,0.45);width:46px;text-align:right;flex-shrink:0;">${s.label}</span>
-        <div style="flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,0.03);"><div style="height:100%;width:${pct}%;border-radius:4px;background:${s.color};"></div></div>
-        <span style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.7);min-width:24px;text-align:right;">${s.value}</span>
-        ${s.rate !== undefined ? `<span style="font-size:9px;color:rgba(255,255,255,0.3);min-width:30px;text-align:right;">${s.rate}%</span>` : `<span style="min-width:30px;"></span>`}
+        <span style="font-size:9px;color:rgba(10,10,10,0.45);width:46px;text-align:right;flex-shrink:0;">${s.label}</span>
+        <div style="flex:1;height:8px;border-radius:4px;background:rgba(10,10,10,0.06);"><div style="height:100%;width:${pct}%;border-radius:4px;background:${s.color};"></div></div>
+        <span style="font-size:10px;font-weight:600;color:rgba(10,10,10,0.65);min-width:24px;text-align:right;">${s.value}</span>
+        ${s.rate !== undefined ? `<span style="font-size:9px;color:rgba(10,10,10,0.35);min-width:30px;text-align:right;">${s.rate}%</span>` : `<span style="min-width:30px;"></span>`}
       </div>`;
     }).join("");
     const isFollowup = c.templateType === "followup";
-    const badgeBg = isFollowup ? "rgba(212,175,55,0.18)" : "rgba(139,92,246,0.18)";
-    const badgeFg = isFollowup ? "#d4af37" : "#c4b5fd";
+    const badgeBg = isFollowup ? "rgba(180,83,9,0.10)" : "rgba(236,23,143,0.08)";
+    const badgeFg = isFollowup ? "#b45309" : "#ec178f";
     const badgeLabel = isFollowup ? "Follow-up" : "Event";
-    return `<div style="padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);">
+    return `<div style="padding:10px 12px;border-radius:10px;background:#fafafa;border:1px solid rgba(10,10,10,0.10);">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
         <span style="font-size:8px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:${badgeBg};color:${badgeFg};flex-shrink:0;">${badgeLabel}</span>
-        <div style="font-size:11px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(c.name)}</div>
+        <div style="font-size:11px;font-weight:600;color:#0a0a0a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(c.name)}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:3px;">${bars}</div>
     </div>`;
-  }).join("") : `<div style="font-size:11px;color:rgba(255,255,255,0.25);">No campaigns sent in this period</div>`;
+  }).join("") : `<div style="font-size:11px;color:rgba(10,10,10,0.30);">No campaigns sent in this period</div>`;
 
   // Event time
   const eventTime = formatEventTimeReport(event?.starts_at, event?.ends_at);
@@ -102,8 +102,8 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
   const hasVipRsvps = daily.some(d => (d.vipRsvps || 0) > 0);
   const maxDailyRsvps = Math.max(...daily.map(d => d.rsvps || 0), 0);
   const legendHtml = allSources.map(src =>
-    `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:1.5px;background:${getSourceColorStatic(src)};"></div><span style="font-size:8px;color:rgba(255,255,255,0.5);">${escHtml(src)}</span></div>`
-  ).join("") + (maxDailyRsvps > 0 ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:10px;height:2px;border-radius:1px;background:rgba(74,222,128,0.7);"></div><span style="font-size:8px;color:rgba(255,255,255,0.5);">RSVPs</span></div>` : "") + (hasVipRsvps ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:50%;background:rgba(251,191,36,0.9);"></div><span style="font-size:8px;color:rgba(255,255,255,0.5);">VIP RSVPs</span></div>` : "");
+    `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:1.5px;background:${getSourceColorStatic(src)};"></div><span style="font-size:8px;color:rgba(10,10,10,0.45);">${escHtml(src)}</span></div>`
+  ).join("") + (maxDailyRsvps > 0 ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:10px;height:2px;border-radius:1px;background:#16a34a;"></div><span style="font-size:8px;color:rgba(10,10,10,0.45);">RSVPs</span></div>` : "") + (hasVipRsvps ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:50%;background:#b45309;"></div><span style="font-size:8px;color:rgba(10,10,10,0.45);">VIP RSVPs</span></div>` : "");
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -115,7 +115,7 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #05040a; color: #fff;
+    background: #ffffff; color: #0a0a0a;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -124,37 +124,32 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
     padding: 16mm 24mm 12mm;
     position: relative; overflow: hidden;
     page-break-after: always; page-break-inside: avoid;
+    background: #fff;
   }
   .page:last-child { page-break-after: auto; }
-  .page::before {
-    content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    background: radial-gradient(ellipse at 30% 20%, rgba(59,130,246,0.04) 0%, transparent 60%),
-                radial-gradient(ellipse at 80% 80%, rgba(139,92,246,0.03) 0%, transparent 50%);
-    pointer-events: none;
-  }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8mm; position: relative; z-index: 1; }
-  .brand-name { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-  .report-period { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 2px; }
-  .footer { position: absolute; bottom: 6mm; left: 24mm; right: 24mm; display: flex; justify-content: space-between; font-size: 9px; color: rgba(255,255,255,0.25); }
-  .detail-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+  .brand-name { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: #0a0a0a; }
+  .report-period { font-size: 12px; color: rgba(10,10,10,0.55); margin-top: 2px; }
+  .footer { position: absolute; bottom: 6mm; left: 24mm; right: 24mm; display: flex; justify-content: space-between; font-size: 9px; color: rgba(10,10,10,0.30); }
+  .detail-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; color: rgba(10,10,10,0.45); margin-bottom: 4px; }
   .source-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
-  .source-name { width: 90px; font-size: 10px; color: rgba(255,255,255,0.75); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
-  .source-bar-wrap { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.04); }
+  .source-name { width: 90px; font-size: 10px; color: rgba(10,10,10,0.65); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+  .source-bar-wrap { flex: 1; height: 5px; border-radius: 3px; background: rgba(10,10,10,0.06); }
   .source-bar { height: 100%; border-radius: 3px; min-width: 3px; }
-  .source-count { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.7); min-width: 30px; text-align: right; }
-  .source-pct { font-size: 9px; color: rgba(255,255,255,0.4); min-width: 36px; text-align: right; }
+  .source-count { font-size: 10px; font-weight: 600; color: rgba(10,10,10,0.65); min-width: 30px; text-align: right; }
+  .source-pct { font-size: 9px; color: rgba(10,10,10,0.40); min-width: 36px; text-align: right; }
 
   .cover { display: flex; flex-direction: column; justify-content: center; align-items: center; height: calc(210mm - 28mm); text-align: center; }
   .cover-branding-img { max-width: 480px; width: 75%; height: auto; margin-bottom: 32px; }
-  .cover-event { font-size: 40px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px; }
-  .cover-time { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 32px; }
-  .cover-divider { width: 50px; height: 2px; background: rgba(255,255,255,0.15); margin: 0 auto 32px; }
-  .cover-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255,255,255,0.5); font-weight: 600; margin-bottom: 6px; }
-  .cover-period { font-size: 16px; color: rgba(255,255,255,0.7); font-weight: 500; }
-  .cover-pullup { position: absolute; bottom: 10mm; left: 0; right: 0; text-align: center; font-size: 10px; color: rgba(255,255,255,0.2); }
+  .cover-event { font-size: 40px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px; color: #0a0a0a; }
+  .cover-time { font-size: 14px; color: rgba(10,10,10,0.50); margin-bottom: 32px; }
+  .cover-divider { width: 50px; height: 2px; background: #ec178f; margin: 0 auto 32px; }
+  .cover-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(10,10,10,0.45); font-weight: 600; margin-bottom: 6px; }
+  .cover-period { font-size: 16px; color: rgba(10,10,10,0.65); font-weight: 500; }
+  .cover-pullup { position: absolute; bottom: 10mm; left: 0; right: 0; text-align: center; font-size: 10px; color: rgba(10,10,10,0.25); }
 
   @media print {
-    body { background: #05040a !important; }
+    body { background: #ffffff !important; }
     .no-print { display: none !important; }
   }
 </style>
@@ -162,8 +157,8 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
 <body>
 
 <div class="no-print" style="position:fixed;top:16px;right:16px;z-index:100;display:flex;gap:8px;">
-  <button id="print-btn" onclick="window.print()" style="padding:10px 20px;border-radius:8px;border:none;background:linear-gradient(135deg,#f0f0f0,#c0c0c0,#a8a8a8);color:#fff;font-weight:600;font-size:14px;cursor:pointer;">Loading...</button>
-  <button onclick="window.close()" style="padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;font-size:14px;cursor:pointer;">Close</button>
+  <button id="print-btn" onclick="window.print()" style="padding:10px 20px;border-radius:8px;border:none;background:#ec178f;color:#fff;font-weight:600;font-size:14px;cursor:pointer;">Loading...</button>
+  <button onclick="window.close()" style="padding:10px 16px;border-radius:8px;border:1px solid rgba(10,10,10,0.15);background:#fff;color:#0a0a0a;font-size:14px;cursor:pointer;">Close</button>
 </div>
 <script>
 (function() {
@@ -204,7 +199,7 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
 
   <div style="margin-bottom:${eventChartSvg ? '4mm' : '6mm'};position:relative;z-index:1;">
     <div class="detail-section-label">Daily Unique Visitors by Source & RSVPs — ${days} days</div>
-    <div style="border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:8px 10px 4px;">
+    <div style="border-radius:10px;background:#fafafa;border:1px solid rgba(10,10,10,0.08);padding:8px 10px 4px;">
       ${chartSvg}
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:3px;">${legendHtml}</div>
     </div>
@@ -212,7 +207,7 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
 
   ${eventChartSvg ? `<div style="margin-bottom:4mm;position:relative;z-index:1;">
     <div class="detail-section-label">Daily Visitors by Event — ${days} days</div>
-    <div style="border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:8px 10px 4px;">
+    <div style="border-radius:10px;background:#fafafa;border:1px solid rgba(10,10,10,0.08);padding:8px 10px 4px;">
       ${eventChartSvg}
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:3px;">${eventLegendHtml}</div>
     </div>
@@ -260,21 +255,21 @@ export function generateEventReport({ event, data, days, startDate: startDateArg
 
 function getSourceColorStatic(name) {
   const map = {
-    direct: "rgba(255,255,255,0.35)",
-    instagram: "rgba(225,48,108,0.75)",
-    facebook: "rgba(66,103,178,0.75)",
-    twitter: "rgba(29,155,240,0.75)",
-    linkedin: "rgba(10,102,194,0.75)",
-    pullup: "rgba(192,192,192,0.6)",
-    pullup_newsletter: "rgba(251,191,36,0.7)",
-    other: "rgba(168,85,247,0.5)",
+    direct: "rgba(10,10,10,0.45)",
+    instagram: "rgba(225,48,108,0.85)",
+    facebook: "rgba(66,103,178,0.85)",
+    twitter: "rgba(29,155,240,0.85)",
+    linkedin: "rgba(10,102,194,0.85)",
+    pullup: "rgba(10,10,10,0.35)",
+    pullup_newsletter: "#b45309",
+    other: "rgba(168,85,247,0.7)",
   };
-  if (!name || name.length === 0) return "rgba(168,85,247,0.5)";
-  return map[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.6)`;
+  if (!name || name.length === 0) return "rgba(168,85,247,0.7)";
+  return map[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.7)`;
 }
 
 function buildEventChartSvg(daily, allSources) {
-  if (!daily || daily.length === 0) return "<div style='padding:12px;text-align:center;color:rgba(255,255,255,0.3);font-size:11px;'>No chart data</div>";
+  if (!daily || daily.length === 0) return "<div style='padding:12px;text-align:center;color:rgba(10,10,10,0.35);font-size:11px;'>No chart data</div>";
 
   const maxDailyViews = Math.max(...daily.map(d => d.views), 1);
   const maxDailyRsvps = Math.max(...daily.map(d => d.rsvps || 0), 0);
@@ -292,8 +287,8 @@ function buildEventChartSvg(daily, allSources) {
   [0, 0.5, 1].forEach(f => {
     const y = PAD.top + (1 - f) * chartH;
     const val = Math.round(f * niceMax);
-    svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}" stroke="rgba(255,255,255,0.05)" stroke-dasharray="3,3" />`;
-    svg += `<text x="${PAD.left - 4}" y="${y + 3}" text-anchor="end" fill="rgba(255,255,255,0.4)" font-size="8">${val}</text>`;
+    svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}" stroke="rgba(10,10,10,0.07)" stroke-dasharray="3,3" />`;
+    svg += `<text x="${PAD.left - 4}" y="${y + 3}" text-anchor="end" fill="rgba(10,10,10,0.40)" font-size="8">${val}</text>`;
   });
 
   // Stacked bars
@@ -320,22 +315,22 @@ function buildEventChartSvg(daily, allSources) {
       const y = PAD.top + chartH - ((d.rsvps || 0) * rsvpScale);
       linePath += `${i === 0 ? "M" : "L"}${x},${y} `;
     });
-    svg += `<path d="${linePath}" fill="none" stroke="rgba(74,222,128,0.7)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />`;
+    svg += `<path d="${linePath}" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />`;
     daily.forEach((d, i) => {
       if (!d.rsvps) return;
       const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
       const y = PAD.top + chartH - (d.rsvps * rsvpScale);
-      svg += `<circle cx="${x}" cy="${y}" r="2.5" fill="rgba(74,222,128,0.9)" />`;
+      svg += `<circle cx="${x}" cy="${y}" r="2.5" fill="#16a34a" />`;
     });
   }
 
-  // VIP RSVP golden dots
+  // VIP RSVP amber dots
   daily.forEach((d, i) => {
     if (!d.vipRsvps || d.vipRsvps === 0) return;
     const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
     const y = PAD.top + chartH - (d.vipRsvps / niceMax) * chartH;
-    svg += `<circle cx="${x}" cy="${y}" r="5" fill="rgba(251,191,36,0.15)" />`;
-    svg += `<circle cx="${x}" cy="${y}" r="3" fill="rgba(251,191,36,0.9)" stroke="rgba(251,191,36,0.4)" stroke-width="1" />`;
+    svg += `<circle cx="${x}" cy="${y}" r="5" fill="rgba(180,83,9,0.12)" />`;
+    svg += `<circle cx="${x}" cy="${y}" r="3" fill="#b45309" stroke="rgba(180,83,9,0.4)" stroke-width="1" />`;
   });
 
   // X labels
@@ -344,7 +339,7 @@ function buildEventChartSvg(daily, allSources) {
     if (i % step !== 0 && i !== daily.length - 1) return;
     const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
     const label = new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-    svg += `<text x="${x}" y="${H - 4}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="8">${label}</text>`;
+    svg += `<text x="${x}" y="${H - 4}" text-anchor="middle" fill="rgba(10,10,10,0.40)" font-size="8">${label}</text>`;
   });
 
   svg += "</svg>";
@@ -370,8 +365,8 @@ function buildEventByEventChartSvg(dailyByEvent, eventsList) {
   [0, 0.5, 1].forEach(f => {
     const y = PAD.top + (1 - f) * chartH;
     const val = Math.round(f * niceMax);
-    svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}" stroke="rgba(255,255,255,0.05)" stroke-dasharray="3,3" />`;
-    svg += `<text x="${PAD.left - 4}" y="${y + 3}" text-anchor="end" fill="rgba(255,255,255,0.4)" font-size="8">${val}</text>`;
+    svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}" stroke="rgba(10,10,10,0.07)" stroke-dasharray="3,3" />`;
+    svg += `<text x="${PAD.left - 4}" y="${y + 3}" text-anchor="end" fill="rgba(10,10,10,0.40)" font-size="8">${val}</text>`;
   });
 
   // Stacked bars by event
@@ -398,12 +393,12 @@ function buildEventByEventChartSvg(dailyByEvent, eventsList) {
       const y = PAD.top + chartH - ((d.rsvps || 0) * rsvpScale);
       linePath += `${i === 0 ? "M" : "L"}${x},${y} `;
     });
-    svg += `<path d="${linePath}" fill="none" stroke="rgba(74,222,128,0.7)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />`;
+    svg += `<path d="${linePath}" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />`;
     dailyByEvent.forEach((d, i) => {
       if (!d.rsvps) return;
       const x = PAD.left + (i / (dailyByEvent.length - 1 || 1)) * chartW;
       const y = PAD.top + chartH - (d.rsvps * rsvpScale);
-      svg += `<circle cx="${x}" cy="${y}" r="2.5" fill="rgba(74,222,128,0.9)" />`;
+      svg += `<circle cx="${x}" cy="${y}" r="2.5" fill="#16a34a" />`;
     });
   }
 
@@ -413,7 +408,7 @@ function buildEventByEventChartSvg(dailyByEvent, eventsList) {
     if (i % step !== 0 && i !== dailyByEvent.length - 1) return;
     const x = PAD.left + (i / (dailyByEvent.length - 1 || 1)) * chartW;
     const label = new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-    svg += `<text x="${x}" y="${H - 4}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="8">${label}</text>`;
+    svg += `<text x="${x}" y="${H - 4}" text-anchor="middle" fill="rgba(10,10,10,0.40)" font-size="8">${label}</text>`;
   });
 
   svg += "</svg>";
@@ -458,8 +453,8 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #05040a;
-    color: #fff;
+    background: #ffffff;
+    color: #0a0a0a;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -473,18 +468,9 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     overflow: hidden;
     page-break-after: always;
     page-break-inside: avoid;
+    background: #fff;
   }
   .page:last-child { page-break-after: auto; }
-
-  /* Subtle gradient overlay */
-  .page::before {
-    content: "";
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: radial-gradient(ellipse at 30% 20%, rgba(59,130,246,0.04) 0%, transparent 60%),
-                radial-gradient(ellipse at 80% 80%, rgba(139,92,246,0.03) 0%, transparent 50%);
-    pointer-events: none;
-  }
 
   .header {
     display: flex;
@@ -498,10 +484,11 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     font-size: 28px;
     font-weight: 700;
     letter-spacing: -0.02em;
+    color: #0a0a0a;
   }
   .managed-by {
     font-size: 12px;
-    color: rgba(255,255,255,0.55);
+    color: rgba(10,10,10,0.55);
     margin-top: 4px;
   }
   .report-meta {
@@ -511,17 +498,17 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: rgba(255,255,255,0.5);
+    color: rgba(10,10,10,0.45);
     font-weight: 600;
   }
   .report-period {
     font-size: 13px;
-    color: rgba(255,255,255,0.65);
+    color: rgba(10,10,10,0.55);
     margin-top: 4px;
   }
   .pullup-badge {
     font-size: 10px;
-    color: rgba(255,255,255,0.3);
+    color: rgba(10,10,10,0.30);
     margin-top: 8px;
     letter-spacing: 0.05em;
   }
@@ -538,12 +525,12 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
   .metric-card {
     padding: 14px 16px;
     border-radius: 10px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
+    background: #fafafa;
+    border: 1px solid rgba(10,10,10,0.10);
   }
   .metric-label {
     font-size: 10px;
-    color: rgba(255,255,255,0.5);
+    color: rgba(10,10,10,0.45);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-weight: 600;
@@ -552,14 +539,15 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
   .metric-value {
     font-size: 24px;
     font-weight: 700;
+    color: #0a0a0a;
   }
   .metric-change {
     font-size: 10px;
     font-weight: 600;
     margin-top: 2px;
   }
-  .change-up { color: #4ade80; }
-  .change-down { color: #f87171; }
+  .change-up { color: #16a34a; }
+  .change-down { color: #dc2626; }
 
   /* Chart */
   .chart-section {
@@ -572,14 +560,14 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-weight: 600;
-    color: rgba(255,255,255,0.5);
+    color: rgba(10,10,10,0.45);
     margin-bottom: 8px;
   }
   .chart-container {
     padding: 14px;
     border-radius: 12px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
+    background: #fafafa;
+    border: 1px solid rgba(10,10,10,0.08);
   }
   .chart-container svg { width: 100%; height: auto; display: block; }
   .chart-legend {
@@ -594,7 +582,7 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     align-items: center;
     gap: 5px;
     font-size: 9px;
-    color: rgba(255,255,255,0.55);
+    color: rgba(10,10,10,0.45);
   }
   .legend-dot {
     width: 7px;
@@ -610,8 +598,8 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
   }
   .events-table {
     border-radius: 12px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
+    background: #fafafa;
+    border: 1px solid rgba(10,10,10,0.08);
     overflow: hidden;
   }
   .event-row {
@@ -619,7 +607,7 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     align-items: center;
     gap: 12px;
     padding: 10px 14px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(10,10,10,0.06);
   }
   .event-row:last-child { border-bottom: none; }
   .event-rank {
@@ -639,37 +627,38 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     border-radius: 6px;
     object-fit: cover;
     flex-shrink: 0;
-    background: rgba(255,255,255,0.05);
+    background: rgba(10,10,10,0.06);
   }
   .event-info { flex: 1; min-width: 0; }
   .event-title {
     font-size: 12px;
     font-weight: 600;
+    color: #0a0a0a;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .event-stats {
     font-size: 10px;
-    color: rgba(255,255,255,0.35);
+    color: rgba(10,10,10,0.40);
     margin-top: 1px;
   }
   .event-bar-wrap {
     width: 80px;
     height: 4px;
     border-radius: 2px;
-    background: rgba(255,255,255,0.06);
+    background: rgba(10,10,10,0.06);
     flex-shrink: 0;
   }
   .event-bar {
     height: 100%;
     border-radius: 2px;
-    background: rgba(59,130,246,0.6);
+    background: #ec178f;
   }
   .event-views {
     font-size: 13px;
     font-weight: 700;
-    color: rgba(59,130,246,0.8);
+    color: #ec178f;
     min-width: 36px;
     text-align: right;
     flex-shrink: 0;
@@ -678,13 +667,14 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
   /* Cover page */
   .page-cover {
     height: 210mm;
+    background: #fff;
   }
   .cover {
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: calc(210mm - 32mm); /* page height minus top+bottom padding */
+    height: calc(210mm - 32mm);
     text-align: center;
   }
   .cover-branding-img {
@@ -698,29 +688,30 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     font-weight: 700;
     letter-spacing: -0.03em;
     margin-bottom: 12px;
+    color: #0a0a0a;
   }
   .cover-managed {
     font-size: 14px;
-    color: rgba(255,255,255,0.55);
+    color: rgba(10,10,10,0.55);
     margin-bottom: 40px;
   }
   .cover-divider {
     width: 60px;
     height: 2px;
-    background: rgba(255,255,255,0.15);
+    background: #ec178f;
     margin: 0 auto 40px;
   }
   .cover-report-type {
     font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.15em;
-    color: rgba(255,255,255,0.5);
+    color: rgba(10,10,10,0.45);
     font-weight: 600;
     margin-bottom: 8px;
   }
   .cover-period {
     font-size: 18px;
-    color: rgba(255,255,255,0.75);
+    color: rgba(10,10,10,0.65);
     font-weight: 500;
   }
   .cover-pullup {
@@ -730,7 +721,7 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     right: 0;
     text-align: center;
     font-size: 10px;
-    color: rgba(255,255,255,0.2);
+    color: rgba(10,10,10,0.25);
     letter-spacing: 0.08em;
   }
 
@@ -741,6 +732,7 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     margin-bottom: 4mm;
     position: relative;
     z-index: 1;
+    color: #0a0a0a;
   }
 
   /* Footer */
@@ -753,7 +745,7 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     justify-content: space-between;
     align-items: center;
     font-size: 9px;
-    color: rgba(255,255,255,0.25);
+    color: rgba(10,10,10,0.30);
   }
 
   /* Event detail pages */
@@ -767,12 +759,12 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
   .detail-metric {
     padding: 8px 12px;
     border-radius: 10px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
+    background: #fafafa;
+    border: 1px solid rgba(10,10,10,0.08);
   }
   .detail-metric-label {
     font-size: 9px;
-    color: rgba(255,255,255,0.5);
+    color: rgba(10,10,10,0.45);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     margin-bottom: 3px;
@@ -780,14 +772,14 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
   .detail-metric-value {
     font-size: 20px;
     font-weight: 700;
-    color: #fff;
+    color: #0a0a0a;
   }
   .detail-section-label {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-weight: 600;
-    color: rgba(255,255,255,0.5);
+    color: rgba(10,10,10,0.45);
     margin-bottom: 5px;
   }
   .source-row {
@@ -799,7 +791,7 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
   .source-name {
     width: 100px;
     font-size: 11px;
-    color: rgba(255,255,255,0.75);
+    color: rgba(10,10,10,0.65);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -809,7 +801,7 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     flex: 1;
     height: 6px;
     border-radius: 3px;
-    background: rgba(255,255,255,0.04);
+    background: rgba(10,10,10,0.06);
   }
   .source-bar {
     height: 100%;
@@ -819,13 +811,13 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
   .source-count {
     font-size: 11px;
     font-weight: 600;
-    color: rgba(255,255,255,0.7);
+    color: rgba(10,10,10,0.65);
     min-width: 34px;
     text-align: right;
   }
   .source-pct {
     font-size: 10px;
-    color: rgba(255,255,255,0.4);
+    color: rgba(10,10,10,0.40);
     min-width: 40px;
     text-align: right;
   }
@@ -833,16 +825,16 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
     font-size: 22px;
     font-weight: 700;
     margin-bottom: 2px;
-    color: #fff;
+    color: #0a0a0a;
   }
   .detail-event-time {
     font-size: 12px;
-    color: rgba(255,255,255,0.5);
+    color: rgba(10,10,10,0.50);
     margin-bottom: 3mm;
   }
 
   @media print {
-    body { background: #05040a !important; }
+    body { background: #ffffff !important; }
     .no-print { display: none !important; }
   }
 </style>
@@ -851,10 +843,10 @@ export function generateReport({ data, days, startDate: startDateArg, endDate: e
 
 <!-- Action buttons -->
 <div class="no-print" style="position:fixed;top:16px;right:16px;z-index:100;display:flex;gap:8px;">
-  <button id="print-btn" onclick="window.print()" style="padding:10px 20px;border-radius:8px;border:none;background:linear-gradient(135deg,#f0f0f0,#c0c0c0,#a8a8a8);color:#fff;font-weight:600;font-size:14px;cursor:pointer;">
+  <button id="print-btn" onclick="window.print()" style="padding:10px 20px;border-radius:8px;border:none;background:#ec178f;color:#fff;font-weight:600;font-size:14px;cursor:pointer;">
     Loading...
   </button>
-  <button onclick="window.close()" style="padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;font-size:14px;cursor:pointer;">
+  <button onclick="window.close()" style="padding:10px 16px;border-radius:8px;border:1px solid rgba(10,10,10,0.15);background:#fff;color:#0a0a0a;font-size:14px;cursor:pointer;">
     Close
   </button>
 </div>
@@ -964,18 +956,18 @@ function formatRevenueByCurrency(byCurrency) {
 function buildFunnelHtml(views, rsvps, pulledUp, revenue, currency, uniqueVisitors, capacity, mini, revenueByCurrency, dinner, dinnerCapacity) {
   const topMetric = uniqueVisitors > 0 ? uniqueVisitors : views;
   const steps = [
-    { label: "Unique Visitors", value: topMetric, rate: null, color: "rgba(59,130,246,0.7)" },
-    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: topMetric > 0 ? Math.round((rsvps / topMetric) * 1000) / 10 : 0, rateLabel: "of visitors", color: "rgba(139,92,246,0.7)" },
+    { label: "Unique Visitors", value: topMetric, rate: null, color: "#ec178f" },
+    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: topMetric > 0 ? Math.round((rsvps / topMetric) * 1000) / 10 : 0, rateLabel: "of visitors", color: "#0d9488" },
   ];
   if (dinner !== null && dinner !== undefined) {
-    steps.push({ label: "Dinner", value: dinner, cap: dinnerCapacity > 0 ? dinnerCapacity : null, rate: rsvps > 0 ? Math.round((dinner / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(251,146,60,0.7)" });
+    steps.push({ label: "Dinner", value: dinner, cap: dinnerCapacity > 0 ? dinnerCapacity : null, rate: rsvps > 0 ? Math.round((dinner / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "#b45309" });
   }
-  steps.push({ label: "Pulled Up", value: pulledUp, rate: rsvps > 0 ? Math.round((pulledUp / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(74,222,128,0.7)" });
+  steps.push({ label: "Pulled Up", value: pulledUp, rate: rsvps > 0 ? Math.round((pulledUp / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "#16a34a" });
   if (revenue !== null && revenue !== undefined) {
     const revenueDisplay = revenueByCurrency && Object.keys(revenueByCurrency).length > 0
       ? formatRevenueByCurrency(revenueByCurrency)
       : formatRevenue(revenue, currency);
-    steps.push({ label: "Revenue", value: -1, display: revenueDisplay, rawValue: revenue, rate: null, color: "rgba(251,191,36,0.7)" });
+    steps.push({ label: "Revenue", value: -1, display: revenueDisplay, rawValue: revenue, rate: null, color: "#b45309" });
   }
   const maxVal = Math.max(topMetric, 1);
   const fs = mini ? "16px" : "20px";
@@ -987,21 +979,21 @@ function buildFunnelHtml(views, rsvps, pulledUp, revenue, currency, uniqueVisito
     const barPct = step.label === "Revenue"
       ? (pulledUp / maxVal) * 100
       : (step.value / maxVal) * 100;
-    const capSuffix = step.cap ? `<span style="font-size:${mini ? "11px" : "13px"};font-weight:500;color:rgba(255,255,255,0.25);"> / ${step.cap.toLocaleString()}</span>` : "";
+    const capSuffix = step.cap ? `<span style="font-size:${mini ? "11px" : "13px"};font-weight:500;color:rgba(10,10,10,0.30);"> / ${step.cap.toLocaleString()}</span>` : "";
     const displayVal = (step.display || (step.value ?? 0).toLocaleString()) + capSuffix;
-    const rateColor = step.rate > (step.label === "Pulled Up" ? 50 : 20) ? "rgba(74,222,128,0.7)" : "rgba(255,255,255,0.35)";
+    const rateColor = step.rate > (step.label === "Pulled Up" ? 50 : 20) ? "#16a34a" : "rgba(10,10,10,0.45)";
     const rateHtml = step.rate !== null && step.rate !== undefined
-      ? `<span style="font-size:${lfs};font-weight:600;color:${rateColor};">${step.rate}% <span style="font-weight:400;color:rgba(255,255,255,0.25);">${step.rateLabel}</span></span>`
+      ? `<span style="font-size:${lfs};font-weight:600;color:${rateColor};">${step.rate}% <span style="font-weight:400;color:rgba(10,10,10,0.30);">${step.rateLabel}</span></span>`
       : "";
     return `<div style="margin-bottom:${i < steps.length - 1 ? gap : "0"};">
       <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px;">
         <div style="display:flex;align-items:baseline;gap:6px;">
           <span style="font-size:${fs};font-weight:700;color:${step.color};">${displayVal}</span>
-          <span style="font-size:${lfs};color:rgba(255,255,255,0.4);font-weight:500;">${step.label}</span>
+          <span style="font-size:${lfs};color:rgba(10,10,10,0.45);font-weight:500;">${step.label}</span>
         </div>
         ${rateHtml}
       </div>
-      <div style="height:${barH};border-radius:3px;background:rgba(255,255,255,0.04);">
+      <div style="height:${barH};border-radius:3px;background:rgba(10,10,10,0.06);">
         <div style="height:100%;border-radius:3px;background:${step.color};width:${Math.max(barPct, step.value > 0 || step.rawValue > 0 ? 2 : 0)}%;"></div>
       </div>
     </div>`;
@@ -1010,11 +1002,11 @@ function buildFunnelHtml(views, rsvps, pulledUp, revenue, currency, uniqueVisito
   let secondaryHtml = "";
   if (!mini && capacity && capacity > 0) {
     const parts = [];
-    parts.push(`<span style="font-size:12px;font-weight:700;color:#fff;">${Math.min(100, Math.round((rsvps / capacity) * 100))}%</span><span style="font-size:9px;color:rgba(255,255,255,0.35);margin-left:3px;">of ${capacity} capacity</span>`);
-    secondaryHtml = `<div style="display:flex;gap:14px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.04);">${parts.map(p => `<div>${p}</div>`).join("")}</div>`;
+    parts.push(`<span style="font-size:12px;font-weight:700;color:#0a0a0a;">${Math.min(100, Math.round((rsvps / capacity) * 100))}%</span><span style="font-size:9px;color:rgba(10,10,10,0.45);margin-left:3px;">of ${capacity} capacity</span>`);
+    secondaryHtml = `<div style="display:flex;gap:14px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(10,10,10,0.06);">${parts.map(p => `<div>${p}</div>`).join("")}</div>`;
   }
 
-  return `<div style="padding:${mini ? "6px 10px" : "10px 16px"};border-radius:${mini ? "8px" : "12px"};background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);margin-bottom:${mini ? "3mm" : "6mm"};position:relative;z-index:1;">
+  return `<div style="padding:${mini ? "6px 10px" : "10px 16px"};border-radius:${mini ? "8px" : "12px"};background:#fafafa;border:1px solid rgba(10,10,10,0.08);margin-bottom:${mini ? "3mm" : "6mm"};position:relative;z-index:1;">
     ${stepsHtml}
     ${secondaryHtml}
   </div>`;
@@ -1025,7 +1017,7 @@ function buildChartSvg(data, days) {
   const eventLabels = data.chart?.eventLabels || [];
   const previous = data.chart?.previous;
 
-  if (!stacked || stacked.length === 0) return "<div style='padding:20px;text-align:center;color:rgba(255,255,255,0.3);font-size:12px;'>No chart data</div>";
+  if (!stacked || stacked.length === 0) return "<div style='padding:20px;text-align:center;color:rgba(10,10,10,0.35);font-size:12px;'>No chart data</div>";
 
   const eventIds = eventLabels.map(e => e.id);
   const W = 800;
@@ -1053,8 +1045,8 @@ function buildChartSvg(data, days) {
   // Grid + Y labels
   for (const v of yTicks) {
     const y = PAD.top + chartH - (v / niceMax) * chartH;
-    svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="4,4" />`;
-    svg += `<text x="${PAD.left - 6}" y="${y + 3}" text-anchor="end" fill="rgba(255,255,255,0.45)" font-size="9">${v}</text>`;
+    svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}" stroke="rgba(10,10,10,0.07)" stroke-dasharray="4,4" />`;
+    svg += `<text x="${PAD.left - 6}" y="${y + 3}" text-anchor="end" fill="rgba(10,10,10,0.40)" font-size="9">${v}</text>`;
   }
 
   // X labels
@@ -1064,7 +1056,7 @@ function buildChartSvg(data, days) {
     const x = PAD.left + (i / (stacked.length - 1 || 1)) * chartW;
     const d = new Date(stacked[i].date + "T00:00:00");
     const label = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-    svg += `<text x="${x}" y="${H - 4}" text-anchor="middle" fill="rgba(255,255,255,0.45)" font-size="9">${label}</text>`;
+    svg += `<text x="${x}" y="${H - 4}" text-anchor="middle" fill="rgba(10,10,10,0.40)" font-size="9">${label}</text>`;
   }
 
   // Previous period ghost bars
@@ -1074,7 +1066,7 @@ function buildChartSvg(data, days) {
       const x = PAD.left + (i / (stacked.length - 1 || 1)) * chartW - barWidth / 2;
       const barH = (previous[i].views / niceMax) * chartH;
       const y = PAD.top + chartH - barH;
-      svg += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="2" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.08)" stroke-width="0.5" />`;
+      svg += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="2" fill="rgba(10,10,10,0.06)" stroke="rgba(10,10,10,0.10)" stroke-width="0.5" />`;
     }
   }
 
@@ -1096,7 +1088,7 @@ function buildChartSvg(data, days) {
     if (d._other > 0) {
       const segH = (d._other / niceMax) * chartH;
       const y = PAD.top + chartH - yOffset - segH;
-      svg += `<rect x="${x}" y="${y}" width="${barWidth}" height="${segH}" rx="${yOffset === 0 ? 2 : 0}" fill="rgba(255,255,255,0.12)" />`;
+      svg += `<rect x="${x}" y="${y}" width="${barWidth}" height="${segH}" rx="${yOffset === 0 ? 2 : 0}" fill="rgba(10,10,10,0.12)" />`;
     }
   }
 
@@ -1118,9 +1110,9 @@ function buildDeviceSplitHtml(split) {
   if (total === 0) return "";
 
   const segments = [
-    { label: "Mobile", count: split.mobile || 0, color: "rgba(59,130,246,0.7)" },
-    { label: "Desktop", count: split.desktop || 0, color: "rgba(139,92,246,0.7)" },
-    { label: "Unknown", count: split.unknown || 0, color: "rgba(255,255,255,0.15)" },
+    { label: "Mobile", count: split.mobile || 0, color: "#ec178f" },
+    { label: "Desktop", count: split.desktop || 0, color: "#0d9488" },
+    { label: "Unknown", count: split.unknown || 0, color: "rgba(10,10,10,0.15)" },
   ].filter(s => s.count > 0);
 
   // SVG donut
@@ -1138,18 +1130,18 @@ function buildDeviceSplitHtml(split) {
     const pct = Math.round((seg.count / total) * 1000) / 10;
     return `<div style="display:flex;align-items:center;gap:6px;">
       <div style="width:7px;height:7px;border-radius:50%;background:${seg.color};flex-shrink:0;"></div>
-      <span style="font-size:10px;color:rgba(255,255,255,0.6);min-width:50px;">${seg.label}</span>
-      <div style="flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,0.04);"><div style="height:100%;border-radius:2px;background:${seg.color};width:${pct}%;"></div></div>
-      <span style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.5);min-width:24px;text-align:right;">${seg.count}</span>
-      <span style="font-size:9px;color:rgba(255,255,255,0.25);min-width:34px;text-align:right;">${pct}%</span>
+      <span style="font-size:10px;color:rgba(10,10,10,0.62);min-width:50px;">${seg.label}</span>
+      <div style="flex:1;height:3px;border-radius:2px;background:rgba(10,10,10,0.06);"><div style="height:100%;border-radius:2px;background:${seg.color};width:${pct}%;"></div></div>
+      <span style="font-size:10px;font-weight:600;color:rgba(10,10,10,0.55);min-width:24px;text-align:right;">${seg.count}</span>
+      <span style="font-size:9px;color:rgba(10,10,10,0.30);min-width:34px;text-align:right;">${pct}%</span>
     </div>`;
   }).join("");
 
-  return `<div style="display:flex;align-items:center;gap:14px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);margin-bottom:8px;">
+  return `<div style="display:flex;align-items:center;gap:14px;padding:10px 14px;border-radius:10px;background:#fafafa;border:1px solid rgba(10,10,10,0.08);margin-bottom:8px;">
     <svg width="72" height="72" viewBox="0 0 72 72" style="flex-shrink:0;">
       ${arcs}
-      <text x="${CX}" y="${CY - 3}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">${total}</text>
-      <text x="${CX}" y="${CY + 7}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="6">visitors</text>
+      <text x="${CX}" y="${CY - 3}" text-anchor="middle" fill="#0a0a0a" font-size="12" font-weight="700">${total}</text>
+      <text x="${CX}" y="${CY + 7}" text-anchor="middle" fill="rgba(10,10,10,0.45)" font-size="6">visitors</text>
     </svg>
     <div style="display:flex;flex-direction:column;gap:5px;flex:1;">${rows}</div>
   </div>`;
@@ -1157,13 +1149,13 @@ function buildDeviceSplitHtml(split) {
 
 
 const SOURCE_COLORS_REPORT = {
-  direct: "rgba(255,255,255,0.4)",
-  instagram: "rgba(225,48,108,0.7)",
-  facebook: "rgba(66,103,178,0.7)",
-  twitter: "rgba(29,155,240,0.7)",
-  linkedin: "rgba(10,102,194,0.7)",
-  pullup: "rgba(192,192,192,0.7)",
-  pullup_newsletter: "rgba(251,191,36,0.7)",
+  direct: "rgba(10,10,10,0.45)",
+  instagram: "rgba(225,48,108,0.85)",
+  facebook: "rgba(66,103,178,0.85)",
+  twitter: "rgba(29,155,240,0.85)",
+  linkedin: "rgba(10,102,194,0.85)",
+  pullup: "rgba(10,10,10,0.35)",
+  pullup_newsletter: "#b45309",
 };
 
 function formatEventTimeReport(startsAt, endsAt) {
@@ -1183,11 +1175,11 @@ function buildCampaignsPage(campaigns, brandName, periodStart, periodEnd, totalE
   if (!campaigns || campaigns.length === 0) return "";
 
   const funnelColors = {
-    sent: "rgba(139,92,246,0.7)",
-    opened: "rgba(59,130,246,0.7)",
-    clicked: "rgba(251,191,36,0.7)",
-    visited: "rgba(74,222,128,0.7)",
-    rsvps: "rgba(236,72,153,0.7)",
+    sent: "rgba(10,10,10,0.45)",
+    opened: "#ec178f",
+    clicked: "#0d9488",
+    visited: "#16a34a",
+    rsvps: "#b45309",
   };
 
   const campaignCards = campaigns.slice(0, 6).map(c => {
@@ -1203,17 +1195,17 @@ function buildCampaignsPage(campaigns, brandName, periodStart, periodEnd, totalE
     const bars = stages.map(s => {
       const pct = Math.max(2, (s.value / maxVal) * 100);
       return `<div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:9px;color:rgba(255,255,255,0.45);width:46px;text-align:right;flex-shrink:0;">${s.label}</span>
-        <div style="flex:1;height:10px;border-radius:4px;background:rgba(255,255,255,0.03);">
+        <span style="font-size:9px;color:rgba(10,10,10,0.45);width:46px;text-align:right;flex-shrink:0;">${s.label}</span>
+        <div style="flex:1;height:10px;border-radius:4px;background:rgba(10,10,10,0.06);">
           <div style="height:100%;width:${pct}%;border-radius:4px;background:${s.color};"></div>
         </div>
-        <span style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.7);min-width:28px;text-align:right;">${s.value}</span>
-        ${s.rate !== undefined ? `<span style="font-size:9px;color:rgba(255,255,255,0.3);min-width:34px;text-align:right;">${s.rate}%</span>` : `<span style="min-width:34px;"></span>`}
+        <span style="font-size:10px;font-weight:600;color:rgba(10,10,10,0.65);min-width:28px;text-align:right;">${s.value}</span>
+        ${s.rate !== undefined ? `<span style="font-size:9px;color:rgba(10,10,10,0.35);min-width:34px;text-align:right;">${s.rate}%</span>` : `<span style="min-width:34px;"></span>`}
       </div>`;
     }).join("");
 
-    return `<div style="padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);margin-bottom:10px;">
-      <div style="font-size:12px;font-weight:600;color:#fff;margin-bottom:8px;">${escHtml(c.name)}</div>
+    return `<div style="padding:12px 14px;border-radius:10px;background:#fafafa;border:1px solid rgba(10,10,10,0.08);margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:600;color:#0a0a0a;margin-bottom:8px;">${escHtml(c.name)}</div>
       <div style="display:flex;flex-direction:column;gap:4px;">${bars}</div>
     </div>`;
   }).join("");
@@ -1235,7 +1227,7 @@ function buildCampaignsPage(campaigns, brandName, periodStart, periodEnd, totalE
     ${campaignCards}
   </div>
 
-  ${campaigns.length > 6 ? `<div style="font-size:10px;color:rgba(255,255,255,0.3);text-align:center;margin-top:8px;">+ ${campaigns.length - 6} more campaigns</div>` : ""}
+  ${campaigns.length > 6 ? `<div style="font-size:10px;color:rgba(10,10,10,0.35);text-align:center;margin-top:8px;">+ ${campaigns.length - 6} more campaigns</div>` : ""}
 
   <div class="footer">
     <span>${escHtml(brandName || "")} — Report</span>
@@ -1254,17 +1246,17 @@ function buildEventDetailPage(ev, index, totalEvents, brandName, periodStart, pe
 
   function getSourceColorReport(name) {
     const map = {
-      direct: "rgba(255,255,255,0.35)",
-      instagram: "rgba(225,48,108,0.75)",
-      facebook: "rgba(66,103,178,0.75)",
-      twitter: "rgba(29,155,240,0.75)",
-      linkedin: "rgba(10,102,194,0.75)",
-      pullup: "rgba(192,192,192,0.6)",
-      pullup_newsletter: "rgba(251,191,36,0.7)",
-      other: "rgba(168,85,247,0.5)",
+      direct: "rgba(10,10,10,0.45)",
+      instagram: "rgba(225,48,108,0.85)",
+      facebook: "rgba(66,103,178,0.85)",
+      twitter: "rgba(29,155,240,0.85)",
+      linkedin: "rgba(10,102,194,0.85)",
+      pullup: "rgba(10,10,10,0.35)",
+      pullup_newsletter: "#b45309",
+      other: "rgba(168,85,247,0.7)",
     };
-    if (!name || name.length === 0) return "rgba(168,85,247,0.5)";
-  return map[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.6)`;
+    if (!name || name.length === 0) return "rgba(168,85,247,0.7)";
+  return map[name] || `rgba(${60 + ((name.charCodeAt(0) * 37) % 180)},${80 + ((name.charCodeAt(1 % name.length) * 53) % 150)},${120 + ((name.charCodeAt(2 % name.length) * 71) % 130)},0.7)`;
   }
 
   // Build stacked source chart SVG
@@ -1285,8 +1277,8 @@ function buildEventDetailPage(ev, index, totalEvents, brandName, periodStart, pe
   [0, 0.5, 1].forEach(f => {
     const y = PAD.top + (1 - f) * chartH;
     const val = Math.round(f * niceMax);
-    chartSvg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}" stroke="rgba(255,255,255,0.05)" stroke-dasharray="3,3" />`;
-    chartSvg += `<text x="${PAD.left - 4}" y="${y + 3}" text-anchor="end" fill="rgba(255,255,255,0.4)" font-size="8">${val}</text>`;
+    chartSvg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}" stroke="rgba(10,10,10,0.07)" stroke-dasharray="3,3" />`;
+    chartSvg += `<text x="${PAD.left - 4}" y="${y + 3}" text-anchor="end" fill="rgba(10,10,10,0.40)" font-size="8">${val}</text>`;
   });
 
   // Stacked bars by source
@@ -1316,25 +1308,25 @@ function buildEventDetailPage(ev, index, totalEvents, brandName, periodStart, pe
         const y = PAD.top + chartH - (d.rsvps * rsvpScale);
         linePath += `${i === 0 ? "M" : "L"}${x},${y} `;
       });
-      chartSvg += `<path d="${linePath}" fill="none" stroke="rgba(74,222,128,0.7)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />`;
+      chartSvg += `<path d="${linePath}" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />`;
 
       // RSVP dots
       daily.forEach((d, i) => {
         if (d.rsvps === 0) return;
         const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
         const y = PAD.top + chartH - (d.rsvps * rsvpScale);
-        chartSvg += `<circle cx="${x}" cy="${y}" r="2.5" fill="rgba(74,222,128,0.9)" />`;
+        chartSvg += `<circle cx="${x}" cy="${y}" r="2.5" fill="#16a34a" />`;
       });
     }
 
-    // VIP RSVP golden dots — independent, y = count on views axis
+    // VIP RSVP amber dots — independent, y = count on views axis
     if (hasVipRsvps) {
       daily.forEach((d, i) => {
         if (!d.vipRsvps || d.vipRsvps === 0) return;
         const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
         const y = PAD.top + chartH - (d.vipRsvps / niceMax) * chartH;
-        chartSvg += `<circle cx="${x}" cy="${y}" r="5" fill="rgba(251,191,36,0.15)" />`;
-        chartSvg += `<circle cx="${x}" cy="${y}" r="3" fill="rgba(251,191,36,0.9)" stroke="rgba(251,191,36,0.4)" stroke-width="1" />`;
+        chartSvg += `<circle cx="${x}" cy="${y}" r="5" fill="rgba(180,83,9,0.12)" />`;
+        chartSvg += `<circle cx="${x}" cy="${y}" r="3" fill="#b45309" stroke="rgba(180,83,9,0.4)" stroke-width="1" />`;
       });
     }
 
@@ -1344,15 +1336,15 @@ function buildEventDetailPage(ev, index, totalEvents, brandName, periodStart, pe
       if (i % step !== 0 && i !== daily.length - 1) return;
       const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
       const label = new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-      chartSvg += `<text x="${x}" y="${H - 4}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="8">${label}</text>`;
+      chartSvg += `<text x="${x}" y="${H - 4}" text-anchor="middle" fill="rgba(10,10,10,0.40)" font-size="8">${label}</text>`;
     });
   }
   chartSvg += "</svg>";
 
   // Legend
   const legendHtml = allSources.map(src =>
-    `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:1.5px;background:${getSourceColorReport(src)};"></div><span style="font-size:8px;color:rgba(255,255,255,0.5);">${escHtml(src)}</span></div>`
-  ).join("") + (maxDailyRsvps > 0 ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:10px;height:2px;border-radius:1px;background:rgba(74,222,128,0.7);"></div><span style="font-size:8px;color:rgba(255,255,255,0.5);">RSVPs</span></div>` : "") + (hasVipRsvps ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:50%;background:rgba(251,191,36,0.9);"></div><span style="font-size:8px;color:rgba(255,255,255,0.5);">VIP RSVPs</span></div>` : "");
+    `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:1.5px;background:${getSourceColorReport(src)};"></div><span style="font-size:8px;color:rgba(10,10,10,0.45);">${escHtml(src)}</span></div>`
+  ).join("") + (maxDailyRsvps > 0 ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:10px;height:2px;border-radius:1px;background:#16a34a;"></div><span style="font-size:8px;color:rgba(10,10,10,0.45);">RSVPs</span></div>` : "") + (hasVipRsvps ? `<div style="display:flex;align-items:center;gap:3px;"><div style="width:7px;height:7px;border-radius:50%;background:#b45309;"></div><span style="font-size:8px;color:rgba(10,10,10,0.45);">VIP RSVPs</span></div>` : "");
 
   // Source summary rows
   const sourceRows = sources.slice(0, 6).map(s => {
@@ -1400,7 +1392,7 @@ function buildEventDetailPage(ev, index, totalEvents, brandName, periodStart, pe
   </div>
 
   <div class="detail-section-label">Daily Unique Visitors by Source & RSVPs</div>
-  <div style="border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:8px 10px 4px;margin-bottom:3mm;">
+  <div style="border-radius:10px;background:#fafafa;border:1px solid rgba(10,10,10,0.08);padding:8px 10px 4px;margin-bottom:3mm;">
     ${chartSvg}
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;">
       ${legendHtml}

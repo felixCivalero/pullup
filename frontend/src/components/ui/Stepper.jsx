@@ -15,10 +15,10 @@ export function Stepper({
         <label
           style={{
             display: "block",
-            fontSize: "16px",
+            fontSize: "15px",
             fontWeight: 600,
             marginBottom: "8px",
-            color: "#fff",
+            color: colors.text,
           }}
         >
           {label}
@@ -29,10 +29,10 @@ export function Stepper({
           display: "flex",
           alignItems: "center",
           gap: "16px",
-          background: "rgba(20, 16, 30, 0.6)",
+          background: "#fff",
           borderRadius: "12px",
           padding: "8px",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+          border: `1px solid ${colors.borderStrong}`,
         }}
       >
         <button
@@ -44,11 +44,8 @@ export function Stepper({
             height: "44px",
             borderRadius: "10px",
             border: "none",
-            background:
-              value <= min
-                ? "rgba(255, 255, 255, 0.05)"
-                : colors.silverRgbaHover,
-            color: value <= min ? "rgba(255, 255, 255, 0.3)" : "#fff",
+            background: value <= min ? colors.surfaceMuted : colors.accentSoft,
+            color: value <= min ? colors.textFaded : colors.accent,
             fontSize: "22px",
             fontWeight: 600,
             cursor: value <= min ? "not-allowed" : "pointer",
@@ -60,12 +57,12 @@ export function Stepper({
           }}
           onMouseEnter={(e) => {
             if (value > min) {
-              e.target.style.background = colors.silverRgba;
+              e.target.style.background = colors.accentSoftStrong;
             }
           }}
           onMouseLeave={(e) => {
             if (value > min) {
-              e.target.style.background = colors.silverRgbaHover;
+              e.target.style.background = colors.accentSoft;
             }
           }}
         >
@@ -77,7 +74,7 @@ export function Stepper({
             textAlign: "center",
             fontSize: "20px",
             fontWeight: 700,
-            color: "#fff",
+            color: colors.text,
           }}
         >
           {value}
@@ -91,11 +88,8 @@ export function Stepper({
             height: "44px",
             borderRadius: "10px",
             border: "none",
-            background:
-              value >= max
-                ? "rgba(255, 255, 255, 0.05)"
-                : colors.silverRgbaHover,
-            color: value >= max ? "rgba(255, 255, 255, 0.3)" : "#fff",
+            background: value >= max ? colors.surfaceMuted : colors.accentSoft,
+            color: value >= max ? colors.textFaded : colors.accent,
             fontSize: "22px",
             fontWeight: 600,
             cursor: value >= max ? "not-allowed" : "pointer",
@@ -107,12 +101,12 @@ export function Stepper({
           }}
           onMouseEnter={(e) => {
             if (value < max) {
-              e.target.style.background = colors.silverRgba;
+              e.target.style.background = colors.accentSoftStrong;
             }
           }}
           onMouseLeave={(e) => {
             if (value < max) {
-              e.target.style.background = colors.silverRgbaHover;
+              e.target.style.background = colors.accentSoft;
             }
           }}
         >
@@ -122,8 +116,8 @@ export function Stepper({
       {helperText && (
         <div
           style={{
-            color: "rgba(255, 255, 255, 0.6)",
-            fontSize: "16px",
+            color: colors.textMuted,
+            fontSize: "14px",
             marginTop: "6px",
           }}
         >

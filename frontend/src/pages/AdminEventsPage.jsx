@@ -15,9 +15,9 @@ function getEventStatus(ev) {
 }
 
 const STATUS_BADGE = {
-  live: { bg: "rgba(16,185,129,0.15)", text: "#10b981", border: "rgba(16,185,129,0.3)", label: "LIVE" },
-  upcoming: { bg: "rgba(59,130,246,0.15)", text: "#60a5fa", border: "rgba(59,130,246,0.3)", label: "Upcoming" },
-  past: { bg: "rgba(107,114,128,0.15)", text: "#9ca3af", border: "rgba(107,114,128,0.3)", label: "Past" },
+  live: { bg: "rgba(22,163,74,0.10)", text: "#16a34a", border: "rgba(22,163,74,0.25)", label: "LIVE" },
+  upcoming: { bg: "rgba(59,130,246,0.10)", text: "#2563eb", border: "rgba(59,130,246,0.25)", label: "Upcoming" },
+  past: { bg: "rgba(107,114,128,0.10)", text: "#6b7280", border: "rgba(107,114,128,0.25)", label: "Past" },
 };
 
 export function AdminEventsPage() {
@@ -112,11 +112,11 @@ export function AdminEventsPage() {
   return (
     <div className="page-with-header" style={{
       minHeight: "100vh",
-      background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.1) 0%, transparent 50%), #05040a",
+      background: colors.background,
     }}>
       <div className="responsive-container" style={{ maxWidth: 900, margin: "0 auto", padding: "80px 16px 40px" }}>
-        <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#fff", marginBottom: 4 }}>Platform Events</h1>
-        <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.4)", marginBottom: 20 }}>
+        <h1 style={{ fontSize: "28px", fontWeight: 700, color: colors.text, marginBottom: 4 }}>Platform Events</h1>
+        <p style={{ fontSize: "14px", color: colors.textSubtle, marginBottom: 20 }}>
           All events across the platform. View guest lists and monitor activity.
         </p>
 
@@ -132,9 +132,9 @@ export function AdminEventsPage() {
               onClick={() => setFilter(f.key)}
               style={{
                 padding: "6px 16px", borderRadius: "999px",
-                border: filter === f.key ? "1px solid rgba(255,255,255,0.2)" : "1px solid transparent",
-                background: filter === f.key ? "rgba(255,255,255,0.1)" : "transparent",
-                color: filter === f.key ? "#fff" : "rgba(255,255,255,0.4)",
+                border: filter === f.key ? `1px solid rgba(180,83,9,0.30)` : `1px solid ${colors.border}`,
+                background: filter === f.key ? "rgba(180,83,9,0.08)" : "transparent",
+                color: filter === f.key ? colors.gold : colors.textMuted,
                 fontSize: "13px", fontWeight: filter === f.key ? 600 : 400,
                 cursor: "pointer",
               }}
@@ -145,9 +145,9 @@ export function AdminEventsPage() {
         </div>
 
         {eventsLoading ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)" }}>Loading...</div>
+          <div style={{ textAlign: "center", padding: "40px 0", color: colors.textFaded }}>Loading...</div>
         ) : events.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)" }}>No events found</div>
+          <div style={{ textAlign: "center", padding: "40px 0", color: colors.textFaded }}>No events found</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {events.map((ev) => {
@@ -160,8 +160,8 @@ export function AdminEventsPage() {
                   <div
                     onClick={() => loadGuests(ev.id)}
                     style={{
-                      background: "rgba(20,16,30,0.5)",
-                      border: isExpanded ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.06)",
+                      background: "#fff",
+                      border: isExpanded ? "1px solid rgba(10,10,10,0.16)" : "1px solid rgba(10,10,10,0.08)",
                       borderRadius: isExpanded ? "16px 16px 0 0" : "16px",
                       padding: "14px 16px",
                       cursor: "pointer",
@@ -181,15 +181,15 @@ export function AdminEventsPage() {
                       {/* Title + details */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: "15px", fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: "15px", fontWeight: 600, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {ev.title || "Untitled"}
                           </span>
                           {ev.host && (
                             <span style={{
-                              fontSize: "11px", color: "rgba(255,255,255,0.35)", flexShrink: 0,
+                              fontSize: "11px", color: colors.textFaded, flexShrink: 0,
                               padding: "1px 7px", borderRadius: "999px",
-                              background: "rgba(255,255,255,0.05)",
-                              border: "1px solid rgba(255,255,255,0.08)",
+                              background: colors.surfaceMuted,
+                              border: `1px solid ${colors.border}`,
                               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220,
                             }}>
                               {ev.host.name || ev.host.email}{ev.host.brand ? ` · ${ev.host.brand}` : ""}
@@ -200,11 +200,11 @@ export function AdminEventsPage() {
                               key={t}
                               style={{
                                 fontSize: "10px",
-                                color: "rgba(251,191,36,0.85)",
+                                color: colors.gold,
                                 padding: "1px 7px",
                                 borderRadius: "999px",
-                                background: "rgba(251,191,36,0.06)",
-                                border: "1px solid rgba(251,191,36,0.18)",
+                                background: "rgba(180,83,9,0.08)",
+                                border: "1px solid rgba(180,83,9,0.18)",
                                 flexShrink: 0,
                               }}
                             >
@@ -212,12 +212,12 @@ export function AdminEventsPage() {
                             </span>
                           ))}
                           {ev.adminTags?.length > 3 && (
-                            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)" }}>
+                            <span style={{ fontSize: "10px", color: colors.textFaded }}>
                               +{ev.adminTags.length - 3}
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.3)", marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ fontSize: "12px", color: colors.textFaded, marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
                           {ev.location && (
                             <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                               <MapPin size={10} /> {ev.location.length > 30 ? ev.location.slice(0, 30) + "..." : ev.location}
@@ -232,14 +232,14 @@ export function AdminEventsPage() {
                       {/* Guest count */}
                       <div style={{
                         display: "flex", alignItems: "center", gap: 4, flexShrink: 0,
-                        fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.5)",
+                        fontSize: "13px", fontWeight: 600, color: colors.textMuted,
                       }}>
                         <Users size={14} />
                         {ev.confirmedGuests}{ev.capacity > 0 && <span style={{ opacity: 0.5 }}>/{ev.capacity}</span>}
                       </div>
 
                       {/* Expand arrow */}
-                      <div style={{ flexShrink: 0, color: "rgba(255,255,255,0.3)" }}>
+                      <div style={{ flexShrink: 0, color: colors.textFaded }}>
                         {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </div>
                     </div>
@@ -248,8 +248,8 @@ export function AdminEventsPage() {
                   {/* Expanded guest list */}
                   {isExpanded && (
                     <div style={{
-                      background: "rgba(15,12,24,0.6)",
-                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: colors.surface,
+                      border: `1px solid ${colors.borderStrong}`,
                       borderTop: "none",
                       borderRadius: "0 0 16px 16px",
                       padding: "12px 16px 16px",
@@ -263,9 +263,9 @@ export function AdminEventsPage() {
                           style={{
                             display: "flex", alignItems: "center", gap: 4,
                             padding: "4px 10px", borderRadius: "999px",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            background: "rgba(255,255,255,0.04)",
-                            color: "rgba(255,255,255,0.5)",
+                            border: `1px solid ${colors.border}`,
+                            background: colors.surface,
+                            color: colors.textMuted,
                             fontSize: "11px", textDecoration: "none",
                           }}
                         >
@@ -283,8 +283,8 @@ export function AdminEventsPage() {
                           marginBottom: 12,
                           padding: "10px 12px",
                           borderRadius: 10,
-                          background: "rgba(251,191,36,0.04)",
-                          border: "1px solid rgba(251,191,36,0.12)",
+                          background: "rgba(180,83,9,0.05)",
+                          border: "1px solid rgba(180,83,9,0.15)",
                         }}
                       >
                         <div
@@ -295,7 +295,7 @@ export function AdminEventsPage() {
                             marginBottom: 6,
                             fontSize: 11,
                             fontWeight: 600,
-                            color: "rgba(251,191,36,0.8)",
+                            color: colors.gold,
                             textTransform: "uppercase",
                             letterSpacing: "0.06em",
                           }}
@@ -307,7 +307,7 @@ export function AdminEventsPage() {
                               fontWeight: 400,
                               textTransform: "none",
                               letterSpacing: 0,
-                              color: "rgba(255,255,255,0.35)",
+                              color: colors.textFaded,
                             }}
                           >
                             comma separated · admin only
@@ -323,9 +323,9 @@ export function AdminEventsPage() {
                               flex: 1,
                               padding: "8px 12px",
                               borderRadius: 8,
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              background: "rgba(12,10,20,0.7)",
-                              color: "#fff",
+                              border: `1px solid ${colors.border}`,
+                              background: colors.surface,
+                              color: colors.text,
                               fontSize: 13,
                               outline: "none",
                             }}
@@ -351,12 +351,12 @@ export function AdminEventsPage() {
                                 tagsSaving ||
                                 tagsInput === (ev.adminTags || []).join(", ")
                                   ? "rgba(255,255,255,0.06)"
-                                  : "rgba(251,191,36,0.2)",
+                                  : "rgba(180,83,9,0.15)",
                               color:
                                 tagsSaving ||
                                 tagsInput === (ev.adminTags || []).join(", ")
                                   ? "rgba(255,255,255,0.3)"
-                                  : "#fbbf24",
+                                  : colors.gold,
                               fontSize: 12,
                               fontWeight: 600,
                               cursor:
@@ -372,16 +372,16 @@ export function AdminEventsPage() {
                       </div>
 
                       {guestsLoading ? (
-                        <div style={{ textAlign: "center", padding: "16px 0", color: "rgba(255,255,255,0.3)", fontSize: "13px" }}>
+                        <div style={{ textAlign: "center", padding: "16px 0", color: colors.textFaded, fontSize: "13px" }}>
                           Loading guest list...
                         </div>
                       ) : !guests || guests.length === 0 ? (
-                        <div style={{ textAlign: "center", padding: "16px 0", color: "rgba(255,255,255,0.3)", fontSize: "13px" }}>
+                        <div style={{ textAlign: "center", padding: "16px 0", color: colors.textFaded, fontSize: "13px" }}>
                           No guests yet
                         </div>
                       ) : (
                         <>
-                          <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.3)", marginBottom: 8 }}>
+                          <div style={{ fontSize: "12px", color: colors.textFaded, marginBottom: 8 }}>
                             {guests.length} {guests.length === 1 ? "guest" : "guests"}
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -391,20 +391,20 @@ export function AdminEventsPage() {
                                 <div key={g.id} style={{
                                   display: "flex", alignItems: "center", gap: 8,
                                   padding: "8px 10px", borderRadius: 8,
-                                  background: "rgba(255,255,255,0.02)",
+                                  background: colors.surface,
                                 }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{
-                                      fontSize: "13px", fontWeight: 500, color: "#fff",
+                                      fontSize: "13px", fontWeight: 500, color: colors.text,
                                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                                     }}>
                                       {g.name || "Guest"}
                                     </div>
-                                    <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>
+                                    <div style={{ fontSize: "11px", color: colors.textFaded }}>
                                       {g.email}
                                     </div>
                                   </div>
-                                  <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>
+                                  <div style={{ fontSize: "11px", color: colors.textFaded, flexShrink: 0 }}>
                                     {g.partySize || 1} {(g.partySize || 1) === 1 ? "guest" : "guests"}
                                   </div>
                                   <span style={{

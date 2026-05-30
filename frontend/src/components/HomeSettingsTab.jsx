@@ -9,7 +9,10 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { colors } from "../theme/colors.js";
 import { SettingsProfileSection } from "./SettingsProfileSection.jsx";
+import { SettingsBrandSection } from "./SettingsBrandSection.jsx";
+import { SettingsWhatsappSection } from "./SettingsWhatsappSection.jsx";
 import { SettingsMcpIntegration } from "./SettingsMcpIntegration.jsx";
 
 export function SettingsTab({ user, setUser, onSave, showToast }) {
@@ -90,7 +93,6 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
       loadStripeStatus();
       window.history.replaceState({}, "", window.location.pathname);
     } else if (stripeConnect === "refresh") {
-      // User left onboarding early — prompt them to try again
       showToast("Stripe onboarding incomplete. Click Connect to resume.", "error");
       loadStripeStatus();
       window.history.replaceState({}, "", window.location.pathname);
@@ -104,7 +106,6 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
   }
 
   async function handleConnectStripe() {
-    // If connected but onboarding incomplete, re-initiate onboarding
     if (stripeConnected && !stripeDetailsSubmitted) {
       try {
         setStripeConnecting(true);
@@ -194,6 +195,19 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
     }
   };
 
+  // Stripe status badge color
+  const stripeStatusBorder = stripeConnected && stripeChargesEnabled
+    ? `1px solid rgba(22,163,74,0.18)`
+    : stripeConnected && !stripeDetailsSubmitted
+    ? `1px solid rgba(180,83,9,0.18)`
+    : `1px solid ${colors.border}`;
+
+  const stripeIconBg = stripeConnected && stripeChargesEnabled
+    ? colors.successRgba
+    : stripeConnected && !stripeDetailsSubmitted
+    ? colors.warningRgba
+    : colors.surfaceMuted;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "48px" }}>
       <style>{`
@@ -202,23 +216,42 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
           box-sizing: border-box;
           padding: 12px 16px;
           border-radius: 12px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(20, 16, 30, 0.6);
-          color: #fff;
+          border: 1px solid ${colors.border};
+          background: ${colors.surface};
+          color: ${colors.text};
           font-size: 15px;
           outline: none;
           transition: border-color 0.2s;
         }
         .settings-input:focus {
-          border-color: rgba(255,255,255,0.25);
+          border-color: ${colors.borderStrong};
         }
         .settings-input::placeholder {
-          color: rgba(255,255,255,0.3);
+          color: ${colors.textSubtle};
         }
       `}</style>
 
       {/* PROFILE */}
       <SettingsProfileSection
+        user={user}
+        setUser={setUser}
+        onSave={onSave}
+        showToast={showToast}
+      />
+
+      {/* BRAND — five-token host identity that travels with every
+          guest-facing surface (event page, email confirms, WhatsApp
+          cover overlay). Lives above WhatsApp because the WhatsApp
+          signature is *part of* the brand voice. */}
+      <SettingsBrandSection
+        user={user}
+        setUser={setUser}
+        onSave={onSave}
+        showToast={showToast}
+      />
+
+      {/* WHATSAPP — phone-verify + host signature + channel toggle. */}
+      <SettingsWhatsappSection
         user={user}
         setUser={setUser}
         onSave={onSave}
@@ -241,15 +274,10 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
         <div
           style={{
             padding: "20px",
-            background: "rgba(20, 16, 30, 0.6)",
+            background: colors.background,
             borderRadius: "12px",
-            border: `1px solid ${
-              stripeConnected && stripeChargesEnabled
-                ? "rgba(34, 197, 94, 0.15)"
-                : stripeConnected && !stripeDetailsSubmitted
-                ? "rgba(245, 158, 11, 0.15)"
-                : "rgba(255,255,255,0.05)"
-            }`,
+            border: stripeStatusBorder,
+            boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "space-between",
@@ -262,11 +290,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                 width: "48px",
                 height: "48px",
                 borderRadius: "12px",
-                background: stripeConnected && stripeChargesEnabled
-                  ? "rgba(34, 197, 94, 0.15)"
-                  : stripeConnected && !stripeDetailsSubmitted
-                  ? "rgba(245, 158, 11, 0.15)"
-                  : "rgba(99, 102, 241, 0.2)",
+                background: stripeIconBg,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -281,6 +305,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                   fontSize: "16px",
                   fontWeight: 600,
                   marginBottom: "4px",
+                  color: colors.text,
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
@@ -294,8 +319,8 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                       fontWeight: 600,
                       padding: "2px 8px",
                       borderRadius: "999px",
-                      background: "rgba(34, 197, 94, 0.15)",
-                      color: "#22c55e",
+                      background: colors.successRgba,
+                      color: colors.success,
                     }}
                   >
                     Connected
@@ -308,8 +333,8 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                       fontWeight: 600,
                       padding: "2px 8px",
                       borderRadius: "999px",
-                      background: "rgba(245, 158, 11, 0.15)",
-                      color: "#f59e0b",
+                      background: colors.warningRgba,
+                      color: colors.warning,
                     }}
                   >
                     Setup incomplete
@@ -322,8 +347,8 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                       fontWeight: 600,
                       padding: "2px 8px",
                       borderRadius: "999px",
-                      background: "rgba(245, 158, 11, 0.15)",
-                      color: "#f59e0b",
+                      background: colors.warningRgba,
+                      color: colors.warning,
                     }}
                   >
                     Pending verification
@@ -331,7 +356,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                 )}
               </div>
               <div
-                style={{ fontSize: "13px", opacity: 0.7, lineHeight: 1.5 }}
+                style={{ fontSize: "13px", color: colors.textMuted, lineHeight: 1.5 }}
               >
                 Accept payments for paid events, process refunds, and manage
                 payouts.
@@ -340,7 +365,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
                 <div
                   style={{
                     fontSize: "12px",
-                    opacity: 0.5,
+                    color: colors.textSubtle,
                     marginTop: "6px",
                   }}
                 >
@@ -357,17 +382,19 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
             disabled={stripeLoading || stripeConnecting}
             style={{
               padding: "10px 20px",
-              borderRadius: "8px",
+              borderRadius: "999px",
               border: stripeConnected && stripeDetailsSubmitted
-                ? "1px solid rgba(255,255,255,0.1)"
+                ? `1px solid ${colors.borderStrong}`
                 : "none",
               background:
                 stripeLoading || stripeConnecting
-                  ? "rgba(255,255,255,0.1)"
+                  ? colors.surfaceMuted
                   : stripeConnected && stripeDetailsSubmitted
                   ? "transparent"
-                  : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-              color: "#fff",
+                  : colors.accent,
+              color: stripeConnected && stripeDetailsSubmitted
+                ? colors.text
+                : "#fff",
               fontSize: "13px",
               fontWeight: 600,
               cursor:
@@ -379,14 +406,16 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
             }}
             onMouseEnter={(e) => {
               if (stripeConnected && stripeDetailsSubmitted && !stripeLoading && !stripeConnecting) {
-                e.target.style.background = "rgba(239, 68, 68, 0.2)";
-                e.target.style.borderColor = "rgba(239, 68, 68, 0.5)";
+                e.currentTarget.style.background = colors.dangerRgba;
+                e.currentTarget.style.borderColor = `rgba(220,38,38,0.3)`;
+                e.currentTarget.style.color = colors.danger;
               }
             }}
             onMouseLeave={(e) => {
               if (stripeConnected && stripeDetailsSubmitted && !stripeLoading && !stripeConnecting) {
-                e.target.style.background = "transparent";
-                e.target.style.borderColor = "rgba(255,255,255,0.1)";
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.borderColor = colors.borderStrong;
+                e.currentTarget.style.color = colors.text;
               }
             }}
           >
@@ -405,7 +434,7 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
 
       <div
         style={{
-          borderTop: "1px solid rgba(255,255,255,0.06)",
+          borderTop: `1px solid ${colors.border}`,
           paddingTop: "48px",
           display: "flex",
           flexDirection: "column",
@@ -422,10 +451,10 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
             onClick={handleSignOut}
             style={{
               padding: "12px 24px",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(255,255,255,0.05)",
-              color: "#fff",
+              borderRadius: "999px",
+              border: `1px solid ${colors.borderStrong}`,
+              background: colors.surface,
+              color: colors.text,
               fontWeight: 600,
               fontSize: "14px",
               cursor: "pointer",
@@ -435,10 +464,10 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
               transition: "all 0.3s ease",
             }}
             onMouseEnter={(e) => {
-              e.target.style.background = "rgba(255,255,255,0.1)";
+              e.currentTarget.style.background = colors.surfaceMuted;
             }}
             onMouseLeave={(e) => {
-              e.target.style.background = "rgba(255,255,255,0.05)";
+              e.currentTarget.style.background = colors.surface;
             }}
           >
             <SilverIcon as={LogOut} size={18} />
@@ -457,10 +486,10 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
             disabled={deletingAccount || deletionRequested}
             style={{
               padding: "12px 24px",
-              borderRadius: "12px",
+              borderRadius: "999px",
               border: "none",
-              background: deletionRequested ? "rgba(255,255,255,0.08)" : "rgba(239, 68, 68, 0.2)",
-              color: deletionRequested ? "rgba(255,255,255,0.6)" : "#ef4444",
+              background: deletionRequested ? colors.surfaceMuted : colors.dangerRgba,
+              color: deletionRequested ? colors.textSubtle : colors.danger,
               fontWeight: 600,
               fontSize: "14px",
               cursor: deletingAccount || deletionRequested ? "not-allowed" : "pointer",
@@ -470,13 +499,13 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
               transition: "all 0.3s ease",
             }}
             onMouseEnter={(e) => {
-              if (!deletingAccount && !deletionRequested) e.currentTarget.style.background = "rgba(239, 68, 68, 0.3)";
+              if (!deletingAccount && !deletionRequested) e.currentTarget.style.background = "rgba(220,38,38,0.15)";
             }}
             onMouseLeave={(e) => {
-              if (!deletingAccount && !deletionRequested) e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
+              if (!deletingAccount && !deletionRequested) e.currentTarget.style.background = colors.dangerRgba;
             }}
           >
-            <SilverIcon as={AlertTriangle} size={18} style={{ color: "#f59e0b" }} />
+            <AlertTriangle size={18} style={{ color: colors.warning }} />
             <span>{deletionRequested ? "Deletion requested" : deletingAccount ? "Submitting…" : "Request account deletion"}</span>
           </button>
         </SettingsSection>
@@ -484,24 +513,6 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
     </div>
   );
 }
-
-const labelStyle = {
-  fontSize: "13px",
-  fontWeight: 600,
-  marginBottom: "8px",
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  opacity: 0.9,
-  display: "flex",
-  alignItems: "center",
-};
-
-const hintStyle = {
-  marginTop: "8px",
-  fontSize: "12px",
-  opacity: 0.5,
-  lineHeight: 1.4,
-};
 
 function SettingsSection({ title, description, children }) {
   return (
@@ -512,6 +523,7 @@ function SettingsSection({ title, description, children }) {
             fontSize: "18px",
             fontWeight: 600,
             marginBottom: "4px",
+            color: colors.text,
           }}
         >
           {title}
@@ -519,7 +531,7 @@ function SettingsSection({ title, description, children }) {
         <p
           style={{
             fontSize: "14px",
-            opacity: 0.7,
+            color: colors.textMuted,
           }}
         >
           {description}
@@ -535,9 +547,9 @@ export function SecurityItem({ icon, title, description, buttonText }) {
     <div
       style={{
         padding: "16px",
-        background: "rgba(20, 16, 30, 0.6)",
+        background: colors.surface,
         borderRadius: "12px",
-        border: "1px solid rgba(255,255,255,0.05)",
+        border: `1px solid ${colors.border}`,
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "space-between",
@@ -552,21 +564,22 @@ export function SecurityItem({ icon, title, description, buttonText }) {
               fontSize: "15px",
               fontWeight: 600,
               marginBottom: "4px",
+              color: colors.text,
             }}
           >
             {title}
           </div>
-          <div style={{ fontSize: "13px", opacity: 0.7 }}>{description}</div>
+          <div style={{ fontSize: "13px", color: colors.textMuted }}>{description}</div>
         </div>
       </div>
       <button
         type="button"
         style={{
           padding: "8px 16px",
-          borderRadius: "8px",
-          border: "1px solid rgba(255,255,255,0.1)",
-          background: "rgba(192, 192, 192, 0.2)",
-          color: "#fff",
+          borderRadius: "999px",
+          border: `1px solid ${colors.border}`,
+          background: colors.surface,
+          color: colors.text,
           fontSize: "13px",
           fontWeight: 600,
           cursor: "pointer",

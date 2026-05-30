@@ -4,6 +4,7 @@
 // actual email preview lives in <EmailCanvas /> on the right.
 
 import FollowUpComposer from "./FollowUpComposer";
+import { colors } from "../../theme/colors.js";
 
 export default function EmailPanel({
   events,
@@ -49,7 +50,7 @@ export default function EmailPanel({
       </Field>
 
       {!selectedTemplate && (
-        <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", fontSize: 12, opacity: 0.6, lineHeight: 1.5 }}>
+        <div style={{ padding: "12px 14px", borderRadius: 10, background: colors.surface, border: `1px solid ${colors.border}`, fontSize: 12, color: colors.textSubtle, lineHeight: 1.5 }}>
           Pick a template above to start composing.
         </div>
       )}
@@ -98,7 +99,7 @@ export default function EmailPanel({
 function Field({ label, children }) {
   return (
     <div>
-      <label style={{ display: "block", fontSize: "11px", opacity: 0.7, marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+      <label style={{ display: "block", fontSize: "11px", color: colors.textSubtle, marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
         {label}
       </label>
       {children}
@@ -110,9 +111,9 @@ const inputStyle = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: "10px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(12,10,18,0.8)",
-  color: "#fff",
+  border: `1px solid ${colors.border}`,
+  background: "#fff",
+  color: colors.text,
   fontSize: "14px",
   boxSizing: "border-box",
 };

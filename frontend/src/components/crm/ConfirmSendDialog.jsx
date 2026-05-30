@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { applyTokens, buildPreviewContext } from "../../lib/emailTokens";
+import { colors } from "../../theme/colors.js";
 
 // datetime-local wants "YYYY-MM-DDTHH:MM" in LOCAL time (no offset). Build it
 // from the local field getters so the min attr and the value round-trip in the
@@ -127,7 +128,7 @@ export default function ConfirmSendDialog({
                   onChange={(e) => setWhenLocal(e.target.value)}
                   style={dtInputStyle}
                 />
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 11, color: colors.textSubtle, marginTop: 6, lineHeight: 1.5 }}>
                   Sends automatically at this time ({localTz}) — you don't need to be online.
                   The audience is recalculated when it fires, so new RSVPs are included.
                 </div>
@@ -180,7 +181,7 @@ export default function ConfirmSendDialog({
         )}
 
         {sendStage === "error" && (
-          <div style={{ ...progressBlockStyle, color: "#fca5a5" }}>
+          <div style={{ ...progressBlockStyle, color: colors.danger }}>
             <div style={{ fontSize: 14, marginBottom: 6 }}>
               We couldn't complete this send. No more emails will be sent.
             </div>
@@ -236,11 +237,11 @@ export default function ConfirmSendDialog({
 
 function Row({ label, children }) {
   return (
-    <div style={{ display: "flex", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", gap: 12 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.04em", flex: "0 0 90px" }}>
+    <div style={{ display: "flex", padding: "8px 0", borderBottom: `1px solid ${colors.border}`, gap: 12 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: colors.textFaded, textTransform: "uppercase", letterSpacing: "0.04em", flex: "0 0 90px" }}>
         {label}
       </div>
-      <div style={{ flex: 1, fontSize: 13, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <div style={{ flex: 1, fontSize: 13, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {children}
       </div>
     </div>
@@ -250,8 +251,8 @@ function Row({ label, children }) {
 function ProgressBar({ total, done }) {
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   return (
-    <div style={{ width: "100%", height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 999, marginTop: 14, overflow: "hidden" }}>
-      <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg, #4ade80, #22c55e)", transition: "width 0.4s ease" }} />
+    <div style={{ width: "100%", height: 4, background: colors.border, borderRadius: 999, marginTop: 14, overflow: "hidden" }}>
+      <div style={{ width: `${pct}%`, height: "100%", background: colors.success, transition: "width 0.4s ease" }} />
     </div>
   );
 }
@@ -262,8 +263,8 @@ function Spinner() {
       <style>{`@keyframes pu-spin { to { transform: rotate(360deg); } }`}</style>
       <div style={{
         width: 32, height: 32,
-        border: "3px solid rgba(255,255,255,0.1)",
-        borderTopColor: "#4ade80",
+        border: `3px solid ${colors.border}`,
+        borderTopColor: colors.accent,
         borderRadius: "50%",
         animation: "pu-spin 0.8s linear infinite",
         margin: "0 auto",
@@ -276,9 +277,9 @@ function SuccessCheck() {
   return (
     <div style={{
       width: 40, height: 40, borderRadius: "50%",
-      background: "rgba(34,197,94,0.18)",
-      border: "1px solid rgba(34,197,94,0.4)",
-      color: "#4ade80",
+      background: colors.successRgba,
+      border: `1px solid rgba(22,163,74,0.35)`,
+      color: colors.success,
       display: "inline-flex", alignItems: "center", justifyContent: "center",
       fontSize: 22, fontWeight: 700,
     }}>✓</div>
@@ -286,25 +287,27 @@ function SuccessCheck() {
 }
 
 const overlayStyle = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)",
+  position: "fixed", inset: 0, background: "rgba(10,10,10,0.55)",
   display: "flex", alignItems: "center", justifyContent: "center",
   zIndex: 1100, padding: 20, backdropFilter: "blur(4px)",
 };
 
 const dialogStyle = {
-  background: "rgba(12, 10, 18, 0.97)",
+  background: "#fff",
   borderRadius: 16,
   padding: "24px 24px 20px",
   width: "100%",
   maxWidth: 440,
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "#fff",
+  border: `1px solid ${colors.border}`,
+  boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
+  color: colors.text,
 };
 
 const titleStyle = {
   fontSize: 18,
-  fontWeight: 600,
+  fontWeight: 700,
   margin: "0 0 16px",
+  color: colors.text,
 };
 
 const heroBlockStyle = {
@@ -313,8 +316,8 @@ const heroBlockStyle = {
 };
 
 const summaryCardStyle = {
-  background: "rgba(255,255,255,0.02)",
-  border: "1px solid rgba(255,255,255,0.06)",
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
   borderRadius: 10,
   padding: "4px 14px",
   marginBottom: 14,
@@ -322,7 +325,7 @@ const summaryCardStyle = {
 
 const noteStyle = {
   fontSize: 11,
-  color: "rgba(255,255,255,0.5)",
+  color: colors.textSubtle,
   lineHeight: 1.5,
   marginBottom: 16,
 };
@@ -341,32 +344,32 @@ const footerRowStyle = {
 
 const cancelBtnStyle = {
   padding: "10px 16px",
-  borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.15)",
+  borderRadius: 999,
+  border: `1px solid ${colors.borderStrong}`,
   background: "transparent",
-  color: "#fff",
+  color: colors.text,
   fontSize: 14,
   cursor: "pointer",
 };
 
 const sendBtnStyle = {
   padding: "10px 18px",
-  borderRadius: 10,
+  borderRadius: 999,
   border: "none",
-  background: "linear-gradient(135deg, rgba(34,197,94,0.45), rgba(34,197,94,0.25))",
-  color: "#4ade80",
+  background: colors.accent,
+  color: "#fff",
   fontSize: 14,
   fontWeight: 600,
   cursor: "pointer",
-  boxShadow: "0 0 0 1px rgba(34,197,94,0.4), 0 4px 12px rgba(0,0,0,0.4)",
+  boxShadow: colors.accentShadow,
 };
 
 const disabledBtnStyle = {
   padding: "10px 16px",
-  borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.15)",
-  background: "rgba(255,255,255,0.04)",
-  color: "rgba(255,255,255,0.5)",
+  borderRadius: 999,
+  border: `1px solid ${colors.border}`,
+  background: colors.surface,
+  color: colors.textFaded,
   fontSize: 14,
   cursor: "not-allowed",
 };
@@ -375,9 +378,9 @@ const modePillStyle = (active) => ({
   flex: 1,
   padding: "8px 12px",
   borderRadius: 10,
-  border: active ? "1px solid rgba(255,255,255,0.3)" : "1px solid rgba(255,255,255,0.1)",
-  background: active ? "rgba(255,255,255,0.1)" : "transparent",
-  color: active ? "#fff" : "rgba(255,255,255,0.5)",
+  border: active ? `1px solid ${colors.accentBorder}` : `1px solid ${colors.border}`,
+  background: active ? colors.accentSoft : "transparent",
+  color: active ? colors.accent : colors.textMuted,
   fontSize: 13,
   fontWeight: active ? 600 : 500,
   cursor: "pointer",
@@ -387,12 +390,12 @@ const dtInputStyle = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.15)",
-  background: "rgba(255,255,255,0.04)",
-  color: "#fff",
+  border: `1px solid ${colors.border}`,
+  background: "#fff",
+  color: colors.text,
   fontSize: 14,
   boxSizing: "border-box",
-  colorScheme: "dark",
+  colorScheme: "light",
 };
 
 const pillStyle = (isFollowup) => ({
@@ -401,8 +404,8 @@ const pillStyle = (isFollowup) => ({
   fontSize: 10,
   fontWeight: 600,
   borderRadius: 999,
-  background: isFollowup ? "rgba(212,175,55,0.18)" : "rgba(139,92,246,0.18)",
-  color: isFollowup ? "#d4af37" : "#c4b5fd",
+  background: isFollowup ? colors.secondarySoft : colors.accentSoft,
+  color: isFollowup ? colors.secondary : colors.accent,
   textTransform: "uppercase",
   letterSpacing: "0.06em",
 });

@@ -5,6 +5,7 @@ import React from "react";
 import { BarChart2, Wine, ClipboardList, Check, UtensilsCrossed } from "lucide-react";
 import { formatEventTime } from "../lib/dateUtils.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { colors } from "../theme/colors.js";
 
 // Reuse StatCard shape from ManageEventPage via props
 export function EventOverviewStats({
@@ -115,7 +116,7 @@ export function EventOverviewStats({
               icon={<SilverIcon as={BarChart2} size={24} />}
               label="Total Capacity"
               value={`${attending}/${totalCapacity}`}
-              color={totalOverCapacity > 0 ? "#f59e0b" : "#fff"}
+              color={totalOverCapacity > 0 ? colors.warning : colors.text}
             />
             {totalOverCapacity > 0 && (
               <div
@@ -125,11 +126,11 @@ export function EventOverviewStats({
                   right: "8px",
                   fontSize: "14px",
                   fontWeight: 600,
-                  color: "#f59e0b",
+                  color: colors.warning,
                   padding: "4px 8px",
-                  background: "rgba(245, 158, 11, 0.2)",
+                  background: colors.warningRgba,
                   borderRadius: "6px",
-                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                  border: `1px solid rgba(180,83,9,0.25)`,
                 }}
               >
                 Over by {totalOverCapacity}
@@ -144,7 +145,7 @@ export function EventOverviewStats({
               icon={<SilverIcon as={Wine} size={24} />}
               label="List Capacity"
               value={`${stats.cocktailsOnly}/${cocktailCapacity}`}
-              color={cocktailOverCapacity > 0 ? "#f59e0b" : "#f59e0b"}
+              color={cocktailOverCapacity > 0 ? colors.warning : colors.textMuted}
             />
             {cocktailOverCapacity > 0 && (
               <div
@@ -154,11 +155,11 @@ export function EventOverviewStats({
                   right: "8px",
                   fontSize: "14px",
                   fontWeight: 600,
-                  color: "#f59e0b",
+                  color: colors.warning,
                   padding: "4px 8px",
-                  background: "rgba(245, 158, 11, 0.2)",
+                  background: colors.warningRgba,
                   borderRadius: "6px",
-                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                  border: `1px solid rgba(180,83,9,0.25)`,
                 }}
               >
                 Over by {cocktailOverCapacity}
@@ -171,14 +172,14 @@ export function EventOverviewStats({
           icon={<SilverIcon as={ClipboardList} size={24} />}
           label="Waitlist"
           value={stats.waitlist}
-          color="#c0c0c0"
+          color={colors.textMuted}
         />
 
         <StatCard
           icon={<SilverIcon as={Check} size={24} />}
           label="Pulled Up"
           value={`${stats.pulledUpTotal}/${attending}`}
-          color="#10b981"
+          color={colors.secondary}
         />
       </div>
 
@@ -190,10 +191,10 @@ export function EventOverviewStats({
             style={{
               marginBottom: "32px",
               padding: "28px",
-              background: "rgb(12 10 18 / 10%)",
+              background: colors.surface,
               borderRadius: "18px",
-              border: "1px solid rgba(255,255,255,0.05)",
-              backdropFilter: "blur(10px)",
+              border: `1px solid ${colors.border}`,
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             }}
           >
             <div
@@ -204,15 +205,14 @@ export function EventOverviewStats({
                 marginBottom: "24px",
               }}
             >
-              <SilverIcon as={UtensilsCrossed} size={22} style={{ color: "#10b981" }} />
+              <SilverIcon as={UtensilsCrossed} size={22} style={{ color: colors.secondary }} />
               <div
                 style={{
                   fontSize: "16px",
                   fontWeight: 700,
                   textTransform: "uppercase",
                   letterSpacing: "0.1em",
-                  opacity: 0.95,
-                  color: "#10b981",
+                  color: colors.secondary,
                 }}
               >
                 Dinner Slots
@@ -256,13 +256,13 @@ export function EventOverviewStats({
                     style={{
                       padding: "18px 16px",
                       borderRadius: "14px",
-                      background: "rgba(12, 10, 18, 0.9)",
+                      background: colors.background,
                       border: isOverCapacity
-                        ? "1px solid rgba(239, 68, 68, 0.7)"
-                        : "1px solid rgba(255,255,255,0.08)",
+                        ? `1px solid rgba(220,38,38,0.4)`
+                        : `1px solid ${colors.border}`,
                       boxShadow: isOverCapacity
-                        ? "0 0 0 1px rgba(239, 68, 68, 0.4)"
-                        : "0 10px 40px rgba(0,0,0,0.45)",
+                        ? "0 0 0 1px rgba(220,38,38,0.12)"
+                        : "0 8px 30px rgba(10,10,10,0.06)",
                       display: "flex",
                       flexDirection: "column",
                       gap: "10px",
@@ -272,11 +272,10 @@ export function EventOverviewStats({
                       style={{
                         fontSize: "14px",
                         fontWeight: 600,
-                        opacity: 0.75,
+                        color: colors.textMuted,
                         marginBottom: "10px",
                         textTransform: "uppercase",
                         letterSpacing: "0.08em",
-                        color: "rgba(255, 255, 255, 0.8)",
                       }}
                     >
                       {formatEventTime(slotTime, event?.timezone)}
@@ -285,7 +284,7 @@ export function EventOverviewStats({
                       style={{
                         fontSize: "28px",
                         fontWeight: 700,
-                        color: isOverCapacity ? "#f59e0b" : "#10b981",
+                        color: isOverCapacity ? colors.warning : colors.secondary,
                         display: "flex",
                         alignItems: "baseline",
                         gap: "6px",
@@ -297,9 +296,8 @@ export function EventOverviewStats({
                       <span
                         style={{
                           fontSize: "18px",
-                          opacity: 0.5,
                           fontWeight: 500,
-                          color: "rgba(255, 255, 255, 0.6)",
+                          color: colors.textSubtle,
                         }}
                       >
                         /{capacity}
@@ -308,8 +306,7 @@ export function EventOverviewStats({
                     <div
                       style={{
                         fontSize: "13px",
-                        opacity: 0.8,
-                        color: "rgba(229, 231, 235, 0.9)",
+                        color: colors.textMuted,
                       }}
                     >
                       {remaining > 0

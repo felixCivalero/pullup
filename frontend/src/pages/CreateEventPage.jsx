@@ -54,6 +54,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
+import { colors } from "../theme/colors.js";
 import {
   formatRelativeTime,
   formatReadableDateTime,
@@ -83,9 +84,9 @@ const inputStyle = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: "8px",
-  border: "1px solid rgba(255,255,255,0.04)",
-  background: "rgba(20, 16, 30, 0.2)",
-  color: "#fff",
+  border: `1px solid rgba(10,10,10,0.14)`,
+  background: "#fff",
+  color: "rgba(10,10,10,0.87)",
   fontSize: "14px",
   outline: "none",
   boxSizing: "border-box",
@@ -94,9 +95,8 @@ const inputStyle = {
 
 const focusedInputStyle = {
   ...inputStyle,
-  border: "1px solid rgba(192, 192, 192, 0.4)",
-  background: "rgba(20, 16, 30, 0.5)",
-  boxShadow: "0 0 0 3px rgba(192, 192, 192, 0.1)",
+  border: `1px solid rgba(236,23,143,0.40)`,
+  boxShadow: "0 0 0 3px rgba(236,23,143,0.10)",
 };
 
 // Get user's timezone
@@ -299,22 +299,43 @@ function getQuickDateOptions() {
 }
 
 // ─── RSVP form-fields builder ───────────────────────────────────────
-// Form fields collected at RSVP time. Name + email are always required
-// (rendered as locked rows in the builder) but can be reordered alongside
-// custom fields. They live in the same array under sentinel ids.
+// Form fields collected at RSVP time. Name is always required; the
+// contact field (email / phone / both) is driven by event.contactChannel.
+// All locked fields render as drag-locked rows that can be reordered
+// alongside custom fields. They live in the same array under sentinel ids.
 const NAME_FIELD_ID = "__name__";
 const EMAIL_FIELD_ID = "__email__";
-const isLockedFieldId = (id) => id === NAME_FIELD_ID || id === EMAIL_FIELD_ID;
+const PHONE_FIELD_ID = "__phone__";
+const LOCKED_FIELD_IDS = new Set([NAME_FIELD_ID, EMAIL_FIELD_ID, PHONE_FIELD_ID]);
+const isLockedFieldId = (id) => LOCKED_FIELD_IDS.has(id);
 const makeNameField  = () => ({ id: NAME_FIELD_ID,  type: "name",  label: "Full name", iconKey: "name",  required: true, locked: true });
 const makeEmailField = () => ({ id: EMAIL_FIELD_ID, type: "email", label: "Email",     iconKey: "email", required: true, locked: true });
-const withLockedFields = (fields) => {
+const makePhoneField = () => ({ id: PHONE_FIELD_ID, type: "phone", label: "WhatsApp number", iconKey: "phone", required: true, locked: true, verify: "whatsapp" });
+
+// Normalise a fields array so the locked rows match the contact channel.
+// 'email'    → locked: Name, Email
+// 'whatsapp' → locked: Name, Phone (verified via WA magic-link at RSVP)
+// 'both'     → locked: Name, Email, Phone
+//
+// Any pre-existing unlocked `phone`-preset field is removed when the
+// channel locks Phone (it would duplicate); same for an old email field.
+const withLockedFields = (fields, channel = "email") => {
   const list = Array.isArray(fields) ? [...fields] : [];
-  const hasName  = list.some((f) => f && f.id === NAME_FIELD_ID);
-  const hasEmail = list.some((f) => f && f.id === EMAIL_FIELD_ID);
-  const prefix = [];
-  if (!hasName)  prefix.push(makeNameField());
-  if (!hasEmail) prefix.push(makeEmailField());
-  return [...prefix, ...list];
+  const channelWantsEmail = channel === "email" || channel === "both";
+  const channelWantsPhone = channel === "whatsapp" || channel === "both";
+
+  // Drop any locked sentinels — we'll re-prepend below.
+  const rest = list.filter((f) => f && !isLockedFieldId(f.id));
+
+  // If the channel locks phone, drop any optional `phone`-preset duplicates.
+  const cleaned = channelWantsPhone
+    ? rest.filter((f) => f.type !== "phone")
+    : rest;
+
+  const prefix = [makeNameField()];
+  if (channelWantsEmail) prefix.push(makeEmailField());
+  if (channelWantsPhone) prefix.push(makePhoneField());
+  return [...prefix, ...cleaned];
 };
 
 const FORM_FIELD_PRESETS = [
@@ -328,7 +349,7 @@ const FORM_FIELD_PRESETS = [
   { type: "custom",    label: "Custom",    placeholder: "Your answer",                    iconKey: "custom",    color: "#a3e635" },
 ];
 
-function FormFieldIcon({ iconKey, size = 16, color = "rgba(255,255,255,0.55)" }) {
+function FormFieldIcon({ iconKey, size = 16, color = "rgba(10,10,10,0.45)" }) {
   const map = {
     name: AtSign,
     email: AtSign,
@@ -355,10 +376,10 @@ function SegmentedChoice({ value, onChange, options }) {
     <div style={{
       display: "grid",
       gridTemplateColumns: `repeat(${options.length}, 1fr)`,
-      gap: "4px",
+      gap: "3px",
       padding: "3px",
-      background: "rgba(255,255,255,0.04)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      background: colors.surfaceMuted,
+      border: `1px solid ${colors.border}`,
       borderRadius: "8px",
     }}>
       {options.map((opt) => {
@@ -370,10 +391,10 @@ function SegmentedChoice({ value, onChange, options }) {
             onClick={() => onChange(opt.value)}
             style={{
               padding: "7px 4px",
-              borderRadius: "6px",
+              borderRadius: "5px",
               border: "none",
-              background: active ? "rgba(255,255,255,0.12)" : "transparent",
-              color: active ? "#fff" : "rgba(255,255,255,0.5)",
+              background: active ? "#fff" : "transparent",
+              color: active ? colors.text : colors.textSubtle,
               fontSize: "12px",
               fontWeight: 600,
               cursor: "pointer",
@@ -381,6 +402,7 @@ function SegmentedChoice({ value, onChange, options }) {
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
+              boxShadow: active ? `0 1px 3px rgba(10,10,10,0.08)` : "none",
             }}
           >
             {opt.label}
@@ -427,7 +449,7 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
     <div>
       <h3 style={{
         fontSize: "11px", fontWeight: 700, marginBottom: "10px",
-        opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.1em",
+        color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.1em",
       }}>
         Form Fields
       </h3>
@@ -453,18 +475,18 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
               style={{
                 display: "flex", flexDirection: "column", gap: "6px",
                 padding: "8px 10px", borderRadius: "10px",
-                border: "1px solid rgba(255,255,255,0.06)",
-                background: dragIndex === i ? "rgba(163,230,53,0.06)" : "rgba(20, 16, 30, 0.35)",
+                border: `1px solid ${dragIndex === i ? colors.accentBorder : colors.border}`,
+                background: dragIndex === i ? colors.accentSoft : "#fff",
                 transition: "all 0.15s ease",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255,255,255,0.4)", cursor: "grab" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "4px", color: colors.textFaded, cursor: "grab" }}>
                   <GripVertical size={14} />
                   <FormFieldIcon iconKey={f.iconKey} />
                 </span>
                 {locked ? (
-                  <div style={{ flex: 1, fontSize: "13px", color: "rgba(255,255,255,0.85)", padding: "2px 0" }}>
+                  <div style={{ flex: 1, fontSize: "13px", color: colors.text, padding: "2px 0" }}>
                     {f.label}
                   </div>
                 ) : (
@@ -474,12 +496,12 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
                     placeholder={f.type === "custom" ? "Field heading (e.g. Allergies)" : "Heading"}
                     style={{
                       flex: 1, background: "transparent", border: "none", outline: "none",
-                      color: "#fff", fontSize: "13px", padding: "2px 0",
+                      color: colors.text, fontSize: "13px", padding: "2px 0",
                     }}
                   />
                 )}
                 {locked ? (
-                  <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Required</div>
+                  <div style={{ fontSize: "10px", color: colors.textFaded, textTransform: "uppercase", letterSpacing: "0.1em" }}>Required</div>
                 ) : (
                   <button
                     type="button"
@@ -487,9 +509,9 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
                     style={{
                       fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.12em",
                       padding: "4px 8px", borderRadius: "6px",
-                      border: f.required ? "1px solid rgba(163,230,53,0.4)" : "1px solid rgba(255,255,255,0.08)",
-                      background: f.required ? "rgba(163,230,53,0.12)" : "transparent",
-                      color: f.required ? "#a3e635" : "rgba(255,255,255,0.4)",
+                      border: f.required ? `1px solid ${colors.accentBorder}` : `1px solid ${colors.border}`,
+                      background: f.required ? colors.accentSoft : "transparent",
+                      color: f.required ? colors.accent : colors.textSubtle,
                       cursor: "pointer", fontWeight: 600,
                     }}
                   >
@@ -502,7 +524,7 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
                     onClick={() => removeField(i)}
                     title="Remove field"
                     style={{
-                      background: "none", border: "none", color: "rgba(255,255,255,0.3)",
+                      background: "none", border: "none", color: colors.textFaded,
                       cursor: "pointer", padding: "4px", display: "flex", alignItems: "center",
                     }}
                   >
@@ -518,7 +540,7 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
                     placeholder="Placeholder shown inside the field"
                     style={{
                       width: "100%", background: "transparent", border: "none", outline: "none",
-                      color: "rgba(255,255,255,0.7)", fontSize: "12px", padding: "2px 0",
+                      color: colors.textMuted, fontSize: "12px", padding: "2px 0",
                     }}
                   />
                 </div>
@@ -530,10 +552,10 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
 
       {/* Add field grid */}
       <div style={{
-        borderRadius: "12px", border: "1px dashed rgba(255,255,255,0.12)",
-        background: "rgba(12, 10, 18, 0.6)", padding: "10px 8px 8px",
+        borderRadius: "12px", border: `1px dashed ${colors.border}`,
+        background: colors.surface, padding: "10px 8px 8px",
       }}>
-        <div style={{ fontSize: "11px", fontWeight: 500, color: "rgba(255,255,255,0.3)", textAlign: "center", marginBottom: "8px" }}>
+        <div style={{ fontSize: "11px", fontWeight: 500, color: colors.textFaded, textAlign: "center", marginBottom: "8px" }}>
           Add field
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "2px" }}>
@@ -548,7 +570,7 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
                 cursor: "pointer", transition: "all 0.15s ease",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                e.currentTarget.style.background = colors.accentSoft;
                 const iconWrap = e.currentTarget.querySelector("[data-ff-icon]");
                 if (iconWrap) iconWrap.style.opacity = "1";
               }}
@@ -561,7 +583,7 @@ function FormFieldsBuilder({ fields, setFields, dragIndex, setDragIndex }) {
               <span data-ff-icon style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "20px", opacity: 0.55, transition: "opacity 0.15s ease" }}>
                 <FormFieldIcon iconKey={preset.iconKey} size={18} color={preset.color} />
               </span>
-              <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap" }}>{preset.label}</span>
+              <span style={{ fontSize: "9px", fontWeight: 500, color: colors.textSubtle, whiteSpace: "nowrap" }}>{preset.label}</span>
             </button>
           ))}
         </div>
@@ -864,7 +886,20 @@ export function CreateEventPage() {
   const [spotify, setSpotify] = useState(draft?.spotify || "");
   const [tiktok, setTiktok] = useState(draft?.tiktok || "");
   const [soundcloud, setSoundcloud] = useState(draft?.soundcloud || "");
-  const [formFields, setFormFields] = useState(withLockedFields(draft?.formFields));
+  const [contactChannel, setContactChannelRaw] = useState(
+    ["email", "whatsapp", "both"].includes(draft?.contactChannel) ? draft.contactChannel : "email",
+  );
+  const [formFields, setFormFields] = useState(
+    withLockedFields(draft?.formFields, draft?.contactChannel || "email"),
+  );
+  // When the host flips the contact channel, re-lock the form fields so
+  // the right contact row sits at the top (Email / WhatsApp / both) and
+  // duplicate phone presets are pruned. Custom + identity fields keep
+  // their order.
+  const setContactChannel = (nextChannel) => {
+    setContactChannelRaw(nextChannel);
+    setFormFields((prev) => withLockedFields(prev, nextChannel));
+  };
   const [formFieldDragIndex, setFormFieldDragIndex] = useState(null);
 
   const [loading, setLoading] = useState(false);
@@ -949,7 +984,7 @@ export function CreateEventPage() {
     allowPlusOnes, maxPlusOnesPerGuest, dinnerEnabled, dinnerStartTime,
     dinnerEndTime, dinnerMaxSeatsPerSlot, dinnerOverflowAction, dinnerBookingEmail,
     hideDinnerRemaining, dinnerSlotsConfig, instagram, spotify, tiktok, soundcloud,
-    formFields, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
+    formFields, contactChannel, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
     customThumbnail: !!customThumbnail,
   });
   const baselineSnapshot = useRef(null);
@@ -1110,6 +1145,7 @@ export function CreateEventPage() {
           dinnerSlotsConfig,
           instagram, spotify, tiktok, soundcloud,
           formFields,
+          contactChannel,
           currentStep,
           _savedAt: Date.now(),
         };
@@ -1127,7 +1163,7 @@ export function CreateEventPage() {
     dinnerOverflowAction, dinnerBookingEmail, hideDinnerRemaining,
     dinnerSlotsConfig,
     instagram, spotify, tiktok, soundcloud,
-    formFields,
+    formFields, contactChannel,
     currentStep, detailsColor, detailsGradient, detailsGradientEnabled,
   ]);
 
@@ -1320,8 +1356,12 @@ export function CreateEventPage() {
         setTiktok(ev.tiktok || "");
         setSoundcloud(ev.soundcloud || "");
 
-        // RSVP form fields — pad with locked name/email sentinels for legacy events
-        setFormFields(withLockedFields(ev.formFields));
+        // RSVP form fields — pad with the right locked rows for this event's channel.
+        const loadedChannel = ["email", "whatsapp", "both"].includes(ev.contactChannel)
+          ? ev.contactChannel
+          : "email";
+        setContactChannelRaw(loadedChannel);
+        setFormFields(withLockedFields(ev.formFields, loadedChannel));
 
         // Media settings
         const ms = ev.mediaSettings || {};
@@ -1846,6 +1886,7 @@ export function CreateEventPage() {
         tiktok: sections.find(s => s.type === "socials")?.tiktok || "",
         soundcloud: sections.find(s => s.type === "socials")?.soundcloud || "",
         formFields: (formFields || []).filter(f => f && f.id && (isLockedFieldId(f.id) || (f.label || "").trim())),
+        contactChannel,
         location,
         locationLat: locationLat || null,
         locationLng: locationLng || null,
@@ -2081,8 +2122,8 @@ export function CreateEventPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#05040a",
-        color: "rgba(255,255,255,0.5)",
+        background: colors.surface,
+        color: colors.textSubtle,
         fontSize: "14px",
       }}>
         Loading event...
@@ -2133,8 +2174,7 @@ export function CreateEventPage() {
         height: "100vh",
         height: "100dvh",
         position: "relative",
-        background:
-          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.12) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.12) 0%, transparent 50%), #05040a",
+        background: colors.surface,
         overflow: "hidden",
         ...(expandAnim ? {
           transformOrigin: `${((expandAnim.left + expandAnim.width / 2) / window.innerWidth * 100).toFixed(1)}% ${((expandAnim.top + expandAnim.height / 2) / window.innerHeight * 100).toFixed(1)}%`,
@@ -2143,74 +2183,13 @@ export function CreateEventPage() {
       }}
       onAnimationEnd={() => setExpandAnim(null)}
     >
-      {/* animated background */}
-      <div
-        style={{
-          position: "fixed",
-          width: "100%",
-          height: "100%",
-          top: 0,
-          left: 0,
-          pointerEvents: "none",
-          zIndex: 0,
-          opacity: isMounted ? 1 : 0,
-          transition: "opacity 1s ease-out",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            width: "800px",
-            height: "800px",
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(192, 192, 192, 0.15) 0%, transparent 70%)",
-            top: "-400px",
-            left: "-400px",
-            animation: "float 20s ease-in-out infinite",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            width: "600px",
-            height: "600px",
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(232, 232, 232, 0.15) 0%, transparent 70%)",
-            bottom: "-300px",
-            right: "-300px",
-            animation: "float 25s ease-in-out infinite reverse",
-          }}
-        />
-      </div>
-
-      {/* cursor glow */}
-      <div
-        style={{
-          position: "fixed",
-          width: "600px",
-          height: "600px",
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, rgba(192, 192, 192, 0.1) 0%, transparent 70%)",
-          left: mousePosition.x - 300,
-          top: mousePosition.y - 300,
-          pointerEvents: "none",
-          transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-          zIndex: 1,
-        }}
-      />
+      {/* No dark animated glows on the light canvas */}
 
       <style>{`
         @keyframes goldFlash {
-          0% { border-color: #d4a012; box-shadow: 0 0 12px rgba(212, 160, 18, 0.4); }
-          50% { border-color: #f0c040; box-shadow: 0 0 20px rgba(240, 192, 64, 0.3); }
-          100% { border-color: rgba(255,255,255,0.1); box-shadow: none; }
-        }
-        @keyframes float {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(30px, -30px) scale(1.1); }
+          0% { border-color: ${colors.accent}; box-shadow: 0 0 0 3px ${colors.accentSoftStrong}; }
+          50% { border-color: ${colors.accent}; box-shadow: 0 0 0 4px ${colors.accentSoft}; }
+          100% { border-color: ${colors.border}; box-shadow: none; }
         }
         @keyframes stepSlideIn {
           from { opacity: 0; transform: translateX(24px); }
@@ -2221,10 +2200,10 @@ export function CreateEventPage() {
           to { opacity: 1; transform: translateX(0); }
         }
         @keyframes detailsTabGlow {
-          0% { color: rgba(255,255,255,0.3); text-shadow: none; }
-          30% { color: #a3e635; text-shadow: 0 0 12px rgba(163,230,53,0.6), 0 0 24px rgba(163,230,53,0.3); }
-          60% { color: #a3e635; text-shadow: 0 0 8px rgba(163,230,53,0.4); }
-          100% { color: #fff; text-shadow: none; }
+          0% { color: ${colors.textFaded}; }
+          30% { color: ${colors.accent}; }
+          60% { color: ${colors.accent}; }
+          100% { color: ${colors.text}; }
         }
       `}</style>
 
@@ -2259,8 +2238,8 @@ export function CreateEventPage() {
               overflowX: "hidden",
               padding: "0",
               boxSizing: "border-box",
-              borderRight: "1px solid rgba(255,255,255,0.06)",
-              background: "rgba(12, 10, 18, 0.4)",
+              borderRight: `1px solid ${colors.border}`,
+              background: colors.background,
               display: mobileView === "preview" ? "none" : "flex",
               flexDirection: "column",
             }}
@@ -2271,8 +2250,8 @@ export function CreateEventPage() {
                 position: "sticky",
                 top: 0,
                 zIndex: 10,
-                background: "rgba(12, 10, 18, 0.95)",
-                backdropFilter: "blur(12px)",
+                background: colors.backgroundOverlay,
+                backdropFilter: "blur(8px)",
                 flexShrink: 0,
               }}
             >
@@ -2302,7 +2281,7 @@ export function CreateEventPage() {
                       fontWeight: 600,
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
-                      color: currentStep === tab.num ? "#fff" : "rgba(255,255,255,0.3)",
+                      color: currentStep === tab.num ? colors.text : colors.textFaded,
                       transition: "color 0.2s ease",
                       whiteSpace: "nowrap",
                       position: "relative",
@@ -2338,9 +2317,10 @@ export function CreateEventPage() {
                         bottom: 0,
                         left: `${activeIdx * tabWidth}%`,
                         width: `${tabWidth}%`,
-                        height: "1.5px",
-                        background: "rgba(255,255,255,0.9)",
+                        height: "2px",
+                        background: colors.accent,
                         transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                        borderRadius: "1px 1px 0 0",
                       }}
                     />
                   );
@@ -2353,7 +2333,7 @@ export function CreateEventPage() {
                     left: 0,
                     right: 0,
                     height: "1px",
-                    background: "rgba(255,255,255,0.06)",
+                    background: colors.border,
                   }}
                 />
               </div>
@@ -2395,15 +2375,15 @@ export function CreateEventPage() {
                   borderRadius: "16px",
                   overflow: "hidden",
                   background: isDragging
-                    ? "rgba(192, 192, 192, 0.2)"
+                    ? colors.accentSoft
                     : mediaFiles.length > 0
                       ? "transparent"
-                      : "rgba(20, 16, 30, 0.3)",
+                      : colors.surface,
                   border: isDragging
-                    ? "2px dashed rgba(192, 192, 192, 0.5)"
+                    ? `2px dashed ${colors.accentBorder}`
                     : mediaFiles.length > 0
-                      ? "1px solid rgba(255,255,255,0.1)"
-                      : "1px solid rgba(255,255,255,0.06)",
+                      ? `1px solid ${colors.border}`
+                      : `1px solid ${colors.border}`,
                   position: "relative",
                   cursor: mediaFiles.length === 0 ? "pointer" : "default",
                   transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -2449,8 +2429,8 @@ export function CreateEventPage() {
                         gap: "4px",
                         fontSize: "11px",
                         fontWeight: 600,
-                        color: "rgba(255,255,255,0.9)",
-                        border: "1px solid rgba(255,255,255,0.15)",
+                        color: colors.text,
+                        border: `1px solid ${colors.border}`,
                         pointerEvents: "none",
                       }}
                     >
@@ -2471,8 +2451,8 @@ export function CreateEventPage() {
                         gap: "4px",
                         fontSize: "11px",
                         fontWeight: 600,
-                        color: "rgba(255,255,255,0.9)",
-                        border: "1px solid rgba(255,255,255,0.15)",
+                        color: colors.text,
+                        border: `1px solid ${colors.border}`,
                         pointerEvents: "none",
                       }}
                     >
@@ -2494,20 +2474,18 @@ export function CreateEventPage() {
                       flexDirection: "column",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: "16px",
-                      background:
-                        "linear-gradient(135deg, rgba(192, 192, 192, 0.12) 0%, rgba(232, 232, 232, 0.12) 100%)",
-                      color: "#fff",
+                      gap: "12px",
+                      background: isDragging ? colors.accentSoft : colors.surface,
                     }}
                   >
-                    <div style={{ fontSize: "56px", opacity: 0.9 }}>
-                      <SilverIcon as={ImageIcon} size={20} />
+                    <div style={{ color: isDragging ? colors.accent : colors.textFaded }}>
+                      <ImageIcon size={32} />
                     </div>
                     <div
                       style={{
                         fontSize: "14px",
                         fontWeight: 600,
-                        opacity: 0.9,
+                        color: colors.textMuted,
                         textAlign: "center",
                         padding: "0 16px",
                       }}
@@ -2517,7 +2495,7 @@ export function CreateEventPage() {
                     <div
                       style={{
                         fontSize: "11px",
-                        opacity: 0.6,
+                        color: colors.textFaded,
                         textAlign: "center",
                         padding: "0 16px",
                       }}
@@ -2573,8 +2551,8 @@ export function CreateEventPage() {
                         overflow: "hidden",
                         flexShrink: 0,
                         border: index === 0
-                          ? "2px solid rgba(255,255,255,0.4)"
-                          : "1px solid rgba(255,255,255,0.1)",
+                          ? `2px solid ${colors.accent}`
+                          : `1px solid ${colors.border}`,
                         cursor: mediaMode === "images" ? "grab" : "default",
                       }}
                     >
@@ -2582,8 +2560,8 @@ export function CreateEventPage() {
                         item.preview ? (
                           <img src={item.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
-                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(20, 16, 30, 0.5)" }}>
-                            <Film size={18} color="rgba(255,255,255,0.5)" />
+                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: colors.surface }}>
+                            <Film size={18} color={colors.textFaded} />
                           </div>
                         )
                       ) : (
@@ -2620,7 +2598,7 @@ export function CreateEventPage() {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          border: "1px solid rgba(255,255,255,0.15)",
+                          border: `1px solid ${colors.border}`,
                           cursor: "pointer",
                           padding: 0,
                           transition: "background 0.15s ease",
@@ -2677,8 +2655,8 @@ export function CreateEventPage() {
                             width: "28px",
                             height: "28px",
                             borderRadius: "6px",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            background: "rgba(255,255,255,0.04)",
+                            border: `1px solid ${colors.border}`,
+                            background: colors.surface,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -2688,15 +2666,15 @@ export function CreateEventPage() {
                             WebkitTapHighlightColor: "transparent",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "rgba(255,255,255,0.1)";
-                            e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)";
+                            e.currentTarget.style.background = colors.accentSoft;
+                            e.currentTarget.style.borderColor = colors.accentBorder;
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                            e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                            e.currentTarget.style.background = colors.surface;
+                            e.currentTarget.style.borderColor = colors.border;
                           }}
                         >
-                          <TIcon size={12} color="rgba(255,255,255,0.5)" />
+                          <TIcon size={12} color={colors.textSubtle} />
                         </button>
                       );
                       return [thumb, indicator];
@@ -2713,8 +2691,8 @@ export function CreateEventPage() {
                         width: "64px",
                         height: "64px",
                         borderRadius: "10px",
-                        border: "1px dashed rgba(255,255,255,0.15)",
-                        background: "rgba(20, 16, 30, 0.3)",
+                        border: `1px dashed ${colors.borderStrong}`,
+                        background: colors.surface,
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
@@ -2723,15 +2701,17 @@ export function CreateEventPage() {
                         cursor: "pointer",
                         flexShrink: 0,
                         transition: "all 0.2s ease",
-                        color: "rgba(255,255,255,0.5)",
+                        color: colors.textSubtle,
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
-                        e.currentTarget.style.background = "rgba(20, 16, 30, 0.5)";
+                        e.currentTarget.style.borderColor = colors.accent;
+                        e.currentTarget.style.color = colors.accent;
+                        e.currentTarget.style.background = colors.accentSoft;
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
-                        e.currentTarget.style.background = "rgba(20, 16, 30, 0.3)";
+                        e.currentTarget.style.borderColor = colors.borderStrong;
+                        e.currentTarget.style.color = colors.textSubtle;
+                        e.currentTarget.style.background = colors.surface;
                       }}
                     >
                       <Plus size={16} />
@@ -2749,8 +2729,9 @@ export function CreateEventPage() {
                     marginTop: "14px",
                     padding: "14px 16px",
                     borderRadius: "12px",
-                    background: "rgba(20, 16, 30, 0.3)",
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "#fff",
+                    border: `1px solid ${colors.border}`,
+                    boxShadow: "0 2px 8px rgba(10,10,10,0.04)",
                   }}
                 >
                   <div style={{
@@ -2758,7 +2739,7 @@ export function CreateEventPage() {
                     textTransform: "uppercase",
                     letterSpacing: "0.12em",
                     fontWeight: 700,
-                    color: "rgba(255,255,255,0.45)",
+                    color: colors.textSubtle,
                     marginBottom: "12px",
                   }}>
                     {mediaMode === "video"
@@ -2772,14 +2753,14 @@ export function CreateEventPage() {
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                       {/* Loop */}
                       <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-                        <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)" }}>Loop</span>
+                        <span style={{ fontSize: "13px", color: colors.textMuted }}>Loop</span>
                         <div
                           onClick={() => setVideoLoop(!videoLoop)}
                           style={{
                             width: "36px",
                             height: "20px",
                             borderRadius: "10px",
-                            background: videoLoop ? "rgba(192, 192, 192, 0.5)" : "rgba(255,255,255,0.1)",
+                            background: videoLoop ? colors.accent : colors.surfaceMuted,
                             position: "relative",
                             cursor: "pointer",
                             transition: "background 0.2s ease",
@@ -2792,21 +2773,22 @@ export function CreateEventPage() {
                             width: "16px",
                             height: "16px",
                             borderRadius: "50%",
-                            background: videoLoop ? "#fff" : "rgba(255,255,255,0.4)",
+                            background: "#fff",
                             transition: "all 0.2s ease",
+                            boxShadow: "0 1px 3px rgba(10,10,10,0.15)",
                           }} />
                         </div>
                       </label>
                       {/* Autoplay */}
                       <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-                        <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)" }}>Autoplay</span>
+                        <span style={{ fontSize: "13px", color: colors.textMuted }}>Autoplay</span>
                         <div
                           onClick={() => setVideoAutoplay(!videoAutoplay)}
                           style={{
                             width: "36px",
                             height: "20px",
                             borderRadius: "10px",
-                            background: videoAutoplay ? "rgba(192, 192, 192, 0.5)" : "rgba(255,255,255,0.1)",
+                            background: videoAutoplay ? colors.accent : colors.surfaceMuted,
                             position: "relative",
                             cursor: "pointer",
                             transition: "background 0.2s ease",
@@ -2819,21 +2801,22 @@ export function CreateEventPage() {
                             width: "16px",
                             height: "16px",
                             borderRadius: "50%",
-                            background: videoAutoplay ? "#fff" : "rgba(255,255,255,0.4)",
+                            background: "#fff",
                             transition: "all 0.2s ease",
+                            boxShadow: "0 1px 3px rgba(10,10,10,0.15)",
                           }} />
                         </div>
                       </label>
                       {/* Audio */}
                       <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-                        <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)" }}>Audio</span>
+                        <span style={{ fontSize: "13px", color: colors.textMuted }}>Audio</span>
                         <div
                           onClick={() => setVideoAudio(!videoAudio)}
                           style={{
                             width: "36px",
                             height: "20px",
                             borderRadius: "10px",
-                            background: videoAudio ? "rgba(192, 192, 192, 0.5)" : "rgba(255,255,255,0.1)",
+                            background: videoAudio ? colors.accent : colors.surfaceMuted,
                             position: "relative",
                             cursor: "pointer",
                             transition: "background 0.2s ease",
@@ -2846,8 +2829,9 @@ export function CreateEventPage() {
                             width: "16px",
                             height: "16px",
                             borderRadius: "50%",
-                            background: videoAudio ? "#fff" : "rgba(255,255,255,0.4)",
+                            background: "#fff",
                             transition: "all 0.2s ease",
+                            boxShadow: "0 1px 3px rgba(10,10,10,0.15)",
                           }} />
                         </div>
                       </label>
@@ -2855,15 +2839,15 @@ export function CreateEventPage() {
                       {/* Thumbnail */}
                       <div style={{
                         display: "flex", alignItems: "center", justifyContent: "space-between",
-                        paddingTop: "6px", borderTop: "1px solid rgba(255,255,255,0.05)",
+                        paddingTop: "6px", borderTop: `1px solid ${colors.border}`,
                       }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)" }}>Thumbnail</span>
+                          <span style={{ fontSize: "13px", color: colors.textMuted }}>Thumbnail</span>
                           {(customThumbnail?.preview || mediaFiles[0]?.preview) && (
                             <div style={{
                               width: "40px", height: "28px", borderRadius: "4px",
                               overflow: "hidden", background: "rgba(0,0,0,0.3)",
-                              border: "1px solid rgba(255,255,255,0.1)",
+                              border: `1px solid ${colors.border}`,
                             }}>
                               <img
                                 src={customThumbnail?.preview || mediaFiles[0]?.preview}
@@ -2879,8 +2863,8 @@ export function CreateEventPage() {
                               type="button"
                               onClick={() => setCustomThumbnail(null)}
                               style={{
-                                padding: "4px 8px", borderRadius: "6px", border: "none",
-                                background: "rgba(255,100,100,0.1)", color: "rgba(255,100,100,0.7)",
+                                padding: "4px 8px", borderRadius: "6px", border: `1px solid ${colors.dangerRgba}`,
+                                background: colors.dangerRgba, color: colors.danger,
                                 fontSize: "11px", cursor: "pointer",
                               }}
                             >
@@ -2891,8 +2875,8 @@ export function CreateEventPage() {
                             type="button"
                             onClick={() => thumbnailInputRef.current?.click()}
                             style={{
-                              padding: "4px 10px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.15)",
-                              background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.7)",
+                              padding: "4px 10px", borderRadius: "6px", border: `1px solid ${colors.border}`,
+                              background: colors.surface, color: colors.textMuted,
                               fontSize: "11px", cursor: "pointer",
                             }}
                           >
@@ -2913,7 +2897,7 @@ export function CreateEventPage() {
                           }}
                         />
                       </div>
-                      <div style={{ fontSize: "11px", opacity: 0.35, marginTop: "4px" }}>
+                      <div style={{ fontSize: "11px", color: colors.textFaded, marginTop: "4px" }}>
                         Used in dashboard, emails, and link previews
                       </div>
                     </div>
@@ -2923,14 +2907,14 @@ export function CreateEventPage() {
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                       {/* Autoscroll */}
                       <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-                        <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)" }}>Autoscroll</span>
+                        <span style={{ fontSize: "13px", color: colors.textMuted }}>Autoscroll</span>
                         <div
                           onClick={() => setCarouselAutoscroll(!carouselAutoscroll)}
                           style={{
                             width: "36px",
                             height: "20px",
                             borderRadius: "10px",
-                            background: carouselAutoscroll ? "rgba(192, 192, 192, 0.5)" : "rgba(255,255,255,0.1)",
+                            background: carouselAutoscroll ? colors.accent : colors.surfaceMuted,
                             position: "relative",
                             cursor: "pointer",
                             transition: "background 0.2s ease",
@@ -2943,8 +2927,9 @@ export function CreateEventPage() {
                             width: "16px",
                             height: "16px",
                             borderRadius: "50%",
-                            background: carouselAutoscroll ? "#fff" : "rgba(255,255,255,0.4)",
+                            background: "#fff",
                             transition: "all 0.2s ease",
+                            boxShadow: "0 1px 3px rgba(10,10,10,0.15)",
                           }} />
                         </div>
                       </label>
@@ -2973,8 +2958,8 @@ export function CreateEventPage() {
                       {carouselAutoscroll && (
                         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)" }}>Interval</span>
-                            <span style={{ fontSize: "12px", fontWeight: 600, color: "rgba(255,255,255,0.6)", fontVariantNumeric: "tabular-nums" }}>
+                            <span style={{ fontSize: "13px", color: colors.textMuted }}>Interval</span>
+                            <span style={{ fontSize: "12px", fontWeight: 600, color: colors.textMuted, fontVariantNumeric: "tabular-nums" }}>
                               {carouselInterval < 1 ? `${Math.round(carouselInterval * 1000)}ms` : `${carouselInterval.toFixed(1)}s`}
                             </span>
                           </div>
@@ -2992,14 +2977,14 @@ export function CreateEventPage() {
                                 height: "4px",
                                 WebkitAppearance: "none",
                                 appearance: "none",
-                                background: `linear-gradient(to right, rgba(255,255,255,0.5) ${((carouselInterval - 0.2) / 7.8) * 100}%, rgba(255,255,255,0.1) ${((carouselInterval - 0.2) / 7.8) * 100}%)`,
+                                background: `linear-gradient(to right, ${colors.accent} ${((carouselInterval - 0.2) / 7.8) * 100}%, ${colors.surfaceMuted} ${((carouselInterval - 0.2) / 7.8) * 100}%)`,
                                 borderRadius: "2px",
                                 outline: "none",
                                 cursor: "pointer",
                               }}
                             />
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "rgba(255,255,255,0.3)", fontWeight: 600 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: colors.textFaded, fontWeight: 600 }}>
                             <span>FAST</span>
                             <span>SLOW</span>
                           </div>
@@ -3009,10 +2994,10 @@ export function CreateEventPage() {
                       {carouselAutoscroll && (
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)" }}>
+                            <span style={{ fontSize: "13px", color: colors.textMuted }}>
                               {carouselLoop ? "Loop" : "Bounce"}
                             </span>
-                            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
+                            <span style={{ fontSize: "10px", color: colors.textFaded }}>
                               {carouselLoop ? "Infinite scroll forward" : "Reverses at each end"}
                             </span>
                           </div>
@@ -3022,7 +3007,7 @@ export function CreateEventPage() {
                               width: "36px",
                               height: "20px",
                               borderRadius: "10px",
-                              background: carouselLoop ? "rgba(192, 192, 192, 0.5)" : "rgba(255,255,255,0.1)",
+                              background: carouselLoop ? colors.accent : colors.surfaceMuted,
                               position: "relative",
                               cursor: "pointer",
                               transition: "background 0.2s ease",
@@ -3036,13 +3021,14 @@ export function CreateEventPage() {
                               width: "16px",
                               height: "16px",
                               borderRadius: "50%",
-                              background: carouselLoop ? "#fff" : "rgba(255,255,255,0.4)",
+                              background: "#fff",
                               transition: "all 0.2s ease",
+                              boxShadow: "0 1px 3px rgba(10,10,10,0.15)",
                             }} />
                           </div>
                         </div>
                       )}
-                      <div style={{ fontSize: "11px", opacity: 0.35, paddingTop: "6px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                      <div style={{ fontSize: "11px", color: colors.textFaded, paddingTop: "6px", borderTop: `1px solid ${colors.border}` }}>
                         First image is used as thumbnail in dashboard, emails, and link previews
                       </div>
                     </div>
@@ -3050,7 +3036,7 @@ export function CreateEventPage() {
 
                   {/* Single image — just a note */}
                   {mediaMode === "images" && mediaFiles.length === 1 && (
-                    <div style={{ fontSize: "11px", opacity: 0.35 }}>
+                    <div style={{ fontSize: "11px", color: colors.textFaded }}>
                       This image is used as thumbnail in dashboard, emails, and link previews. Add more to create a carousel.
                     </div>
                   )}
@@ -3060,7 +3046,7 @@ export function CreateEventPage() {
                     <div style={{
                       marginTop: "14px",
                       paddingTop: "14px",
-                      borderTop: "1px solid rgba(255,255,255,0.06)",
+                      borderTop: `1px solid ${colors.border}`,
                       display: "flex",
                       flexDirection: "column",
                       gap: "16px",
@@ -3070,7 +3056,7 @@ export function CreateEventPage() {
                         textTransform: "uppercase",
                         letterSpacing: "0.12em",
                         fontWeight: 700,
-                        color: "rgba(255,255,255,0.45)",
+                        color: colors.textSubtle,
                       }}>
                         Format
                       </div>
@@ -3079,14 +3065,14 @@ export function CreateEventPage() {
                       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                         <div style={{
                           fontSize: "11px",
-                          color: "rgba(255,255,255,0.5)",
+                          color: colors.textSubtle,
                           fontWeight: 600,
                           display: "flex",
                           justifyContent: "space-between",
                         }}>
                           <span>Phone</span>
                           {phoneFit === "cover" && (
-                            <span style={{ opacity: 0.55 }}>drag preview to reposition</span>
+                            <span style={{ color: colors.textFaded }}>drag preview to reposition</span>
                           )}
                         </div>
                         <SegmentedChoice
@@ -3106,13 +3092,13 @@ export function CreateEventPage() {
                       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                         <div style={{
                           fontSize: "11px",
-                          color: "rgba(255,255,255,0.5)",
+                          color: colors.textSubtle,
                           fontWeight: 600,
                           display: "flex",
                           justifyContent: "space-between",
                         }}>
                           <span>Desktop</span>
-                          <span style={{ opacity: 0.55 }}>drag preview to reposition</span>
+                          <span style={{ color: colors.textFaded }}>drag preview to reposition</span>
                         </div>
                         <SegmentedChoice
                           value={desktopMode}
@@ -3165,7 +3151,7 @@ export function CreateEventPage() {
               style={{
                 fontSize: "11px",
                 textTransform: "uppercase",
-                opacity: 0.7,
+                color: colors.textSubtle,
                 letterSpacing: "0.15em",
                 fontWeight: 600,
                 marginBottom: "16px",
@@ -3219,9 +3205,9 @@ export function CreateEventPage() {
                     style={{
                       padding: "6px 10px",
                       borderRadius: 8,
-                      border: "1px solid rgba(255,255,255,0.1)",
+                      border: `1px solid ${colors.border}`,
                       background: "transparent",
-                      color: "rgba(255,255,255,0.6)",
+                      color: colors.textMuted,
                       fontSize: 12,
                       cursor: "pointer",
                     }}
@@ -3238,8 +3224,8 @@ export function CreateEventPage() {
                 style={{
                   padding: "10px 16px",
                   borderRadius: "10px",
-                  background: "rgba(99, 102, 241, 0.1)",
-                  border: "1px solid rgba(99, 102, 241, 0.2)",
+                  background: colors.accentSoft,
+                  border: `1px solid ${colors.accentBorder}`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
@@ -3247,7 +3233,7 @@ export function CreateEventPage() {
                   marginBottom: "8px",
                 }}
               >
-                <span style={{ fontSize: "13px", opacity: 0.8 }}>
+                <span style={{ fontSize: "13px", color: colors.textMuted }}>
                   Draft restored from your last session
                 </span>
                 <button
@@ -3256,9 +3242,9 @@ export function CreateEventPage() {
                   style={{
                     padding: "4px 12px",
                     borderRadius: "6px",
-                    border: "1px solid rgba(255,255,255,0.15)",
+                    border: `1px solid ${colors.accentBorder}`,
                     background: "transparent",
-                    color: "rgba(255,255,255,0.7)",
+                    color: colors.accent,
                     fontSize: "12px",
                     fontWeight: 500,
                     cursor: "pointer",
@@ -3266,7 +3252,7 @@ export function CreateEventPage() {
                     transition: "all 0.2s",
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = "rgba(255,255,255,0.1)";
+                    e.target.style.background = colors.accentSoftStrong;
                   }}
                   onMouseLeave={(e) => {
                     e.target.style.background = "transparent";
@@ -3287,13 +3273,13 @@ export function CreateEventPage() {
                     padding: "16px 18px",
                     background:
                       focusedField === "location"
-                        ? "rgba(255,255,255,0.05)"
-                        : "rgba(255,255,255,0.03)",
+                        ? colors.surfaceMuted
+                        : colors.surface,
                     borderRadius: "12px",
                     border:
                       focusedField === "location"
-                        ? "1px solid rgba(192, 192, 192, 0.4)"
-                        : "1px solid rgba(255,255,255,0.08)",
+                        ? `1px solid ${colors.accentBorder}`
+                        : `1px solid ${colors.border}`,
                     transition: "all 0.2s ease",
                     width: "100%",
                     boxSizing: "border-box",
@@ -3394,12 +3380,12 @@ export function CreateEventPage() {
                         ? {
                             ...focusedInputStyle,
                             border: "1px solid rgba(192, 192, 192, 0.4)",
-                            background: "rgba(255,255,255,0.05)",
+                            background: colors.surface,
                           }
                         : {
                             ...inputStyle,
-                            background: "rgba(255,255,255,0.03)",
-                            border: "1px solid rgba(255,255,255,0.08)",
+                            background: colors.surface,
+                            border: `1px solid ${colors.border}`,
                           }),
                       fontSize: "16px",
                       padding: "16px 18px 16px 48px",
@@ -3442,7 +3428,7 @@ export function CreateEventPage() {
                       top: "50%",
                       transform: "translateY(-50%)",
                       pointerEvents: "none",
-                      color: startsAt ? "#fff" : "rgba(255,255,255,0.5)",
+                      color: startsAt ? colors.text : colors.textMuted,
                       fontSize: "15px",
                       zIndex: 3,
                     }}
@@ -3503,12 +3489,12 @@ export function CreateEventPage() {
                         ? {
                             ...focusedInputStyle,
                             border: "1px solid rgba(192, 192, 192, 0.4)",
-                            background: "rgba(255,255,255,0.05)",
+                            background: colors.surface,
                           }
                         : {
                             ...inputStyle,
-                            background: "rgba(255,255,255,0.03)",
-                            border: "1px solid rgba(255,255,255,0.08)",
+                            background: colors.surface,
+                            border: `1px solid ${colors.border}`,
                           }),
                       fontSize: "16px",
                       padding: "16px 18px 16px 48px",
@@ -3550,7 +3536,7 @@ export function CreateEventPage() {
                       top: "50%",
                       transform: "translateY(-50%)",
                       pointerEvents: "none",
-                      color: endsAt ? "#fff" : "rgba(255,255,255,0.5)",
+                      color: endsAt ? colors.text : colors.textMuted,
                       fontSize: "15px",
                       zIndex: 3,
                     }}
@@ -3615,13 +3601,14 @@ export function CreateEventPage() {
                   onMouseLeave={() => { if (dragIndex === null) setHoveredSection(null); }}
                   style={{
                     padding: "14px 16px",
-                    background: dragIndex === i ? "rgba(163, 230, 53, 0.06)" : "rgba(255,255,255,0.04)",
-                    border: hoveredSection === i ? "1px solid rgba(163, 230, 53, 0.5)" : "1px solid rgba(255,255,255,0.1)",
+                    background: dragIndex === i ? colors.accentSoft : "#fff",
+                    border: hoveredSection === i ? `1px solid ${colors.secondary}` : `1px solid ${colors.border}`,
                     borderRadius: "12px",
                     marginBottom: "8px",
                     transition: dragIndex !== null ? "none" : "border-color 0.15s ease",
-                    opacity: dragIndex === i ? 0.4 : 1,
+                    opacity: dragIndex === i ? 0.5 : 1,
                     position: "relative",
+                    boxShadow: "0 1px 4px rgba(10,10,10,0.04)",
                   }}>
                   {/* Drop indicator line */}
                   {dragIndex !== null && dragOverIndex === i && dragIndex !== i && dragIndex !== i - 1 && (
@@ -3631,7 +3618,7 @@ export function CreateEventPage() {
                       left: "8px",
                       right: "8px",
                       height: "2px",
-                      background: "#a3e635",
+                      background: colors.secondary,
                       borderRadius: "1px",
                     }} />
                   )}
@@ -3642,7 +3629,7 @@ export function CreateEventPage() {
                       left: "8px",
                       right: "8px",
                       height: "2px",
-                      background: "#a3e635",
+                      background: colors.secondary,
                       borderRadius: "1px",
                     }} />
                   )}
@@ -3671,18 +3658,18 @@ export function CreateEventPage() {
                       <button type="button" draggable={false} disabled={i === 0} onClick={() => {
                         const u = [...sections]; [u[i-1], u[i]] = [u[i], u[i-1]]; setSections(u);
                         setHoveredSection(i - 1);
-                      }} style={{ background: "none", border: "none", color: i === 0 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)", cursor: i === 0 ? "default" : "pointer", padding: 0, fontSize: "12px", lineHeight: 1 }}>&#9650;</button>
+                      }} style={{ background: "none", border: "none", color: i === 0 ? colors.borderStrong : colors.textSubtle, cursor: i === 0 ? "default" : "pointer", padding: 0, fontSize: "12px", lineHeight: 1 }}>&#9650;</button>
                       <button type="button" draggable={false} disabled={i === sections.length - 1} onClick={() => {
                         const u = [...sections]; [u[i], u[i+1]] = [u[i+1], u[i]]; setSections(u);
                         setHoveredSection(i + 1);
-                      }} style={{ background: "none", border: "none", color: i === sections.length - 1 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)", cursor: i === sections.length - 1 ? "default" : "pointer", padding: 0, fontSize: "12px", lineHeight: 1 }}>&#9660;</button>
+                      }} style={{ background: "none", border: "none", color: i === sections.length - 1 ? colors.borderStrong : colors.textSubtle, cursor: i === sections.length - 1 ? "default" : "pointer", padding: 0, fontSize: "12px", lineHeight: 1 }}>&#9660;</button>
                     </div>
-                    <span style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.25)", flexShrink: 0, userSelect: "none" }}>
+                    <span style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: colors.textFaded, flexShrink: 0, userSelect: "none" }}>
                       {({ title: "Title", location: "Location", datetime: "Date & Time", socials: "Social Links", spotify: "Spotify", applemusic: "Apple Music", soundcloud: "SoundCloud", youtube: "YouTube", hostedby: "Hosted By", text: "Text" })[section.type] || "Text"}
                     </span>
                     <div style={{ flex: 1 }} />
                     {section.type !== "title" && section.type !== "location" && section.type !== "datetime" && (
-                      <button type="button" draggable={false} onClick={() => setSections(sections.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: "18px", cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>
+                      <button type="button" draggable={false} onClick={() => setSections(sections.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: colors.textFaded, fontSize: "18px", cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>
                         &times;
                       </button>
                     )}
@@ -3694,7 +3681,7 @@ export function CreateEventPage() {
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="Event Name"
-                      style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: "#fff", fontSize: "18px", fontWeight: 700, outline: "none", padding: 0, fontFamily: "inherit" }}
+                      style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: colors.text, fontSize: "18px", fontWeight: 700, outline: "none", padding: 0, fontFamily: "inherit" }}
                     />
                   ) : section.type === "location" ? (
                     /* Location input */
@@ -3711,7 +3698,7 @@ export function CreateEventPage() {
                         }}
                         onFocus={() => setFocusedField("location")}
                         onBlur={() => setFocusedField(null)}
-                        style={{ flex: 1, background: "transparent", border: "none", color: "#fff", fontSize: "15px", outline: "none", padding: 0, width: "100%", fontFamily: "inherit" }}
+                        style={{ flex: 1, background: "transparent", border: "none", color: colors.text, fontSize: "15px", outline: "none", padding: 0, width: "100%", fontFamily: "inherit" }}
                         placeholder="Where's the event?"
                         disabled={loading}
                       />
@@ -3721,7 +3708,7 @@ export function CreateEventPage() {
                           onClick={() => setHideLocation(!hideLocation)}
                           style={{
                             width: "36px", height: "20px", borderRadius: "10px", border: "none",
-                            background: hideLocation ? "#a3e635" : "rgba(255,255,255,0.15)",
+                            background: hideLocation ? colors.accent : colors.surfaceMuted,
                             position: "relative", cursor: "pointer", transition: "background 0.2s ease", flexShrink: 0,
                           }}
                         >
@@ -3730,9 +3717,10 @@ export function CreateEventPage() {
                             position: "absolute", top: "2px",
                             left: hideLocation ? "18px" : "2px",
                             transition: "left 0.2s ease",
+                            boxShadow: "0 1px 3px rgba(10,10,10,0.12)",
                           }} />
                         </button>
-                        <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>Reveal later</span>
+                        <span style={{ fontSize: "12px", color: colors.textSubtle, fontWeight: 500 }}>Reveal later</span>
                       </div>
                       {hideLocation && (
                         <input
@@ -3741,7 +3729,7 @@ export function CreateEventPage() {
                           onChange={(e) => setRevealHint(e.target.value)}
                           placeholder="e.g. Location drops Friday"
                           maxLength={80}
-                          style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "12px", padding: "8px 10px", outline: "none", fontFamily: "inherit", marginTop: "8px" }}
+                          style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "12px", padding: "8px 10px", outline: "none", fontFamily: "inherit", marginTop: "8px" }}
                         />
                       )}
                     </>
@@ -3769,10 +3757,10 @@ export function CreateEventPage() {
                           }}
                           style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", zIndex: 1 }}
                         />
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", color: startsAt ? "#fff" : "rgba(255,255,255,0.4)", fontSize: "14px" }}>
-                          <SilverIcon as={Clock} size={16} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", color: startsAt ? colors.text : colors.textSubtle, fontSize: "14px" }}>
+                          <Clock size={16} color={colors.secondary} />
                           <span>{startsAt ? formatReadableDateTime(new Date(startsAt), timezone) : "Event start"}</span>
-                          {startsAt && <span style={{ marginLeft: "auto", fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>{formatRelativeTime(new Date(startsAt))}</span>}
+                          {startsAt && <span style={{ marginLeft: "auto", fontSize: "11px", color: colors.textFaded }}>{formatRelativeTime(new Date(startsAt))}</span>}
                         </div>
                       </div>
                       <div
@@ -3786,10 +3774,10 @@ export function CreateEventPage() {
                           onChange={(e) => { if (e.target.value) setEndsAt(localDateTimeToIso(e.target.value)); }}
                           style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", zIndex: 1 }}
                         />
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", color: endsAt ? "#fff" : "rgba(255,255,255,0.4)", fontSize: "14px" }}>
-                          <SilverIcon as={Clock} size={16} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", color: endsAt ? colors.text : colors.textSubtle, fontSize: "14px" }}>
+                          <Clock size={16} color={colors.secondary} />
                           <span>{endsAt ? formatReadableDateTime(new Date(endsAt), timezone) : "Event end"}</span>
-                          {endsAt && <span style={{ marginLeft: "auto", fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>{formatRelativeTime(new Date(endsAt))}</span>}
+                          {endsAt && <span style={{ marginLeft: "auto", fontSize: "11px", color: colors.textFaded }}>{formatRelativeTime(new Date(endsAt))}</span>}
                         </div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
@@ -3810,7 +3798,7 @@ export function CreateEventPage() {
                           }}
                           style={{
                             width: "36px", height: "20px", borderRadius: "10px", border: "none",
-                            background: hideDate ? "#a3e635" : "rgba(255,255,255,0.15)",
+                            background: hideDate ? colors.accent : colors.surfaceMuted,
                             position: "relative", cursor: "pointer", transition: "background 0.2s ease", flexShrink: 0,
                           }}
                         >
@@ -3819,9 +3807,10 @@ export function CreateEventPage() {
                             position: "absolute", top: "2px",
                             left: hideDate ? "18px" : "2px",
                             transition: "left 0.2s ease",
+                            boxShadow: "0 1px 3px rgba(10,10,10,0.12)",
                           }} />
                         </button>
-                        <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>Reveal later</span>
+                        <span style={{ fontSize: "12px", color: colors.textSubtle, fontWeight: 500 }}>Reveal later</span>
                       </div>
                       {hideDate && (
                         <>
@@ -3831,9 +3820,9 @@ export function CreateEventPage() {
                             onChange={(e) => setDateRevealHint(e.target.value)}
                             placeholder="e.g. Date announced soon"
                             maxLength={80}
-                            style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "12px", padding: "8px 10px", outline: "none", fontFamily: "inherit", marginTop: "8px" }}
+                            style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "12px", padding: "8px 10px", outline: "none", fontFamily: "inherit", marginTop: "8px" }}
                           />
-                          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", marginTop: "6px", lineHeight: 1.4 }}>
+                          <div style={{ fontSize: "11px", color: colors.textFaded, marginTop: "6px", lineHeight: 1.4 }}>
                             Date above is a private placeholder for sorting and reminders. Public shares show your reveal hint instead.
                           </div>
                         </>
@@ -3849,7 +3838,7 @@ export function CreateEventPage() {
                           const u = [...sections]; u[i] = { ...u[i], url: e.target.value }; setSections(u);
                         }}
                         placeholder="Paste Spotify URL (track, album, artist, or playlist)"
-                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
+                        style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
                       />
                       {section.url && section.url.includes("spotify.com") && (
                         <iframe
@@ -3873,7 +3862,7 @@ export function CreateEventPage() {
                           const u = [...sections]; u[i] = { ...u[i], url: e.target.value }; setSections(u);
                         }}
                         placeholder="Paste Apple Music URL (song, album, or playlist)"
-                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
+                        style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
                       />
                       {section.url && section.url.includes("music.apple.com") && (
                         <iframe
@@ -3898,7 +3887,7 @@ export function CreateEventPage() {
                           const u = [...sections]; u[i] = { ...u[i], url: e.target.value }; setSections(u);
                         }}
                         placeholder="Paste SoundCloud URL (track or playlist)"
-                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
+                        style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
                       />
                       {section.url && section.url.includes("soundcloud.com") && (
                         <iframe
@@ -3922,7 +3911,7 @@ export function CreateEventPage() {
                           const u = [...sections]; u[i] = { ...u[i], url: e.target.value }; setSections(u);
                         }}
                         placeholder="Paste YouTube URL"
-                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
+                        style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "13px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
                       />
                       {section.url && (section.url.includes("youtube.com") || section.url.includes("youtu.be")) && (() => {
                         let videoId = null;
@@ -3957,7 +3946,7 @@ export function CreateEventPage() {
                         { key: "soundcloud", label: "SoundCloud", placeholder: "https://soundcloud.com/..." },
                       ].map(({ key, label, placeholder }) => (
                         <div key={key} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", width: "76px", flexShrink: 0 }}>{label}</span>
+                          <span style={{ fontSize: "12px", color: colors.textSubtle, width: "76px", flexShrink: 0 }}>{label}</span>
                           <input
                             type="url"
                             value={section[key] || ""}
@@ -3965,7 +3954,7 @@ export function CreateEventPage() {
                               const u = [...sections]; u[i] = { ...u[i], [key]: e.target.value }; setSections(u);
                             }}
                             placeholder={placeholder}
-                            style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "8px 10px", outline: "none", fontFamily: "inherit", minWidth: 0 }}
+                            style={{ flex: 1, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "13px", padding: "8px 10px", outline: "none", fontFamily: "inherit", minWidth: 0 }}
                           />
                         </div>
                       ))}
@@ -3977,14 +3966,14 @@ export function CreateEventPage() {
                       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         <label style={{
                           width: "48px", height: "48px", borderRadius: "8px", flexShrink: 0,
-                          border: "1px dashed rgba(255,255,255,0.15)", cursor: "pointer",
+                          border: `1px dashed ${colors.borderStrong}`, cursor: "pointer",
                           display: "flex", alignItems: "center", justifyContent: "center",
-                          overflow: "hidden", background: "rgba(255,255,255,0.03)",
+                          overflow: "hidden", background: colors.surface,
                         }}>
                           {section.logo ? (
                             <img src={section.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", padding: "4px", boxSizing: "border-box" }} />
                           ) : (
-                            <span style={{ fontSize: "18px", opacity: 0.25 }}>+</span>
+                            <span style={{ fontSize: "18px", color: colors.textFaded }}>+</span>
                           )}
                           <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
                             const file = e.target.files?.[0];
@@ -3996,12 +3985,12 @@ export function CreateEventPage() {
                           }} />
                         </label>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.25)", marginBottom: "4px" }}>Logo</div>
-                          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>{section.logo ? "Click to change" : "Click to upload"}</div>
+                          <div style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: colors.textFaded, marginBottom: "4px" }}>Logo</div>
+                          <div style={{ fontSize: "11px", color: colors.textSubtle }}>{section.logo ? "Click to change" : "Click to upload"}</div>
                         </div>
                         {section.logo && (
                           <button type="button" onClick={() => { const u = [...sections]; u[i] = { ...u[i], logo: "" }; setSections(u); }}
-                            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: "14px", cursor: "pointer", padding: "4px" }}>&times;</button>
+                            style={{ background: "none", border: "none", color: colors.textFaded, fontSize: "14px", cursor: "pointer", padding: "4px" }}>&times;</button>
                         )}
                       </div>
                       {/* Name */}
@@ -4010,7 +3999,7 @@ export function CreateEventPage() {
                         value={section.name || ""}
                         onChange={(e) => { const u = [...sections]; u[i] = { ...u[i], name: e.target.value }; setSections(u); }}
                         placeholder="Host or agency name"
-                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "14px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
+                        style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "14px", padding: "10px 12px", outline: "none", fontFamily: "inherit" }}
                       />
                       {/* Email */}
                       <input
@@ -4018,7 +4007,7 @@ export function CreateEventPage() {
                         value={section.email || ""}
                         onChange={(e) => { const u = [...sections]; u[i] = { ...u[i], email: e.target.value }; setSections(u); }}
                         placeholder="Contact email"
-                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "8px 12px", outline: "none", fontFamily: "inherit" }}
+                        style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "13px", padding: "8px 12px", outline: "none", fontFamily: "inherit" }}
                       />
                       {/* Website */}
                       <input
@@ -4026,7 +4015,7 @@ export function CreateEventPage() {
                         value={section.website || ""}
                         onChange={(e) => { const u = [...sections]; u[i] = { ...u[i], website: e.target.value }; setSections(u); }}
                         placeholder="Website URL"
-                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "13px", padding: "8px 12px", outline: "none", fontFamily: "inherit" }}
+                        style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "13px", padding: "8px 12px", outline: "none", fontFamily: "inherit" }}
                       />
                     </div>
                   ) : (
@@ -4039,7 +4028,7 @@ export function CreateEventPage() {
                           const u = [...sections]; u[i] = { ...u[i], title: e.target.value }; setSections(u);
                         }}
                         placeholder="Section title (e.g. About, Lineup, Menu...)"
-                        style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: "#fff", fontSize: "15px", fontWeight: 600, outline: "none", padding: 0, marginBottom: "8px", fontFamily: "inherit" }}
+                        style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: colors.text, fontSize: "15px", fontWeight: 600, outline: "none", padding: 0, marginBottom: "8px", fontFamily: "inherit" }}
                       />
                       <textarea
                         value={section.text || ""}
@@ -4047,7 +4036,7 @@ export function CreateEventPage() {
                           const u = [...sections]; u[i] = { ...u[i], text: e.target.value }; setSections(u);
                         }}
                         placeholder="Write your content..."
-                        style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: "#fff", fontSize: "14px", lineHeight: "1.6", outline: "none", resize: "vertical", minHeight: "60px", padding: 0, fontFamily: "inherit", opacity: 0.85 }}
+                        style={{ width: "100%", boxSizing: "border-box", background: "transparent", border: "none", color: colors.textMuted, fontSize: "14px", lineHeight: "1.6", outline: "none", resize: "vertical", minHeight: "60px", padding: 0, fontFamily: "inherit" }}
                       />
                     </>
                   )}
@@ -4056,13 +4045,13 @@ export function CreateEventPage() {
 
               {/* Add section grid — always visible */}
               <div style={{
-                borderRadius: "12px", border: "1px dashed rgba(255,255,255,0.12)",
-                background: "rgba(12, 10, 18, 0.6)", padding: "10px 8px 8px",
+                borderRadius: "12px", border: `1px dashed ${colors.border}`,
+                background: colors.surface, padding: "10px 8px 8px",
               }}>
-                <div style={{ fontSize: "11px", fontWeight: 500, color: "rgba(255,255,255,0.3)", textAlign: "center", marginBottom: "8px" }}>Add section</div>
+                <div style={{ fontSize: "11px", fontWeight: 500, color: colors.textFaded, textAlign: "center", marginBottom: "8px" }}>Add section</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
                   {[
-                    { data: { type: "text", title: "Heading", text: "Write something here..." }, icon: "T", label: "Text", color: "#fff" },
+                    { data: { type: "text", title: "Heading", text: "Write something here..." }, icon: "T", label: "Text", color: colors.accent },
                     { data: { type: "spotify", url: "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT" }, icon: "\u266B", label: "Spotify", color: "#1DB954" },
                     { data: { type: "applemusic", url: "https://music.apple.com/us/album/blinding-lights/1499378108?i=1499378615" }, icon: "\u266A", label: "Apple", color: "#FC3C44" },
                     { data: { type: "soundcloud", url: "https://soundcloud.com/fredagain" }, icon: "\u266A", label: "SoundCloud", color: "#FF5500" },
@@ -4080,16 +4069,16 @@ export function CreateEventPage() {
                         cursor: "pointer", transition: "all 0.15s ease",
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                        e.currentTarget.style.background = colors.accentSoft;
                         e.currentTarget.querySelector("[data-icon]").style.color = item.color;
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = "transparent";
-                        e.currentTarget.querySelector("[data-icon]").style.color = "rgba(255,255,255,0.35)";
+                        e.currentTarget.querySelector("[data-icon]").style.color = colors.textFaded;
                       }}
                     >
-                      <span data-icon style={{ fontSize: "20px", color: "rgba(255,255,255,0.35)", transition: "color 0.15s ease", lineHeight: 1 }}>{item.icon}</span>
-                      <span style={{ fontSize: "9px", fontWeight: 500, color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>{item.label}</span>
+                      <span data-icon style={{ fontSize: "20px", color: colors.textFaded, transition: "color 0.15s ease", lineHeight: 1 }}>{item.icon}</span>
+                      <span style={{ fontSize: "9px", fontWeight: 500, color: colors.textSubtle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>{item.label}</span>
                     </button>
                   ))}
                 </div>
@@ -4108,7 +4097,7 @@ export function CreateEventPage() {
                   fontSize: "11px",
                   textTransform: "uppercase",
                   letterSpacing: "0.15em",
-                  opacity: 0.7,
+                  color: colors.textSubtle,
                   fontWeight: 600,
                   marginBottom: "20px",
                 }}
@@ -4117,114 +4106,41 @@ export function CreateEventPage() {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "12px 16px",
-                    background: "rgba(20, 16, 30, 0.25)",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                  }}
-                >
-                  <FaInstagram size={20} style={{ flexShrink: 0, opacity: 0.7 }} />
-                  <input
-                    value={instagram}
-                    onChange={(e) => setInstagram(e.target.value)}
-                    placeholder="Instagram URL"
+                {[
+                  { icon: FaInstagram, value: instagram, onChange: setInstagram, placeholder: "Instagram URL" },
+                  { icon: FaSpotify, value: spotify, onChange: setSpotify, placeholder: "Spotify URL" },
+                  { icon: FaTiktok, value: tiktok, onChange: setTiktok, placeholder: "TikTok URL" },
+                  { icon: FaSoundcloud, value: soundcloud, onChange: setSoundcloud, placeholder: "SoundCloud URL" },
+                ].map(({ icon: Icon, value, onChange, placeholder }) => (
+                  <div
+                    key={placeholder}
                     style={{
-                      flex: 1,
-                      background: "transparent",
-                      border: "none",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                      padding: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      padding: "12px 16px",
+                      background: "#fff",
+                      borderRadius: "12px",
+                      border: `1px solid ${colors.border}`,
                     }}
-                  />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "12px 16px",
-                    background: "rgba(20, 16, 30, 0.25)",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                  }}
-                >
-                  <FaSpotify size={20} style={{ flexShrink: 0, opacity: 0.7 }} />
-                  <input
-                    value={spotify}
-                    onChange={(e) => setSpotify(e.target.value)}
-                    placeholder="Spotify URL"
-                    style={{
-                      flex: 1,
-                      background: "transparent",
-                      border: "none",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                      padding: 0,
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "12px 16px",
-                    background: "rgba(20, 16, 30, 0.25)",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                  }}
-                >
-                  <FaTiktok size={20} style={{ flexShrink: 0, opacity: 0.7 }} />
-                  <input
-                    value={tiktok}
-                    onChange={(e) => setTiktok(e.target.value)}
-                    placeholder="TikTok URL"
-                    style={{
-                      flex: 1,
-                      background: "transparent",
-                      border: "none",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                      padding: 0,
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "12px 16px",
-                    background: "rgba(20, 16, 30, 0.25)",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                  }}
-                >
-                  <FaSoundcloud size={20} style={{ flexShrink: 0, opacity: 0.7 }} />
-                  <input
-                    value={soundcloud}
-                    onChange={(e) => setSoundcloud(e.target.value)}
-                    placeholder="SoundCloud URL"
-                    style={{
-                      flex: 1,
-                      background: "transparent",
-                      border: "none",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                      padding: 0,
-                    }}
-                  />
-                </div>
+                  >
+                    <Icon size={20} style={{ flexShrink: 0, color: colors.textSubtle }} />
+                    <input
+                      value={value}
+                      onChange={(e) => onChange(e.target.value)}
+                      placeholder={placeholder}
+                      style={{
+                        flex: 1,
+                        background: "transparent",
+                        border: "none",
+                        color: colors.text,
+                        fontSize: "14px",
+                        outline: "none",
+                        padding: 0,
+                      }}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -4242,12 +4158,90 @@ export function CreateEventPage() {
                   fontSize: "11px",
                   textTransform: "uppercase",
                   letterSpacing: "0.15em",
-                  opacity: 0.7,
+                  color: colors.textSubtle,
                   fontWeight: 600,
                   marginBottom: "20px",
                 }}
               >
                 FORM
+              </div>
+
+              {/* Contact channel — drives the locked rows below and the
+                  channel reminders / confirms go out on. WhatsApp captures
+                  a verified phone via the magic-link flow; Email keeps the
+                  classic path; Both lets the host meet every guest where
+                  they live. */}
+              <div style={{ marginBottom: 14 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: colors.textSubtle,
+                    marginBottom: 6,
+                  }}
+                >
+                  How guests hear from you
+                </div>
+                {/* Inline light-zone segmented control. SegmentedChoice
+                    elsewhere in this file is dark-tokened; the create-event
+                    shell is light, so we draw our own here. */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: "4px",
+                    padding: "3px",
+                    background: colors.surface,
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: "10px",
+                  }}
+                >
+                  {[
+                    { value: "email",    label: "Email" },
+                    { value: "whatsapp", label: "WhatsApp" },
+                    { value: "both",     label: "Both" },
+                  ].map((opt) => {
+                    const active = contactChannel === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setContactChannel(opt.value)}
+                        style={{
+                          padding: "8px 4px",
+                          borderRadius: "7px",
+                          border: "none",
+                          background: active ? colors.background : "transparent",
+                          color: active ? colors.text : colors.textMuted,
+                          fontSize: "13px",
+                          fontWeight: active ? 600 : 500,
+                          cursor: "pointer",
+                          transition: "background 120ms ease, color 120ms ease",
+                          whiteSpace: "nowrap",
+                          boxShadow: active ? "0 1px 2px rgba(10,10,10,0.06)" : "none",
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: colors.textMuted,
+                    marginTop: 8,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {contactChannel === "whatsapp"
+                    ? "RSVPs verify their phone via a one-tap WhatsApp link. Confirms, reminders and your broadcasts all reach them in the same DM thread."
+                    : contactChannel === "both"
+                    ? "We collect both, with WhatsApp as the primary contact. Falls back to email when a guest isn't on WhatsApp."
+                    : "Classic email flow — confirms, reminders and broadcasts via email."}
+                </div>
               </div>
 
               {/* RSVP form fields builder */}
@@ -4265,7 +4259,7 @@ export function CreateEventPage() {
                     fontSize: "11px",
                     fontWeight: 700,
                     marginBottom: "10px",
-                    opacity: 0.6,
+                    color: colors.textSubtle,
                     textTransform: "uppercase",
                     letterSpacing: "0.1em",
                   }}
@@ -4288,9 +4282,9 @@ export function CreateEventPage() {
                         width: "95px",
                         padding: "5px 10px",
                         borderRadius: "8px",
-                        border: "1px solid rgba(255,255,255,0.04)",
-                        background: "rgba(12, 10, 18, 0.4)",
-                        color: "#fff",
+                        border: `1px solid ${colors.border}`,
+                        background: "#fff",
+                        color: colors.text,
                         fontSize: "16px",
                         textAlign: "right",
                         outline: "none",
@@ -4335,31 +4329,31 @@ export function CreateEventPage() {
                       {allowPlusOnes && (
                         <div style={{
                           display: "flex", alignItems: "center", gap: "2px",
-                          background: "rgba(255,255,255,0.05)", borderRadius: "8px",
-                          border: "1px solid rgba(255,255,255,0.08)", padding: "2px",
+                          background: colors.surface, borderRadius: "8px",
+                          border: `1px solid ${colors.border}`, padding: "2px",
                         }}>
                           <button type="button" onClick={() => {
                             const c = parseInt(maxPlusOnesPerGuest, 10) || 1;
                             if (c > 1) setMaxPlusOnesPerGuest(String(c - 1));
                           }} disabled={parseInt(maxPlusOnesPerGuest, 10) <= 1} style={{
                             width: "28px", height: "28px", borderRadius: "6px", border: "none",
-                            background: parseInt(maxPlusOnesPerGuest, 10) <= 1 ? "transparent" : "rgba(192,192,192,0.15)",
-                            color: "#fff", fontSize: "16px", fontWeight: 600,
+                            background: parseInt(maxPlusOnesPerGuest, 10) <= 1 ? "transparent" : colors.accentSoft,
+                            color: colors.text, fontSize: "16px", fontWeight: 600,
                             cursor: parseInt(maxPlusOnesPerGuest, 10) <= 1 ? "not-allowed" : "pointer",
                             display: "flex", alignItems: "center", justifyContent: "center",
                             opacity: parseInt(maxPlusOnesPerGuest, 10) <= 1 ? 0.3 : 1, transition: "all 0.15s ease",
                           }}>−</button>
                           <div style={{
                             minWidth: "24px", textAlign: "center", fontSize: "14px",
-                            fontWeight: 600, color: "#fff", padding: "0 2px",
+                            fontWeight: 600, color: colors.text, padding: "0 2px",
                           }}>{maxPlusOnesPerGuest}</div>
                           <button type="button" onClick={() => {
                             const c = parseInt(maxPlusOnesPerGuest, 10) || 1;
                             if (c < 5) setMaxPlusOnesPerGuest(String(c + 1));
                           }} disabled={parseInt(maxPlusOnesPerGuest, 10) >= 5} style={{
                             width: "28px", height: "28px", borderRadius: "6px", border: "none",
-                            background: parseInt(maxPlusOnesPerGuest, 10) >= 5 ? "transparent" : "rgba(192,192,192,0.15)",
-                            color: "#fff", fontSize: "16px", fontWeight: 600,
+                            background: parseInt(maxPlusOnesPerGuest, 10) >= 5 ? "transparent" : colors.accentSoft,
+                            color: colors.text, fontSize: "16px", fontWeight: 600,
                             cursor: parseInt(maxPlusOnesPerGuest, 10) >= 5 ? "not-allowed" : "pointer",
                             display: "flex", alignItems: "center", justifyContent: "center",
                             opacity: parseInt(maxPlusOnesPerGuest, 10) >= 5 ? 0.3 : 1, transition: "all 0.15s ease",
@@ -4397,9 +4391,9 @@ export function CreateEventPage() {
                       marginTop: "8px",
                       padding: "16px",
                       borderRadius: "12px",
-                      border: "1px solid rgba(192, 192, 192, 0.15)",
-                      background:
-                        "linear-gradient(135deg, rgba(192, 192, 192, 0.06) 0%, rgba(232, 232, 232, 0.03) 100%)",
+                      border: `1px solid ${colors.border}`,
+                      background: "#fff",
+                      boxShadow: "0 2px 8px rgba(10,10,10,0.04)",
                       display: "flex",
                       flexDirection: "column",
                       gap: "12px",
@@ -4420,7 +4414,7 @@ export function CreateEventPage() {
                           fontWeight: 700,
                           textTransform: "uppercase",
                           letterSpacing: "0.1em",
-                          opacity: 0.9,
+                          color: colors.text,
                           flex: 1,
                         }}
                       >
@@ -4479,29 +4473,29 @@ export function CreateEventPage() {
                         const MiniStepper = ({ label, value, onMinus, onPlus, disableMinus, disablePlus, labelExtra }) => (
                           <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
-                              <span style={{ fontSize: "10px", opacity: 0.5, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+                              <span style={{ fontSize: "10px", color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
                               {labelExtra}
                             </div>
                             <div style={{
                               display: "flex", alignItems: "center", gap: "2px",
-                              background: "rgba(255,255,255,0.05)", borderRadius: "8px",
-                              border: "1px solid rgba(255,255,255,0.08)", padding: "2px",
+                              background: colors.surface, borderRadius: "8px",
+                              border: `1px solid ${colors.border}`, padding: "2px",
                             }}>
                               <button type="button" onClick={onMinus} disabled={disableMinus} style={{
                                 width: "28px", height: "28px", borderRadius: "6px", border: "none",
-                                background: disableMinus ? "transparent" : "rgba(192,192,192,0.15)",
-                                color: "#fff", fontSize: "16px", fontWeight: 600, cursor: disableMinus ? "not-allowed" : "pointer",
+                                background: disableMinus ? "transparent" : colors.accentSoft,
+                                color: colors.text, fontSize: "16px", fontWeight: 600, cursor: disableMinus ? "not-allowed" : "pointer",
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 opacity: disableMinus ? 0.3 : 1, transition: "all 0.15s ease",
                               }}>−</button>
                               <div style={{
                                 flex: 1, textAlign: "center", fontSize: "14px",
-                                fontWeight: 600, color: "#fff", padding: "0 4px",
+                                fontWeight: 600, color: colors.text, padding: "0 4px",
                               }}>{value || "—"}</div>
                               <button type="button" onClick={onPlus} disabled={disablePlus} style={{
                                 width: "28px", height: "28px", borderRadius: "6px", border: "none",
-                                background: disablePlus ? "transparent" : "rgba(192,192,192,0.15)",
-                                color: "#fff", fontSize: "16px", fontWeight: 600, cursor: disablePlus ? "not-allowed" : "pointer",
+                                background: disablePlus ? "transparent" : colors.accentSoft,
+                                color: colors.text, fontSize: "16px", fontWeight: 600, cursor: disablePlus ? "not-allowed" : "pointer",
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 opacity: disablePlus ? 0.3 : 1, transition: "all 0.15s ease",
                               }}>+</button>
@@ -4519,15 +4513,15 @@ export function CreateEventPage() {
 
                               return (
                                 <div key={index} style={{
-                                  background: "rgba(255,255,255,0.03)", borderRadius: "12px",
-                                  border: "1px solid rgba(255,255,255,0.06)", padding: "12px",
+                                  background: colors.surface, borderRadius: "12px",
+                                  border: `1px solid ${colors.border}`, padding: "12px",
                                   display: "flex", flexDirection: "column", gap: "10px",
                                 }}>
                                   {/* Row 1: Time input */}
                                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                     <div style={{
                                       fontSize: "11px", fontWeight: 600, textTransform: "uppercase",
-                                      letterSpacing: "0.05em", opacity: 0.5, minWidth: "16px",
+                                      letterSpacing: "0.05em", color: colors.textSubtle, minWidth: "16px",
                                     }}>
                                       {slotCount > 1 ? `${index + 1}` : ""}
                                     </div>
@@ -4536,9 +4530,9 @@ export function CreateEventPage() {
                                       const [hh, mm] = timeVal.split(":");
                                       const selStyle = {
                                         flex: 1, height: "38px", borderRadius: "10px",
-                                        border: "1px solid rgba(255,255,255,0.1)",
-                                        background: "rgba(255,255,255,0.04)",
-                                        color: "#fff", fontSize: "14px", fontWeight: 600,
+                                        border: `1px solid ${colors.border}`,
+                                        background: "#fff",
+                                        color: colors.text, fontSize: "14px", fontWeight: 600,
                                         textAlign: "center", cursor: "pointer",
                                         outline: "none", appearance: "none",
                                         WebkitAppearance: "none", MozAppearance: "none",
@@ -4557,7 +4551,7 @@ export function CreateEventPage() {
                                               return <option key={h} value={h}>{h}</option>;
                                             })}
                                           </select>
-                                          <span style={{ fontSize: "16px", fontWeight: 700, opacity: 0.5 }}>:</span>
+                                          <span style={{ fontSize: "16px", fontWeight: 700, color: colors.textSubtle }}>:</span>
                                           <select
                                             value={mm}
                                             onChange={(e) => updateSlotField(index, "time", `${hh}:${e.target.value}`)}
@@ -4573,7 +4567,7 @@ export function CreateEventPage() {
                                     {slotCount > 1 && index === slotCount - 1 && (
                                       <button type="button" onClick={handleRemoveDinnerSlot} style={{
                                         width: "28px", height: "28px", borderRadius: "8px", border: "none",
-                                        background: "rgba(255,100,100,0.1)", color: "rgba(255,100,100,0.7)",
+                                        background: colors.dangerRgba, color: colors.danger,
                                         fontSize: "14px", cursor: "pointer", display: "flex",
                                         alignItems: "center", justifyContent: "center", flexShrink: 0,
                                       }}>×</button>
@@ -4596,7 +4590,7 @@ export function CreateEventPage() {
                                           style={{
                                             background: "none", border: "none", padding: "2px",
                                             cursor: "pointer", display: "flex", alignItems: "center",
-                                            color: hideDinnerRemaining ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.5)",
+                                            color: hideDinnerRemaining ? colors.textFaded : colors.textSubtle,
                                             transition: "all 0.15s ease",
                                           }}
                                         >
@@ -4622,8 +4616,8 @@ export function CreateEventPage() {
                               type="button"
                               onClick={handleAddDinnerSlot}
                               style={{
-                                padding: "8px 14px", borderRadius: "10px", border: "1px dashed rgba(255,255,255,0.15)",
-                                background: "transparent", color: "rgba(255,255,255,0.6)", fontSize: "13px",
+                                padding: "8px 14px", borderRadius: "10px", border: `1px dashed ${colors.border}`,
+                                background: "transparent", color: colors.textMuted, fontSize: "13px",
                                 fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center",
                                 justifyContent: "center", gap: "6px", transition: "all 0.2s ease",
                               }}
@@ -4641,7 +4635,7 @@ export function CreateEventPage() {
                       <label style={{
                         display: "block", fontSize: "11px", fontWeight: 500,
                         textTransform: "uppercase", letterSpacing: "0.05em",
-                        opacity: 0.6, marginBottom: "8px",
+                        color: colors.textSubtle, marginBottom: "8px",
                       }}>
                         Booking contact email
                       </label>
@@ -4654,12 +4648,12 @@ export function CreateEventPage() {
                           ...inputStyle,
                           fontSize: "14px",
                           padding: "10px 14px",
-                          background: "rgba(255,255,255,0.03)",
-                          border: "1px solid rgba(255,255,255,0.08)",
+                          background: "#fff",
+                          border: `1px solid ${colors.border}`,
                           borderRadius: "10px",
                         }}
                       />
-                      <div style={{ fontSize: "11px", opacity: 0.4, marginTop: "6px" }}>
+                      <div style={{ fontSize: "11px", color: colors.textFaded, marginTop: "6px" }}>
                         Shown to guests for large or specific bookings
                       </div>
                     </div>
@@ -4675,7 +4669,7 @@ export function CreateEventPage() {
                 display: currentStep === 5 ? "block" : "none",
               }}
             >
-              <div style={{ fontSize: "13px", opacity: 0.4, marginBottom: "16px" }}>
+              <div style={{ fontSize: "13px", color: colors.textFaded, marginBottom: "16px" }}>
                 Set a price to sell tickets. Leave empty for a free event.
               </div>
 
@@ -4685,8 +4679,9 @@ export function CreateEventPage() {
                   alignItems: "stretch",
                   borderRadius: "12px",
                   overflow: "hidden",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(255,255,255,0.03)",
+                  border: `1px solid ${colors.border}`,
+                  background: "#fff",
+                  boxShadow: "0 2px 8px rgba(10,10,10,0.04)",
                 }}
               >
                 <input
@@ -4704,7 +4699,7 @@ export function CreateEventPage() {
                     flex: 1,
                     background: "transparent",
                     border: "none",
-                    color: "#fff",
+                    color: colors.text,
                     fontSize: "24px",
                     fontWeight: 700,
                     padding: "14px 18px",
@@ -4716,10 +4711,10 @@ export function CreateEventPage() {
                   value={ticketCurrency}
                   onChange={(e) => setTicketCurrency(e.target.value)}
                   style={{
-                    background: "rgba(255,255,255,0.06)",
+                    background: colors.surface,
                     border: "none",
-                    borderLeft: "1px solid rgba(255,255,255,0.08)",
-                    color: "rgba(255,255,255,0.6)",
+                    borderLeft: `1px solid ${colors.border}`,
+                    color: colors.textMuted,
                     fontSize: "14px",
                     fontWeight: 600,
                     padding: "0 16px",
@@ -4738,8 +4733,8 @@ export function CreateEventPage() {
                 </select>
               </div>
 
-              <div style={{ marginTop: "8px", fontSize: "12px", opacity: 0.4, display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ color: isPaidEvent ? "#22c55e" : "rgba(255,255,255,0.4)" }}>
+              <div style={{ marginTop: "8px", fontSize: "12px", color: colors.textFaded, display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ color: isPaidEvent ? colors.success : colors.textFaded }}>
                   {isPaidEvent ? "●" : "○"}
                 </span>
                 {isPaidEvent ? `Paid event — ${ticketPrice} ${ticketCurrency}` : "Free event"}
@@ -4763,12 +4758,12 @@ export function CreateEventPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                       <SilverIcon as={AlertTriangle} size={18} style={{ color: "#f59e0b", flexShrink: 0 }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Connect Stripe to accept payments</div>
+                        <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px", color: colors.text }}>Connect Stripe to accept payments</div>
                         <button type="button" onClick={handleConnectStripeInline} disabled={stripeConnecting}
                           style={{
-                            padding: "8px 16px", borderRadius: "8px", border: "none",
-                            background: "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                            color: "#111", fontSize: "13px", fontWeight: 600,
+                            padding: "8px 16px", borderRadius: "999px", border: "none",
+                            background: colors.accent,
+                            color: "#fff", fontSize: "13px", fontWeight: 600,
                             cursor: stripeConnecting ? "default" : "pointer",
                             opacity: stripeConnecting ? 0.6 : 1,
                           }}
@@ -4793,9 +4788,9 @@ export function CreateEventPage() {
                 zIndex: 10,
                 padding: "12px 24px",
                 paddingBottom: "max(12px, env(safe-area-inset-bottom))",
-                background: "linear-gradient(to top, rgba(12, 10, 18, 0.98) 0%, rgba(12, 10, 18, 0.95) 80%, transparent 100%)",
-                backdropFilter: "blur(12px)",
-                borderTop: "1px solid rgba(255,255,255,0.06)",
+                background: "linear-gradient(to top, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.95) 80%, transparent 100%)",
+                backdropFilter: "blur(8px)",
+                borderTop: `1px solid ${colors.border}`,
                 flexShrink: 0,
               }}
             >
@@ -4805,18 +4800,14 @@ export function CreateEventPage() {
                 style={{
                   width: "100%",
                   padding: "14px 24px",
-                  borderRadius: "8px",
+                  borderRadius: "999px",
                   border: "none",
-                  background: loading
-                    ? "#666"
-                    : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-                  color: "#111",
+                  background: loading ? colors.borderStrong : colors.accent,
+                  color: "#fff",
                   fontWeight: 700,
                   fontSize: "15px",
                   cursor: loading ? "not-allowed" : "pointer",
-                  boxShadow: loading
-                    ? "none"
-                    : "0 4px 16px rgba(192, 192, 192, 0.3)",
+                  boxShadow: loading ? "none" : colors.accentShadow,
                   transition: "all 0.2s ease",
                   textTransform: "uppercase",
                   letterSpacing: "0.06em",
@@ -4825,13 +4816,13 @@ export function CreateEventPage() {
                 onMouseEnter={(e) => {
                   if (!loading) {
                     e.target.style.transform = "translateY(-1px)";
-                    e.target.style.boxShadow = "0 6px 20px rgba(192, 192, 192, 0.4)";
+                    e.target.style.background = colors.accentHover;
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!loading) {
                     e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow = "0 4px 16px rgba(192, 192, 192, 0.3)";
+                    e.target.style.background = colors.accent;
                   }
                 }}
               >
@@ -4884,7 +4875,7 @@ export function CreateEventPage() {
             </div>
           </div>
 
-          {/* RIGHT SIDE: Live Preview (desktop only) */}
+          {/* RIGHT SIDE: Live Preview (desktop only) — stays dark; it IS the guest page */}
           <div
             className="create-event-preview-desktop"
             style={{
@@ -4894,7 +4885,7 @@ export function CreateEventPage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(5, 4, 10, 0.8)",
+              background: "#0d0b12",
             }}
           >
             {/* Desktop/Phone toggle */}
@@ -4907,10 +4898,10 @@ export function CreateEventPage() {
                 transform: "translateX(-50%)",
                 zIndex: 20,
                 display: "flex",
-                background: "rgba(12, 10, 18, 0.9)",
-                backdropFilter: "blur(20px)",
+                background: "rgba(255,255,255,0.10)",
+                backdropFilter: "blur(16px)",
                 borderRadius: "10px",
-                border: "1px solid rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.14)",
                 padding: "3px",
               }}
             >
@@ -4923,12 +4914,12 @@ export function CreateEventPage() {
                   border: "none",
                   background:
                     desktopPreviewMode === "desktop"
-                      ? "rgba(255,255,255,0.12)"
+                      ? "rgba(255,255,255,0.16)"
                       : "transparent",
                   color:
                     desktopPreviewMode === "desktop"
                       ? "#fff"
-                      : "rgba(255,255,255,0.4)",
+                      : "rgba(255,255,255,0.45)",
                   fontSize: "12px",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -4950,12 +4941,12 @@ export function CreateEventPage() {
                   border: "none",
                   background:
                     desktopPreviewMode === "phone"
-                      ? "rgba(255,255,255,0.12)"
+                      ? "rgba(255,255,255,0.16)"
                       : "transparent",
                   color:
                     desktopPreviewMode === "phone"
                       ? "#fff"
-                      : "rgba(255,255,255,0.4)",
+                      : "rgba(255,255,255,0.45)",
                   fontSize: "12px",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -5036,12 +5027,12 @@ export function CreateEventPage() {
                     margin: "2px 8px 6px",
                     height: "32px",
                     borderRadius: "10px",
-                    background: "rgba(255,255,255,0.08)",
+                    background: colors.surfaceMuted,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: "12px",
-                    color: "rgba(255,255,255,0.5)",
+                    color: colors.textMuted,
                     fontWeight: 500,
                   }}>
                     pullup.se
@@ -5065,8 +5056,8 @@ export function CreateEventPage() {
                   <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "rgba(39,201,63,0.8)" }} />
                   <div style={{
                     flex: 1, marginLeft: "12px", height: "20px", borderRadius: "6px",
-                    background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center",
-                    padding: "0 10px", fontSize: "10px", color: "rgba(255,255,255,0.3)",
+                    background: colors.surface, display: "flex", alignItems: "center",
+                    padding: "0 10px", fontSize: "10px", color: colors.textFaded,
                   }}>
                     pullup.se/e/{title ? title.toLowerCase().replace(/\s+/g, "-").slice(0, 30) : "your-event"}
                   </div>
@@ -5124,6 +5115,7 @@ export function CreateEventPage() {
                         maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
                         timezone: timezone,
                         formFields,
+                        contactChannel,
                       }}
                       previewSlots={previewDinnerSlots}
                       onSubmit={async () => {
@@ -5228,6 +5220,7 @@ export function CreateEventPage() {
                   hideDinnerRemaining: hideDinnerRemaining,
                   maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
                   formFields,
+                  contactChannel,
                 }}
                 previewSlots={previewDinnerSlots}
                 onSubmit={async () => {
@@ -5253,12 +5246,11 @@ export function CreateEventPage() {
           zIndex: 110,
           display: "flex",
           gap: "0",
-          background: "rgba(12, 10, 18, 0.9)",
-          backdropFilter: "blur(20px)",
+          background: colors.background,
           borderRadius: "14px",
-          border: "1px solid rgba(255,255,255,0.1)",
+          border: `1px solid ${colors.border}`,
           padding: "4px",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          boxShadow: "0 8px 30px rgba(10,10,10,0.12)",
         }}
       >
         <button
@@ -5268,11 +5260,8 @@ export function CreateEventPage() {
             padding: "10px 20px",
             borderRadius: "10px",
             border: "none",
-            background:
-              mobileView === "edit"
-                ? "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)"
-                : "transparent",
-            color: mobileView === "edit" ? "#000" : "rgba(255,255,255,0.6)",
+            background: mobileView === "edit" ? colors.accent : "transparent",
+            color: mobileView === "edit" ? "#fff" : colors.textMuted,
             fontSize: "13px",
             fontWeight: 600,
             cursor: "pointer",
@@ -5292,11 +5281,8 @@ export function CreateEventPage() {
             padding: "10px 20px",
             borderRadius: "10px",
             border: "none",
-            background:
-              mobileView === "preview"
-                ? "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)"
-                : "transparent",
-            color: mobileView === "preview" ? "#000" : "rgba(255,255,255,0.6)",
+            background: mobileView === "preview" ? colors.accent : "transparent",
+            color: mobileView === "preview" ? "#fff" : colors.textMuted,
             fontSize: "13px",
             fontWeight: 600,
             cursor: "pointer",
@@ -5340,14 +5326,13 @@ export function CreateEventPage() {
         >
           <div
             style={{
-              background: "rgba(20, 16, 30, 0.98)",
-              backdropFilter: "blur(20px)",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
               borderRadius: "20px",
               padding: "28px 24px 20px",
               maxWidth: "320px",
               width: "100%",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+              boxShadow: "0 8px 30px rgba(10,10,10,0.12)",
               textAlign: "center",
             }}
             onClick={(e) => e.stopPropagation()}
@@ -5355,14 +5340,14 @@ export function CreateEventPage() {
             <div style={{
               fontSize: "17px",
               fontWeight: 700,
-              color: "#fff",
+              color: colors.text,
               marginBottom: "6px",
             }}>
               Delete this event?
             </div>
             <div style={{
               fontSize: "14px",
-              color: "rgba(255,255,255,0.45)",
+              color: colors.textSubtle,
               marginBottom: "24px",
             }}>
               This action cannot be undone. The event and all its data will be permanently removed.
@@ -5415,9 +5400,9 @@ export function CreateEventPage() {
                   width: "100%",
                   padding: "14px",
                   borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  border: `1px solid ${colors.border}`,
                   background: "transparent",
-                  color: "rgba(255,255,255,0.5)",
+                  color: colors.textMuted,
                   fontSize: "15px",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -5444,20 +5429,21 @@ function OptionRow({ icon, label, description, right }) {
         alignItems: "center",
         justifyContent: "space-between",
         padding: "10px 14px",
-        background: "rgba(20, 16, 30, 0.25)",
+        background: "#fff",
         borderRadius: "10px",
         marginBottom: "6px",
-        border: "1px solid rgba(255,255,255,0.06)",
+        border: `1px solid ${colors.border}`,
         transition: "all 0.2s ease",
         minHeight: "44px",
+        boxShadow: "0 1px 3px rgba(10,10,10,0.03)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "rgba(20, 16, 30, 0.35)";
-        e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+        e.currentTarget.style.borderColor = colors.borderStrong;
+        e.currentTarget.style.boxShadow = "0 2px 6px rgba(10,10,10,0.06)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = "rgba(20, 16, 30, 0.25)";
-        e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+        e.currentTarget.style.borderColor = colors.border;
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(10,10,10,0.03)";
       }}
     >
       <div
@@ -5482,6 +5468,7 @@ function OptionRow({ icon, label, description, right }) {
             style={{
               fontSize: "14px",
               fontWeight: 600,
+              color: colors.text,
               marginBottom: description ? "2px" : "0",
               lineHeight: "1.3",
             }}
@@ -5492,7 +5479,7 @@ function OptionRow({ icon, label, description, right }) {
             <div
               style={{
                 fontSize: "12px",
-                opacity: 0.7,
+                color: colors.textSubtle,
                 lineHeight: "1.4",
                 marginTop: "2px",
               }}
@@ -5538,11 +5525,10 @@ function Toggle({ checked, onChange }) {
           left: 0,
           right: 0,
           bottom: 0,
-          background: checked
-            ? "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)"
-            : "rgba(255,255,255,0.1)",
+          background: checked ? colors.accent : colors.surfaceMuted,
           borderRadius: "10px",
           transition: "all 0.3s ease",
+          border: checked ? "none" : `1px solid ${colors.border}`,
         }}
       >
         <span
@@ -5555,7 +5541,7 @@ function Toggle({ checked, onChange }) {
             background: "#fff",
             borderRadius: "50%",
             transition: "all 0.3s ease",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+            boxShadow: "0 1px 3px rgba(10,10,10,0.15)",
           }}
         />
       </span>

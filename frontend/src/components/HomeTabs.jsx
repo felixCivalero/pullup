@@ -1,3 +1,5 @@
+import { colors } from "../theme/colors.js";
+
 export function TabButton({ label, count, active, onClick }) {
   return (
     <button
@@ -5,11 +7,9 @@ export function TabButton({ label, count, active, onClick }) {
       style={{
         padding: "clamp(8px, 2vw, 10px) clamp(10px, 3vw, 18px)",
         borderRadius: "999px",
-        border: "none",
-        background: active
-          ? "linear-gradient(135deg, #f5f5f5 0%, #d4d4d4 45%, #a3a3a3 100%)"
-          : "transparent",
-        color: active ? "#05040a" : "rgba(255,255,255,0.7)",
+        border: active ? "none" : `1px solid ${colors.border}`,
+        background: active ? colors.accent : "transparent",
+        color: active ? "#fff" : colors.textMuted,
         fontWeight: active ? 600 : 500,
         fontSize: "clamp(11px, 2.5vw, 14px)",
         cursor: "pointer",
@@ -25,14 +25,14 @@ export function TabButton({ label, count, active, onClick }) {
       }}
       onMouseEnter={(e) => {
         if (!active) {
-          e.target.style.color = "rgba(255,255,255,0.9)";
-          e.target.style.background = "rgba(255,255,255,0.06)";
+          e.currentTarget.style.color = colors.text;
+          e.currentTarget.style.background = colors.surface;
         }
       }}
       onMouseLeave={(e) => {
         if (!active) {
-          e.target.style.color = "rgba(255,255,255,0.6)";
-          e.target.style.background = "transparent";
+          e.currentTarget.style.color = colors.textMuted;
+          e.currentTarget.style.background = "transparent";
         }
       }}
     >
@@ -44,9 +44,8 @@ export function TabButton({ label, count, active, onClick }) {
           style={{
             padding: "2px clamp(4px, 1vw, 6px)",
             borderRadius: "12px",
-            background: active
-              ? "rgba(192, 192, 192, 0.3)"
-              : "rgba(255,255,255,0.1)",
+            background: active ? "rgba(255,255,255,0.25)" : colors.surfaceMuted,
+            color: active ? "#fff" : colors.textSubtle,
             fontSize: "clamp(9px, 2vw, 11px)",
             fontWeight: 600,
             minWidth: "clamp(16px, 4vw, 20px)",
@@ -69,8 +68,8 @@ export function FilterButton({ label, count, active, onClick }) {
         padding: "6px 12px",
         borderRadius: "8px",
         border: "none",
-        background: active ? "rgba(192, 192, 192, 0.15)" : "transparent",
-        color: active ? "#fff" : "rgba(255,255,255,0.6)",
+        background: active ? colors.accentSoft : "transparent",
+        color: active ? colors.accent : colors.textMuted,
         fontWeight: active ? 600 : 500,
         fontSize: "13px",
         cursor: "pointer",
@@ -81,14 +80,14 @@ export function FilterButton({ label, count, active, onClick }) {
       }}
       onMouseEnter={(e) => {
         if (!active) {
-          e.target.style.color = "rgba(255,255,255,0.9)";
-          e.target.style.background = "rgba(192, 192, 192, 0.08)";
+          e.currentTarget.style.color = colors.text;
+          e.currentTarget.style.background = colors.surface;
         }
       }}
       onMouseLeave={(e) => {
         if (!active) {
-          e.target.style.color = "rgba(255,255,255,0.6)";
-          e.target.style.background = "transparent";
+          e.currentTarget.style.color = colors.textMuted;
+          e.currentTarget.style.background = "transparent";
         }
       }}
     >
@@ -98,9 +97,8 @@ export function FilterButton({ label, count, active, onClick }) {
           style={{
             padding: "2px 6px",
             borderRadius: "10px",
-            background: active
-              ? "rgba(192, 192, 192, 0.3)"
-              : "rgba(255,255,255,0.1)",
+            background: active ? colors.accentSoftStrong : colors.surfaceMuted,
+            color: active ? colors.accent : colors.textSubtle,
             fontSize: "11px",
             fontWeight: 600,
           }}
@@ -135,7 +133,7 @@ export function SubTabToggle({
           gap: "8px",
           alignItems: "center",
           padding: "4px",
-          background: "rgba(255,255,255,0.02)",
+          background: colors.surfaceMuted,
           borderRadius: "999px",
         }}
       >
@@ -146,16 +144,17 @@ export function SubTabToggle({
             borderRadius: "999px",
             border: "none",
             background:
-              active === "left" ? "rgba(255,255,255,0.08)" : "transparent",
+              active === "left" ? colors.background : "transparent",
             color:
               active === "left"
-                ? "rgba(255,255,255,0.9)"
-                : "rgba(255,255,255,0.4)",
-            fontWeight: active === "left" ? 500 : 400,
+                ? colors.text
+                : colors.textSubtle,
+            fontWeight: active === "left" ? 600 : 400,
             fontSize: "11px",
             cursor: "pointer",
             transition: "all 0.2s ease",
             whiteSpace: "nowrap",
+            boxShadow: active === "left" ? `0 1px 4px ${colors.border}` : "none",
           }}
         >
           {leftLabel}
@@ -169,7 +168,7 @@ export function SubTabToggle({
           style={{
             width: "1px",
             height: "12px",
-            background: "rgba(255,255,255,0.1)",
+            background: colors.border,
           }}
         />
         <button
@@ -179,16 +178,17 @@ export function SubTabToggle({
             borderRadius: "999px",
             border: "none",
             background:
-              active === "right" ? "rgba(255,255,255,0.08)" : "transparent",
+              active === "right" ? colors.background : "transparent",
             color:
               active === "right"
-                ? "rgba(255,255,255,0.9)"
-                : "rgba(255,255,255,0.4)",
-            fontWeight: active === "right" ? 500 : 400,
+                ? colors.text
+                : colors.textSubtle,
+            fontWeight: active === "right" ? 600 : 400,
             fontSize: "11px",
             cursor: "pointer",
             transition: "all 0.2s ease",
             whiteSpace: "nowrap",
+            boxShadow: active === "right" ? `0 1px 4px ${colors.border}` : "none",
           }}
         >
           {rightLabel}

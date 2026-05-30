@@ -17,7 +17,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Plug, Check, AlertTriangle, Shield } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
-import { SilverIcon } from "../components/ui/SilverIcon.jsx";
+import { colors } from "../theme/colors.js";
 
 export function OAuthAuthorizePage() {
   const navigate = useNavigate();
@@ -117,13 +117,13 @@ export function OAuthAuthorizePage() {
       <div style={cardStyle}>
         <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", marginBottom: "20px" }}>
           <div style={iconBubbleStyle}>
-            <SilverIcon as={Plug} size={22} />
+            <Plug size={22} style={{ color: colors.accent }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: "18px", fontWeight: 700, marginBottom: "4px" }}>
+            <div style={{ fontSize: "18px", fontWeight: 700, marginBottom: "4px", color: colors.text }}>
               Authorize {clientLabel}?
             </div>
-            <div style={{ fontSize: "13px", opacity: 0.7, lineHeight: 1.5 }}>
+            <div style={{ fontSize: "13px", color: colors.textMuted, lineHeight: 1.5 }}>
               {clientLabel} wants to connect to your PullUp account
               {host ? <> via <code style={inlineCodeStyle}>{host}</code></> : null}.
             </div>
@@ -141,9 +141,9 @@ export function OAuthAuthorizePage() {
         </div>
 
         <div style={whoStyle}>
-          <Shield size={14} style={{ opacity: 0.6, flexShrink: 0 }} />
-          <span>
-            Authorizing as <b>{user?.email}</b>. Revoke any time from Settings → PullUp MCP.
+          <Shield size={14} style={{ color: colors.textSubtle, flexShrink: 0 }} />
+          <span style={{ color: colors.textMuted }}>
+            Authorizing as <b style={{ color: colors.text }}>{user?.email}</b>. Revoke any time from Settings → PullUp MCP.
           </span>
         </div>
 
@@ -173,8 +173,8 @@ export function OAuthAuthorizePage() {
 function PermissionItem({ text }) {
   return (
     <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-      <Check size={14} style={{ color: "rgba(34, 197, 94, 0.9)", marginTop: "3px", flexShrink: 0 }} />
-      <span style={{ fontSize: "13px", opacity: 0.85 }}>{text}</span>
+      <Check size={14} style={{ color: colors.success, marginTop: "3px", flexShrink: 0 }} />
+      <span style={{ fontSize: "13px", color: colors.textMuted }}>{text}</span>
     </div>
   );
 }
@@ -182,12 +182,12 @@ function PermissionItem({ text }) {
 function ErrorCard({ message }) {
   return (
     <div style={{ ...cardStyle, display: "flex", gap: "12px", alignItems: "flex-start" }}>
-      <AlertTriangle size={20} style={{ color: "#f59e0b", flexShrink: 0, marginTop: "2px" }} />
+      <AlertTriangle size={20} style={{ color: colors.warning, flexShrink: 0, marginTop: "2px" }} />
       <div>
-        <div style={{ fontSize: "15px", fontWeight: 600, marginBottom: "4px" }}>
+        <div style={{ fontSize: "15px", fontWeight: 600, marginBottom: "4px", color: colors.text }}>
           Authorization error
         </div>
-        <div style={{ fontSize: "13px", opacity: 0.7 }}>{message}</div>
+        <div style={{ fontSize: "13px", color: colors.textMuted }}>{message}</div>
       </div>
     </div>
   );
@@ -198,13 +198,12 @@ function CenterFrame({ children }) {
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.08) 0%, transparent 50%), #05040a",
+        background: colors.background,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "20px",
-        color: "#fff",
+        color: colors.text,
       }}
     >
       <div style={{ width: "100%", maxWidth: "440px" }}>{children}</div>
@@ -222,19 +221,18 @@ function safeHost(url) {
 }
 
 const cardStyle = {
-  background: "rgba(20, 16, 30, 0.85)",
-  backdropFilter: "blur(10px)",
-  border: "1px solid rgba(255,255,255,0.06)",
+  background: "#fff",
+  border: `1px solid ${colors.border}`,
   borderRadius: "16px",
   padding: "28px",
-  boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+  boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
 };
 
 const iconBubbleStyle = {
   width: "48px",
   height: "48px",
   borderRadius: "14px",
-  background: "rgba(192, 192, 192, 0.14)",
+  background: colors.accentSoft,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -246,15 +244,15 @@ const smallLabelStyle = {
   fontWeight: 600,
   textTransform: "uppercase",
   letterSpacing: "0.05em",
-  opacity: 0.55,
+  color: colors.textSubtle,
   marginBottom: "8px",
 };
 
 const permissionListStyle = {
   padding: "14px 16px",
-  background: "rgba(10, 8, 18, 0.5)",
+  background: colors.surface,
   borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.04)",
+  border: `1px solid ${colors.border}`,
   display: "flex",
   flexDirection: "column",
   gap: "8px",
@@ -263,7 +261,6 @@ const permissionListStyle = {
 const whoStyle = {
   marginTop: "16px",
   fontSize: "12px",
-  opacity: 0.7,
   display: "flex",
   gap: "8px",
   alignItems: "center",
@@ -272,9 +269,11 @@ const whoStyle = {
 const inlineCodeStyle = {
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
   fontSize: "12px",
-  background: "rgba(255,255,255,0.06)",
+  background: colors.surfaceMuted,
+  border: `1px solid ${colors.border}`,
   padding: "1px 6px",
   borderRadius: "4px",
+  color: colors.text,
 };
 
 const allowButtonStyle = {
@@ -282,8 +281,8 @@ const allowButtonStyle = {
   padding: "12px 16px",
   borderRadius: "12px",
   border: "none",
-  background: "rgba(232, 232, 232, 0.92)",
-  color: "#05040a",
+  background: colors.accent,
+  color: "#fff",
   fontWeight: 700,
   fontSize: "14px",
   cursor: "pointer",
@@ -293,9 +292,9 @@ const denyButtonStyle = {
   flex: 1,
   padding: "12px 16px",
   borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.04)",
-  color: "#fff",
+  border: `1px solid ${colors.borderStrong}`,
+  background: "#fff",
+  color: colors.text,
   fontWeight: 600,
   fontSize: "14px",
   cursor: "pointer",

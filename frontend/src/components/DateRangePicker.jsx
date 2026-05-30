@@ -228,7 +228,7 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
             textAlign: "center",
             fontSize: "13px",
             fontWeight: 600,
-            color: "#fff",
+            color: colors.text,
             marginBottom: "12px",
           }}
         >
@@ -314,18 +314,18 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
                           : "0",
                   background:
                     isStart || isEnd
-                      ? "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)"
+                      ? colors.secondary
                       : inRange
-                        ? "rgba(192, 192, 192, 0.12)"
+                        ? colors.secondarySoft
                         : "transparent",
                   color:
                     isStart || isEnd
-                      ? "#05040a"
+                      ? "#fff"
                       : outside || isPast || isFuture
-                        ? "rgba(255,255,255,0.15)"
+                        ? colors.textFaded
                         : inRange
-                          ? "#fff"
-                          : "rgba(255,255,255,0.8)",
+                          ? colors.secondary
+                          : colors.text,
                 }}
               >
                 {date.getDate()}
@@ -339,7 +339,7 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
                       width: "3px",
                       height: "3px",
                       borderRadius: "50%",
-                      background: colors.silver,
+                      background: colors.secondary,
                     }}
                   />
                 )}
@@ -362,11 +362,11 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
         style={{
           padding: "7px 12px",
           borderRadius: "999px",
-          border: "none",
+          border: `1px solid ${hasRange || startDate ? colors.secondaryBorder : colors.border}`,
           background: hasRange || startDate
-            ? "rgba(192,192,192,0.12)"
-            : "rgba(255,255,255,0.04)",
-          color: hasRange || startDate ? colors.silverText : colors.textFaded,
+            ? colors.secondarySoft
+            : colors.surface,
+          color: hasRange || startDate ? colors.secondary : colors.textSubtle,
           fontSize: "12px",
           fontWeight: hasRange ? 600 : 400,
           cursor: "pointer",
@@ -401,8 +401,7 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
             style={{
               position: "absolute",
               inset: 0,
-              background: "rgba(0,0,0,0.5)",
-              backdropFilter: "blur(4px)",
+              background: "rgba(10,10,10,0.35)",
             }}
           />
 
@@ -411,15 +410,15 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
             onClick={(e) => e.stopPropagation()}
             style={{
               position: "relative",
-              background: "rgba(12, 10, 18, 0.97)",
-              backdropFilter: "blur(20px)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: colors.background,
+              border: `1px solid ${colors.border}`,
               borderRadius: "20px",
               padding: "clamp(16px, 4vw, 24px)",
               width: "100%",
               maxWidth: "580px",
               maxHeight: "90vh",
               overflowY: "auto",
+              boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
               animation: "calendarIn 0.2s ease",
             }}
           >
@@ -438,7 +437,7 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
               >
                 ‹
               </button>
-              <div style={{ fontSize: "11px", color: colors.textFaded, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+              <div style={{ fontSize: "11px", color: colors.textSubtle, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                 {selecting === "end" ? "Select end date" : startDate && !endDate ? "Select end date" : "Select dates"}
               </div>
               <button
@@ -469,7 +468,7 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
                 flexWrap: "wrap",
                 marginTop: "16px",
                 paddingTop: "16px",
-                borderTop: "1px solid rgba(255,255,255,0.06)",
+                borderTop: `1px solid ${colors.border}`,
               }}
             >
               {activeQuickRanges.map((qr) => (
@@ -479,9 +478,9 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
                   style={{
                     padding: "6px 12px",
                     borderRadius: "999px",
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    border: `1px solid ${colors.border}`,
                     background: "transparent",
-                    color: colors.textFaded,
+                    color: colors.textMuted,
                     fontSize: "11px",
                     cursor: "pointer",
                     transition: "all 0.15s",
@@ -503,9 +502,9 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
                   style={{
                     padding: "6px 12px",
                     borderRadius: "999px",
-                    border: "1px solid rgba(239,68,68,0.2)",
-                    background: "rgba(239,68,68,0.06)",
-                    color: "rgba(239,68,68,0.7)",
+                    border: `1px solid ${colors.dangerRgba}`,
+                    background: colors.dangerRgba,
+                    color: colors.danger,
                     fontSize: "11px",
                     cursor: "pointer",
                     whiteSpace: "nowrap",
@@ -525,18 +524,15 @@ export function DateRangePicker({ startDate, endDate, onChange, onClear, allowPa
                   padding: "8px 20px",
                   borderRadius: "999px",
                   border: "none",
-                  background:
-                    draftStart
-                      ? "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)"
-                      : "rgba(255,255,255,0.06)",
-                  color: draftStart ? "#05040a" : colors.textFaded,
+                  background: draftStart ? colors.secondary : colors.surface,
+                  color: draftStart ? "#fff" : colors.textFaded,
                   fontSize: "13px",
                   fontWeight: 600,
                   cursor: draftStart ? "pointer" : "default",
                   whiteSpace: "nowrap",
                   transition: "all 0.15s ease",
                   boxShadow: draftStart
-                    ? "0 4px 12px rgba(192, 192, 192, 0.3)"
+                    ? "0 4px 12px rgba(13, 148, 136, 0.25)"
                     : "none",
                 }}
               >
@@ -561,9 +557,9 @@ const navBtnStyle = {
   width: "32px",
   height: "32px",
   borderRadius: "999px",
-  border: "1px solid rgba(255,255,255,0.08)",
+  border: `1px solid rgba(10,10,10,0.12)`,
   background: "transparent",
-  color: "rgba(255,255,255,0.6)",
+  color: "rgba(10,10,10,0.55)",
   fontSize: "18px",
   cursor: "pointer",
   display: "flex",

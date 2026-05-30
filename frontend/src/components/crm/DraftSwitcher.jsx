@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus, Trash2, FileText, Clock, Check } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { useToast } from "../Toast";
+import { colors } from "../../theme/colors.js";
 
 // "3h ago", "2d ago", "just now" — small, dependency-free relative time.
 function relTime(iso) {
@@ -167,27 +168,27 @@ export default function DraftSwitcher({
                     }}
                     style={{
                       ...itemStyle,
-                      background: active ? "rgba(212,175,55,0.1)" : "transparent",
+                      background: active ? colors.accentSoft : "transparent",
                     }}
                     onMouseEnter={(e) => {
-                      if (!active) e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                      if (!active) e.currentTarget.style.background = colors.surface;
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background = active
-                        ? "rgba(212,175,55,0.1)"
+                        ? colors.accentSoft
                         : "transparent";
                     }}
                   >
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={itemTitleRow}>
-                        {active && <Check size={13} style={{ color: "#d4af37", flexShrink: 0 }} />}
+                        {active && <Check size={13} style={{ color: colors.accent, flexShrink: 0 }} />}
                         <span style={itemTitleStyle}>
                           {c.subject?.trim() || "Untitled draft"}
                         </span>
                       </div>
                       <div style={itemMetaStyle}>
                         {scheduled ? (
-                          <span style={{ color: "#fde68a", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ color: colors.secondary, display: "inline-flex", alignItems: "center", gap: 4 }}>
                             <Clock size={11} />
                             {c.scheduledAt
                               ? new Date(c.scheduledAt).toLocaleString("en-GB", {
@@ -234,9 +235,9 @@ const triggerStyle = {
   width: "100%",
   padding: "8px 12px",
   borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.04)",
-  color: "rgba(255,255,255,0.9)",
+  border: `1px solid ${colors.border}`,
+  background: "#fff",
+  color: colors.text,
   fontSize: 13,
   fontWeight: 600,
   cursor: "pointer",
@@ -255,8 +256,8 @@ const badgeStyle = {
   flexShrink: 0,
   fontSize: 11,
   fontWeight: 700,
-  color: "#d4af37",
-  background: "rgba(212,175,55,0.14)",
+  color: colors.accent,
+  background: colors.accentSoft,
   borderRadius: 999,
   padding: "1px 7px",
 };
@@ -268,10 +269,9 @@ const panelStyle = {
   right: 0,
   zIndex: 50,
   borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(20,16,30,0.98)",
-  backdropFilter: "blur(12px)",
-  boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+  border: `1px solid ${colors.border}`,
+  background: "#fff",
+  boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
   overflow: "hidden",
   padding: 4,
 };
@@ -285,7 +285,7 @@ const newRowStyle = {
   borderRadius: 8,
   border: "none",
   background: "transparent",
-  color: "#d4af37",
+  color: colors.accent,
   fontSize: 13,
   fontWeight: 600,
   cursor: "pointer",
@@ -294,14 +294,14 @@ const newRowStyle = {
 
 const dividerStyle = {
   height: 1,
-  background: "rgba(255,255,255,0.08)",
+  background: colors.border,
   margin: "4px 2px",
 };
 
 const emptyStyle = {
   padding: "14px 10px",
   fontSize: 12.5,
-  color: "rgba(255,255,255,0.5)",
+  color: colors.textSubtle,
   textAlign: "center",
 };
 
@@ -324,7 +324,7 @@ const itemTitleRow = {
 const itemTitleStyle = {
   fontSize: 13,
   fontWeight: 600,
-  color: "rgba(255,255,255,0.92)",
+  color: colors.text,
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
@@ -336,7 +336,7 @@ const itemMetaStyle = {
   gap: 6,
   marginTop: 2,
   fontSize: 11,
-  color: "rgba(255,255,255,0.55)",
+  color: colors.textSubtle,
 };
 
 const trashStyle = {
@@ -349,6 +349,6 @@ const trashStyle = {
   borderRadius: 8,
   border: "none",
   background: "transparent",
-  color: "rgba(255,255,255,0.45)",
+  color: colors.textFaded,
   cursor: "pointer",
 };

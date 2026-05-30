@@ -241,7 +241,7 @@ export function HostAnalyticsPage() {
 
   if (authLoading || (loading && !data)) {
     return (
-      <div className="page-with-header" style={{ minHeight: "100vh", background: colors.background, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="page-with-header" style={{ minHeight: "100vh", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ fontSize: "13px", color: colors.textFaded }}>Loading...</div>
       </div>
     );
@@ -249,7 +249,7 @@ export function HostAnalyticsPage() {
 
   if (!data) {
     return (
-      <div className="page-with-header" style={{ minHeight: "100vh", background: colors.background, padding: "60px 20px", textAlign: "center" }}>
+      <div className="page-with-header" style={{ minHeight: "100vh", background: "#fff", padding: "60px 20px", textAlign: "center" }}>
         <div style={{ fontSize: "14px", color: colors.textSubtle }}>Could not load analytics.</div>
       </div>
     );
@@ -260,7 +260,7 @@ export function HostAnalyticsPage() {
       className="page-with-header"
       style={{
         minHeight: "100vh",
-        background: colors.background,
+        background: "#fff",
         paddingLeft: "clamp(12px, 3vw, 24px)",
         paddingRight: "clamp(12px, 3vw, 24px)",
         paddingBottom: "60px",
@@ -305,16 +305,17 @@ export function HostAnalyticsPage() {
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "6px 14px", borderRadius: "999px",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  background: "rgba(255,255,255,0.05)",
-                  color: "#fff", fontSize: "12px", fontWeight: 500,
+                  border: `1px solid ${colors.borderStrong}`,
+                  background: "#fff",
+                  color: colors.text, fontSize: "12px", fontWeight: 500,
                   cursor: filteredData?.total_views > 0 ? "pointer" : "not-allowed",
                   opacity: filteredData?.total_views > 0 ? 1 : 0.4,
                   transition: "all 0.2s ease",
                   flexShrink: 0,
+                  boxShadow: "0 1px 4px rgba(10,10,10,0.06)",
                 }}
-                onMouseEnter={(e) => { if (filteredData?.total_views > 0) e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                onMouseEnter={(e) => { if (filteredData?.total_views > 0) e.currentTarget.style.background = colors.surface; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; }}
               >
                 <Download size={13} />
                 Export Report
@@ -351,7 +352,7 @@ export function HostAnalyticsPage() {
                   ))}
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", margin: 0 }}>No campaigns sent in this period</p>
+                <p style={{ fontSize: 13, color: colors.textFaded, margin: 0 }}>No campaigns sent in this period</p>
               )}
             </div>
 
@@ -366,10 +367,10 @@ export function HostAnalyticsPage() {
                 {filteredData.period && (
                   <div style={{ display: "flex", gap: 16, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      <span style={{ fontSize: "24px", fontWeight: 700, color: "rgba(59,130,246,0.9)" }}>
+                      <span style={{ fontSize: "24px", fontWeight: 700, color: colors.accent }}>
                         {filteredData.period.currentUnique.toLocaleString()}
                       </span>
-                      <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>unique visitors</span>
+                      <span style={{ fontSize: "12px", color: colors.textSubtle }}>unique visitors</span>
                       {!isFiltered && <ChangeIndicator value={filteredData.period.uniqueChange} />}
                     </div>
                     <button
@@ -378,9 +379,9 @@ export function HostAnalyticsPage() {
                         marginLeft: "auto",
                         padding: "3px 10px",
                         borderRadius: "999px",
-                        border: showPrevious ? "1px solid rgba(255,255,255,0.15)" : "1px solid transparent",
-                        background: showPrevious ? "rgba(255,255,255,0.06)" : "transparent",
-                        color: "rgba(255,255,255,0.4)",
+                        border: showPrevious ? `1px solid ${colors.borderStrong}` : "1px solid transparent",
+                        background: showPrevious ? colors.surface : "transparent",
+                        color: colors.textSubtle,
                         fontSize: "11px",
                         cursor: "pointer",
                       }}
@@ -415,7 +416,7 @@ export function HostAnalyticsPage() {
                           }}
                         >
                           {isHidden
-                            ? <EyeOff size={10} style={{ color: "rgba(255,255,255,0.2)", flexShrink: 0 }} />
+                            ? <EyeOff size={10} style={{ color: colors.textFaded, flexShrink: 0 }} />
                             : <div style={{
                                 width: 8, height: 8, borderRadius: 2,
                                 background: EVENT_COLORS[i % EVENT_COLORS.length],
@@ -425,7 +426,7 @@ export function HostAnalyticsPage() {
                           }
                           <span style={{
                             fontSize: "11px",
-                            color: isHidden ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.5)",
+                            color: isHidden ? colors.textFaded : colors.textSubtle,
                             maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                             textDecoration: isHidden ? "line-through" : "none",
                             transition: "color 0.2s ease",
@@ -444,10 +445,11 @@ export function HostAnalyticsPage() {
             <SectionLabel>Your Events</SectionLabel>
             <div style={{
               borderRadius: 14,
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.06)",
+              background: "#fff",
+              border: `1px solid ${colors.border}`,
               overflow: "hidden",
               marginBottom: 24,
+              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             }}>
               {data.events.filter((e) => e.views > 0 || e.unique_visitors > 0).sort((a, b) => (b.unique_visitors || 0) - (a.unique_visitors || 0)).map((ev, i, arr) => {
                 const isExpanded = expandedEvent === ev.id;
@@ -461,14 +463,14 @@ export function HostAnalyticsPage() {
                         alignItems: "center",
                         gap: 12,
                         padding: "12px 14px",
-                        borderBottom: (i < arr.length - 1 && !isExpanded) ? "1px solid rgba(255,255,255,0.04)" : "none",
+                        borderBottom: (i < arr.length - 1 && !isExpanded) ? `1px solid ${colors.borderFaint}` : "none",
                         cursor: "pointer",
                         transition: "all 0.2s ease",
-                        background: isExpanded ? "rgba(255,255,255,0.03)" : "transparent",
+                        background: isExpanded ? colors.surface : "transparent",
                         opacity: isHidden ? 0.35 : 1,
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = isExpanded ? "rgba(255,255,255,0.03)" : "transparent"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = colors.surface; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = isExpanded ? colors.surface : "transparent"; }}
                     >
                       {/* Eye toggle */}
                       <span
@@ -477,7 +479,7 @@ export function HostAnalyticsPage() {
                         style={{
                           display: "flex", alignItems: "center", justifyContent: "center",
                           flexShrink: 0, cursor: "pointer",
-                          color: isHidden ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.35)",
+                          color: isHidden ? colors.textFaded : colors.textSubtle,
                           transition: "color 0.2s ease",
                         }}
                       >
@@ -487,9 +489,9 @@ export function HostAnalyticsPage() {
                       {/* Rank */}
                       <span style={{
                         width: 22, height: 22, borderRadius: 6,
-                        background: isHidden ? "rgba(255,255,255,0.04)" : (i === 0 ? "rgba(59,130,246,0.3)" : i === 1 ? "rgba(192,192,192,0.2)" : "rgba(255,255,255,0.06)"),
+                        background: isHidden ? colors.borderFaint : (i === 0 ? colors.accentSoft : i === 1 ? colors.surface : colors.borderFaint),
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: "11px", fontWeight: 700, color: isHidden ? "rgba(255,255,255,0.3)" : "#fff",
+                        fontSize: "11px", fontWeight: 700, color: isHidden ? colors.textFaded : (i === 0 ? colors.accent : colors.textMuted),
                         flexShrink: 0,
                         transition: "all 0.2s ease",
                       }}>
@@ -502,13 +504,13 @@ export function HostAnalyticsPage() {
                         style={{ flex: 1, minWidth: 0 }}
                       >
                         <div style={{
-                          fontSize: "13px", fontWeight: 500, color: "#fff",
+                          fontSize: "13px", fontWeight: 500, color: colors.text,
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                           textDecoration: isHidden ? "line-through" : "none",
                         }}>
                           {ev.title}
                         </div>
-                        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: 1 }}>
+                        <div style={{ fontSize: "11px", color: colors.textSubtle, marginTop: 1 }}>
                           {formatEventTime(ev.starts_at, ev.ends_at)}
                         </div>
                         <div style={{ fontSize: "11px", color: colors.textFaded }}>
@@ -521,24 +523,24 @@ export function HostAnalyticsPage() {
                         onClick={() => !isHidden && setExpandedEvent(isExpanded ? null : ev.id)}
                         style={{ display: "flex", alignItems: "center", gap: 12 }}
                       >
-                        <div style={{ width: 60, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", flexShrink: 0 }}>
+                        <div style={{ width: 60, height: 4, borderRadius: 2, background: colors.borderFaint, flexShrink: 0 }}>
                           <div style={{
                             height: "100%", borderRadius: 2,
-                            background: isHidden ? "rgba(255,255,255,0.15)" : "rgba(59,130,246,0.6)",
+                            background: isHidden ? colors.border : colors.accent,
                             width: `${Math.round(((ev.unique_visitors || 0) / maxViews) * 100)}%`,
                             transition: "background 0.2s ease",
                           }} />
                         </div>
                         <div style={{
                           fontSize: "13px", fontWeight: 600,
-                          color: isHidden ? "rgba(255,255,255,0.3)" : "rgba(59,130,246,0.8)",
+                          color: isHidden ? colors.textFaded : colors.accent,
                           minWidth: 32, textAlign: "right",
                           transition: "color 0.2s ease",
                         }}>
                           {ev.unique_visitors || 0}
                         </div>
                         <ChevronDown size={14} style={{
-                          color: "rgba(255,255,255,0.3)",
+                          color: colors.textSubtle,
                           transition: "transform 0.2s ease",
                           transform: isExpanded && !isHidden ? "rotate(180deg)" : "rotate(0deg)",
                           flexShrink: 0,
@@ -551,7 +553,7 @@ export function HostAnalyticsPage() {
 
                     {/* Bottom border after expanded panel */}
                     {((isExpanded && !isHidden) || i < arr.length - 1) && (
-                      <div style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }} />
+                      <div style={{ borderBottom: `1px solid ${colors.borderFaint}` }} />
                     )}
                   </div>
                 );
@@ -569,14 +571,14 @@ export function HostAnalyticsPage() {
 }
 
 const SOURCE_COLORS = {
-  direct: "rgba(255,255,255,0.35)",
-  instagram: "rgba(225,48,108,0.75)",
-  facebook: "rgba(66,103,178,0.75)",
-  twitter: "rgba(29,155,240,0.75)",
-  linkedin: "rgba(10,102,194,0.75)",
-  pullup: "rgba(192,192,192,0.6)",
-  pullup_newsletter: "rgba(251,191,36,0.7)",
-  other: "rgba(168,85,247,0.5)",
+  direct: "rgba(10,10,10,0.45)",
+  instagram: "rgba(225,48,108,0.85)",
+  facebook: "rgba(66,103,178,0.85)",
+  twitter: "rgba(29,155,240,0.85)",
+  linkedin: "rgba(10,102,194,0.85)",
+  pullup: "rgba(10,10,10,0.35)",
+  pullup_newsletter: "#b45309",
+  other: "rgba(168,85,247,0.7)",
 };
 
 function getSourceColor(name) {
@@ -586,29 +588,30 @@ function getSourceColor(name) {
 function FunnelChart({ views, rsvps, dinner, dinnerCapacity, pulledUp, revenue, currency, revenueByCurrency, capacity, uniqueVisitors, mini }) {
   const topMetric = uniqueVisitors > 0 ? uniqueVisitors : views;
   const steps = [
-    { label: "Unique Visitors", value: topMetric, rate: null, color: "rgba(59,130,246,0.7)" },
-    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: topMetric > 0 ? Math.round((rsvps / topMetric) * 1000) / 10 : 0, rateLabel: "of visitors", color: "rgba(139,92,246,0.7)" },
+    { label: "Unique Visitors", value: topMetric, rate: null, color: "#ec178f" },
+    { label: "RSVPs", value: rsvps, cap: capacity > 0 ? capacity : null, rate: topMetric > 0 ? Math.round((rsvps / topMetric) * 1000) / 10 : 0, rateLabel: "of visitors", color: "#0d9488" },
   ];
   if (dinner !== null && dinner !== undefined) {
-    steps.push({ label: "Dinner", value: dinner, cap: dinnerCapacity > 0 ? dinnerCapacity : null, rate: rsvps > 0 ? Math.round((dinner / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(251,146,60,0.7)" });
+    steps.push({ label: "Dinner", value: dinner, cap: dinnerCapacity > 0 ? dinnerCapacity : null, rate: rsvps > 0 ? Math.round((dinner / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "#b45309" });
   }
   steps.push(
-    { label: "Pulled Up", value: pulledUp, rate: rsvps > 0 ? Math.round((pulledUp / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "rgba(74,222,128,0.7)" },
+    { label: "Pulled Up", value: pulledUp, rate: rsvps > 0 ? Math.round((pulledUp / rsvps) * 1000) / 10 : 0, rateLabel: "of RSVPs", color: "#16a34a" },
   );
   if (revenue !== null && revenue !== undefined) {
     const revenueDisplay = revenueByCurrency && Object.keys(revenueByCurrency).length > 0
       ? formatRevenueByCurrency(revenueByCurrency)
       : formatRevenue(revenue, currency);
-    steps.push({ label: "Revenue", value: revenueDisplay, rawValue: revenue, rate: null, color: "rgba(251,191,36,0.7)" });
+    steps.push({ label: "Revenue", value: revenueDisplay, rawValue: revenue, rate: null, color: "#b45309" });
   }
   const maxVal = Math.max(topMetric, 1);
 
   return (
     <div style={{
       padding: mini ? "10px 12px" : "14px 16px", borderRadius: mini ? 10 : 14,
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      background: "#fff",
+      border: `1px solid ${colors.border}`,
       marginBottom: mini ? 12 : 20,
+      boxShadow: mini ? "none" : "0 8px 30px rgba(10,10,10,0.06)",
     }}>
       {steps.map((step, i) => {
         const barPct = step.label === "Revenue"
@@ -624,27 +627,27 @@ function FunnelChart({ views, rsvps, dinner, dinnerCapacity, pulledUp, revenue, 
                 }}>
                   {step.label === "Revenue" ? step.value : (step.value ?? 0).toLocaleString()}
                   {step.cap && (
-                    <span style={{ fontSize: mini ? "11px" : "13px", fontWeight: 500, color: "rgba(255,255,255,0.25)" }}>
+                    <span style={{ fontSize: mini ? "11px" : "13px", fontWeight: 500, color: colors.textFaded }}>
                       {" / "}{step.cap.toLocaleString()}
                     </span>
                   )}
                 </span>
-                <span style={{ fontSize: mini ? "10px" : "11px", color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>
+                <span style={{ fontSize: mini ? "10px" : "11px", color: colors.textSubtle, fontWeight: 500 }}>
                   {step.label}
                 </span>
               </div>
               {step.rate !== null && step.rate !== undefined && (
                 <span style={{
                   fontSize: mini ? "10px" : "11px", fontWeight: 600,
-                  color: step.rate > (step.label === "Pulled Up" ? 50 : 20) ? "rgba(74,222,128,0.7)" : "rgba(255,255,255,0.35)",
+                  color: step.rate > (step.label === "Pulled Up" ? 50 : 20) ? colors.success : colors.textSubtle,
                 }}>
-                  {step.rate}% <span style={{ fontWeight: 400, color: "rgba(255,255,255,0.25)" }}>{step.rateLabel}</span>
+                  {step.rate}% <span style={{ fontWeight: 400, color: colors.textFaded }}>{step.rateLabel}</span>
                 </span>
               )}
             </div>
             <div style={{
               height: mini ? 4 : 6, borderRadius: 3,
-              background: "rgba(255,255,255,0.04)",
+              background: colors.borderFaint,
             }}>
               <div style={{
                 height: "100%", borderRadius: 3,
@@ -659,16 +662,16 @@ function FunnelChart({ views, rsvps, dinner, dinnerCapacity, pulledUp, revenue, 
       {!mini && capacity > 0 && (
         <div style={{
           display: "flex", gap: 16, marginTop: 12,
-          paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.04)",
+          paddingTop: 10, borderTop: `1px solid ${colors.borderFaint}`,
         }}>
           <div>
-            <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{Math.min(100, Math.round((rsvps / capacity) * 100))}%</span>
-            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginLeft: 4 }}>of {capacity} capacity</span>
+            <span style={{ fontSize: "14px", fontWeight: 700, color: colors.text }}>{Math.min(100, Math.round((rsvps / capacity) * 100))}%</span>
+            <span style={{ fontSize: "10px", color: colors.textSubtle, marginLeft: 4 }}>of {capacity} capacity</span>
           </div>
         </div>
       )}
       {!mini && views > 0 && (
-        <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.2)", marginTop: capacity > 0 ? 4 : 12 }}>
+        <div style={{ fontSize: "10px", color: colors.textFaded, marginTop: capacity > 0 ? 4 : 12 }}>
           {views.toLocaleString()} total views
         </div>
       )}
@@ -711,7 +714,7 @@ function EventDetailPanel({ event: ev }) {
   return (
     <div style={{
       padding: "12px 14px 16px",
-      background: "rgba(255,255,255,0.015)",
+      background: colors.surface,
     }}>
       {/* Conversion funnel */}
       <FunnelChart
@@ -729,13 +732,13 @@ function EventDetailPanel({ event: ev }) {
       {/* Stacked source bars + RSVP line chart */}
       {daily.length > 0 && (
         <div style={{ marginBottom: 14, position: "relative" }}>
-          <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, color: "rgba(255,255,255,0.3)", marginBottom: 6 }}>
+          <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, color: colors.textSubtle, marginBottom: 6 }}>
             Daily unique visitors by source & RSVPs
           </div>
           <div style={{
             borderRadius: 10,
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.05)",
+            background: "#fff",
+            border: `1px solid ${colors.border}`,
             padding: "8px 6px 4px",
             position: "relative",
           }}>
@@ -751,8 +754,8 @@ function EventDetailPanel({ event: ev }) {
                 return (
                   <g key={f}>
                     <line x1={PAD.left} y1={y} x2={PAD.left + chartW} y2={y}
-                      stroke="rgba(255,255,255,0.04)" strokeDasharray="3,3" />
-                    <text x={PAD.left - 4} y={y + 3} textAnchor="end" fill="rgba(255,255,255,0.2)" fontSize="7.5">{val}</text>
+                      stroke="rgba(10,10,10,0.07)" strokeDasharray="3,3" />
+                    <text x={PAD.left - 4} y={y + 3} textAnchor="end" fill="rgba(10,10,10,0.35)" fontSize="7.5">{val}</text>
                   </g>
                 );
               })}
@@ -792,7 +795,7 @@ function EventDetailPanel({ event: ev }) {
 
               {/* RSVP line overlay */}
               {maxDailyRsvps > 0 && (
-                <path d={rsvpPoints} fill="none" stroke="rgba(74,222,128,0.7)" strokeWidth="1.5"
+                <path d={rsvpPoints} fill="none" stroke="#16a34a" strokeWidth="1.5"
                   strokeLinejoin="round" strokeLinecap="round" />
               )}
 
@@ -801,7 +804,7 @@ function EventDetailPanel({ event: ev }) {
                 if (d.rsvps === 0) return null;
                 const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
                 const y = PAD.top + chartH - (d.rsvps * rsvpScale);
-                return <circle key={`rd-${i}`} cx={x} cy={y} r={2.5} fill="rgba(74,222,128,0.9)" />;
+                return <circle key={`rd-${i}`} cx={x} cy={y} r={2.5} fill="#16a34a" />;
               })}
 
               {/* VIP RSVP golden dots — independent, y = count on views axis */}
@@ -811,8 +814,8 @@ function EventDetailPanel({ event: ev }) {
                 const y = PAD.top + chartH - (d.vipRsvps / niceMax) * chartH;
                 return (
                   <g key={`vip-${i}`}>
-                    <circle cx={x} cy={y} r={5} fill="rgba(251,191,36,0.15)" />
-                    <circle cx={x} cy={y} r={3} fill="rgba(251,191,36,0.9)" stroke="rgba(251,191,36,0.4)" strokeWidth="1" />
+                    <circle cx={x} cy={y} r={5} fill="rgba(180,83,9,0.12)" />
+                    <circle cx={x} cy={y} r={3} fill="#b45309" stroke="rgba(180,83,9,0.4)" strokeWidth="1" />
                   </g>
                 );
               })}
@@ -824,7 +827,7 @@ function EventDetailPanel({ event: ev }) {
                   y1={PAD.top}
                   x2={PAD.left + (hoverDay / (daily.length - 1 || 1)) * chartW}
                   y2={PAD.top + chartH}
-                  stroke="rgba(255,255,255,0.15)" strokeWidth="1"
+                  stroke="rgba(10,10,10,0.12)" strokeWidth="1"
                 />
               )}
 
@@ -832,7 +835,7 @@ function EventDetailPanel({ event: ev }) {
               {xLabels.map(i => {
                 const x = PAD.left + (i / (daily.length - 1 || 1)) * chartW;
                 const label = new Date(daily[i].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-                return <text key={i} x={x} y={H - 2} textAnchor="middle" fill="rgba(255,255,255,0.2)" fontSize="7">{label}</text>;
+                return <text key={i} x={x} y={H - 2} textAnchor="middle" fill="rgba(10,10,10,0.35)" fontSize="7">{label}</text>;
               })}
             </svg>
 
@@ -843,14 +846,14 @@ function EventDetailPanel({ event: ev }) {
                 left: `${((PAD.left + (hoverDay / (daily.length - 1 || 1)) * chartW) / W) * 100}%`,
                 top: 8,
                 transform: `translateX(${hoverDay > daily.length * 0.65 ? "calc(-100% - 8px)" : "8px"})`,
-                background: "rgba(15,12,25,0.95)",
-                border: "1px solid rgba(255,255,255,0.12)",
+                background: "#fff",
+                border: `1px solid ${colors.border}`,
                 borderRadius: 6,
                 padding: "6px 10px",
                 fontSize: "11px",
-                color: "#fff",
+                color: colors.text,
                 lineHeight: 1.5,
-                backdropFilter: "blur(12px)",
+                boxShadow: "0 4px 16px rgba(10,10,10,0.10)",
                 pointerEvents: "none",
                 zIndex: 10,
                 whiteSpace: "nowrap",
@@ -858,21 +861,21 @@ function EventDetailPanel({ event: ev }) {
                 <div style={{ fontWeight: 600, marginBottom: 2 }}>
                   {new Date(daily[hoverDay].date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.5)" }}>{daily[hoverDay].views} unique visitors</div>
+                <div style={{ color: colors.textMuted }}>{daily[hoverDay].views} unique visitors</div>
                 {Object.entries(daily[hoverDay].bySource || {}).sort((a, b) => b[1] - a[1]).map(([src, count]) => (
                   <div key={src} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
                     <div style={{ width: 5, height: 5, borderRadius: 1, background: getSourceColor(src), flexShrink: 0 }} />
-                    <span style={{ color: "rgba(255,255,255,0.4)" }}>{src}: {count}</span>
+                    <span style={{ color: colors.textSubtle }}>{src}: {count}</span>
                   </div>
                 ))}
                 {daily[hoverDay].rsvps > 0 && (
-                  <div style={{ color: "rgba(74,222,128,0.7)", marginTop: 2 }}>
+                  <div style={{ color: colors.success, marginTop: 2 }}>
                     {daily[hoverDay].rsvps} RSVPs
                   </div>
                 )}
                 {(daily[hoverDay].vipRsvps || 0) > 0 && (
-                  <div style={{ color: "rgba(251,191,36,0.85)", marginTop: 1, display: "flex", alignItems: "center", gap: 4 }}>
-                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(251,191,36,0.9)", flexShrink: 0 }} />
+                  <div style={{ color: colors.gold, marginTop: 1, display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: colors.gold, flexShrink: 0 }} />
                     {daily[hoverDay].vipRsvps} VIP RSVPs
                   </div>
                 )}
@@ -885,19 +888,19 @@ function EventDetailPanel({ event: ev }) {
             {allSources.map(src => (
               <div key={src} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <div style={{ width: 7, height: 7, borderRadius: 1.5, background: getSourceColor(src) }} />
-                <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>{src}</span>
+                <span style={{ fontSize: "10px", color: colors.textSubtle }}>{src}</span>
               </div>
             ))}
             {maxDailyRsvps > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 10, height: 2, borderRadius: 1, background: "rgba(74,222,128,0.7)" }} />
-                <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>RSVPs</span>
+                <div style={{ width: 10, height: 2, borderRadius: 1, background: "#16a34a" }} />
+                <span style={{ fontSize: "10px", color: colors.textSubtle }}>RSVPs</span>
               </div>
             )}
             {hasVipRsvps && (
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(251,191,36,0.9)" }} />
-                <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>VIP RSVPs</span>
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: colors.gold }} />
+                <span style={{ fontSize: "10px", color: colors.textSubtle }}>VIP RSVPs</span>
               </div>
             )}
           </div>
@@ -907,7 +910,7 @@ function EventDetailPanel({ event: ev }) {
       {/* Traffic sources summary */}
       {sources.length > 0 && (
         <div>
-          <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, color: "rgba(255,255,255,0.3)", marginBottom: 6 }}>
+          <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, color: colors.textSubtle, marginBottom: 6 }}>
             Traffic sources
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -918,14 +921,14 @@ function EventDetailPanel({ event: ev }) {
                 <div key={s.source}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{
-                      width: 80, fontSize: "11px", color: "rgba(255,255,255,0.6)",
+                      width: 80, fontSize: "11px", color: colors.textMuted,
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                       flexShrink: 0, display: "flex", alignItems: "center", gap: 5,
                     }}>
                       <div style={{ width: 6, height: 6, borderRadius: 1.5, background: getSourceColor(s.source), flexShrink: 0 }} />
                       {s.source}
                     </div>
-                    <div style={{ flex: 1, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.04)" }}>
+                    <div style={{ flex: 1, height: 6, borderRadius: 3, background: colors.borderFaint }}>
                       <div style={{
                         height: "100%", borderRadius: 3,
                         background: getSourceColor(s.source),
@@ -933,10 +936,10 @@ function EventDetailPanel({ event: ev }) {
                         minWidth: s.count > 0 ? 4 : 0,
                       }} />
                     </div>
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.5)", minWidth: 36, textAlign: "right" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: colors.textMuted, minWidth: 36, textAlign: "right" }}>
                       {s.count}
                     </div>
-                    <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.25)", minWidth: 36, textAlign: "right" }}>
+                    <div style={{ fontSize: "10px", color: colors.textFaded, minWidth: 36, textAlign: "right" }}>
                       {s.percentage}%
                     </div>
                   </div>
@@ -945,11 +948,11 @@ function EventDetailPanel({ event: ev }) {
                     <div style={{ marginLeft: 24, marginTop: 3, marginBottom: 3 }}>
                       {campaignBreakdown.map(cb => (
                         <div key={cb.tag} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0" }}>
-                          <span style={{ fontSize: "10px", color: "rgba(251,191,36,0.5)" }}>↳</span>
-                          <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: "10px", color: colors.gold }}>↳</span>
+                          <span style={{ fontSize: "10px", color: colors.textSubtle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {cb.tag.replace("weekly_happenings_", "weekly ").replace("newsletter_", "").replace(/_/g, "-")}
                           </span>
-                          <span style={{ fontSize: "10px", fontWeight: 600, color: "rgba(251,191,36,0.5)", minWidth: 24, textAlign: "right" }}>
+                          <span style={{ fontSize: "10px", fontWeight: 600, color: colors.gold, minWidth: 24, textAlign: "right" }}>
                             {cb.count}
                           </span>
                         </div>
@@ -989,12 +992,12 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
     return (
       <div style={{
         borderRadius: 14,
-        background: "rgba(255,255,255,0.02)",
-        border: "1px solid rgba(255,255,255,0.06)",
+        background: "#fff",
+        border: `1px solid ${colors.border}`,
         padding: "40px 12px",
         textAlign: "center",
         fontSize: "13px",
-        color: "rgba(255,255,255,0.3)",
+        color: colors.textFaded,
       }}>
         No data for this period.
       </div>
@@ -1036,10 +1039,11 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
     <div
       style={{
         borderRadius: 14,
-        background: "rgba(255,255,255,0.02)",
-        border: "1px solid rgba(255,255,255,0.06)",
+        background: "#fff",
+        border: `1px solid ${colors.border}`,
         padding: "14px 12px 8px",
         position: "relative",
+        boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
       }}
     >
       <svg
@@ -1054,11 +1058,11 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
             <g key={v}>
               <line
                 x1={PAD.left} y1={y} x2={PAD.left + chartW} y2={y}
-                stroke="rgba(255,255,255,0.06)" strokeDasharray="4,4"
+                stroke="rgba(10,10,10,0.07)" strokeDasharray="4,4"
               />
               <text
                 x={PAD.left - 6} y={y + 3}
-                textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize="10"
+                textAnchor="end" fill="rgba(10,10,10,0.35)" fontSize="10"
               >
                 {v}
               </text>
@@ -1073,7 +1077,7 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
           return (
             <text
               key={stacked[i].date} x={x} y={H - 4}
-              textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="10"
+              textAnchor="middle" fill="rgba(10,10,10,0.35)" fontSize="10"
             >
               {label}
             </text>
@@ -1092,8 +1096,8 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
               x={x} y={y}
               width={barWidth} height={barH}
               rx={2}
-              fill="rgba(255,255,255,0.06)"
-              stroke="rgba(255,255,255,0.1)"
+              fill="rgba(10,10,10,0.06)"
+              stroke="rgba(10,10,10,0.10)"
               strokeWidth="0.5"
             />
           );
@@ -1141,7 +1145,7 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
                 x={x} y={y}
                 width={barWidth} height={segH}
                 rx={yOffset === 0 ? 2 : 0}
-                fill="rgba(255,255,255,0.15)"
+                fill="rgba(10,10,10,0.12)"
               />
             );
           }
@@ -1163,7 +1167,7 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
                 <line
                   x1={x + barWidth / 2} y1={PAD.top}
                   x2={x + barWidth / 2} y2={PAD.top + chartH}
-                  stroke="rgba(255,255,255,0.15)" strokeWidth="1"
+                  stroke="rgba(10,10,10,0.12)" strokeWidth="1"
                 />
               )}
             </g>
@@ -1179,14 +1183,14 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
             left: `${(hover.x / W) * 100}%`,
             top: "10%",
             transform: `translateX(${hover.x > W * 0.7 ? "calc(-100% - 12px)" : "12px"})`,
-            background: "rgba(15,12,25,0.95)",
-            border: "1px solid rgba(255,255,255,0.15)",
+            background: "#fff",
+            border: `1px solid ${colors.border}`,
             borderRadius: 8,
             padding: "8px 12px",
             fontSize: "12px",
-            color: "#fff",
+            color: colors.text,
             lineHeight: 1.6,
-            backdropFilter: "blur(12px)",
+            boxShadow: "0 4px 16px rgba(10,10,10,0.10)",
             pointerEvents: "none",
             zIndex: 10,
             whiteSpace: "nowrap",
@@ -1195,7 +1199,7 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
           <div style={{ fontWeight: 600, marginBottom: 2 }}>
             {new Date(hover.d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
           </div>
-          <div style={{ color: "rgba(255,255,255,0.7)" }}>
+          <div style={{ color: colors.textMuted }}>
             {hover.dayTotal} unique visitors
           </div>
           {eventIds.map((eid, ei) => {
@@ -1208,14 +1212,14 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
                   width: 6, height: 6, borderRadius: 1,
                   background: EVENT_COLORS[ei % EVENT_COLORS.length],
                 }} />
-                <span style={{ color: "rgba(255,255,255,0.5)" }}>
+                <span style={{ color: colors.textSubtle }}>
                   {titleMap[eid]}: {val}
                 </span>
               </div>
             );
           })}
           {previous && previous[hover.i] && previous[hover.i].views > 0 && (
-            <div style={{ color: "rgba(255,255,255,0.3)", marginTop: 2 }}>
+            <div style={{ color: colors.textFaded, marginTop: 2 }}>
               prev: {previous[hover.i].views} visitors
             </div>
           )}
@@ -1227,25 +1231,26 @@ function StackedBarChart({ stacked, eventLabels, previous, hiddenEvents = new Se
 
 function CampaignCard({ campaign: c }) {
   const steps = [
-    { label: "Sent", value: c.sent, color: "rgba(255,255,255,0.3)" },
-    { label: "Opened", value: c.opened, rate: c.openRate, color: "rgba(59,130,246,0.7)" },
-    { label: "Clicked", value: c.clicked, rate: c.clickRate, color: "rgba(139,92,246,0.7)" },
-    { label: "Visited", value: c.visited, rate: c.visitRate, color: "rgba(74,222,128,0.7)" },
-    { label: "RSVP'd", value: c.rsvps, rate: c.conversionRate, color: "rgba(251,191,36,0.8)" },
+    { label: "Sent", value: c.sent, color: colors.textSubtle },
+    { label: "Opened", value: c.opened, rate: c.openRate, color: "#ec178f" },
+    { label: "Clicked", value: c.clicked, rate: c.clickRate, color: "#0d9488" },
+    { label: "Visited", value: c.visited, rate: c.visitRate, color: "#16a34a" },
+    { label: "RSVP'd", value: c.rsvps, rate: c.conversionRate, color: "#b45309" },
   ];
 
   return (
     <div style={{
       padding: "12px 14px",
       borderRadius: 12,
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      background: "#fff",
+      border: `1px solid ${colors.border}`,
+      boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ fontSize: "13px", fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: "13px", fontWeight: 600, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {c.name}
         </div>
-        <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.25)", flexShrink: 0, marginLeft: 8 }}>
+        <div style={{ fontSize: "10px", color: colors.textFaded, flexShrink: 0, marginLeft: 8 }}>
           {c.tag.startsWith("vip_invite_") ? "VIP" : "Newsletter"}
         </div>
       </div>
@@ -1259,7 +1264,7 @@ function CampaignCard({ campaign: c }) {
             <div key={step.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
               <div style={{
                 width: "100%", height: h, borderRadius: 3,
-                background: step.value > 0 ? step.color : "rgba(255,255,255,0.04)",
+                background: step.value > 0 ? step.color : colors.borderFaint,
                 transition: "height 0.3s ease",
               }} />
             </div>
@@ -1271,14 +1276,14 @@ function CampaignCard({ campaign: c }) {
       <div style={{ display: "flex", gap: 2 }}>
         {steps.map((step, i) => (
           <div key={step.label} style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ fontSize: "13px", fontWeight: 700, color: step.value > 0 ? step.color : "rgba(255,255,255,0.15)" }}>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: step.value > 0 ? step.color : colors.border }}>
               {step.value}
             </div>
-            <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.3)", marginTop: 1 }}>
+            <div style={{ fontSize: "9px", color: colors.textSubtle, marginTop: 1 }}>
               {step.label}
             </div>
             {step.rate !== undefined && step.rate > 0 && (
-              <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.2)", marginTop: 1 }}>
+              <div style={{ fontSize: "9px", color: colors.textFaded, marginTop: 1 }}>
                 {step.rate}%
               </div>
             )}
@@ -1294,9 +1299,9 @@ function DeviceSplitDonut({ split }) {
   if (total === 0) return null;
 
   const segments = [
-    { key: "mobile", label: "Mobile", count: split.mobile, color: "rgba(59,130,246,0.7)", icon: Smartphone },
-    { key: "desktop", label: "Desktop", count: split.desktop, color: "rgba(139,92,246,0.7)", icon: Monitor },
-    { key: "unknown", label: "Unknown", count: split.unknown, color: "rgba(255,255,255,0.15)", icon: HelpCircle },
+    { key: "mobile", label: "Mobile", count: split.mobile, color: "#ec178f", icon: Smartphone },
+    { key: "desktop", label: "Desktop", count: split.desktop, color: "#0d9488", icon: Monitor },
+    { key: "unknown", label: "Unknown", count: split.unknown, color: colors.border, icon: HelpCircle },
   ].filter(s => s.count > 0);
 
   // SVG donut chart
@@ -1308,12 +1313,13 @@ function DeviceSplitDonut({ split }) {
     <div style={{
       padding: "14px 16px",
       borderRadius: 12,
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      background: "#fff",
+      border: `1px solid ${colors.border}`,
       marginBottom: 24,
       display: "flex",
       alignItems: "center",
       gap: 16,
+      boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
     }}>
       <svg width={80} height={80} viewBox="0 0 80 80" style={{ flexShrink: 0 }}>
         {segments.map(seg => {
@@ -1337,8 +1343,8 @@ function DeviceSplitDonut({ split }) {
             />
           );
         })}
-        <text x={CX} y={CY - 4} textAnchor="middle" fill="#fff" fontSize="14" fontWeight="700">{total}</text>
-        <text x={CX} y={CY + 8} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="7">visitors</text>
+        <text x={CX} y={CY - 4} textAnchor="middle" fill="#0a0a0a" fontSize="14" fontWeight="700">{total}</text>
+        <text x={CX} y={CY + 8} textAnchor="middle" fill="rgba(10,10,10,0.45)" fontSize="7">visitors</text>
       </svg>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
@@ -1348,12 +1354,12 @@ function DeviceSplitDonut({ split }) {
           return (
             <div key={seg.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Icon size={12} style={{ color: seg.color, flexShrink: 0 }} />
-              <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)", minWidth: 56 }}>{seg.label}</span>
-              <div style={{ flex: 1, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.04)" }}>
+              <span style={{ fontSize: "12px", color: colors.textMuted, minWidth: 56 }}>{seg.label}</span>
+              <div style={{ flex: 1, height: 4, borderRadius: 2, background: colors.borderFaint }}>
                 <div style={{ height: "100%", borderRadius: 2, background: seg.color, width: `${pct}%`, transition: "width 0.3s ease" }} />
               </div>
-              <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.5)", minWidth: 28, textAlign: "right" }}>{seg.count}</span>
-              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.25)", minWidth: 36, textAlign: "right" }}>{pct}%</span>
+              <span style={{ fontSize: "11px", fontWeight: 600, color: colors.textMuted, minWidth: 28, textAlign: "right" }}>{seg.count}</span>
+              <span style={{ fontSize: "10px", color: colors.textFaded, minWidth: 36, textAlign: "right" }}>{pct}%</span>
             </div>
           );
         })}
@@ -1367,11 +1373,12 @@ function MetricCard({ label, value, color }) {
     <div style={{
       padding: 14,
       borderRadius: 12,
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      background: "#fff",
+      border: `1px solid ${colors.border}`,
+      boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
     }}>
       <div style={{ fontSize: "11px", color: colors.textFaded, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: "22px", fontWeight: 700, color: color || "#fff" }}>{value}</div>
+      <div style={{ fontSize: "22px", fontWeight: 700, color: color || colors.text }}>{value}</div>
     </div>
   );
 }
@@ -1380,7 +1387,7 @@ function SectionLabel({ children }) {
   return (
     <div style={{
       fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.1em",
-      fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 10,
+      fontWeight: 600, color: colors.textSubtle, marginBottom: 10,
     }}>
       {children}
     </div>
@@ -1392,7 +1399,7 @@ function ChangeIndicator({ value }) {
   const isUp = value > 0;
   const isDown = value < 0;
   const Icon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;
-  const color = isUp ? "#4ade80" : isDown ? "#f87171" : "rgba(255,255,255,0.3)";
+  const color = isUp ? colors.success : isDown ? colors.danger : colors.textFaded;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: "11px", fontWeight: 600, color }}>
       <Icon size={12} />

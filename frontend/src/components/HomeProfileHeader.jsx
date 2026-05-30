@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Smile } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { colors } from "../theme/colors.js";
 import {
   uploadProfileImage,
   validateImageFile,
@@ -20,7 +21,6 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file using utility
     const validation = validateImageFile(file);
     if (!validation.valid) {
       showToast?.(validation.error, "error");
@@ -28,10 +28,9 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
     }
 
     try {
-      // Upload using utility
       const updated = await uploadProfileImage(file);
       setUser(updated);
-      showToast?.("Profile picture updated! ✨", "success");
+      showToast?.("Profile picture updated!", "success");
     } catch (error) {
       console.error("Error processing image:", error);
       showToast?.(
@@ -43,7 +42,6 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
 
   async function handleDeletePicture() {
     try {
-      // Remove picture using utility
       if (onSave) {
         await removeProfileImageUtil(onSave, user);
         showToast?.("Profile picture removed", "success");
@@ -51,7 +49,6 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
         setUser({ ...user, profilePicture: null });
         showToast?.("Profile picture removed", "success");
       }
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -69,7 +66,7 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
         gap: "clamp(12px, 3vw, 24px)",
         marginBottom: "clamp(16px, 4vw, 32px)",
         paddingBottom: "clamp(16px, 4vw, 32px)",
-        borderBottom: "1px solid rgba(255,255,255,0.05)",
+        borderBottom: `1px solid ${colors.border}`,
       }}
     >
       <div
@@ -87,12 +84,12 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
             borderRadius: "50%",
             background: user.profilePicture
               ? "transparent"
-              : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
+              : colors.surfaceMuted,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             fontSize: "clamp(28px, 7vw, 36px)",
-            border: "2px solid rgba(255,255,255,0.1)",
+            border: `2px solid ${colors.border}`,
             cursor: "pointer",
             overflow: "hidden",
             transition: "all 0.3s ease",
@@ -115,7 +112,6 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
                   "Failed to load profile image:",
                   user.profilePicture
                 );
-                // Fallback to emoji if image fails to load
                 e.target.style.display = "none";
               }}
             />
@@ -127,7 +123,7 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
               style={{
                 position: "absolute",
                 inset: 0,
-                background: "rgba(0, 0, 0, 0.6)",
+                background: "rgba(10,10,10,0.45)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -152,9 +148,9 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
               width: "28px",
               height: "28px",
               borderRadius: "50%",
-              background: "rgba(239, 68, 68, 0.9)",
-              border: "2px solid rgba(255,255,255,0.2)",
-              color: "#fff",
+              background: colors.dangerRgba,
+              border: `2px solid ${colors.border}`,
+              color: colors.danger,
               fontSize: "14px",
               cursor: "pointer",
               display: "flex",
@@ -184,6 +180,7 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
             marginBottom: 8,
             lineHeight: "1.2",
             wordBreak: "break-word",
+            color: colors.text,
           }}
         >
           {user.brand ? `${user.brand}` : "Your profile"}
@@ -192,7 +189,7 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
           <div
             style={{
               fontSize: "clamp(13px, 3.5vw, 15px)",
-              opacity: 0.7,
+              color: colors.textMuted,
               marginBottom: user.bio ? 12 : 0,
               fontWeight: 500,
             }}
@@ -204,7 +201,7 @@ export function ProfileHeader({ user, stats, setUser, onSave, showToast }) {
           <div
             style={{
               fontSize: "clamp(13px, 3.5vw, 14px)",
-              opacity: 0.8,
+              color: colors.textMuted,
               lineHeight: "1.5",
               maxWidth: "600px",
               wordBreak: "break-word",

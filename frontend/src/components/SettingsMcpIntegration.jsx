@@ -13,7 +13,6 @@
 import { useEffect, useState } from "react";
 import {
   Plug,
-  Key,
   Plus,
   Copy,
   Check,
@@ -22,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
-import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { colors } from "../theme/colors.js";
 
 const MCP_URL = "https://mcp.pullup.se";
 
@@ -222,7 +221,7 @@ export function SettingsMcpIntegration({ showToast }) {
         {/* Header */}
         <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
           <div style={iconBubbleStyle}>
-            <SilverIcon as={Plug} size={20} />
+            <Plug size={20} style={{ color: colors.accent }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={cardTitleStyle}>Connect any AI assistant</div>
@@ -293,7 +292,7 @@ export function SettingsMcpIntegration({ showToast }) {
             )}
             {guide.note && (
               <div style={noteStyle}>
-                <AlertTriangle size={12} style={{ flexShrink: 0, marginTop: "2px" }} />
+                <AlertTriangle size={12} style={{ flexShrink: 0, marginTop: "2px", color: colors.warning }} />
                 <span>{guide.note}</span>
               </div>
             )}
@@ -319,7 +318,7 @@ export function SettingsMcpIntegration({ showToast }) {
 
         <div style={stageBodyStyle}>
           {loading ? (
-            <div style={{ opacity: 0.6, fontSize: "14px" }}>Loading…</div>
+            <div style={{ color: colors.textMuted, fontSize: "14px" }}>Loading…</div>
           ) : tokens.length === 0 ? (
             <div style={emptyStateStyle}>
               Nothing here yet. When you authorize a client (or mint one manually), it'll appear here so you can revoke it later.
@@ -390,7 +389,7 @@ export function SettingsMcpIntegration({ showToast }) {
             </button>
           </div>
           <div style={warningStyle}>
-            <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: "2px" }} />
+            <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: "2px", color: colors.warning }} />
             <div>
               Anyone with this token can manage your PullUp events. Treat it like a password. Paste it into your AI client's connector settings, then revoke it here if your device is ever lost.
             </div>
@@ -413,9 +412,9 @@ function StageHeader({ number, title, subtitle, action }) {
     <div style={stageHeaderStyle}>
       <div style={stageBadgeStyle}>{number}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: "14px", fontWeight: 600 }}>{title}</div>
+        <div style={{ fontSize: "14px", fontWeight: 600, color: colors.text }}>{title}</div>
         {subtitle && (
-          <div style={{ fontSize: "12px", opacity: 0.6, marginTop: "2px" }}>{subtitle}</div>
+          <div style={{ fontSize: "12px", color: colors.textMuted, marginTop: "2px" }}>{subtitle}</div>
         )}
       </div>
       {action}
@@ -429,9 +428,9 @@ function TokenRow({ token, onRevoke }) {
     <div
       style={{
         padding: "12px 14px",
-        background: "rgba(20, 16, 30, 0.6)",
+        background: colors.surface,
         borderRadius: "10px",
-        border: "1px solid rgba(255,255,255,0.05)",
+        border: `1px solid ${colors.border}`,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -440,7 +439,7 @@ function TokenRow({ token, onRevoke }) {
       }}
     >
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "2px" }}>
+        <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "2px", color: colors.text }}>
           {token.name}
           {isRevoked && (
             <span
@@ -450,15 +449,15 @@ function TokenRow({ token, onRevoke }) {
                 fontWeight: 600,
                 padding: "2px 6px",
                 borderRadius: "999px",
-                background: "rgba(239, 68, 68, 0.15)",
-                color: "#ef4444",
+                background: colors.dangerRgba,
+                color: colors.danger,
               }}
             >
               Revoked
             </span>
           )}
         </div>
-        <div style={{ fontSize: "12px", opacity: 0.6 }}>
+        <div style={{ fontSize: "12px", color: colors.textMuted }}>
           Created {fmtDate(token.createdAt)}
           {token.lastUsedAt ? ` · Last used ${fmtDate(token.lastUsedAt)}` : " · Never used"}
         </div>
@@ -485,7 +484,7 @@ function Modal({ title, children, onClose }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.6)",
+        background: "rgba(10,10,10,0.45)",
         backdropFilter: "blur(4px)",
         display: "flex",
         alignItems: "center",
@@ -497,13 +496,13 @@ function Modal({ title, children, onClose }) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "rgba(18, 14, 28, 0.95)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          background: "#ffffff",
+          border: `1px solid ${colors.border}`,
           borderRadius: "16px",
           padding: "24px",
           maxWidth: "440px",
           width: "100%",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          boxShadow: "0 20px 60px rgba(10,10,10,0.12)",
         }}
       >
         <div
@@ -514,14 +513,14 @@ function Modal({ title, children, onClose }) {
             marginBottom: "16px",
           }}
         >
-          <h3 style={{ fontSize: "16px", fontWeight: 600, margin: 0 }}>{title}</h3>
+          <h3 style={{ fontSize: "16px", fontWeight: 600, margin: 0, color: colors.text }}>{title}</h3>
           <button
             type="button"
             onClick={onClose}
             style={{
               background: "transparent",
               border: "none",
-              color: "rgba(255,255,255,0.5)",
+              color: colors.textMuted,
               cursor: "pointer",
               padding: "4px",
               display: "flex",
@@ -554,16 +553,17 @@ function fmtDate(iso) {
 
 const cardStyle = {
   padding: "20px",
-  background: "rgba(20, 16, 30, 0.6)",
+  background: "#ffffff",
   borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.05)",
+  border: `1px solid ${colors.border}`,
+  boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
 };
 
 const iconBubbleStyle = {
   width: "44px",
   height: "44px",
   borderRadius: "12px",
-  background: "rgba(192, 192, 192, 0.12)",
+  background: colors.accentSoft,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -573,11 +573,12 @@ const iconBubbleStyle = {
 const cardTitleStyle = {
   fontSize: "16px",
   fontWeight: 600,
+  color: colors.text,
 };
 
 const cardDescStyle = {
   fontSize: "13px",
-  opacity: 0.7,
+  color: colors.textMuted,
   lineHeight: 1.5,
   marginTop: "2px",
 };
@@ -587,7 +588,7 @@ const smallLabelStyle = {
   fontWeight: 600,
   textTransform: "uppercase",
   letterSpacing: "0.05em",
-  opacity: 0.6,
+  color: colors.textSubtle,
   marginBottom: "6px",
 };
 
@@ -595,8 +596,8 @@ const urlRowStyle = {
   display: "flex",
   gap: "8px",
   alignItems: "center",
-  background: "rgba(10, 8, 18, 0.6)",
-  border: "1px solid rgba(255,255,255,0.05)",
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
   borderRadius: "8px",
   padding: "8px 10px",
 };
@@ -604,7 +605,7 @@ const urlRowStyle = {
 const urlCodeStyle = {
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
   fontSize: "13px",
-  color: "rgba(255,255,255,0.9)",
+  color: colors.text,
   background: "transparent",
 };
 
@@ -615,9 +616,9 @@ const iconButtonStyle = {
   width: "28px",
   height: "28px",
   borderRadius: "6px",
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.04)",
-  color: "rgba(255,255,255,0.9)",
+  border: `1px solid ${colors.borderStrong}`,
+  background: "#ffffff",
+  color: colors.textMuted,
   cursor: "pointer",
   flexShrink: 0,
 };
@@ -625,7 +626,7 @@ const iconButtonStyle = {
 const stageHeaderStyle = {
   marginTop: "28px",
   paddingTop: "20px",
-  borderTop: "1px solid rgba(255,255,255,0.06)",
+  borderTop: `1px solid ${colors.border}`,
   display: "flex",
   alignItems: "center",
   gap: "12px",
@@ -636,9 +637,9 @@ const stageBadgeStyle = {
   width: "26px",
   height: "26px",
   borderRadius: "50%",
-  background: "rgba(232, 232, 232, 0.14)",
-  border: "1px solid rgba(232, 232, 232, 0.25)",
-  color: "#fff",
+  background: colors.accentSoft,
+  border: `1px solid ${colors.accentBorder}`,
+  color: colors.accent,
   fontSize: "12px",
   fontWeight: 700,
   display: "flex",
@@ -655,16 +656,16 @@ const tabBarStyle = {
   display: "flex",
   gap: "6px",
   flexWrap: "wrap",
-  borderBottom: "1px solid rgba(255,255,255,0.06)",
+  borderBottom: `1px solid ${colors.border}`,
   paddingBottom: "10px",
 };
 
 const tabStyle = {
   padding: "6px 12px",
   borderRadius: "8px",
-  border: "1px solid rgba(255,255,255,0.06)",
-  background: "rgba(255,255,255,0.02)",
-  color: "rgba(255,255,255,0.7)",
+  border: `1px solid ${colors.border}`,
+  background: "#ffffff",
+  color: colors.textMuted,
   fontSize: "12.5px",
   fontWeight: 600,
   cursor: "pointer",
@@ -672,15 +673,15 @@ const tabStyle = {
 
 const tabActiveStyle = {
   ...tabStyle,
-  background: "rgba(232, 232, 232, 0.14)",
-  borderColor: "rgba(232, 232, 232, 0.25)",
-  color: "#fff",
+  background: colors.accentSoft,
+  borderColor: colors.accentBorder,
+  color: colors.accent,
 };
 
 const stepListStyle = {
   paddingLeft: "20px",
   fontSize: "13px",
-  opacity: 0.85,
+  color: colors.text,
   lineHeight: 1.7,
   display: "flex",
   flexDirection: "column",
@@ -696,12 +697,12 @@ const codeBlockWrapperStyle = {
 const codeBlockStyle = {
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
   fontSize: "12px",
-  background: "rgba(10, 8, 18, 0.7)",
-  border: "1px solid rgba(255,255,255,0.06)",
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
   borderRadius: "8px",
   padding: "12px 14px",
   paddingRight: "44px",
-  color: "rgba(255,255,255,0.9)",
+  color: colors.text,
   whiteSpace: "pre",
   overflowX: "auto",
   margin: 0,
@@ -710,12 +711,12 @@ const codeBlockStyle = {
 const noteStyle = {
   marginTop: "12px",
   padding: "8px 10px",
-  background: "rgba(245, 158, 11, 0.06)",
-  border: "1px solid rgba(245, 158, 11, 0.12)",
+  background: colors.warningRgba,
+  border: `1px solid rgba(180, 83, 9, 0.18)`,
   borderRadius: "6px",
   fontSize: "12px",
   lineHeight: 1.5,
-  color: "rgba(245, 158, 11, 0.9)",
+  color: colors.warning,
   display: "flex",
   gap: "8px",
   alignItems: "flex-start",
@@ -723,10 +724,10 @@ const noteStyle = {
 
 const primaryButtonStyle = {
   padding: "9px 16px",
-  borderRadius: "10px",
+  borderRadius: "999px",
   border: "none",
-  background: "rgba(232, 232, 232, 0.92)",
-  color: "#05040a",
+  background: colors.accent,
+  color: "#ffffff",
   fontWeight: 600,
   fontSize: "13px",
   cursor: "pointer",
@@ -736,21 +737,23 @@ const primaryButtonStyle = {
 
 const secondaryButtonStyle = {
   padding: "9px 16px",
-  borderRadius: "10px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.03)",
-  color: "#fff",
+  borderRadius: "999px",
+  border: `1px solid ${colors.borderStrong}`,
+  background: "#ffffff",
+  color: colors.text,
   fontWeight: 600,
   fontSize: "13px",
   cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
 };
 
 const revokeButtonStyle = {
   padding: "6px 10px",
   borderRadius: "8px",
-  border: "1px solid rgba(239, 68, 68, 0.2)",
-  background: "rgba(239, 68, 68, 0.08)",
-  color: "#ef4444",
+  border: `1px solid ${colors.dangerRgba}`,
+  background: colors.dangerRgba,
+  color: colors.danger,
   fontSize: "12px",
   fontWeight: 600,
   cursor: "pointer",
@@ -762,8 +765,8 @@ const tokenDisplayStyle = {
   display: "flex",
   gap: "8px",
   alignItems: "center",
-  background: "rgba(10, 8, 18, 0.8)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
   borderRadius: "8px",
   padding: "10px",
 };
@@ -771,12 +774,12 @@ const tokenDisplayStyle = {
 const warningStyle = {
   marginTop: "12px",
   padding: "10px 12px",
-  background: "rgba(245, 158, 11, 0.08)",
-  border: "1px solid rgba(245, 158, 11, 0.15)",
+  background: colors.warningRgba,
+  border: `1px solid rgba(180, 83, 9, 0.18)`,
   borderRadius: "8px",
   fontSize: "12px",
   lineHeight: 1.5,
-  color: "rgba(245, 158, 11, 0.95)",
+  color: colors.warning,
   display: "flex",
   gap: "8px",
   alignItems: "flex-start",
@@ -784,10 +787,10 @@ const warningStyle = {
 
 const emptyStateStyle = {
   padding: "20px",
-  background: "rgba(10, 8, 18, 0.4)",
-  border: "1px dashed rgba(255,255,255,0.08)",
+  background: colors.surface,
+  border: `1px dashed ${colors.borderStrong}`,
   borderRadius: "10px",
   fontSize: "13px",
-  opacity: 0.6,
+  color: colors.textMuted,
   textAlign: "center",
 };

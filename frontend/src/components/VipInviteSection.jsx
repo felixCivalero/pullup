@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link2, Trash2, Copy, Check, Eye, MousePointerClick } from "lucide-react";
-import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
+import { colors } from "../theme/colors.js";
 
 
 export function VipInviteSection({ event, showToast, compact = false }) {
@@ -168,9 +168,9 @@ export function VipInviteSection({ event, showToast, compact = false }) {
         display: "flex",
         flexDirection: "column",
         gap: compact ? "8px" : "10px",
-        background: compact ? "transparent" : "rgba(12,10,18,0.6)",
+        background: compact ? "transparent" : colors.background,
         borderRadius: compact ? 0 : "16px",
-        border: compact ? "none" : "1px solid rgba(255,255,255,0.06)",
+        border: compact ? "none" : `1px solid ${colors.border}`,
         padding: compact ? 0 : "14px 16px",
       }}
     >
@@ -192,10 +192,10 @@ export function VipInviteSection({ event, showToast, compact = false }) {
               fontWeight: 600,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              opacity: 0.85,
+              color: colors.gold,
             }}
           >
-            <SilverIcon as={Link2} size={16} />
+            <Link2 size={16} style={{ color: colors.gold }} />
             VIP Invites
           </div>
         </div>
@@ -220,13 +220,21 @@ export function VipInviteSection({ event, showToast, compact = false }) {
             minWidth: "0",
             padding: compact ? "6px 10px" : "8px 10px",
             borderRadius: "12px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(20, 16, 30, 0.6)",
-            color: "#fff",
+            border: `1px solid ${colors.borderStrong}`,
+            background: colors.background,
+            color: colors.text,
             fontSize: compact ? "12px" : "13px",
             outline: "none",
             boxSizing: "border-box",
             transition: "all 0.3s ease",
+          }}
+          onFocus={(e) => {
+            e.target.style.borderColor = colors.accentBorder;
+            e.target.style.boxShadow = `0 0 0 3px ${colors.accentSoft}`;
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = colors.borderStrong;
+            e.target.style.boxShadow = "none";
           }}
         />
         <div
@@ -240,7 +248,7 @@ export function VipInviteSection({ event, showToast, compact = false }) {
           <div
             style={{
               fontSize: compact ? "11px" : "12px",
-              opacity: 0.5,
+              color: colors.textSubtle,
               whiteSpace: "nowrap",
             }}
           >
@@ -251,10 +259,10 @@ export function VipInviteSection({ event, showToast, compact = false }) {
               display: "flex",
               alignItems: "center",
               gap: compact ? "6px" : "8px",
-              background: "rgb(12 10 18 / 10%)",
+              background: colors.surface,
               borderRadius: "999px",
               padding: compact ? "2px 4px" : "4px 6px",
-              border: "1px solid rgba(255,255,255,0.06)",
+              border: `1px solid ${colors.border}`,
             }}
           >
             <button
@@ -271,12 +279,12 @@ export function VipInviteSection({ event, showToast, compact = false }) {
                 border: "none",
                 background:
                   (parseInt(maxPlusOnes || "0", 10) || 0) <= 0
-                    ? "rgba(255,255,255,0.05)"
-                    : "rgba(192,192,192,0.2)",
+                    ? colors.surfaceMuted
+                    : colors.surfaceMuted,
                 color:
                   (parseInt(maxPlusOnes || "0", 10) || 0) <= 0
-                    ? "rgba(255,255,255,0.3)"
-                    : "#fff",
+                    ? colors.textFaded
+                    : colors.text,
                 fontSize: stepperFontSize,
                 fontWeight: 600,
                 cursor:
@@ -298,7 +306,7 @@ export function VipInviteSection({ event, showToast, compact = false }) {
                 textAlign: "center",
                 fontSize: counterFontSize,
                 fontWeight: 700,
-                color: "#fff",
+                color: colors.text,
               }}
             >
               {parseInt(maxPlusOnes || "0", 10) || 0}
@@ -315,8 +323,8 @@ export function VipInviteSection({ event, showToast, compact = false }) {
                 height: stepperBtnSize,
                 borderRadius: "10px",
                 border: "none",
-                background: "rgba(192,192,192,0.2)",
-                color: "#fff",
+                background: colors.surfaceMuted,
+                color: colors.text,
                 fontSize: stepperFontSize,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -339,13 +347,14 @@ export function VipInviteSection({ event, showToast, compact = false }) {
               gap: "6px",
               fontSize: compact ? "11px" : "12px",
               cursor: "pointer",
+              color: colors.textMuted,
             }}
           >
             <input
               type="checkbox"
               checked={freeEntry}
               onChange={(e) => setFreeEntry(e.target.checked)}
-              style={{ accentColor: "#e5e5e5" }}
+              style={{ accentColor: colors.accent }}
             />
             <span>Free entry (comp)</span>
           </label>
@@ -355,17 +364,18 @@ export function VipInviteSection({ event, showToast, compact = false }) {
           disabled={generating || !email.trim()}
           style={{
             padding: "8px 16px",
-            borderRadius: "8px",
+            borderRadius: "999px",
             border: "none",
             background:
               !email.trim() || generating
-                ? "rgba(255,255,255,0.08)"
-                : "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-            color: "#fff",
+                ? colors.surfaceMuted
+                : colors.accent,
+            color: !email.trim() || generating ? colors.textFaded : "#fff",
             fontSize: "13px",
             fontWeight: 600,
             cursor: !email.trim() || generating ? "not-allowed" : "pointer",
             whiteSpace: "nowrap",
+            transition: "all 0.15s ease",
           }}
         >
           {generating ? "Sending..." : "Send invite"}
@@ -381,13 +391,13 @@ export function VipInviteSection({ event, showToast, compact = false }) {
             gap: "8px",
             padding: compact ? "6px 8px" : "8px 12px",
             borderRadius: "10px",
-            background: "rgba(74, 222, 128, 0.08)",
-            border: "1px solid rgba(74, 222, 128, 0.2)",
+            background: colors.successRgba,
+            border: `1px solid rgba(22, 163, 74, 0.2)`,
             fontSize: compact ? "11px" : "12px",
           }}
         >
-          <Check size={14} style={{ color: "rgba(74, 222, 128, 0.8)", flexShrink: 0 }} />
-          <span style={{ opacity: 0.7, flexShrink: 0 }}>Copied!</span>
+          <Check size={14} style={{ color: colors.success, flexShrink: 0 }} />
+          <span style={{ color: colors.textMuted, flexShrink: 0 }}>Copied!</span>
           <span
             style={{
               flex: 1,
@@ -395,7 +405,7 @@ export function VipInviteSection({ event, showToast, compact = false }) {
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              opacity: 0.5,
+              color: colors.textSubtle,
               fontSize: compact ? "10px" : "11px",
             }}
           >
@@ -412,23 +422,23 @@ export function VipInviteSection({ event, showToast, compact = false }) {
             gap: compact ? "10px" : "16px",
             padding: compact ? "6px 8px" : "8px 12px",
             borderRadius: "10px",
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.05)",
+            background: colors.surface,
+            border: `1px solid ${colors.border}`,
             fontSize: compact ? "11px" : "12px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "4px", opacity: 0.6 }}>
-            <span style={{ fontWeight: 600 }}>{stats.totalSent}</span> sent
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", color: colors.textMuted }}>
+            <span style={{ fontWeight: 600, color: colors.text }}>{stats.totalSent}</span> sent
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            <Eye size={12} style={{ opacity: 0.5 }} />
-            <span style={{ fontWeight: 600 }}>{stats.openRate}%</span>
-            <span style={{ opacity: 0.4 }}>opened</span>
+            <Eye size={12} style={{ color: colors.textSubtle }} />
+            <span style={{ fontWeight: 600, color: colors.text }}>{stats.openRate}%</span>
+            <span style={{ color: colors.textFaded }}>opened</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            <MousePointerClick size={12} style={{ opacity: 0.5 }} />
-            <span style={{ fontWeight: 600 }}>{stats.clickRate}%</span>
-            <span style={{ opacity: 0.4 }}>clicked</span>
+            <MousePointerClick size={12} style={{ color: colors.textSubtle }} />
+            <span style={{ fontWeight: 600, color: colors.text }}>{stats.clickRate}%</span>
+            <span style={{ color: colors.textFaded }}>clicked</span>
           </div>
         </div>
       )}
@@ -442,7 +452,7 @@ export function VipInviteSection({ event, showToast, compact = false }) {
               fontWeight: 600,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              opacity: 0.4,
+              color: colors.textFaded,
               marginTop: compact ? "4px" : "6px",
             }}
           >
@@ -457,8 +467,8 @@ export function VipInviteSection({ event, showToast, compact = false }) {
                 gap: "8px",
                 padding: compact ? "5px 8px" : "6px 10px",
                 borderRadius: "8px",
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.05)",
+                background: colors.background,
+                border: `1px solid ${colors.border}`,
                 fontSize: compact ? "11px" : "12px",
               }}
             >
@@ -469,18 +479,18 @@ export function VipInviteSection({ event, showToast, compact = false }) {
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
-                  opacity: 0.8,
+                  color: colors.text,
                 }}
               >
                 {inv.email}
               </span>
               {/* Tracking indicators */}
               {inv.clicked ? (
-                <MousePointerClick size={12} style={{ color: "rgba(255,255,255,0.6)", flexShrink: 0 }} title="Clicked VIP link" />
+                <MousePointerClick size={12} style={{ color: colors.secondary, flexShrink: 0 }} title="Clicked VIP link" />
               ) : inv.opened ? (
-                <Eye size={12} style={{ color: "rgba(255,255,255,0.5)", flexShrink: 0 }} title="Opened email" />
+                <Eye size={12} style={{ color: colors.textSubtle, flexShrink: 0 }} title="Opened email" />
               ) : null}
-              <span style={{ opacity: 0.4, fontSize: compact ? "10px" : "11px", flexShrink: 0 }}>
+              <span style={{ color: colors.textFaded, fontSize: compact ? "10px" : "11px", flexShrink: 0 }}>
                 +{(inv.maxGuests || 1) - 1}
               </span>
               {inv.link && (
@@ -493,7 +503,7 @@ export function VipInviteSection({ event, showToast, compact = false }) {
                     padding: "2px",
                     display: "flex",
                     alignItems: "center",
-                    color: copiedId === inv.id ? "rgba(74, 222, 128, 0.8)" : "rgba(255,255,255,0.4)",
+                    color: copiedId === inv.id ? colors.success : colors.textFaded,
                     transition: "color 0.2s ease",
                   }}
                   title="Copy VIP link"
@@ -510,11 +520,11 @@ export function VipInviteSection({ event, showToast, compact = false }) {
                   padding: "2px",
                   display: "flex",
                   alignItems: "center",
-                  color: "rgba(255,255,255,0.3)",
+                  color: colors.textFaded,
                   transition: "color 0.2s ease",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(239, 68, 68, 0.8)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.3)"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = colors.danger; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = colors.textFaded; }}
                 title="Remove invite"
               >
                 <Trash2 size={13} />

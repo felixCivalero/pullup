@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import { Link2, ClipboardList } from "lucide-react";
 import { useToast } from "./Toast";
-import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { colors } from "../theme/colors.js";
 
 export function ShareActions({ url }) {
   const { showToast } = useToast();
@@ -51,6 +51,23 @@ export function ShareActions({ url }) {
     }
   };
 
+  const pillStyle = {
+    padding: isMobile ? "10px 14px" : "10px 20px",
+    borderRadius: "999px",
+    border: `1px solid ${colors.border}`,
+    background: "#ffffff",
+    color: colors.text,
+    fontWeight: 600,
+    fontSize: isMobile ? "13px" : "14px",
+    cursor: copying ? "wait" : "pointer",
+    transition: "all 0.2s ease",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    whiteSpace: "nowrap",
+    minWidth: isMobile ? "auto" : "fit-content",
+  };
+
   return (
     <div
       style={{
@@ -63,72 +80,42 @@ export function ShareActions({ url }) {
       <button
         onClick={handleShare}
         disabled={copying}
-        style={{
-          padding: isMobile ? "10px 14px" : "10px 20px",
-          borderRadius: "10px",
-          border: "1px solid rgba(192, 192, 192, 0.3)",
-          background: "rgba(192, 192, 192, 0.1)",
-          color: "#a78bfa",
-          fontWeight: 600,
-          fontSize: isMobile ? "13px" : "14px",
-          cursor: copying ? "wait" : "pointer",
-          transition: "all 0.2s ease",
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-          whiteSpace: "nowrap",
-          minWidth: isMobile ? "auto" : "fit-content",
-        }}
+        style={pillStyle}
         onMouseEnter={(e) => {
           if (!copying) {
-            e.target.style.background = "rgba(192, 192, 192, 0.2)";
-            e.target.style.borderColor = "rgba(192, 192, 192, 0.5)";
+            e.currentTarget.style.borderColor = colors.accentBorder;
+            e.currentTarget.style.color = colors.accent;
           }
         }}
         onMouseLeave={(e) => {
           if (!copying) {
-            e.target.style.background = "rgba(192, 192, 192, 0.1)";
-            e.target.style.borderColor = "rgba(192, 192, 192, 0.3)";
+            e.currentTarget.style.borderColor = colors.border;
+            e.currentTarget.style.color = colors.text;
           }
         }}
       >
-        <SilverIcon as={Link2} size={isMobile ? 16 : 18} />
+        <Link2 size={isMobile ? 16 : 18} strokeWidth={1.75} style={{ color: "inherit", flexShrink: 0 }} />
         {!isMobile && <span>Share</span>}
       </button>
 
       <button
         onClick={handleCopy}
         disabled={copying}
-        style={{
-          padding: isMobile ? "10px 14px" : "10px 20px",
-          borderRadius: "10px",
-          border: "1px solid rgba(255,255,255,0.2)",
-          background: "rgba(255,255,255,0.05)",
-          color: "#fff",
-          fontWeight: 600,
-          fontSize: isMobile ? "13px" : "14px",
-          cursor: copying ? "wait" : "pointer",
-          transition: "all 0.2s ease",
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-          whiteSpace: "nowrap",
-          minWidth: isMobile ? "auto" : "fit-content",
-        }}
+        style={pillStyle}
         onMouseEnter={(e) => {
           if (!copying) {
-            e.target.style.background = "rgba(255,255,255,0.1)";
-            e.target.style.borderColor = "rgba(255,255,255,0.3)";
+            e.currentTarget.style.borderColor = colors.accentBorder;
+            e.currentTarget.style.color = colors.accent;
           }
         }}
         onMouseLeave={(e) => {
           if (!copying) {
-            e.target.style.background = "rgba(255,255,255,0.05)";
-            e.target.style.borderColor = "rgba(255,255,255,0.2)";
+            e.currentTarget.style.borderColor = colors.border;
+            e.currentTarget.style.color = colors.text;
           }
         }}
       >
-        <SilverIcon as={ClipboardList} size={isMobile ? 16 : 18} />
+        <ClipboardList size={isMobile ? 16 : 18} strokeWidth={1.75} style={{ color: "inherit", flexShrink: 0 }} />
         {!isMobile && <span>{copying ? "Copying..." : "Copy link"}</span>}
       </button>
     </div>

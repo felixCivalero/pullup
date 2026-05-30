@@ -2,16 +2,15 @@ import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { colors } from "../theme/colors.js";
-import { ParticleField } from "../components/ParticleField";
 import { trackEvent } from "../lib/analytics.js";
 
 const inputStyle = {
   width: "100%",
   padding: "13px 14px",
   borderRadius: 12,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  color: "#fff",
+  background: "#fff",
+  border: `1px solid ${colors.borderStrong}`,
+  color: colors.text,
   fontSize: 15,
   outline: "none",
   boxSizing: "border-box",
@@ -66,32 +65,16 @@ export function ForgotPasswordPage() {
   return (
     <div
       style={{
-        position: "relative",
         minHeight: "100dvh",
         background: colors.background,
-        color: "#fff",
+        color: colors.text,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
       }}
     >
-      <ParticleField intensity={1} zIndex={0} />
-
       <div
         style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.7) 100%)",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      />
-
-      <div
-        style={{
-          position: "relative",
-          zIndex: 3,
           padding: "20px 24px",
           display: "flex",
           alignItems: "center",
@@ -101,40 +84,31 @@ export function ForgotPasswordPage() {
         <a
           href="/"
           style={{
-            color: "#fff",
+            color: colors.text,
             textDecoration: "none",
             fontWeight: 800,
             letterSpacing: "-0.02em",
             fontSize: 18,
           }}
         >
-          <span
-            style={{
-              background: colors.gradientGold,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            pullup
-          </span>
+          <span style={{ color: colors.accent }}>pullup</span>
         </a>
         <Link
           to="/login"
           style={{
             fontSize: 12,
-            color: "rgba(255,255,255,0.5)",
+            color: colors.textMuted,
             textDecoration: "none",
           }}
         >
-          Back to <span style={{ color: "#fff" }}>log in</span>
+          Back to{" "}
+          <span style={{ color: colors.text, fontWeight: 600 }}>log in</span>
         </Link>
       </div>
 
       <div
         style={{
           flex: 1,
-          position: "relative",
-          zIndex: 2,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -155,7 +129,7 @@ export function ForgotPasswordPage() {
                 fontSize: 11,
                 letterSpacing: "0.22em",
                 textTransform: "uppercase",
-                color: "rgba(255,255,255,0.38)",
+                color: colors.textSubtle,
                 marginBottom: 12,
               }}
             >
@@ -168,35 +142,18 @@ export function ForgotPasswordPage() {
                 fontWeight: 700,
                 margin: 0,
                 letterSpacing: "-0.02em",
+                color: colors.text,
               }}
             >
               {sent ? (
                 <>
                   Check your{" "}
-                  <span
-                    style={{
-                      background: colors.gradientGold,
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                    }}
-                  >
-                    inbox
-                  </span>
-                  .
+                  <span style={{ color: colors.accent }}>inbox</span>.
                 </>
               ) : (
                 <>
                   Let's get you{" "}
-                  <span
-                    style={{
-                      background: colors.gradientGold,
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                    }}
-                  >
-                    back in
-                  </span>
-                  .
+                  <span style={{ color: colors.accent }}>back in</span>.
                 </>
               )}
             </h1>
@@ -214,18 +171,19 @@ export function ForgotPasswordPage() {
                 style={{
                   fontSize: 14,
                   lineHeight: 1.6,
-                  color: "rgba(255,255,255,0.65)",
+                  color: colors.textMuted,
                   margin: 0,
                 }}
               >
-                If an account exists for <strong style={{ color: "#fff" }}>{email.trim().toLowerCase()}</strong>,
+                If an account exists for{" "}
+                <strong style={{ color: colors.text }}>{email.trim().toLowerCase()}</strong>,
                 we've sent a link to reset your password. The link expires in
                 an hour.
               </p>
               <p
                 style={{
                   fontSize: 12,
-                  color: "rgba(255,255,255,0.4)",
+                  color: colors.textSubtle,
                   margin: 0,
                 }}
               >
@@ -240,7 +198,7 @@ export function ForgotPasswordPage() {
                     background: "none",
                     border: "none",
                     padding: 0,
-                    color: "rgba(255,255,255,0.7)",
+                    color: colors.accent,
                     textDecoration: "underline",
                     cursor: "pointer",
                     fontSize: 12,
@@ -259,8 +217,8 @@ export function ForgotPasswordPage() {
                   padding: "14px 0",
                   borderRadius: 999,
                   border: "none",
-                  background: colors.gradientGold,
-                  color: "#111",
+                  background: colors.accent,
+                  color: "#fff",
                   fontSize: 14,
                   fontWeight: 700,
                   cursor: "pointer",
@@ -283,7 +241,7 @@ export function ForgotPasswordPage() {
                 style={{
                   fontSize: 14,
                   lineHeight: 1.6,
-                  color: "rgba(255,255,255,0.55)",
+                  color: colors.textMuted,
                   margin: "0 0 4px",
                 }}
               >
@@ -309,8 +267,8 @@ export function ForgotPasswordPage() {
                   padding: "14px 0",
                   borderRadius: 999,
                   border: "none",
-                  background: colors.gradientGold,
-                  color: "#111",
+                  background: colors.accent,
+                  color: "#fff",
                   fontSize: 14,
                   fontWeight: 700,
                   cursor: submitting ? "wait" : "pointer",
@@ -324,7 +282,7 @@ export function ForgotPasswordPage() {
                 <div
                   style={{
                     fontSize: 12,
-                    color: "rgba(255,119,119,0.95)",
+                    color: colors.danger,
                     textAlign: "center",
                   }}
                 >

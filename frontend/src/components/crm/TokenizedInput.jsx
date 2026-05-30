@@ -6,6 +6,7 @@
 
 import { useRef, useState } from "react";
 import { TOKENS, tokensToLabels, labelsToTokens, isAllowedUrl } from "../../lib/emailTokens";
+import { colors } from "../../theme/colors.js";
 
 export default function TokenizedInput({
   value,
@@ -177,7 +178,7 @@ function LinkDialog({ initialLabel, onCancel, onSubmit }) {
             autoFocus={Boolean(initialLabel)}
           />
         </label>
-        {error && <div style={{ color: "#fca5a5", fontSize: 12 }}>{error}</div>}
+        {error && <div style={{ color: colors.danger, fontSize: 12 }}>{error}</div>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
           <button type="button" onClick={onCancel} style={cancelBtn}>Cancel</button>
           <button type="submit" style={submitBtn}>Add link</button>
@@ -191,9 +192,9 @@ const inputStyle = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: "10px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(12,10,18,0.8)",
-  color: "#fff",
+  border: `1px solid ${colors.border}`,
+  background: "#fff",
+  color: colors.text,
   fontSize: "14px",
   boxSizing: "border-box",
 };
@@ -208,9 +209,9 @@ const pillRowStyle = {
 const pillStyle = {
   padding: "4px 10px",
   borderRadius: "999px",
-  border: "1px solid rgba(163,230,53,0.35)",
-  background: "rgba(163,230,53,0.1)",
-  color: "#a3e635",
+  border: `1px solid ${colors.secondaryBorder}`,
+  background: colors.secondarySoft,
+  color: colors.secondary,
   fontSize: "11px",
   fontWeight: 500,
   cursor: "pointer",
@@ -219,15 +220,15 @@ const pillStyle = {
 
 const linkPillStyle = {
   ...pillStyle,
-  border: "1px solid rgba(96,165,250,0.3)",
-  background: "rgba(96,165,250,0.08)",
-  color: "#60a5fa",
+  border: `1px solid ${colors.accentBorder}`,
+  background: colors.accentSoft,
+  color: colors.accent,
 };
 
 const overlayStyle = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.7)",
+  background: "rgba(10,10,10,0.5)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -240,12 +241,13 @@ const dialogStyle = {
   maxWidth: 380,
   padding: 18,
   borderRadius: 14,
-  background: "rgba(20,16,30,0.97)",
-  border: "1px solid rgba(255,255,255,0.12)",
+  background: "#fff",
+  border: `1px solid ${colors.border}`,
+  boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
   display: "flex",
   flexDirection: "column",
   gap: 10,
-  color: "#fff",
+  color: colors.text,
 };
 
 const dialogLabel = {
@@ -253,7 +255,7 @@ const dialogLabel = {
   flexDirection: "column",
   gap: 4,
   fontSize: 11,
-  opacity: 0.7,
+  color: colors.textSubtle,
   textTransform: "uppercase",
   letterSpacing: "0.04em",
 };
@@ -262,15 +264,14 @@ const dialogInput = {
   ...inputStyle,
   textTransform: "none",
   letterSpacing: "normal",
-  opacity: 1,
 };
 
 const cancelBtn = {
   padding: "8px 14px",
   borderRadius: 8,
-  border: "1px solid rgba(255,255,255,0.15)",
+  border: `1px solid ${colors.borderStrong}`,
   background: "transparent",
-  color: "#fff",
+  color: colors.text,
   fontSize: 13,
   cursor: "pointer",
 };
@@ -279,8 +280,8 @@ const submitBtn = {
   padding: "8px 14px",
   borderRadius: 8,
   border: "none",
-  background: "linear-gradient(135deg, rgba(96,165,250,0.4), rgba(96,165,250,0.2))",
-  color: "#bfdbfe",
+  background: colors.accent,
+  color: "#fff",
   fontSize: 13,
   fontWeight: 600,
   cursor: "pointer",

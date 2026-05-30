@@ -4,10 +4,10 @@ import { colors } from "../theme/colors.js";
 import { Lightbulb, Eye, CheckCircle, Archive, ExternalLink, User } from "lucide-react";
 
 const STATUS_COLORS = {
-  new: { bg: "rgba(59,130,246,0.15)", text: "#60a5fa", border: "rgba(59,130,246,0.3)" },
-  read: { bg: "rgba(192,192,192,0.12)", text: "#c0c0c0", border: "rgba(192,192,192,0.25)" },
-  done: { bg: "rgba(34,197,94,0.15)", text: "#4ade80", border: "rgba(34,197,94,0.3)" },
-  archived: { bg: "rgba(107,114,128,0.12)", text: "#9ca3af", border: "rgba(107,114,128,0.25)" },
+  new: { bg: "rgba(59,130,246,0.10)", text: "#2563eb", border: "rgba(59,130,246,0.25)" },
+  read: { bg: "rgba(10,10,10,0.06)", text: "rgba(10,10,10,0.55)", border: "rgba(10,10,10,0.14)" },
+  done: { bg: "rgba(22,163,74,0.10)", text: "#16a34a", border: "rgba(22,163,74,0.25)" },
+  archived: { bg: "rgba(107,114,128,0.10)", text: "#6b7280", border: "rgba(107,114,128,0.20)" },
 };
 
 function timeAgo(dateStr) {
@@ -118,7 +118,7 @@ export function IdeasPage() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, paddingTop: 56 }}>
         <Lightbulb size={22} color={colors.gold} />
-        <h1 style={{ fontSize: 20, fontWeight: 600, color: "#fff", margin: 0 }}>Ideas</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 600, color: colors.text, margin: 0 }}>Ideas</h1>
       </div>
 
       {/* Filter tabs */}
@@ -132,9 +132,9 @@ export function IdeasPage() {
               style={{
                 padding: "6px 14px",
                 borderRadius: 999,
-                border: active ? "1px solid rgba(255,255,255,0.15)" : "1px solid transparent",
-                background: active ? "rgba(255,255,255,0.1)" : "transparent",
-                color: active ? "#fff" : "rgba(255,255,255,0.45)",
+                border: active ? `1px solid rgba(180,83,9,0.25)` : `1px solid ${colors.border}`,
+                background: active ? "rgba(180,83,9,0.08)" : "transparent",
+                color: active ? colors.gold : colors.textMuted,
                 fontSize: 13,
                 fontWeight: active ? 600 : 400,
                 textTransform: "capitalize",
@@ -151,8 +151,8 @@ export function IdeasPage() {
                   style={{
                     fontSize: 11,
                     fontWeight: 700,
-                    background: "rgba(59,130,246,0.2)",
-                    color: "#60a5fa",
+                    background: "rgba(59,130,246,0.10)",
+                    color: "#2563eb",
                     padding: "1px 7px",
                     borderRadius: 999,
                   }}
@@ -167,11 +167,11 @@ export function IdeasPage() {
 
       {/* Content */}
       {loading ? (
-        <div style={{ textAlign: "center", color: "rgba(255,255,255,0.4)", padding: 40 }}>
+        <div style={{ textAlign: "center", color: colors.textSubtle, padding: 40 }}>
           Loading...
         </div>
       ) : ideas.length === 0 ? (
-        <div style={{ textAlign: "center", color: "rgba(255,255,255,0.4)", padding: 40 }}>
+        <div style={{ textAlign: "center", color: colors.textSubtle, padding: 40 }}>
           No ideas yet.
         </div>
       ) : (
@@ -189,12 +189,13 @@ export function IdeasPage() {
                 style={{
                   padding: 16,
                   borderRadius: 12,
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.07)",
+                  background: "#fff",
+                  border: `1px solid ${colors.border}`,
+                  boxShadow: "0 2px 8px rgba(10,10,10,0.04)",
                 }}
               >
                 {/* Body */}
-                <div style={{ fontSize: 14, color: "#fff", whiteSpace: "pre-wrap", marginBottom: 12 }}>
+                <div style={{ fontSize: 14, color: colors.text, whiteSpace: "pre-wrap", marginBottom: 12 }}>
                   {idea.body || idea.text || idea.content}
                 </div>
 
@@ -206,7 +207,7 @@ export function IdeasPage() {
                     gap: 10,
                     flexWrap: "wrap",
                     fontSize: 12,
-                    color: "rgba(255,255,255,0.35)",
+                    color: colors.textFaded,
                   }}
                 >
                   <StatusBadge status={status} />
@@ -224,7 +225,7 @@ export function IdeasPage() {
                         display: "flex",
                         alignItems: "center",
                         gap: 4,
-                        color: "rgba(255,255,255,0.35)",
+                        color: colors.textFaded,
                         textDecoration: "none",
                       }}
                     >
@@ -254,21 +255,21 @@ export function IdeasPage() {
                           gap: 4,
                           padding: "4px 10px",
                           borderRadius: 999,
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          background: "rgba(255,255,255,0.04)",
-                          color: "rgba(255,255,255,0.5)",
+                          border: `1px solid ${colors.border}`,
+                          background: colors.surfaceMuted,
+                          color: colors.textMuted,
                           fontSize: 11,
                           fontWeight: 500,
                           cursor: "pointer",
                           transition: "all 0.15s ease",
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-                          e.currentTarget.style.color = "rgba(255,255,255,0.8)";
+                          e.currentTarget.style.background = "rgba(10,10,10,0.06)";
+                          e.currentTarget.style.color = colors.text;
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                          e.currentTarget.style.color = "rgba(255,255,255,0.5)";
+                          e.currentTarget.style.background = colors.surfaceMuted;
+                          e.currentTarget.style.color = colors.textMuted;
                         }}
                       >
                         <a.icon size={12} />

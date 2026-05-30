@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { API_BASE } from "../lib/env.js";
+import { colors } from "../theme/colors.js";
 
 export function UnsubscribePage() {
   const { token } = useParams();
@@ -55,7 +56,7 @@ export function UnsubscribePage() {
   return (
     <div style={pageStyle}>
       <div style={cardStyle}>
-        {loading && <div style={{ opacity: 0.6 }}>Loading…</div>}
+        {loading && <div style={{ color: colors.textMuted }}>Loading…</div>}
 
         {!loading && error && (
           <div>
@@ -95,7 +96,7 @@ export function UnsubscribePage() {
                 {saving ? "Saving…" : "Unsubscribe"}
               </button>
             )}
-            <p style={{ ...bodyStyle, fontSize: 12, opacity: 0.5, marginTop: 24 }}>
+            <p style={{ ...bodyStyle, fontSize: 12, color: colors.textSubtle, marginTop: 24 }}>
               Your event history and RSVPs are not affected.
             </p>
           </div>
@@ -111,9 +112,8 @@ const pageStyle = {
   alignItems: "center",
   justifyContent: "center",
   padding: 20,
-  background:
-    "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.06) 0%, transparent 50%), #05040a",
-  color: "#fff",
+  background: colors.background,
+  color: colors.text,
 };
 
 const cardStyle = {
@@ -121,28 +121,29 @@ const cardStyle = {
   maxWidth: 480,
   padding: 32,
   borderRadius: 16,
-  background: "rgba(12, 10, 18, 0.7)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  backdropFilter: "blur(10px)",
+  background: "#ffffff",
+  border: `1px solid ${colors.border}`,
+  boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
 };
 
 const titleStyle = {
   fontSize: 22,
   fontWeight: 600,
   margin: "0 0 12px",
+  color: colors.text,
 };
 
 const bodyStyle = {
   fontSize: 14,
   lineHeight: 1.6,
-  opacity: 0.8,
+  color: colors.textMuted,
   margin: "0 0 20px",
 };
 
 const buttonBase = {
   display: "inline-block",
   padding: "10px 20px",
-  borderRadius: 10,
+  borderRadius: 999,
   border: "none",
   fontSize: 14,
   fontWeight: 600,
@@ -152,14 +153,14 @@ const buttonBase = {
 
 const unsubBtn = {
   ...buttonBase,
-  background: "linear-gradient(135deg, rgba(248,113,113,0.3), rgba(248,113,113,0.15))",
-  color: "#fca5a5",
-  boxShadow: "0 0 0 1px rgba(248,113,113,0.3), 0 4px 12px rgba(0,0,0,0.3)",
+  background: colors.dangerRgba,
+  color: colors.danger,
+  boxShadow: `0 0 0 1px rgba(220,38,38,0.18), 0 4px 12px rgba(10,10,10,0.06)`,
 };
 
 const resubBtn = {
   ...buttonBase,
-  background: "linear-gradient(135deg, rgba(34,197,94,0.3), rgba(34,197,94,0.15))",
-  color: "#4ade80",
-  boxShadow: "0 0 0 1px rgba(34,197,94,0.3), 0 4px 12px rgba(0,0,0,0.3)",
+  background: colors.successRgba,
+  color: colors.success,
+  boxShadow: `0 0 0 1px rgba(22,163,74,0.18), 0 4px 12px rgba(10,10,10,0.06)`,
 };

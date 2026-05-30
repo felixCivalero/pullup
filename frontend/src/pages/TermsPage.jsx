@@ -1,15 +1,16 @@
 import { colors } from "../theme/colors.js";
 
 const s = {
-  page: { minHeight: "100vh", background: colors.background, color: "#fff", padding: "80px clamp(16px, 5vw, 40px) 60px" },
-  wrap: { maxWidth: 720, margin: "0 auto", lineHeight: 1.7 },
-  h1: { fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 800, marginBottom: 8 },
-  updated: { fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 40 },
-  h2: { fontSize: 20, fontWeight: 700, marginTop: 40, marginBottom: 12 },
-  p: { fontSize: 14, color: "rgba(255,255,255,0.7)", marginBottom: 14 },
-  ul: { fontSize: 14, color: "rgba(255,255,255,0.7)", paddingLeft: 24, marginBottom: 14 },
+  page: { minHeight: "100vh", background: colors.background, color: colors.text, padding: "80px clamp(16px, 5vw, 40px) 60px" },
+  wrap: { maxWidth: 720, margin: "0 auto", lineHeight: 1.8 },
+  h1: { fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 800, marginBottom: 8, color: colors.text },
+  updated: { fontSize: 13, color: colors.textSubtle, marginBottom: 40 },
+  h2: { fontSize: 20, fontWeight: 700, marginTop: 40, marginBottom: 12, color: colors.text },
+  p: { fontSize: 14, color: colors.textMuted, marginBottom: 14 },
+  ul: { fontSize: 14, color: colors.textMuted, paddingLeft: 24, marginBottom: 14 },
   li: { marginBottom: 6 },
-  back: { display: "inline-block", marginBottom: 24, fontSize: 13, color: "rgba(255,255,255,0.5)", textDecoration: "none" },
+  back: { display: "inline-block", marginBottom: 24, fontSize: 13, color: colors.textSubtle, textDecoration: "none" },
+  link: { color: colors.accent },
 };
 
 export function TermsPage() {
@@ -76,7 +77,7 @@ export function TermsPage() {
           PullUp's own newsletter and platform updates are only sent to people who explicitly opt in to them. You can withdraw that consent at any time via the unsubscribe link in any email. We never sell your details or share a host's contacts with other hosts for their marketing.
         </p>
         <p style={s.p}>
-          We track email opens and link clicks to improve communications. Details about email tracking are described in our <a href="/privacy" style={{ color: "rgba(255,255,255,0.85)" }}>privacy policy</a>.
+          We track email opens and link clicks to improve communications. Details about email tracking are described in our <a href="/privacy" style={s.link}>privacy policy</a>.
         </p>
         <p style={s.p}>
           As a host, when you send emails through PullUp's email tools, you must comply with anti-spam laws (GDPR, CAN-SPAM). You may only email guests who have a legitimate relationship with your events, and you must honour every unsubscribe.

@@ -24,6 +24,8 @@ import { getEventUrl } from "../lib/urlUtils.js";
 import { colors } from "../theme/colors.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { SegmentedControl, FilterGroup } from "./crm/SegmentControls.jsx";
+import { NativeLaneActions } from "./NativeLaneActions.jsx";
+import { FaWhatsapp } from "react-icons/fa6";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -142,7 +144,7 @@ function EditableContact({ person, onSave }) {
           >
             <span
               style={{
-                opacity: 0.55,
+                color: colors.textSubtle,
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
                 fontSize: "10px",
@@ -154,7 +156,7 @@ function EditableContact({ person, onSave }) {
               {f.label}
               {isSaving && <span style={{ opacity: 0.6 }}>· saving…</span>}
               {isSaved && (
-                <span style={{ color: "#a3e635", opacity: 0.9 }}>· saved</span>
+                <span style={{ color: colors.success }}>· saved</span>
               )}
             </span>
             <input
@@ -174,10 +176,10 @@ function EditableContact({ person, onSave }) {
               }}
               style={{
                 padding: "6px 8px",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: colors.surface,
+                border: `1px solid ${colors.border}`,
                 borderRadius: "6px",
-                color: "#fff",
+                color: colors.text,
                 fontSize: "13px",
                 outline: "none",
               }}
@@ -292,10 +294,10 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
 
   const inputStyle = {
     padding: "6px 8px",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.08)",
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
     borderRadius: "6px",
-    color: "#fff",
+    color: colors.text,
     fontSize: "13px",
     outline: "none",
   };
@@ -309,7 +311,7 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
           fontSize: "11px",
           textTransform: "uppercase",
           letterSpacing: "0.12em",
-          opacity: 0.55,
+          color: colors.textSubtle,
           marginBottom: "8px",
         }}
       >
@@ -323,8 +325,8 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
           flexDirection: "column",
           gap: "8px",
           padding: "10px",
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.07)",
+          background: colors.surface,
+          border: `1px solid ${colors.border}`,
           borderRadius: "8px",
           marginBottom: list.length > 0 ? "12px" : "4px",
         }}
@@ -344,12 +346,12 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
             type="date"
             value={noteDate}
             onChange={(e) => setNoteDate(e.target.value)}
-            style={{ ...inputStyle, colorScheme: "dark", flex: "0 0 auto" }}
+            style={{ ...inputStyle, flex: "0 0 auto" }}
           />
           <select
             value={eventId}
             onChange={(e) => onPickEvent(e.target.value)}
-            style={{ ...inputStyle, flex: "1 1 160px", colorScheme: "dark", cursor: "pointer" }}
+            style={{ ...inputStyle, flex: "1 1 160px", cursor: "pointer" }}
           >
             <option value="">No event</option>
             {(eventOptions || []).map((e) => (
@@ -367,8 +369,8 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
               alignItems: "center",
               gap: "6px",
               padding: "6px 12px",
-              background: content.trim() && !saving ? colors.gold : "rgba(255,255,255,0.06)",
-              color: content.trim() && !saving ? "#000" : "rgba(255,255,255,0.5)",
+              background: content.trim() && !saving ? colors.accent : colors.surfaceMuted,
+              color: content.trim() && !saving ? "#fff" : colors.textSubtle,
               border: "none",
               borderRadius: "6px",
               fontSize: "13px",
@@ -404,7 +406,8 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
                 key={n.id}
                 style={{
                   padding: "10px 12px",
-                  background: "rgba(12, 10, 18, 0.4)",
+                  background: colors.surface,
+                  border: `1px solid ${colors.borderFaint}`,
                   borderRadius: "8px",
                   fontSize: "13px",
                   opacity: isBusy ? 0.5 : 1,
@@ -427,14 +430,14 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
                         onChange={(e) =>
                           setEditDraft((d) => ({ ...d, noteDate: e.target.value }))
                         }
-                        style={{ ...inputStyle, colorScheme: "dark" }}
+                        style={{ ...inputStyle }}
                       />
                       <select
                         value={editDraft.eventId}
                         onChange={(e) =>
                           setEditDraft((d) => ({ ...d, eventId: e.target.value }))
                         }
-                        style={{ ...inputStyle, flex: "1 1 140px", colorScheme: "dark", cursor: "pointer" }}
+                        style={{ ...inputStyle, flex: "1 1 140px", cursor: "pointer" }}
                       >
                         <option value="">No event</option>
                         {(eventOptions || []).map((e) => (
@@ -449,8 +452,8 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
                         disabled={!editDraft.content.trim()}
                         style={{
                           padding: "6px 10px",
-                          background: colors.gold,
-                          color: "#000",
+                          background: colors.accent,
+                          color: "#fff",
                           border: "none",
                           borderRadius: "6px",
                           fontSize: "12px",
@@ -467,7 +470,7 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
                         style={{
                           padding: "6px",
                           background: "transparent",
-                          color: "rgba(255,255,255,0.6)",
+                          color: colors.textMuted,
                           border: "none",
                           cursor: "pointer",
                           display: "inline-flex",
@@ -512,7 +515,7 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
                         style={{
                           padding: "4px",
                           background: "transparent",
-                          color: "rgba(255,255,255,0.45)",
+                          color: colors.textSubtle,
                           border: "none",
                           cursor: "pointer",
                           display: "inline-flex",
@@ -528,7 +531,7 @@ function PersonNotes({ notes, loading, eventOptions, onAdd, onEdit, onDelete }) 
                         style={{
                           padding: "4px",
                           background: "transparent",
-                          color: "rgba(255,255,255,0.45)",
+                          color: colors.textSubtle,
                           border: "none",
                           cursor: "pointer",
                           display: "inline-flex",
@@ -564,13 +567,13 @@ function ContactStrip({ person, compact = false }) {
         fontSize: compact ? "12px" : "13px",
         marginTop: compact ? "4px" : 0,
         marginBottom: compact ? "4px" : 0,
-        color: "rgba(255,255,255,0.78)",
+        color: colors.textMuted,
         lineHeight: 1.4,
       }}
     >
       {items.map((it, i) => (
         <span key={i} style={{ display: "inline-flex", gap: "5px" }}>
-          <span style={{ opacity: 0.45 }}>{it.label}</span>
+          <span style={{ color: colors.textSubtle }}>{it.label}</span>
           <span style={{ wordBreak: "break-word" }}>{it.value}</span>
         </span>
       ))}
@@ -1166,12 +1169,10 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
           style={{
             marginTop: "8px",
             padding: "18px 20px 16px",
-            background:
-              "linear-gradient(180deg, rgba(20, 16, 30, 0.78), rgba(20, 16, 30, 0.62))",
+            background: colors.surface,
             borderRadius: "18px",
-            border: "1px solid rgba(34, 197, 94, 0.28)",
-            boxShadow:
-              "0 0 0 1px rgba(34,197,94,0.10), 0 14px 40px rgba(0,0,0,0.55)",
+            border: `1px solid ${colors.secondaryBorder}`,
+            boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
             display: "flex",
             flexDirection: "column",
             gap: "18px",
@@ -1192,7 +1193,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                 style={{
                   fontSize: "14px",
                   fontWeight: 600,
-                  color: "#fff",
+                  color: colors.text,
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
@@ -1202,16 +1203,15 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                   width: "8px",
                   height: "8px",
                   borderRadius: "50%",
-                  background: "#22c55e",
+                  background: colors.success,
                   display: "inline-block",
-                  boxShadow: "0 0 6px rgba(34,197,94,0.5)",
                 }} />
                 email audience
               </div>
               <div
                 style={{
                   fontSize: "12px",
-                  opacity: 0.45,
+                  color: colors.textSubtle,
                   paddingLeft: "16px",
                 }}
               >
@@ -1224,8 +1224,8 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
-                  background: "rgba(34, 197, 94, 0.10)",
-                  border: "1px solid rgba(34, 197, 94, 0.28)",
+                  background: colors.successRgba,
+                  border: `1px solid rgba(22,163,74,0.25)`,
                   borderRadius: "999px",
                   padding: "5px 14px",
                   transition: "opacity 0.15s ease",
@@ -1251,7 +1251,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                             "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
                           fontSize: "17px",
                           fontWeight: 600,
-                          color: "#4ade80",
+                          color: colors.success,
                           transition: "color 0.15s ease",
                         }}
                       >
@@ -1280,7 +1280,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                   <Loader2
                     size={11}
                     style={{
-                      color: "rgba(74,222,128,0.7)",
+                      color: colors.success,
                       animation: "crm-spin 0.9s linear infinite",
                     }}
                   />
@@ -1290,7 +1290,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
           </div>
 
           {/* Divider */}
-          <div style={{ height: "1px", background: "rgba(255,255,255,0.06)" }} />
+          <div style={{ height: "1px", background: colors.border }} />
 
           {(() => {
             const eventActive = (filters.attendedEventIds || []).length > 0;
@@ -1322,11 +1322,11 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                         fontFamily:
                           "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
                         fontSize: 10.5,
-                        color: "#fff",
+                        color: colors.text,
                         padding: "2px 8px",
                         borderRadius: 999,
-                        background: "rgba(255,255,255,0.06)",
-                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: colors.surfaceMuted,
+                        border: `1px solid ${colors.border}`,
                       }}
                     >
                       {activeCount} active
@@ -1337,7 +1337,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                       style={{
                         background: "none",
                         border: "none",
-                        color: "rgba(255,255,255,0.5)",
+                        color: colors.textMuted,
                         fontSize: 10.5,
                         letterSpacing: "0.06em",
                         textTransform: "lowercase",
@@ -1352,7 +1352,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                   </div>
                 )}
 
-                <FilterGroup label="filter by event" active={eventActive} accent="#60a5fa">
+                <FilterGroup label="filter by event" active={eventActive} accent={colors.secondary}>
                   <div style={{ position: "relative" }}>
                     <button
                       type="button"
@@ -1362,12 +1362,12 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                         padding: "9px 14px",
                         borderRadius: 10,
                         border: eventActive
-                          ? "1px solid rgba(96,165,250,0.4)"
-                          : "1px solid rgba(255,255,255,0.08)",
+                          ? `1px solid ${colors.secondaryBorder}`
+                          : `1px solid ${colors.border}`,
                         background: eventActive
-                          ? "rgba(96,165,250,0.06)"
-                          : "rgba(255,255,255,0.03)",
-                        color: "#fff",
+                          ? colors.secondarySoft
+                          : colors.background,
+                        color: colors.text,
                         fontSize: "12.5px",
                         display: "flex",
                         alignItems: "center",
@@ -1403,13 +1403,13 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                           left: 0,
                           right: 0,
                           zIndex: 10,
-                          background: "rgba(12, 10, 18, 0.98)",
+                          background: colors.background,
                           borderRadius: 10,
-                          border: "1px solid rgba(255,255,255,0.1)",
+                          border: `1px solid ${colors.border}`,
                           padding: 8,
                           maxHeight: 240,
                           overflowY: "auto",
-                          boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
+                          boxShadow: "0 16px 40px rgba(10,10,10,0.12)",
                         }}
                       >
                         {events.map((event) => {
@@ -1444,7 +1444,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                                 }}
                                 style={{ margin: 0 }}
                               />
-                              <span style={{ opacity: 0.9, flex: 1, minWidth: 0 }}>{event.title}</span>
+                              <span style={{ color: colors.text, flex: 1, minWidth: 0 }}>{event.title}</span>
                             </label>
                           );
                         })}
@@ -1461,8 +1461,8 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                               padding: "6px 10px",
                               borderRadius: 6,
                               border: "none",
-                              background: "rgba(255,255,255,0.06)",
-                              color: "rgba(255,255,255,0.7)",
+                              background: colors.surfaceMuted,
+                              color: colors.textMuted,
                               fontSize: 11.5,
                               letterSpacing: "0.04em",
                               textTransform: "lowercase",
@@ -1477,14 +1477,14 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                   </div>
                 </FilterGroup>
 
-                <FilterGroup label="only dinner guests" active={dinnerActive} accent="#4ade80">
+                <FilterGroup label="only dinner guests" active={dinnerActive} accent={colors.secondary}>
                   <SegmentedControl
                     value={dinnerActive ? "yes" : "no"}
                     options={[
                       { key: "no", label: "no" },
                       { key: "yes", label: "yes" },
                     ]}
-                    accent="#4ade80"
+                    accent={colors.secondary}
                     onChange={(v) => {
                       setFilters((prev) => ({
                         ...prev,
@@ -1512,7 +1512,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
             <span
               style={{
                 fontSize: "12px",
-                opacity: 0.7,
+                color: colors.textMuted,
                 marginRight: "8px",
               }}
             >
@@ -1525,15 +1525,13 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                 style={{
                   padding: "6px 12px",
                   borderRadius: "6px",
-                  border:
-                    activeView?.id === view.id
-                      ? `1px solid ${colors.silverRgba}`
-                      : "1px solid rgba(255,255,255,0.1)",
-                  background:
-                    activeView?.id === view.id
-                      ? colors.silverRgbaHover
-                      : "rgba(20, 16, 30, 0.4)",
-                  color: "#fff",
+                  border: activeView?.id === view.id
+                    ? `1px solid ${colors.accentBorder}`
+                    : `1px solid ${colors.border}`,
+                  background: activeView?.id === view.id
+                    ? colors.accentSoft
+                    : colors.surface,
+                  color: activeView?.id === view.id ? colors.accent : colors.text,
                   fontSize: "12px",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
@@ -1547,9 +1545,9 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
               style={{
                 padding: "6px 12px",
                 borderRadius: "6px",
-                border: `1px solid ${colors.silverRgba}`,
-                background: colors.silverRgbaHover,
-                color: colors.silverText,
+                border: `1px solid ${colors.border}`,
+                background: colors.surface,
+                color: colors.text,
                 fontSize: "12px",
                 cursor: "pointer",
               }}
@@ -1569,7 +1567,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
             left: 0,
             right: 0,
             bottom: 0,
-            background: "rgba(0,0,0,0.8)",
+            background: "rgba(10,10,10,0.55)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1580,12 +1578,13 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
         >
           <div
             style={{
-              background: "rgba(12, 10, 18, 0.95)",
+              background: colors.background,
               borderRadius: "16px",
               padding: "24px",
               maxWidth: "500px",
               width: "100%",
-              border: "1px solid rgba(255,255,255,0.1)",
+              border: `1px solid ${colors.border}`,
+              boxShadow: "0 20px 60px rgba(10,10,10,0.15)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1594,6 +1593,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                 fontSize: "20px",
                 fontWeight: 600,
                 marginBottom: "16px",
+                color: colors.text,
               }}
             >
               Import CSV
@@ -1601,7 +1601,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
             <p
               style={{
                 fontSize: "14px",
-                opacity: 0.7,
+                color: colors.textMuted,
                 marginBottom: "20px",
               }}
             >
@@ -1618,9 +1618,9 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                 width: "100%",
                 padding: "12px",
                 borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(20, 16, 30, 0.6)",
-                color: "#fff",
+                border: `1px solid ${colors.border}`,
+                background: colors.surface,
+                color: colors.text,
                 marginBottom: "16px",
                 cursor: "pointer",
               }}
@@ -1631,7 +1631,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                 style={{
                   display: "block",
                   fontSize: "12px",
-                  opacity: 0.7,
+                  color: colors.textMuted,
                   marginBottom: "6px",
                   fontWeight: 500,
                 }}
@@ -1648,19 +1648,17 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                   width: "100%",
                   padding: "12px",
                   borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
+                  border: `1px solid ${colors.border}`,
+                  background: colors.surface,
+                  color: colors.text,
                   fontSize: "14px",
                   outline: "none",
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = colors.silverRgbaStrong;
-                  e.target.style.background = "rgba(20, 16, 30, 0.8)";
+                  e.target.style.borderColor = colors.borderStrong;
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = "rgba(255,255,255,0.1)";
-                  e.target.style.background = "rgba(20, 16, 30, 0.6)";
+                  e.target.style.borderColor = colors.border;
                 }}
               />
               <p
@@ -1692,10 +1690,10 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                 disabled={importing}
                 style={{
                   padding: "10px 20px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(20, 16, 30, 0.6)",
-                  color: "#fff",
+                  borderRadius: "999px",
+                  border: `1px solid ${colors.borderStrong}`,
+                  background: colors.background,
+                  color: colors.text,
                   fontSize: "14px",
                   cursor: importing ? "not-allowed" : "pointer",
                   opacity: importing ? 0.5 : 1,
@@ -1708,13 +1706,10 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                 disabled={!importFile || importing}
                 style={{
                   padding: "10px 20px",
-                  borderRadius: "8px",
+                  borderRadius: "999px",
                   border: "none",
-                  background:
-                    !importFile || importing
-                      ? colors.silverRgba
-                      : colors.gradientPrimary,
-                  color: "#fff",
+                  background: !importFile || importing ? colors.surfaceMuted : colors.accent,
+                  color: !importFile || importing ? colors.textSubtle : "#fff",
                   fontSize: "14px",
                   fontWeight: 600,
                   cursor: !importFile || importing ? "not-allowed" : "pointer",
@@ -1750,9 +1745,9 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
           style={{
             padding: "8px 16px",
             borderRadius: "999px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(20, 16, 30, 0.6)",
-            color: "#fff",
+            border: `1px solid ${colors.border}`,
+            background: colors.surface,
+            color: colors.text,
             fontSize: "14px",
             outline: "none",
             flex: "1 1 auto",
@@ -1761,12 +1756,10 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
             transition: "all 0.2s ease",
           }}
           onFocus={(e) => {
-            e.target.style.borderColor = colors.silverRgbaStrong;
-            e.target.style.background = "rgba(20, 16, 30, 0.8)";
+            e.target.style.borderColor = colors.borderStrong;
           }}
           onBlur={(e) => {
-            e.target.style.borderColor = "rgba(255,255,255,0.1)";
-            e.target.style.background = "rgba(20, 16, 30, 0.6)";
+            e.target.style.borderColor = colors.border;
           }}
         />
 
@@ -1774,9 +1767,9 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
           style={{
             padding: "8px",
             borderRadius: "999px",
-            border: `1px solid ${colors.silverRgba}`,
-            background: colors.silverRgbaHover,
-            color: colors.silverText,
+            border: `1px solid ${colors.border}`,
+            background: colors.surface,
+            color: colors.text,
             cursor: "default",
             transition: "all 0.2s ease",
             display: "flex",
@@ -1870,10 +1863,10 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
           className="export-csv-button"
           style={{
             padding: "8px 16px",
-            borderRadius: "8px",
-            border: `1px solid ${colors.silverRgba}`,
-            background: colors.silverRgbaHover,
-            color: colors.silverText,
+            borderRadius: "999px",
+            border: `1px solid ${colors.border}`,
+            background: colors.surface,
+            color: colors.text,
             fontSize: "14px",
             fontWeight: 500,
             cursor: "pointer",
@@ -1941,23 +1934,23 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                   key={person.id}
                   style={{
                     padding: "18px 20px",
-                    background: "rgba(20, 16, 30, 0.6)",
+                    background: colors.background,
                     borderRadius: "16px",
-                    border: "1px solid rgba(255,255,255,0.05)",
+                    border: `1px solid ${colors.border}`,
+                    boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
                     transition: "all 0.3s ease",
                     cursor: "pointer",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.borderColor = colors.silverRgba;
+                    e.currentTarget.style.borderColor = colors.borderStrong;
                     e.currentTarget.style.boxShadow =
-                      "0 10px 30px rgba(0,0,0,0.3)";
+                      "0 12px 36px rgba(10,10,10,0.10)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.borderColor =
-                      "rgba(255,255,255,0.05)";
-                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.borderColor = colors.border;
+                    e.currentTarget.style.boxShadow = "0 8px 30px rgba(10,10,10,0.06)";
                   }}
                   onClick={() => {
                     setExpandedPersonId((prev) =>
@@ -1985,7 +1978,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                           fontSize: "16px",
                           fontWeight: 600,
                           marginBottom: "4px",
-                          color: "#fff",
+                          color: colors.text,
                         }}
                       >
                         {person.name || "Unnamed contact"}
@@ -1993,14 +1986,39 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                       <div
                         style={{
                           fontSize: "14px",
-                          opacity: 0.7,
+                          color: colors.textMuted,
                           marginBottom: "4px",
                           wordBreak: "break-word",
+                          display: "flex",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          gap: "8px",
                         }}
                       >
-                        {person.email}
+                        <span>{person.email}</span>
+                        {person.phone_verified_at && (
+                          <span
+                            title="Phone verified — reachable via WhatsApp"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              padding: "2px 8px",
+                              borderRadius: 999,
+                              background: colors.successRgba,
+                              color: colors.success,
+                              fontSize: "10.5px",
+                              fontWeight: 600,
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            <FaWhatsapp size={11} />
+                            <span>Verified</span>
+                          </span>
+                        )}
                       </div>
                       <ContactStrip person={person} compact />
+                      <NativeLaneActions person={person} compact />
                       <div
                         style={{
                           display: "flex",
@@ -2008,6 +2026,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                           gap: "6px",
                           fontSize: "11px",
                           opacity: 0.65,
+                          marginTop: "4px",
                         }}
                       >
                         <SilverIcon as={Clock} size={12} />
@@ -2034,29 +2053,21 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                             width: 56,
                             height: 56,
                             borderRadius: "999px",
-                            border: "1px solid rgba(255, 215, 0, 0.35)",
-                            background:
-                              "radial-gradient(circle at 30% 0%, rgba(255,255,255,0.12), rgba(12,10,18,0.95))",
-                            boxShadow:
-                              "0 0 0 1px rgba(0,0,0,0.6), 0 10px 25px rgba(0,0,0,0.75)",
+                            border: `1px solid ${colors.accentBorder}`,
+                            background: colors.accentSoft,
+                            boxShadow: colors.accentShadow,
                             display: "flex",
                             flexDirection: "column",
                             alignItems: "center",
                             justifyContent: "center",
                             padding: "4px 6px",
-                            transform: "translateY(0)",
                           }}
                         >
                           <div
                             style={{
-                              background:
-                                "linear-gradient(90deg, #FFD700 0%, #FFB200 40%, #FFF7AA 100%)",
-                              WebkitBackgroundClip: "text",
-                              WebkitTextFillColor: "transparent",
-                              backgroundClip: "text",
+                              color: colors.accent,
                               fontWeight: 800,
                               letterSpacing: "0.01em",
-                              textShadow: "0 2px 8px rgba(255, 215, 0, 0.28)",
                               fontSize: "18px",
                               lineHeight: 1,
                             }}
@@ -2068,9 +2079,8 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                               fontSize: "10px",
                               textTransform: "uppercase",
                               letterSpacing: "0.14em",
-                              opacity: 0.8,
                               marginTop: "2px",
-                              color: "rgba(255,255,255,0.85)",
+                              color: colors.textSubtle,
                             }}
                           >
                             Pull Up
@@ -2086,7 +2096,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                       style={{
                         marginTop: "14px",
                         paddingTop: "14px",
-                        borderTop: "1px solid rgba(255,255,255,0.06)",
+                        borderTop: `1px solid ${colors.border}`,
                         display: "flex",
                         flexDirection: "column",
                         gap: "14px",
@@ -2101,7 +2111,7 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                             fontSize: "11px",
                             textTransform: "uppercase",
                             letterSpacing: "0.12em",
-                            opacity: 0.55,
+                            color: colors.textSubtle,
                             marginBottom: "8px",
                           }}
                         >
@@ -2463,7 +2473,8 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                                 key={item.rsvpId}
                                 style={{
                                   padding: "12px",
-                                  background: "rgba(12, 10, 18, 0.4)",
+                                  background: colors.surface,
+                                  border: `1px solid ${colors.borderFaint}`,
                                   borderRadius: "8px",
                                   fontSize: "13px",
                                 }}
@@ -2612,12 +2623,11 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                                         alignSelf: "flex-start",
                                         marginTop: "2px",
                                         fontSize: "12px",
-                                        color: colors.silverText,
+                                        color: colors.textMuted,
                                         background: "transparent",
                                         border: "none",
                                         padding: 0,
                                         cursor: "pointer",
-                                        opacity: 0.75,
                                       }}
                                     >
                                       {showAllEvents
@@ -2636,9 +2646,9 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                       <div
                         style={{
                           paddingTop: "8px",
-                          borderTop: "1px solid rgba(255,255,255,0.05)",
+                          borderTop: `1px solid ${colors.borderFaint}`,
                           fontSize: "12px",
-                          opacity: 0.5,
+                          color: colors.textSubtle,
                         }}
                       >
                         First seen: {formatDate(person.createdAt)}
@@ -2668,14 +2678,10 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                 disabled={!hasPrevPage || loading}
                 style={{
                   padding: "8px 16px",
-                  borderRadius: "8px",
-                  border: `1px solid ${colors.silverRgba}`,
-                  background: hasPrevPage
-                    ? colors.silverRgbaHover
-                    : "rgba(255, 255, 255, 0.05)",
-                  color: hasPrevPage
-                    ? colors.silverText
-                    : "rgba(255, 255, 255, 0.4)",
+                  borderRadius: "999px",
+                  border: `1px solid ${colors.border}`,
+                  background: hasPrevPage ? colors.surface : colors.surfaceMuted,
+                  color: hasPrevPage ? colors.text : colors.textSubtle,
                   fontSize: "14px",
                   fontWeight: 500,
                   cursor: !hasPrevPage || loading ? "not-allowed" : "pointer",
@@ -2697,14 +2703,10 @@ export function CrmTab({ onSegmentChange, initialFilters }) {
                 disabled={!hasNextPage || loading}
                 style={{
                   padding: "8px 16px",
-                  borderRadius: "8px",
-                  border: `1px solid ${colors.silverRgba}`,
-                  background: hasNextPage
-                    ? colors.silverRgbaHover
-                    : "rgba(255, 255, 255, 0.05)",
-                  color: hasNextPage
-                    ? colors.silverText
-                    : "rgba(255, 255, 255, 0.4)",
+                  borderRadius: "999px",
+                  border: `1px solid ${colors.border}`,
+                  background: hasNextPage ? colors.surface : colors.surfaceMuted,
+                  color: hasNextPage ? colors.text : colors.textSubtle,
                   fontSize: "14px",
                   fontWeight: 500,
                   cursor: !hasNextPage || loading ? "not-allowed" : "pointer",

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { User, Tag } from "lucide-react";
-import { SilverIcon } from "./ui/SilverIcon.jsx";
+import { colors } from "../theme/colors.js";
 
 const labelStyle = {
   fontSize: "11px",
   fontWeight: 700,
-  color: "rgba(255,255,255,0.5)",
+  color: colors.textSubtle,
   marginBottom: "8px",
   textTransform: "uppercase",
   letterSpacing: "0.05em",
@@ -19,25 +19,13 @@ const inputStyle = {
   boxSizing: "border-box",
   padding: "10px 14px",
   borderRadius: "10px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(20, 16, 30, 0.6)",
-  color: "#fff",
+  border: `1px solid ${colors.borderStrong}`,
+  background: "#ffffff",
+  color: colors.text,
   fontSize: "14px",
   outline: "none",
   transition: "border-color 0.2s",
 };
-
-function Field({ icon, label, children }) {
-  return (
-    <label style={{ display: "block" }}>
-      <div style={labelStyle}>
-        {icon ? <SilverIcon as={icon} size={12} /> : null}
-        {label}
-      </div>
-      {children}
-    </label>
-  );
-}
 
 function TextField({ value, onChange, placeholder }) {
   return (
@@ -47,8 +35,8 @@ function TextField({ value, onChange, placeholder }) {
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       style={inputStyle}
-      onFocus={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.25)")}
-      onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
+      onFocus={(e) => (e.target.style.borderColor = colors.accentBorder)}
+      onBlur={(e) => (e.target.style.borderColor = colors.borderStrong)}
     />
   );
 }
@@ -79,10 +67,10 @@ export function SettingsProfileSection({ user, setUser, onSave, showToast }) {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4, color: colors.text }}>
           Profile
         </h2>
-        <p style={{ fontSize: 14, opacity: 0.7 }}>
+        <p style={{ fontSize: 14, color: colors.textMuted }}>
           The basics you set up during signup. Everything else (logo, socials, website) lives on the events you create.
         </p>
       </div>
@@ -90,28 +78,37 @@ export function SettingsProfileSection({ user, setUser, onSave, showToast }) {
       <div
         style={{
           padding: 16,
-          background: "rgba(20, 16, 30, 0.6)",
+          background: colors.surface,
           borderRadius: 12,
-          border: "1px solid rgba(255,255,255,0.05)",
+          border: `1px solid ${colors.border}`,
+          boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
           display: "flex",
           flexDirection: "column",
           gap: 12,
         }}
       >
-        <Field icon={User} label="Full name">
+        <label style={{ display: "block" }}>
+          <div style={labelStyle}>
+            <User size={12} style={{ color: colors.textSubtle }} />
+            Full name
+          </div>
           <TextField
             value={user?.name}
             onChange={(v) => patch({ name: v })}
             placeholder="Your full name"
           />
-        </Field>
-        <Field icon={Tag} label="Brand or studio name">
+        </label>
+        <label style={{ display: "block" }}>
+          <div style={labelStyle}>
+            <Tag size={12} style={{ color: colors.textSubtle }} />
+            Brand or studio name
+          </div>
           <TextField
             value={user?.brand}
             onChange={(v) => patch({ brand: v })}
             placeholder="Your brand or company name"
           />
-        </Field>
+        </label>
       </div>
 
       {dirty && (
@@ -130,16 +127,15 @@ export function SettingsProfileSection({ user, setUser, onSave, showToast }) {
               padding: "10px 24px",
               borderRadius: 999,
               border: "none",
-              background:
-                "linear-gradient(135deg, #f0f0f0 0%, #c0c0c0 50%, #a8a8a8 100%)",
-              color: "#111",
+              background: saving ? colors.accentHover : colors.accent,
+              color: "#ffffff",
               fontWeight: 700,
               fontSize: 13,
               cursor: saving ? "default" : "pointer",
-              opacity: saving ? 0.6 : 1,
-              boxShadow: "0 4px 16px rgba(192, 192, 192, 0.3)",
+              opacity: saving ? 0.7 : 1,
               textTransform: "uppercase",
               letterSpacing: "0.04em",
+              boxShadow: colors.accentShadow,
             }}
           >
             {saving ? "Saving…" : "Save changes"}

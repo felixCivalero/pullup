@@ -7,6 +7,7 @@ import BlockEditorList from "./BlockEditorList";
 import TokenizedInput from "./TokenizedInput";
 import Section from "./Section";
 import { availableTokens } from "../../lib/emailTokens";
+import { colors } from "../../theme/colors.js";
 
 export default function FollowUpComposer({
   events,
@@ -44,7 +45,7 @@ export default function FollowUpComposer({
           </select>
         </Field>
         {!hasEvent && (
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: colors.textSubtle, lineHeight: 1.5 }}>
             {eventGateHint}
           </div>
         )}
@@ -91,7 +92,7 @@ export default function FollowUpComposer({
 function Field({ label, children }) {
   return (
     <div>
-      <label style={{ display: "block", fontSize: "11px", opacity: 0.7, marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+      <label style={{ display: "block", fontSize: "11px", color: colors.textSubtle, marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
         {label}
       </label>
       {children}
@@ -103,9 +104,9 @@ const inputStyle = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: "10px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(12,10,18,0.8)",
-  color: "#fff",
+  border: `1px solid ${colors.border}`,
+  background: "#fff",
+  color: colors.text,
   fontSize: "14px",
   boxSizing: "border-box",
 };

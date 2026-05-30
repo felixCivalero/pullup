@@ -371,14 +371,13 @@ export function AdminEmailPage() {
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
-        background:
-          "radial-gradient(circle at 20% 50%, rgba(192, 192, 192, 0.06) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232, 232, 232, 0.05) 0%, transparent 50%), #05040a",
+        background: colors.background,
       }}
     >
       <style>{`
         @media (max-width: 900px) {
           .crm-split { flex-direction: column !important; }
-          .crm-rail { width: 100% !important; min-width: 0 !important; max-width: none !important; border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.06) !important; max-height: 60vh; }
+          .crm-rail { width: 100% !important; min-width: 0 !important; max-width: none !important; border-right: none !important; border-bottom: 1px solid rgba(10,10,10,0.08) !important; max-height: 60vh; }
           .crm-canvas { padding: 12px !important; }
         }
       `}</style>
@@ -395,9 +394,8 @@ export function AdminEmailPage() {
             maxWidth: "440px",
             display: "flex",
             flexDirection: "column",
-            borderRight: "1px solid rgba(255,255,255,0.06)",
-            background: "rgba(12, 10, 18, 0.55)",
-            backdropFilter: "blur(10px)",
+            borderRight: `1px solid ${colors.border}`,
+            background: colors.text,
             minHeight: 0,
           }}
         >
@@ -407,10 +405,9 @@ export function AdminEmailPage() {
               position: "sticky",
               top: 0,
               zIndex: 10,
-              background: "rgba(12, 10, 18, 0.95)",
-              backdropFilter: "blur(12px)",
+              background: colors.text,
               flexShrink: 0,
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              borderBottom: `1px solid ${colors.border}`,
             }}
           >
             <div style={{ display: "flex", position: "relative" }}>
@@ -432,7 +429,7 @@ export function AdminEmailPage() {
                         fontWeight: 600,
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
-                        color: active ? "#fff" : "rgba(255,255,255,0.3)",
+                        color: active ? colors.gold : colors.textFaded,
                         transition: "color 0.2s ease",
                       }}
                     >
@@ -450,8 +447,7 @@ export function AdminEmailPage() {
                     : `${TABS.findIndex((t) => t.id === activeTab) * (100 / TABS.length)}%`,
                   width: isPhone ? "100%" : `${100 / TABS.length}%`,
                   height: "2px",
-                  background:
-                    "linear-gradient(90deg, rgba(192,192,192,0.6), rgba(232,232,232,0.4))",
+                  background: colors.gold,
                   transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
               />
@@ -503,16 +499,15 @@ export function AdminEmailPage() {
               justifyContent: "space-between",
               gap: "12px",
               padding: "12px 16px",
-              borderTop: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(12,10,18,0.95)",
-              backdropFilter: "blur(8px)",
+              borderTop: `1px solid ${colors.border}`,
+              background: colors.text,
             }}
           >
-            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
+            <div style={{ fontSize: "12px", color: colors.textMuted }}>
               {effectiveTotal.toLocaleString()}{" "}
               {effectiveTotal === 1 ? "recipient" : "recipients"}
               {excludedEmails.size > 0 && (
-                <span style={{ color: "rgba(251,146,60,0.85)", marginLeft: 6 }}>
+                <span style={{ color: colors.warning, marginLeft: 6 }}>
                   · {excludedEmails.size} excluded
                 </span>
               )}
@@ -526,15 +521,12 @@ export function AdminEmailPage() {
                 borderRadius: "10px",
                 border: "none",
                 background: sendDisabled
-                  ? "rgba(34,197,94,0.12)"
-                  : "linear-gradient(135deg, rgba(34,197,94,0.35), rgba(34,197,94,0.18))",
-                color: sendDisabled ? "rgba(255,255,255,0.3)" : "#4ade80",
+                  ? colors.surfaceMuted
+                  : colors.gold,
+                color: sendDisabled ? colors.textFaded : colors.text,
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: sendDisabled ? "not-allowed" : "pointer",
-                boxShadow: sendDisabled
-                  ? "none"
-                  : "0 0 0 1px rgba(34,197,94,0.3), 0 4px 12px rgba(0,0,0,0.3)",
                 transition: "all 0.2s ease",
               }}
             >
@@ -638,15 +630,15 @@ function AdminAudienceTab({
       <div
         style={{
           padding: 16,
-          background: "rgba(96,165,250,0.05)",
-          border: "1px solid rgba(96,165,250,0.2)",
+          background: "rgba(180,83,9,0.05)",
+          border: "1px solid rgba(180,83,9,0.18)",
           borderRadius: 12,
         }}
       >
         <div
           style={{
             fontSize: 11,
-            color: "#60a5fa",
+            color: colors.gold,
             textTransform: "uppercase",
             letterSpacing: "0.08em",
             marginBottom: 8,
@@ -658,14 +650,14 @@ function AdminAudienceTab({
           <Users size={12} /> Audience
         </div>
         <div
-          style={{ fontSize: 32, fontWeight: 700, color: "#fff", lineHeight: 1 }}
+          style={{ fontSize: 32, fontWeight: 700, color: colors.text, lineHeight: 1 }}
         >
           {loading ? "…" : effectiveTotal.toLocaleString()}
         </div>
         <div
           style={{
             fontSize: 12,
-            color: "rgba(255,255,255,0.55)",
+            color: colors.textMuted,
             marginTop: 4,
             display: "flex",
             alignItems: "center",
@@ -677,7 +669,7 @@ function AdminAudienceTab({
           {excludedEmails.size > 0 && (
             <span
               style={{
-                color: "#fb923c",
+                color: colors.warning,
                 fontWeight: 600,
                 display: "inline-flex",
                 alignItems: "center",
@@ -712,8 +704,8 @@ function AdminAudienceTab({
           <div
             style={{
               padding: 16,
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.06)",
+              background: colors.surface,
+              border: `1px solid ${colors.borderFaint}`,
               borderRadius: 12,
               display: "flex",
               flexDirection: "column",
@@ -723,7 +715,7 @@ function AdminAudienceTab({
             <div
               style={{
                 fontSize: 11,
-                color: "rgba(255,255,255,0.5)",
+                color: colors.textMuted,
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
                 display: "flex",
@@ -738,7 +730,7 @@ function AdminAudienceTab({
               <div
                 style={{
                   fontSize: 12,
-                  color: "rgba(255,255,255,0.7)",
+                  color: colors.text,
                   fontWeight: 500,
                   marginBottom: 6,
                 }}
@@ -768,11 +760,11 @@ function AdminAudienceTab({
                         cursor: "pointer",
                         border: active
                           ? "1px solid rgba(74,222,128,0.4)"
-                          : "1px solid rgba(255,255,255,0.08)",
+                          : `1px solid ${colors.border}`,
                         background: active
                           ? "rgba(74,222,128,0.12)"
                           : "transparent",
-                        color: active ? "#4ade80" : "rgba(255,255,255,0.4)",
+                        color: active ? "#4ade80" : colors.textSubtle,
                       }}
                     >
                       {opt.label}
@@ -783,7 +775,7 @@ function AdminAudienceTab({
               <div
                 style={{
                   fontSize: 11,
-                  color: "rgba(255,255,255,0.4)",
+                  color: colors.textSubtle,
                   marginTop: 6,
                   lineHeight: 1.5,
                 }}
@@ -797,8 +789,8 @@ function AdminAudienceTab({
           <div
             style={{
               padding: 16,
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.06)",
+              background: colors.surface,
+              border: `1px solid ${colors.borderFaint}`,
               borderRadius: 12,
               display: "flex",
               flexDirection: "column",
@@ -808,7 +800,7 @@ function AdminAudienceTab({
             <div
               style={{
                 fontSize: 11,
-                color: "rgba(255,255,255,0.5)",
+                color: colors.textMuted,
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
               }}
@@ -820,7 +812,7 @@ function AdminAudienceTab({
               <div
                 style={{
                   fontSize: 12,
-                  color: "rgba(255,255,255,0.7)",
+                  color: colors.text,
                   fontWeight: 500,
                   marginBottom: 6,
                 }}
@@ -850,7 +842,7 @@ function AdminAudienceTab({
                   );
                 })}
               </div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 6, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 11, color: colors.textSubtle, marginTop: 6, lineHeight: 1.5 }}>
                 Counts every RSVP across the platform — the more, the more engaged.
               </div>
             </div>
@@ -868,15 +860,15 @@ function AdminAudienceTab({
             <div
               style={{
                 padding: 16,
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: colors.surface,
+                border: `1px solid ${colors.borderFaint}`,
                 borderRadius: 12,
               }}
             >
               <div
                 style={{
                   fontSize: 11,
-                  color: "rgba(255,255,255,0.5)",
+                  color: colors.textMuted,
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
                   marginBottom: 6,
@@ -887,7 +879,7 @@ function AdminAudienceTab({
               <div
                 style={{
                   fontSize: 12,
-                  color: "rgba(255,255,255,0.45)",
+                  color: colors.textSubtle,
                   marginBottom: 10,
                   lineHeight: 1.5,
                 }}
@@ -903,7 +895,7 @@ function AdminAudienceTab({
                       key={tag}
                       type="button"
                       onClick={() => toggleTag(tag)}
-                      style={pillStyle(active, "#fbbf24")}
+                      style={pillStyle(active, colors.gold)}
                     >
                       {tag} <span style={{ opacity: 0.5 }}>{count}</span>
                     </button>
@@ -966,7 +958,7 @@ function AdminAudienceTab({
             <div
               style={{
                 fontSize: 11,
-                color: "rgba(255,255,255,0.4)",
+                color: colors.textSubtle,
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
               }}
@@ -1001,7 +993,7 @@ function AdminAudienceTab({
                 style={{
                   background: "none",
                   border: "none",
-                  color: "rgba(255,255,255,0.5)",
+                  color: colors.textMuted,
                   fontSize: 11,
                   fontWeight: 600,
                   textTransform: "uppercase",
@@ -1038,7 +1030,7 @@ function AdminAudienceTab({
                     borderRadius: 8,
                     background: isExcluded
                       ? "rgba(251,146,60,0.05)"
-                      : "rgba(255,255,255,0.02)",
+                      : colors.surface,
                     border: isExcluded
                       ? "1px solid rgba(251,146,60,0.2)"
                       : "1px solid transparent",
@@ -1049,7 +1041,7 @@ function AdminAudienceTab({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
-                        color: "#fff",
+                        color: colors.text,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -1061,7 +1053,7 @@ function AdminAudienceTab({
                     <div
                       style={{
                         fontSize: 11,
-                        color: "rgba(255,255,255,0.35)",
+                        color: colors.textFaded,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -1088,7 +1080,7 @@ function AdminAudienceTab({
                     <>
                       {p.marketingConsent && (
                         <span style={{
-                          fontSize: 9, color: "#4ade80", padding: "1px 6px",
+                          fontSize: 9, color: colors.success, padding: "1px 6px",
                           borderRadius: 999, background: "rgba(74,222,128,0.1)",
                           border: "1px solid rgba(74,222,128,0.25)",
                           letterSpacing: "0.05em", textTransform: "uppercase",
@@ -1114,11 +1106,11 @@ function AdminAudienceTab({
                       borderRadius: 999,
                       border: isExcluded
                         ? "1px solid rgba(74,222,128,0.4)"
-                        : "1px solid rgba(255,255,255,0.12)",
+                        : `1px solid ${colors.border}`,
                       background: isExcluded
                         ? "rgba(74,222,128,0.12)"
                         : "transparent",
-                      color: isExcluded ? "#4ade80" : "rgba(255,255,255,0.5)",
+                      color: isExcluded ? "#4ade80" : colors.textMuted,
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
@@ -1150,9 +1142,9 @@ function SourceToggle({ value, onChange }) {
       style={{
         display: "flex",
         padding: 3,
-        background: "rgba(255,255,255,0.04)",
+        background: colors.surfaceMuted,
         borderRadius: 12,
-        border: "1px solid rgba(255,255,255,0.06)",
+        border: `1px solid ${colors.borderFaint}`,
         marginBottom: 12,
       }}
     >
@@ -1174,9 +1166,10 @@ function SourceToggle({ value, onChange }) {
               textTransform: "uppercase",
               letterSpacing: "0.06em",
               background: active
-                ? "linear-gradient(135deg, rgba(192,192,192,0.18), rgba(232,232,232,0.10))"
+                ? "#fff"
                 : "transparent",
-              color: active ? "#fff" : "rgba(255,255,255,0.45)",
+              color: active ? colors.gold : colors.textSubtle,
+              boxShadow: active ? "0 1px 4px rgba(10,10,10,0.08)" : "none",
               transition: "all 0.15s ease",
             }}
           >
@@ -1199,11 +1192,11 @@ function pillStyle(active, accent = "#a3e635") {
     cursor: "pointer",
     border: active
       ? `1px solid ${accent}66`
-      : "1px solid rgba(255,255,255,0.08)",
+      : `1px solid ${colors.border}`,
     background: active
       ? `${accent}1f`
       : "transparent",
-    color: active ? accent : "rgba(255,255,255,0.45)",
+    color: active ? accent : colors.textSubtle,
     whiteSpace: "nowrap",
     transition: "all 0.12s ease",
   };
@@ -1231,7 +1224,7 @@ function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [
 
   const accentState = "#60a5fa"; // blue
   const accentEvents = "#a3e635"; // lime
-  const accentAge = "#fbbf24";    // amber
+  const accentAge = colors.gold;    // amber
   const accentLeads = "#f472b6";  // pink
   const accentTags = "#c084fc";   // violet
 
@@ -1281,8 +1274,8 @@ function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [
       style={{
         padding: 18,
         background:
-          "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.015))",
-        border: "1px solid rgba(255,255,255,0.07)",
+          colors.surface,
+        border: `1px solid ${colors.border}`,
         borderRadius: 14,
         display: "flex",
         flexDirection: "column",
@@ -1303,7 +1296,7 @@ function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [
             alignItems: "center",
             gap: 8,
             fontSize: 11,
-            color: "rgba(255,255,255,0.55)",
+            color: colors.textMuted,
             textTransform: "lowercase",
             letterSpacing: "0.06em",
           }}
@@ -1316,11 +1309,11 @@ function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [
                 fontFamily:
                   "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
                 fontSize: 10.5,
-                color: "#fff",
+                color: colors.text,
                 padding: "2px 7px",
                 borderRadius: 999,
-                background: "rgba(255,255,255,0.07)",
-                border: "1px solid rgba(255,255,255,0.1)",
+                background: colors.surfaceMuted,
+                border: `1px solid ${colors.border}`,
               }}
             >
               {activeCount} active
@@ -1334,7 +1327,7 @@ function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [
             style={{
               background: "none",
               border: "none",
-              color: "rgba(255,255,255,0.5)",
+              color: colors.textMuted,
               fontSize: 10.5,
               letterSpacing: "0.06em",
               textTransform: "lowercase",
@@ -1390,7 +1383,7 @@ function HostFiltersCard({ filters, setFilters, leadOptions = [], tagOptions = [
         <div
           style={{
             fontSize: 11,
-            color: "rgba(255,255,255,0.4)",
+            color: colors.textSubtle,
             marginBottom: 8,
             lineHeight: 1.5,
           }}
@@ -1478,8 +1471,8 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
     <div
       style={{
         padding: 16,
-        background: "rgba(255,255,255,0.02)",
-        border: "1px solid rgba(255,255,255,0.06)",
+        background: colors.surface,
+        border: `1px solid ${colors.borderFaint}`,
         borderRadius: 12,
       }}
     >
@@ -1495,7 +1488,7 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
         <div
           style={{
             fontSize: 11,
-            color: "rgba(255,255,255,0.5)",
+            color: colors.textMuted,
             textTransform: "uppercase",
             letterSpacing: "0.08em",
           }}
@@ -1540,7 +1533,7 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
       <div
         style={{
           fontSize: 12,
-          color: "rgba(255,255,255,0.45)",
+          color: colors.textSubtle,
           marginBottom: 10,
           lineHeight: 1.5,
         }}
@@ -1616,7 +1609,7 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
             style={{
               position: "absolute",
               left: 11,
-              color: "rgba(255,255,255,0.35)",
+              color: colors.textFaded,
               pointerEvents: "none",
             }}
           />
@@ -1632,9 +1625,9 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
               boxSizing: "border-box",
               padding: "10px 12px 10px 32px",
               borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(12, 10, 20, 0.7)",
-              color: "#fff",
+              border: `1px solid ${colors.border}`,
+              background: colors.surface,
+              color: colors.text,
               fontSize: 13,
               outline: "none",
             }}
@@ -1650,11 +1643,10 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
               right: 0,
               maxHeight: 280,
               overflowY: "auto",
-              background: "rgba(18, 15, 28, 0.98)",
-              backdropFilter: "blur(14px)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "#fff",
+              border: `1px solid ${colors.border}`,
               borderRadius: 10,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+              boxShadow: "0 8px 24px rgba(10,10,10,0.12)",
               zIndex: 20,
             }}
           >
@@ -1663,7 +1655,7 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
                 style={{
                   padding: "12px 14px",
                   fontSize: 12,
-                  color: "rgba(255,255,255,0.45)",
+                  color: colors.textSubtle,
                 }}
               >
                 Searching…
@@ -1674,7 +1666,7 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
                 style={{
                   padding: "12px 14px",
                   fontSize: 12,
-                  color: "rgba(255,255,255,0.45)",
+                  color: colors.textSubtle,
                 }}
               >
                 No matching events.
@@ -1710,13 +1702,13 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
                     padding: "9px 12px",
                     background: "transparent",
                     border: "none",
-                    borderBottom: "1px solid rgba(255,255,255,0.04)",
+                    borderBottom: `1px solid ${colors.borderFaint}`,
                     cursor: "pointer",
                     textAlign: "left",
                     transition: "background 0.12s ease",
                   }}
                   onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "rgba(255,255,255,0.04)")
+                    (e.currentTarget.style.background = "rgba(10,10,10,0.04)")
                   }
                   onMouseLeave={(e) =>
                     (e.currentTarget.style.background = "transparent")
@@ -1725,7 +1717,7 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
                   <div
                     style={{
                       fontSize: 13,
-                      color: "#fff",
+                      color: colors.text,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -1737,7 +1729,7 @@ function AttendedEventsFilter({ selected, logic, onAdd, onRemove, onToggleLogic 
                   <div
                     style={{
                       fontSize: 11,
-                      color: "rgba(255,255,255,0.4)",
+                      color: colors.textSubtle,
                       display: "flex",
                       gap: 8,
                     }}
@@ -1789,7 +1781,7 @@ function ToggleRow({ label, description, value, onToggle }) {
           borderRadius: 5,
           border: value
             ? "1px solid rgba(74,222,128,0.5)"
-            : "1px solid rgba(255,255,255,0.18)",
+            : `1px solid ${colors.borderStrong}`,
           background: value ? "rgba(74,222,128,0.18)" : "transparent",
           display: "flex",
           alignItems: "center",
@@ -1801,13 +1793,13 @@ function ToggleRow({ label, description, value, onToggle }) {
         {value && <Check size={12} color="#4ade80" />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: "#fff", fontWeight: 500 }}>
+        <div style={{ fontSize: 12, color: colors.text, fontWeight: 500 }}>
           {label}
         </div>
         <div
           style={{
             fontSize: 11,
-            color: "rgba(255,255,255,0.45)",
+            color: colors.textSubtle,
             lineHeight: 1.5,
             marginTop: 2,
           }}
@@ -1827,13 +1819,13 @@ function SendModeSelector({ value, onChange }) {
   return (
     <div style={{
       padding: 14,
-      background: "rgba(255,255,255,0.02)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      background: colors.surface,
+      border: `1px solid ${colors.borderFaint}`,
       borderRadius: 12,
       marginBottom: 14,
     }}>
       <div style={{
-        fontSize: 11, color: "rgba(255,255,255,0.5)",
+        fontSize: 11, color: colors.textMuted,
         textTransform: "uppercase", letterSpacing: "0.08em",
         marginBottom: 10,
       }}>
@@ -1848,19 +1840,19 @@ function SendModeSelector({ value, onChange }) {
               style={{
                 display: "flex", alignItems: "flex-start", gap: 10,
                 padding: "10px 12px", borderRadius: 10, cursor: "pointer",
-                background: active ? "rgba(74,222,128,0.10)" : "rgba(255,255,255,0.02)",
-                border: active ? "1px solid rgba(74,222,128,0.35)" : "1px solid rgba(255,255,255,0.08)",
+                background: active ? "rgba(74,222,128,0.10)" : colors.surface,
+                border: active ? "1px solid rgba(74,222,128,0.35)" : `1px solid ${colors.border}`,
                 textAlign: "left",
               }}>
               <div style={{
                 width: 14, height: 14, borderRadius: 999,
-                border: active ? "1px solid #4ade80" : "1px solid rgba(255,255,255,0.3)",
+                border: active ? "1px solid #4ade80" : `1px solid ${colors.border}`,
                 background: active ? "#4ade80" : "transparent",
                 marginTop: 3, flexShrink: 0,
               }} />
               <div>
-                <div style={{ fontSize: 12, color: "#fff", fontWeight: 500 }}>{o.label}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{o.hint}</div>
+                <div style={{ fontSize: 12, color: colors.text, fontWeight: 500 }}>{o.label}</div>
+                <div style={{ fontSize: 11, color: colors.textSubtle, marginTop: 2 }}>{o.hint}</div>
               </div>
             </button>
           );
@@ -1891,15 +1883,15 @@ function AdminEmailComposer({
       <div
         style={{
           padding: 14,
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.06)",
+          background: colors.surface,
+          border: `1px solid ${colors.borderFaint}`,
           borderRadius: 12,
         }}
       >
         <div
           style={{
             fontSize: 11,
-            color: "rgba(255,255,255,0.5)",
+            color: colors.textMuted,
             textTransform: "uppercase",
             letterSpacing: "0.08em",
             marginBottom: 10,
@@ -1939,15 +1931,15 @@ function AdminEmailComposer({
       <div
         style={{
           padding: 14,
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.06)",
+          background: colors.surface,
+          border: `1px solid ${colors.borderFaint}`,
           borderRadius: 12,
         }}
       >
         <div
           style={{
             fontSize: 11,
-            color: "rgba(255,255,255,0.5)",
+            color: colors.textMuted,
             textTransform: "uppercase",
             letterSpacing: "0.08em",
             marginBottom: 10,
@@ -1972,7 +1964,7 @@ function Field({ label, children }) {
       <div
         style={{
           fontSize: 11,
-          color: "rgba(255,255,255,0.5)",
+          color: colors.textMuted,
           marginBottom: 5,
           textTransform: "uppercase",
           letterSpacing: "0.05em",
@@ -1990,9 +1982,9 @@ const inputStyle = {
   boxSizing: "border-box",
   padding: "10px 12px",
   borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(12, 10, 20, 0.7)",
-  color: "#fff",
+  border: `1px solid ${colors.border}`,
+  background: colors.surface,
+  color: colors.text,
   fontSize: 13,
   outline: "none",
 };

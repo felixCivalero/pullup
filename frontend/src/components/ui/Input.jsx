@@ -14,15 +14,15 @@ export function Input({
         <label
           style={{
             display: "block",
-            fontSize: "16px",
+            fontSize: "15px",
             fontWeight: 600,
             marginBottom: "8px",
-            color: "#fff",
+            color: colors.text,
           }}
         >
           {label}
           {required && (
-            <span style={{ color: "#ef4444", marginLeft: "4px" }}>*</span>
+            <span style={{ color: colors.danger, marginLeft: "4px" }}>*</span>
           )}
         </label>
       )}
@@ -32,10 +32,10 @@ export function Input({
           padding: "14px 16px",
           borderRadius: "12px",
           border: error
-            ? "1px solid #ef4444"
-            : "1px solid rgba(255, 255, 255, 0.2)",
-          background: "rgba(20, 16, 30, 0.6)",
-          color: "#fff",
+            ? `1px solid ${colors.danger}`
+            : `1px solid ${colors.borderStrong}`,
+          background: "#fff",
+          color: colors.text,
           fontSize: "16px",
           outline: "none",
           boxSizing: "border-box",
@@ -43,44 +43,28 @@ export function Input({
           WebkitAppearance: "none",
           appearance: "none",
           ...(error
-            ? {
-                boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.1)",
-              }
+            ? { boxShadow: `0 0 0 3px ${colors.dangerRgba}` }
             : {}),
         }}
         onFocus={(e) => {
-          e.target.style.borderColor = colors.silver;
-          e.target.style.boxShadow = `0 0 0 3px ${colors.silverRgbaHover}`;
+          e.target.style.borderColor = colors.accent;
+          e.target.style.boxShadow = `0 0 0 3px ${colors.accentSoftStrong}`;
         }}
         onBlur={(e) => {
-          e.target.style.borderColor = error
-            ? "#ef4444"
-            : "rgba(255, 255, 255, 0.2)";
+          e.target.style.borderColor = error ? colors.danger : colors.borderStrong;
           e.target.style.boxShadow = error
-            ? "0 0 0 3px rgba(239, 68, 68, 0.1)"
+            ? `0 0 0 3px ${colors.dangerRgba}`
             : "none";
         }}
         {...props}
       />
       {error && (
-        <div
-          style={{
-            color: "#ef4444",
-            fontSize: "16px",
-            marginTop: "6px",
-          }}
-        >
+        <div style={{ color: colors.danger, fontSize: "14px", marginTop: "6px" }}>
           {error}
         </div>
       )}
       {helperText && !error && (
-        <div
-          style={{
-            color: "rgba(255, 255, 255, 0.6)",
-            fontSize: "16px",
-            marginTop: "6px",
-          }}
-        >
+        <div style={{ color: colors.textMuted, fontSize: "14px", marginTop: "6px" }}>
           {helperText}
         </div>
       )}

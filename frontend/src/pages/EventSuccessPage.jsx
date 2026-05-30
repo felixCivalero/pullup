@@ -22,6 +22,7 @@ import {
 } from "../lib/urlUtils";
 import { formatReadableDateTime } from "../lib/dateUtils.js";
 import { logger } from "../lib/logger.js";
+import { colors } from "../theme/colors.js";
 
 // Fire-and-forget partner-CTA click tracking. Sends the host's auth token so
 // the backend (optionalAuth) records WHICH host clicked — without it, every
@@ -291,8 +292,8 @@ export function EventSuccessPage() {
       <div
         style={{
           minHeight: "100vh",
-          background: "#05040a",
-          color: "#fff",
+          background: colors.background,
+          color: colors.text,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -313,8 +314,8 @@ export function EventSuccessPage() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#05040a",
-        color: "#fff",
+        background: colors.background,
+        color: colors.text,
         position: "relative",
         overflow: "hidden",
       }}
@@ -381,12 +382,12 @@ export function EventSuccessPage() {
           <div
             onClick={() => window.open(`/e/${event.slug}`, "_blank")}
             style={{
-              background: "rgba(255,255,255,0.08)",
+              background: colors.surfaceMuted,
               backdropFilter: "blur(10px)",
               borderRadius: "16px",
               padding: "20px",
               marginBottom: "24px",
-              border: "1px solid rgba(255,255,255,0.1)",
+              border: `1px solid ${colors.border}`,
               position: "relative",
               cursor: "pointer",
             }}
@@ -403,11 +404,11 @@ export function EventSuccessPage() {
                 padding: "6px 10px",
                 borderRadius: "999px",
                 background: "rgba(5,4,10,0.75)",
-                border: "1px solid rgba(255,255,255,0.18)",
+                border: `1px solid ${colors.borderStrong}`,
                 fontSize: 10,
                 letterSpacing: 0.6,
                 textTransform: "uppercase",
-                color: "rgba(255,255,255,0.85)",
+                color: colors.text,
               }}
             >
               <span style={{ opacity: 0.9 }}>View page</span>
@@ -485,21 +486,19 @@ export function EventSuccessPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      color: "rgba(255, 255, 255, 0.9)",
+                      color: colors.text,
                       textDecoration: "none",
-                      borderBottom: "1px solid rgba(255, 255, 255, 0.3)",
+                      borderBottom: `1px solid ${colors.border}`,
                       transition: "all 0.2s ease",
                       cursor: "pointer",
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.color = "#fff";
-                      e.target.style.borderBottomColor =
-                        "rgba(255, 255, 255, 0.6)";
+                      e.target.style.color = colors.accent;
+                      e.target.style.borderBottomColor = colors.accentBorder;
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.color = "rgba(255, 255, 255, 0.9)";
-                      e.target.style.borderBottomColor =
-                        "rgba(255, 255, 255, 0.3)";
+                      e.target.style.color = colors.text;
+                      e.target.style.borderBottomColor = colors.border;
                     }}
                   >
                     {formatLocationShort(event.location)}
@@ -539,9 +538,9 @@ export function EventSuccessPage() {
                 width: "100%",
                 padding: "16px",
                 borderRadius: "14px",
-                border: "1px solid rgba(255,255,255,0.14)",
+                border: `1px solid ${colors.border}`,
                 background: "rgba(10,10,18,0.92)",
-                color: "#fff",
+                color: colors.text,
                 fontSize: "16px",
                 fontWeight: 600,
                 cursor: "pointer",
@@ -560,7 +559,7 @@ export function EventSuccessPage() {
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
                 e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
+                e.currentTarget.style.borderColor = colors.border;
               }}
             >
               <SilverIcon as={Megaphone} size={18} />
@@ -607,9 +606,9 @@ export function EventSuccessPage() {
                 width: "100%",
                 padding: "16px",
                 borderRadius: "14px",
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(255,255,255,0.04)",
-                color: "#fff",
+                border: `1px solid ${colors.border}`,
+                background: colors.surface,
+                color: colors.text,
                 fontSize: "16px",
                 fontWeight: 600,
                 cursor: "pointer",
@@ -627,7 +626,7 @@ export function EventSuccessPage() {
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
                 e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
+                e.currentTarget.style.borderColor = colors.border;
               }}
             >
               <SilverIcon as={Calendar} size={18} />
@@ -650,7 +649,7 @@ export function EventSuccessPage() {
                   background: "rgba(20, 16, 30, 0.95)",
                   backdropFilter: "blur(10px)",
                   borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  border: `1px solid ${colors.border}`,
                   overflow: "hidden",
                   zIndex: 10,
                 }}
@@ -662,14 +661,14 @@ export function EventSuccessPage() {
                     padding: "14px 16px",
                     border: "none",
                     background: "transparent",
-                    color: "#fff",
+                    color: colors.text,
                     fontSize: "15px",
                     textAlign: "left",
                     cursor: "pointer",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    borderBottom: `1px solid ${colors.borderFaint}`,
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = "rgba(255,255,255,0.05)";
+                    e.target.style.background = colors.surface;
                   }}
                   onMouseLeave={(e) => {
                     e.target.style.background = "transparent";
@@ -684,14 +683,14 @@ export function EventSuccessPage() {
                     padding: "14px 16px",
                     border: "none",
                     background: "transparent",
-                    color: "#fff",
+                    color: colors.text,
                     fontSize: "15px",
                     textAlign: "left",
                     cursor: "pointer",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    borderBottom: `1px solid ${colors.borderFaint}`,
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = "rgba(255,255,255,0.05)";
+                    e.target.style.background = colors.surface;
                   }}
                   onMouseLeave={(e) => {
                     e.target.style.background = "transparent";
@@ -706,14 +705,14 @@ export function EventSuccessPage() {
                     padding: "14px 16px",
                     border: "none",
                     background: "transparent",
-                    color: "#fff",
+                    color: colors.text,
                     fontSize: "15px",
                     textAlign: "left",
                     cursor: "pointer",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    borderBottom: `1px solid ${colors.borderFaint}`,
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = "rgba(255,255,255,0.05)";
+                    e.target.style.background = colors.surface;
                   }}
                   onMouseLeave={(e) => {
                     e.target.style.background = "transparent";
@@ -728,13 +727,13 @@ export function EventSuccessPage() {
                     padding: "14px 16px",
                     border: "none",
                     background: "transparent",
-                    color: "#fff",
+                    color: colors.text,
                     fontSize: "15px",
                     textAlign: "left",
                     cursor: "pointer",
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = "rgba(255,255,255,0.05)";
+                    e.target.style.background = colors.surface;
                   }}
                   onMouseLeave={(e) => {
                     e.target.style.background = "transparent";
@@ -773,6 +772,8 @@ export function EventSuccessPage() {
                 width: "100%",
                 height: "54px",
                 borderRadius: "14px",
+                // Design-intent dark island — partner card stays dark inside
+                // the light dashboard zone to match Zoda's white logotype.
                 border: "1px solid rgba(255,255,255,0.14)",
                 background: "rgba(10,10,18,0.92)",
                 color: "#fff",
@@ -855,11 +856,11 @@ export function EventSuccessPage() {
                 width: "100%",
                 height: "54px",
                 borderRadius: "14px",
-                border: "1px solid rgba(255,255,255,0.14)",
+                border: `1px solid ${colors.border}`,
                 background: showlightersHovered
                   ? "linear-gradient(135deg, rgba(251,191,36,0.15) 0%, rgba(245,158,11,0.1) 100%)"
                   : "rgba(10,10,18,0.92)",
-                color: "#fff",
+                color: colors.text,
                 fontSize: "16px",
                 fontWeight: 600,
                 cursor: "pointer",
@@ -874,7 +875,7 @@ export function EventSuccessPage() {
                   fontSize: "15px",
                   fontWeight: 700,
                   letterSpacing: "0.3px",
-                  color: "rgba(255,255,255,0.85)",
+                  color: colors.text,
                   transition: "all 0.3s ease",
                   opacity: showlightersHovered ? 0 : 1,
                   transform: showlightersHovered ? "scale(0.8)" : "scale(1)",
@@ -883,7 +884,7 @@ export function EventSuccessPage() {
                 </span>
                 <span style={{
                   fontSize: "11px",
-                  color: "rgba(255,255,255,0.35)",
+                  color: colors.textSubtle,
                   fontWeight: 400,
                   transition: "all 0.3s ease",
                   opacity: showlightersHovered ? 0 : 1,

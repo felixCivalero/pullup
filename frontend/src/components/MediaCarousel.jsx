@@ -694,6 +694,9 @@ export function MediaCarousel({
               direction={isTransitioning ? transitionState.direction : 1}
               transitionDuration={transitionDuration}
               isVisible={isVisible}
+              fit={fit}
+              objectPosition={objectPosition}
+              displayWidth={displayWidth}
             />
           );
         })}
@@ -737,7 +740,7 @@ export function MediaCarousel({
 }
 
 // Individual slide component that handles enter animation via two-frame mount
-function SlideRenderer({ item, phase, slideStyle, transitionType, direction, transitionDuration, isVisible }) {
+function SlideRenderer({ item, phase, slideStyle, transitionType, direction, transitionDuration, isVisible, fit, objectPosition, displayWidth }) {
   const ref = useRef(null);
   const hasAnimatedIn = useRef(false);
 

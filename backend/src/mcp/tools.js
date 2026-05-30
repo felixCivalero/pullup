@@ -101,6 +101,63 @@ const RsvpFieldInput = z.union([
   RsvpFieldSpecObject,
 ]);
 
+// Per-event theme snapshot (events.brand). Mirrors BrandThemeEditor: the page
+// canvas + the register button's color/text/font. Per-section fonts are edited
+// inside sections, not here. Omit for PullUp's standard dark theme; pass null to
+// clear an event back to standard.
+const BrandInput = z
+  .object({
+    backgroundColor: z
+      .string()
+      .optional()
+      .describe(
+        "Event page canvas color, hex (e.g. '#0a0617'). Omit for PullUp's standard dark (#05040a)."
+      ),
+    buttonColor: z
+      .string()
+      .optional()
+      .describe("Register/RSVP button background, hex (e.g. '#ec178f'). Default white."),
+    buttonTextColor: z
+      .string()
+      .optional()
+      .describe(
+        "Register button text color, hex. If omitted it's auto-set to black/white for contrast against buttonColor."
+      ),
+    buttonFontFamily: z
+      .string()
+      .optional()
+      .describe(
+        "Register button font — one of: Inter, DM Sans, Manrope, Space Grotesk, Outfit, Helvetica, Playfair Display, Lora, Cormorant Garamond, Georgia, Space Mono, IBM Plex Mono. Unknown names fall back to the default."
+      ),
+  })
+  .nullable()
+  .optional()
+  .describe(
+    "Per-event visual theme (colors + button font), snapshotted at save time. Pull the look from the host's IG/website — set the page background and the register button. Omit for PullUp's standard dark theme; pass null to clear back to standard."
+  );
+
+// Auto-contrast the button text if a button color was set without one, so the
+// MCP never produces a black-on-dark (unreadable) button. Mirrors the frontend's
+// pickTextColor (WCAG relative luminance).
+function hexLuminance(hex) {
+  const h = String(hex || "").trim().replace(/^#/, "");
+  const f = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  if (!/^[0-9a-fA-F]{6}$/.test(f)) return null;
+  const ch = [0, 2, 4].map((i) => parseInt(f.slice(i, i + 2), 16) / 255);
+  const lin = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * lin(ch[0]) + 0.7152 * lin(ch[1]) + 0.0722 * lin(ch[2]);
+}
+
+function normalizeBrand(brand) {
+  if (!brand || typeof brand !== "object") return brand;
+  const out = { ...brand };
+  if (out.buttonColor && !out.buttonTextColor) {
+    const lum = hexLuminance(out.buttonColor);
+    if (lum !== null) out.buttonTextColor = lum > 0.5 ? "#000000" : "#ffffff";
+  }
+  return out;
+}
+
 const CreateEventInput = {
   title: z.string().describe("Event title."),
   startsAt: z.string().describe(
@@ -170,6 +227,7 @@ const CreateEventInput = {
   theme: z.string().optional().describe(
     "Visual theme name (e.g. 'classic', 'minimal'). Affects the public page look."
   ),
+  brand: BrandInput,
   visibility: z.enum(["public", "private"]).optional().describe(
     "'public' = listed on the explore page; 'private' = link-only (host shares the URL). Default 'public'."
   ),
@@ -603,6 +661,7 @@ function buildHandlers(api, hostId) {
     if (extraRsvpFields !== undefined) {
       payload.formFields = buildFormFieldsFromExtras(extraRsvpFields);
     }
+    if (payload.brand) payload.brand = normalizeBrand(payload.brand);
     const event = await api("POST", "/events", { body: payload });
     const { completeness, performance, top } = await buildEventCoaching(event);
 
@@ -633,6 +692,7 @@ function buildHandlers(api, hostId) {
     if (extraRsvpFields !== undefined) {
       patch.formFields = buildFormFieldsFromExtras(extraRsvpFields);
     }
+    if (patch.brand) patch.brand = normalizeBrand(patch.brand);
     const updated = await api("PUT", `/host/events/${existing.id}`, { body: patch });
 
     const newSlug = updated.slug || slug;
@@ -2345,7 +2405,7 @@ export function buildTools(ctx) {
       name: "create_event",
       title: "Create a PullUp event",
       description:
-        "Creates a new event on PullUp. Defaults to DRAFT so the host can preview before going public. Returns the preview/share URLs. Pass status='PUBLISHED' to publish immediately.",
+        "Creates a new event on PullUp. Defaults to DRAFT so the host can preview before going public. Returns the preview/share URLs. Pass status='PUBLISHED' to publish immediately. Use `brand` to theme the page (background + register-button color/text/font) to match the host's identity — pull the look from their IG/website.",
       inputSchema: CreateEventInput,
       handler: h.createEvent,
     },
@@ -2353,7 +2413,7 @@ export function buildTools(ctx) {
       name: "update_event",
       title: "Update a PullUp event",
       description:
-        "Updates fields on an existing event. Pass only the fields you want to change. Works on DRAFT and PUBLISHED events alike.",
+        "Updates fields on an existing event. Pass only the fields you want to change. Works on DRAFT and PUBLISHED events alike. Pass `brand` to re-theme (page background + register button), or brand=null to clear back to PullUp's standard dark theme.",
       inputSchema: UpdateEventInput,
       handler: h.updateEvent,
     },

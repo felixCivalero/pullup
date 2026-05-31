@@ -23,7 +23,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 
 import { supabase } from "../supabase.js";
 import { findPatRecord, isPatToken } from "../data.js";
-import { buildTools, wrapHandler } from "./tools.js";
+import { buildTools, wrapHandler, MCP_PROFILES } from "./tools.js";
 import { consume as consumeRateLimit } from "./rateLimit.js";
 import { recordToolCall } from "./telemetry.js";
 import { makeApi } from "./api.js";
@@ -142,6 +142,10 @@ export async function handleMcp(req, res) {
   if (error || !data?.user) return jsonRpcError(res, 401, -32001, "User not found.");
   const user = { id: data.user.id, email: data.user.email, ...data.user.user_metadata };
 
+  // Tool profile from the URL (/mcp/create, /mcp/crm). Each surface mounts a
+  // right-sized slice; an unknown segment falls through to the full surface.
+  const profile = MCP_PROFILES.includes(req.params?.profile) ? req.params.profile : undefined;
+
   // One id per /mcp request, shared across all tool calls. Lets us group
   // forensics ("what did Adam's 14:32 session try to do?") even though
   // multiple tools can run inside one JSON-RPC batch.
@@ -155,7 +159,7 @@ export async function handleMcp(req, res) {
   // Per-request server. Stateless transport. Capabilities cover tools,
   // prompts, and resources — clients see the full surface in initialize.
   const server = new McpServer(
-    { name: "pullup", version: "0.4.0" },
+    { name: profile ? `pullup-${profile}` : "pullup", version: "0.4.0" },
     {
       capabilities: { tools: {}, prompts: {}, resources: {} },
       instructions: buildServerInstructions(hostBrief),
@@ -163,7 +167,7 @@ export async function handleMcp(req, res) {
   );
 
   // ── Tools ──────────────────────────────────────────────────────
-  const tools = buildTools({ token, user });
+  const tools = buildTools({ token, user, profile });
   for (const t of tools) {
     server.registerTool(
       t.name,
@@ -171,6 +175,7 @@ export async function handleMcp(req, res) {
         title: t.title,
         description: t.description,
         inputSchema: t.inputSchema,
+        annotations: t.annotations,
       },
       wrapWithTimeoutAndTelemetry({
         toolName: t.name,

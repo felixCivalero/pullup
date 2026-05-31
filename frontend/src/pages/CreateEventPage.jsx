@@ -818,6 +818,9 @@ export function CreateEventPage() {
   const [draftEventId, setDraftEventId] = useState(draft?.draftEventId || null);
   const draftEventIdRef = useRef(null);   // sync mirror for async upload paths
   const draftCreationRef = useRef(null);  // in-flight creation promise (dedupe)
+  // Bumped when the canvas chat builds something server-side, so the live
+  // preview re-pulls from the server (see the loadEvent effect deps).
+  const [canvasRefresh, setCanvasRefresh] = useState(0);
   const thumbnailInputRef = useRef(null);
   // Carousel settings
   const [carouselAutoscroll, setCarouselAutoscroll] = useState(true);
@@ -1583,7 +1586,24 @@ export function CreateEventPage() {
     }
     loadEvent();
     return () => { cancelled = true; };
-  }, [editEventId]);
+  }, [editEventId, canvasRefresh]);
+
+  // Wire the create-canvas dock (IdeaWidget): tell it which event is being
+  // built, and reload from the server when it builds something so the live
+  // preview reflects the change.
+  useEffect(() => {
+    const id = editEventId || draftEventId || null;
+    window.dispatchEvent(new CustomEvent("pullup:canvas-context", { detail: { eventId: id } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("pullup:canvas-context", { detail: { eventId: null } }));
+    };
+  }, [editEventId, draftEventId]);
+
+  useEffect(() => {
+    const onBuilt = () => setCanvasRefresh((n) => n + 1);
+    window.addEventListener("pullup:canvas-built", onBuilt);
+    return () => window.removeEventListener("pullup:canvas-built", onBuilt);
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -5464,6 +5484,7 @@ export function CreateEventPage() {
                     : null,
                   ticketCurrency: sellTicketsEnabled ? ticketCurrency : null,
                   sections,
+                  design: brand?.design || null,
                   hoveredSection,
                   hideLocation,
                   hideDate,
@@ -5581,6 +5602,7 @@ export function CreateEventPage() {
             }
             ticketCurrency={sellTicketsEnabled ? ticketCurrency : null}
             sections={sections}
+            design={brand?.design || null}
             rsvpContent={({ onClose }) => (
               <RsvpForm
                 event={{

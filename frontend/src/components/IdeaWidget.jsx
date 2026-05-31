@@ -8,6 +8,7 @@ import { useRecentChatActivity } from "../lib/useRecentChatActivity.js";
 import { addSpotifySection, addInstagramField } from "../lib/coachMutations.js";
 import { useMcpStatus } from "../lib/useMcpStatus.js";
 import { colors } from "../theme/colors.js";
+import { CanvasChat } from "./CanvasChat.jsx";
 
 // "publish_event" → "Published this", "draft_campaign" → "Drafted a campaign", etc.
 // Pure presentation — keeps the narration line readable without a round-trip.
@@ -101,6 +102,19 @@ export function IdeaWidget() {
   const [, setSearchParams] = useSearchParams();
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
   const [open, setOpen] = useState(false);
+
+  // The create/edit page broadcasts the event being built so the dock can
+  // become a live build chat (the /create-scoped canvas). Null elsewhere.
+  const [canvasEventId, setCanvasEventId] = useState(null);
+  useEffect(() => {
+    const onContext = (e) => setCanvasEventId(e.detail?.eventId ?? null);
+    window.addEventListener("pullup:canvas-context", onContext);
+    return () => window.removeEventListener("pullup:canvas-context", onContext);
+  }, []);
+  // When a build surface is present, auto-open the dock so the chat is right there.
+  useEffect(() => {
+    if (canvasEventId) setOpen(true);
+  }, [canvasEventId]);
 
   // The floating slot has three modes derived from auth + MCP connection
   // status + whether the current page declares a host resource:
@@ -492,6 +506,20 @@ export function IdeaWidget() {
               </button>
             </div>
 
+            {canvasEventId && (
+              <div style={{ height: "min(72vh, 540px)" }}>
+                <CanvasChat
+                  eventId={canvasEventId}
+                  suggestions={(coachItems || []).map((it) => ({
+                    label: it.headline,
+                    prompt: it.headline,
+                  }))}
+                />
+              </div>
+            )}
+
+            {!canvasEventId && (
+            <>
             {recentActions.length > 0 && (
               <div
                 style={{
@@ -705,6 +733,8 @@ export function IdeaWidget() {
                 <span>Continue in claude.ai</span>
                 <ExternalLink size={12} />
               </a>
+            )}
+            </>
             )}
           </div>
         )}

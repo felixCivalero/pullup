@@ -129,6 +129,34 @@ const BrandInput = z
       .describe(
         "Register button font — one of: Inter, DM Sans, Manrope, Space Grotesk, Outfit, Helvetica, Playfair Display, Lora, Cormorant Garamond, Georgia, Space Mono, IBM Plex Mono. Unknown names fall back to the default."
       ),
+    design: z
+      .object({
+        archetype: z
+          .enum(["webgl"])
+          .optional()
+          .describe(
+            "Generative page-hero archetype. 'webgl' replaces the cover photo/video with a full-bleed ANIMATED shader background — use it when the host wants a bold, designed, 'crazy/3D/rave' look rather than a photo."
+          ),
+        params: z
+          .object({
+            colors: z
+              .array(z.string())
+              .optional()
+              .describe("2–3 hex colors driving the shader palette, e.g. ['#0a0617','#ec178f','#16e0c0']. Pull from the host's brand/vibe."),
+            intensity: z
+              .number()
+              .min(0)
+              .max(1)
+              .optional()
+              .describe("Motion/energy: 0 = calm drift, 1 = full rave. Default 0.6."),
+          })
+          .optional(),
+      })
+      .nullable()
+      .optional()
+      .describe(
+        "Generative design hero. Set archetype:'webgl' with a palette + intensity for an animated shader instead of a photo. NOTE: this whole `brand` object replaces the event's brand, so when setting design also include the existing brand colors/button fields from the current event state."
+      ),
   })
   .nullable()
   .optional()

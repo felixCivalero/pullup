@@ -107,7 +107,8 @@ import {
   listEventMedia,
   deleteEventMedia,
 } from "./services/eventMediaService.js";
-import { handleMcp, mcpCorsPreflight } from "./mcp/httpHandler.js";
+import { handleMcp, mcpCorsPreflight, buildServerInstructions } from "./mcp/httpHandler.js";
+import { runCanvasTurn, getCanvasMcpToken } from "./services/canvasChat.js";
 import {
   handleVerification as handleWhatsappWebhookVerification,
   handleEventDelivery as handleWhatsappWebhookDelivery,
@@ -126,6 +127,7 @@ import {
   redeemToken as redeemMagicLinkToken,
 } from "./services/phoneVerification.js";
 import { dispatch as dispatchMessage } from "./messaging/index.js";
+import { getRoomForHost } from "./services/roomService.js";
 import {
   metadataPRM,
   metadataAS,
@@ -750,6 +752,99 @@ app.all("/mcp", handleMcp);
 // /mcp/health is registered earlier, so its GET still wins over this.
 app.options("/mcp/:profile", mcpCorsPreflight);
 app.all("/mcp/:profile", handleMcp);
+
+// ---------------------------
+// Create canvas chat — the in-app head on the spine. The host converses; Claude
+// builds the event page by calling our /create MCP surface (blast-radius
+// limited: it can't refund/send/delete). PullUp holds the Anthropic key; a
+// short-lived per-host PAT authorizes the connector back into our MCP.
+// ---------------------------
+app.post("/host/canvas/chat", requireAuth, async (req, res) => {
+  try {
+    const { messages, eventId } = req.body || {};
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "messages (non-empty array) required" });
+    }
+
+    // System prompt = the same coach instructions the connector gets, plus the
+    // event the host is currently editing so Claude edits THIS one by default.
+    const { supabase } = await import("./supabase.js");
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("host_brief")
+      .eq("id", req.user.id)
+      .maybeSingle();
+    // Stable system block (instructions + brief) — cached so repeated turns in
+    // the conversation reuse the prefix. The latency killer is round-trips, so
+    // we forbid the read tools: the brief and current event state are already
+    // in the prompt, leaving update_event as the only call a typical edit needs.
+    let stable = buildServerInstructions((prof?.host_brief || "").trim());
+    stable +=
+      "\n\nCANVAS MODE — you are embedded in the live event editor, not a chat window. " +
+      "The brief above is already loaded; do NOT call get_host_brief. The current event's " +
+      "full state is provided to you on every turn, so do NOT call get_event or list_events " +
+      "to read it. Act directly and fast: make the change with update_event (using the slug), " +
+      "then reply with ONE short confirmation sentence.\n" +
+      "VOICE: reply in plain, conversational text — NO markdown (no **bold**, no bullet or " +
+      "heading syntax) and NO links or URLs. You live inside the editor and the live preview " +
+      "updates right next to the host as you work, so NEVER tell them to 'preview', 'open', or " +
+      "click a link — just say what you changed and, if useful, the one next thing worth doing.";
+
+    const systemBlocks = [
+      { type: "text", text: stable, cache_control: { type: "ephemeral" } },
+    ];
+
+    // Volatile event state goes in its own block *after* the cached breakpoint
+    // (it changes every time the host builds), so it never invalidates the cache.
+    if (eventId) {
+      const ownedIds = await getUserEventIds(req.user.id);
+      const ev = ownedIds.includes(eventId) ? await findEventById(eventId) : null;
+      if (ev) {
+        const ctx = {
+          title: ev.title,
+          slug: ev.slug,
+          status: ev.status,
+          description: ev.description || "",
+          location: ev.location || "",
+          startsAt: ev.startsAt || "",
+          endsAt: ev.endsAt || "",
+          brand: ev.brand || null,
+          titleSettings: ev.titleSettings || null,
+          sections: Array.isArray(ev.sections)
+            ? ev.sections.map((s) => ({
+                type: s.type,
+                ...(s.title ? { title: s.title } : {}),
+                ...(s.url ? { url: s.url } : {}),
+                ...(s.text ? { text: String(s.text).slice(0, 120) } : {}),
+              }))
+            : [],
+        };
+        systemBlocks.push({
+          type: "text",
+          text:
+            "CURRENT EVENT STATE — the host is editing THIS event right now. Edit it with " +
+            "update_event using its slug; do not re-read it.\n```json\n" +
+            JSON.stringify(ctx, null, 2) +
+            "\n```",
+        });
+      }
+    }
+
+    const mcpToken = await getCanvasMcpToken(req.user.id);
+    const mcpBaseUrl = process.env.MCP_PUBLIC_BASE_URL || "https://mcp.pullup.se";
+    const { reply, toolsUsed, stopReason } = await runCanvasTurn({
+      messages,
+      system: systemBlocks,
+      mcpToken,
+      mcpBaseUrl,
+    });
+
+    res.json({ reply, toolsUsed, stopReason, eventId: eventId || null });
+  } catch (err) {
+    console.error("[canvas/chat]", err?.message || err);
+    res.status(500).json({ error: "Canvas chat failed. Try again." });
+  }
+});
 
 // ---------------------------
 // OAuth 2.1 for the MCP endpoint. RFC 6749 + 7591 (DCR) + 7636 (PKCE) +
@@ -4835,6 +4930,19 @@ app.get("/api/location/details", async (req, res) => {
   } catch (error) {
     console.error("Location details error:", error);
     res.status(500).json({ error: "Failed to fetch location details" });
+  }
+});
+
+// The Room — global relationship home, read from the spine (person_events +
+// identities). Returns { host, events, signals, people } in the shape the
+// RoomPage expects. host_id on person_events scopes it to this host's world.
+app.get("/host/room", requireAuth, async (req, res) => {
+  try {
+    const room = await getRoomForHost(req.user.id);
+    res.json(room);
+  } catch (error) {
+    console.error("Error building room:", error);
+    res.status(500).json({ error: "Failed to build room" });
   }
 });
 

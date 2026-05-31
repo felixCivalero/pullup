@@ -915,6 +915,7 @@ export function EventPage() {
             tiktok: event?.tiktok,
             soundcloud: event?.soundcloud,
             sections: event?.sections || [],
+            design: event?.brand?.design || null,
             hideLocation: event?.hideLocation,
             hideDate: event?.hideDate,
             revealHint: event?.revealHint,

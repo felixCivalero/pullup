@@ -3,6 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort } from "../lib/urlUtils";
 import { EventPageContent } from "./EventPageContent";
+import { WebGLHero } from "./WebGLHero";
 import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
@@ -30,6 +31,7 @@ export function EventPreview({
   soundcloud,
   timezone,
   sections = [],
+  design = null,
   hoveredSection = null,
   hideLocation = false,
   hideDate = false,
@@ -193,6 +195,11 @@ export function EventPreview({
             }}
           >
             {(() => {
+              // Design archetype overrides the media hero with a generative
+              // render (same component in editor preview and live page).
+              if (design?.archetype === "webgl") {
+                return <WebGLHero params={design.params || {}} />;
+              }
               // Phone view uses mediaSettings.phone.fit/focusX/focusY (with
               // legacy fallback to top-level fit/focus on old events).
               const phoneFormat = mediaSettings?.phone || {};

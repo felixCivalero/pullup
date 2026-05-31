@@ -743,6 +743,14 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.options("/mcp", mcpCorsPreflight);
 app.all("/mcp", handleMcp);
 
+// Scoped surfaces: /mcp/create (event-builder head), /mcp/crm (relationship
+// ops). Same auth + handler; the profile segment just narrows the tool slice.
+// Express 5 dropped inline param regexes, so we accept any :profile and let the
+// handler validate it (an unknown segment falls back to the full surface).
+// /mcp/health is registered earlier, so its GET still wins over this.
+app.options("/mcp/:profile", mcpCorsPreflight);
+app.all("/mcp/:profile", handleMcp);
+
 // ---------------------------
 // OAuth 2.1 for the MCP endpoint. RFC 6749 + 7591 (DCR) + 7636 (PKCE) +
 // 8414 (AS metadata) + 9728 (PRM). Lets claude.ai's "Add custom connector"

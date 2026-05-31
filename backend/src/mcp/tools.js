@@ -2500,10 +2500,82 @@ function inferMediaTypeFromBase64(s) {
 // Registry
 // ───────────────────────────────────────────────────────────────────────
 
+// MCP standard tool annotations let an annotation-aware client (and the
+// connected model) reason about a tool's safety without parsing its prose:
+// readOnlyHint (no state change), destructiveHint (irreversible / hard to
+// undo — money or real people), idempotentHint (re-running with the same args
+// changes nothing further). We classify by name in one place so every tool —
+// and every future one — declares its blast radius.
+const READ_ONLY_TOOLS = new Set([
+  "list_events", "get_event", "list_rsvps", "list_cover_image_gallery",
+  "get_crm_summary", "get_revenue_summary", "get_attendance_trends",
+  "get_audience_segments", "get_recent_activity", "get_email_summary",
+  "get_event_analytics", "find_person", "get_person", "query_people",
+  "list_campaigns", "get_campaign", "suggest_event_improvements",
+  "suggest_campaign_improvements", "get_crm_signals", "audit_customer_journey",
+  "get_recent_actions", "get_host_brief",
+]);
+
+// Irreversible: moves real money or reaches real people in a way you can't take
+// back. These are the tools a client should gate hardest.
+const DESTRUCTIVE_TOOLS = new Set([
+  "delete_event", "refund_payment", "send_campaign",
+]);
+
+// Mutating but safe to repeat with the same args (re-applying lands the same
+// state). Not auto-safe like reads, but cheap to retry.
+const IDEMPOTENT_TOOLS = new Set([
+  "publish_event", "unpublish_event", "set_host_brief", "update_event",
+  "update_person", "update_rsvp", "cancel_scheduled_campaign",
+]);
+
+function annotateTool(t) {
+  const annotations = { title: t.title };
+  if (READ_ONLY_TOOLS.has(t.name)) {
+    annotations.readOnlyHint = true;
+    return annotations;
+  }
+  annotations.readOnlyHint = false;
+  annotations.destructiveHint = DESTRUCTIVE_TOOLS.has(t.name);
+  if (IDEMPOTENT_TOOLS.has(t.name)) annotations.idempotentHint = true;
+  return annotations;
+}
+
+// One spine, many heads. The server is stateless so it can't lazy-load tools,
+// but it can serve a right-sized slice per URL: /mcp/create mounts the
+// event-builder head (which by construction can't refund, send, or delete —
+// smaller blast radius), /mcp/crm the relationship-ops head, /mcp the full
+// power cockpit. Profiles are name allow-lists; null/unknown ⇒ the full surface
+// (never silently empty).
+const TOOL_PROFILES = {
+  create: new Set([
+    "create_event", "update_event", "publish_event", "unpublish_event",
+    "duplicate_event", "get_event", "list_events", "upload_event_image",
+    "upload_event_media", "get_media_upload_link", "list_cover_image_gallery",
+    "suggest_event_improvements", "get_event_analytics", "get_host_brief",
+    "set_host_brief",
+  ]),
+  crm: new Set([
+    "find_person", "get_person", "query_people", "update_person",
+    "add_person_note", "get_crm_summary", "get_crm_signals",
+    "get_audience_segments", "get_attendance_trends", "list_campaigns",
+    "get_campaign", "draft_campaign", "send_campaign", "schedule_campaign",
+    "cancel_scheduled_campaign", "suggest_campaign_improvements",
+    "get_email_summary", "get_revenue_summary", "refund_payment", "list_rsvps",
+    "update_rsvp", "list_events", "get_event", "get_event_analytics",
+    "audit_customer_journey", "get_recent_activity", "get_recent_actions",
+    "get_host_brief",
+  ]),
+};
+
+// Known profile names, for callers that want to validate a URL segment.
+export const MCP_PROFILES = Object.keys(TOOL_PROFILES);
+
 export function buildTools(ctx) {
   const api = makeApi(ctx.token);
   const h = buildHandlers(api, ctx?.user?.id || null);
-  return [
+  const allow = TOOL_PROFILES[ctx?.profile] || null;
+  const defs = [
     {
       name: "create_event",
       title: "Create a PullUp event",
@@ -2835,6 +2907,8 @@ export function buildTools(ctx) {
       handler: h.getRecentActions,
     },
   ];
+  const scoped = allow ? defs.filter((t) => allow.has(t.name)) : defs;
+  return scoped.map((t) => ({ ...t, annotations: annotateTool(t) }));
 }
 
 // Wrap a handler so any thrown error becomes a structured tool error

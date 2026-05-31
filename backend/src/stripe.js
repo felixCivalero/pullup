@@ -756,6 +756,18 @@ async function handleChargeRefunded(charge) {
  * @param {string} reason - Optional: Reason for refund
  * @returns {Promise<Object>} Refund object
  */
+// Deterministic Stripe idempotency key for a refund. Derived purely from the
+// payment + amount so that two refund calls describing the SAME intended
+// refund (e.g. two AI sessions both firing refund_payment, or a retry) collapse
+// into one refund server-side, while a legitimately different amount — a second
+// partial refund — gets its own key and is allowed through. Stripe expires
+// idempotency keys after ~24h, which is the right window for "this is an
+// accidental duplicate" without permanently blocking an intentional re-refund.
+export function refundIdempotencyKey(paymentIntentId, amount = null) {
+  const amountPart = amount == null ? "full" : String(amount);
+  return `refund:${paymentIntentId}:${amountPart}`;
+}
+
 export async function createRefund(
   paymentIntentId,
   amount = null,
@@ -840,8 +852,13 @@ export async function createRefund(
     reverse_transfer: refundParams.reverse_transfer,
   });
 
-  // Create the refund
-  const refund = await stripe.refunds.create(refundParams);
+  // Create the refund. The idempotency key is derived from the payment + the
+  // resolved refund amount, so a duplicate fire of the SAME intended refund
+  // (concurrent callers / a retry) collapses to one refund at Stripe, while a
+  // genuinely different amount still goes through.
+  const refund = await stripe.refunds.create(refundParams, {
+    idempotencyKey: refundIdempotencyKey(paymentIntentId, refundAmount),
+  });
 
   console.log("[Refund] Refund created:", {
     refundId: refund.id,

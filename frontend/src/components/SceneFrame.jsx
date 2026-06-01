@@ -19,6 +19,33 @@ import { useMemo, useState, useEffect } from "react";
 // document shell, the CSP, and the base styles, so the scene is always
 // transparent + full-bleed and the security boundary is never up to the model.
 function composeDoc(html) {
+  // Watchdog (runs FIRST, before the scene): a broken scene shouldn't blank the
+  // hero or spam the console. We report failure to the parent so it can swap to
+  // the poster (and unmount this iframe, which kills any error spam). We catch:
+  //   • thrown errors / unhandled rejections, and
+  //   • broken WebGL — wrap drawArrays/drawElements for the first frames and
+  //     flag if gl.getError() is non-zero (the "no valid shader program" case).
+  // If nothing fails shortly after boot we report "ok" and keep the scene.
+  const watchdog = `<script>(function(){
+  var done=false;
+  function fail(){if(done)return;done=true;try{parent.postMessage({__pullupScene:"error"},"*")}catch(e){}}
+  function ok(){try{parent.postMessage({__pullupScene:"ok"},"*")}catch(e){}}
+  addEventListener("error",fail,true);
+  addEventListener("unhandledrejection",fail);
+  try{
+    var ps=[];
+    if(window.WebGLRenderingContext)ps.push(WebGLRenderingContext.prototype);
+    if(window.WebGL2RenderingContext)ps.push(WebGL2RenderingContext.prototype);
+    var n=0;
+    ps.forEach(function(p){["drawArrays","drawElements"].forEach(function(fn){
+      var o=p[fn];if(!o)return;
+      p[fn]=function(){var r=o.apply(this,arguments);
+        if(n<40){n++;try{if(this.getError&&this.getError()!==0)fail()}catch(e){}}
+        return r;};
+    })});
+  }catch(e){}
+  setTimeout(function(){if(!done)ok()},1800);
+})();</scr`+`ipt>`;
   return `<!doctype html><html><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -28,6 +55,7 @@ function composeDoc(html) {
   canvas,svg,video{display:block}
   *{box-sizing:border-box}
 </style>
+${watchdog}
 </head><body>${html || ""}</body></html>`;
 }
 
@@ -75,7 +103,21 @@ export function SceneFrame({ html, poster = null, palette = null }) {
     return () => mq.removeEventListener?.("change", apply);
   }, []);
 
-  if (!html || reduceMotion) {
+  // Watchdog: if the scene throws or its WebGL program is broken, the iframe
+  // posts {__pullupScene:"error"}. We drop to the poster AND unmount the iframe
+  // — which kills the broken context (and its console-error spam). Re-arm when
+  // the scene code changes (a new build gets a fresh chance).
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [doc]);
+  useEffect(() => {
+    function onMsg(e) {
+      if (e?.data && e.data.__pullupScene === "error") setFailed(true);
+    }
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+
+  if (!html || reduceMotion || failed) {
     return <PosterFallback poster={poster} palette={palette} />;
   }
 

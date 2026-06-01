@@ -797,7 +797,18 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
       "the code. Do NOT approximate it by recoloring the shader with update_event, and NEVER tell the " +
       "host PullUp can't do it or to make a video elsewhere. Build it. The code MUST be responsive " +
       "(fill the container, handle resize) and collects nothing (the sandbox enforces this). Hero " +
-      "only — the Register button and the rest of the page stay PullUp's trusted system.\n" +
+      "only — the Register button and the rest of the page stay PullUp's trusted system. When you " +
+      "call set_event_scene, also pass `palette` (the hero's dominant hex colors) so the page can " +
+      "vibe-match and the still-fallback matches.\n" +
+      "MAKE IT ONE PIECE: right after you build or restyle the hero, in the SAME turn call " +
+      "update_event to vibe-match the body to it so the page feels designed, not stapled together — " +
+      "set brand.backgroundColor to a deep tone from the hero, brand.buttonColor to a hero accent " +
+      "(leave buttonTextColor to auto-contrast), and choose brand.buttonFontFamily + title/section " +
+      "fonts whose MOOD fits the hero (punchy condensed/grotesk for high-energy, an elegant serif for " +
+      "refined) from the curated fonts. Keep it tasteful and legible. And give the page music: if the " +
+      "event already has a Spotify link, add a 'spotify' section so it plays inline; if not, ask the " +
+      "host to drop their Spotify link and add it then — never invent a URL. Treat this vibe-match as " +
+      "part of designing the event, not a separate chore.\n" +
       "VOICE: reply in plain, conversational text — NO markdown (no **bold**, no bullet or " +
       "heading syntax) and NO links or URLs. You live inside the editor and the live preview " +
       "updates right next to the host as you work, so NEVER tell them to 'preview', 'open', or " +

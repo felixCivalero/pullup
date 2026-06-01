@@ -399,6 +399,10 @@ const SceneInput = {
     .string()
     .optional()
     .describe("Optional https image URL — the still fallback for reduced-motion and link/share previews."),
+  palette: z
+    .array(z.string())
+    .optional()
+    .describe("The hero's dominant colors as hex strings (2–4). Lets the page vibe-match the body to the hero and sharpens the still-fallback gradient."),
 };
 
 const SlugOnlyInput = {
@@ -868,7 +872,7 @@ function buildHandlers(api, hostId) {
   // but can't collect data or hit the network — see SceneFrame.jsx). Hero
   // only; the rest of the page stays the trusted block/brand system.
   async function setEventScene(args) {
-    const { slug, html, poster } = args;
+    const { slug, html, poster, palette } = args;
     if (!html || typeof html !== "string" || !html.trim()) {
       throw new Error("html is required: the scene as an HTML fragment (markup + <style>/<script>).");
     }
@@ -879,14 +883,18 @@ function buildHandlers(api, hostId) {
     // Merge into the brand snapshot so background/button stay intact.
     const full = await api("GET", `/host/events/${existing.id}`);
     const brand = (full && typeof full.brand === "object" && full.brand) || {};
+    // Palette (this call's, else whatever the previous design carried) drives
+    // body vibe-matching + the still-fallback gradient.
+    const colors = Array.isArray(palette) && palette.length
+      ? palette.filter((c) => typeof c === "string").slice(0, 4)
+      : brand.design?.params?.colors || null;
     const nextBrand = {
       ...brand,
       design: {
         archetype: "scene",
         html,
         ...(poster ? { poster } : {}),
-        // keep any palette the previous design carried (used for the fallback)
-        ...(brand.design?.params ? { params: brand.design.params } : {}),
+        ...(colors ? { params: { colors } } : {}),
       },
     };
     const updated = await api("PUT", `/host/events/${existing.id}`, { body: { brand: nextBrand } });
@@ -2680,7 +2688,7 @@ export function buildTools(ctx) {
       name: "set_event_scene",
       title: "Build a generative animated hero",
       description:
-        "Sets the event's HERO to a custom animated scene you author as code — the one place to 'go nuts' visually (canvas / WebGL / CSS / SVG motion; particles, liquid, 3D text fused into a shader, parallax photo treatments, etc.). Use this when the host wants a look the preset shader + cover can't express. The rest of the page (title, sections, RSVP) stays PullUp's trusted system — this is hero-only and purely decorative.\n\nPass `html` as a self-contained FRAGMENT: any markup PLUS inline <style> and <script>. Do NOT include <html>/<head>/<body> — those (and a strict sandbox) are provided. Hard rules your code MUST follow:\n• It runs sandboxed with NO network and NO same-origin — never fetch(), XHR, WebSocket, cookies, localStorage, or external <script src>. It cannot and must not collect data. Inline everything.\n• Be fully RESPONSIVE: fill 100% width/height of the container, use vw/vh/%/clamp, and handle window 'resize' (re-fit canvas to its parent). The SAME scene must look great from a 360px phone to a wide desktop — there is one stored scene for both.\n• Transparent background (the page supplies its own bg; the Register button layers on top — don't draw your own CTA that collects anything).\n• Keep it lean for mobile (cap particle counts / pixel ratio); pause when document.hidden.\n• Images may be referenced by https URL the host provides (display only).\nProvide `poster` (an https image URL) when you have one — it's the still fallback for reduced-motion and link previews.",
+        "Sets the event's HERO to a custom animated scene you author as code — the one place to 'go nuts' visually (canvas / WebGL / CSS / SVG motion; particles, liquid, 3D text fused into a shader, parallax photo treatments, etc.). Use this when the host wants a look the preset shader + cover can't express. The rest of the page (title, sections, RSVP) stays PullUp's trusted system — this is hero-only and purely decorative.\n\nPass `html` as a self-contained FRAGMENT: any markup PLUS inline <style> and <script>. Do NOT include <html>/<head>/<body> — those (and a strict sandbox) are provided. Hard rules your code MUST follow:\n• It runs sandboxed with NO network and NO same-origin — never fetch(), XHR, WebSocket, cookies, localStorage, or external <script src>. It cannot and must not collect data. Inline everything.\n• Be fully RESPONSIVE: fill 100% width/height of the container, use vw/vh/%/clamp, and handle window 'resize' (re-fit canvas to its parent). The SAME scene must look great from a 360px phone to a wide desktop — there is one stored scene for both.\n• Transparent background (the page supplies its own bg; the Register button layers on top — don't draw your own CTA that collects anything).\n• Keep it lean for mobile (cap particle counts / pixel ratio); pause when document.hidden.\n• Images may be referenced by https URL the host provides (display only).\nProvide `poster` (an https image URL) when you have one — it's the still fallback for reduced-motion and link previews. Pass `palette` (the hero's dominant hex colors) so the page can vibe-match the body to the hero. AFTER this call, also update_event to harmonize the body — background/button colors + title/section fonts matched to the hero — and add a Spotify player.",
       inputSchema: SceneInput,
       handler: h.setEventScene,
     },

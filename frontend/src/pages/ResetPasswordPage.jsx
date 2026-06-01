@@ -76,7 +76,7 @@ export function ResetPasswordPage() {
       }
       trackEvent("reset_password_success");
       // User is now signed in with their new password — send them straight in.
-      navigate("/events", { replace: true });
+      navigate("/room", { replace: true });
     } catch (err) {
       console.error("updateUser threw:", err);
       setFormError("Something went wrong. Please try again.");

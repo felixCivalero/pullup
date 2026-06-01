@@ -121,6 +121,10 @@ import {
   startInstagramConnect,
   instagramConnectCallback,
   getInstagramConnectionStatus,
+  getInstagramConnectUrl,
+  setDefaultInstagramAccount,
+  updateInstagramAccount,
+  disconnectInstagramAccount,
 } from "./instagram/oauth/connectRoutes.js";
 import {
   startVerification as startPhoneVerification,
@@ -1118,9 +1122,11 @@ app.post("/webhooks/instagram", handleIgWebhookDelivery);
 app.get("/oauth/instagram/start", requireAuth, startInstagramConnect);
 app.get("/oauth/instagram/callback", instagramConnectCallback);
 app.get("/instagram/connection", requireAuth, getInstagramConnectionStatus);
-// NOTE: /instagram/connect-url temporarily removed — its handler
-// (getInstagramConnectUrl) lives in an uncommitted connectRoutes.js change.
-// Re-add this route + the import once that export is committed.
+app.get("/instagram/connect-url", requireAuth, getInstagramConnectUrl);
+// Multi-account management — set the reply-from default, rename, disconnect.
+app.post("/instagram/connections/:id/default", requireAuth, setDefaultInstagramAccount);
+app.patch("/instagram/connections/:id", requireAuth, updateInstagramAccount);
+app.delete("/instagram/connections/:id", requireAuth, disconnectInstagramAccount);
 
 // ---------------------------
 // PHONE VERIFICATION: magic-link via WhatsApp
@@ -5076,6 +5082,35 @@ app.get("/host/room", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Error building room:", error);
     res.status(500).json({ error: "Failed to build room" });
+  }
+});
+
+// Send a personal message from the Room composer (email is wired today).
+app.post("/host/room/message", requireAuth, async (req, res) => {
+  try {
+    const { sendRoomMessage } = await import("./services/roomMessaging.js");
+    const { personId, channel, text, subject } = req.body || {};
+    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject });
+    if (!r.ok) {
+      return res.status(r.error === "channel_unavailable" ? 501 : 400).json(r);
+    }
+    res.json(r);
+  } catch (error) {
+    console.error("Error sending room message:", error);
+    res.status(500).json({ ok: false, error: "send_failed" });
+  }
+});
+
+// Bulk send — one private message each (not a group), email-reachable now.
+app.post("/host/room/message/bulk", requireAuth, async (req, res) => {
+  try {
+    const { sendRoomBulk } = await import("./services/roomMessaging.js");
+    const { personIds, text, subject } = req.body || {};
+    const r = await sendRoomBulk({ hostId: req.user.id, personIds, text, subject });
+    res.json({ ok: true, ...r });
+  } catch (error) {
+    console.error("Error sending room bulk:", error);
+    res.status(500).json({ ok: false, error: "send_failed" });
   }
 });
 

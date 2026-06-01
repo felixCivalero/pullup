@@ -38,7 +38,7 @@ function clearDraft() {
 // Same-origin-only redirect resolver for ?next=. Open redirects bad.
 function resolveNext(params) {
   const raw = params.get("next");
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/events";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/room";
   return raw;
 }
 
@@ -115,7 +115,7 @@ function Reveal({ children, delay = 0, y = 24 }) {
 
 /* ─── Login slide panel ───
    Light AuthCard + "back to landing" + link to onboarding. Auto-routes
-   to ?next= (or /events) once user is signed in. Only fires that effect
+   to ?next= (or /room) once user is signed in. Only fires that effect
    while this panel is the active view, so the global auto-redirect on
    the landing shell doesn't double-fire it. */
 function LoginPanel({ isActive, user }) {
@@ -217,7 +217,7 @@ function OnboardingPanel({ isActive, user }) {
       }
     } finally {
       clearDraft();
-      navigate("/events", { replace: true });
+      navigate("/room", { replace: true });
     }
   }, [navigate]);
 
@@ -386,12 +386,12 @@ export function LandingPage() {
 
   const handleNavCta = () => {
     trackEvent("cta_click", { location: "nav", user_logged_in: !!user });
-    navigate(user ? "/events" : "/login");
+    navigate(user ? "/room" : "/login");
   };
 
   const handleEventsCta = () => {
     trackEvent("cta_click", { location: "hero_events", user_logged_in: !!user });
-    navigate(user ? "/events" : "/login");
+    navigate(user ? "/room" : "/login");
   };
 
   const handleMarketingCta = () => {
@@ -447,9 +447,9 @@ export function LandingPage() {
       sessionStorage.removeItem("pullup_signin_pending");
       trackEvent("signed_in", { via: pendingFlag ? "google" : "auto" });
     }
-    // LoginPanel pushes its own ?next= → /events redirect; we only kick
+    // LoginPanel pushes its own ?next= → /room redirect; we only kick
     // in here for the bare hero/login states.
-    navigate(view === "login" ? "/events" : "/events", { replace: true });
+    navigate("/room", { replace: true });
   }, [user, loading, view, navigate]);
 
   useEffect(() => {
@@ -460,7 +460,7 @@ export function LandingPage() {
 
   // Returning user with a stored session — skip the shell entirely.
   if (sessionGate) {
-    return <Navigate to="/events" replace />;
+    return <Navigate to="/room" replace />;
   }
 
   return (

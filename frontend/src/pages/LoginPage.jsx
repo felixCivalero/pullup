@@ -10,8 +10,8 @@ import { PullupEyes } from "../components/PullupEyes.jsx";
 // same-origin paths are accepted — never trust an open redirect.
 function resolveNext(params) {
   const raw = params.get("next");
-  if (!raw) return "/events";
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/events";
+  if (!raw) return "/room";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/room";
   return raw;
 }
 

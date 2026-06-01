@@ -8,6 +8,7 @@ import { EventNavProvider, useEventNav } from "../contexts/EventNavContext.jsx";
 import { ChevronLeft, Settings } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { PullupEyes } from "./PullupEyes.jsx";
+import { NotificationsBell } from "./NotificationsBell.jsx";
 import { WhatsNewModal } from "./WhatsNewModal.jsx";
 import { colors } from "../theme/colors.js";
 
@@ -29,11 +30,11 @@ function ProtectedLayoutInner() {
 
   // Detect event routes
   const eventRouteMatch = location.pathname.match(
-    /^\/app\/events\/([^/]+)\/(manage|guests|analytics|edit)/
+    /^\/app\/events\/([^/]+)\/(manage|room|guests|analytics|edit)/
   );
   const isEventRoute = !!eventRouteMatch;
   const eventId = eventRouteMatch?.[1];
-  const eventTab = eventRouteMatch?.[2]; // "manage" | "guests" | "edit"
+  const eventTab = eventRouteMatch?.[2]; // "room" | "guests" | "analytics" | "edit"
 
   // Clear event nav when leaving event routes
   useEffect(() => {
@@ -111,7 +112,7 @@ function ProtectedLayoutInner() {
   useEffect(() => {
     if (profileChecked && !isAdmin && location.pathname.startsWith("/admin/email")) {
       showToast("Admin access required", "error");
-      navigate("/events", { replace: true });
+      navigate("/room", { replace: true });
     }
   }, [profileChecked, isAdmin, location.pathname, navigate, showToast]);
 
@@ -153,12 +154,19 @@ function ProtectedLayoutInner() {
   // can back data-driven features, so the guard is scoped to /admin/email only.
   const isEmailSection = location.pathname.startsWith("/admin/email");
 
-  // Nav items for all users
+  // Nav items for all users.
+  //
+  // The product is narrowing to a per-event relationship engine (see "The Room"
+  // direction, 2026-05-31). The mass-oriented surfaces — global Analytics, CRM
+  // lists, Content Planner — are intentionally pulled OUT of the nav so the app
+  // visibly collapses to: your events, and the work inside each one. The pages
+  // and their routes still exist (reachable by URL) — this is a deliberate
+  // de-emphasis, not a deletion, so we can restore or migrate them as the new
+  // shape settles.
+  // The Room leads — it's the home of PullUp now (the global relationship
+  // surface). Events are content that pours into it; Settings holds the rest.
   const navItems = [
-    { label: "Events", path: "/events" },
-    { label: "Analytics", path: "/analytics" },
-    { label: "CRM", path: "/crm" },
-    { label: "Content Planner", path: "/planner" },
+    { label: "The Room", path: "/room" },
     { label: "Settings", path: "/settings" },
   ];
 
@@ -174,15 +182,18 @@ function ProtectedLayoutInner() {
   const eventTabItems = eventId
     ? isAnalyticsOnly
       ? [
-          { label: "Analytics", path: `/app/events/${eventId}/analytics`, tab: "analytics" },
+          { label: "Insights", path: `/app/events/${eventId}/analytics`, tab: "analytics" },
         ]
       : [
+          // The Room moved GLOBAL (it's the home of PullUp, person-centric
+          // across all events). The event keeps only what's event-scoped:
+          // the guest list (logistics roster), analytics, and edit.
           {
             label: `Guests${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
             path: `/app/events/${eventId}/guests`,
             tab: "guests",
           },
-          { label: "Analytics", path: `/app/events/${eventId}/analytics`, tab: "analytics" },
+          { label: "Insights", path: `/app/events/${eventId}/analytics`, tab: "analytics" },
           { label: "Edit", path: `/app/events/${eventId}/edit`, tab: "edit" },
         ]
     : [];
@@ -268,7 +279,7 @@ function ProtectedLayoutInner() {
         {/* Left side */}
         {isEventRoute ? (
           <button
-            onClick={() => handleNav("/events")}
+            onClick={() => handleNav("/room")}
             style={{
               background: "transparent",
               border: "none",
@@ -294,11 +305,11 @@ function ProtectedLayoutInner() {
             }}
           >
             <ChevronLeft size={16} />
-            Events
+            The Room
           </button>
         ) : (
           <button
-            onClick={() => handleNav("/events")}
+            onClick={() => handleNav("/room")}
             aria-label="PullUp"
             style={{
               background: "transparent",
@@ -541,6 +552,9 @@ function ProtectedLayoutInner() {
             </a>
           )}
 
+          {/* Desktop: Notifications bell (ambient facts) — sits next to Settings */}
+          {!isMobile && <NotificationsBell />}
+
           {/* Desktop: Settings icon */}
           {!isMobile && (
             <button
@@ -596,11 +610,11 @@ function ProtectedLayoutInner() {
             <button
               onClick={() => {
                 if (isCreatingEvent) {
-                  handleNav("/events");
+                  handleNav("/room");
                 } else if (!profileComplete) {
                   showToast("Fill in your brand name and contact email first", "error");
-                  if (location.pathname !== "/events") {
-                    handleNav("/events");
+                  if (location.pathname !== "/room") {
+                    handleNav("/room");
                   } else {
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
@@ -853,9 +867,9 @@ function ProtectedLayoutInner() {
                     }}
                   />
 
-                  {/* Back to events */}
+                  {/* Back to the Room */}
                   <button
-                    onClick={() => handleNav("/events")}
+                    onClick={() => handleNav("/room")}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -875,7 +889,7 @@ function ProtectedLayoutInner() {
                     }}
                   >
                     <ChevronLeft size={16} />
-                    All Events
+                    The Room
                   </button>
 
                   {/* Live link */}

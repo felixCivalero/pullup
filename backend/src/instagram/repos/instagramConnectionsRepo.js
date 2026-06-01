@@ -9,7 +9,7 @@ import { encryptSecret, decryptSecret } from "../../utils/encryption.js";
 import { logger } from "../../logger.js";
 
 const SAFE_COLUMNS =
-  "id, host_profile_id, ig_user_id, ig_username, page_id, scopes, status, connected_at, last_synced_at, token_expires_at";
+  "id, host_profile_id, ig_user_id, ig_username, page_id, scopes, status, connected_at, last_synced_at, token_expires_at, label, is_default";
 
 /**
  * Create or update a host's IG connection (keyed by ig_user_id). Encrypts
@@ -51,19 +51,116 @@ export async function upsertConnection({
     logger?.error?.("[instagramConnectionsRepo] upsert failed", { error: error.message });
     throw error;
   }
+
+  // First account a host connects becomes their default "reply from" — so a
+  // host with one account always has a sender, and a second account is opt-in
+  // as the new default (set explicitly in Settings).
+  const { data: defs } = await supabase
+    .from("instagram_connections")
+    .select("id")
+    .eq("host_profile_id", hostProfileId)
+    .eq("status", "connected")
+    .eq("is_default", true)
+    .limit(1);
+  if (!defs?.length) {
+    await supabase.from("instagram_connections").update({ is_default: true }).eq("id", data.id);
+    data.is_default = true;
+  }
+
   return data;
 }
 
-/** Host-facing fetch (no token). Null if the host hasn't connected. */
+/**
+ * Host-facing fetch of the PRIMARY connection (no token). Prefers the default
+ * account, else the most recently connected. Null if the host hasn't connected.
+ */
 export async function getConnectionForHost(hostProfileId) {
   const { data } = await supabase
     .from("instagram_connections")
     .select(SAFE_COLUMNS)
     .eq("host_profile_id", hostProfileId)
     .eq("status", "connected")
+    .order("is_default", { ascending: false })
     .order("connected_at", { ascending: false })
     .limit(1);
   return data?.[0] || null;
+}
+
+/** All of a host's connected accounts (no tokens), default first. */
+export async function getConnectionsForHost(hostProfileId) {
+  const { data } = await supabase
+    .from("instagram_connections")
+    .select(SAFE_COLUMNS)
+    .eq("host_profile_id", hostProfileId)
+    .eq("status", "connected")
+    .order("is_default", { ascending: false })
+    .order("connected_at", { ascending: false });
+  return data || [];
+}
+
+/** Set which connected account is the host's default "reply from". */
+export async function setDefaultConnection(hostProfileId, connectionId) {
+  const { data: own } = await supabase
+    .from("instagram_connections")
+    .select("id")
+    .eq("id", connectionId)
+    .eq("host_profile_id", hostProfileId)
+    .eq("status", "connected")
+    .limit(1);
+  if (!own?.length) throw new Error("connection not found");
+  // Clear first (the partial unique index allows only one is_default per host),
+  // then set the chosen one.
+  await supabase
+    .from("instagram_connections")
+    .update({ is_default: false, updated_at: new Date().toISOString() })
+    .eq("host_profile_id", hostProfileId);
+  const { error } = await supabase
+    .from("instagram_connections")
+    .update({ is_default: true, updated_at: new Date().toISOString() })
+    .eq("id", connectionId)
+    .eq("host_profile_id", hostProfileId);
+  if (error) throw error;
+  return true;
+}
+
+/** Host renames an account (e.g. "Personal" / "Business"). */
+export async function setConnectionLabel(hostProfileId, connectionId, label) {
+  const { error } = await supabase
+    .from("instagram_connections")
+    .update({ label: label || null, updated_at: new Date().toISOString() })
+    .eq("id", connectionId)
+    .eq("host_profile_id", hostProfileId);
+  if (error) throw error;
+  return true;
+}
+
+/** Disconnect one account; if it was the default, promote another. */
+export async function disconnectConnection(hostProfileId, connectionId) {
+  const { data: rows } = await supabase
+    .from("instagram_connections")
+    .select("id, is_default")
+    .eq("id", connectionId)
+    .eq("host_profile_id", hostProfileId)
+    .limit(1);
+  if (!rows?.length) throw new Error("connection not found");
+  await supabase
+    .from("instagram_connections")
+    .update({ status: "revoked", is_default: false, updated_at: new Date().toISOString() })
+    .eq("id", connectionId)
+    .eq("host_profile_id", hostProfileId);
+  if (rows[0].is_default) {
+    const { data: next } = await supabase
+      .from("instagram_connections")
+      .select("id")
+      .eq("host_profile_id", hostProfileId)
+      .eq("status", "connected")
+      .order("connected_at", { ascending: false })
+      .limit(1);
+    if (next?.length) {
+      await supabase.from("instagram_connections").update({ is_default: true }).eq("id", next[0].id);
+    }
+  }
+  return true;
 }
 
 /**

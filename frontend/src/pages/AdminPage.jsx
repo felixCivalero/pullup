@@ -103,7 +103,7 @@ export function AdminPage() {
         setProfile(data);
 
         if (!data?.isAdmin) {
-          navigate("/events");
+          navigate("/room");
         }
       } catch (error) {
         console.error("Failed to load admin profile:", error);

@@ -1706,7 +1706,7 @@ app.get("/events/:slug", optionalAuth, async (req, res) => {
     };
     if (event.hostId) {
       try {
-        const { data: hostProfile } = await supabase
+        const { data: hostProfile } = await sb
           .from("profiles")
           .select("name, brand, whatsapp_signature")
           .eq("id", event.hostId)

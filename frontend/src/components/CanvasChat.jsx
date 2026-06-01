@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Sparkles } from "lucide-react";
+import { Send, Sparkles, ImagePlus, X } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
+import { uploadEventMediaDirect } from "../lib/imageUtils.js";
 import { colors } from "../theme/colors.js";
 
 // The create canvas: the host talks, Claude builds the event page through our
@@ -74,7 +75,37 @@ export function CanvasChat({ eventId, suggestions = [] }) {
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState(null); // live "what the AI is doing now"
   const [error, setError] = useState(null);
+  const [attachments, setAttachments] = useState([]); // [{url}] reference images
+  const [uploading, setUploading] = useState(false);
   const scrollRef = useRef(null);
+  const fileRef = useRef(null);
+
+  // Attach an image in the chat. It goes into the SHARED event-media pool (so it
+  // also shows in the MEDIA tab — one image, both places), and its URL rides the
+  // next message so the AI can SEE it (vision) and animate/treat it in the hero.
+  async function attachImage(file) {
+    if (!file || !eventId) return;
+    if (!file.type || !file.type.startsWith("image/")) {
+      setError("Please attach an image.");
+      return;
+    }
+    setError(null);
+    setUploading(true);
+    try {
+      const rec = await uploadEventMediaDirect({ eventId, file, mediaType: "image" });
+      const url = rec?.url || rec?.thumbnailUrl;
+      if (!url) throw new Error("Upload didn't return a URL.");
+      setAttachments((a) => [...a, { url }]);
+      // It's now event media → mirror it into the MEDIA tab (re-hydrate).
+      window.dispatchEvent(
+        new CustomEvent("pullup:canvas-built", { detail: { eventId, tools: ["upload_event_media"] } }),
+      );
+    } catch (e) {
+      setError(e?.message || "Couldn't add that image.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -83,11 +114,14 @@ export function CanvasChat({ eventId, suggestions = [] }) {
   // `override` lets a chip send its prompt directly; the composer sends `input`.
   async function send(override) {
     const text = (typeof override === "string" ? override : input).trim();
-    if (!text || sending) return;
+    const imgs = attachments.map((a) => a.url);
+    if ((!text && imgs.length === 0) || sending) return;
     setError(null);
-    const next = [...messages, { role: "user", content: text }];
+    const userText = text || "Use the attached image for the hero.";
+    const next = [...messages, { role: "user", content: userText, images: imgs }];
     setMessages(next);
     if (typeof override !== "string") setInput("");
+    setAttachments([]);
     setSending(true);
     setStatus(null);
     try {
@@ -111,6 +145,7 @@ export function CanvasChat({ eventId, suggestions = [] }) {
         body: JSON.stringify({
           messages: next.map((m) => ({ role: m.role, content: m.content })),
           eventId: eventId || null,
+          images: imgs,
         }),
       });
       // The endpoint streams NDJSON, one JSON object per line:
@@ -255,7 +290,55 @@ export function CanvasChat({ eventId, suggestions = [] }) {
         </div>
       )}
 
+      {(attachments.length > 0 || uploading) && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", padding: "8px 2px 0" }}>
+          {attachments.map((a, i) => (
+            <div key={i} style={{ position: "relative", width: 46, height: 46, borderRadius: 8, overflow: "hidden", border: `1px solid ${colors.border}` }}>
+              <img src={a.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              <button
+                type="button"
+                onClick={() => setAttachments((arr) => arr.filter((_, j) => j !== i))}
+                aria-label="Remove image"
+                style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: 999, border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+          {uploading && <span style={{ fontSize: 12, color: colors.textMuted }}>Adding image…</span>}
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingTop: 8, borderTop: `1px solid ${colors.borderFaint}` }}>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          style={{ display: "none" }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) attachImage(f); e.target.value = ""; }}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading || sending}
+          aria-label="Attach an image"
+          title="Attach an image — it joins your media and the AI can animate it"
+          style={{
+            flexShrink: 0,
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            border: `1px solid ${colors.border}`,
+            background: colors.background,
+            color: uploading || sending ? colors.textFaded : colors.textMuted,
+            cursor: uploading || sending ? "default" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <ImagePlus size={16} />
+        </button>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -279,7 +362,7 @@ export function CanvasChat({ eventId, suggestions = [] }) {
         <button
           type="button"
           onClick={() => send()}
-          disabled={sending || !input.trim()}
+          disabled={sending || (!input.trim() && attachments.length === 0)}
           aria-label="Send"
           style={{
             flexShrink: 0,
@@ -287,9 +370,9 @@ export function CanvasChat({ eventId, suggestions = [] }) {
             height: 38,
             borderRadius: 10,
             border: "none",
-            background: input.trim() && !sending ? colors.accent : colors.surfaceMuted,
-            color: input.trim() && !sending ? "#fff" : colors.textFaded,
-            cursor: input.trim() && !sending ? "pointer" : "default",
+            background: (input.trim() || attachments.length) && !sending ? colors.accent : colors.surfaceMuted,
+            color: (input.trim() || attachments.length) && !sending ? "#fff" : colors.textFaded,
+            cursor: (input.trim() || attachments.length) && !sending ? "pointer" : "default",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

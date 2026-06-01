@@ -760,6 +760,7 @@ app.all("/mcp/:profile", handleMcp);
 // short-lived per-host PAT authorizes the connector back into our MCP.
 // ---------------------------
 app.post("/host/canvas/chat", requireAuth, async (req, res) => {
+  let heartbeat = null;
   try {
     const { messages, eventId } = req.body || {};
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -856,16 +857,30 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
 
     const mcpToken = await getCanvasMcpToken(req.user.id);
     const mcpBaseUrl = process.env.MCP_PUBLIC_BASE_URL || "https://mcp.pullup.se";
-    const { reply, toolsUsed, toolsFailed, toolsUnrun, stopReason, diag } = await runCanvasTurn({
-      messages,
-      system: systemBlocks,
-      mcpToken,
-      mcpBaseUrl,
-    });
 
-    // TEMP boundary diagnostic: log the canvas turn's true response shape so we
-    // can tell from the DB whether the MCP connector attached/executed our
-    // tools (sr/stop_reason, b/block-types, run/fail/unrun tool names).
+    // Generative scenes can run past a 60s gateway read-timeout (→504). Stream
+    // an NDJSON response and emit a heartbeat newline every 15s so the proxy
+    // keeps the connection open while the model writes the scene. The FINAL
+    // non-empty line carries the real payload (or an {error}); blank lines are
+    // just keepalive. HTTP status is already 200 once we start streaming.
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("X-Accel-Buffering", "no"); // ask nginx not to buffer
+    res.flushHeaders?.();
+    heartbeat = setInterval(() => {
+      try { res.write("\n"); } catch { /* socket gone */ }
+    }, 15000);
+
+    let turn;
+    try {
+      turn = await runCanvasTurn({ messages, system: systemBlocks, mcpToken, mcpBaseUrl });
+    } finally {
+      clearInterval(heartbeat);
+      heartbeat = null;
+    }
+    const { reply, toolsUsed, toolsFailed, toolsUnrun, stopReason, diag } = turn;
+
+    // TEMP boundary diagnostic: the canvas turn's true response shape.
     try {
       supabase
         .from("mcp_tool_calls")
@@ -879,11 +894,14 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
         .then(() => {}, () => {});
     } catch { /* never block the turn */ }
 
-    res.json({ reply, toolsUsed, toolsFailed, toolsUnrun, stopReason, eventId: eventId || null });
+    res.write(
+      JSON.stringify({ reply, toolsUsed, toolsFailed, toolsUnrun, stopReason, eventId: eventId || null }) + "\n",
+    );
+    res.end();
   } catch (err) {
+    if (heartbeat) { clearInterval(heartbeat); heartbeat = null; }
     console.error("[canvas/chat]", err?.message || err);
-    // TEMP: capture the real failure so we can read it from the DB (the big
-    // scene turns are erroring and prod logs aren't reachable from here).
+    // TEMP: capture the real failure to the DB (prod logs unreachable here).
     try {
       const { supabase: sb } = await import("./supabase.js");
       const detail = `${err?.name || "Error"}: ${err?.message || err}${err?.status ? ` [status:${err.status}]` : ""}`;
@@ -897,7 +915,14 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
         })
         .then(() => {}, () => {});
     } catch { /* swallow */ }
-    res.status(500).json({ error: "Canvas chat failed. Try again." });
+    // Deliver the error as a final NDJSON line if we already started streaming;
+    // otherwise a normal JSON error response still works.
+    if (res.headersSent) {
+      try { res.write(JSON.stringify({ error: "Canvas chat failed. Try again." }) + "\n"); } catch {}
+      try { res.end(); } catch {}
+    } else {
+      res.status(500).json({ error: "Canvas chat failed. Try again." });
+    }
   }
 });
 

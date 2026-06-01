@@ -115,11 +115,17 @@ export function CanvasChat({ eventId, suggestions = [] }) {
           eventId: eventId || null,
         }),
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Canvas couldn't respond. Try again.");
+      // The endpoint streams NDJSON: heartbeat blank lines keep the gateway
+      // alive during long scene builds; the FINAL non-empty line is the payload
+      // (the result, or an {error}). Parse the last JSON line.
+      const rawBody = await res.text();
+      let data = null;
+      const lines = rawBody.split("\n").map((s) => s.trim()).filter(Boolean);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try { data = JSON.parse(lines[i]); break; } catch { /* skip non-JSON */ }
       }
-      const data = await res.json();
+      if (!data) throw new Error("Canvas couldn't respond. Try again.");
+      if (data.error) throw new Error(data.error);
       const tools = Array.isArray(data.toolsUsed) ? data.toolsUsed : [];
       const failed = Array.isArray(data.toolsFailed) ? data.toolsFailed : [];
       const unrun = Array.isArray(data.toolsUnrun) ? data.toolsUnrun : [];

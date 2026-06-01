@@ -856,14 +856,30 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
 
     const mcpToken = await getCanvasMcpToken(req.user.id);
     const mcpBaseUrl = process.env.MCP_PUBLIC_BASE_URL || "https://mcp.pullup.se";
-    const { reply, toolsUsed, toolsFailed, stopReason } = await runCanvasTurn({
+    const { reply, toolsUsed, toolsFailed, toolsUnrun, stopReason, diag } = await runCanvasTurn({
       messages,
       system: systemBlocks,
       mcpToken,
       mcpBaseUrl,
     });
 
-    res.json({ reply, toolsUsed, toolsFailed, stopReason, eventId: eventId || null });
+    // TEMP boundary diagnostic: log the canvas turn's true response shape so we
+    // can tell from the DB whether the MCP connector attached/executed our
+    // tools (sr/stop_reason, b/block-types, run/fail/unrun tool names).
+    try {
+      supabase
+        .from("mcp_tool_calls")
+        .insert({
+          user_id: req.user.id,
+          tool_name: "canvas_diag",
+          ok: (toolsUnrun || []).length === 0,
+          duration_ms: 0,
+          error_excerpt: JSON.stringify(diag || {}).slice(0, 240),
+        })
+        .then(() => {}, () => {});
+    } catch { /* never block the turn */ }
+
+    res.json({ reply, toolsUsed, toolsFailed, toolsUnrun, stopReason, eventId: eventId || null });
   } catch (err) {
     console.error("[canvas/chat]", err?.message || err);
     res.status(500).json({ error: "Canvas chat failed. Try again." });

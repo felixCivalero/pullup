@@ -873,7 +873,17 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
 
     let turn;
     try {
-      turn = await runCanvasTurn({ messages, system: systemBlocks, mcpToken, mcpBaseUrl });
+      turn = await runCanvasTurn({
+        messages,
+        system: systemBlocks,
+        mcpToken,
+        mcpBaseUrl,
+        // Narrate real actions live (Claude-Code feel) — each tool the model
+        // starts becomes a status line the dock shows as it happens.
+        onProgress: (text) => {
+          try { res.write(JSON.stringify({ type: "status", text }) + "\n"); } catch { /* socket gone */ }
+        },
+      });
     } finally {
       clearInterval(heartbeat);
       heartbeat = null;
@@ -895,7 +905,7 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
     } catch { /* never block the turn */ }
 
     res.write(
-      JSON.stringify({ reply, toolsUsed, toolsFailed, toolsUnrun, stopReason, eventId: eventId || null }) + "\n",
+      JSON.stringify({ type: "result", reply, toolsUsed, toolsFailed, toolsUnrun, stopReason, eventId: eventId || null }) + "\n",
     );
     res.end();
   } catch (err) {
@@ -918,7 +928,7 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
     // Deliver the error as a final NDJSON line if we already started streaming;
     // otherwise a normal JSON error response still works.
     if (res.headersSent) {
-      try { res.write(JSON.stringify({ error: "Canvas chat failed. Try again." }) + "\n"); } catch {}
+      try { res.write(JSON.stringify({ type: "error", error: "Canvas chat failed. Try again." }) + "\n"); } catch {}
       try { res.end(); } catch {}
     } else {
       res.status(500).json({ error: "Canvas chat failed. Try again." });

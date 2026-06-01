@@ -68,14 +68,47 @@ export function buildCanvasRequest({ messages, system, mcpToken, model, mcpBaseU
   };
 }
 
-// Run one canvas turn. Thin wrapper over the API — the connector executes any
-// tool calls server-side against our /create surface, so the returned message
-// already reflects a completed build step. Returns the assistant text plus the
-// names of any tools Claude invoked (for the activity narration / preview
-// refresh signal).
-export async function runCanvasTurn({ messages, system, mcpToken, model, mcpBaseUrl }) {
+// Human, present-tense narration of what the AI is doing right now, keyed off
+// the real tool it just started calling — so the host feels an intelligent
+// agent at work (Claude-Code style) instead of a fake spinner.
+function statusForTool(name) {
+  switch (name) {
+    case "set_event_scene": return "Designing your hero — writing the animation…";
+    case "update_event": return "Matching the page — colors, type, copy…";
+    case "publish_event": return "Taking it live…";
+    case "unpublish_event": return "Moving it back to draft…";
+    case "get_host_brief": return "Catching up on your brief…";
+    case "upload_event_image":
+    case "upload_event_media": return "Adding the media…";
+    default:
+      if (name && (name.startsWith("get_") || name.startsWith("list_"))) return "Checking the details…";
+      return "Working on it…";
+  }
+}
+
+// Run one canvas turn, STREAMED. The connector executes tool calls server-side
+// against our /create surface; we stream the model's events so we can narrate
+// each real step via onProgress (and the streamed bytes also keep the gateway
+// connection alive on long scene builds). finalMessage() gives us the complete
+// content to parse exactly as before. onProgress(text) is best-effort.
+export async function runCanvasTurn({ messages, system, mcpToken, model, mcpBaseUrl, onProgress }) {
   const req = buildCanvasRequest({ messages, system, mcpToken, model, mcpBaseUrl });
-  const res = await getClient().beta.messages.create(req);
+  const stream = getClient().beta.messages.stream(req);
+
+  // Narrate as blocks begin. A tool block starting = the AI is taking that
+  // action now. Swallow iteration errors — finalMessage() is the source of truth.
+  try {
+    for await (const event of stream) {
+      if (event?.type === "content_block_start") {
+        const b = event.content_block || {};
+        if (b.type === "mcp_tool_use" || b.type === "tool_use") {
+          try { onProgress?.(statusForTool(b.name)); } catch { /* ignore */ }
+        }
+      }
+    }
+  } catch { /* fall through to finalMessage */ }
+
+  const res = await stream.finalMessage();
 
   const reply = (res.content || [])
     .filter((b) => b.type === "text")

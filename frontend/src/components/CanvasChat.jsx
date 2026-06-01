@@ -35,19 +35,15 @@ function nativeText(s) {
     .trim();
 }
 
-// A live "working" indicator — moves through Thinking → Building → Almost there
-// with animated dots so the wait feels like progress, not a hang.
-function WorkingIndicator() {
-  const PHASES = ["Thinking", "Building", "Almost there"];
-  const [phase, setPhase] = useState(0);
+// A live "working" indicator. `label` is the AI's real, streamed status for
+// the step it's on right now (e.g. "Designing your hero — writing the
+// animation…"); animated dots keep it feeling alive. Falls back to "Thinking"
+// before the first status arrives.
+function WorkingIndicator({ label }) {
   const [dots, setDots] = useState(1);
   useEffect(() => {
-    const p = setInterval(() => setPhase((x) => Math.min(x + 1, PHASES.length - 1)), 2600);
     const d = setInterval(() => setDots((x) => (x % 3) + 1), 420);
-    return () => {
-      clearInterval(p);
-      clearInterval(d);
-    };
+    return () => clearInterval(d);
   }, []);
   return (
     <div
@@ -65,7 +61,7 @@ function WorkingIndicator() {
     >
       <Sparkles size={13} style={{ color: colors.accent }} />
       <span>
-        {PHASES[phase]}
+        {label || "Thinking"}
         <span style={{ opacity: 0.6 }}>{".".repeat(dots)}</span>
       </span>
     </div>
@@ -76,6 +72,7 @@ export function CanvasChat({ eventId, suggestions = [] }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState(null); // live "what the AI is doing now"
   const [error, setError] = useState(null);
   const scrollRef = useRef(null);
 
@@ -92,6 +89,7 @@ export function CanvasChat({ eventId, suggestions = [] }) {
     setMessages(next);
     if (typeof override !== "string") setInput("");
     setSending(true);
+    setStatus(null);
     try {
       // Flush the editor's unsaved form edits into the draft first, so the AI
       // builds on top of what the host just typed — not a stale server copy.
@@ -115,14 +113,41 @@ export function CanvasChat({ eventId, suggestions = [] }) {
           eventId: eventId || null,
         }),
       });
-      // The endpoint streams NDJSON: heartbeat blank lines keep the gateway
-      // alive during long scene builds; the FINAL non-empty line is the payload
-      // (the result, or an {error}). Parse the last JSON line.
-      const rawBody = await res.text();
+      // The endpoint streams NDJSON, one JSON object per line:
+      //   {type:"status", text}  → narrate the step the AI is on, live
+      //   {type:"result", ...}   → the final payload
+      //   {type:"error", error}  → failure
+      // (blank heartbeat lines just keep the gateway alive). Read incrementally
+      // so status updates land as they happen.
       let data = null;
-      const lines = rawBody.split("\n").map((s) => s.trim()).filter(Boolean);
-      for (let i = lines.length - 1; i >= 0; i--) {
-        try { data = JSON.parse(lines[i]); break; } catch { /* skip non-JSON */ }
+      const handleLine = (line) => {
+        const t = line.trim();
+        if (!t) return;
+        let obj;
+        try { obj = JSON.parse(t); } catch { return; }
+        if (obj.type === "status") setStatus(obj.text);
+        else if (obj.type === "error") throw new Error(obj.error || "Canvas couldn't respond. Try again.");
+        else data = obj; // result (typed) or legacy untyped payload
+      };
+      const reader = res.body?.getReader?.();
+      if (reader) {
+        const decoder = new TextDecoder();
+        let buf = "";
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            handleLine(buf.slice(0, nl));
+            buf = buf.slice(nl + 1);
+          }
+        }
+        if (buf) handleLine(buf);
+      } else {
+        // Fallback for environments without a readable body stream.
+        const rawBody = await res.text();
+        rawBody.split("\n").forEach(handleLine);
       }
       if (!data) throw new Error("Canvas couldn't respond. Try again.");
       if (data.error) throw new Error(data.error);
@@ -141,6 +166,7 @@ export function CanvasChat({ eventId, suggestions = [] }) {
       setError(err?.message || "Something went wrong.");
     } finally {
       setSending(false);
+      setStatus(null);
     }
   }
 
@@ -193,7 +219,7 @@ export function CanvasChat({ eventId, suggestions = [] }) {
             </div>
           ))
         )}
-        {sending && <WorkingIndicator />}
+        {sending && <WorkingIndicator label={status} />}
       </div>
 
       {error && <div style={{ color: colors.danger, fontSize: 12, padding: "4px 6px" }}>{error}</div>}

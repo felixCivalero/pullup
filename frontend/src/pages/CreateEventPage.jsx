@@ -661,12 +661,8 @@ export function CreateEventPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, isEditMode]);
 
-  // Declare this page's resource to the floating coach widget. When the
-  // host is on the editor for event X, the bottom-right widget can flip to
-  // "PullUp coach" mode if chat has recently touched X.
-  useSetHostResource(
-    isEditMode && editEventId ? { type: "event", id: editEventId } : null,
-  );
+  // (Coach-widget resource registration lives lower, after draftEventId is
+  // declared, so create-mode drafts can register too — see below.)
 
   // Live notice when MCP edits/publishes this event from chat. The editor
   // is the one surface where auto-overwrite would clobber in-flight edits,
@@ -821,6 +817,17 @@ export function CreateEventPage() {
   // Bumped when the canvas chat builds something server-side, so the live
   // preview re-pulls from the server (see the loadEvent effect deps).
   const [canvasRefresh, setCanvasRefresh] = useState(0);
+
+  // Declare this page's resource to the floating coach widget so it can flip
+  // to "PullUp coach" mode if chat has recently touched this event. Covers
+  // BOTH the event being edited and the create-mode draft — so the AI canvas
+  // gets the same coach suggestions whether you're creating or updating.
+  useSetHostResource(
+    (() => {
+      const id = isEditMode ? editEventId : draftEventId;
+      return id ? { type: "event", id } : null;
+    })(),
+  );
   const thumbnailInputRef = useRef(null);
   // Carousel settings
   const [carouselAutoscroll, setCarouselAutoscroll] = useState(true);
@@ -1311,6 +1318,20 @@ export function CreateEventPage() {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Create mode: pre-allocate the DRAFT event the moment the page opens, so the
+  // AI canvas dock (IdeaWidget) has an eventId to attach to immediately — chat
+  // can build the event from nothing, exactly the way it edits an existing one.
+  // Reuses the on-demand draft path (also used by media upload), so there's
+  // never more than one draft. No-op when a draft is already restored from
+  // localStorage. If it fails (offline/auth) the canvas just stays dormant
+  // until the first manual save, as before.
+  useEffect(() => {
+    if (isEditMode || !user) return;
+    if (draftEventIdRef.current || draftEventId) return;
+    ensureDraftEvent().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, user]);
+
   // Create mode: pre-fill the theme picker from the host's saved default
   // brand (profiles.brand_*), so a new event starts in their look. The
   // default is what "Save as my brand design" writes. Never overrides a
@@ -1389,14 +1410,22 @@ export function CreateEventPage() {
     "--brand-hairline":       softColor(pickTextColor(brand?.backgroundColor || "#05040a"), 0.14),
   };
 
-  // Load existing event data when in edit mode
+  // Hydrate the full form from the server event.
+  // - Edit mode: on mount, and whenever the canvas builds (canvasRefresh).
+  // - Create mode: the form is local-first, so only RE-hydrate the draft AFTER
+  //   a canvas build (canvasRefresh > 0) — never on first draft creation, which
+  //   would wipe what the host is typing. The canvas flushes the form into the
+  //   draft before it acts, so the state we read here already includes the
+  //   host's manual edits plus whatever the AI just built.
   useEffect(() => {
-    if (!editEventId) return;
+    const hydrateId = editEventId || draftEventIdRef.current;
+    if (!hydrateId) return;
+    if (!editEventId && canvasRefresh === 0) return;
     let cancelled = false;
     async function loadEvent() {
-      setEditLoading(true);
+      if (editEventId) setEditLoading(true);
       try {
-        const res = await authenticatedFetch(`/host/events/${editEventId}`);
+        const res = await authenticatedFetch(`/host/events/${hydrateId}`);
         if (!res.ok) throw new Error("Failed to load event");
         const ev = await res.json();
         if (cancelled) return;
@@ -1604,6 +1633,38 @@ export function CreateEventPage() {
     window.addEventListener("pullup:canvas-built", onBuilt);
     return () => window.removeEventListener("pullup:canvas-built", onBuilt);
   }, []);
+
+  // Always-current builder, so the flush listener (attached once) reads live
+  // form state instead of a stale closure.
+  const buildPayloadRef = useRef(buildEventPayload);
+  buildPayloadRef.current = buildEventPayload;
+
+  // Flush the form into the draft on demand. The canvas fires
+  // `pullup:canvas-flush-request` right before each turn and waits for
+  // `pullup:canvas-flush-done`, so the AI always builds on top of the host's
+  // latest manual edits (the server draft is the AI's source of truth). Create
+  // mode only — in edit mode the host saves explicitly, and we never want a
+  // chat turn to silently push unsaved edits onto a live event.
+  useEffect(() => {
+    async function onFlushRequest() {
+      try {
+        const id = draftEventIdRef.current;
+        if (isEditMode || !id) return;
+        const payload = buildPayloadRef.current();
+        if (!payload.startsAt) delete payload.startsAt; // keep the draft's own
+        await authenticatedFetch(`/host/events/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        // best-effort — the canvas can still build on slightly stale state
+      } finally {
+        window.dispatchEvent(new CustomEvent("pullup:canvas-flush-done"));
+      }
+    }
+    window.addEventListener("pullup:canvas-flush-request", onFlushRequest);
+    return () => window.removeEventListener("pullup:canvas-flush-request", onFlushRequest);
+  }, [isEditMode]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -2005,6 +2066,185 @@ export function CreateEventPage() {
     }
   }
 
+  // Build the full event payload from current form state. Shared by publish
+  // (handleCreate) and the canvas draft-sync flush, so the server draft the AI
+  // reads is always a faithful mirror of the form — no split-brain between what
+  // the host typed and what the canvas sees. The caller adds status/createdVia.
+  // startsAt is null-safe: the flush can run before a date is picked.
+  function buildEventPayload() {
+    const parsedMaxPlus =
+      allowPlusOnes && maxPlusOnesPerGuest
+        ? Math.max(1, Math.min(5, parseInt(maxPlusOnesPerGuest, 10) || 1))
+        : 0;
+
+    const cocktailCapacity = maxAttendees ? Number(maxAttendees) : null;
+
+    let foodCapacity = null;
+    let backendDinnerMaxSeatsPerSlot = null;
+    let dinnerSlotsIso = [];
+    let dinnerStartTimeIso = null;
+    let dinnerEndTimeIso = null;
+
+    if (dinnerEnabled && startsAt && dinnerSlotsConfig.length > 0) {
+      const eventLocalStart = isoToLocalDateTime(startsAt);
+      const [eventDatePart] = (eventLocalStart || "").split("T");
+
+      const slotLocalDateTimes =
+        eventDatePart && dinnerSlotsConfig.length > 0
+          ? dinnerSlotsConfig
+              .map((slot) => slot?.time)
+              .filter(Boolean)
+              .map((time) => `${eventDatePart}T${time}`)
+          : [];
+
+      const slotsWithIso = slotLocalDateTimes
+        .map((local, index) => {
+          const iso = localDateTimeToIso(local);
+          if (!iso) return null;
+          const baseConfig = dinnerSlotsConfig[index] || {};
+          const capacity =
+            Number(baseConfig.maxSeats || dinnerMaxSeatsPerSlot || 0) || 0;
+          const maxGuestsPerBooking =
+            Number(
+              baseConfig.maxGuestsPerBooking ||
+                dinnerMaxGuestsPerBooking ||
+                0,
+            ) || null;
+          return {
+            time: iso,
+            capacity: capacity > 0 ? capacity : null,
+            maxGuestsPerBooking,
+          };
+        })
+        .filter(Boolean);
+
+      dinnerSlotsIso = slotsWithIso.map((slot) => slot.time);
+
+      if (dinnerSlotsIso.length > 0) {
+        const sorted = [...dinnerSlotsIso].sort(
+          (a, b) => new Date(a) - new Date(b),
+        );
+        dinnerStartTimeIso = sorted[0];
+        dinnerEndTimeIso = sorted[sorted.length - 1];
+      }
+
+      let totalSeats = 0;
+      let minSeats = null;
+
+      slotsWithIso.forEach((slot) => {
+        if (slot.capacity && slot.capacity > 0) {
+          totalSeats += slot.capacity;
+          if (minSeats === null || slot.capacity < minSeats) {
+            minSeats = slot.capacity;
+          }
+        }
+      });
+
+      if (totalSeats > 0) {
+        foodCapacity = totalSeats;
+      }
+      if (minSeats !== null) {
+        backendDinnerMaxSeatsPerSlot = minSeats;
+      }
+    }
+
+    let totalCapacity = null;
+    if (cocktailCapacity !== null || foodCapacity !== null) {
+      totalCapacity = (cocktailCapacity || 0) + (foodCapacity || 0);
+    }
+
+    // null-safe: an empty/invalid date yields null so the flush can omit it
+    // (handleCreate gates on validateStep, so it's always valid there).
+    const startsAtIso = (() => {
+      if (!startsAt) return null;
+      const d = new Date(startsAt);
+      return isNaN(d.getTime()) ? null : d.toISOString();
+    })();
+
+    return {
+      title,
+      titleSettings: { visible: titleVisible, align: titleAlign, font: titleFont, size: titleSize, color: titleColor, detailsColor, detailsGradient, detailsGradientEnabled },
+      description,
+      sections: sections.filter(s => {
+        if (s.type === "title" || s.type === "location" || s.type === "datetime") return true;
+        if (s.type === "socials") return s.instagram || s.spotify || s.tiktok || s.soundcloud;
+        if (s.type === "hostedby") return (s.name || "").trim();
+        if (s.type === "spotify" || s.type === "applemusic" || s.type === "soundcloud" || s.type === "youtube") return (s.url || "").trim();
+        return (s.title || "").trim() || (s.text || "").trim();
+      }),
+      formFields: (formFields || []).filter(f => f && f.id && (isLockedFieldId(f.id) || (f.label || "").trim())),
+      contactChannel,
+      location,
+      locationLat: locationLat || null,
+      locationLng: locationLng || null,
+      hideLocation,
+      hideDate,
+      revealHint: revealHint.trim() || null,
+      dateRevealHint: dateRevealHint.trim() || null,
+      startsAt: startsAtIso,
+      endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+      timezone,
+      maxAttendees: maxAttendees ? Number(maxAttendees) : null,
+      cocktailCapacity,
+      foodCapacity,
+      totalCapacity,
+      waitlistEnabled,
+      instantWaitlist,
+      theme,
+      // Per-event brand snapshot (migration 047). null = PullUp standard.
+      brand: brand || null,
+      calendar,
+      visibility,
+      ticketType: sellTicketsEnabled ? "paid" : "free",
+      ticketPrice:
+        sellTicketsEnabled && ticketPrice
+          ? Math.round(parseFloat(ticketPrice) * 100)
+          : null, // Convert to cents
+      ticketCurrency: sellTicketsEnabled ? ticketCurrency : null,
+      maxPlusOnesPerGuest: parsedMaxPlus,
+      dinnerEnabled,
+      dinnerStartTime: dinnerEnabled ? dinnerStartTimeIso : null,
+      dinnerEndTime: dinnerEnabled ? dinnerEndTimeIso : null,
+      dinnerSeatingIntervalHours: dinnerEnabled
+        ? Number(dinnerSeatingIntervalHours) || 2
+        : 2,
+      dinnerMaxSeatsPerSlot:
+        dinnerEnabled && backendDinnerMaxSeatsPerSlot != null
+          ? backendDinnerMaxSeatsPerSlot
+          : dinnerEnabled && dinnerMaxSeatsPerSlot
+            ? Number(dinnerMaxSeatsPerSlot)
+            : null,
+      dinnerOverflowAction: dinnerEnabled ? dinnerOverflowAction : "waitlist",
+      dinnerBookingEmail: dinnerEnabled && dinnerBookingEmail ? dinnerBookingEmail.trim() : null,
+      hideDinnerRemaining: hideDinnerRemaining || false,
+      dinnerSlots:
+        dinnerEnabled && dinnerSlotsIso.length > 0
+          ? dinnerSlotsIso.map((timeIso, index) => {
+              const baseConfig = dinnerSlotsConfig[index] || {};
+              const capacity =
+                Number(baseConfig.maxSeats || dinnerMaxSeatsPerSlot || 0) ||
+                null;
+              const maxGuestsPerBooking =
+                Number(
+                  baseConfig.maxGuestsPerBooking ||
+                    dinnerMaxGuestsPerBooking ||
+                    0,
+                ) || null;
+              return {
+                time: timeIso,
+                capacity,
+                maxGuestsPerBooking,
+              };
+            })
+          : null,
+      instagram: instagram || null,
+      spotify: spotify || null,
+      tiktok: tiktok || null,
+      soundcloud: soundcloud || null,
+      mediaSettings: buildMediaSettings(),
+    };
+  }
+
   async function handleCreate(e) {
     if (e) e.preventDefault();
     if (!validateStep()) return;
@@ -2027,186 +2267,7 @@ export function CreateEventPage() {
     setLoading(true);
 
     try {
-      // derive maxPlusOnesPerGuest
-      const parsedMaxPlus =
-        allowPlusOnes && maxPlusOnesPerGuest
-          ? Math.max(1, Math.min(5, parseInt(maxPlusOnesPerGuest, 10) || 1))
-          : 0;
-
-      // Calculate capacities
-      const cocktailCapacity = maxAttendees ? Number(maxAttendees) : null;
-
-      // Calculate food capacity and slot metadata based on per-slot configuration
-      let foodCapacity = null;
-      let backendDinnerMaxSeatsPerSlot = null;
-      let dinnerSlotsIso = [];
-      let dinnerStartTimeIso = null;
-      let dinnerEndTimeIso = null;
-
-      if (dinnerEnabled && startsAt && dinnerSlotsConfig.length > 0) {
-        const eventLocalStart = isoToLocalDateTime(startsAt);
-        const [eventDatePart] = (eventLocalStart || "").split("T");
-
-        const slotLocalDateTimes =
-          eventDatePart && dinnerSlotsConfig.length > 0
-            ? dinnerSlotsConfig
-                .map((slot) => slot?.time)
-                .filter(Boolean)
-                .map((time) => `${eventDatePart}T${time}`)
-            : [];
-
-        const slotsWithIso = slotLocalDateTimes
-          .map((local, index) => {
-            const iso = localDateTimeToIso(local);
-            if (!iso) return null;
-            const baseConfig = dinnerSlotsConfig[index] || {};
-            const capacity =
-              Number(baseConfig.maxSeats || dinnerMaxSeatsPerSlot || 0) || 0;
-            const maxGuestsPerBooking =
-              Number(
-                baseConfig.maxGuestsPerBooking ||
-                  dinnerMaxGuestsPerBooking ||
-                  0,
-              ) || null;
-            return {
-              time: iso,
-              capacity: capacity > 0 ? capacity : null,
-              maxGuestsPerBooking,
-            };
-          })
-          .filter(Boolean);
-
-        dinnerSlotsIso = slotsWithIso.map((slot) => slot.time);
-
-        if (dinnerSlotsIso.length > 0) {
-          const sorted = [...dinnerSlotsIso].sort(
-            (a, b) => new Date(a) - new Date(b),
-          );
-          dinnerStartTimeIso = sorted[0];
-          dinnerEndTimeIso = sorted[sorted.length - 1];
-        }
-
-        // Seats per slot
-        let totalSeats = 0;
-        let minSeats = null;
-
-        slotsWithIso.forEach((slot) => {
-          if (slot.capacity && slot.capacity > 0) {
-            totalSeats += slot.capacity;
-            if (minSeats === null || slot.capacity < minSeats) {
-              minSeats = slot.capacity;
-            }
-          }
-        });
-
-        if (totalSeats > 0) {
-          foodCapacity = totalSeats;
-        }
-        if (minSeats !== null) {
-          backendDinnerMaxSeatsPerSlot = minSeats;
-        }
-      }
-
-      // Calculate total capacity
-      // If either capacity is null (unlimited), total is also null (unlimited)
-      // Otherwise, sum the capacities
-      let totalCapacity = null;
-      if (cocktailCapacity !== null || foodCapacity !== null) {
-        totalCapacity = (cocktailCapacity || 0) + (foodCapacity || 0);
-      }
-
-      const requestBody = {
-        title,
-        titleSettings: { visible: titleVisible, align: titleAlign, font: titleFont, size: titleSize, color: titleColor, detailsColor, detailsGradient, detailsGradientEnabled },
-        description,
-        sections: sections.filter(s => {
-          if (s.type === "title" || s.type === "location" || s.type === "datetime") return true;
-          if (s.type === "socials") return s.instagram || s.spotify || s.tiktok || s.soundcloud;
-          if (s.type === "hostedby") return (s.name || "").trim();
-          if (s.type === "spotify" || s.type === "applemusic" || s.type === "soundcloud" || s.type === "youtube") return (s.url || "").trim();
-          return (s.title || "").trim() || (s.text || "").trim();
-        }),
-        instagram: sections.find(s => s.type === "socials")?.instagram || "",
-        spotify: sections.find(s => s.type === "socials")?.spotify || "",
-        tiktok: sections.find(s => s.type === "socials")?.tiktok || "",
-        soundcloud: sections.find(s => s.type === "socials")?.soundcloud || "",
-        formFields: (formFields || []).filter(f => f && f.id && (isLockedFieldId(f.id) || (f.label || "").trim())),
-        contactChannel,
-        location,
-        locationLat: locationLat || null,
-        locationLng: locationLng || null,
-        hideLocation,
-        hideDate,
-        revealHint: revealHint.trim() || null,
-        dateRevealHint: dateRevealHint.trim() || null,
-        startsAt: new Date(startsAt).toISOString(),
-        endsAt: endsAt ? new Date(endsAt).toISOString() : null,
-        timezone,
-        maxAttendees: maxAttendees ? Number(maxAttendees) : null,
-        cocktailCapacity,
-        foodCapacity,
-        totalCapacity,
-        waitlistEnabled,
-        instantWaitlist,
-        theme,
-        // Per-event brand snapshot (migration 047). null = PullUp standard.
-        brand: brand || null,
-        calendar,
-        visibility,
-        ticketType: sellTicketsEnabled ? "paid" : "free",
-        ticketPrice:
-          sellTicketsEnabled && ticketPrice
-            ? Math.round(parseFloat(ticketPrice) * 100)
-            : null, // Convert to cents
-        ticketCurrency: sellTicketsEnabled ? ticketCurrency : null,
-        // Stripe product and price will be auto-created by backend
-        // NEW
-        maxPlusOnesPerGuest: parsedMaxPlus,
-        dinnerEnabled,
-        dinnerStartTime: dinnerEnabled ? dinnerStartTimeIso : null,
-        dinnerEndTime: dinnerEnabled ? dinnerEndTimeIso : null,
-        dinnerSeatingIntervalHours: dinnerEnabled
-          ? Number(dinnerSeatingIntervalHours) || 2
-          : 2,
-        dinnerMaxSeatsPerSlot:
-          dinnerEnabled && backendDinnerMaxSeatsPerSlot != null
-            ? backendDinnerMaxSeatsPerSlot
-            : dinnerEnabled && dinnerMaxSeatsPerSlot
-              ? Number(dinnerMaxSeatsPerSlot)
-              : null,
-        dinnerOverflowAction: dinnerEnabled ? dinnerOverflowAction : "waitlist",
-        dinnerBookingEmail: dinnerEnabled && dinnerBookingEmail ? dinnerBookingEmail.trim() : null,
-        hideDinnerRemaining: hideDinnerRemaining || false,
-        // Explicit per-slot configuration for backend & analytics
-        dinnerSlots:
-          dinnerEnabled && dinnerSlotsIso.length > 0
-            ? dinnerSlotsIso.map((timeIso, index) => {
-                const baseConfig = dinnerSlotsConfig[index] || {};
-                const capacity =
-                  Number(baseConfig.maxSeats || dinnerMaxSeatsPerSlot || 0) ||
-                  null;
-                const maxGuestsPerBooking =
-                  Number(
-                    baseConfig.maxGuestsPerBooking ||
-                      dinnerMaxGuestsPerBooking ||
-                      0,
-                  ) || null;
-                return {
-                  time: timeIso,
-                  capacity,
-                  maxGuestsPerBooking,
-                };
-              })
-            : null,
-
-        // Deliberate Planner flow: create as DRAFT
-        ...(isEditMode ? {} : { createdVia: "create", status: "PUBLISHED" }),
-        instagram: instagram || null,
-        spotify: spotify || null,
-        tiktok: tiktok || null,
-        soundcloud: soundcloud || null,
-        mediaSettings: buildMediaSettings(),
-      };
+      const requestBody = buildEventPayload();
 
       if (isEditMode) {
         // --- EDIT MODE: PUT to update ---
@@ -2301,7 +2362,7 @@ export function CreateEventPage() {
 
         const res = await authenticatedFetch(`/host/events/${draftId}`, {
           method: "PUT",
-          body: JSON.stringify({ ...requestBody, status: "PUBLISHED" }),
+          body: JSON.stringify({ ...requestBody, createdVia: "create", status: "PUBLISHED" }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -2345,7 +2406,7 @@ export function CreateEventPage() {
         // --- CREATE MODE (no media): POST new event ---
         const res = await authenticatedFetch("/events", {
           method: "POST",
-          body: JSON.stringify(requestBody),
+          body: JSON.stringify({ ...requestBody, createdVia: "create", status: "PUBLISHED" }),
         });
 
         if (!res.ok) {
@@ -5493,6 +5554,7 @@ export function CreateEventPage() {
                   instantWaitlist,
                   rsvpContent: ({ onClose }) => (
                     <RsvpForm
+                      preview
                       event={{
                         slug: null,
                         dinnerEnabled: dinnerEnabled,
@@ -5605,6 +5667,7 @@ export function CreateEventPage() {
             design={brand?.design || null}
             rsvpContent={({ onClose }) => (
               <RsvpForm
+                preview
                 event={{
                   slug: null,
                   dinnerEnabled: dinnerEnabled,

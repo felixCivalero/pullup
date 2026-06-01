@@ -832,14 +832,14 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
 
     const mcpToken = await getCanvasMcpToken(req.user.id);
     const mcpBaseUrl = process.env.MCP_PUBLIC_BASE_URL || "https://mcp.pullup.se";
-    const { reply, toolsUsed, stopReason } = await runCanvasTurn({
+    const { reply, toolsUsed, toolsFailed, stopReason } = await runCanvasTurn({
       messages,
       system: systemBlocks,
       mcpToken,
       mcpBaseUrl,
     });
 
-    res.json({ reply, toolsUsed, stopReason, eventId: eventId || null });
+    res.json({ reply, toolsUsed, toolsFailed, stopReason, eventId: eventId || null });
   } catch (err) {
     console.error("[canvas/chat]", err?.message || err);
     res.status(500).json({ error: "Canvas chat failed. Try again." });

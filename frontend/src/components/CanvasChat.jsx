@@ -93,6 +93,21 @@ export function CanvasChat({ eventId, suggestions = [] }) {
     if (typeof override !== "string") setInput("");
     setSending(true);
     try {
+      // Flush the editor's unsaved form edits into the draft first, so the AI
+      // builds on top of what the host just typed — not a stale server copy.
+      // Resolves immediately if no editor is listening (timeout guard).
+      await new Promise((resolve) => {
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          window.removeEventListener("pullup:canvas-flush-done", done);
+          resolve();
+        };
+        window.addEventListener("pullup:canvas-flush-done", done);
+        window.dispatchEvent(new CustomEvent("pullup:canvas-flush-request"));
+        setTimeout(done, 2000);
+      });
       const res = await authenticatedFetch("/host/canvas/chat", {
         method: "POST",
         body: JSON.stringify({
@@ -106,8 +121,13 @@ export function CanvasChat({ eventId, suggestions = [] }) {
       }
       const data = await res.json();
       const tools = Array.isArray(data.toolsUsed) ? data.toolsUsed : [];
-      setMessages((m) => [...m, { role: "assistant", content: nativeText(data.reply) || "Done.", tools }]);
-      if (tools.some(isMutatingTool)) {
+      const failed = Array.isArray(data.toolsFailed) ? data.toolsFailed : [];
+      const built = tools.some(isMutatingTool);
+      // A mutating tool the model tried but that the server rejected — be honest
+      // rather than claim a change that didn't land.
+      const failedMutation = !built && failed.some(isMutatingTool);
+      setMessages((m) => [...m, { role: "assistant", content: nativeText(data.reply) || "Done.", tools, failedMutation }]);
+      if (built) {
         window.dispatchEvent(new CustomEvent("pullup:canvas-built", { detail: { eventId, tools } }));
       }
     } catch (err) {
@@ -154,11 +174,15 @@ export function CanvasChat({ eventId, suggestions = [] }) {
               }}
             >
               {m.content}
-              {m.tools?.some(isMutatingTool) && (
+              {m.failedMutation ? (
+                <div style={{ marginTop: 5, fontSize: 11, color: colors.danger }}>
+                  Couldn't apply that — try again
+                </div>
+              ) : m.tools?.some(isMutatingTool) ? (
                 <div style={{ marginTop: 5, fontSize: 11, color: m.role === "user" ? "rgba(255,255,255,0.8)" : colors.textMuted }}>
                   ✓ updated the page
                 </div>
-              )}
+              ) : null}
             </div>
           ))
         )}

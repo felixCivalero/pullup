@@ -78,10 +78,28 @@ export async function runCanvasTurn({ messages, system, mcpToken, model, mcpBase
     .join("")
     .trim();
 
-  const toolsUsed = (res.content || [])
-    .filter((b) => b.type === "mcp_tool_use" || b.type === "tool_use")
-    .map((b) => b.name)
-    .filter(Boolean);
+  // Pair each tool call with its result so we can tell the host the truth: a
+  // tool the model *invoked* isn't a tool that *succeeded*. The connector emits
+  // an mcp_tool_use block (call, has id+name) and an mcp_tool_result block
+  // (has tool_use_id + is_error). Without this, a failed update_event still
+  // reads as "✓ updated the page" — the exact "said it did but didn't" bug.
+  const calls = (res.content || []).filter(
+    (b) => b.type === "mcp_tool_use" || b.type === "tool_use",
+  );
+  const resultsById = new Map(
+    (res.content || [])
+      .filter((b) => b.type === "mcp_tool_result" || b.type === "tool_result")
+      .map((b) => [b.tool_use_id, b]),
+  );
 
-  return { reply, toolsUsed, stopReason: res.stop_reason };
+  const toolsUsed = [];
+  const toolsFailed = [];
+  for (const c of calls) {
+    if (!c.name) continue;
+    const r = resultsById.get(c.id);
+    if (r && r.is_error) toolsFailed.push(c.name);
+    else toolsUsed.push(c.name);
+  }
+
+  return { reply, toolsUsed, toolsFailed, stopReason: res.stop_reason };
 }

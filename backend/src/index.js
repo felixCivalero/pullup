@@ -783,16 +783,21 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
       "\n\nCANVAS MODE — you are embedded in the live event editor, not a chat window. " +
       "The brief above is already loaded; do NOT call get_host_brief. The current event's " +
       "full state is provided to you on every turn, so do NOT call get_event or list_events " +
-      "to read it. Act directly and fast: make the change with update_event (using the slug), " +
-      "then reply with ONE short confirmation sentence.\n" +
-      "HERO / VISUALS: for ordinary looks (palette, simple shader vibe, cover image) keep using " +
-      "update_event's brand/design. But when the host wants something custom and alive that presets " +
-      "can't express — 3D text fused into the motion, particles, liquid, parallax photo treatments, " +
-      "a 'small movie' feel — you CAN build it: call set_event_scene to author a real animated hero " +
-      "as self-contained sandboxed code (canvas/WebGL/CSS). This is the 'go nuts' surface. Never say " +
-      "PullUp can't do custom animation or tell them to make a video elsewhere — build the scene. It " +
-      "must be responsive and collect nothing (the sandbox enforces this); the Register button stays " +
-      "PullUp's. Hero only — the rest of the page stays the trusted block system.\n" +
+      "to read it. Act directly and fast, then reply with ONE short confirmation sentence. " +
+      "Pick the RIGHT tool:\n" +
+      "• Page content, copy, colors, fonts, sections, cover photo, and a plain ABSTRACT color-wash " +
+      "hero → update_event.\n" +
+      "• A CUSTOM ANIMATED HERO → set_event_scene, where you WRITE the hero as self-contained " +
+      "sandboxed code (canvas / WebGL / CSS / SVG). The built-in shader (brand.design archetype " +
+      "'webgl') is ONLY an abstract plasma driven by a color palette + motion intensity — it CANNOT " +
+      "render words or a headline, logos, shapes, photos, or any specific motion (bubbles, particles, " +
+      "liquid, rain, 3D). So the MOMENT the host's hero ask names anything concrete — a word/headline " +
+      "IN the hero (e.g. 'HYPERBLAST'), 3D, bubbles/particles/liquid/a specific motion, a logo or photo " +
+      "treatment, or words like animation/movie/cinematic — you MUST call set_event_scene and author " +
+      "the code. Do NOT approximate it by recoloring the shader with update_event, and NEVER tell the " +
+      "host PullUp can't do it or to make a video elsewhere. Build it. The code MUST be responsive " +
+      "(fill the container, handle resize) and collects nothing (the sandbox enforces this). Hero " +
+      "only — the Register button and the rest of the page stay PullUp's trusted system.\n" +
       "VOICE: reply in plain, conversational text — NO markdown (no **bold**, no bullet or " +
       "heading syntax) and NO links or URLs. You live inside the editor and the live preview " +
       "updates right next to the host as you work, so NEVER tell them to 'preview', 'open', or " +

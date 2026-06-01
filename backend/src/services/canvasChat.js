@@ -9,7 +9,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createPersonalAccessToken } from "../data.js";
 
 const MODEL = process.env.CANVAS_MODEL || "claude-sonnet-4-6";
-const MAX_TOKENS = Number(process.env.CANVAS_MAX_TOKENS) || 2048;
+// Generative hero scenes are multiple KB of code written INTO a single tool
+// call, so a low cap truncates the call mid-argument (stop_reason "max_tokens")
+// and it never executes. This is a ceiling, not a target — short text edits
+// still return fast — so keep it roomy enough for a full scene + a vibe-match
+// update_event + the reply in one turn.
+const MAX_TOKENS = Number(process.env.CANVAS_MAX_TOKENS) || 16384;
 const MCP_CLIENT_BETA = "mcp-client-2025-04-04";
 
 // The canvas always rides the /create profile — the blast-radius-limited slice.

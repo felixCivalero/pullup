@@ -387,6 +387,20 @@ const UpdateEventInput = {
   startsAt: z.string().optional(),
 };
 
+// Generative hero scene (stored at events.brand.design, archetype "scene").
+const SceneInput = {
+  slug: z.string().describe("The event's slug (from create_event or list_events)."),
+  html: z
+    .string()
+    .describe(
+      "The scene as a self-contained HTML fragment: markup + inline <style> and <script>. No <html>/<head>/<body>, no network/fetch/external scripts, fully responsive (handle resize), transparent background. Renders sandboxed as the hero.",
+    ),
+  poster: z
+    .string()
+    .optional()
+    .describe("Optional https image URL — the still fallback for reduced-motion and link/share previews."),
+};
+
 const SlugOnlyInput = {
   slug: z.string().describe("The event's slug."),
 };
@@ -844,6 +858,47 @@ function buildHandlers(api, hostId) {
         completeness,
         performance,
         nextSuggestion: top,
+      })
+    );
+  }
+
+  // Set a generative animated hero — the host's "go nuts" zone. Stores
+  // self-contained scene code (markup + <style>/<script>) at brand.design;
+  // the frontend renders it in a sandboxed iframe (it can look like anything
+  // but can't collect data or hit the network — see SceneFrame.jsx). Hero
+  // only; the rest of the page stays the trusted block/brand system.
+  async function setEventScene(args) {
+    const { slug, html, poster } = args;
+    if (!html || typeof html !== "string" || !html.trim()) {
+      throw new Error("html is required: the scene as an HTML fragment (markup + <style>/<script>).");
+    }
+    if (html.length > 200000) {
+      throw new Error("Scene is too large (>200KB). Keep the hero lean so it stays smooth on mobile.");
+    }
+    const existing = await resolveEventBySlug(slug);
+    // Merge into the brand snapshot so background/button stay intact.
+    const full = await api("GET", `/host/events/${existing.id}`);
+    const brand = (full && typeof full.brand === "object" && full.brand) || {};
+    const nextBrand = {
+      ...brand,
+      design: {
+        archetype: "scene",
+        html,
+        ...(poster ? { poster } : {}),
+        // keep any palette the previous design carried (used for the fallback)
+        ...(brand.design?.params ? { params: brand.design.params } : {}),
+      },
+    };
+    const updated = await api("PUT", `/host/events/${existing.id}`, { body: { brand: nextBrand } });
+    const status = updated.status || existing.status;
+    return toolResultText(
+      eventBanner({
+        title: updated.title || existing.title,
+        status,
+        previewUrl: editUrlForEventId(updated.id || existing.id),
+        shareUrl: status === "PUBLISHED" ? shareUrlForSlug(updated.slug || slug) : null,
+        rsvpsUrl: rsvpsDashboardForId(updated.id || existing.id),
+        note: "Built a custom animated hero. It renders live in the editor — preview it, then publish when it feels right.",
       })
     );
   }
@@ -2286,6 +2341,7 @@ function buildHandlers(api, hostId) {
   return {
     createEvent,
     updateEvent,
+    setEventScene,
     publishEvent,
     unpublishEvent,
     listEvents,
@@ -2554,7 +2610,7 @@ const DESTRUCTIVE_TOOLS = new Set([
 // state). Not auto-safe like reads, but cheap to retry.
 const IDEMPOTENT_TOOLS = new Set([
   "publish_event", "unpublish_event", "set_host_brief", "update_event",
-  "update_person", "update_rsvp", "cancel_scheduled_campaign",
+  "set_event_scene", "update_person", "update_rsvp", "cancel_scheduled_campaign",
 ]);
 
 function annotateTool(t) {
@@ -2577,11 +2633,11 @@ function annotateTool(t) {
 // (never silently empty).
 const TOOL_PROFILES = {
   create: new Set([
-    "create_event", "update_event", "publish_event", "unpublish_event",
-    "duplicate_event", "get_event", "list_events", "upload_event_image",
-    "upload_event_media", "get_media_upload_link", "list_cover_image_gallery",
-    "suggest_event_improvements", "get_event_analytics", "get_host_brief",
-    "set_host_brief",
+    "create_event", "update_event", "set_event_scene", "publish_event",
+    "unpublish_event", "duplicate_event", "get_event", "list_events",
+    "upload_event_image", "upload_event_media", "get_media_upload_link",
+    "list_cover_image_gallery", "suggest_event_improvements",
+    "get_event_analytics", "get_host_brief", "set_host_brief",
   ]),
   crm: new Set([
     "find_person", "get_person", "query_people", "update_person",
@@ -2619,6 +2675,14 @@ export function buildTools(ctx) {
         "Updates fields on an existing event. Pass only the fields you want to change. Works on DRAFT and PUBLISHED events alike. Pass `sections` to replace the page body (ordered content blocks), `titleSettings` for title typography, `brand` to re-theme (or brand=null to clear to PullUp standard). Note: `sections` REPLACES the whole body — pass the complete set of blocks you want, not just a delta. For tweaking one block on an existing rich page, the host's editor is better.",
       inputSchema: UpdateEventInput,
       handler: h.updateEvent,
+    },
+    {
+      name: "set_event_scene",
+      title: "Build a generative animated hero",
+      description:
+        "Sets the event's HERO to a custom animated scene you author as code — the one place to 'go nuts' visually (canvas / WebGL / CSS / SVG motion; particles, liquid, 3D text fused into a shader, parallax photo treatments, etc.). Use this when the host wants a look the preset shader + cover can't express. The rest of the page (title, sections, RSVP) stays PullUp's trusted system — this is hero-only and purely decorative.\n\nPass `html` as a self-contained FRAGMENT: any markup PLUS inline <style> and <script>. Do NOT include <html>/<head>/<body> — those (and a strict sandbox) are provided. Hard rules your code MUST follow:\n• It runs sandboxed with NO network and NO same-origin — never fetch(), XHR, WebSocket, cookies, localStorage, or external <script src>. It cannot and must not collect data. Inline everything.\n• Be fully RESPONSIVE: fill 100% width/height of the container, use vw/vh/%/clamp, and handle window 'resize' (re-fit canvas to its parent). The SAME scene must look great from a 360px phone to a wide desktop — there is one stored scene for both.\n• Transparent background (the page supplies its own bg; the Register button layers on top — don't draw your own CTA that collects anything).\n• Keep it lean for mobile (cap particle counts / pixel ratio); pause when document.hidden.\n• Images may be referenced by https URL the host provides (display only).\nProvide `poster` (an https image URL) when you have one — it's the still fallback for reduced-motion and link previews.",
+      inputSchema: SceneInput,
+      handler: h.setEventScene,
     },
     {
       name: "publish_event",

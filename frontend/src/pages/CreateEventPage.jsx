@@ -1197,6 +1197,11 @@ export function CreateEventPage() {
     instagram, spotify, tiktok, soundcloud,
     formFields, contactChannel,
     currentStep, detailsColor, detailsGradient, detailsGradientEnabled,
+    // These are saved in the payload but were missing here, so changes to them
+    // (esp. `brand`, which holds the AI scene) never re-fired the save → reload
+    // restored a stale draft and the hero fell back to uploaded media.
+    brand, titleVisible, titleAlign, titleFont, titleSize, titleColor,
+    hideLocation, hideDate, revealHint, dateRevealHint, instantWaitlist,
   ]);
 
   function clearDraft() {

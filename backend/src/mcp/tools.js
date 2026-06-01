@@ -841,7 +841,16 @@ function buildHandlers(api, hostId) {
     if (extraRsvpFields !== undefined) {
       patch.formFields = buildFormFieldsFromExtras(extraRsvpFields);
     }
-    if (patch.brand) patch.brand = normalizeBrand(patch.brand);
+    if (patch.brand) {
+      // MERGE into the existing brand, don't replace it. The AI sends only the
+      // keys it's changing (e.g. vibe-matching colors/fonts to a freshly built
+      // hero), and a wholesale replace would wipe untouched keys — above all
+      // `design` (the generative scene set_event_scene just wrote). brand=null
+      // (falsy) still falls through and clears, which is intentional.
+      const full = await api("GET", `/host/events/${existing.id}`);
+      const current = (full && typeof full.brand === "object" && full.brand) || {};
+      patch.brand = normalizeBrand({ ...current, ...patch.brand });
+    }
     const updated = await api("PUT", `/host/events/${existing.id}`, { body: patch });
 
     const newSlug = updated.slug || slug;

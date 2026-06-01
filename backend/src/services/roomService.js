@@ -19,6 +19,51 @@
 
 import { supabase } from "../supabase.js";
 import { logger } from "../logger.js";
+import { getUserProfile } from "../data.js";
+import { getConnectionsForHost } from "../instagram/repos/instagramConnectionsRepo.js";
+
+// The host's own profile, shaped for the Room masthead — so the page reads as
+// "this is YOUR profile, these are YOUR people" (the social-dashboard framing).
+// Best-effort: a profile hiccup must never blank the Room.
+function igHandleFrom(profile) {
+  const raw = profile?.brandingLinks?.instagram || "";
+  if (!raw) return null;
+  const m = String(raw).match(/instagram\.com\/([^/?#]+)/i);
+  const h = (m ? m[1] : raw).replace(/^@/, "").replace(/\/+$/, "").trim();
+  return h ? `@${h}` : null;
+}
+async function buildHostProfile(hostId) {
+  let base = {};
+  try {
+    const p = await getUserProfile(hostId);
+    // A short "role" line: their own bio if set, else brand + city.
+    const role = (p?.bio || "").trim()
+      || [p?.brand, p?.city].map((s) => (s || "").trim()).filter(Boolean).join(" · ")
+      || null;
+    base = {
+      name: (p?.name || "").trim() || null,
+      handle: igHandleFrom(p),
+      avatar: p?.profilePicture || p?.brandLogoUrl || p?.brandLogo || null,
+      role,
+    };
+  } catch (err) {
+    logger?.warn?.("[roomService] host profile read failed", { error: err?.message });
+  }
+  // The host's connected IG accounts — powers the composer's "reply from" picker
+  // when they've connected more than one (personal + business). Best-effort.
+  try {
+    const conns = await getConnectionsForHost(hostId);
+    base.igAccounts = conns.map((c) => ({
+      id: c.id,
+      username: c.ig_username,
+      label: c.label || null,
+      isDefault: !!c.is_default,
+    }));
+  } catch {
+    base.igAccounts = [];
+  }
+  return base;
+}
 
 const CARD_COLORS = ["#ec4899", "#8b5cf6", "#0891b2", "#16a34a", "#d97706", "#6366f1", "#db2777", "#0d9488", "#e11d48", "#7c3aed"];
 function colorFor(id) {
@@ -67,6 +112,26 @@ function relTime(iso) {
   return yrs > 20 ? "A while ago" : `${yrs}y ago`;
 }
 
+// Resolve an event cover to a real, renderable URL. Covers are stored as
+// `event-images` bucket paths (not full URLs) — passing the raw path to an
+// <img> src fails, which is why Room posters were falling back to gradients.
+// Mirrors the public-URL logic in data.js (the bucket is public; permanent URL).
+function resolveEventImage(raw) {
+  if (!raw) return null;
+  if (String(raw).startsWith("http")) return raw;
+  try {
+    let filePath = raw;
+    if (raw.includes("event-images/")) {
+      const m = raw.match(/event-images\/([^?]+)/);
+      if (m) filePath = m[1];
+    }
+    const { data } = supabase.storage.from("event-images").getPublicUrl(filePath);
+    return data?.publicUrl || raw;
+  } catch {
+    return raw;
+  }
+}
+
 // type -> channel default + a human verb for thread/system lines.
 const TYPE_VERB = {
   rsvp: "RSVP'd", waitlist_join: "Joined the waitlist", rsvp_cancel: "Cancelled RSVP",
@@ -83,6 +148,9 @@ const TYPE_VERB = {
 export async function getRoomForHost(hostId) {
   if (!hostId) throw new Error("[roomService] hostId required");
 
+  // 0. The host's own profile for the masthead (their face anchors the Room).
+  const hostProfile = await buildHostProfile(hostId);
+
   // 1. All timeline events in this host's world, newest first.
   const { data: pe, error: peErr } = await supabase
     .from("person_events")
@@ -92,11 +160,11 @@ export async function getRoomForHost(hostId) {
     .limit(5000);
   if (peErr) {
     logger?.error?.("[roomService] timeline read failed", { error: peErr.message });
-    return { host: { peopleCount: 0 }, events: [], signals: [], people: [] };
+    return { host: { peopleCount: 0, ...hostProfile }, events: [], signals: [], moments: [], people: [] };
   }
   const timeline = pe || [];
   if (!timeline.length) {
-    return { host: { peopleCount: 0 }, events: [], signals: [], people: [] };
+    return { host: { peopleCount: 0, ...hostProfile }, events: [], signals: [], moments: [], people: [] };
   }
 
   // 2. Group by person.
@@ -111,7 +179,7 @@ export async function getRoomForHost(hostId) {
   const [{ data: people }, { data: idents }, { data: events }] = await Promise.all([
     supabase.from("people").select("id, name, email, phone_e164, phone_verified_at, instagram, ig_user_id").in("id", personIds),
     supabase.from("person_identities").select("person_id, kind").in("person_id", personIds),
-    supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via").eq("host_id", hostId),
+    supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency").eq("host_id", hostId),
   ]);
   const peopleById = new Map((people || []).map((p) => [p.id, p]));
   const identsByPerson = new Map();
@@ -146,12 +214,16 @@ export async function getRoomForHost(hostId) {
         id: e.id,
         title: e.title || "Untitled event",
         slug: e.slug || null,
-        coverImage: e.cover_image_url || e.image_url || null,
+        coverImage: resolveEventImage(e.cover_image_url || e.image_url),
         startsAt: e.starts_at || null,
         when: eventDateLabel(e.starts_at, status),
         status,
         capacity: e.total_capacity || null,
         comingCount: comingByEvent.get(e.id) || 0,
+        // carried for the VIP section's paid-event logic
+        ticketType: e.ticket_type || "free",
+        ticketPrice: e.ticket_price || 0,
+        ticketCurrency: e.ticket_currency || null,
         // Relevance order: LIVE/upcoming first (what needs attention now),
         // then past (history), drafts last (unfinished, tucked away in the UI).
         _sort: status === "live" ? 2 : status === "past" ? 1 : 0,
@@ -166,6 +238,8 @@ export async function getRoomForHost(hostId) {
     })
     .map(({ _sort, ...e }) => e);
   const eventTitleById = new Map(eventsOut.map((e) => [e.id, e.title]));
+  // VipInviteSection reads event.status to decide if it's a paid event; it
+  // expects the lowercased status we already set — leave as-is.
 
   // 5. Build each person.
   const peopleOut = [];
@@ -215,12 +289,83 @@ export async function getRoomForHost(hostId) {
   // 6. Signals — recent notable events as nudges (top of the Room).
   const signals = buildSignals(timeline, peopleById, eventTitleById);
 
+  // 7. Moments — the legacy layer. The world a host built, read back to them:
+  // anniversaries, people who became regulars, the world growing. Not actions —
+  // warmth. This is the retention moat (the timeline becomes a body of work).
+  const moments = buildMoments({ byPerson, peopleById, eventsOut });
+
   return {
-    host: { peopleCount: personIds.length },
+    host: { peopleCount: personIds.length, ...hostProfile },
     events: eventsOut,
     signals,
+    moments,
     people: peopleOut,
   };
+}
+
+// ── moments (the "looking back" legacy layer) ───────────────────────
+// Grounded entirely in real touchpoints (the anti-extraction line: we read
+// back care that happened, we don't manufacture it). Ordered anniversary →
+// new-regular → growth, capped so it stays a glance, never a feed.
+function buildMoments({ byPerson, peopleById, eventsOut }) {
+  const now = Date.now();
+  const DAY = 86400000;
+  const YEAR = 365.25 * DAY;
+  const out = [];
+
+  // Anniversaries — a past event whose date lands ~N whole years ago (±4d).
+  for (const e of eventsOut) {
+    if (e.status !== "past" || !e.startsAt) continue;
+    const elapsed = now - new Date(e.startsAt).getTime();
+    if (elapsed <= 0) continue;
+    const years = Math.round(elapsed / YEAR);
+    if (years >= 1 && Math.abs(elapsed - years * YEAR) <= 4 * DAY) {
+      out.push({
+        id: `anniv_${e.id}`,
+        kind: "anniversary",
+        text: `${years === 1 ? "A year" : `${years} years`} ago today: ${e.title}${e.comingCount ? ` — ${e.comingCount} came` : ""}.`,
+        eventId: e.id,
+        coverImage: e.coverImage || null,
+        cta: "Do it again",
+      });
+    }
+  }
+
+  // New regulars — someone who just crossed into "basically family" (3+ nights),
+  // with their latest night recent enough that the milestone feels fresh.
+  for (const [pid, evs] of byPerson) {
+    const attendedEvs = evs.filter((x) => x.type === "attended");
+    if (attendedEvs.length < 3) continue;
+    const last = attendedEvs[0]?.occurred_at; // evs are newest-first
+    if (!last || (now - new Date(last).getTime()) > 45 * DAY) continue;
+    const p = peopleById.get(pid);
+    if (!p) continue;
+    const name = p.name || (p.email ? p.email.split("@")[0] : "Someone");
+    out.push({
+      id: `regular_${pid}`,
+      kind: "regular",
+      text: `${name} is a regular now — ${attendedEvs.length} nights in your world.`,
+      personId: pid,
+    });
+  }
+
+  // Growing world — people whose first-ever touch was within the last 30 days.
+  let newcomers = 0;
+  for (const [, evs] of byPerson) {
+    const firstTouch = evs[evs.length - 1]?.occurred_at; // oldest is last
+    if (firstTouch && (now - new Date(firstTouch).getTime()) <= 30 * DAY) newcomers++;
+  }
+  if (newcomers >= 3) {
+    out.push({
+      id: "growth_30d",
+      kind: "growth",
+      text: `${newcomers} new people joined your world this month.`,
+    });
+  }
+
+  const order = { anniversary: 0, regular: 1, growth: 2 };
+  out.sort((a, b) => (order[a.kind] ?? 9) - (order[b.kind] ?? 9));
+  return out.slice(0, 3);
 }
 
 // ── heuristics ──────────────────────────────────────────────────────

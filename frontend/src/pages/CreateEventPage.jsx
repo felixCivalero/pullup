@@ -5824,7 +5824,7 @@ export function CreateEventPage() {
                       return;
                     }
                     showToast("Event deleted", "success");
-                    navigate("/events");
+                    navigate("/room");
                   } catch (err) {
                     console.error(err);
                     showToast("Could not delete event", "error");

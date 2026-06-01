@@ -176,7 +176,7 @@ export function AuthProvider({ children }) {
     const dest =
       returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
         ? returnTo
-        : "/events";
+        : "/room";
     // Always use current origin so the same Supabase project works on localhost and production.
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(
       dest,

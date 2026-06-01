@@ -23,7 +23,10 @@ import {
 import { exchangeCodeForToken, fetchAccount } from "../providers/igGraphClient.js";
 import {
   upsertConnection,
-  getConnectionForHost,
+  getConnectionsForHost,
+  setDefaultConnection,
+  setConnectionLabel,
+  disconnectConnection,
 } from "../repos/instagramConnectionsRepo.js";
 import { logger } from "../../logger.js";
 
@@ -68,7 +71,9 @@ function verifyState(state) {
 
 const SETTINGS_URL = "https://pullup.se/home?tab=settings";
 
-/** GET /instagram/connection — authed; status for the Settings UI. */
+/** GET /instagram/connection — authed; status for the Settings + Room UI.
+ *  Returns ALL connected accounts (multi-account) plus, for back-compat,
+ *  `connected` and `account` pointing at the default. */
 export async function getInstagramConnectionStatus(req, res) {
   const hostProfileId = req.user?.id;
   if (!hostProfileId) {
@@ -76,23 +81,83 @@ export async function getInstagramConnectionStatus(req, res) {
     return;
   }
   try {
-    const conn = await getConnectionForHost(hostProfileId);
+    const conns = await getConnectionsForHost(hostProfileId);
+    const accounts = conns.map((c) => ({
+      id: c.id,
+      ig_username: c.ig_username,
+      label: c.label || null,
+      isDefault: !!c.is_default,
+      connected_at: c.connected_at,
+      token_expires_at: c.token_expires_at,
+    }));
+    const def = accounts.find((a) => a.isDefault) || accounts[0] || null;
     res.json({
-      connected: !!conn,
+      connected: accounts.length > 0,
       sandbox: IG_SANDBOX_MODE,
-      account: conn
-        ? {
-            ig_username: conn.ig_username,
-            connected_at: conn.connected_at,
-            scopes: conn.scopes,
-            token_expires_at: conn.token_expires_at,
-          }
-        : null,
+      accounts,
+      account: def ? { ig_username: def.ig_username, connected_at: def.connected_at } : null,
     });
   } catch (err) {
     logger?.error?.("[instagram/oauth] status failed", { err: err.message });
     res.status(500).json({ error: "status_failed" });
   }
+}
+
+/** POST /instagram/connections/:id/default — set the host's reply-from account. */
+export async function setDefaultInstagramAccount(req, res) {
+  const hostProfileId = req.user?.id;
+  if (!hostProfileId) { res.status(401).json({ error: "auth required" }); return; }
+  try {
+    await setDefaultConnection(hostProfileId, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: "could_not_set_default" });
+  }
+}
+
+/** PATCH /instagram/connections/:id — rename an account (label). */
+export async function updateInstagramAccount(req, res) {
+  const hostProfileId = req.user?.id;
+  if (!hostProfileId) { res.status(401).json({ error: "auth required" }); return; }
+  try {
+    const label = typeof req.body?.label === "string" ? req.body.label.slice(0, 40) : null;
+    await setConnectionLabel(hostProfileId, req.params.id, label);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: "could_not_update" });
+  }
+}
+
+/** DELETE /instagram/connections/:id — disconnect one account. */
+export async function disconnectInstagramAccount(req, res) {
+  const hostProfileId = req.user?.id;
+  if (!hostProfileId) { res.status(401).json({ error: "auth required" }); return; }
+  try {
+    await disconnectConnection(hostProfileId, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: "could_not_disconnect" });
+  }
+}
+
+// Build the IG authorize URL for a host (or null if IG isn't configured).
+// Shared by the redirect route and the JSON `connect-url` route so the signing
+// logic lives in one place. In sandbox we return the callback URL directly with
+// a fake code so the whole flow is testable end-to-end.
+function buildInstagramAuthorizeUrl(hostProfileId, req) {
+  if (!IG_APP_ID || !IG_OAUTH_REDIRECT_URI) return null;
+  const state = signState({ hostProfileId, nonce: crypto.randomUUID(), ts: Date.now() });
+  if (IG_SANDBOX_MODE) {
+    const cbBase = IG_OAUTH_REDIRECT_URI || `${req?.protocol}://${req?.get("host")}/oauth/instagram/callback`;
+    return `${cbBase}?code=sbx-code&state=${encodeURIComponent(state)}`;
+  }
+  return (
+    `${IG_AUTHORIZE_URL}?client_id=${encodeURIComponent(IG_APP_ID)}` +
+    `&redirect_uri=${encodeURIComponent(IG_OAUTH_REDIRECT_URI)}` +
+    `&response_type=code` +
+    `&scope=${encodeURIComponent(IG_SCOPES.join(","))}` +
+    `&state=${encodeURIComponent(state)}`
+  );
 }
 
 /** GET /oauth/instagram/start — must run behind requireAuth. */
@@ -102,27 +167,31 @@ export function startInstagramConnect(req, res) {
     res.status(401).json({ error: "auth required" });
     return;
   }
-  if (!IG_APP_ID || !IG_OAUTH_REDIRECT_URI) {
+  const url = buildInstagramAuthorizeUrl(hostProfileId, req);
+  if (!url) {
     res.status(503).json({ error: "instagram not configured" });
     return;
   }
+  res.redirect(url);
+}
 
-  const state = signState({ hostProfileId, nonce: crypto.randomUUID(), ts: Date.now() });
-  const url =
-    `${IG_AUTHORIZE_URL}?client_id=${encodeURIComponent(IG_APP_ID)}` +
-    `&redirect_uri=${encodeURIComponent(IG_OAUTH_REDIRECT_URI)}` +
-    `&response_type=code` +
-    `&scope=${encodeURIComponent(IG_SCOPES.join(","))}` +
-    `&state=${encodeURIComponent(state)}`;
-
-  // In sandbox we skip the real IG round-trip and bounce straight to the
-  // callback with a fake code, so the whole flow is testable end-to-end.
-  if (IG_SANDBOX_MODE) {
-    const cbBase = IG_OAUTH_REDIRECT_URI || `${req.protocol}://${req.get("host")}/oauth/instagram/callback`;
-    res.redirect(`${cbBase}?code=sbx-code&state=${encodeURIComponent(state)}`);
+/**
+ * GET /instagram/connect-url — authed JSON. Returns the IG authorize URL so a
+ * browser (which can't attach the bearer token to a top-level navigation to the
+ * redirect route) can kick off the connect flow with window.location.
+ */
+export function getInstagramConnectUrl(req, res) {
+  const hostProfileId = req.user?.id;
+  if (!hostProfileId) {
+    res.status(401).json({ error: "auth required" });
     return;
   }
-  res.redirect(url);
+  const url = buildInstagramAuthorizeUrl(hostProfileId, req);
+  if (!url) {
+    res.status(503).json({ error: "instagram_not_configured" });
+    return;
+  }
+  res.json({ url });
 }
 
 /** GET /oauth/instagram/callback — public; trusts the signed state. */

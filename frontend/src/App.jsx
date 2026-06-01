@@ -1,9 +1,27 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
+
+// /app/events/:id/manage → redirect to the guests subpage. Absolute path built
+// from the param: a relative <Navigate to="../guests"> over-pops on these flat
+// (non-nested) routes and lands on a bare /guests with no matching route.
+function ManageRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/app/events/${id}/guests`} replace />;
+}
+
+// The PullUp AI widget is only useful while building an event — it gets in the
+// way elsewhere (e.g. over the Room's chat composer). So mount it only on the
+// create / edit-event routes.
+function CoachWidgetGate() {
+  const { pathname } = useLocation();
+  const onEventBuilder =
+    pathname === "/create" ||
+    /^\/app\/events\/[^/]+\/(edit|manage\/edit)$/.test(pathname);
+  return onEventBuilder ? <IdeaWidget /> : null;
+}
 import { LandingPage } from "./pages/LandingPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { NewsletterPage } from "./pages/NewsletterPage";
-import { HomePage } from "./pages/HomePage";
 import { CrmPage } from "./pages/CrmPage";
 import { UnsubscribePage } from "./pages/UnsubscribePage";
 import { CreateEventPage } from "./pages/CreateEventPage";
@@ -11,6 +29,8 @@ import { EventPage } from "./pages/EventPage";
 import { RsvpSuccessPage } from "./pages/RsvpSuccessPage";
 import { EventSuccessPage } from "./pages/EventSuccessPage";
 import { EventGuestsPage } from "./pages/EventGuestsPage";
+import EventRoomPage from "./pages/EventRoomPage";
+import RoomPage from "./pages/RoomPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
@@ -40,11 +60,9 @@ function App() {
   return (
     <ErrorBoundary>
       <HostResourceProvider>
-      {/* The floating bottom-right slot. Shows "Have an idea?" by default,    */}
-      {/* swaps to the gold "PullUp" coach affordance when the current host    */}
-      {/* page has recent chat activity (see HostResourceContext + the         */}
-      {/* useRecentChatActivity gate inside IdeaWidget).                       */}
-      <IdeaWidget />
+      {/* The PullUp AI coach widget — only mounted on the create/edit-event
+          builder (it gets in the way of the Room's chat composer elsewhere). */}
+      <CoachWidgetGate />
       <Routes>
         {/* Public — landing page renders the slide shell. /login and
             /start point at the same component so the URL still works
@@ -85,8 +103,12 @@ function App() {
         <Route element={<ProtectedLayout />}>
           {/* Create — auth is deferred to publish time */}
           <Route path="/create" element={<CreateEventPage key="create" />} />
-          {/* Events / CRM dashboard */}
-          <Route path="/events" element={<HomePage />} />
+          {/* The Room — the global home of PullUp (person-centric, all events).
+              The old events dashboard (/events) is gone; the Room is home now.
+              Keep /events and /home as redirects so old links/bookmarks land
+              on the Room instead of 404ing. */}
+          <Route path="/room" element={<RoomPage />} />
+          <Route path="/events" element={<Navigate to="/room" replace />} />
           <Route path="/analytics" element={<HostAnalyticsPage />} />
           <Route path="/planner" element={<ContentPlannerPage />} />
           <Route path="/crm" element={<CrmPage />} />
@@ -102,15 +124,16 @@ function App() {
           <Route path="/admin/crm" element={<AdminCrmPage />} />
           <Route path="/admin/email" element={<AdminEmailPage />} />
           <Route path="/admin/presentation" element={<AdminPresentationPage />} />
-          {/* Backwards-compat: /home currently points to events */}
-          <Route path="/home" element={<HomePage />} />
+          {/* Backwards-compat: /home used to point at the events dashboard;
+              now it lands on the Room like everything else. */}
+          <Route path="/home" element={<Navigate to="/room" replace />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/app/events/:id/edit" element={<CreateEventPage key="edit" />} />
           <Route path="/events/:slug/success" element={<EventSuccessPage />} />
           <Route
             path="/app/events/:id/manage"
-            element={<Navigate to="../guests" replace />}
+            element={<ManageRedirect />}
           />
           <Route
             path="/app/events/:id/manage/edit"
@@ -129,6 +152,14 @@ function App() {
             element={
               <ErrorBoundary>
                 <EventGuestsPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/app/events/:id/room"
+            element={
+              <ErrorBoundary>
+                <EventRoomPage />
               </ErrorBoundary>
             }
           />

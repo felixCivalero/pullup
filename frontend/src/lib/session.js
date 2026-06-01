@@ -2,7 +2,7 @@
 //
 // Synchronous "is there a stored session?" peek, read straight from
 // localStorage BEFORE React paints. Used by the public landing/login
-// shell to redirect returning users to /events on the first frame — so
+// shell to redirect returning users to /room on the first frame — so
 // they never see the marketing/login UI flash in and then jump away
 // once AuthContext finishes its async getSession() round-trip.
 //

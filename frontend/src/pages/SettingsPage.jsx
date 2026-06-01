@@ -115,12 +115,21 @@ export function SettingsPage() {
             style={{
               fontSize: "clamp(22px, 5vw, 28px)",
               fontWeight: 700,
-              marginBottom: "16px",
+              marginBottom: "4px",
               color: colors.text,
             }}
           >
             Settings
           </h1>
+          <p
+            style={{
+              fontSize: "14px",
+              color: colors.textMuted,
+              marginBottom: "24px",
+            }}
+          >
+            Manage your profile, your channels, and your account — everything that makes the Room yours.
+          </p>
           <SettingsTab
             user={user}
             setUser={setUser}

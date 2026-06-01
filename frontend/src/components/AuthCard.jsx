@@ -170,7 +170,7 @@ const GoogleIcon = (
  */
 export function AuthCard({
   onSuccess,
-  redirectTo = "/events",
+  redirectTo = "/room",
   submitLabel = "Enter pullup",
   trackingPrefix = "auth",
   funnelTrack = false,

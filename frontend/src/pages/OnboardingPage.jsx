@@ -242,7 +242,7 @@ export function OnboardingPage() {
       }
     } finally {
       clearDraft();
-      navigate("/events", { replace: true });
+      navigate("/room", { replace: true });
     }
   }, [navigate]);
 

@@ -24,6 +24,7 @@ import { renderEventEmailTemplate } from "./emailTemplateService.js";
 import { renderFollowUpEmailTemplate } from "./followUpTemplateService.js";
 import { addTracking } from "../email/tracking/linkRewriter.js";
 import { sanitizeBlockUrls } from "./imageUrlSanitizer.js";
+import { logPersonEvent } from "./personTimeline.js";
 
 /**
  * Send campaign in batches
@@ -197,6 +198,26 @@ export async function sendCampaignInBatches(
             }
 
             totalSent++;
+
+            // Email as a LIVE rail: drop this send into the recipient's Room
+            // timeline so the host sees "you emailed them" beside their IG /
+            // WhatsApp history. Best-effort — logPersonEvent swallows its own
+            // errors and never blocks the send.
+            logPersonEvent({
+              personId: person.id,
+              hostId: userId,
+              type: "message_out",
+              channel: "email",
+              direction: "out",
+              eventId: campaign.eventId || null,
+              body: `Emailed: ${campaign.subject || "your campaign"}`,
+              metadata: {
+                source: "campaign",
+                campaign_id: campaign.id,
+                outbox_id: outboxRow?.id || null,
+                tracking_id: outboxRow?.tracking_id || null,
+              },
+            }).catch(() => {});
 
             return { success: true, personId: person.id };
           } catch (error) {

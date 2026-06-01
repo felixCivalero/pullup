@@ -8,7 +8,7 @@ import { trackEvent } from "../lib/analytics.js";
 // (see AuthContext.signInWithGoogle) instead of dropping the user straight
 // onto a protected route. Why this exists:
 //
-//   1. Protected routes (e.g. /events) redirect to "/" the instant they see
+//   1. Protected routes (e.g. /room) redirect to "/" the instant they see
 //      user=null. Right after an OAuth round-trip the session takes a beat to
 //      resolve, so landing there raced the auth state and bounced people back
 //      to login — the recurring "it jumps me back to login" bug.
@@ -42,7 +42,7 @@ function parseAuthError() {
 // honor an absolute or protocol-relative URL (open-redirect guard).
 function resolveNext() {
   const raw = new URLSearchParams(window.location.search || "").get("next");
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/events";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/room";
   return raw;
 }
 

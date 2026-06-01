@@ -31,7 +31,12 @@ export function RsvpForm({
   PaymentFormComponent = null,
   // Preview mode: pass pre-built slots to skip API call
   previewSlots = null,
+  // In the editor preview this form is nested inside CreateEventPage's <form>,
+  // and a <form> can't contain a <form>. In preview we render a <div> instead
+  // (it's display-only there and never submits). Live pages pass preview=false.
+  preview = false,
 }) {
+  const Wrap = preview ? "div" : "form";
   const [email, setEmail] = useState(vipOffer?.invite?.email || "");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -323,7 +328,7 @@ export function RsvpForm({
     const waitlistTicketCurrency = (waitlistEvent?.ticketCurrency || ticketCurrency || "usd").toLowerCase();
     const waitlistIsPaidEvent = waitlistEvent?.ticketType === "paid" || isPaidEvent;
     return (
-      <form onSubmit={handleSubmit} style={{ width: "100%", touchAction: "manipulation" }}>
+      <Wrap onSubmit={preview ? undefined : handleSubmit} style={{ width: "100%", touchAction: "manipulation" }}>
         <div style={{
           padding: "16px",
           background: "rgba(255, 255, 255, 0.04)",
@@ -395,14 +400,14 @@ export function RsvpForm({
             {loading ? "Processing..." : "Get Tickets"}
           </button>
         )}
-      </form>
+      </Wrap>
     );
   }
 
   // ─── Normal RSVP Form ───
   return (
-    <form
-      onSubmit={handleSubmit}
+    <Wrap
+      onSubmit={preview ? undefined : handleSubmit}
       style={{
         width: "100%",
         touchAction: "manipulation",
@@ -990,7 +995,7 @@ export function RsvpForm({
           )}
         </>
       )}
-    </form>
+    </Wrap>
   );
 }
 

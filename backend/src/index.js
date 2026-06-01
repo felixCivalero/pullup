@@ -121,6 +121,7 @@ import {
   startInstagramConnect,
   instagramConnectCallback,
   getInstagramConnectionStatus,
+  getInstagramConnectUrl,
 } from "./instagram/oauth/connectRoutes.js";
 import {
   startVerification as startPhoneVerification,
@@ -882,6 +883,21 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
     res.json({ reply, toolsUsed, toolsFailed, toolsUnrun, stopReason, eventId: eventId || null });
   } catch (err) {
     console.error("[canvas/chat]", err?.message || err);
+    // TEMP: capture the real failure so we can read it from the DB (the big
+    // scene turns are erroring and prod logs aren't reachable from here).
+    try {
+      const { supabase: sb } = await import("./supabase.js");
+      const detail = `${err?.name || "Error"}: ${err?.message || err}${err?.status ? ` [status:${err.status}]` : ""}`;
+      sb.from("mcp_tool_calls")
+        .insert({
+          user_id: req.user?.id || null,
+          tool_name: "canvas_error",
+          ok: false,
+          duration_ms: 0,
+          error_excerpt: String(detail).slice(0, 240),
+        })
+        .then(() => {}, () => {});
+    } catch { /* swallow */ }
     res.status(500).json({ error: "Canvas chat failed. Try again." });
   }
 });
@@ -1028,6 +1044,7 @@ app.post("/webhooks/instagram", handleIgWebhookDelivery);
 app.get("/oauth/instagram/start", requireAuth, startInstagramConnect);
 app.get("/oauth/instagram/callback", instagramConnectCallback);
 app.get("/instagram/connection", requireAuth, getInstagramConnectionStatus);
+app.get("/instagram/connect-url", requireAuth, getInstagramConnectUrl);
 
 // ---------------------------
 // PHONE VERIFICATION: magic-link via WhatsApp

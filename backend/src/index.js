@@ -121,7 +121,6 @@ import {
   startInstagramConnect,
   instagramConnectCallback,
   getInstagramConnectionStatus,
-  getInstagramConnectUrl,
 } from "./instagram/oauth/connectRoutes.js";
 import {
   startVerification as startPhoneVerification,
@@ -1044,7 +1043,9 @@ app.post("/webhooks/instagram", handleIgWebhookDelivery);
 app.get("/oauth/instagram/start", requireAuth, startInstagramConnect);
 app.get("/oauth/instagram/callback", instagramConnectCallback);
 app.get("/instagram/connection", requireAuth, getInstagramConnectionStatus);
-app.get("/instagram/connect-url", requireAuth, getInstagramConnectUrl);
+// NOTE: /instagram/connect-url temporarily removed — its handler
+// (getInstagramConnectUrl) lives in an uncommitted connectRoutes.js change.
+// Re-add this route + the import once that export is committed.
 
 // ---------------------------
 // PHONE VERIFICATION: magic-link via WhatsApp

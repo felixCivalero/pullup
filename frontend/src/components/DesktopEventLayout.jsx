@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { MediaCarousel } from "./MediaCarousel";
+import { WebGLHero } from "./WebGLHero";
+import { SceneFrame } from "./SceneFrame";
 import { EventPageContent } from "./EventPageContent";
 import { getCtaLabel } from "./EventCTA";
 import { formatEventTime } from "../lib/dateUtils.js";
@@ -35,6 +37,7 @@ export function DesktopEventLayout({
   imagePreview,
   media,
   mediaSettings,
+  design = null,
   ticketType,
   ticketPrice,
   ticketCurrency,
@@ -237,7 +240,15 @@ export function DesktopEventLayout({
               userSelect: "none",
             }}
           >
-            {media && media.length > 0 ? (
+            {design?.archetype === "webgl" ? (
+              <WebGLHero params={design.params || {}} />
+            ) : design?.archetype === "scene" ? (
+              <SceneFrame
+                html={design.html}
+                poster={design.poster || imagePreview || null}
+                palette={design.params?.colors || null}
+              />
+            ) : media && media.length > 0 ? (
               <div style={{ position: "absolute", inset: 0 }}>
                 <MediaCarousel
                   media={media}

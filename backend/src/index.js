@@ -785,6 +785,14 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
       "full state is provided to you on every turn, so do NOT call get_event or list_events " +
       "to read it. Act directly and fast: make the change with update_event (using the slug), " +
       "then reply with ONE short confirmation sentence.\n" +
+      "HERO / VISUALS: for ordinary looks (palette, simple shader vibe, cover image) keep using " +
+      "update_event's brand/design. But when the host wants something custom and alive that presets " +
+      "can't express — 3D text fused into the motion, particles, liquid, parallax photo treatments, " +
+      "a 'small movie' feel — you CAN build it: call set_event_scene to author a real animated hero " +
+      "as self-contained sandboxed code (canvas/WebGL/CSS). This is the 'go nuts' surface. Never say " +
+      "PullUp can't do custom animation or tell them to make a video elsewhere — build the scene. It " +
+      "must be responsive and collect nothing (the sandbox enforces this); the Register button stays " +
+      "PullUp's. Hero only — the rest of the page stays the trusted block system.\n" +
       "VOICE: reply in plain, conversational text — NO markdown (no **bold**, no bullet or " +
       "heading syntax) and NO links or URLs. You live inside the editor and the live preview " +
       "updates right next to the host as you work, so NEVER tell them to 'preview', 'open', or " +

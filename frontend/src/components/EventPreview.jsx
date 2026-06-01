@@ -4,6 +4,7 @@ import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort } from "../lib/urlUtils";
 import { EventPageContent } from "./EventPageContent";
 import { WebGLHero } from "./WebGLHero";
+import { SceneFrame } from "./SceneFrame";
 import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
@@ -199,6 +200,16 @@ export function EventPreview({
               // render (same component in editor preview and live page).
               if (design?.archetype === "webgl") {
                 return <WebGLHero params={design.params || {}} />;
+              }
+              // Generative scene: AI-authored animated hero, sandboxed.
+              if (design?.archetype === "scene") {
+                return (
+                  <SceneFrame
+                    html={design.html}
+                    poster={design.poster || imagePreview || null}
+                    palette={design.params?.colors || null}
+                  />
+                );
               }
               // Phone view uses mediaSettings.phone.fit/focusX/focusY (with
               // legacy fallback to top-level fit/focus on old events).

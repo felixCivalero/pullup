@@ -122,10 +122,11 @@ export function CanvasChat({ eventId, suggestions = [] }) {
       const data = await res.json();
       const tools = Array.isArray(data.toolsUsed) ? data.toolsUsed : [];
       const failed = Array.isArray(data.toolsFailed) ? data.toolsFailed : [];
+      const unrun = Array.isArray(data.toolsUnrun) ? data.toolsUnrun : [];
       const built = tools.some(isMutatingTool);
-      // A mutating tool the model tried but that the server rejected — be honest
-      // rather than claim a change that didn't land.
-      const failedMutation = !built && failed.some(isMutatingTool);
+      // A mutating tool the model tried but that errored OR never executed
+      // (connector didn't run it) — be honest rather than claim a phantom change.
+      const failedMutation = !built && (failed.some(isMutatingTool) || unrun.some(isMutatingTool));
       setMessages((m) => [...m, { role: "assistant", content: nativeText(data.reply) || "Done.", tools, failedMutation }]);
       if (built) {
         window.dispatchEvent(new CustomEvent("pullup:canvas-built", { detail: { eventId, tools } }));

@@ -92,14 +92,26 @@ export async function runCanvasTurn({ messages, system, mcpToken, model, mcpBase
       .map((b) => [b.tool_use_id, b]),
   );
 
-  const toolsUsed = [];
-  const toolsFailed = [];
+  const toolsUsed = [];   // executed on our server, no error
+  const toolsFailed = []; // executed, returned is_error
+  const toolsUnrun = [];  // model emitted a call that NEVER executed (no result)
   for (const c of calls) {
     if (!c.name) continue;
     const r = resultsById.get(c.id);
-    if (r && r.is_error) toolsFailed.push(c.name);
+    if (!r) toolsUnrun.push(c.name);          // e.g. connector didn't attach tools
+    else if (r.is_error) toolsFailed.push(c.name);
     else toolsUsed.push(c.name);
   }
 
-  return { reply, toolsUsed, toolsFailed, stopReason: res.stop_reason };
+  // Boundary diagnostic: the exact response shape, so we can tell from the DB
+  // whether the MCP connector attached/executed our tools at all.
+  const diag = {
+    sr: res.stop_reason,
+    b: (res.content || []).map((x) => x.type),
+    run: toolsUsed,
+    fail: toolsFailed,
+    unrun: toolsUnrun,
+  };
+
+  return { reply, toolsUsed, toolsFailed, toolsUnrun, stopReason: res.stop_reason, diag };
 }

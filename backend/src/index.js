@@ -762,10 +762,15 @@ app.all("/mcp/:profile", handleMcp);
 app.post("/host/canvas/chat", requireAuth, async (req, res) => {
   let heartbeat = null;
   try {
-    const { messages, eventId } = req.body || {};
+    const { messages, eventId, images } = req.body || {};
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: "messages (non-empty array) required" });
     }
+    // Host-attached reference images (https URLs). They live in the shared event
+    // media pool; here they become vision input + a URL the scene can animate.
+    const imgUrls = Array.isArray(images)
+      ? images.filter((u) => typeof u === "string" && /^https?:\/\//.test(u)).slice(0, 4)
+      : [];
 
     // System prompt = the same coach instructions the connector gets, plus the
     // event the host is currently editing so Claude edits THIS one by default.
@@ -855,6 +860,41 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
       }
     }
 
+    // Reference images: tell the model it can SEE them (vision, below) and give
+    // it their URLs to USE — the hero should treat/animate the host's actual
+    // image, not ignore it.
+    if (imgUrls.length) {
+      systemBlocks.push({
+        type: "text",
+        text:
+          "The host attached reference image(s) — you can SEE them in the latest message. " +
+          "Build the HERO by treating/animating THESE image(s): draw them to a canvas and add " +
+          "motion (parallax, drift, light sweeps, particles, grain) so the host's real image comes " +
+          "alive — keep it the subject, don't replace it with an abstract scene. Reference them in " +
+          "the scene code by these https URLs (img-src allows https): " + imgUrls.join(", "),
+      });
+    }
+
+    // Attach the images to the LAST user message as vision blocks so the model
+    // actually sees them. Frontend sends content as a string; we widen it here.
+    let effectiveMessages = messages;
+    if (imgUrls.length) {
+      effectiveMessages = messages.map((m) => ({ ...m }));
+      for (let i = effectiveMessages.length - 1; i >= 0; i--) {
+        if (effectiveMessages[i].role === "user") {
+          const txt = typeof effectiveMessages[i].content === "string" ? effectiveMessages[i].content : "";
+          effectiveMessages[i] = {
+            role: "user",
+            content: [
+              { type: "text", text: txt || "Use the attached image for the hero." },
+              ...imgUrls.map((url) => ({ type: "image", source: { type: "url", url } })),
+            ],
+          };
+          break;
+        }
+      }
+    }
+
     const mcpToken = await getCanvasMcpToken(req.user.id);
     const mcpBaseUrl = process.env.MCP_PUBLIC_BASE_URL || "https://mcp.pullup.se";
 
@@ -874,7 +914,7 @@ app.post("/host/canvas/chat", requireAuth, async (req, res) => {
     let turn;
     try {
       turn = await runCanvasTurn({
-        messages,
+        messages: effectiveMessages,
         system: systemBlocks,
         mcpToken,
         mcpBaseUrl,

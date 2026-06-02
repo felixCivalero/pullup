@@ -137,7 +137,6 @@ export function OAuthAuthorizePage() {
           <PermissionItem text="Upload cover images to your events" />
           <PermissionItem text="Read your event analytics — attendance, revenue, trends" />
           <PermissionItem text="Read your CRM — audience segments, repeat guests, top spenders" />
-          <PermissionItem text="Read your email campaign performance" />
         </div>
 
         <div style={whoStyle}>

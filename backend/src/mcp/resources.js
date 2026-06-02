@@ -12,7 +12,6 @@
 //   pullup://event/{slug}            → one event's details (templated)
 //   pullup://crm/summary             → overall CRM summary
 //   pullup://crm/recent              → last 30 days of activity
-//   pullup://campaigns/recent        → last 20 campaigns
 //
 // Static resources (no parameters) get a fixed URI and a fetcher. The
 // per-event template uses a URI template (RFC 6570 lite) so clients can
@@ -100,17 +99,6 @@ export function buildStaticResources(api) {
       read: async () => {
         const data = await api("GET", "/host/crm/recent", { query: { days: 30 } });
         return jsonContent("pullup://crm/recent", data);
-      },
-    },
-    {
-      name: "campaigns_recent",
-      uri: "pullup://campaigns/recent",
-      title: "Recent email campaigns",
-      description: "Last 20 email campaigns with status, recipient count, and sent count.",
-      mimeType: "application/json",
-      read: async () => {
-        const list = (await api("GET", "/host/crm/campaigns", { query: { limit: 20 } })) || [];
-        return jsonContent("pullup://campaigns/recent", list);
       },
     },
   ];

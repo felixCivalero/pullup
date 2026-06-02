@@ -20,12 +20,26 @@
 
 import { findPersonById, personBelongsToHost, getUserProfile } from "../data.js";
 import { enqueueOutbox } from "../email/index.js";
-import { buildFromHeader } from "./campaignSender.js";
+import { SES_FROM_EMAIL } from "../email/config.js";
 import { logPersonEvent } from "./personTimeline.js";
 import { sendText } from "../whatsapp/index.js";
 import { isConversationWindowOpen } from "../whatsapp/repos/whatsappThreadsRepo.js";
 import { dispatch } from "../messaging/dispatch.js";
 import { supabase } from "../supabase.js";
+
+// Build a "Name <addr>" From header from a display name. The address part
+// always comes from SES_FROM_EMAIL — the host display name is the only thing
+// we override (a warmer From without exposing the domain config). Inlined here
+// when the campaign sender (its original home) was removed.
+function buildFromHeader(displayName) {
+  const m = SES_FROM_EMAIL.match(/<([^>]+)>/);
+  const address = m ? m[1] : SES_FROM_EMAIL;
+  if (displayName && typeof displayName === "string" && displayName.trim()) {
+    const safe = displayName.replace(/["\r\n]/g, "").trim();
+    return `"${safe}" <${address}>`;
+  }
+  return SES_FROM_EMAIL;
+}
 
 const FRONTEND_BASE =
   process.env.NODE_ENV === "production"

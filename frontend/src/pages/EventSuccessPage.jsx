@@ -7,7 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronRight,
-  Megaphone,
+  Users,
   ExternalLink,
 } from "lucide-react";
 import { useToast } from "../components/Toast";
@@ -530,10 +530,10 @@ export function EventSuccessPage() {
               gap: 10,
             }}
           >
-            {/* Go to CRM */}
+            {/* Go to the Room */}
             <button
               type="button"
-              onClick={() => navigate("/crm")}
+              onClick={() => navigate("/room")}
               style={{
                 width: "100%",
                 padding: "16px",
@@ -562,29 +562,9 @@ export function EventSuccessPage() {
                 e.currentTarget.style.borderColor = colors.border;
               }}
             >
-              <SilverIcon as={Megaphone} size={18} />
-              <span>Send campaign</span>
+              <SilverIcon as={Users} size={18} />
+              <span>Go to your Room</span>
               <ChevronRight size={16} style={{ opacity: 0.9 }} />
-              <span
-                style={{
-                  position: "absolute",
-                  top: 6,
-                  right: 10,
-                  padding: "3px 8px",
-                  borderRadius: "999px",
-                  background:
-                    "linear-gradient(135deg, #fff7cc 0%, #ffdf88 35%, #c6952c 70%, #5a3510 100%)",
-                  boxShadow:
-                    "0 0 0 1px rgba(0,0,0,0.75), 0 0 10px rgba(255,223,128,0.9)",
-                  fontSize: 10,
-                  fontWeight: 800,
-                  letterSpacing: 0.8,
-                  textTransform: "uppercase",
-                  color: "#120b02",
-                }}
-              >
-                Popular
-              </span>
             </button>
           </div>
 

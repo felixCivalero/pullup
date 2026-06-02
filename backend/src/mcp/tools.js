@@ -21,7 +21,6 @@ import { generateWaitlistToken } from "../utils/waitlistTokens.js";
 import { eventBanner, toolResultText, toolError } from "./format.js";
 import {
   analyzeEvent,
-  analyzeCampaign,
   analyzeCrmSignals,
   completenessSummary,
 } from "./suggestions.js";
@@ -506,19 +505,13 @@ const GetRecentActionsInput = {
     "ISO date/time string — only actions at or after this timestamp."
   ),
   targetType: z.string().optional().describe(
-    "Filter by target resource type, e.g. 'event', 'campaign', 'person', 'rsvp', 'payment'."
+    "Filter by target resource type, e.g. 'event', 'person', 'rsvp', 'payment'."
   ),
   targetId: z.string().optional().describe(
     "Filter to actions against a single target (use together with targetType)."
   ),
   source: z.enum(["ui", "chat", "sdk", "system"]).optional().describe(
     "Filter by where the action came from: 'ui' (web app), 'chat' (this MCP), 'sdk', or 'system'."
-  ),
-};
-
-const EmailSummaryInput = {
-  topN: z.number().int().positive().max(20).optional().describe(
-    "How many top campaigns (by open rate) to include. Default 5."
   ),
 };
 
@@ -578,7 +571,7 @@ const QueryPeopleInput = {
     "Comma-separated list of tag strings. Matches people who have ALL listed tags."
   ),
   marketingConsentedOnly: z.boolean().optional().describe(
-    "If true, only people who opted in to marketing (sendable for campaigns)."
+    "If true, only people who opted in to marketing."
   ),
   limit: z.number().int().positive().max(200).optional().describe("Max results. Default 50."),
 };
@@ -616,59 +609,6 @@ const AddPersonNoteInput = {
   ),
 };
 
-// ─── Slice C — Email completion ───────────────────────────────────────
-
-const ListCampaignsInput = {
-  status: z.enum(["draft", "scheduled", "sending", "sent", "failed", "any"]).optional().describe(
-    "Filter by campaign status. Defaults to any."
-  ),
-  limit: z.number().int().positive().max(100).optional().describe("Max results. Default 20."),
-};
-
-const GetCampaignInput = {
-  campaignId: z.string().uuid().describe("Campaign id (UUID)."),
-};
-
-const DraftCampaignInput = {
-  subject: z.string().describe("Email subject line."),
-  eventSlug: z.string().describe(
-    "Slug of the event this campaign is ABOUT (anchors branding/links). NOTE: this does NOT set the audience. With no audience filter, the campaign goes to the host's whole sendable contact list — NOT this event's guests. To email the people who RSVP'd to THIS event, also pass filterAttendedEventSlug with the same slug."
-  ),
-  templateType: z.enum(["event", "followup"]).optional().describe(
-    "'event' = pre-event invite/announcement. 'followup' = post-event recap/thanks. Default 'event'."
-  ),
-  message: z.string().optional().describe(
-    "Plain-text body for the email. Used as the main message block. Optional — campaigns can be drafted with just a subject and refined later in the UI."
-  ),
-  filterAttendedEventSlug: z.string().optional().describe(
-    "Audience filter: only people who RSVP'd to / attended this event. Set it to the campaign's own eventSlug to reach that event's guests; set it to a DIFFERENT event to reach a related crowd. Combine with filterTags to segment further (filters are flexible and stack — the audience is never auto-tied to eventSlug)."
-  ),
-  filterTags: z.string().optional().describe(
-    "Audience filter: comma-separated tag list (matches across events the person attended — e.g. 'jazz' reaches everyone from any jazz-tagged event). Combinable with filterAttendedEventSlug."
-  ),
-};
-
-const SendCampaignInput = {
-  campaignId: z.string().uuid().describe("Campaign id from draft_campaign or list_campaigns."),
-  confirm: z.literal(true).describe(
-    "Must be `true` to proceed. Forces a confirmation step so Claude can't fire a send without explicit user approval."
-  ),
-};
-
-const ScheduleCampaignInput = {
-  campaignId: z.string().uuid().describe("Campaign id from draft_campaign or list_campaigns."),
-  scheduledAt: z.string().describe(
-    "When to send, as an ISO 8601 datetime WITH timezone offset — e.g. '2026-05-28T09:00:00+02:00'. Always include the offset so the send fires at the host's intended local time. Must be in the future."
-  ),
-  confirm: z.literal(true).describe(
-    "Must be `true` to proceed. Like send_campaign, this commits to emailing real people — just at a later time."
-  ),
-};
-
-const UnscheduleCampaignInput = {
-  campaignId: z.string().uuid().describe("Campaign id of a scheduled campaign to cancel (returns it to draft)."),
-};
-
 // ─── Slice D — Guest actions ──────────────────────────────────────────
 
 const UpdateRsvpInput = {
@@ -690,15 +630,6 @@ const HostBriefSetInput = {
 const SuggestImprovementsInput = {
   slug: z.string().describe(
     "The event's slug. Returns a ranked list of the most impactful next improvements with the exact MCP call to make each."
-  ),
-  limit: z.number().int().positive().max(10).optional().describe(
-    "Max suggestions to return. Default 5."
-  ),
-};
-
-const SuggestCampaignImprovementsInput = {
-  campaignId: z.string().uuid().describe(
-    "Campaign id (UUID) from draft_campaign or list_campaigns. Returns subject-quality, audience, timing, and preview-gate suggestions."
   ),
   limit: z.number().int().positive().max(10).optional().describe(
     "Max suggestions to return. Default 5."
@@ -1423,48 +1354,6 @@ function buildHandlers(api, hostId) {
     return toolResultText(lines.join("\n"));
   }
 
-  async function getEmailSummary(args) {
-    const topN = args.topN || 5;
-    const d = await api("GET", "/host/crm/emails", { query: { topN } });
-    const t = d?.totals || {};
-    const top = Array.isArray(d?.topByOpenRate) ? d.topByOpenRate : [];
-
-    if (!t.campaigns_sent) {
-      return toolResultText("No campaigns sent yet.");
-    }
-
-    const sent = t.total_sent || 0;
-    const delivered = t.total_delivered || 0;
-    const failed = t.total_failed || 0;
-    const deliveryRatePct = sent > 0 ? `${(100 * delivered / sent).toFixed(1)}%` : "—";
-    // Engagement rates are most meaningful as a fraction of DELIVERED, not
-    // attempted — opens on a failed send are impossible by definition.
-    const openOfDelivered = delivered > 0 ? `${(100 * (t.total_opened || 0) / delivered).toFixed(1)}%` : "—";
-    const clickOfDelivered = delivered > 0 ? `${(100 * (t.total_clicked || 0) / delivered).toFixed(1)}%` : "—";
-
-    const lines = [
-      `Email campaigns: ${t.campaigns_sent} sent`,
-      `  Attempts:       ${sent}`,
-      `  Delivered:      ${delivered}  (${deliveryRatePct} of attempts)`,
-      `  Failed:         ${failed}${failed > 0 && sent > 0 ? `  (${(100 * failed / sent).toFixed(1)}% of attempts — investigate)` : ""}`,
-      `  Bounced:        ${t.total_bounced || 0}  (${pct(t.bounce_rate_pct)})`,
-      `  Opened:         ${t.total_opened || 0}  (${openOfDelivered} of delivered, ${pct(t.open_rate_pct)} of attempts)`,
-      `  Clicked:        ${t.total_clicked || 0}  (${clickOfDelivered} of delivered, ${pct(t.click_rate_pct)} of attempts)`,
-    ];
-    if (t.total_complained) {
-      lines.push(`  Complaints:     ${t.total_complained}`);
-    }
-    if (top.length > 0) {
-      lines.push("");
-      lines.push(`Top ${top.length} by open rate:`);
-      for (const c of top) {
-        const when = c.sent_at ? new Date(c.sent_at).toLocaleDateString("en-GB") : "—";
-        lines.push(`  • "${c.subject || c.name || "(no subject)"}"  —  ${pct(c.open_rate_pct)} open, ${pct(c.click_rate_pct)} click  (${c.sent} sent, ${when})`);
-      }
-    }
-    return toolResultText(lines.join("\n"));
-  }
-
   async function listCoverImageGallery(args) {
     const items = await api("GET", "/host/crm/event-image-gallery");
     const limit = args.limit || 20;
@@ -1518,14 +1407,6 @@ function buildHandlers(api, hostId) {
       lines.push("Traffic sources:");
       for (const s of sources.slice(0, 8)) {
         lines.push(`  • ${s.source || "(unknown)"}  —  ${s.count} visitor${s.count === 1 ? "" : "s"}`);
-      }
-    }
-
-    if (Array.isArray(d?.campaigns) && d.campaigns.length > 0) {
-      lines.push("");
-      lines.push("Campaigns featuring this event:");
-      for (const c of d.campaigns.slice(0, 5)) {
-        lines.push(`  • "${c.subject || c.name || "(no subject)"}"  —  ${c.sent || 0} sent, ${c.rsvps || 0} RSVPs attributed`);
       }
     }
 
@@ -1717,179 +1598,6 @@ function buildHandlers(api, hostId) {
     const topic = note?.topic ? `  [${note.topic}]` : "";
     return toolResultText(
       `Noted on ${when}${topic}\n  "${note?.content || rest.content}"`
-    );
-  }
-
-  // ─── Slice C — Email completion ───────────────────────────────────
-
-  async function listCampaigns(args) {
-    const query = {};
-    if (args.status && args.status !== "any") query.status = args.status;
-    if (args.limit) query.limit = args.limit;
-    const items = await api("GET", "/host/crm/campaigns", { query });
-    const limit = args.limit || 20;
-    const slice = (items || []).slice(0, limit);
-    if (slice.length === 0) {
-      return toolResultText("No campaigns yet. Use draft_campaign to create one.");
-    }
-    const lines = slice.map((c) => {
-      const when = c.sentAt
-        ? new Date(c.sentAt).toLocaleDateString("en-GB")
-        : (c.createdAt ? `drafted ${new Date(c.createdAt).toLocaleDateString("en-GB")}` : "—");
-      const recip = c.totalRecipients ? `${c.totalRecipients} recipients` : "no audience yet";
-      return `  • "${c.subject || c.name || "(no subject)"}"  [${(c.status || "?").toUpperCase()}]  ${recip}  ${when}  →  id: ${c.id}`;
-    });
-    return toolResultText(
-      `${slice.length} campaign${slice.length === 1 ? "" : "s"}:\n${lines.join("\n")}`
-    );
-  }
-
-  async function getCampaign(args) {
-    const c = await api("GET", `/host/crm/campaigns/${args.campaignId}`);
-    if (!c) return toolResultText(`Campaign ${args.campaignId} not found.`);
-    const total = Number(c.totalRecipients || 0);
-    const sent = Number(c.totalSent || 0);
-    const failed = Number(c.totalFailed || 0);
-    const lines = [
-      `"${c.subject || c.name || "(no subject)"}"  [${(c.status || "?").toUpperCase()}]`,
-      `  Type:         ${c.templateType || "—"}`,
-      `  Event:        ${c.eventId || "—"}`,
-      `  Recipients:   ${total}`,
-      `  Sent:         ${sent}${failed ? `  (${failed} failed)` : ""}`,
-      c.sentAt ? `  Sent at:      ${new Date(c.sentAt).toLocaleString("en-GB")}` : null,
-      c.createdAt ? `  Created:      ${new Date(c.createdAt).toLocaleString("en-GB")}` : null,
-    ].filter(Boolean);
-    return toolResultText(lines.join("\n"));
-  }
-
-  async function draftCampaign(args) {
-    const ev = await resolveEventBySlug(args.eventSlug);
-
-    // Build a minimal block-based templateContent the backend accepts.
-    // The host can edit/refine in the UI; chat-drafted campaigns ship a
-    // single paragraph block from `message`. Text blocks require a `style`
-    // of 'heading' or 'paragraph' per the followup-template validator.
-    const templateContent = args.message
-      ? {
-          blocks: [
-            { type: "text", style: "paragraph", text: String(args.message) },
-          ],
-        }
-      : { blocks: [] };
-
-    const filterCriteria = {};
-    const audienceParts = [];
-    if (args.filterAttendedEventSlug) {
-      const filterEv = await resolveEventBySlug(args.filterAttendedEventSlug);
-      filterCriteria.attendedEventId = filterEv.id;
-      audienceParts.push(`attended "${filterEv.title}"`);
-    }
-    if (args.filterTags) {
-      filterCriteria.attendedEventTags = args.filterTags;
-      audienceParts.push(`tags: ${args.filterTags}`);
-    }
-    const hasFilters = audienceParts.length > 0;
-    const audienceDesc = hasFilters
-      ? audienceParts.join(" + ")
-      : "no filters — your full sendable contact list";
-
-    const created = await api("POST", "/host/crm/campaigns", {
-      body: {
-        subject: args.subject,
-        eventId: ev.id,
-        templateType: args.templateType || "event",
-        templateContent,
-        filterCriteria,
-      },
-    });
-
-    // Coach the host on the campaign while the iron is hot — subject quality,
-    // audience sanity, preview-gate reminder. Same one-suggestion-at-a-time
-    // pattern as event coaching.
-    const { top: campTop } = await buildCampaignCoaching({
-      id: created.campaignId,
-      subject: args.subject,
-      totalRecipients: created.totalRecipients,
-      templateType: args.templateType || "event",
-      status: "draft",
-    }, ev);
-
-    // Hand the host straight into the real CRM composer with the draft loaded.
-    // The composer's "Send" footer fires /send on the existing draft id; the
-    // host has one consistent path to ship it.
-    const previewUrl = frontendUrl(`/crm?campaignId=${created.campaignId}`);
-    const recipientCount = created.totalRecipients ?? 0;
-    const lines = [
-      "─────────────────────────────────────",
-      "  Campaign drafted (NOT sent)",
-      `  "${args.subject}"  →  ${ev.title}`,
-      `  Audience: ${recipientCount} recipient${recipientCount === 1 ? "" : "s"}  (${audienceDesc})`,
-    ];
-    // Make a silent/unexpected audience impossible to miss before sending. No
-    // filters means the full list — not this event's guests — which is the
-    // exact trap that sent a host's "tomorrow" email to the wrong handful.
-    if (!hasFilters) {
-      lines.push(
-        "",
-        "  Note: no audience filter is set, so this goes to your FULL sendable list,",
-        `  not the guests of "${ev.title}". To email this event's RSVPs, redraft with`,
-        `  filterAttendedEventSlug="${args.eventSlug}". To segment, add filterTags (e.g. "jazz").`,
-      );
-    }
-    lines.push(
-      "",
-      `  → Preview:    ${previewUrl}`,
-      `  → To send:    send_campaign with campaignId="${created.campaignId}" and confirm=true`,
-      `  → To schedule: schedule_campaign with campaignId="${created.campaignId}", scheduledAt, confirm=true`,
-    );
-    if (campTop) {
-      lines.push("");
-      lines.push(`  Next: ${campTop.headline}`);
-      if (campTop.why) lines.push(`        ${campTop.why}`);
-      if (campTop.call) lines.push(`        → ${campTop.call}`);
-    }
-    lines.push("─────────────────────────────────────");
-    return toolResultText(lines.join("\n"));
-  }
-
-  async function sendCampaign(args) {
-    if (args.confirm !== true) {
-      throw new Error("Pass confirm: true to actually send. This emails real people.");
-    }
-    const r = await api("POST", `/host/crm/campaigns/${args.campaignId}/send`);
-    return toolResultText(
-      `Campaign send started. Status: ${r?.status || "sending"}.\nUse get_campaign with id ${args.campaignId} in a minute to see delivery counts.`
-    );
-  }
-
-  async function scheduleCampaign(args) {
-    if (args.confirm !== true) {
-      throw new Error("Pass confirm: true to schedule. This commits to emailing real people at the scheduled time.");
-    }
-    const when = new Date(args.scheduledAt);
-    if (Number.isNaN(when.getTime())) {
-      throw new Error(
-        "scheduledAt must be an ISO 8601 datetime with timezone offset, e.g. 2026-05-28T09:00:00+02:00.",
-      );
-    }
-    const r = await api("POST", `/host/crm/campaigns/${args.campaignId}/schedule`, {
-      body: { scheduledAt: when.toISOString() },
-    });
-    const fireAt = new Date(r?.scheduledAt || when.toISOString());
-    const local = fireAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
-    return toolResultText(
-      [
-        `Scheduled — the campaign will send around ${local}.`,
-        `The audience is resolved when it fires, so it reflects your filters/RSVPs at that moment.`,
-        `To cancel before then: cancel_scheduled_campaign with campaignId="${args.campaignId}".`,
-      ].join("\n"),
-    );
-  }
-
-  async function unscheduleCampaign(args) {
-    await api("POST", `/host/crm/campaigns/${args.campaignId}/unschedule`);
-    return toolResultText(
-      `Schedule cancelled — the campaign is back to draft. Reschedule or send when you're ready.`,
     );
   }
 
@@ -2096,71 +1804,6 @@ function buildHandlers(api, hostId) {
     );
   }
 
-  // ── Campaign coaching ───────────────────────────────────────────
-  // Best-effort. Pulls the host's prior email performance so the coach
-  // can compare against their actual top-opening subjects.
-  let cachedEmailHistory = null;
-  let cachedEmailHistoryLoaded = false;
-  async function loadEmailHistoryForCoaching() {
-    if (cachedEmailHistoryLoaded) return cachedEmailHistory;
-    cachedEmailHistoryLoaded = true;
-    try {
-      cachedEmailHistory = await api("GET", "/host/crm/emails", { query: { topN: 5 } });
-    } catch {
-      cachedEmailHistory = null;
-    }
-    return cachedEmailHistory;
-  }
-
-  async function buildCampaignCoaching(campaign, event) {
-    if (!campaign) return { top: null };
-    const [brief, history] = await Promise.all([
-      loadBriefForCoaching(),
-      loadEmailHistoryForCoaching(),
-    ]);
-    const { suggestions } = analyzeCampaign({ campaign, event, history: history || {}, brief });
-    return { top: suggestions[0] || null, all: suggestions };
-  }
-
-  async function suggestCampaignImprovements(args) {
-    const c = await api("GET", `/host/crm/campaigns/${args.campaignId}`);
-    if (!c) throw new Error(`Campaign ${args.campaignId} not found.`);
-
-    // Pull the linked event for freshness checks (event date, title).
-    let linkedEvent = null;
-    if (c.eventId) {
-      try {
-        linkedEvent = await api("GET", `/host/events/${c.eventId}`);
-      } catch { /* non-fatal */ }
-    }
-
-    const { all } = await buildCampaignCoaching(
-      { ...c, id: c.id || args.campaignId },
-      linkedEvent
-    );
-
-    const limit = Math.max(1, Math.min(10, args.limit || 5));
-    const top = (all || []).slice(0, limit);
-    const subjectLabel = c.subject ? `"${c.subject}"` : "(no subject)";
-    if (top.length === 0) {
-      return toolResultText(
-        `Campaign ${subjectLabel} looks solid — nothing high-impact stands out. Open the preview URL, then call send_campaign({campaignId, confirm: true}) when you're ready.`
-      );
-    }
-    const lines = [
-      `Suggestions for campaign ${subjectLabel}  [${(c.status || "draft").toUpperCase()}]`,
-      `Audience: ${c.totalRecipients ?? 0} recipient${c.totalRecipients === 1 ? "" : "s"}`,
-      "",
-    ];
-    top.forEach((s, i) => {
-      lines.push(`${i + 1}. ${s.headline}`);
-      if (s.why) lines.push(`   ${s.why}`);
-      if (s.call) lines.push(`   → ${s.call}`);
-      lines.push("");
-    });
-    return toolResultText(lines.join("\n").trim());
-  }
-
   // ── CRM signals ─────────────────────────────────────────────────
   // Pulls segments + recent activity in parallel, runs the analyzer,
   // formats a short ranked list. Pure read-only — the host decides
@@ -2255,22 +1898,12 @@ function buildHandlers(api, hostId) {
     const existing = await resolveEventBySlug(args.slug);
     let media = [];
     let allEvents = [];
-    let campaigns = [];
     try {
       const m = await api("GET", `/host/events/${existing.id}/media`);
       media = Array.isArray(m) ? m : (m?.media || []);
     } catch { /* fall through */ }
     try {
       allEvents = await api("GET", "/events");
-    } catch { /* fall through */ }
-    try {
-      // Campaigns for this event specifically — small payload, lets the
-      // emails stage tell the difference between "no promo at all" and
-      // "promo went out, just no follow-up yet".
-      const c = await api("GET", "/host/crm/campaigns", {
-        query: { eventId: existing.id, limit: 50 },
-      });
-      campaigns = Array.isArray(c) ? c : (c?.campaigns || c?.items || []);
     } catch { /* fall through */ }
     const brief = await loadBriefForCoaching();
     const analytics = await fetchAnalyticsForCoaching(existing);
@@ -2280,7 +1913,6 @@ function buildHandlers(api, hostId) {
       brief,
       media,
       allEvents,
-      campaigns,
       analytics,
     });
 
@@ -2373,7 +2005,6 @@ function buildHandlers(api, hostId) {
     getAttendanceTrends,
     getAudienceSegments,
     getRecentActivity,
-    getEmailSummary,
     // Slice A — Events completion
     getEventAnalytics,
     duplicateEvent,
@@ -2384,13 +2015,6 @@ function buildHandlers(api, hostId) {
     queryPeople,
     updatePerson,
     addPersonNote,
-    // Slice C — Email completion
-    listCampaigns,
-    getCampaign,
-    draftCampaign,
-    sendCampaign,
-    scheduleCampaign,
-    unscheduleCampaign,
     // Slice D — Guest actions
     updateRsvp,
     refundPayment,
@@ -2398,7 +2022,6 @@ function buildHandlers(api, hostId) {
     getHostBrief,
     setHostBrief,
     suggestEventImprovements,
-    suggestCampaignImprovements,
     getCrmSignals,
     auditCustomerJourney,
     getRecentActions,
@@ -2438,12 +2061,6 @@ function summarizeAction(a) {
     case "upload_event_image":
     case "upload_event_media":
       return r.url ? `→ ${r.url}` : null;
-    case "draft_campaign":
-    case "update_campaign":
-    case "send_campaign":
-      return [args.subject, r.totalRecipients != null ? `${r.totalRecipients} recipients` : null]
-        .filter(Boolean)
-        .join(" · ");
     case "update_rsvp":
       return [args.status || r.status].filter(Boolean).join(" · ");
     case "refund_payment":
@@ -2610,24 +2227,24 @@ function inferMediaTypeFromBase64(s) {
 const READ_ONLY_TOOLS = new Set([
   "list_events", "get_event", "list_rsvps", "list_cover_image_gallery",
   "get_crm_summary", "get_revenue_summary", "get_attendance_trends",
-  "get_audience_segments", "get_recent_activity", "get_email_summary",
+  "get_audience_segments", "get_recent_activity",
   "get_event_analytics", "find_person", "get_person", "query_people",
-  "list_campaigns", "get_campaign", "suggest_event_improvements",
-  "suggest_campaign_improvements", "get_crm_signals", "audit_customer_journey",
+  "suggest_event_improvements",
+  "get_crm_signals", "audit_customer_journey",
   "get_recent_actions", "get_host_brief",
 ]);
 
 // Irreversible: moves real money or reaches real people in a way you can't take
 // back. These are the tools a client should gate hardest.
 const DESTRUCTIVE_TOOLS = new Set([
-  "delete_event", "refund_payment", "send_campaign",
+  "delete_event", "refund_payment",
 ]);
 
 // Mutating but safe to repeat with the same args (re-applying lands the same
 // state). Not auto-safe like reads, but cheap to retry.
 const IDEMPOTENT_TOOLS = new Set([
   "publish_event", "unpublish_event", "set_host_brief", "update_event",
-  "set_event_scene", "update_person", "update_rsvp", "cancel_scheduled_campaign",
+  "set_event_scene", "update_person", "update_rsvp",
 ]);
 
 function annotateTool(t) {
@@ -2659,10 +2276,8 @@ const TOOL_PROFILES = {
   crm: new Set([
     "find_person", "get_person", "query_people", "update_person",
     "add_person_note", "get_crm_summary", "get_crm_signals",
-    "get_audience_segments", "get_attendance_trends", "list_campaigns",
-    "get_campaign", "draft_campaign", "send_campaign", "schedule_campaign",
-    "cancel_scheduled_campaign", "suggest_campaign_improvements",
-    "get_email_summary", "get_revenue_summary", "refund_payment", "list_rsvps",
+    "get_audience_segments", "get_attendance_trends",
+    "get_revenue_summary", "refund_payment", "list_rsvps",
     "update_rsvp", "list_events", "get_event", "get_event_analytics",
     "audit_customer_journey", "get_recent_activity", "get_recent_actions",
     "get_host_brief",
@@ -2813,21 +2428,12 @@ export function buildTools(ctx) {
       inputSchema: RecentActivityInput,
       handler: h.getRecentActivity,
     },
-    {
-      name: "get_email_summary",
-      title: "Get email campaign performance",
-      description:
-        "Returns campaign totals (sent, delivered, opened, clicked, bounced) plus open/click/bounce rates and the top N campaigns by open rate. Use for 'how are my emails doing', 'best-performing subject lines', 'what's my open rate'.",
-      inputSchema: EmailSummaryInput,
-      handler: h.getEmailSummary,
-    },
-
     // ─── Slice A — Events completion ────────────────────────────────
     {
       name: "get_event_analytics",
       title: "Get analytics for one event",
       description:
-        "Returns per-event analytics: page views (unique + total), period-over-period change, device split, traffic sources, RSVPs, fill rate, conversion rate, show-up rate, revenue, and any campaigns that promoted this event. Use for 'how is photo-walk-2 doing', 'where are people coming from', 'what's my conversion rate'.",
+        "Returns per-event analytics: page views (unique + total), period-over-period change, device split, traffic sources, RSVPs, fill rate, conversion rate, show-up rate, and revenue. Use for 'how is photo-walk-2 doing', 'where are people coming from', 'what's my conversion rate'.",
       inputSchema: EventAnalyticsInput,
       handler: h.getEventAnalytics,
     },
@@ -2869,7 +2475,7 @@ export function buildTools(ctx) {
       name: "query_people",
       title: "Query people in the CRM",
       description:
-        "Filter the CRM by attendance count, attendance to a specific event, lifetime spend range, tags, and marketing-consent status. Returns a list. Use for segmentation: 'who attended both walks', 'my top 20 spenders', 'people with the vip tag who consented to marketing', 'first-timers from last month'. For draft_campaign audiences, prefer the same-shape filters there.",
+        "Filter the CRM by attendance count, attendance to a specific event, lifetime spend range, tags, and marketing-consent status. Returns a list. Use for segmentation: 'who attended both walks', 'my top 20 spenders', 'people with the vip tag who consented to marketing', 'first-timers from last month'.",
       inputSchema: QueryPeopleInput,
       handler: h.queryPeople,
     },
@@ -2888,56 +2494,6 @@ export function buildTools(ctx) {
         "Logs a dated observation on a person's CRM timeline — what the host learned about them at an event ('talked Leica on the photowalk, wants to get into film'). Optionally tie it to the event it came up at and backdate it. These build a running history the host (and you) read back via get_person. Set `topic` to a clean one-word label when you can infer one — it's a hidden filter field, invisible in the host UI. Use this for narrative observations; use update_person tags for queryable labels.",
       inputSchema: AddPersonNoteInput,
       handler: h.addPersonNote,
-    },
-
-    // ─── Slice C — Email completion ─────────────────────────────────
-    {
-      name: "list_campaigns",
-      title: "List email campaigns",
-      description:
-        "Lists the host's campaigns, newest first, with status, recipient count, and sent count. Filter by status='draft' / 'sending' / 'sent' / 'failed'. Use for 'what campaigns have I sent', 'find my last follow-up', 'any drafts pending'.",
-      inputSchema: ListCampaignsInput,
-      handler: h.listCampaigns,
-    },
-    {
-      name: "get_campaign",
-      title: "Get campaign details + send status",
-      description:
-        "Returns one campaign's full status: subject, type, recipient count, sent/failed counts, and timestamps. Use after list_campaigns, or after send_campaign to poll progress.",
-      inputSchema: GetCampaignInput,
-      handler: h.getCampaign,
-    },
-    {
-      name: "draft_campaign",
-      title: "Draft an email campaign",
-      description:
-        "Creates a DRAFT email campaign tied to one event. Subject is required; message is an optional plain-text body. Audience can be filtered to people who attended a specific event (great for follow-ups) or people with specific tags. Returns a preview URL the host can review. Does NOT send — pair with send_campaign(confirm: true) to actually fire.",
-      inputSchema: DraftCampaignInput,
-      handler: h.draftCampaign,
-    },
-    {
-      name: "send_campaign",
-      title: "Send a drafted campaign",
-      description:
-        "Fires a drafted campaign to its audience NOW. IRREVERSIBLE — sends real email to real people. Requires confirm: true. The host should review the preview from draft_campaign first. To send later instead, use schedule_campaign.",
-      inputSchema: SendCampaignInput,
-      handler: h.sendCampaign,
-    },
-    {
-      name: "schedule_campaign",
-      title: "Schedule a campaign to send later",
-      description:
-        "Schedules a drafted campaign to send at a future time (scheduledAt, ISO 8601 with timezone offset). The send fires automatically — the host does not need to be online. Audience is resolved at send time, so it reflects the latest RSVPs/filters. IRREVERSIBLE once it fires; requires confirm: true. Use cancel_scheduled_campaign to call it off beforehand.",
-      inputSchema: ScheduleCampaignInput,
-      handler: h.scheduleCampaign,
-    },
-    {
-      name: "cancel_scheduled_campaign",
-      title: "Cancel a scheduled send",
-      description:
-        "Cancels a scheduled campaign before it fires, returning it to draft so it can be edited, rescheduled, or sent manually. No effect if the campaign already sent or isn't scheduled.",
-      inputSchema: UnscheduleCampaignInput,
-      handler: h.unscheduleCampaign,
     },
 
     // ─── Slice D — Guest actions ────────────────────────────────────
@@ -2984,14 +2540,6 @@ export function buildTools(ctx) {
       handler: h.suggestEventImprovements,
     },
     {
-      name: "suggest_campaign_improvements",
-      title: "Get ranked next-step suggestions for one email campaign",
-      description:
-        "Returns prioritized critique for a drafted email campaign — subject quality (length, generic-ness, urgency overuse), comparison against the host's own top-opening subjects, audience-size sanity, event-freshness checks, and a preview-gate reminder. Use this when the host says 'is this subject good?' / 'should I send this?', or before send_campaign. Always pair with the preview URL — never let send_campaign fire without the host eyeballing it.",
-      inputSchema: SuggestCampaignImprovementsInput,
-      handler: h.suggestCampaignImprovements,
-    },
-    {
       name: "get_crm_signals",
       title: "Proactive CRM insights — who's worth a touch right now",
       description:
@@ -3011,7 +2559,7 @@ export function buildTools(ctx) {
       name: "get_recent_actions",
       title: "What did the host just do (UI + chat)",
       description:
-        "Returns the host's recent mutating actions across the whole product, in MCP-tool shape — anything they did in the web app AND anything done via this MCP. Use this at the START of a fresh chat to ground the assistant ('I see you just published Volume 01 and sent a campaign to 168 people') or when the host asks 'what did I do this week' / 'pick up where I left off'. Optional filters: targetType ('event' | 'campaign' | 'person' | 'rsvp' | 'payment'), targetId, source ('ui' | 'chat'), since (ISO datetime).",
+        "Returns the host's recent mutating actions across the whole product, in MCP-tool shape — anything they did in the web app AND anything done via this MCP. Use this at the START of a fresh chat to ground the assistant ('I see you just published Volume 01 and checked in 40 guests') or when the host asks 'what did I do this week' / 'pick up where I left off'. Optional filters: targetType ('event' | 'person' | 'rsvp' | 'payment'), targetId, source ('ui' | 'chat'), since (ISO datetime).",
       inputSchema: GetRecentActionsInput,
       handler: h.getRecentActions,
     },

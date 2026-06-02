@@ -24,13 +24,6 @@ function narrateAction(row) {
     case "duplicate_event":        return "Duplicated the event";
     case "upload_event_image":     return "Uploaded a new cover";
     case "upload_event_media":     return "Uploaded media";
-    case "draft_campaign":         return r.totalRecipients != null
-      ? `Drafted a campaign to ${r.totalRecipients} people`
-      : "Drafted a campaign";
-    case "update_campaign":        return "Updated the draft";
-    case "send_campaign":          return r.totalRecipients != null
-      ? `Sent a campaign to ${r.totalRecipients} people`
-      : "Sent a campaign";
     case "update_rsvp":            return args.status ? `Set an RSVP to ${args.status}` : "Updated an RSVP";
     case "refund_payment":         return r.isFullRefund ? "Issued a full refund" : "Issued a refund";
     case "update_person":          return "Updated a contact";
@@ -64,12 +57,6 @@ function narrationIntent(row) {
             url: `/app/events/${row.target_id}/edit`,
             focus: "media",
           }
-        : null;
-    case "draft_campaign":
-    case "update_campaign":
-    case "send_campaign":
-      return row.target_id
-        ? { type: "navigate", url: `/crm?campaignId=${row.target_id}` }
         : null;
     case "update_rsvp":
     case "refund_payment":
@@ -161,7 +148,7 @@ export function IdeaWidget() {
     (async () => {
       try {
         const params = new URLSearchParams({
-          surface: resource.type === "campaign" ? "campaign" : "event",
+          surface: "event",
           id: String(resource.id),
           limit: "3",
         });
@@ -250,8 +237,7 @@ export function IdeaWidget() {
   const continueChatUrl = useMemo(() => {
     let prompt;
     if (resource) {
-      const noun = resource.type === "campaign" ? "campaign" : "event";
-      prompt = `I'm working on this ${noun} in PullUp (id: ${resource.id}) — pick up where we left off. You have the PullUp MCP connected.`;
+      prompt = `I'm working on this event in PullUp (id: ${resource.id}) — pick up where we left off. You have the PullUp MCP connected.`;
     } else {
       // Brand-mode handoff — no specific resource, just open a fresh chat
       // primed for PullUp work.
@@ -390,7 +376,7 @@ export function IdeaWidget() {
               </button>
             </div>
             <div style={{ fontSize: 13, lineHeight: 1.5, color: colors.textMuted, marginBottom: 14 }}>
-              Connect PullUp to claude.ai (or any MCP-capable AI). Once linked, you can draft events, send campaigns, and answer 'who's coming on Saturday' from chat. Takes ~30 seconds.
+              Connect PullUp to claude.ai (or any MCP-capable AI). Once linked, you can draft events, reach the people in your Room, and answer 'who's coming on Saturday' from chat. Takes ~30 seconds.
             </div>
             <a
               href={cta.href}

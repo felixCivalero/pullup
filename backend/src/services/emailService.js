@@ -1,5 +1,4 @@
 import { sendEmail as infraSendEmail } from "../email/index.js";
-import { renderEventEmailTemplate } from "./emailTemplateService.js";
 
 export async function sendEmail({ to, subject, html, text, from }) {
   return infraSendEmail({
@@ -173,29 +172,3 @@ ${imageUrl ? `<!-- Event Image -->
   return emailShell(content);
 }
 
-/**
- * Send email with Resend template
- * @param {Object} params
- * @param {string} params.to - Recipient email
- * @param {string} params.subject - Email subject
- * @param {Object} params.templateContent - Template content (headline, introQuote, etc.)
- * @param {Object} params.event - Event data
- * @param {Object} params.person - Person data (optional, for personalization)
- * @returns {Promise} Enqueued outbox row
- */
-export async function sendEmailWithTemplate({
-  to,
-  subject,
-  templateContent,
-  event,
-  person,
-}) {
-  const html = renderEventEmailTemplate({ event, templateContent, person });
-
-  return infraSendEmail({
-    from: '"PullUp" <no-reply@pullup.se>',
-    to,
-    subject,
-    html,
-  });
-}

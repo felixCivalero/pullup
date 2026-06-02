@@ -217,9 +217,9 @@ function PersonCard({ person, active, onClick, events }) {
 // ─── Side panel: one person's unified, cross-event thread ───────────
 // Email-style picker — two tappable mini-previews so you SEE the difference
 // instead of guessing what "dress up" means. Plain = hand-typed personal note;
-// Branded = wrapped in the host's brand (accent header, avatar, footer). Only
-// shown on the Email rail (WhatsApp is always native). `branded` is the boolean
-// the composer already sends.
+// Branded = wrapped in the host's brand (accent header, avatar, footer). Lives
+// in the BULK composer only — 1:1 messages stay plain and human; brand/style
+// belongs to the campaign-ish moment of sending one thing to many.
 // A real, sandboxed render of the email as the recipient sees it — same HTML
 // the backend ships. Driven from the composer so the brand choice isn't blind.
 function EmailPreviewModal({ html, loading, branded, onClose }) {
@@ -313,8 +313,6 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
   const [sentMsgs, setSentMsgs] = useState([]); // messages sent this session, shown instantly
   const [attachments, setAttachments] = useState([]); // [{url,name,isImage}]
   const [uploading, setUploading] = useState(false);
-  const [branded, setBranded] = useState(false); // brand-as-opt-in: plain by default
-  const [preview, setPreview] = useState(null); // { html, loading } when open
   const fileRef = useRef(null);
   // Which IG account replies send from — only matters when the host connected
   // more than one (personal + business). Defaults to their chosen default.
@@ -332,17 +330,7 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
   // What the thread shows: their real history + anything sent this session.
   const thread = useMemo(() => [...person.thread, ...sentMsgs], [person.thread, sentMsgs]);
 
-  useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); setAttachments([]); setBranded(false); setPreview(null); }, [person.id, person.channel, defaultIg?.id]);
-
-  async function openPreview() {
-    setPreview({ html: "", loading: true });
-    try {
-      const res = await authenticatedFetch("/host/room/message/preview", { method: "POST", body: JSON.stringify({ text: draft, attachments, branded }) });
-      const data = await res.json().catch(() => ({}));
-      if (data.html) setPreview({ html: data.html, loading: false });
-      else { setPreview(null); showToast("Couldn't build preview", "error"); }
-    } catch { setPreview(null); showToast("Couldn't build preview", "error"); }
-  }
+  useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); setAttachments([]); }, [person.id, person.channel, defaultIg?.id]);
 
   async function onAttach(e) {
     const files = Array.from(e.target.files || []);
@@ -378,7 +366,7 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
     try {
       const res = await authenticatedFetch("/host/room/message", {
         method: "POST",
-        body: JSON.stringify({ personId: person.id, channel: rail, text, attachments, branded }),
+        body: JSON.stringify({ personId: person.id, channel: rail, text, attachments }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
@@ -488,9 +476,8 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
           })}
         </div>
 
-        {/* Email-style picker — see Plain vs Branded, tap to choose. Email rail
-            only (WhatsApp is always native). `branded` flows to the send. */}
-        {rail === "email" && <StyleCards branded={branded} setBranded={setBranded} onPreview={openPreview} />}
+        {/* No style picker in 1:1 — a personal message stays plain and human.
+            Brand/style lives in the bulk composer, the campaign-ish moment. */}
 
         {/* Reply-from picker — only when on Instagram with 2+ connected accounts. */}
         {rail === "instagram" && igAccounts.length >= 2 && (
@@ -535,7 +522,6 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
           <button onClick={handleSend} disabled={(!draft.trim() && !attachments.length) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content" }}>{sending ? "Sending…" : "Send"}</button>
         </div>
       </div>
-      {preview && <EmailPreviewModal html={preview.html} loading={preview.loading} branded={branded} onClose={() => setPreview(null)} />}
     </div>
   );
 }

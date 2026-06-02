@@ -223,12 +223,19 @@ function PersonCard({ person, active, onClick, events }) {
 function fmtEventDate(iso) { try { return new Date(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); } catch { return null; } }
 function fmtEventTime(iso) { try { return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); } catch { return null; } }
 
-function QuickAccess({ events = [], host = {}, attachedEventId, setAttachedEventId, onInsert }) {
+function QuickAccess({ events = [], host = {}, rail = null, attachedEventId, setAttachedEventId, onInsert }) {
   const [open, setOpen] = useState(false);
   const [drill, setDrill] = useState(null); // event being detailed
   const attached = events.find((e) => e.id === attachedEventId);
-  const profileLink = host.instagramUrl || (host.handle ? `instagram.com/${String(host.handle).replace(/^@/, "")}` : null);
+  // Profile, shaped for the rail: a native @handle on Instagram, a full link on
+  // email / WhatsApp (where a bare handle isn't tappable). Bulk (no rail) → link.
+  const handleClean = host.handle ? String(host.handle).replace(/^@/, "") : null;
+  const profileFull = host.instagramUrl || (handleClean ? `instagram.com/${handleClean}` : null);
+  const profileInsert = rail === "instagram" && handleClean ? `@${handleClean}` : profileFull;
   const phone = host.phone || null;
+  // The attached event renders per channel at send (card on email, link on
+  // chat) — label it so the host knows which they're getting.
+  const attachLabel = rail === "email" ? "Attach event card" : rail ? "Attach event link" : "Attach the event";
 
   function close() { setOpen(false); setDrill(null); }
   function insert(text) { if (text) onInsert(text); close(); }
@@ -262,8 +269,8 @@ function QuickAccess({ events = [], host = {}, attachedEventId, setAttachedEvent
                   <span style={{ fontSize: 11, color: colors.textSubtle }}>{e.when} ›</span>
                 </button>
               )) : <div style={{ ...rowStyle, color: colors.textSubtle, cursor: "default" }}>No events yet</div>}
-              {(profileLink || phone) && <div style={labelStyle}>Share</div>}
-              {profileLink && <button onClick={() => insert(profileLink)} style={rowStyle}><span>@</span> My profile</button>}
+              {(profileFull || phone) && <div style={labelStyle}>Share</div>}
+              {profileFull && <button onClick={() => insert(profileInsert)} style={rowStyle}><span>@</span> My profile</button>}
               {phone && <button onClick={() => insert(phone)} style={rowStyle}><span>☎</span> My number</button>}
             </>
           ) : (
@@ -272,7 +279,7 @@ function QuickAccess({ events = [], host = {}, attachedEventId, setAttachedEvent
               {fmtEventDate(drill.startsAt) && <button onClick={() => insert(fmtEventDate(drill.startsAt))} style={rowStyle}><span>📅</span> Date <span style={{ marginLeft: "auto", color: colors.textSubtle }}>{fmtEventDate(drill.startsAt)}</span></button>}
               {fmtEventTime(drill.startsAt) && <button onClick={() => insert(fmtEventTime(drill.startsAt))} style={rowStyle}><span>🕖</span> Time <span style={{ marginLeft: "auto", color: colors.textSubtle }}>{fmtEventTime(drill.startsAt)}</span></button>}
               {drill.location && <button onClick={() => insert(drill.location)} style={rowStyle}><span>📍</span> <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Where</span> <span style={{ color: colors.textSubtle, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{drill.location}</span></button>}
-              <button onClick={() => { setAttachedEventId(drill.id); close(); }} style={rowStyle}><span>🔗</span> Attach the event {attachedEventId === drill.id ? "✓" : ""}</button>
+              <button onClick={() => { setAttachedEventId(drill.id); close(); }} style={rowStyle}><span>🔗</span> {attachLabel} {attachedEventId === drill.id ? "✓" : ""}</button>
             </>
           )}
         </div>
@@ -462,8 +469,9 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
         </div>
 
         {/* Quick access — drop in event details / your profile / number, or
-            attach the whole event. Natural part of the composer. */}
-        {rail !== "instagram" && <QuickAccess events={events} host={host} attachedEventId={eventId} setAttachedEventId={setEventId} onInsert={insertAtCaret} />}
+            attach the event. Available on every channel; each thing is shaped
+            for the rail it's going out on. */}
+        <QuickAccess events={events} host={host} rail={rail} attachedEventId={eventId} setAttachedEventId={setEventId} onInsert={insertAtCaret} />
 
         {/* Reply-from picker — only when on Instagram with 2+ connected accounts. */}
         {rail === "instagram" && igAccounts.length >= 2 && (

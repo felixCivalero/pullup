@@ -89,14 +89,14 @@ export const TEMPLATES = {
     meta_category: "UTILITY",
     locale: "en",
     status: "draft",
-    body: "Hey {{1}} — you're confirmed for {{2}} on {{3}}.\n\n{{4}} 👋",
+    body: "Hi {{1}}, great news — your spot for {{2}} is confirmed. It's happening on {{3}}. {{4}} — can't wait to see you there!",
     variables: ["guest_first_name", "event_title", "event_when", "host_signature"],
     render: ({ guest_first_name, event_title, event_when, host_signature }) =>
-      `Hey ${guest_first_name} — you're confirmed for ${event_title} on ${event_when}.\n\n${host_signature} 👋`,
+      `Hi ${guest_first_name}, great news — your spot for ${event_title} is confirmed. It's happening on ${event_when}. ${host_signature} — can't wait to see you there!`,
     components: [
       {
         type: "BODY",
-        text: "Hey {{1}} — you're confirmed for {{2}} on {{3}}.\n\n{{4}} 👋",
+        text: "Hi {{1}}, great news — your spot for {{2}} is confirmed. It's happening on {{3}}. {{4}} — can't wait to see you there!",
         example: {
           body_text: [["Adam", "Photowalk Stockholm", "Saturday 10:00", "It's me, Maya"]],
         },
@@ -119,14 +119,14 @@ export const TEMPLATES = {
     meta_category: "UTILITY",
     locale: "en",
     status: "draft",
-    body: "{{1}} — tomorrow {{2}} 🙌\n\n{{3}}",
+    body: "Reminder: {{1}} is happening tomorrow {{2}}. {{3}} — hope you can still make it, see you there!",
     variables: ["event_title", "time_phrase", "host_signature"],
     render: ({ event_title, time_phrase, host_signature }) =>
-      `${event_title} — tomorrow ${time_phrase} 🙌\n\n${host_signature}`,
+      `Reminder: ${event_title} is happening tomorrow ${time_phrase}. ${host_signature} — hope you can still make it, see you there!`,
     components: [
       {
         type: "BODY",
-        text: "{{1}} — tomorrow {{2}} 🙌\n\n{{3}}",
+        text: "Reminder: {{1}} is happening tomorrow {{2}}. {{3}} — hope you can still make it, see you there!",
         example: { body_text: [["Photowalk Stockholm", "at 10:00", "It's me, Maya"]] },
       },
       {
@@ -146,14 +146,14 @@ export const TEMPLATES = {
     meta_category: "UTILITY",
     locale: "en",
     status: "draft",
-    body: "{{1}} starts in 2 hours at {{2}} 🚶\n\n{{3}}",
+    body: "Almost time! {{1}} starts in about 2 hours over at {{2}}. {{3}} — head down whenever you're ready, see you soon!",
     variables: ["event_title", "venue", "host_signature"],
     render: ({ event_title, venue, host_signature }) =>
-      `${event_title} starts in 2 hours at ${venue} 🚶\n\n${host_signature}`,
+      `Almost time! ${event_title} starts in about 2 hours over at ${venue}. ${host_signature} — head down whenever you're ready, see you soon!`,
     components: [
       {
         type: "BODY",
-        text: "{{1}} starts in 2 hours at {{2}} 🚶\n\n{{3}}",
+        text: "Almost time! {{1}} starts in about 2 hours over at {{2}}. {{3}} — head down whenever you're ready, see you soon!",
         example: { body_text: [["Photowalk Stockholm", "Skansenbron", "It's me, Maya"]] },
       },
       {
@@ -175,20 +175,13 @@ export const TEMPLATES = {
     meta_category: "MARKETING",
     locale: "en",
     status: "draft",
-    body: "{{1}}\n\n{{2}}",
+    body: "Hi 👋\n\n{{2}}\n\n— {{1}}\n\nReply here anytime.",
     variables: ["host_signature", "body"],
-    render: ({ host_signature, body }) => `${host_signature}\n\n${body}`,
+    render: ({ host_signature, body }) => `Hi 👋\n\n${body}\n\n— ${host_signature}\n\nReply here anytime.`,
     components: [
       {
-        type: "HEADER",
-        format: "IMAGE",
-        example: {
-          header_handle: ["https://pullup.se/share/og-image/sample/image.jpg"],
-        },
-      },
-      {
         type: "BODY",
-        text: "{{1}}\n\n{{2}}",
+        text: "Hi 👋\n\n{{2}}\n\n— {{1}}\n\nReply here anytime.",
         example: {
           body_text: [
             ["It's me, Maya — Sundowner Sessions", "Final tickets for next Friday — link in profile or below."],
@@ -207,21 +200,14 @@ export const TEMPLATES = {
     meta_category: "MARKETING",
     locale: "en",
     status: "draft",
-    body: "{{1}}\n\n{{2}} invited you to {{3}}. Tap to claim 👇",
+    body: "You're invited 🎉\n\n{{2}} invited you to {{3}}.\n\n{{1}}\n\nTap below to claim your spot.",
     variables: ["host_signature", "host_name", "event_title"],
     render: ({ host_signature, host_name, event_title }) =>
-      `${host_signature}\n\n${host_name} invited you to ${event_title}. Tap to claim 👇`,
+      `You're invited 🎉\n\n${host_name} invited you to ${event_title}.\n\n${host_signature}\n\nTap below to claim your spot.`,
     components: [
       {
-        type: "HEADER",
-        format: "IMAGE",
-        example: {
-          header_handle: ["https://pullup.se/share/og-image/sample/image.jpg"],
-        },
-      },
-      {
         type: "BODY",
-        text: "{{1}}\n\n{{2}} invited you to {{3}}. Tap to claim 👇",
+        text: "You're invited 🎉\n\n{{2}} invited you to {{3}}.\n\n{{1}}\n\nTap below to claim your spot.",
         example: {
           body_text: [["It's me, Maya", "Maya", "Sundowner Session #4"]],
         },
@@ -242,14 +228,14 @@ export const TEMPLATES = {
     meta_category: "UTILITY",
     locale: "en",
     status: "draft",
-    body: "Quick heads up — {{1}} is now {{2}} (was {{3}}).\n\n{{4}}",
+    body: "Quick heads up about {{1}} — the timing changed. It's now {{2}}, instead of the original {{3}}. {{4}} — sorry for any shuffle!",
     variables: ["event_title", "new_when", "old_when", "host_signature"],
     render: ({ event_title, new_when, old_when, host_signature }) =>
-      `Quick heads up — ${event_title} is now ${new_when} (was ${old_when}).\n\n${host_signature}`,
+      `Quick heads up about ${event_title} — the timing changed. It's now ${new_when}, instead of the original ${old_when}. ${host_signature} — sorry for any shuffle!`,
     components: [
       {
         type: "BODY",
-        text: "Quick heads up — {{1}} is now {{2}} (was {{3}}).\n\n{{4}}",
+        text: "Quick heads up about {{1}} — the timing changed. It's now {{2}}, instead of the original {{3}}. {{4}} — sorry for any shuffle!",
         example: {
           body_text: [["Photowalk Stockholm", "Sun 11:00", "Sat 10:00", "It's me, Maya"]],
         },
@@ -270,20 +256,20 @@ export const TEMPLATES = {
     meta_category: "MARKETING",
     locale: "en",
     status: "draft",
-    body: "Hope you enjoyed {{1}}! Photos + what's next 👇\n\n{{2}}",
+    body: "Hope you enjoyed {{1}}! The photos and what's coming next are ready for you. {{2}} — thanks so much for coming 🙏",
     variables: ["event_title", "host_signature"],
     render: ({ event_title, host_signature }) =>
-      `Hope you enjoyed ${event_title}! Photos + what's next 👇\n\n${host_signature}`,
+      `Hope you enjoyed ${event_title}! The photos and what's coming next are ready for you. ${host_signature} — thanks so much for coming 🙏`,
     components: [
       {
         type: "BODY",
-        text: "Hope you enjoyed {{1}}! Photos + what's next 👇\n\n{{2}}",
+        text: "Hope you enjoyed {{1}}! The photos and what's coming next are ready for you. {{2}} — thanks so much for coming 🙏",
         example: { body_text: [["Photowalk Stockholm", "It's me, Maya"]] },
       },
       {
         type: "BUTTONS",
         buttons: [
-          { type: "URL", text: "Photos + next event", url: "https://pullup.se/e/{{1}}/after", example: ["photowalk-stockholm"] },
+          { type: "URL", text: "Photos + next event", url: "https://pullup.se/e/{{1}}", example: ["photowalk-stockholm"] },
         ],
       },
     ],
@@ -296,14 +282,14 @@ export const TEMPLATES = {
     meta_category: "UTILITY",
     locale: "en",
     status: "draft",
-    body: "{{1}} — a spot just opened up for {{2}} 🎟️\n\nTap to claim before someone else grabs it.",
+    body: "Good news {{1}} — a spot just opened up for {{2}} 🎟️\n\nTap below to claim it before someone else does.",
     variables: ["guest_first_name", "event_title"],
     render: ({ guest_first_name, event_title }) =>
-      `${guest_first_name} — a spot just opened up for ${event_title} 🎟️\n\nTap to claim before someone else grabs it.`,
+      `Good news ${guest_first_name} — a spot just opened up for ${event_title} 🎟️\n\nTap below to claim it before someone else does.`,
     components: [
       {
         type: "BODY",
-        text: "{{1}} — a spot just opened up for {{2}} 🎟️\n\nTap to claim before someone else grabs it.",
+        text: "Good news {{1}} — a spot just opened up for {{2}} 🎟️\n\nTap below to claim it before someone else does.",
         example: { body_text: [["Adam", "Sundowner Session #4"]] },
       },
       {

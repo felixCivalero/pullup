@@ -18,7 +18,7 @@
 
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, Link2 } from "lucide-react";
+import { Trash2, Check, Link2, Paperclip, X, Search } from "lucide-react";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { useToast } from "../components/Toast";
 import { colors } from "../theme/colors.js";
@@ -221,6 +221,10 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
   const [rail, setRail] = useState(person.channel);
   const [sending, setSending] = useState(false);
   const [sentMsgs, setSentMsgs] = useState([]); // messages sent this session, shown instantly
+  const [attachments, setAttachments] = useState([]); // [{url,name,isImage}]
+  const [uploading, setUploading] = useState(false);
+  const [branded, setBranded] = useState(false); // brand-as-opt-in: plain by default
+  const fileRef = useRef(null);
   // Which IG account replies send from — only matters when the host connected
   // more than one (personal + business). Defaults to their chosen default.
   const defaultIg = igAccounts.find((a) => a.isDefault) || igAccounts[0] || null;
@@ -237,28 +241,55 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
   // What the thread shows: their real history + anything sent this session.
   const thread = useMemo(() => [...person.thread, ...sentMsgs], [person.thread, sentMsgs]);
 
-  useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); }, [person.id, person.channel, defaultIg?.id]);
+  useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); setAttachments([]); setBranded(false); }, [person.id, person.channel, defaultIg?.id]);
+
+  async function onAttach(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    setUploading(true);
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) { showToast(`${file.name} is over 10MB`, "error"); continue; }
+      try {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.onerror = reject;
+          r.readAsDataURL(file);
+        });
+        const res = await authenticatedFetch("/host/room/attachment", { method: "POST", body: JSON.stringify({ dataUrl, filename: file.name }) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.url) setAttachments((a) => [...a, { url: data.url, name: data.name, isImage: data.isImage }]);
+        else showToast("Couldn't attach that file", "error");
+      } catch { showToast("Couldn't attach that file", "error"); }
+    }
+    setUploading(false);
+  }
 
   async function handleSend() {
     const text = draft.trim();
-    if (!text || sending) return;
-    if (rail !== "email") {
-      showToast(`${(CHANNELS[rail] || CHANNELS.email).label} sending is coming — switch to Email to send now`, "error");
+    if ((!text && !attachments.length) || sending) return;
+    if (rail === "instagram") {
+      showToast("Instagram sending is coming — switch to Email or WhatsApp to send now", "error");
       return;
     }
     setSending(true);
     try {
       const res = await authenticatedFetch("/host/room/message", {
         method: "POST",
-        body: JSON.stringify({ personId: person.id, channel: rail, text }),
+        body: JSON.stringify({ personId: person.id, channel: rail, text, attachments, branded }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         showToast(data.error === "no_email" ? "No email on file for them yet" : "Couldn't send — try again", "error");
       } else {
-        setSentMsgs((m) => [...m, { from: "you", text, time: "just now", channel: rail }]);
+        const used = data.channel || rail;
+        const note = attachments.length ? `${text ? text + " " : ""}📎 ${attachments.length}` : text;
+        setSentMsgs((m) => [...m, { from: "you", text: note, time: "just now", channel: used }]);
         setDraft("");
-        showToast("Sent", "success");
+        setAttachments([]);
+        // Honest when WhatsApp wasn't possible and we used the email floor.
+        showToast(rail === "whatsapp" && used === "email" ? "Sent as email — not reachable on WhatsApp right now" : "Sent", "success");
       }
     } catch {
       showToast("Couldn't send — try again", "error");
@@ -356,6 +387,17 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
           })}
         </div>
 
+        {/* Brand-as-opt-in: plain by default; "dress up" wraps the email in the
+            host's brand. Only meaningful on the email rail (incl. WA→email floor). */}
+        {rail !== "instagram" && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "9px" }}>
+            <button onClick={() => setBranded((b) => !b)} title="Dress this email in your brand — colors, avatar, footer. Off sends a plain personal note." style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 600, color: branded ? "#fff" : colors.textMuted, background: branded ? colors.accent : colors.surfaceMuted, border: `1px solid ${branded ? colors.accent : colors.border}`, padding: "4px 10px", borderRadius: "999px", cursor: "pointer" }}>
+              <span style={{ fontSize: "10px" }}>✦</span>{branded ? "Branded" : "Dress up"}
+            </button>
+            <span style={{ fontSize: "10.5px", color: colors.textSubtle }}>{branded ? "Styled with your brand" : "Plain personal note"}</span>
+          </div>
+        )}
+
         {/* Reply-from picker — only when on Instagram with 2+ connected accounts. */}
         {rail === "instagram" && igAccounts.length >= 2 && (
           <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "9px", flexWrap: "wrap" }}>
@@ -378,9 +420,25 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
           </div>
         )}
 
+        {/* Attachment chips */}
+        {(attachments.length > 0 || uploading) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "9px" }}>
+            {attachments.map((a, i) => (
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "7px", background: colors.surfaceMuted, border: `1px solid ${colors.border}`, borderRadius: "10px", padding: "4px 6px 4px 8px", fontSize: "11.5px", color: colors.text, maxWidth: "180px" }}>
+                {a.isImage ? <img src={a.url} alt="" style={{ width: 22, height: 22, borderRadius: "5px", objectFit: "cover" }} /> : <Paperclip size={12} style={{ color: colors.textSubtle }} />}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                <button onClick={() => setAttachments((arr) => arr.filter((_, k) => k !== i))} style={{ display: "flex", border: "none", background: "transparent", color: colors.textSubtle, cursor: "pointer", padding: 0 }}><X size={13} /></button>
+              </span>
+            ))}
+            {uploading && <span style={{ fontSize: "11.5px", color: colors.textSubtle, alignSelf: "center" }}>Uploading…</span>}
+          </div>
+        )}
+
+        <input ref={fileRef} type="file" multiple onChange={onAttach} style={{ display: "none" }} />
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+          <button onClick={() => fileRef.current?.click()} title="Attach a file or image" disabled={rail === "instagram"} style={{ width: 38, height: 38, flexShrink: 0, borderRadius: "10px", border: `1px solid ${colors.border}`, background: colors.surface, color: rail !== "instagram" ? colors.textMuted : colors.textFaded, cursor: rail !== "instagram" ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center" }}><Paperclip size={16} /></button>
           <textarea value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder={rail === "whatsapp" && person.windowOpen === false ? "Window closed — sends as a WhatsApp template" : `Message ${person.name.split(" ")[0]} on ${c.label}…`} rows={2} style={{ flex: 1, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none" }} />
-          <button onClick={handleSend} disabled={!draft.trim() || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: draft.trim() && !sending ? colors.accent : colors.surfaceMuted, color: draft.trim() && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: draft.trim() && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content" }}>{sending ? "Sending…" : "Send"}</button>
+          <button onClick={handleSend} disabled={(!draft.trim() && !attachments.length) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content" }}>{sending ? "Sending…" : "Send"}</button>
         </div>
       </div>
     </div>
@@ -398,28 +456,58 @@ function BulkPanel({ people, onClose, onClear }) {
   const { showToast } = useToast();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [branded, setBranded] = useState(false);
+  const fileRef = useRef(null);
   const move = people[0]?.move;
   // Pre-fill from the shared suggested move (the brain's opener), host edits.
-  useEffect(() => { setDraft(move ? suggestedDraft(people[0]) : ""); }, [people, move]);
+  useEffect(() => { setDraft(move ? suggestedDraft(people[0]) : ""); setBranded(false); }, [people, move]);
 
-  // Tally how the send splits across channels — the honest "where this lands".
+  // Tally on the SENDABLE rail (WhatsApp where verified, else the email floor) —
+  // not a preferred-but-unsendable rail like Instagram. Honest "where this lands".
+  const sendOn = (p) => ((p.reachable || []).includes("whatsapp") ? "whatsapp" : "email");
   const byChannel = {};
-  people.forEach((p) => { byChannel[p.channel] = (byChannel[p.channel] || 0) + 1; });
+  people.forEach((p) => { const ch = sendOn(p); byChannel[ch] = (byChannel[ch] || 0) + 1; });
+
+  async function onAttach(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    setUploading(true);
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) { showToast(`${file.name} is over 10MB`, "error"); continue; }
+      try {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.onerror = reject;
+          r.readAsDataURL(file);
+        });
+        const res = await authenticatedFetch("/host/room/attachment", { method: "POST", body: JSON.stringify({ dataUrl, filename: file.name }) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.url) setAttachments((a) => [...a, { url: data.url, name: data.name, isImage: data.isImage }]);
+        else showToast("Couldn't attach that file", "error");
+      } catch { showToast("Couldn't attach that file", "error"); }
+    }
+    setUploading(false);
+  }
 
   async function handleBulkSend() {
     const text = draft.trim();
-    if (!text || sending) return;
+    if ((!text && !attachments.length) || sending) return;
     setSending(true);
     try {
       const res = await authenticatedFetch("/host/room/message/bulk", {
         method: "POST",
-        body: JSON.stringify({ personIds: people.map((p) => p.id), text }),
+        body: JSON.stringify({ personIds: people.map((p) => p.id), channel: "whatsapp", text, attachments, branded }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         showToast("Couldn't send — try again", "error");
       } else {
         const parts = [`Sent to ${data.sent}`];
+        if (data.byChannel?.whatsapp) parts.push(`${data.byChannel.whatsapp} on WhatsApp`);
         if (data.noEmail) parts.push(`${data.noEmail} have no email yet`);
         showToast(parts.join(" · "), data.sent ? "success" : "error");
         if (data.sent) onClose?.();
@@ -459,7 +547,7 @@ function BulkPanel({ people, onClose, onClear }) {
       {/* The recipients — each a row with their send channel, like a to-list */}
       <div style={{ flex: 1, overflowY: "auto", padding: "10px 8px" }}>
         {people.map((p) => {
-          const c = CHANNELS[p.channel] || CHANNELS.email;
+          const c = CHANNELS[sendOn(p)] || CHANNELS.email;
           return (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: "11px", padding: "9px 10px", borderRadius: "10px" }}>
               <Avatar initials={p.initials} color={p.color} size={32} />
@@ -478,11 +566,32 @@ function BulkPanel({ people, onClose, onClear }) {
       {/* Composer — looks like a normal send; goes to all individually */}
       <div style={{ borderTop: `1px solid ${colors.border}`, padding: "12px 14px" }}>
         <div style={{ fontSize: "11px", color: colors.textSubtle, marginBottom: "8px" }}>
-          Sends a private email to each person — one message each, not a group. (Email sends today; IG &amp; WhatsApp are coming.)
+          One private message each, not a group — WhatsApp where they're reachable, email otherwise.
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "9px" }}>
+          <button onClick={() => setBranded((b) => !b)} title="Dress the email in your brand — colors, avatar, footer. Off sends a plain personal note." style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 600, color: branded ? "#fff" : colors.textMuted, background: branded ? colors.accent : colors.surfaceMuted, border: `1px solid ${branded ? colors.accent : colors.border}`, padding: "4px 10px", borderRadius: "999px", cursor: "pointer" }}>
+            <span style={{ fontSize: "10px" }}>✦</span>{branded ? "Branded" : "Dress up"}
+          </button>
+          <span style={{ fontSize: "10.5px", color: colors.textSubtle }}>{branded ? "Styled with your brand" : "Plain personal note"}</span>
+        </div>
+        {/* Attachment chips */}
+        {(attachments.length > 0 || uploading) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "9px" }}>
+            {attachments.map((a, i) => (
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "7px", background: colors.surfaceMuted, border: `1px solid ${colors.border}`, borderRadius: "10px", padding: "4px 6px 4px 8px", fontSize: "11.5px", color: colors.text, maxWidth: "180px" }}>
+                {a.isImage ? <img src={a.url} alt="" style={{ width: 22, height: 22, borderRadius: "5px", objectFit: "cover" }} /> : <Paperclip size={12} style={{ color: colors.textSubtle }} />}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                <button onClick={() => setAttachments((arr) => arr.filter((_, k) => k !== i))} style={{ display: "flex", border: "none", background: "transparent", color: colors.textSubtle, cursor: "pointer", padding: 0 }}><X size={13} /></button>
+              </span>
+            ))}
+            {uploading && <span style={{ fontSize: "11.5px", color: colors.textSubtle, alignSelf: "center" }}>Uploading…</span>}
+          </div>
+        )}
+        <input ref={fileRef} type="file" multiple onChange={onAttach} style={{ display: "none" }} />
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+          <button onClick={() => fileRef.current?.click()} title="Attach a file or image" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: "10px", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Paperclip size={16} /></button>
           <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Write to all ${people.length}…`} rows={3} style={{ flex: 1, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none" }} />
-          <button onClick={handleBulkSend} disabled={!draft.trim() || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: draft.trim() && !sending ? colors.accent : colors.surfaceMuted, color: draft.trim() && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: draft.trim() && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content", whiteSpace: "nowrap" }}>
+          <button onClick={handleBulkSend} disabled={(!draft.trim() && !attachments.length) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content", whiteSpace: "nowrap" }}>
             {sending ? "Sending…" : `Send to ${people.length}`}
           </button>
         </div>
@@ -731,12 +840,20 @@ function ActionInbox({ people, onOpen, onBulk, activeId }) {
     clear();
   };
 
+  const allSelected = acts.length > 0 && acts.every((p) => sel.has(p.id));
+  const toggleAll = () => setSel(allSelected ? new Set() : new Set(acts.map((p) => p.id)));
+
   if (!acts.length) {
     return <div style={{ padding: "20px 4px", color: colors.textSubtle, fontSize: "13.5px", fontFamily: SF }}>You're all caught up — nobody's waiting on you right now.</div>;
   }
 
   return (
     <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: "8px" }}>
+        <button onClick={toggleAll} style={{ fontSize: "11.5px", fontWeight: 600, color: colors.accent, background: "transparent", border: "none", cursor: "pointer", fontFamily: SF, padding: 0 }}>
+          {allSelected ? "Clear selection" : `Select all ${acts.length}`}
+        </button>
+      </div>
       {recs.map((g, i) => (
         <BulkRecCard key={i} group={g} channel={g[0].channel} onSelect={() => setSel(new Set(g.map((p) => p.id)))} onDraftAll={() => draftAll(g.map((p) => p.id))} />
       ))}
@@ -827,6 +944,7 @@ export default function RoomPage() {
   const [lensEventId, setLensEventId] = useState(null); // event-lens over the global Room
   const [viewMode, setViewMode] = useState("carousel"); // 'carousel' | 'list' | 'dashboard' — same actionables, 3 UX to learn from
   const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows the bulk-compose panel
+  const [query, setQuery] = useState(""); // people search across the whole world
 
   // Live Room from the spine (/host/room). Falls back to fixtures only if the
   // fetch fails, so the prototype never goes blank while iterating.
@@ -877,6 +995,18 @@ export default function RoomPage() {
   const selected = PEOPLE.find((p) => p.id === selectedId) || null;
   const needsCount = ranked.filter((p) => p.needsYou).length;
 
+  // People search — find anyone in the whole world by name / handle / how you
+  // know them. Independent of the event lens; warmest first.
+  const q = query.trim().toLowerCase();
+  const searchResults = useMemo(() => {
+    if (!q) return null;
+    return PEOPLE.filter((p) =>
+      (p.name || "").toLowerCase().includes(q) ||
+      (p.handle || "").toLowerCase().includes(q) ||
+      (p.relationship || "").toLowerCase().includes(q),
+    ).sort((a, b) => (b.warmth || 0) - (a.warmth || 0));
+  }, [q, PEOPLE]);
+
   return (
     <div style={{ display: "flex", height: "100vh", paddingTop: "58px", boxSizing: "border-box" }}>
       <style>{`@keyframes roomShimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } } @keyframes roomPanelDrop { 0% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: translateY(0); } }`}</style>
@@ -908,11 +1038,18 @@ export default function RoomPage() {
           ) : (
             <EventsBanner
               events={EVENTS}
+              people={PEOPLE}
               lensEventId={lensEventId}
               onOpenEvent={(id) => navigate(`/app/events/${id}/manage`)}
               onSubpage={(id, sub) => navigate(`/app/events/${id}/${sub}`)}
               onCreate={() => navigate("/create")}
               onFocus={(id) => setLensEventId((cur) => (cur === id ? null : id))}
+              onMessageAll={(eventId) => {
+                const evp = PEOPLE.filter((p) => (p.events || []).includes(eventId));
+                if (!evp.length) return;
+                setSelectedId(null);
+                setBulkPeople(evp);
+              }}
               onDeleted={(id) => setRoom((r) => (r ? { ...r, events: r.events.filter((e) => e.id !== id) } : r))}
             />
           )}
@@ -935,11 +1072,45 @@ export default function RoomPage() {
             </div>
           )}
 
+          {/* Search the whole world. When there's a query, the body becomes
+              results (everyone, not just actionables); empty → normal Room. */}
+          {!loading && (
+            <div style={{ position: "relative", marginBottom: "16px" }}>
+              <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: colors.textSubtle, pointerEvents: "none" }}>
+                <Search size={16} />
+              </span>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search your people…"
+                style={{ width: "100%", boxSizing: "border-box", padding: "11px 38px 11px 40px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.surface, fontSize: "14px", fontFamily: SF, color: colors.text, outline: "none" }}
+              />
+              {query && (
+                <button onClick={() => setQuery("")} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", width: 24, height: 24, borderRadius: "50%", border: "none", background: colors.surfaceMuted, color: colors.textMuted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          )}
+
           {/* The Room body is ALWAYS the actionables — opening someone just
               slides the chat in on the right, it never replaces this list. The
               open person is highlighted in place. */}
           {loading ? (
             <ActionsSkeleton />
+          ) : searchResults ? (
+            searchResults.length ? (
+              <div>
+                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle, marginBottom: "10px" }}>
+                  {searchResults.length} {searchResults.length === 1 ? "person" : "people"}
+                </div>
+                {searchResults.map((p) => (
+                  <PersonCard key={p.id} person={p} events={EVENTS} active={p.id === selectedId} onClick={() => { setBulkPeople(null); setSelectedId(p.id); }} />
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: "20px 4px", color: colors.textSubtle, fontSize: "13.5px", fontFamily: SF }}>No one in your world matches “{query}”.</div>
+            )
           ) : (
             <ActionInbox
               people={ranked}
@@ -1020,7 +1191,7 @@ function ActionsSkeleton() {
 // actionables below. So they live as a compact poster strip up top. Each
 // poster opens the event page; its actions stay FOLDED until you want them
 // (the banner shouldn't shout). A create tile is always the last card.
-function EventsBanner({ events, lensEventId, onOpenEvent, onSubpage, onCreate, onFocus, onDeleted }) {
+function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage, onCreate, onFocus, onMessageAll, onDeleted }) {
   const [showDrafts, setShowDrafts] = useState(false);
   // One unified panel opens below the strip when you tap a card. It holds the
   // SAME action bar for every event (Manage · Team · VIP · Share · delete) so
@@ -1109,8 +1280,10 @@ function EventsBanner({ events, lensEventId, onOpenEvent, onSubpage, onCreate, o
           onTab={(tab) => setPanel((cur) => ({ ...cur, tab: cur.tab === tab ? null : tab }))}
           onClose={() => setPanel(null)}
           focused={lensEventId === panelEvent.id}
+          guestCount={people.filter((p) => (p.events || []).includes(panelEvent.id)).length}
           onManage={() => onOpenEvent(panelEvent.id)}
           onFocus={() => onFocus(panelEvent.id)}
+          onMessageAll={() => onMessageAll?.(panelEvent.id)}
           onDeleted={() => { setPanel(null); onDeleted?.(panelEvent.id); }}
         />
       )}
@@ -1121,7 +1294,7 @@ function EventsBanner({ events, lensEventId, onOpenEvent, onSubpage, onCreate, o
 // The one panel — same bar for every event. Manage navigates; Team / VIP /
 // Share swap content inline here; Focus drops the event as a lens; delete
 // confirms inline. This is what removes the "some jump, some pop" confusion.
-function EventActionPanel({ event, arrowLeft, tab, onTab, onClose, focused, onManage, onFocus, onDeleted }) {
+function EventActionPanel({ event, arrowLeft, tab, onTab, onClose, focused, guestCount = 0, onManage, onFocus, onMessageAll, onDeleted }) {
   const { showToast } = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -1214,6 +1387,11 @@ function EventActionPanel({ event, arrowLeft, tab, onTab, onClose, focused, onMa
         <button onClick={onManage} style={{ fontSize: "12.5px", fontWeight: 700, fontFamily: SF, padding: "7px 16px", borderRadius: "999px", border: "none", background: colors.accent, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}>
           Manage ↗
         </button>
+        {guestCount > 0 && (
+          <button onClick={onMessageAll} title={`Email everyone tied to ${event.title}`} style={{ fontSize: "12.5px", fontWeight: 600, fontFamily: SF, padding: "7px 14px", borderRadius: "999px", cursor: "pointer", border: `1px solid ${colors.accentBorder}`, background: colors.accentSoft, color: colors.accent, whiteSpace: "nowrap" }}>
+            Message all {guestCount}
+          </button>
+        )}
         <div style={{ width: 1, height: 20, background: colors.border, margin: "0 2px" }} />
         <Tab id="team" label="Team" />
         {!isPast && <Tab id="vip" label="VIP" />}

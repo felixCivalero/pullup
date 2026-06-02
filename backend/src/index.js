@@ -130,6 +130,8 @@ import {
   startVerification as startPhoneVerification,
   redeemToken as redeemMagicLinkToken,
 } from "./services/phoneVerification.js";
+import { normalisePhone } from "./utils/phone.js";
+import { recordOptIn as recordPhoneOptIn } from "./whatsapp/repos/phoneOptInsRepo.js";
 import { dispatch as dispatchMessage } from "./messaging/index.js";
 import { getRoomForHost } from "./services/roomService.js";
 import {
@@ -1145,11 +1147,28 @@ app.post("/verify/phone/start", async (req, res) => {
       defaultCountry = null,
       templateKey,
     } = req.body || {};
+    // Link the verification to the person when we can resolve them by phone —
+    // the token's person_id is what lets redeem set phone_verified_at on the
+    // RIGHT person (the gate the WhatsApp rail needs). RSVP stores the phone
+    // just before this fires, so the lookup resolves.
+    let resolvedPersonId = null;
+    try {
+      const norm = normalisePhone(phone, defaultCountry);
+      if (norm.ok) {
+        const { data: p } = await supabase
+          .from("people")
+          .select("id")
+          .eq("phone_e164", norm.e164)
+          .maybeSingle();
+        resolvedPersonId = p?.id || null;
+      }
+    } catch { /* best-effort linkage */ }
     const result = await startPhoneVerification({
       phone,
       intent,
       payload,
       defaultCountry,
+      personId: resolvedPersonId,
       templateKey: templateKey || undefined,
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"] || null,
@@ -2311,6 +2330,8 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       visitorId = null, // Links browsing session to RSVP
       joinWaitlist = false, // If true, join waitlist when event is full
       customAnswers = {}, // Answers to event-defined custom form fields
+      phone = null, // NEW: optional phone for the WhatsApp rail
+      whatsappOptIn = false, // NEW: consent to be reached on WhatsApp
     } = req.body;
 
     if (!email && !vipToken) {
@@ -2539,6 +2560,41 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         };
 
     const result = await addRsvp(rsvpData);
+
+    // ── Guest WhatsApp capture (best-effort; never blocks the RSVP). ──
+    // addRsvp() doesn't persist a phone, so do it here: store the number and
+    // record consent. The frontend then fires /verify/phone/start, which now
+    // resolves THIS person by phone and sets phone_verified_at on redeem — the
+    // gate dispatch() needs before anything ships on WhatsApp.
+    if (phone && result?.rsvp?.personId) {
+      try {
+        const norm = normalisePhone(phone, result.event?.country || null);
+        if (norm.ok) {
+          const personId = result.rsvp.personId;
+          // Don't clobber an already-stored (possibly verified) number.
+          await supabase
+            .from("people")
+            .update({ phone_e164: norm.e164 })
+            .eq("id", personId)
+            .is("phone_e164", null);
+          // The form only collects a phone on WhatsApp/both events, so a phone
+          // here is consent to the WhatsApp rail. Verification confirms it.
+          await recordPhoneOptIn({
+            phoneE164: norm.e164,
+            channel: "whatsapp",
+            source: "rsvp_form",
+            personId,
+            hostProfileId: result.event?.hostId || null,
+            legalBasis: "consent",
+            ipAddress: req.ip || null,
+            userAgent: req.get?.("user-agent") || null,
+            gdprPayload: { eventSlug: slug, whatsappOptIn: !!whatsappOptIn },
+          }).catch((e) => console.error("[rsvp] recordPhoneOptIn failed:", e?.message));
+        }
+      } catch (e) {
+        console.error("[rsvp] whatsapp capture error:", e?.message);
+      }
+    }
 
     const isEventPaid =
       result.event?.ticketType === "paid" && result.event?.ticketPrice;
@@ -5085,12 +5141,14 @@ app.get("/host/room", requireAuth, async (req, res) => {
   }
 });
 
-// Send a personal message from the Room composer (email is wired today).
+// Send a personal message from the Room composer. Rails: email + WhatsApp
+// (in-window free text / closed-window template, falling to email). `branded`
+// opts into the host's dressed-up email; default is the bare personal note.
 app.post("/host/room/message", requireAuth, async (req, res) => {
   try {
     const { sendRoomMessage } = await import("./services/roomMessaging.js");
-    const { personId, channel, text, subject } = req.body || {};
-    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject });
+    const { personId, channel, text, subject, attachments, branded } = req.body || {};
+    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject, attachments, branded });
     if (!r.ok) {
       return res.status(r.error === "channel_unavailable" ? 501 : 400).json(r);
     }
@@ -5101,16 +5159,49 @@ app.post("/host/room/message", requireAuth, async (req, res) => {
   }
 });
 
-// Bulk send — one private message each (not a group), email-reachable now.
+// Bulk send — one private message each (not a group). The chosen rail is
+// honored per person; non-WhatsApp-reachable people fall to the email floor.
 app.post("/host/room/message/bulk", requireAuth, async (req, res) => {
   try {
     const { sendRoomBulk } = await import("./services/roomMessaging.js");
-    const { personIds, text, subject } = req.body || {};
-    const r = await sendRoomBulk({ hostId: req.user.id, personIds, text, subject });
+    const { personIds, channel, text, subject, attachments, branded } = req.body || {};
+    const r = await sendRoomBulk({ hostId: req.user.id, personIds, channel, text, subject, attachments, branded });
     res.json({ ok: true, ...r });
   } catch (error) {
     console.error("Error sending room bulk:", error);
     res.status(500).json({ ok: false, error: "send_failed" });
+  }
+});
+
+// Upload an attachment for a Room email — returns a public URL the composer
+// includes in the send (images embed inline, other files become a link).
+app.post("/host/room/attachment", requireAuth, async (req, res) => {
+  try {
+    const { dataUrl, filename } = req.body || {};
+    if (!dataUrl || typeof dataUrl !== "string") return res.status(400).json({ error: "no_file" });
+    const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!m) return res.status(400).json({ error: "bad_data_url" });
+    const contentType = m[1];
+    const buffer = Buffer.from(m[2], "base64");
+    if (buffer.length > 10 * 1024 * 1024) return res.status(413).json({ error: "too_large" });
+    const isImage = contentType.startsWith("image/");
+    const ext = (contentType.split("/")[1] || "bin").split("+")[0].replace(/[^a-z0-9]/gi, "").slice(0, 8) || "bin";
+    const safeName = (filename || `file.${ext}`).replace(/[^\w.\-]+/g, "_").slice(0, 80);
+    const crypto = await import("node:crypto");
+    const key = `room-attachments/${req.user.id}/${crypto.randomUUID()}.${ext}`;
+    const { supabase } = await import("./supabase.js");
+    const { error } = await supabase.storage
+      .from("event-images")
+      .upload(key, buffer, { contentType, upsert: true });
+    if (error) {
+      console.error("[room/attachment] upload error:", error);
+      return res.status(500).json({ error: "upload_failed" });
+    }
+    const { data: { publicUrl } } = supabase.storage.from("event-images").getPublicUrl(key);
+    res.json({ url: publicUrl, name: safeName, contentType, isImage });
+  } catch (error) {
+    console.error("Error uploading room attachment:", error);
+    res.status(500).json({ error: "upload_failed" });
   }
 });
 
@@ -14552,7 +14643,7 @@ app.listen(PORT, HOST, async () => {
           .from("rsvps")
           .select(`
             id, person_id,
-            people:person_id ( id, name, email )
+            people:person_id ( id, name, email, phone_e164, phone_verified_at )
           `)
           .eq("event_id", event.id)
           .eq("booking_status", "CONFIRMED");
@@ -14563,16 +14654,25 @@ app.listen(PORT, HOST, async () => {
         }
         if (!rsvps || rsvps.length === 0) continue;
 
-        // 3. Fetch host branding
+        // 3. Fetch host branding + WhatsApp prefs (so the WA rail can fire).
         let hostBrand = {};
+        let hostProfile = null;
         try {
-          const hostProfile = await getUserProfile(event.host_id);
+          hostProfile = await getUserProfile(event.host_id);
           hostBrand = {
             brandName: hostProfile?.brand || "",
             brandWebsite: hostProfile?.brandWebsite || "",
             contactEmail: hostProfile?.contactEmail || "",
           };
         } catch {}
+        const hostSig =
+          hostProfile?.whatsappSignature ||
+          (hostProfile?.name ? `It's me, ${hostProfile.name.split(/\s+/)[0]}` : "PullUp");
+        const timePhrase = (() => {
+          try {
+            return new Date(event.starts_at).toLocaleString("en-US", { weekday: "long", hour: "2-digit", minute: "2-digit", hour12: false });
+          } catch { return "soon"; }
+        })();
 
         // 4. Resolve cover image to full public URL (DB stores relative paths)
         let resolvedImageUrl = event.cover_image_url || event.image_url || "";
@@ -14609,33 +14709,60 @@ app.listen(PORT, HOST, async () => {
           }
 
           const idempotencyKey = `reminder-24h-${event.id}-${person.id}`;
+          const reminderHtml = reminder24hEmail({
+            name: person.name || "there",
+            eventTitle: event.title,
+            startsAt: event.starts_at,
+            timezone: event.timezone || "",
+            imageUrl: resolvedImageUrl,
+            location: event.location || "",
+            slug: event.slug || "",
+            frontendUrl: frontendBase,
+            unsubscribeUrl,
+            hideDate: event.hide_date || false,
+            hideLocation: event.hide_location || false,
+            dateRevealHint: event.date_reveal_hint || "",
+            revealHint: event.reveal_hint || "",
+            ...hostBrand,
+            brand: event.brand
+              ? {
+                  background:   event.brand.backgroundColor || null,
+                  primaryColor: event.brand.buttonColor || null,
+                }
+              : {},
+          });
           try {
-            await infraSendEmail({
-              to: person.email,
-              subject: `"${event.title}" is tomorrow!`,
-              html: reminder24hEmail({
-                name: person.name || "there",
-                eventTitle: event.title,
-                startsAt: event.starts_at,
-                timezone: event.timezone || "",
-                imageUrl: resolvedImageUrl,
-                location: event.location || "",
-                slug: event.slug || "",
-                frontendUrl: frontendBase,
-                unsubscribeUrl,
-                hideDate: event.hide_date || false,
-                hideLocation: event.hide_location || false,
-                dateRevealHint: event.date_reveal_hint || "",
-                revealHint: event.reveal_hint || "",
-                ...hostBrand,
-                brand: event.brand
-                  ? {
-                      background:   event.brand.backgroundColor || null,
-                      primaryColor: event.brand.buttonColor || null,
-                    }
-                  : {},
-              }),
-              idempotencyKey,
+            // Two-rail: a WhatsApp reminder for guests reachable + opted-in
+            // there; dispatch() falls to this email for everyone else (and in
+            // prod until event_reminder_24h is Meta-approved). Idempotency key
+            // dedupes BOTH rails across the every-15-min ticks.
+            await dispatchMessage({
+              recipient: {
+                id: person.id,
+                email: person.email,
+                phone_e164: person.phone_e164 || null,
+                phone_verified_at: person.phone_verified_at || null,
+              },
+              hostProfile: hostProfile || { id: event.host_id },
+              whatsapp: {
+                templateKey: "event_reminder_24h",
+                variables: {
+                  event_title: event.title || "the event",
+                  time_phrase: timePhrase,
+                  host_signature: hostSig,
+                },
+              },
+              email: {
+                subject: `"${event.title}" is tomorrow!`,
+                htmlBody: reminderHtml,
+                category: "transactional",
+              },
+              context: {
+                personId: person.id,
+                hostProfileId: event.host_id,
+                idempotencyKey,
+                legalBasis: "legitimate_interest",
+              },
             });
           } catch (err) {
             console.error(`[Reminders] Failed to send reminder to ${person.email} for event ${event.id}:`, err.message);
@@ -14647,9 +14774,9 @@ app.listen(PORT, HOST, async () => {
     }
   }
 
-  // Day-before event reminders — PAUSED by request. Uncomment to
-  // re-enable. The outbox idempotency key
-  // `reminder-24h-<eventId>-<personId>` already dedupes across the
-  // every-15-min ticks, so re-enabling is safe whenever you're ready.
-  // setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
+  // Day-before event reminders — LIVE. Routed through dispatch() so they ship
+  // on WhatsApp where the guest is reachable + opted-in, and on email otherwise.
+  // The outbox idempotency key `reminder-24h-<eventId>-<personId>` dedupes BOTH
+  // rails across the every-15-min ticks, so the recurring tick is safe.
+  setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
 });

@@ -188,6 +188,26 @@ export async function getRoomForHost(hostId) {
     identsByPerson.get(i.person_id).add(i.kind);
   }
 
+  // 3b. WhatsApp 24h-window state per person, so the composer tells the truth:
+  // an open window means a normal free-text WhatsApp; a closed one means it goes
+  // as a template (or the email floor). host_profile_id == hostId (single-tenant).
+  const windowByPerson = new Map();
+  try {
+    const { data: threads } = await supabase
+      .from("whatsapp_threads")
+      .select("person_id, conversation_window_expires_at")
+      .eq("host_profile_id", hostId)
+      .in("person_id", personIds);
+    const nowMs = Date.now();
+    for (const t of threads || []) {
+      const open = !!t.conversation_window_expires_at &&
+        new Date(t.conversation_window_expires_at).getTime() > nowMs;
+      windowByPerson.set(t.person_id, open);
+    }
+  } catch (err) {
+    logger?.warn?.("[roomService] whatsapp window read failed", { error: err?.message });
+  }
+
   // 4. Events list (content pieces, for the lens + the banner).
   //   status: draft (not published) | live (published, upcoming/ongoing) |
   //           past (published, already happened). Coming counts from rsvps.
@@ -252,6 +272,15 @@ export async function getRoomForHost(hostId) {
     const reachable = channelsFromIdentities(kinds, person);
     const channel = preferredChannel(reachable, person);
 
+    // Truthful WhatsApp window hint (only meaningful when WA is reachable).
+    const waReachable = reachable.includes("whatsapp");
+    const winOpen = waReachable ? (windowByPerson.get(pid) || false) : null;
+    const windowNote = !waReachable
+      ? null
+      : winOpen
+        ? "Messaged recently — sends as a normal WhatsApp"
+        : "Quiet for 24h+ — sends as a WhatsApp template";
+
     const attended = evs.filter((e) => e.type === "attended").length;
     const rsvps = evs.filter((e) => e.type === "rsvp").length;
     const waitlisted = evs.some((e) => e.type === "waitlist_join");
@@ -270,8 +299,8 @@ export async function getRoomForHost(hostId) {
       color: colorFor(pid),
       channel,
       reachable,
-      windowOpen: null, // real 24h-window state comes when channels are wired
-      windowNote: null,
+      windowOpen: winOpen,
+      windowNote,
       warmth,
       relationship,
       events: eventsTouched,
@@ -373,7 +402,9 @@ function buildMoments({ byPerson, peopleById, eventsOut }) {
 function channelsFromIdentities(kinds, person) {
   const out = [];
   if (kinds.has("ig_user_id") || kinds.has("ig_handle") || person.ig_user_id || person.instagram) out.push("instagram");
-  if (kinds.has("phone") || person.phone_e164) out.push("whatsapp");
+  // WhatsApp is only honestly reachable once the phone is verified — that's the
+  // gate dispatch()/sendText enforce too, so don't offer a rail we can't use.
+  if ((kinds.has("phone") || person.phone_e164) && person.phone_verified_at) out.push("whatsapp");
   if (kinds.has("email") || person.email) out.push("email");
   return out.length ? out : ["email"];
 }

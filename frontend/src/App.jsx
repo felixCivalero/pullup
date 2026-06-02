@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useParams } from "react-router-dom";
 
 // /app/events/:id/manage → redirect to the guests subpage. Absolute path built
 // from the param: a relative <Navigate to="../guests"> over-pops on these flat
@@ -8,15 +8,12 @@ function ManageRedirect() {
   return <Navigate to={`/app/events/${id}/guests`} replace />;
 }
 
-// The PullUp AI widget is only useful while building an event — it gets in the
-// way elsewhere (e.g. over the Room's chat composer). So mount it only on the
-// create / edit-event routes.
+// The dock is the host's home base across the logged-in app: the pullup chat
+// (Messages) by default, the event-building AI (Create) when on a builder
+// surface. IdeaWidget self-hides on public/event pages, on mobile, and when
+// logged out — so we mount it everywhere and let it decide.
 function CoachWidgetGate() {
-  const { pathname } = useLocation();
-  const onEventBuilder =
-    pathname === "/create" ||
-    /^\/app\/events\/[^/]+\/(edit|manage\/edit)$/.test(pathname);
-  return onEventBuilder ? <IdeaWidget /> : null;
+  return <IdeaWidget />;
 }
 import { LandingPage } from "./pages/LandingPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";

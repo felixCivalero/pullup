@@ -116,6 +116,20 @@ export function IdeaWidget() {
     if (canvasEventId) { setOpen(true); setDockTab("create"); }
   }, [canvasEventId]);
 
+  // The create page's "let AI build the look" offer: open the dock on the
+  // Create face and seed the composer with a ready-to-send prompt (the host
+  // still hits send — we draft, we don't auto-fire).
+  const [canvasSeed, setCanvasSeed] = useState(null);
+  useEffect(() => {
+    const onBuildLook = (e) => {
+      setOpen(true);
+      setDockTab("create");
+      setCanvasSeed({ text: e.detail?.prompt || "", key: e.detail?.key || `${e.timeStamp}` });
+    };
+    window.addEventListener("pullup:ai-build-look", onBuildLook);
+    return () => window.removeEventListener("pullup:ai-build-look", onBuildLook);
+  }, []);
+
   // The floating slot has three modes derived from auth + MCP connection
   // status + whether the current page declares a host resource:
   //   - promo-connect   : logged in, no MCP connection (CTA to settings)
@@ -342,7 +356,9 @@ export function IdeaWidget() {
               position: "absolute",
               bottom: 56,
               right: 0,
-              width: 340,
+              // Messages is a two-pane messenger (contacts + the open chat), so
+              // it needs room; Create stays a single column.
+              width: dockTab === "messages" ? "min(92vw, 720px)" : 340,
               background: colors.background,
               border: `1px solid ${colors.border}`,
               borderRadius: 16,
@@ -408,6 +424,7 @@ export function IdeaWidget() {
               <div style={{ height: "min(72vh, 540px)" }}>
                 <CanvasChat
                   eventId={canvasEventId}
+                  seed={canvasSeed}
                   suggestions={(coachItems || []).map((it) => ({
                     label: it.headline,
                     prompt: it.headline,

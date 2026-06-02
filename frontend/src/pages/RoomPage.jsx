@@ -605,7 +605,6 @@ function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) 
           </div>
           <select value={template} onChange={(e) => setTemplate(e.target.value)} style={{ width: "100%", fontSize: 13, fontFamily: SF, color: colors.text, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 11px", cursor: "pointer" }}>
             <option value="plain">Plain note — hand-typed, no styling</option>
-            <option value="branded">Branded — your colors, avatar &amp; footer</option>
             <option value="event">Event email — cover, title, date &amp; button</option>
           </select>
           {template === "event" && (

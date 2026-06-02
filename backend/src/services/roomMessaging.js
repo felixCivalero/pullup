@@ -112,6 +112,18 @@ function normalizeAttachments(attachments) {
     .map((a) => ({ url: a.url, name: a.name || "Attachment", isImage: !!a.isImage }));
 }
 
+/**
+ * Render the email HTML exactly as it would ship (plain or branded), for the
+ * composer's live preview — so the host sees their real brand (accent, avatar,
+ * footer) on their real draft, not a blind toggle. Same renderers as the send.
+ */
+export async function renderRoomEmailHtml({ hostId, text = "", attachments = [], branded = false }) {
+  const body = (text || "").trim() || "Hey — just thinking of you. Hope you're doing well!";
+  const atts = normalizeAttachments(attachments);
+  const profile = branded ? await getUserProfile(hostId).catch(() => null) : null;
+  return branded ? renderBrandedEmail(body, atts, profile) : textToHtml(body, atts);
+}
+
 function logRoomEvent({ personId, hostId, channel, body, attCount }) {
   const attNote = attCount ? ` (+${attCount} attachment${attCount > 1 ? "s" : ""})` : "";
   logPersonEvent({

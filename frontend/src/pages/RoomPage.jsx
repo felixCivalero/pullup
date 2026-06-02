@@ -220,7 +220,29 @@ function PersonCard({ person, active, onClick, events }) {
 // Branded = wrapped in the host's brand (accent header, avatar, footer). Only
 // shown on the Email rail (WhatsApp is always native). `branded` is the boolean
 // the composer already sends.
-function StyleCards({ branded, setBranded }) {
+// A real, sandboxed render of the email as the recipient sees it — same HTML
+// the backend ships. Driven from the composer so the brand choice isn't blind.
+function EmailPreviewModal({ html, loading, branded, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: SF }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 560, maxHeight: "86vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 12px 48px rgba(0,0,0,.25)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", borderBottom: `1px solid ${colors.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: colors.text }}>
+            Email preview <span style={{ fontSize: 11, fontWeight: 600, color: colors.textSubtle }}>· {branded ? "Branded" : "Plain note"}</span>
+          </div>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: "50%", border: "none", background: colors.surfaceMuted, color: colors.textMuted, fontSize: 15, cursor: "pointer" }}>×</button>
+        </div>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: "center", color: colors.textSubtle, fontSize: 13 }}>Rendering…</div>
+        ) : (
+          <iframe title="Email preview" srcDoc={html} style={{ border: "none", width: "100%", height: "62vh", background: "#fff" }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StyleCards({ branded, setBranded, onPreview }) {
   const line = (w, mb = 4) => (
     <div style={{ height: 4, borderRadius: 2, background: colors.border, width: w, marginBottom: mb }} />
   );
@@ -253,7 +275,14 @@ function StyleCards({ branded, setBranded }) {
   );
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 11, color: colors.textSubtle, marginBottom: 6 }}>Email style</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: colors.textSubtle }}>Email style</span>
+        {onPreview && (
+          <button type="button" onClick={onPreview} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: colors.accent, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+            Preview <span style={{ fontSize: 12 }}>⤢</span>
+          </button>
+        )}
+      </div>
       <div style={{ display: "flex", gap: 8 }}>
         <Card active={!branded} onClick={() => setBranded(false)} label="Plain note" note="Looks hand-typed">
           <div style={{ padding: 9 }}>
@@ -285,6 +314,7 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
   const [attachments, setAttachments] = useState([]); // [{url,name,isImage}]
   const [uploading, setUploading] = useState(false);
   const [branded, setBranded] = useState(false); // brand-as-opt-in: plain by default
+  const [preview, setPreview] = useState(null); // { html, loading } when open
   const fileRef = useRef(null);
   // Which IG account replies send from — only matters when the host connected
   // more than one (personal + business). Defaults to their chosen default.
@@ -302,7 +332,17 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
   // What the thread shows: their real history + anything sent this session.
   const thread = useMemo(() => [...person.thread, ...sentMsgs], [person.thread, sentMsgs]);
 
-  useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); setAttachments([]); setBranded(false); }, [person.id, person.channel, defaultIg?.id]);
+  useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); setAttachments([]); setBranded(false); setPreview(null); }, [person.id, person.channel, defaultIg?.id]);
+
+  async function openPreview() {
+    setPreview({ html: "", loading: true });
+    try {
+      const res = await authenticatedFetch("/host/room/message/preview", { method: "POST", body: JSON.stringify({ text: draft, attachments, branded }) });
+      const data = await res.json().catch(() => ({}));
+      if (data.html) setPreview({ html: data.html, loading: false });
+      else { setPreview(null); showToast("Couldn't build preview", "error"); }
+    } catch { setPreview(null); showToast("Couldn't build preview", "error"); }
+  }
 
   async function onAttach(e) {
     const files = Array.from(e.target.files || []);
@@ -450,7 +490,7 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
 
         {/* Email-style picker — see Plain vs Branded, tap to choose. Email rail
             only (WhatsApp is always native). `branded` flows to the send. */}
-        {rail === "email" && <StyleCards branded={branded} setBranded={setBranded} />}
+        {rail === "email" && <StyleCards branded={branded} setBranded={setBranded} onPreview={openPreview} />}
 
         {/* Reply-from picker — only when on Instagram with 2+ connected accounts. */}
         {rail === "instagram" && igAccounts.length >= 2 && (
@@ -495,6 +535,7 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
           <button onClick={handleSend} disabled={(!draft.trim() && !attachments.length) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content" }}>{sending ? "Sending…" : "Send"}</button>
         </div>
       </div>
+      {preview && <EmailPreviewModal html={preview.html} loading={preview.loading} branded={branded} onClose={() => setPreview(null)} />}
     </div>
   );
 }
@@ -513,10 +554,21 @@ function BulkPanel({ people, onClose, onClear }) {
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [branded, setBranded] = useState(false);
+  const [preview, setPreview] = useState(null);
   const fileRef = useRef(null);
   const move = people[0]?.move;
   // Pre-fill from the shared suggested move (the brain's opener), host edits.
-  useEffect(() => { setDraft(move ? suggestedDraft(people[0]) : ""); setBranded(false); }, [people, move]);
+  useEffect(() => { setDraft(move ? suggestedDraft(people[0]) : ""); setBranded(false); setPreview(null); }, [people, move]);
+
+  async function openPreview() {
+    setPreview({ html: "", loading: true });
+    try {
+      const res = await authenticatedFetch("/host/room/message/preview", { method: "POST", body: JSON.stringify({ text: draft, attachments, branded }) });
+      const data = await res.json().catch(() => ({}));
+      if (data.html) setPreview({ html: data.html, loading: false });
+      else { setPreview(null); showToast("Couldn't build preview", "error"); }
+    } catch { setPreview(null); showToast("Couldn't build preview", "error"); }
+  }
 
   // Tally on the SENDABLE rail (WhatsApp where verified, else the email floor) —
   // not a preferred-but-unsendable rail like Instagram. Honest "where this lands".
@@ -622,7 +674,7 @@ function BulkPanel({ people, onClose, onClear }) {
         <div style={{ fontSize: "11px", color: colors.textSubtle, marginBottom: "8px" }}>
           One private message each, not a group — WhatsApp where they're reachable, email otherwise.
         </div>
-        <StyleCards branded={branded} setBranded={setBranded} />
+        <StyleCards branded={branded} setBranded={setBranded} onPreview={openPreview} />
         {/* Attachment chips */}
         {(attachments.length > 0 || uploading) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "9px" }}>
@@ -648,6 +700,7 @@ function BulkPanel({ people, onClose, onClear }) {
           Clear selection
         </button>
       </div>
+      {preview && <EmailPreviewModal html={preview.html} loading={preview.loading} branded={branded} onClose={() => setPreview(null)} />}
     </div>
   );
 }

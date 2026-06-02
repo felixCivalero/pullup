@@ -5173,6 +5173,21 @@ app.post("/host/room/message/bulk", requireAuth, async (req, res) => {
   }
 });
 
+// Render a preview of a Room email (plain or branded) using the SAME renderer
+// as the real send — so the composer's style picker shows the host their actual
+// brand on their actual draft, not a blind toggle.
+app.post("/host/room/message/preview", requireAuth, async (req, res) => {
+  try {
+    const { renderRoomEmailHtml } = await import("./services/roomMessaging.js");
+    const { text, attachments, branded } = req.body || {};
+    const html = await renderRoomEmailHtml({ hostId: req.user.id, text, attachments, branded });
+    res.json({ ok: true, html });
+  } catch (error) {
+    console.error("Error rendering room preview:", error);
+    res.status(500).json({ ok: false, error: "preview_failed" });
+  }
+});
+
 // Upload an attachment for a Room email — returns a public URL the composer
 // includes in the send (images embed inline, other files become a link).
 app.post("/host/room/attachment", requireAuth, async (req, res) => {

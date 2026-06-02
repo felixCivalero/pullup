@@ -5351,6 +5351,78 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
   }
 });
 
+// The event SPACE — the room's conversation (mesh). Read/post gated by a
+// pull-up to this event: spokes (RSVP-only) can't see or reach it; co-present
+// nodes can wire sideways. No DM primitive — it's one shared, event-scoped space.
+app.get("/p/:eventId/space", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { hasPulledUp, listSpaceMessages } = await import("./services/pullupService.js");
+    const email = (req.query.email || "").toString().trim().toLowerCase();
+    const person = email ? await findPersonByEmail(email) : null;
+    if (!person || !(await hasPulledUp(person.id, eventId))) {
+      return res.status(403).json({ error: "locked", reason: "not_pulled_up" });
+    }
+    res.json({ messages: await listSpaceMessages(eventId) });
+  } catch (err) {
+    console.error("[space:get] error:", err.message);
+    res.status(500).json({ error: "Failed to load the room" });
+  }
+});
+
+app.post("/p/:eventId/space", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { email, body } = req.body || {};
+    const { hasPulledUp, postSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
+    const norm = (email || "").toString().trim().toLowerCase();
+    const person = norm ? await findPersonByEmail(norm) : null;
+    if (!person || !(await hasPulledUp(person.id, eventId))) {
+      return res.status(403).json({ error: "locked", reason: "not_pulled_up" });
+    }
+    const r = await postSpaceMessage({ eventId, personId: person.id, authorName: person.name || "Someone", body });
+    if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
+    res.json({ ok: true, messages: await listSpaceMessages(eventId) });
+  } catch (err) {
+    console.error("[space:post] error:", err.message);
+    res.status(500).json({ ok: false, reason: "post_failed" });
+  }
+});
+
+// Host side of the same space — the hub. Owner-gated; posts land as `host`.
+app.get("/host/events/:id/space", requireAuth, async (req, res) => {
+  try {
+    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { listSpaceMessages } = await import("./services/pullupService.js");
+    res.json({ messages: await listSpaceMessages(req.params.id) });
+  } catch (err) {
+    console.error("[host-space:get] error:", err.message);
+    res.status(500).json({ error: "Failed to load the room" });
+  }
+});
+
+app.post("/host/events/:id/space", requireAuth, async (req, res) => {
+  try {
+    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { postSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
+    const profile = await getUserProfile(req.user.id).catch(() => null);
+    const r = await postSpaceMessage({
+      eventId: req.params.id,
+      profileId: req.user.id,
+      isHost: true,
+      authorName: profile?.name || "Host",
+      body: req.body?.body,
+    });
+    if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
+    res.json({ ok: true, messages: await listSpaceMessages(req.params.id) });
+  } catch (err) {
+    console.error("[host-space:post] error:", err.message);
+    res.status(500).json({ ok: false, reason: "post_failed" });
+  }
+});
+
 app.get("/host/events/:id/guests", requireAuth, async (req, res) => {
   try {
     const event = await findEventById(req.params.id);

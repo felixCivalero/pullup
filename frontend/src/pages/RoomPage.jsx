@@ -215,6 +215,67 @@ function PersonCard({ person, active, onClick, events }) {
 }
 
 // ─── Side panel: one person's unified, cross-event thread ───────────
+// Email-style picker — two tappable mini-previews so you SEE the difference
+// instead of guessing what "dress up" means. Plain = hand-typed personal note;
+// Branded = wrapped in the host's brand (accent header, avatar, footer). Only
+// shown on the Email rail (WhatsApp is always native). `branded` is the boolean
+// the composer already sends.
+function StyleCards({ branded, setBranded }) {
+  const line = (w, mb = 4) => (
+    <div style={{ height: 4, borderRadius: 2, background: colors.border, width: w, marginBottom: mb }} />
+  );
+  const Card = ({ active, onClick, label, children, note }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        flex: 1,
+        minWidth: 0,
+        textAlign: "left",
+        cursor: "pointer",
+        border: `2px solid ${active ? colors.accent : colors.border}`,
+        background: colors.surface,
+        borderRadius: 12,
+        padding: 8,
+        boxShadow: active ? `0 0 0 3px ${colors.accentSoft}` : "none",
+        transition: "border-color .12s, box-shadow .12s",
+      }}
+    >
+      <div style={{ height: 56, borderRadius: 7, overflow: "hidden", background: colors.surfaceMuted, marginBottom: 7 }}>
+        {children}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: active ? colors.accent : colors.text }}>{label}</span>
+        {active && <span style={{ fontSize: 12, color: colors.accent, fontWeight: 800 }}>✓</span>}
+      </div>
+      <div style={{ fontSize: 10, color: colors.textSubtle, marginTop: 2, lineHeight: 1.3 }}>{note}</div>
+    </button>
+  );
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: colors.textSubtle, marginBottom: 6 }}>Email style</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <Card active={!branded} onClick={() => setBranded(false)} label="Plain note" note="Looks hand-typed">
+          <div style={{ padding: 9 }}>
+            {line("72%")}{line("88%")}{line("54%")}{line("80%", 0)}
+          </div>
+        </Card>
+        <Card active={branded} onClick={() => setBranded(true)} label="Branded" note="Your colors + avatar">
+          <div>
+            <div style={{ height: 16, background: colors.accent, display: "flex", alignItems: "center", paddingLeft: 7 }}>
+              <div style={{ width: 9, height: 9, borderRadius: "50%", background: "rgba(255,255,255,.9)" }} />
+            </div>
+            <div style={{ padding: "7px 9px" }}>
+              {line("80%")}{line("60%")}
+              <div style={{ height: 3, borderRadius: 2, background: colors.border, width: "45%", marginTop: 6, opacity: 0.6 }} />
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 function ThreadPanel({ person, onClose, igAccounts = [] }) {
   const { showToast } = useToast();
   const [draft, setDraft] = useState("");
@@ -387,16 +448,9 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
           })}
         </div>
 
-        {/* Brand-as-opt-in: plain by default; "dress up" wraps the email in the
-            host's brand. Only meaningful on the email rail (incl. WA→email floor). */}
-        {rail !== "instagram" && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "9px" }}>
-            <button onClick={() => setBranded((b) => !b)} title="Dress this email in your brand — colors, avatar, footer. Off sends a plain personal note." style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 600, color: branded ? "#fff" : colors.textMuted, background: branded ? colors.accent : colors.surfaceMuted, border: `1px solid ${branded ? colors.accent : colors.border}`, padding: "4px 10px", borderRadius: "999px", cursor: "pointer" }}>
-              <span style={{ fontSize: "10px" }}>✦</span>{branded ? "Branded" : "Dress up"}
-            </button>
-            <span style={{ fontSize: "10.5px", color: colors.textSubtle }}>{branded ? "Styled with your brand" : "Plain personal note"}</span>
-          </div>
-        )}
+        {/* Email-style picker — see Plain vs Branded, tap to choose. Email rail
+            only (WhatsApp is always native). `branded` flows to the send. */}
+        {rail === "email" && <StyleCards branded={branded} setBranded={setBranded} />}
 
         {/* Reply-from picker — only when on Instagram with 2+ connected accounts. */}
         {rail === "instagram" && igAccounts.length >= 2 && (
@@ -568,12 +622,7 @@ function BulkPanel({ people, onClose, onClear }) {
         <div style={{ fontSize: "11px", color: colors.textSubtle, marginBottom: "8px" }}>
           One private message each, not a group — WhatsApp where they're reachable, email otherwise.
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "9px" }}>
-          <button onClick={() => setBranded((b) => !b)} title="Dress the email in your brand — colors, avatar, footer. Off sends a plain personal note." style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 600, color: branded ? "#fff" : colors.textMuted, background: branded ? colors.accent : colors.surfaceMuted, border: `1px solid ${branded ? colors.accent : colors.border}`, padding: "4px 10px", borderRadius: "999px", cursor: "pointer" }}>
-            <span style={{ fontSize: "10px" }}>✦</span>{branded ? "Branded" : "Dress up"}
-          </button>
-          <span style={{ fontSize: "10.5px", color: colors.textSubtle }}>{branded ? "Styled with your brand" : "Plain personal note"}</span>
-        </div>
+        <StyleCards branded={branded} setBranded={setBranded} />
         {/* Attachment chips */}
         {(attachments.length > 0 || uploading) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "9px" }}>

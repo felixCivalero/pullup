@@ -827,11 +827,14 @@ export default function EventRoomPage() {
         <div style={{ maxWidth: "720px", margin: "0 auto", padding: "28px 20px 60px" }}>
           {/* Event identity — this room IS this event. */}
           <div style={{ marginBottom: "22px" }}>
-            {ev?.cover && (
-              <div style={{ height: 150, borderRadius: "18px", overflow: "hidden", marginBottom: "14px", background: colors.surfaceMuted }}>
-                <img src={ev.cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              </div>
-            )}
+            {/* Banner: always a soft branded gradient; the cover paints over it
+                only if it actually loads (a missing/broken URL just shows the
+                gradient — never a broken-image icon). */}
+            <div style={{ height: 150, borderRadius: "18px", overflow: "hidden", marginBottom: "14px", background: "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)" }}>
+              {ev?.cover && (
+                <img src={ev.cover} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              )}
+            </div>
             <h1 style={{ fontSize: "26px", fontWeight: 750, color: colors.text, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: SF }}>
               {ev?.title || "The Room"}
             </h1>

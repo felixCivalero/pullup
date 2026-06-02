@@ -5575,8 +5575,17 @@ app.get("/host/events/:id/roster", requireAuth, async (req, res) => {
       .map((r) => ({ id: r.person_id, name: r.people?.name || "Someone" }));
 
     const end = ev?.ends_at ? new Date(ev.ends_at).getTime() : (ev?.starts_at ? new Date(ev.starts_at).getTime() + 12 * 3600 * 1000 : null);
+    // Resolve the cover to a real public URL — a bare storage_path renders as a
+    // broken banner otherwise.
+    let cover = ev?.cover_image_url || ev?.image_url || null;
+    if (cover && !cover.startsWith("http")) {
+      const match = cover.match(/event-images\/([^?]+)/);
+      const fp = match ? match[1] : cover;
+      const { data: pub } = supabase.storage.from("event-images").getPublicUrl(fp);
+      if (pub?.publicUrl) cover = pub.publicUrl;
+    }
     res.json({
-      event: ev ? { title: ev.title, cover: ev.cover_image_url || ev.image_url || null, startsAt: ev.starts_at, location: ev.location, status: ev.status, ended: end != null && Date.now() > end } : null,
+      event: ev ? { title: ev.title, cover, startsAt: ev.starts_at, location: ev.location, status: ev.status, ended: end != null && Date.now() > end } : null,
       coming, pulledUp, comingCount: coming.length, pulledUpCount: pulledUp.length,
     });
   } catch (err) {

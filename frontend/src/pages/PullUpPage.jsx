@@ -18,15 +18,15 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { publicFetch } from "../lib/api.js";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 
-const INK = "#f5f4f7";
-const MUTED = "rgba(245,244,247,0.55)";
-const FAINT = "rgba(245,244,247,0.35)";
+const INK = "#0a0a0a";
+const MUTED = "rgba(10,10,10,0.60)";
+const FAINT = "rgba(10,10,10,0.40)";
 const PINK = "#ec178f";
-const CARD = "rgba(255,255,255,0.04)";
-const BORDER = "rgba(255,255,255,0.10)";
+const CARD = "#ffffff";
+const BORDER = "rgba(10,10,10,0.10)";
 
 const wrap = {
-  minHeight: "100dvh", background: "#08070d", color: INK,
+  minHeight: "100dvh", background: "#fafafa", color: INK,
   fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
   display: "flex", alignItems: "center", justifyContent: "center", padding: "24px",
 };
@@ -150,7 +150,7 @@ export default function PullUpPage() {
               <div style={{ fontSize: 11, color: FAINT, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Who else pulled up</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {interior.coPresent.slice(0, 12).map((p) => (
-                  <span key={p.id} style={{ fontSize: 13, padding: "5px 11px", borderRadius: 999, background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }}>
+                  <span key={p.id} style={{ fontSize: 13, padding: "5px 11px", borderRadius: 999, background: "#f4f4f5", border: `1px solid ${BORDER}` }}>
                     {p.name || "Someone"}
                   </span>
                 ))}
@@ -161,7 +161,7 @@ export default function PullUpPage() {
           {interior?.photos?.length > 0 && (
             <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
               {interior.photos.slice(0, 6).map((ph) => (
-                <div key={ph.id} style={{ aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: "rgba(255,255,255,0.05)" }}>
+                <div key={ph.id} style={{ aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: "#f4f4f5" }}>
                   {ph.url && <img src={ph.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                 </div>
               ))}
@@ -170,7 +170,7 @@ export default function PullUpPage() {
 
           <div style={{ marginTop: 24, borderTop: `1px solid ${BORDER}`, paddingTop: 18 }}>
             <div style={{ fontSize: 11, color: FAINT, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>The room · talk</div>
-            <RoomConversation dark canCreateTopic={false} api={guestApi} />
+            <RoomConversation canCreateTopic={false} api={guestApi} />
           </div>
         </div>
       </div>
@@ -228,7 +228,7 @@ export default function PullUpPage() {
         </p>
 
         {teaser && (
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", padding: "14px 16px", borderRadius: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, marginBottom: 20, fontSize: 13.5, color: MUTED }}>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", padding: "14px 16px", borderRadius: 14, background: "#fafafa", border: `1px solid ${BORDER}`, marginBottom: 20, fontSize: 13.5, color: MUTED }}>
             <span><b style={{ color: INK }}>{teaser.peopleInside}</b> pulled up</span>
             {teaser.photoCount > 0 && <span>· <b style={{ color: INK }}>{teaser.photoCount}</b> photos inside</span>}
             {teaser.conversationLive && <span>· the room's live</span>}
@@ -259,6 +259,6 @@ export default function PullUpPage() {
 }
 
 
-const inputStyle = { width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 12, border: `1px solid ${BORDER}`, background: "rgba(255,255,255,0.04)", color: INK, fontSize: 15, outline: "none" };
+const inputStyle = { width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 12, border: `1px solid ${BORDER}`, background: "#fff", color: INK, fontSize: 15, outline: "none" };
 const btnStyle = { width: "100%", marginTop: 16, padding: "14px", borderRadius: 12, border: "none", background: PINK, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" };
 const ghostBtn = { padding: "10px 18px", borderRadius: 10, border: `1px solid ${BORDER}`, background: "transparent", color: INK, fontSize: 14, fontWeight: 600, cursor: "pointer" };

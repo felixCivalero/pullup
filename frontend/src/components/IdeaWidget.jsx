@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { X, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
+import { X, Sparkles, ChevronRight, ExternalLink, MessageCircle, Wand2 } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useHostResource } from "../contexts/useHostResource.js";
@@ -9,6 +9,15 @@ import { addSpotifySection, addInstagramField } from "../lib/coachMutations.js";
 import { useMcpStatus } from "../lib/useMcpStatus.js";
 import { colors } from "../theme/colors.js";
 import { CanvasChat } from "./CanvasChat.jsx";
+import DockMessages from "./DockMessages.jsx";
+
+// The two-face toggle at the top of the dock: Messages ↔ Create.
+const dockTabStyle = (on) => ({
+  flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+  padding: "7px 10px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+  border: `1px solid ${on ? colors.accent : colors.border}`,
+  background: on ? colors.accent : "transparent", color: on ? "#fff" : colors.textMuted,
+});
 
 // "publish_event" → "Published this", "draft_campaign" → "Drafted a campaign", etc.
 // Pure presentation — keeps the narration line readable without a round-trip.
@@ -89,6 +98,10 @@ export function IdeaWidget() {
   const [, setSearchParams] = useSearchParams();
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
   const [open, setOpen] = useState(false);
+  // The dock has two faces the host toggles between: their messages (the
+  // pullup chat — talk to your people) and Create (the event-building AI).
+  // Messages is the default home; a build surface flips it to Create.
+  const [dockTab, setDockTab] = useState("messages");
 
   // The create/edit page broadcasts the event being built so the dock can
   // become a live build chat (the /create-scoped canvas). Null elsewhere.
@@ -98,9 +111,9 @@ export function IdeaWidget() {
     window.addEventListener("pullup:canvas-context", onContext);
     return () => window.removeEventListener("pullup:canvas-context", onContext);
   }, []);
-  // When a build surface is present, auto-open the dock so the chat is right there.
+  // When a build surface is present, auto-open the dock on the Create face.
   useEffect(() => {
-    if (canvasEventId) setOpen(true);
+    if (canvasEventId) { setOpen(true); setDockTab("create"); }
   }, [canvasEventId]);
 
   // The floating slot has three modes derived from auth + MCP connection
@@ -137,7 +150,6 @@ export function IdeaWidget() {
     }
   }
   const inAiMode = mode === "coach" || mode === "brand";
-  const isPromo = mode === "promo-connect";
 
   // Coach suggestions for the AI mode panel. Fetched once we enter coach
   // mode (which requires a resource — brand mode skips this entirely).
@@ -322,123 +334,6 @@ export function IdeaWidget() {
   if (mode === null) return null;
 
   // Promo mode: MCP pitch for hosts who haven't wired up a token yet.
-  if (isPromo) {
-    const cta = { label: "Connect MCP", href: "/settings" };
-    return (
-      <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
-        {open && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: 56,
-              right: 0,
-              width: 320,
-              background: colors.background,
-              border: `1px solid ${colors.border}`,
-              borderRadius: 16,
-              padding: 18,
-              boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 10,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 7, color: colors.gold }}>
-                <Sparkles size={14} />
-                <span
-                  style={{
-                    fontSize: 11,
-                    letterSpacing: 0.8,
-                    textTransform: "uppercase",
-                    fontWeight: 600,
-                  }}
-                >
-                  PullUp MCP
-                </span>
-              </div>
-              <button
-                onClick={() => setOpen(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 4,
-                  color: colors.textSubtle,
-                }}
-                aria-label="Close"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div style={{ fontSize: 13, lineHeight: 1.5, color: colors.textMuted, marginBottom: 14 }}>
-              Connect PullUp to claude.ai (or any MCP-capable AI). Once linked, you can draft events, reach the people in your Room, and answer 'who's coming on Saturday' from chat. Takes ~30 seconds.
-            </div>
-            <a
-              href={cta.href}
-              onClick={(e) => {
-                e.preventDefault();
-                navigate(cta.href);
-                setOpen(false);
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                padding: "10px 14px",
-                borderRadius: 10,
-                border: `1px solid rgba(180, 83, 9, 0.35)`,
-                background: `rgba(180, 83, 9, 0.06)`,
-                color: colors.gold,
-                fontSize: 13,
-                fontWeight: 600,
-                textDecoration: "none",
-                cursor: "pointer",
-              }}
-            >
-              {cta.label}
-            </a>
-          </div>
-        )}
-
-        <button
-          onClick={() => setOpen((prev) => !prev)}
-          title="Connect PullUp to your AI"
-          style={{
-            borderRadius: 999,
-            border: `1px solid rgba(180, 83, 9, 0.25)`,
-            background: `rgba(180, 83, 9, 0.06)`,
-            boxShadow: "0 4px 16px rgba(10,10,10,0.08)",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 7,
-            color: colors.gold,
-            transition: "all 0.15s ease",
-            padding: "10px 14px 10px 12px",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = `rgba(180, 83, 9, 0.10)`;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = `rgba(180, 83, 9, 0.06)`;
-          }}
-        >
-          <Sparkles size={18} />
-          <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
-            Connect MCP
-          </span>
-        </button>
-      </div>
-    );
-  }
-
-  if (inAiMode) {
     return (
       <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
         {open && (
@@ -491,6 +386,23 @@ export function IdeaWidget() {
                 <X size={16} />
               </button>
             </div>
+
+            <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+              <button onClick={() => setDockTab("messages")} style={dockTabStyle(dockTab === "messages")}><MessageCircle size={14} /> Messages</button>
+              <button onClick={() => setDockTab("create")} style={dockTabStyle(dockTab === "create")}><Wand2 size={14} /> Create</button>
+            </div>
+
+            {dockTab === "messages" ? (
+              <DockMessages />
+            ) : (!mcpStatus.connected && !canvasEventId) ? (
+              <div style={{ padding: "4px 0 8px" }}>
+                <div style={{ fontSize: 13, lineHeight: 1.5, color: colors.textMuted, marginBottom: 12 }}>
+                  Connect PullUp to claude.ai (or any MCP-capable AI) and build events from chat — draft, edit, answer "who's coming Saturday." ~30 seconds.
+                </div>
+                <button onClick={() => { navigate("/settings"); setOpen(false); }} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(180,83,9,0.35)", background: "rgba(180,83,9,0.06)", color: colors.gold, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Connect your AI</button>
+              </div>
+            ) : (
+              <>
 
             {canvasEventId && (
               <div style={{ height: "min(72vh, 540px)" }}>
@@ -722,6 +634,8 @@ export function IdeaWidget() {
             )}
             </>
             )}
+            </>
+            )}
           </div>
         )}
 
@@ -762,8 +676,5 @@ export function IdeaWidget() {
         </button>
       </div>
     );
-  }
 
-  // Defensive — all real modes are handled above.
-  return null;
 }

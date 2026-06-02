@@ -557,53 +557,74 @@ function Brief({ brief, onOpenPerson }) {
   );
 }
 
+// Roster — who's in the room, on the lifecycle: RSVP'd (coming) first, then
+// pull-up-only (showed). The shared area's "who's here", not a CRM of threads.
+function Roster({ roster }) {
+  if (!roster) return null;
+  const Group = ({ label, people, accent }) => (
+    <div style={{ marginBottom: "18px" }}>
+      <div style={{ fontSize: "12px", fontWeight: 700, color: accent ? colors.accent : colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "10px" }}>
+        {label} · {people.length}
+      </div>
+      {people.length === 0 ? (
+        <div style={{ fontSize: "13px", color: colors.textFaded }}>—</div>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          {people.map((p) => (
+            <span key={p.id} style={{ fontSize: "13px", padding: "5px 12px", borderRadius: 999, background: colors.surface, border: `1px solid ${colors.border}`, color: colors.text }}>{p.name}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+  return (
+    <div style={{ marginTop: "8px" }}>
+      <Group label="Pulled up" people={roster.pulledUp || []} accent />
+      <Group label="Coming (RSVP'd)" people={roster.coming || []} />
+    </div>
+  );
+}
+
 export default function EventRoomPage() {
   const { id } = useParams();
   const { setEventNav } = useEventNav();
-  const [selectedId, setSelectedId] = useState(null);
+  const [roster, setRoster] = useState(null);
 
-  // Dummy event for now; sets the top-bar nav like the other event pages.
   useEffect(() => {
-    setEventNav({
-      title: ROOM_EVENT.title,
-      slug: "sunset-vol-4",
-      status: "LIVE",
-      guestsCount: ROOM_EVENT.comingCount,
-      myRole: "host",
-    });
-  }, [setEventNav]);
+    let alive = true;
+    authenticatedFetch(`/host/events/${id}/roster`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d) return;
+        setRoster(d);
+        setEventNav({ title: d.event?.title || "Event", status: d.event?.ended ? "PASSED" : (d.event?.status || "LIVE"), guestsCount: d.pulledUpCount, myRole: "host" });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [id, setEventNav]);
 
-  // Rank: who needs you first, then by warmth. Stage stays backstage.
-  const ranked = useMemo(() => {
-    return [...ROOM_PEOPLE].sort((a, b) => {
-      if (a.needsYou !== b.needsYou) return a.needsYou ? -1 : 1;
-      return b.warmth - a.warmth;
-    });
-  }, []);
-
-  const selected = ranked.find((p) => p.id === selectedId) || null;
-  const needsCount = ranked.filter((p) => p.needsYou).length;
+  const ev = roster?.event;
+  const when = ev?.startsAt ? new Date(ev.startsAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : null;
 
   return (
     <div style={{ display: "flex", height: "100vh", paddingTop: "58px", boxSizing: "border-box" }}>
-      {/* Left: the room */}
-      <div
-        style={{
-          flex: selected ? "1 1 0" : "1 1 100%",
-          overflowY: "auto",
-          transition: "flex 0.2s ease",
-          minWidth: 0,
-        }}
-      >
+      <div style={{ flex: "1 1 100%", overflowY: "auto", minWidth: 0 }}>
         <div style={{ maxWidth: "720px", margin: "0 auto", padding: "28px 20px 60px" }}>
-          {/* Title */}
-          <div style={{ marginBottom: "20px" }}>
+          {/* Event identity — this room IS this event. */}
+          <div style={{ marginBottom: "22px" }}>
+            {ev?.cover && (
+              <div style={{ height: 150, borderRadius: "18px", overflow: "hidden", marginBottom: "14px", background: colors.surfaceMuted }}>
+                <img src={ev.cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+            )}
             <h1 style={{ fontSize: "26px", fontWeight: 750, color: colors.text, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: SF }}>
-              The Room
+              {ev?.title || "The Room"}
             </h1>
             <div style={{ fontSize: "13.5px", color: colors.textMuted }}>
-              {ROOM_EVENT.comingCount} coming · {ROOM_EVENT.capacity - ROOM_EVENT.comingCount} spots left
-              {needsCount > 0 && <> · <span style={{ color: colors.accent, fontWeight: 600 }}>{needsCount} need you</span></>}
+              {[when, ev?.location].filter(Boolean).join(" · ")}
+              {(when || ev?.location) && " · "}
+              <span style={{ color: colors.accent, fontWeight: 600 }}>{roster?.pulledUpCount ?? 0} pulled up</span>
+              {roster?.comingCount ? ` · ${roster.comingCount} coming` : ""}
             </div>
           </div>
 
@@ -611,37 +632,9 @@ export default function EventRoomPage() {
 
           <HostRoomSpace eventId={id} />
 
-          <Brief brief={ROOM_BRIEF} onOpenPerson={setSelectedId} />
-
-          {/* People as living threads */}
-          <div>
-            {ranked.map((p) => (
-              <PersonCard
-                key={p.id}
-                person={p}
-                active={p.id === selectedId}
-                onClick={() => setSelectedId(p.id === selectedId ? null : p.id)}
-              />
-            ))}
-          </div>
+          <Roster roster={roster} />
         </div>
       </div>
-
-      {/* Right: thread panel, in place */}
-      {selected && (
-        <div
-          style={{
-            width: "420px",
-            flexShrink: 0,
-            borderLeft: `1px solid ${colors.border}`,
-            background: colors.surface,
-            height: "100%",
-            boxShadow: "-12px 0 40px rgba(10,10,10,0.04)",
-          }}
-        >
-          <ThreadPanel person={selected} onClose={() => setSelectedId(null)} />
-        </div>
-      )}
     </div>
   );
 }

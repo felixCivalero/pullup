@@ -5480,6 +5480,39 @@ app.post("/host/events/:id/space", requireAuth, async (req, res) => {
   }
 });
 
+// The event-room roster — who's here, on the lifecycle: RSVP'd (coming) first,
+// then pull-up-only (showed). The shared area's "who's in the room", not a CRM.
+app.get("/host/events/:id/roster", requireAuth, async (req, res) => {
+  try {
+    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { supabase } = await import("./supabase.js");
+    const eventId = req.params.id;
+
+    const [{ data: ev }, { data: rsvpRows }, { data: pullRows }] = await Promise.all([
+      supabase.from("events").select("title, cover_image_url, image_url, starts_at, ends_at, location, status").eq("id", eventId).maybeSingle(),
+      supabase.from("rsvps").select("person_id, people:person_id ( name )").eq("event_id", eventId),
+      supabase.from("pullups").select("person_id, verified_at, people:person_id ( name )").eq("event_id", eventId).order("verified_at"),
+    ]);
+
+    const pulledIds = new Set((pullRows || []).map((r) => r.person_id));
+    const pulledUp = (pullRows || []).map((r) => ({ id: r.person_id, name: r.people?.name || "Someone" }));
+    // "Coming" = RSVP'd but not yet pulled up (intent still pending presence).
+    const coming = (rsvpRows || [])
+      .filter((r) => !pulledIds.has(r.person_id))
+      .map((r) => ({ id: r.person_id, name: r.people?.name || "Someone" }));
+
+    const end = ev?.ends_at ? new Date(ev.ends_at).getTime() : (ev?.starts_at ? new Date(ev.starts_at).getTime() + 12 * 3600 * 1000 : null);
+    res.json({
+      event: ev ? { title: ev.title, cover: ev.cover_image_url || ev.image_url || null, startsAt: ev.starts_at, location: ev.location, status: ev.status, ended: end != null && Date.now() > end } : null,
+      coming, pulledUp, comingCount: coming.length, pulledUpCount: pulledUp.length,
+    });
+  } catch (err) {
+    console.error("[roster] error:", err.message);
+    res.status(500).json({ error: "Failed to load roster" });
+  }
+});
+
 app.get("/host/events/:id/guests", requireAuth, async (req, res) => {
   try {
     const event = await findEventById(req.params.id);

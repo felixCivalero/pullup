@@ -27,7 +27,7 @@ export const prompts = [
     name: "weekly_check_in",
     title: "Weekly check-in",
     description:
-      "Pull a sharp one-screen summary of the last 7 days: RSVPs received, revenue, page views, trending events, and any campaigns sent. Good Monday-morning ritual.",
+      "Pull a sharp one-screen summary of the last 7 days: RSVPs received, revenue, page views, and trending events. Good Monday-morning ritual.",
     argsSchema: {},
     handler: () => ({
       messages: [
@@ -39,9 +39,8 @@ export const prompts = [
               "Give me my PullUp check-in for the last 7 days.\n\n" +
               "Use these tools in order, then summarise:\n" +
               "1. get_recent_activity with days=7\n" +
-              "2. get_revenue_summary (note the gross/net line items)\n" +
-              "3. list_campaigns with limit=3 to spot any recent sends\n\n" +
-              "Present as a short, scannable list. Flag anything notable: a trending event, a drop vs prior week, a campaign with unusually high/low open rate. No fluff — what's worth my attention.",
+              "2. get_revenue_summary (note the gross/net line items)\n\n" +
+              "Present as a short, scannable list. Flag anything notable: a trending event, a drop vs prior week. No fluff — what's worth my attention.",
           },
         },
       ],
@@ -74,38 +73,6 @@ export const prompts = [
               "4. Once I confirm, call duplicate_event and update_event as needed to apply changes.\n" +
               "5. End by sharing the preview URL so I can take a look.\n\n" +
               "Keep the conversation tight. Don't publish — leave it as DRAFT.",
-          },
-        },
-      ],
-    }),
-  },
-
-  // ─── Follow-up campaign to last event's guests ───────────────────
-  {
-    name: "draft_follow_up",
-    title: "Draft a follow-up email to last event's guests",
-    description:
-      "Compose a warm post-event email to the people who attended a specific event. Returns a DRAFT — nothing is sent until you confirm.",
-    argsSchema: {
-      eventSlug: z.string().describe("Slug of the event the follow-up is about."),
-      tone: z.string().optional().describe(
-        "Optional tone hint (e.g. 'casual', 'grateful', 'professional'). Defaults to warm and genuine."
-      ),
-    },
-    handler: ({ eventSlug, tone }) => ({
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text:
-              `Help me draft a follow-up email to people who attended ${eventSlug}.\n\n` +
-              `Steps:\n` +
-              `1. Call get_event with slug='${eventSlug}' so you have the title and details for context.\n` +
-              `2. Call query_people with attendedEventSlug='${eventSlug}' to get the audience size.\n` +
-              `3. Draft a subject + body. Tone: ${tone || "warm, genuine, not corporate"}. Keep under 120 words.\n` +
-              `4. Show me the draft and confirm before calling draft_campaign.\n` +
-              `5. After draft_campaign, share the preview URL. Do NOT call send_campaign — wait for me to explicitly say "send it".`,
           },
         },
       ],

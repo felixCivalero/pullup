@@ -64,41 +64,8 @@ export function keyToEventIntent(key, _suggestion, ctx) {
       };
     case "perf_filling":
       return { type: "navigate", url: edit, focus: "tickets" };
-    case "perf_quiet":
-      // No campaigns sent yet — drop into the CRM with the event preselected.
-      return { type: "navigate", url: `/crm?eventId=${event.id}` };
     case "perf_low_conversion":
-    case "perf_campaign_weak":
       return { type: "navigate", url: `/app/events/${event.id}/analytics` };
-    default:
-      return null;
-  }
-}
-
-// analyzeCampaign keys → intents. Most campaign suggestions are about subject
-// quality or audience size; both surface inside CrmPage already — clicking
-// the button just routes to the right tab.
-export function keyToCampaignIntent(key, _suggestion, ctx) {
-  const { campaign } = ctx;
-  if (!campaign) return null;
-  const composeUrl = `/crm?campaignId=${campaign.id}`;
-  switch (key) {
-    case "camp_subject_missing":
-    case "camp_subject_weak":
-    case "camp_subject_urgency_overuse":
-      // Email tab, subject field gets implicit focus when the host scrolls there.
-      return { type: "navigate", url: composeUrl, tab: "email" };
-    case "camp_audience_empty":
-    case "camp_audience_huge":
-      return { type: "navigate", url: composeUrl, tab: "segment" };
-    case "camp_event_freshness_old":
-    case "camp_event_freshness_no_event":
-      return campaign.eventId
-        ? { type: "navigate", url: `/app/events/${campaign.eventId}/edit` }
-        : null;
-    case "camp_preview_gate":
-      // Host is already on the preview page; no useful one-tap shortcut.
-      return null;
     default:
       return null;
   }

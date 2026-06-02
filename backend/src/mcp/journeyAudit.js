@@ -6,7 +6,6 @@
 //   1. social   — the share card / OG image / handoff from IG/WhatsApp/etc.
 //   2. page     — the event page itself (cover, copy, vibe links).
 //   3. form     — RSVP friction.
-//   4. emails   — confirmation, day-of reminder, post-event follow-up.
 //
 // We don't duplicate analyzeEvent's heuristics here. Page-stage fixes are
 // pulled straight from the journey-tagged suggestions it already returns.
@@ -20,7 +19,6 @@ export function auditJourney({
   host = null,
   allEvents = [],
   media = [],
-  campaigns = [],
   brief = "",
   analytics = null,
 } = {}) {
@@ -121,75 +119,9 @@ export function auditJourney({
     });
   }
 
-  // ── 4. Emails (campaign coverage for this event) ──────────────────
-  {
-    const fixes = [];
-    const eventCamps = (campaigns || []).filter(
-      (c) => c && (c.eventId === event.id || c.eventSlug === slug),
-    );
-    const sentCamps = eventCamps.filter(
-      (c) => (c.status || "").toLowerCase() === "sent",
-    );
-    const draftCamps = eventCamps.filter(
-      (c) => (c.status || "").toLowerCase() === "draft",
-    );
-
-    const startsAt = event.startsAt ? new Date(event.startsAt).getTime() : null;
-    const now = Date.now();
-
-    if (event.status === "PUBLISHED" && startsAt && startsAt > now) {
-      const daysOut = (startsAt - now) / 86400000;
-      // Upcoming event, published, and the host hasn't queued *any*
-      // promo. The single biggest gap in most journeys.
-      if (eventCamps.length === 0 && daysOut > 2) {
-        fixes.push({
-          key: "emails_no_promo",
-          score: 85,
-          headline: "No email has been drafted for this event",
-          why: "Page is live but the audience that already knows you hasn't been pinged. A short email to past attendees is usually the highest-converting share you have.",
-          call: `draft_campaign({ subject: "…", eventSlug: "${slug}", templateType: "event" })`,
-        });
-      }
-      // Sub-24h, no day-of reminder queued.
-      if (daysOut < 1 && sentCamps.length === 0 && draftCamps.length === 0) {
-        fixes.push({
-          key: "emails_no_day_of",
-          score: 75,
-          headline: "Day-of: no reminder going out",
-          why: "Confirmations from days ago get buried. A 2-line same-day note (address, time, what to bring) is the difference between RSVPs and pull-ups.",
-          call: `draft_campaign({ subject: "Tonight — see you at …", eventSlug: "${slug}", templateType: "event" })`,
-        });
-      }
-    }
-
-    if (event.status === "PUBLISHED" && startsAt && startsAt <= now) {
-      const daysAgo = (now - startsAt) / 86400000;
-      // Past event, no follow-up sent within the warm window.
-      const followups = sentCamps.filter(
-        (c) => (c.templateType || c.template_type || "") === "followup",
-      );
-      if (daysAgo > 1 && daysAgo < 14 && followups.length === 0) {
-        fixes.push({
-          key: "emails_no_followup",
-          score: 80,
-          headline: "No follow-up to last guests",
-          why: `Event was ${Math.round(daysAgo)} day${Math.round(daysAgo) === 1 ? "" : "s"} ago. The warm window for a 'thanks for coming + what's next' note closes around two weeks.`,
-          call: `draft_campaign({ subject: "Thanks for …", eventSlug: "${slug}", templateType: "followup", filterAttendedEventSlug: "${slug}" })`,
-        });
-      }
-    }
-
-    stages.emails = stageOf("Emails", fixes, {
-      good:
-        eventCamps.length > 0
-          ? `${sentCamps.length} sent, ${draftCamps.length} drafted — email coverage looks intentional.`
-          : "Nothing yet, but timing isn't urgent for this event.",
-    });
-  }
-
   // ── Rank breakpoints across all stages ────────────────────────────
   const ranked = []
-    .concat(stages.social.fixes, stages.page.fixes, stages.form.fixes, stages.emails.fixes)
+    .concat(stages.social.fixes, stages.page.fixes, stages.form.fixes)
     .sort((a, b) => b.score - a.score);
 
   return {

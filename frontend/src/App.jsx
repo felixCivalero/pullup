@@ -22,7 +22,6 @@ import { LandingPage } from "./pages/LandingPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { NewsletterPage } from "./pages/NewsletterPage";
-import { CrmPage } from "./pages/CrmPage";
 import { UnsubscribePage } from "./pages/UnsubscribePage";
 import { CreateEventPage } from "./pages/CreateEventPage";
 import { EventPage } from "./pages/EventPage";
@@ -39,7 +38,6 @@ import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { IdeasPage } from "./pages/IdeasPage";
 import { AdminEventsPage } from "./pages/AdminEventsPage";
 import { AdminCrmPage } from "./pages/AdminCrmPage";
-import { AdminEmailPage } from "./pages/AdminEmailPage";
 import { AdminPresentationPage } from "./pages/AdminPresentationPage";
 import { EventAnalyticsPage } from "./pages/EventAnalyticsPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
@@ -111,8 +109,11 @@ function App() {
           <Route path="/events" element={<Navigate to="/room" replace />} />
           <Route path="/analytics" element={<HostAnalyticsPage />} />
           <Route path="/planner" element={<ContentPlannerPage />} />
-          <Route path="/crm" element={<CrmPage />} />
-          <Route path="/crm/compose" element={<Navigate to="/crm" replace />} />
+          {/* Host CRM composer / email campaigns were removed — relationships
+              live in the Room now, and the platform no longer sends styled mass
+              email. Redirect old links so they land on the Room, not a 404. */}
+          <Route path="/crm" element={<Navigate to="/room" replace />} />
+          <Route path="/crm/compose" element={<Navigate to="/room" replace />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/discover" element={<DiscoverPage />} />
           <Route path="/admin/analytics" element={<AnalyticsPage />} />
@@ -122,7 +123,8 @@ function App() {
           <Route path="/admin/ideas" element={<IdeasPage />} />
           <Route path="/admin/events" element={<AdminEventsPage />} />
           <Route path="/admin/crm" element={<AdminCrmPage />} />
-          <Route path="/admin/email" element={<AdminEmailPage />} />
+          {/* Admin platform newsletter / broadcast was removed with campaigns. */}
+          <Route path="/admin/email" element={<Navigate to="/admin/crm" replace />} />
           <Route path="/admin/presentation" element={<AdminPresentationPage />} />
           {/* Backwards-compat: /home used to point at the events dashboard;
               now it lands on the Room like everything else. */}

@@ -9,28 +9,6 @@ import {
   markComplaint,
 } from "../repos/emailOutboxRepo.js";
 import { upsertSuppression } from "../repos/emailSuppressionsRepo.js";
-import { supabase } from "../../supabase.js";
-
-async function updateCampaignSendDeliveryStatus(campaignSendId, status, extra = {}) {
-  if (!campaignSendId) return;
-  const now = new Date().toISOString();
-  const fields = { status, updated_at: now };
-  if (status === "delivered") fields.delivered_at = now;
-  else if (status === "bounced") fields.bounced_at = now;
-  else if (status === "complaint") fields.complained_at = now;
-  if (extra.errorMessage) fields.error_message = extra.errorMessage;
-
-  const { error } = await supabase
-    .from("campaign_sends")
-    .update(fields)
-    .eq("id", campaignSendId);
-  if (error) {
-    console.error(
-      "[processSesEvent] Failed to update campaign_sends status",
-      error,
-    );
-  }
-}
 
 function canonicalizeEventType(eventType) {
   if (eventType === "Delivery") return "delivery";
@@ -114,10 +92,6 @@ export async function processSesEvent(notification) {
 
   if (eventType === "Delivery") {
     await markDelivered(outboxRow.id);
-    await updateCampaignSendDeliveryStatus(
-      outboxRow.campaign_send_id,
-      "delivered",
-    );
   } else if (eventType === "Bounce") {
     const bounce = notification.bounce || {};
     const bounceType = bounce.bounceType || "";
@@ -127,12 +101,6 @@ export async function processSesEvent(notification) {
       errorCode: bounceType,
       errorMessage: bounce.bounceSubType || null,
     });
-
-    await updateCampaignSendDeliveryStatus(
-      outboxRow.campaign_send_id,
-      "bounced",
-      { errorMessage: [bounceType, bounce.bounceSubType].filter(Boolean).join(": ") || null },
-    );
 
     const recipients = bounce.bouncedRecipients || [];
     const toEmail =
@@ -152,12 +120,6 @@ export async function processSesEvent(notification) {
       errorCode: complaint.complaintFeedbackType || null,
       errorMessage: null,
     });
-
-    await updateCampaignSendDeliveryStatus(
-      outboxRow.campaign_send_id,
-      "complaint",
-      { errorMessage: complaint.complaintFeedbackType || null },
-    );
 
     const recipients = complaint.complainedRecipients || [];
     const toEmail =

@@ -419,22 +419,8 @@ export function analyzePerformance({ event, analytics } = {}) {
       key: "perf_quiet",
       score: 82,
       headline: "Hasn't picked up steam yet",
-      why: `Live ${Math.round(daysLive)} days, ${unique} visitor${unique === 1 ? "" : "s"}, ${rsvps} RSVP${rsvps === 1 ? "" : "s"}. A fresh share or a follow-up email to a past-event audience usually kickstarts the curve.`,
-      call: `draft_campaign({ subject: "…", eventSlug: "${slug}", templateType: "event" })`,
-    });
-  }
-
-  // Signal: campaigns attributed but conversion off the campaign is weak.
-  const camps = Array.isArray(analytics.campaigns) ? analytics.campaigns : [];
-  const campSent = camps.reduce((s, c) => s + (Number(c.sent) || 0), 0);
-  const campRsvps = camps.reduce((s, c) => s + (Number(c.rsvps) || 0), 0);
-  if (campSent >= 100 && (campRsvps / campSent) < 0.05) {
-    signals.push({
-      key: "perf_campaign_weak",
-      score: 75,
-      headline: "The campaign got opens but few sign-ups",
-      why: `${campSent} sends, ${campRsvps} attributed RSVP${campRsvps === 1 ? "" : "s"} (${Math.round((campRsvps / campSent) * 100)}%). Subject, audience, or the event page itself is the bottleneck.`,
-      call: `get_event_analytics({ slug: "${slug}" })  // look at sources + campaign breakdown`,
+      why: `Live ${Math.round(daysLive)} days, ${unique} visitor${unique === 1 ? "" : "s"}, ${rsvps} RSVP${rsvps === 1 ? "" : "s"}. A fresh share usually kickstarts the curve — and suggest_event_improvements flags what on the page might be holding it back.`,
+      call: `suggest_event_improvements({ slug: "${slug}" })`,
     });
   }
 
@@ -442,157 +428,6 @@ export function analyzePerformance({ event, analytics } = {}) {
     line: lineParts.length ? lineParts.join(" · ") : null,
     signals,
   };
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// CAMPAIGN COACH
-// ─────────────────────────────────────────────────────────────────────
-//
-// Score one email campaign on the things that actually move open / click
-// rates: subject quality, audience size sanity, and the preview-before-
-// send discipline. Same shape as event suggestions so the AI doesn't have
-// to learn a new format.
-//
-// `history` is the host's prior email performance, shaped like the result
-// of /host/crm/emails — at minimum: `{ totals, topByOpenRate: [...] }`.
-const GENERIC_SUBJECT_RE = /\b(newsletter|announcement|update|hello|hi there|important|our latest|monthly)\b/i;
-const URGENCY_OVERUSE_RE = /\b(don'?t miss|last chance|act now|hurry|urgent)\b/i;
-
-export function analyzeCampaign({ campaign, event, history = {}, brief = "" } = {}) {
-  if (!campaign) return { suggestions: [] };
-  const subject = (campaign.subject || "").trim();
-  const total = Number(campaign.totalRecipients || 0);
-  const status = (campaign.status || "draft").toLowerCase();
-  const id = campaign.id || campaign.campaignId || "";
-  const out = [];
-
-  // ── Subject quality ───────────────────────────────────────────────
-  if (!subject) {
-    out.push({
-      key: "camp_subject_missing",
-      score: 95,
-      headline: "Subject line is empty",
-      why: "Don't even try to send — empty subjects route straight to spam.",
-      call: null,
-    });
-  } else if (subject.length < 6) {
-    out.push({
-      key: "camp_subject_short",
-      score: 80,
-      headline: "Subject is too short to land",
-      why: "5 characters won't earn an open. Aim for 5–8 words that hint at the actual value of the event.",
-      call: null,
-    });
-  } else if (subject.length > 65) {
-    out.push({
-      key: "camp_subject_long",
-      score: 65,
-      headline: "Subject is long for mobile",
-      why: `${subject.length} chars. Most mobile previews truncate around 40–50 — write the hook first so it survives the cut.`,
-      call: null,
-    });
-  }
-
-  if (subject && GENERIC_SUBJECT_RE.test(subject)) {
-    out.push({
-      key: "camp_subject_generic",
-      score: 72,
-      headline: "Subject feels generic",
-      why: "Words like 'newsletter' or 'announcement' read as mass-mail. Anchor on the specific event or one concrete reason to open.",
-      call: null,
-    });
-  }
-  if (subject && URGENCY_OVERUSE_RE.test(subject)) {
-    out.push({
-      key: "camp_subject_urgency",
-      score: 55,
-      headline: "Urgency feels forced",
-      why: "'Last chance' / 'act now' lands as performative. Real urgency reads better: a fact ('12 spots left'), a date ('Sunday'), a specific name.",
-      call: null,
-    });
-  }
-
-  // ── Compare against host's top opens ──────────────────────────────
-  const top = Array.isArray(history.topByOpenRate) ? history.topByOpenRate : [];
-  if (subject && top.length > 0) {
-    const best = top[0];
-    if (best?.subject && best.subject.trim().toLowerCase() !== subject.toLowerCase()) {
-      out.push({
-        key: "camp_subject_compare",
-        score: 48,
-        headline: "Echo what's worked for this host",
-        why: `Highest opens so far: "${best.subject}" at ${Math.round((best.open_rate_pct || 0))}%. Look at why that one landed — first name? specific event? — and apply the pattern.`,
-        call: null,
-      });
-    }
-  }
-
-  // ── Audience size ─────────────────────────────────────────────────
-  if (total === 0) {
-    out.push({
-      key: "camp_audience_empty",
-      score: 92,
-      headline: "Audience resolved to 0 people",
-      why: "Your filter combination matched nobody. Widen it — drop the tag, pick a different past event, or remove the marketing-consent filter if appropriate — and re-draft.",
-      call: null,
-    });
-  } else if (total < 5) {
-    out.push({
-      key: "camp_audience_tiny",
-      score: 58,
-      headline: `Tiny audience (${total})`,
-      why: "For 5 or fewer, a personal DM/text usually beats an email — feels less broadcast-y.",
-      call: null,
-    });
-  }
-
-  // ── Event freshness sanity ────────────────────────────────────────
-  if (event?.startsAt) {
-    const days = (new Date(event.startsAt).getTime() - Date.now()) / 86400000;
-    if (campaign?.templateType !== "followup" && days < 0) {
-      out.push({
-        key: "camp_event_past",
-        score: 70,
-        headline: "The event is already in the past",
-        why: "This campaign is anchored to an event that's done. If it's a recap, switch templateType to 'followup'; if it's a new event, re-draft against the new slug.",
-        call: null,
-      });
-    } else if (campaign?.templateType !== "followup" && days < 1) {
-      out.push({
-        key: "camp_event_imminent",
-        score: 50,
-        headline: "Event is in <24h",
-        why: "Late sends still work — keep the tone urgent and personal, not promotional. A short text-only reminder usually beats a designed email at this point.",
-        call: null,
-      });
-    }
-  }
-
-  // ── Always remind about the preview gate while still drafting ────
-  if (status === "draft") {
-    out.push({
-      key: "camp_preview_gate",
-      score: 60,
-      headline: "Open the preview before send",
-      why: "Eyeball the rendered email — subject, copy, links — in the preview URL from draft_campaign. Then send_campaign with confirm: true. Never fire without that eyeball.",
-      call: id ? `get_campaign({ campaignId: "${id}" })  // includes the preview URL` : null,
-    });
-  }
-
-  // Brief-aware: if host's brief mentions paid/monetization, push for a CTA check
-  const hints = briefHints(brief);
-  if (hints.paid && status === "draft") {
-    out.push({
-      key: "camp_paid_cta",
-      score: 45,
-      headline: "Make the paid CTA obvious",
-      why: "Your brief mentions monetization — the email should make the ticket price + 'pay now' button impossible to miss. Don't bury it under three paragraphs.",
-      call: null,
-    });
-  }
-
-  out.sort((a, b) => b.score - a.score);
-  return { suggestions: out };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -662,17 +497,6 @@ export function analyzeCrmSignals({ segments = null, recent = null, brief = "" }
         call: null,
       });
     }
-  }
-
-  // ── Marketing-consent untapped ───────────────────────────────────
-  if ((s.marketing_consented || 0) >= 20 && (r.rsvpsReceived || 0) < (s.marketing_consented || 0) * 0.1) {
-    out.push({
-      key: "crm_consent_untapped",
-      score: 50,
-      headline: `${s.marketing_consented} people opted into marketing — most haven't heard from you recently`,
-      why: "Consented + silent is the worst of both worlds — you've got permission but no warmth. A short, low-stakes campaign keeps the channel alive.",
-      call: `draft_campaign({ subject: "…", eventSlug: "…" })`,
-    });
   }
 
   // Brief-aware reweighting

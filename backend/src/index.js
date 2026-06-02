@@ -5141,14 +5141,15 @@ app.get("/host/room", requireAuth, async (req, res) => {
   }
 });
 
-// Send a personal message from the Room composer. Rails: email + WhatsApp
-// (in-window free text / closed-window template, falling to email). `branded`
-// opts into the host's dressed-up email; default is the bare personal note.
+// Send a personal message from the Room composer. Native + simple: text, an
+// optional image, and an optionally-included event (eventId) — an inline card on
+// email, a link on WhatsApp/IG. Rails: email + WhatsApp (in-window free text /
+// closed-window template, falling to email). No campaign styling — that's gone.
 app.post("/host/room/message", requireAuth, async (req, res) => {
   try {
     const { sendRoomMessage } = await import("./services/roomMessaging.js");
-    const { personId, channel, text, subject, attachments, branded } = req.body || {};
-    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject, attachments, branded });
+    const { personId, channel, text, subject, attachments, eventId } = req.body || {};
+    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject, attachments, eventId });
     if (!r.ok) {
       return res.status(r.error === "channel_unavailable" ? 501 : 400).json(r);
     }
@@ -5159,32 +5160,18 @@ app.post("/host/room/message", requireAuth, async (req, res) => {
   }
 });
 
-// Bulk send — one private message each (not a group). The chosen rail is
-// honored per person; non-WhatsApp-reachable people fall to the email floor.
+// Small, event-anchored multi-send — one private message each (not a group).
+// Same simple composer; the chosen rail is honored per person and the included
+// event rides along (card on email, link on WhatsApp).
 app.post("/host/room/message/bulk", requireAuth, async (req, res) => {
   try {
     const { sendRoomBulk } = await import("./services/roomMessaging.js");
-    const { personIds, channel, text, subject, attachments, branded, template, eventId } = req.body || {};
-    const r = await sendRoomBulk({ hostId: req.user.id, personIds, channel, text, subject, attachments, branded, template, eventId });
+    const { personIds, channel, text, subject, attachments, eventId } = req.body || {};
+    const r = await sendRoomBulk({ hostId: req.user.id, personIds, channel, text, subject, attachments, eventId });
     res.json({ ok: true, ...r });
   } catch (error) {
     console.error("Error sending room bulk:", error);
     res.status(500).json({ ok: false, error: "send_failed" });
-  }
-});
-
-// Render a preview of a Room email (plain or branded) using the SAME renderer
-// as the real send — so the composer's style picker shows the host their actual
-// brand on their actual draft, not a blind toggle.
-app.post("/host/room/message/preview", requireAuth, async (req, res) => {
-  try {
-    const { renderRoomEmailHtml } = await import("./services/roomMessaging.js");
-    const { text, attachments, branded, template, eventId } = req.body || {};
-    const html = await renderRoomEmailHtml({ hostId: req.user.id, text, attachments, branded, template, eventId });
-    res.json({ ok: true, html });
-  } catch (error) {
-    console.error("Error rendering room preview:", error);
-    res.status(500).json({ ok: false, error: "preview_failed" });
   }
 });
 

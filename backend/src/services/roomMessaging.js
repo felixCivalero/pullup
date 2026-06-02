@@ -1,29 +1,30 @@
 // backend/src/services/roomMessaging.js
 //
-// Outbound 1:1 (and bulk) messaging straight from The Room composer.
+// Outbound messaging from The Room — 1:1 and small, event-anchored multi-sends.
 //
-// The Room talks to a PERSON, not a channel. The host picks a rail; we send on
-// the best honest version of it and log the real channel to the timeline:
+// PullUp comms are RELATIONSHIP-grade, not campaign-grade. Every message is
+// native and simple: words, maybe an image, and optionally a specific event
+// "included" so the recipient gets context. NO branded templates, NO block
+// designer, NO mass-marketing styling — that lives in the past (export your
+// contacts if you need to blast elsewhere). The styled lifecycle sends
+// (confirmations, reminders) run automatically and aren't composed here.
 //
-//   * email     — a personal, plain note (transactional category, no newsletter
-//                 chrome). Optionally "dressed up" with the host's brand when the
-//                 host opts in (brand lives on what you send, not how you send).
-//   * whatsapp  — free text when the 24h conversation window is open (they
-//                 messaged recently); otherwise a template via dispatch(), which
-//                 re-checks opt-in/suppression and falls to the email floor when
-//                 WhatsApp can't deliver (incl. templates not yet Meta-approved).
+//   * email     — a personal, plain note; an included event rides as a small
+//                 inline card (cover, title, date, link). transactional.
+//   * whatsapp  — free text inside the 24h window (else host_broadcast template
+//                 via dispatch → email floor); an included event rides as its
+//                 link (unfurls via the event's OG tags).
 //
 // Instagram outbound still needs the live send path; it honestly reports "not
 // available yet" rather than pretend to send.
 
-import { findPersonById, personBelongsToHost, getUserProfile, ensureUnsubscribeToken } from "../data.js";
+import { findPersonById, personBelongsToHost, getUserProfile } from "../data.js";
 import { enqueueOutbox } from "../email/index.js";
 import { buildFromHeader } from "./campaignSender.js";
 import { logPersonEvent } from "./personTimeline.js";
 import { sendText } from "../whatsapp/index.js";
 import { isConversationWindowOpen } from "../whatsapp/repos/whatsappThreadsRepo.js";
 import { dispatch } from "../messaging/dispatch.js";
-import { renderFollowUpEmailTemplate } from "./followUpTemplateService.js";
 import { supabase } from "../supabase.js";
 
 const FRONTEND_BASE =
@@ -39,8 +40,7 @@ function escapeAttr(s) {
 }
 
 // A personal note reads best plain — a light wrapper, no banners or buttons.
-// Images embed inline (they render in the email); other files ride as a clean
-// download link. No raw-MIME attachments — simpler and more reliable in clients.
+// Images embed inline; other files ride as a clean download link.
 function textToHtml(text, attachments = []) {
   const safe = escapeHtml(text).replace(/\n/g, "<br>");
   let html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;">${safe}</div>`;
@@ -62,52 +62,49 @@ function attachmentsHtml(attachments = []) {
   return html;
 }
 
-// Brand-as-opt-in: the SAME note, dressed in the host's identity. Used only when
-// the host deliberately chooses "dress this up" — defaults stay bare/personal.
-function igHandle(profile) {
-  const raw = profile?.brandingLinks?.instagram || "";
-  if (!raw) return null;
-  const m = String(raw).match(/instagram\.com\/([^/?#]+)/i);
-  const h = (m ? m[1] : raw).replace(/^@/, "").replace(/\/+$/, "").trim();
-  return h ? `@${h}` : null;
-}
-function renderBrandedEmail(text, attachments, profile) {
-  const accent = (profile?.brandPrimaryColor || "#ec178f").trim();
-  const name = ((profile?.name || profile?.brand || "") || "").trim() || "Your host";
-  const avatar = profile?.profilePicture || profile?.brandLogoUrl || null;
-  const handle = igHandle(profile);
-  const bio = (profile?.bio || "").trim();
-  const font = (profile?.brandFontFamily || "").trim()
-    || "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
-
-  const header = avatar
-    ? `<img src="${escapeAttr(avatar)}" width="44" height="44" alt="${escapeAttr(name)}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;vertical-align:middle;border:2px solid rgba(255,255,255,.7);" />
-       <span style="color:#fff;font-size:17px;font-weight:700;margin-left:10px;vertical-align:middle;">${escapeHtml(name)}</span>`
-    : `<span style="color:#fff;font-size:17px;font-weight:700;">${escapeHtml(name)}</span>`;
-
-  const body = escapeHtml(text).replace(/\n/g, "<br>");
-  const footerBits = [handle, bio].filter(Boolean).map(escapeHtml).join(" · ");
-
-  return `<div style="background:#f5f5f5;padding:24px 0;font-family:${escapeAttr(font)};">
-  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);">
-    <div style="background:${escapeAttr(accent)};padding:18px 24px;">${header}</div>
-    <div style="padding:24px;font-size:15px;line-height:1.6;color:#1a1a1a;">${body}${attachmentsHtml(attachments)}</div>
-    ${footerBits ? `<div style="border-top:1px solid #eee;padding:14px 24px;font-size:12px;color:#888;">${footerBits}</div>` : ""}
-  </div>
-</div>`;
+// A SMALL inline event card — context, not a campaign: cover thumb + title +
+// date + a link. Deliberately neutral (this is convenience, not branding).
+function eventCardHtml(event) {
+  if (!event) return "";
+  const url = event.slug ? `${FRONTEND_BASE}/e/${event.slug}` : null;
+  const meta = [event.whenLabel, event.location].filter(Boolean).join(" · ");
+  const cover = event.coverImageUrl
+    ? `<img src="${escapeAttr(event.coverImageUrl)}" alt="" width="64" height="64" style="width:64px;height:64px;border-radius:10px;object-fit:cover;" />`
+    : "";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid #eee;border-radius:12px;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    <tr>
+      ${cover ? `<td style="padding:12px 0 12px 12px;vertical-align:middle;">${cover}</td>` : ""}
+      <td style="padding:12px;vertical-align:middle;">
+        <div style="font-size:15px;font-weight:700;color:#1a1a1a;">${escapeHtml(event.title || "Event")}</div>
+        ${meta ? `<div style="font-size:13px;color:#666;margin-top:2px;">${escapeHtml(meta)}</div>` : ""}
+        ${url ? `<a href="${escapeAttr(url)}" style="display:inline-block;margin-top:6px;font-size:13px;font-weight:600;color:#ec178f;text-decoration:none;">View event →</a>` : ""}
+      </td>
+    </tr>
+  </table>`;
 }
 
-function textBodyWith(text, attachments = []) {
+// Plain-text form of an included event (for WhatsApp/IG + email text part).
+function eventTextLine(event) {
+  if (!event) return "";
+  const url = event.slug ? `${FRONTEND_BASE}/e/${event.slug}` : "";
+  const meta = [event.whenLabel, event.location].filter(Boolean).join(" · ");
+  return `\n\n${event.title || "Event"}${meta ? ` — ${meta}` : ""}${url ? `\n${url}` : ""}`;
+}
+
+function textBodyWith(text, attachments = [], event = null) {
   const atts = (attachments || []).filter((a) => a?.url);
-  if (!atts.length) return text;
-  return `${text}\n\nAttachments:\n${atts.map((a) => `- ${a.name || "file"}: ${a.url}`).join("\n")}`;
+  let out = text || "";
+  if (atts.length) out += `\n\nAttachments:\n${atts.map((a) => `- ${a.name || "file"}: ${a.url}`).join("\n")}`;
+  out += eventTextLine(event);
+  return out;
 }
-// WhatsApp is plain text — fold attachment URLs into the body (links preview).
-function whatsappBody(text, attachments = []) {
+// WhatsApp/IG is plain text — fold attachment URLs + the event link into it.
+function whatsappBody(text, attachments = [], event = null) {
   const atts = (attachments || []).filter((a) => a?.url);
-  const base = text || "";
-  if (!atts.length) return base;
-  return `${base}${base ? "\n\n" : ""}${atts.map((a) => a.url).join("\n")}`.trim();
+  let base = text || "";
+  if (atts.length) base += `${base ? "\n\n" : ""}${atts.map((a) => a.url).join("\n")}`;
+  base += eventTextLine(event);
+  return base.trim();
 }
 
 let _sendSeq = 0; // disambiguates two sends to the same person in the same ms
@@ -131,13 +128,12 @@ function resolveCover(raw) {
   } catch { return raw; }
 }
 
-// Load the bits of an event the "Event email" design needs. Cached by the bulk
-// caller so we don't refetch per recipient.
+// Load the bits of an event needed to "include" it in a message.
 async function getEventForEmail(eventId) {
   if (!eventId) return null;
   const { data: e } = await supabase
     .from("events")
-    .select("id, title, slug, starts_at, location, description, cover_image_url, image_url, brand")
+    .select("id, title, slug, starts_at, location, cover_image_url, image_url")
     .eq("id", eventId)
     .maybeSingle();
   if (!e) return null;
@@ -154,83 +150,37 @@ async function getEventForEmail(eventId) {
     coverImageUrl: resolveCover(e.cover_image_url || e.image_url),
     whenLabel,
     location: e.location || "",
-    description: e.description || "",
-    accent: e.brand?.buttonColor || null,
   };
 }
 
-// Build the "Event email" blocks — the old CRM event design: the host's note as
-// the personal intro, then cover + title + when/where + description + CTA.
-function eventBlocks(event, messageText, accent) {
-  const blocks = [];
-  blocks.push({ type: "text", style: "paragraph", text: (messageText || "").trim() || "Hi {{first_name}}," });
-  if (event.coverImageUrl) blocks.push({ type: "image", url: event.coverImageUrl, aspectRatio: "banner", alt: event.title });
-  if (event.title) blocks.push({ type: "text", style: "heading", text: event.title });
-  const meta = [event.whenLabel, event.location].filter(Boolean).join(" · ");
-  if (meta) blocks.push({ type: "text", style: "paragraph", text: meta });
-  if (event.description) blocks.push({ type: "text", style: "paragraph", text: event.description.slice(0, 700) });
-  if (event.slug) blocks.push({ type: "button", text: "View event", url: `${FRONTEND_BASE}/e/${event.slug}`, bgColor: accent || event.accent || "#ec178f" });
-  return blocks;
-}
+const emailHtmlFor = (body, atts, event) => textToHtml(body, atts) + eventCardHtml(event);
 
-// One place that turns (template, message, brand, event) into email HTML — used
-// by both the live preview and the real send so they never drift.
-async function renderEmailFor({ template, body, atts, profile, event, person, withUnsub }) {
-  if (template === "event" && event) {
-    let unsubscribeUrl = null;
-    if (withUnsub && person?.id) {
-      try { unsubscribeUrl = `${FRONTEND_BASE}/u/${await ensureUnsubscribeToken(person.id)}`; } catch {}
-    }
-    return renderFollowUpEmailTemplate({
-      templateContent: {
-        previewText: (body || "").slice(0, 120),
-        blocks: eventBlocks(event, body, profile?.brandPrimaryColor),
-      },
-      person: person || { name: "there" },
-      event,
-      unsubscribeUrl,
-    });
-  }
-  if (template === "branded") return renderBrandedEmail(body, atts, profile);
-  return textToHtml(body, atts);
-}
-
-/**
- * Render the email HTML exactly as it would ship (plain / branded / event), for
- * the composer's live preview — so the host sees their real brand + design on
- * their real draft, not a blind toggle. Same renderer as the send.
- */
-export async function renderRoomEmailHtml({ hostId, text = "", attachments = [], template, branded = false, eventId = null }) {
-  const tmpl = template || (branded ? "branded" : "plain");
-  const body = (text || "").trim() || "Hey — just thinking of you. Hope you're doing well!";
-  const atts = normalizeAttachments(attachments);
-  const profile = tmpl !== "plain" ? await getUserProfile(hostId).catch(() => null) : null;
-  const event = tmpl === "event" ? await getEventForEmail(eventId) : null;
-  return renderEmailFor({ template: tmpl, body, atts, profile, event, person: { name: "Alex" }, withUnsub: false });
-}
-
-function logRoomEvent({ personId, hostId, channel, body, attCount }) {
-  const attNote = attCount ? ` (+${attCount} attachment${attCount > 1 ? "s" : ""})` : "";
+function logRoomEvent({ personId, hostId, channel, body, attCount, eventTitle }) {
+  const bits = [];
+  if (attCount) bits.push(`+${attCount} attachment${attCount > 1 ? "s" : ""}`);
+  if (eventTitle) bits.push(`📅 ${eventTitle}`);
+  const note = bits.length ? ` (${bits.join(", ")})` : "";
   logPersonEvent({
     personId,
     hostId,
     type: "message_out",
     channel,
     direction: "out",
-    body: (body || "(attachment)") + attNote,
+    body: (body || "(message)") + note,
     metadata: { source: "room", attachments: attCount },
   }).catch(() => {});
 }
 
 /**
- * Send one message from a host to a person in their world.
+ * Send one message from a host to a person in their world. Optionally include a
+ * specific event (eventId): an inline card on email, a link on WhatsApp/IG.
  * @returns {Promise<{ok:boolean, error?:string, channel?:string}>}
  */
-export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], branded = false, template, eventId = null, event = null }) {
+export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], eventId = null, event = null }) {
   const body = (text || "").trim();
   const atts = normalizeAttachments(attachments);
   if (!hostId || !personId) return { ok: false, error: "bad_request" };
-  if (!body && !atts.length) return { ok: false, error: "empty" };
+  if (!body && !atts.length && !eventId) return { ok: false, error: "empty" };
 
   // Scope: a host may only message someone already in their world.
   const allowed = await personBelongsToHost(personId, hostId);
@@ -242,11 +192,10 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   const profile = await getUserProfile(hostId).catch(() => null);
   const fromName = ((profile?.name || profile?.brand || "") || "").trim() || null;
   const subj = (subject || "").trim() || `A note from ${fromName || "your host"}`;
-  // Email design: explicit template wins; else the legacy branded flag.
-  const tmpl = template || (branded ? "branded" : "plain");
-  const evt = tmpl === "event" ? (event || (await getEventForEmail(eventId))) : null;
-  const emailHtml = () => renderEmailFor({ template: tmpl, body, atts, profile, event: evt, person, withUnsub: tmpl !== "plain" });
+  const evt = eventId ? (event || (await getEventForEmail(eventId))) : null;
+  const htmlBody = emailHtmlFor(body, atts, evt);
   const key = () => `room:${hostId}:${personId}:${Date.now()}:${_sendSeq++}`;
+  const logArgs = { personId, hostId, body, attCount: atts.length, eventTitle: evt?.title };
 
   // ── WhatsApp rail — only when the person is honestly reachable there. ──
   const waReachable = !!(person.phone_e164 && person.phone_verified_at);
@@ -257,19 +206,18 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
         // Inside the 24h window: a real, free-text WhatsApp in the host's voice.
         await sendText({
           to: person.phone_e164,
-          body: whatsappBody(body, atts),
+          body: whatsappBody(body, atts, evt),
           personId,
           hostProfileId: hostId,
           legalBasis: "consent",
           idempotencyKey: key(),
         });
-        logRoomEvent({ personId, hostId, channel: "whatsapp", body, attCount: atts.length });
+        logRoomEvent({ ...logArgs, channel: "whatsapp" });
         return { ok: true, channel: "whatsapp" };
       }
-      // Window closed: the only WhatsApp-legal path is a template. host_broadcast
-      // carries arbitrary body + the host's signature. dispatch() re-checks
-      // opt-in/suppression and falls to the email floor if WA can't deliver
-      // (e.g. template not yet Meta-approved in prod) — graceful by design.
+      // Window closed: the only WhatsApp-legal path is a template. dispatch()
+      // re-checks opt-in/suppression and falls to the email floor if WA can't
+      // deliver (e.g. template not yet Meta-approved) — graceful by design.
       const sig = ((profile?.whatsappSignature || (fromName ? `It's ${fromName}` : "PullUp")) || "").trim();
       const r = await dispatch({
         recipient: {
@@ -281,18 +229,18 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
         hostProfile: profile,
         whatsapp: {
           templateKey: "host_broadcast",
-          variables: { host_signature: sig, body: whatsappBody(body, atts) },
+          variables: { host_signature: sig, body: whatsappBody(body, atts, evt) },
         },
         email: {
           subject: subj,
-          htmlBody: await emailHtml(),
-          textBody: textBodyWith(body, atts),
+          htmlBody,
+          textBody: textBodyWith(body, atts, evt),
           category: "transactional",
         },
         context: { personId, hostProfileId: hostId, legalBasis: "consent", idempotencyKey: key() },
       });
       const used = r.channel === "whatsapp" ? "whatsapp" : "email";
-      logRoomEvent({ personId, hostId, channel: used, body, attCount: atts.length });
+      logRoomEvent({ ...logArgs, channel: used });
       return { ok: true, channel: used };
     } catch {
       // Any WhatsApp error → fall through to the email floor below.
@@ -305,34 +253,29 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
     fromEmail: buildFromHeader(fromName),
     toEmail: person.email,
     subject: subj,
-    htmlBody: await emailHtml(),
-    textBody: textBodyWith(body, atts),
-    category: tmpl === "plain" ? "transactional" : "newsletter",
+    htmlBody,
+    textBody: textBodyWith(body, atts, evt),
+    category: "transactional",
     idempotencyKey: key(),
   });
-
-  // The actual message text lands in the timeline, so the thread shows what was
-  // really said (not a summary). Best-effort — never blocks the send.
-  logRoomEvent({ personId, hostId, channel: "email", body, attCount: atts.length });
+  logRoomEvent({ ...logArgs, channel: "email" });
   return { ok: true, channel: "email" };
 }
 
 /**
- * Bulk send — one private message each (not a group). The chosen rail is honored
- * per person: WhatsApp-reachable people get WhatsApp, everyone else the email
- * floor. Nothing fails silently — unreachable people are tallied.
+ * Small, event-anchored multi-send — one private message each (not a group).
+ * WhatsApp-reachable people get WhatsApp (native text + event link); everyone
+ * else gets the email (with the inline event card). Nothing fails silently.
  * @returns {Promise<{sent:number, noEmail:number, failed:number, byChannel:object}>}
  */
-export async function sendRoomBulk({ hostId, personIds, channel = "email", text, subject, attachments = [], branded = false, template, eventId = null }) {
+export async function sendRoomBulk({ hostId, personIds, channel = "whatsapp", text, subject, attachments = [], eventId = null }) {
   const ids = Array.isArray(personIds) ? personIds : [];
   const out = { sent: 0, noEmail: 0, failed: 0, byChannel: { email: 0, whatsapp: 0 } };
-  const tmpl = template || (branded ? "branded" : "plain");
-  // Fetch the event ONCE for the whole send (the design is shared; tokens still
-  // render per recipient).
-  const event = tmpl === "event" ? await getEventForEmail(eventId) : null;
+  // Resolve the included event ONCE for the whole send.
+  const event = eventId ? await getEventForEmail(eventId) : null;
   for (const pid of ids) {
     try {
-      const r = await sendRoomMessage({ hostId, personId: pid, channel, text, subject, attachments, template: tmpl, eventId, event });
+      const r = await sendRoomMessage({ hostId, personId: pid, channel, text, subject, attachments, eventId, event });
       if (r.ok) {
         out.sent++;
         if (r.channel) out.byChannel[r.channel] = (out.byChannel[r.channel] || 0) + 1;

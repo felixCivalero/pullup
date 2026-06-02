@@ -215,29 +215,46 @@ function PersonCard({ person, active, onClick, events }) {
 }
 
 // ─── Side panel: one person's unified, cross-event thread ───────────
-// A real, sandboxed render of the email as the recipient sees it — same HTML
-// the backend ships. Driven from the composer so the design choice isn't blind.
-function EmailPreviewModal({ html, loading, label, onClose }) {
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: SF }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 560, maxHeight: "86vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 12px 48px rgba(0,0,0,.25)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", borderBottom: `1px solid ${colors.border}` }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: colors.text }}>
-            Email preview <span style={{ fontSize: 11, fontWeight: 600, color: colors.textSubtle }}>· {label || "Plain note"}</span>
-          </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: "50%", border: "none", background: colors.surfaceMuted, color: colors.textMuted, fontSize: 15, cursor: "pointer" }}>×</button>
-        </div>
-        {loading ? (
-          <div style={{ padding: 40, textAlign: "center", color: colors.textSubtle, fontSize: 13 }}>Rendering…</div>
-        ) : (
-          <iframe title="Email preview" srcDoc={html} style={{ border: "none", width: "100%", height: "62vh", background: "#fff" }} />
-        )}
+// "Include an event" — the one bit of smartness in an otherwise native, simple
+// message. Pick an event and it rides along: an inline card on email, a link on
+// WhatsApp/IG. No templates, no styling — just convenient context.
+function EventInsert({ events = [], eventId, setEventId }) {
+  const [open, setOpen] = useState(false);
+  if (!events.length) return null;
+  const ev = events.find((e) => e.id === eventId);
+  if (ev) {
+    return (
+      <div style={{ marginBottom: 9 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, borderRadius: 10, padding: "5px 8px 5px 10px", fontSize: 12, fontWeight: 600, color: colors.accent, maxWidth: "100%" }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📅 {ev.title}</span>
+          <button onClick={() => setEventId(null)} style={{ display: "flex", border: "none", background: "transparent", color: colors.accent, cursor: "pointer", padding: 0 }}><X size={13} /></button>
+        </span>
       </div>
+    );
+  }
+  return (
+    <div style={{ marginBottom: 9 }}>
+      {open ? (
+        <select
+          autoFocus
+          value=""
+          onChange={(e) => { if (e.target.value) { setEventId(e.target.value); setOpen(false); } }}
+          onBlur={() => setOpen(false)}
+          style={{ width: "100%", fontSize: 13, fontFamily: SF, color: colors.text, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "8px 11px", cursor: "pointer" }}
+        >
+          <option value="">Choose an event to include…</option>
+          {events.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+        </select>
+      ) : (
+        <button onClick={() => setOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, color: colors.textMuted, background: colors.surfaceMuted, border: `1px solid ${colors.border}`, borderRadius: 999, padding: "5px 11px", cursor: "pointer" }}>
+          📅 Include an event
+        </button>
+      )}
     </div>
   );
 }
 
-function ThreadPanel({ person, onClose, igAccounts = [] }) {
+function ThreadPanel({ person, onClose, igAccounts = [], events = [] }) {
   const { showToast } = useToast();
   const [draft, setDraft] = useState("");
   const [rail, setRail] = useState(person.channel);
@@ -245,6 +262,7 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
   const [sentMsgs, setSentMsgs] = useState([]); // messages sent this session, shown instantly
   const [attachments, setAttachments] = useState([]); // [{url,name,isImage}]
   const [uploading, setUploading] = useState(false);
+  const [eventId, setEventId] = useState(null); // optionally include an event
   const fileRef = useRef(null);
   // Which IG account replies send from — only matters when the host connected
   // more than one (personal + business). Defaults to their chosen default.
@@ -262,7 +280,7 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
   // What the thread shows: their real history + anything sent this session.
   const thread = useMemo(() => [...person.thread, ...sentMsgs], [person.thread, sentMsgs]);
 
-  useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); setAttachments([]); }, [person.id, person.channel, defaultIg?.id]);
+  useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); setAttachments([]); setEventId(null); }, [person.id, person.channel, defaultIg?.id]);
 
   async function onAttach(e) {
     const files = Array.from(e.target.files || []);
@@ -289,7 +307,7 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
 
   async function handleSend() {
     const text = draft.trim();
-    if ((!text && !attachments.length) || sending) return;
+    if ((!text && !attachments.length && !eventId) || sending) return;
     if (rail === "instagram") {
       showToast("Instagram sending is coming — switch to Email or WhatsApp to send now", "error");
       return;
@@ -298,17 +316,19 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
     try {
       const res = await authenticatedFetch("/host/room/message", {
         method: "POST",
-        body: JSON.stringify({ personId: person.id, channel: rail, text, attachments }),
+        body: JSON.stringify({ personId: person.id, channel: rail, text, attachments, eventId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         showToast(data.error === "no_email" ? "No email on file for them yet" : "Couldn't send — try again", "error");
       } else {
         const used = data.channel || rail;
-        const note = attachments.length ? `${text ? text + " " : ""}📎 ${attachments.length}` : text;
+        const evTitle = eventId ? (events.find((e) => e.id === eventId)?.title) : null;
+        const note = [text, attachments.length ? `📎 ${attachments.length}` : "", evTitle ? `📅 ${evTitle}` : ""].filter(Boolean).join(" ");
         setSentMsgs((m) => [...m, { from: "you", text: note, time: "just now", channel: used }]);
         setDraft("");
         setAttachments([]);
+        setEventId(null);
         // Honest when WhatsApp wasn't possible and we used the email floor.
         showToast(rail === "whatsapp" && used === "email" ? "Sent as email — not reachable on WhatsApp right now" : "Sent", "success");
       }
@@ -408,8 +428,9 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
           })}
         </div>
 
-        {/* No style picker in 1:1 — a personal message stays plain and human.
-            Brand/style lives in the bulk composer, the campaign-ish moment. */}
+        {/* Include an event — the message stays native; the event rides along
+            (card on email, link on WhatsApp). No styling. */}
+        {rail !== "instagram" && <EventInsert events={events} eventId={eventId} setEventId={setEventId} />}
 
         {/* Reply-from picker — only when on Instagram with 2+ connected accounts. */}
         {rail === "instagram" && igAccounts.length >= 2 && (
@@ -451,7 +472,7 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
           <button onClick={() => fileRef.current?.click()} title="Attach a file or image" disabled={rail === "instagram"} style={{ width: 38, height: 38, flexShrink: 0, borderRadius: "10px", border: `1px solid ${colors.border}`, background: colors.surface, color: rail !== "instagram" ? colors.textMuted : colors.textFaded, cursor: rail !== "instagram" ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center" }}><Paperclip size={16} /></button>
           <textarea value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder={rail === "whatsapp" && person.windowOpen === false ? "Window closed — sends as a WhatsApp template" : `Message ${person.name.split(" ")[0]} on ${c.label}…`} rows={2} style={{ flex: 1, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none" }} />
-          <button onClick={handleSend} disabled={(!draft.trim() && !attachments.length) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content" }}>{sending ? "Sending…" : "Send"}</button>
+          <button onClick={handleSend} disabled={(!draft.trim() && !attachments.length && !eventId) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length || eventId) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length || eventId) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length || eventId) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content" }}>{sending ? "Sending…" : "Send"}</button>
         </div>
       </div>
     </div>
@@ -471,27 +492,14 @@ function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) 
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [template, setTemplate] = useState("plain"); // plain | branded | event
-  const [eventId, setEventId] = useState(lensEvent?.id || events[0]?.id || null);
-  const [preview, setPreview] = useState(null);
+  const [eventId, setEventId] = useState(lensEvent?.id || null); // optionally include an event
   const fileRef = useRef(null);
   const move = people[0]?.move;
-  const templateLabel = template === "event" ? "Event email" : template === "branded" ? "Branded" : "Plain note";
   // Pre-fill from the shared suggested move (the brain's opener), host edits.
-  useEffect(() => { setDraft(move ? suggestedDraft(people[0]) : ""); setTemplate("plain"); setEventId(lensEvent?.id || events[0]?.id || null); setPreview(null); }, [people, move]);
-
-  async function openPreview() {
-    setPreview({ html: "", loading: true });
-    try {
-      const res = await authenticatedFetch("/host/room/message/preview", { method: "POST", body: JSON.stringify({ text: draft, attachments, template, eventId }) });
-      const data = await res.json().catch(() => ({}));
-      if (data.html) setPreview({ html: data.html, loading: false });
-      else { setPreview(null); showToast("Couldn't build preview", "error"); }
-    } catch { setPreview(null); showToast("Couldn't build preview", "error"); }
-  }
+  useEffect(() => { setDraft(move ? suggestedDraft(people[0]) : ""); setEventId(lensEvent?.id || null); }, [people, move, lensEvent?.id]);
 
   // Honest channel split. WhatsApp-reachable people get WhatsApp (native text);
-  // everyone else gets email (where the design applies); neither = surfaced.
+  // everyone else gets email; anyone with neither is surfaced, not dropped.
   const sendOn = (p) => ((p.reachable || []).includes("whatsapp") ? "whatsapp" : "email");
   const byChannel = {};
   people.forEach((p) => { const ch = sendOn(p); byChannel[ch] = (byChannel[ch] || 0) + 1; });
@@ -524,12 +532,12 @@ function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) 
 
   async function handleBulkSend() {
     const text = draft.trim();
-    if ((!text && !attachments.length) || sending) return;
+    if ((!text && !attachments.length && !eventId) || sending) return;
     setSending(true);
     try {
       const res = await authenticatedFetch("/host/room/message/bulk", {
         method: "POST",
-        body: JSON.stringify({ personIds: people.map((p) => p.id), channel: "whatsapp", text, attachments, template, eventId }),
+        body: JSON.stringify({ personIds: people.map((p) => p.id), channel: "whatsapp", text, attachments, eventId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
@@ -594,38 +602,15 @@ function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) 
 
       {/* Composer — looks like a normal send; goes to all individually */}
       <div style={{ borderTop: `1px solid ${colors.border}`, padding: "12px 14px" }}>
-        {/* Email design — pick a template, preview it (old-CRM style). Applies
-            to the email cohort; WhatsApp folks get your message as native text. */}
-        <div style={{ marginBottom: "9px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: colors.textSubtle }}>Email design</span>
-            <button type="button" onClick={openPreview} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: colors.accent, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
-              Preview <span style={{ fontSize: 12 }}>⤢</span>
-            </button>
-          </div>
-          <select value={template} onChange={(e) => setTemplate(e.target.value)} style={{ width: "100%", fontSize: 13, fontFamily: SF, color: colors.text, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 11px", cursor: "pointer" }}>
-            <option value="plain">Plain note — hand-typed, no styling</option>
-            <option value="event">Event email — cover, title, date &amp; button</option>
-          </select>
-          {template === "event" && (
-            events.length ? (
-              <select value={eventId || ""} onChange={(e) => setEventId(e.target.value)} style={{ width: "100%", marginTop: 6, fontSize: 13, fontFamily: SF, color: colors.text, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 11px", cursor: "pointer" }}>
-                {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
-              </select>
-            ) : (
-              <div style={{ fontSize: 11, color: colors.textSubtle, marginTop: 6 }}>No events to base this on yet.</div>
-            )
-          )}
-        </div>
+        {/* Native, simple message — optionally include an event (card on email,
+            link on WhatsApp). No templates, no styling. */}
+        <EventInsert events={events} eventId={eventId} setEventId={setEventId} />
 
         {/* Honest channel split — where this actually lands. */}
         <div style={{ fontSize: "11px", color: colors.textMuted, background: colors.surfaceMuted, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "8px 11px", marginBottom: "9px", lineHeight: 1.5 }}>
-          Sends to <strong>{emCount}</strong> on email{template !== "plain" ? " (styled)" : ""}
+          Sends to <strong>{emCount}</strong> on email
           {waCount ? <> · <strong>{waCount}</strong> on WhatsApp</> : null}
           {noneCount ? <> · <strong>{noneCount}</strong> can’t be reached yet</> : null}.
-          {waCount > 0 && template !== "plain" ? (
-            <div style={{ marginTop: 4, color: colors.textSubtle }}>WhatsApp folks get your message as text, not the design.</div>
-          ) : null}
         </div>
         {/* Attachment chips */}
         {(attachments.length > 0 || uploading) && (
@@ -644,7 +629,7 @@ function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) 
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
           <button onClick={() => fileRef.current?.click()} title="Attach a file or image" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: "10px", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Paperclip size={16} /></button>
           <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Write to all ${people.length}…`} rows={3} style={{ flex: 1, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none" }} />
-          <button onClick={handleBulkSend} disabled={(!draft.trim() && !attachments.length) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content", whiteSpace: "nowrap" }}>
+          <button onClick={handleBulkSend} disabled={(!draft.trim() && !attachments.length && !eventId) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length || eventId) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length || eventId) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length || eventId) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content", whiteSpace: "nowrap" }}>
             {sending ? "Sending…" : `Send to ${people.length}`}
           </button>
         </div>
@@ -652,7 +637,6 @@ function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) 
           Clear selection
         </button>
       </div>
-      {preview && <EmailPreviewModal html={preview.html} loading={preview.loading} label={templateLabel} onClose={() => setPreview(null)} />}
     </div>
   );
 }
@@ -1185,7 +1169,7 @@ export default function RoomPage() {
           {bulkPeople ? (
             <BulkPanel people={bulkPeople} events={EVENTS} lensEvent={lensEvent} onClose={() => setBulkPeople(null)} onClear={() => setBulkPeople(null)} />
           ) : (
-            <ThreadPanel person={selected} onClose={() => setSelectedId(null)} igAccounts={HOST.igAccounts || []} />
+            <ThreadPanel person={selected} onClose={() => setSelectedId(null)} igAccounts={HOST.igAccounts || []} events={EVENTS} />
           )}
         </div>
       )}

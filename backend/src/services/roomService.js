@@ -45,6 +45,9 @@ async function buildHostProfile(hostId) {
       handle: igHandleFrom(p),
       avatar: p?.profilePicture || p?.brandLogoUrl || p?.brandLogo || null,
       role,
+      // For the composer's "Quick access" — share your own profile / number.
+      phone: p?.phone_e164 || null,
+      instagramUrl: p?.brandingLinks?.instagram || null,
     };
   } catch (err) {
     logger?.warn?.("[roomService] host profile read failed", { error: err?.message });
@@ -179,7 +182,7 @@ export async function getRoomForHost(hostId) {
   const [{ data: people }, { data: idents }, { data: events }] = await Promise.all([
     supabase.from("people").select("id, name, email, phone_e164, phone_verified_at, instagram, ig_user_id").in("id", personIds),
     supabase.from("person_identities").select("person_id, kind").in("person_id", personIds),
-    supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency").eq("host_id", hostId),
+    supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency, location").eq("host_id", hostId),
   ]);
   const peopleById = new Map((people || []).map((p) => [p.id, p]));
   const identsByPerson = new Map();
@@ -237,6 +240,7 @@ export async function getRoomForHost(hostId) {
         coverImage: resolveEventImage(e.cover_image_url || e.image_url),
         startsAt: e.starts_at || null,
         when: eventDateLabel(e.starts_at, status),
+        location: e.location || "",
         status,
         capacity: e.total_capacity || null,
         comingCount: comingByEvent.get(e.id) || 0,

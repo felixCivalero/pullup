@@ -215,46 +215,73 @@ function PersonCard({ person, active, onClick, events }) {
 }
 
 // ─── Side panel: one person's unified, cross-event thread ───────────
-// "Include an event" — the one bit of smartness in an otherwise native, simple
-// message. Pick an event and it rides along: an inline card on email, a link on
-// WhatsApp/IG. No templates, no styling — just convenient context.
-function EventInsert({ events = [], eventId, setEventId }) {
+// Quick access — drop real PullUp things into your own sentence. Pick an event,
+// then drop in a SPECIFIC detail ("19:00", a venue) — answering "what time?"
+// inline reads far more personal than pasting a link. Or attach the whole event
+// (card on email, link on WhatsApp/IG). Or share your profile / number. No AI
+// pre-guessing — you pick the event, then the detail.
+function fmtEventDate(iso) { try { return new Date(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); } catch { return null; } }
+function fmtEventTime(iso) { try { return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); } catch { return null; } }
+
+function QuickAccess({ events = [], host = {}, attachedEventId, setAttachedEventId, onInsert }) {
   const [open, setOpen] = useState(false);
-  if (!events.length) return null;
-  const ev = events.find((e) => e.id === eventId);
-  if (ev) {
-    return (
-      <div style={{ marginBottom: 9 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, borderRadius: 10, padding: "5px 8px 5px 10px", fontSize: 12, fontWeight: 600, color: colors.accent, maxWidth: "100%" }}>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📅 {ev.title}</span>
-          <button onClick={() => setEventId(null)} style={{ display: "flex", border: "none", background: "transparent", color: colors.accent, cursor: "pointer", padding: 0 }}><X size={13} /></button>
-        </span>
-      </div>
-    );
-  }
+  const [drill, setDrill] = useState(null); // event being detailed
+  const attached = events.find((e) => e.id === attachedEventId);
+  const profileLink = host.instagramUrl || (host.handle ? `instagram.com/${String(host.handle).replace(/^@/, "")}` : null);
+  const phone = host.phone || null;
+
+  function close() { setOpen(false); setDrill(null); }
+  function insert(text) { if (text) onInsert(text); close(); }
+
+  const rowStyle = { display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", background: "transparent", border: "none", borderRadius: 8, padding: "8px 10px", fontSize: 13, color: colors.text, cursor: "pointer", fontFamily: SF };
+  const labelStyle = { fontSize: 10.5, fontWeight: 700, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: ".04em", padding: "8px 10px 4px" };
+
   return (
-    <div style={{ marginBottom: 9 }}>
-      {open ? (
-        <select
-          autoFocus
-          value=""
-          onChange={(e) => { if (e.target.value) { setEventId(e.target.value); setOpen(false); } }}
-          onBlur={() => setOpen(false)}
-          style={{ width: "100%", fontSize: 13, fontFamily: SF, color: colors.text, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "8px 11px", cursor: "pointer" }}
-        >
-          <option value="">Choose an event to include…</option>
-          {events.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-        </select>
-      ) : (
-        <button onClick={() => setOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, color: colors.textMuted, background: colors.surfaceMuted, border: `1px solid ${colors.border}`, borderRadius: 999, padding: "5px 11px", cursor: "pointer" }}>
-          📅 Include an event
+    <div style={{ position: "relative", marginBottom: 9 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={() => (open ? close() : setOpen(true))} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, color: open ? "#fff" : colors.textMuted, background: open ? colors.accent : colors.surfaceMuted, border: `1px solid ${open ? colors.accent : colors.border}`, borderRadius: 999, padding: "5px 11px", cursor: "pointer" }}>
+          ⚡ Quick access
         </button>
+        {attached && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, borderRadius: 10, padding: "5px 8px 5px 10px", fontSize: 12, fontWeight: 600, color: colors.accent, maxWidth: "100%" }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📅 {attached.title}</span>
+            <button onClick={() => setAttachedEventId(null)} style={{ display: "flex", border: "none", background: "transparent", color: colors.accent, cursor: "pointer", padding: 0 }}><X size={13} /></button>
+          </span>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, width: 280, maxHeight: 320, overflowY: "auto", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 12, boxShadow: "0 8px 28px rgba(0,0,0,.14)", zIndex: 50, padding: 4 }}>
+          {!drill ? (
+            <>
+              <div style={labelStyle}>Drop in an event detail</div>
+              {events.length ? events.slice(0, 10).map((e) => (
+                <button key={e.id} onClick={() => setDrill(e)} style={rowStyle}>
+                  <span>📅</span>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</span>
+                  <span style={{ fontSize: 11, color: colors.textSubtle }}>{e.when} ›</span>
+                </button>
+              )) : <div style={{ ...rowStyle, color: colors.textSubtle, cursor: "default" }}>No events yet</div>}
+              {(profileLink || phone) && <div style={labelStyle}>Share</div>}
+              {profileLink && <button onClick={() => insert(profileLink)} style={rowStyle}><span>@</span> My profile</button>}
+              {phone && <button onClick={() => insert(phone)} style={rowStyle}><span>☎</span> My number</button>}
+            </>
+          ) : (
+            <>
+              <button onClick={() => setDrill(null)} style={{ ...rowStyle, fontWeight: 700, color: colors.accent }}>‹ <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{drill.title}</span></button>
+              {fmtEventDate(drill.startsAt) && <button onClick={() => insert(fmtEventDate(drill.startsAt))} style={rowStyle}><span>📅</span> Date <span style={{ marginLeft: "auto", color: colors.textSubtle }}>{fmtEventDate(drill.startsAt)}</span></button>}
+              {fmtEventTime(drill.startsAt) && <button onClick={() => insert(fmtEventTime(drill.startsAt))} style={rowStyle}><span>🕖</span> Time <span style={{ marginLeft: "auto", color: colors.textSubtle }}>{fmtEventTime(drill.startsAt)}</span></button>}
+              {drill.location && <button onClick={() => insert(drill.location)} style={rowStyle}><span>📍</span> <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Where</span> <span style={{ color: colors.textSubtle, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{drill.location}</span></button>}
+              <button onClick={() => { setAttachedEventId(drill.id); close(); }} style={rowStyle}><span>🔗</span> Attach the event {attachedEventId === drill.id ? "✓" : ""}</button>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-function ThreadPanel({ person, onClose, igAccounts = [], events = [] }) {
+function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} }) {
   const { showToast } = useToast();
   const [draft, setDraft] = useState("");
   const [rail, setRail] = useState(person.channel);
@@ -264,6 +291,7 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [] }) {
   const [uploading, setUploading] = useState(false);
   const [eventId, setEventId] = useState(null); // optionally include an event
   const fileRef = useRef(null);
+  const taRef = useRef(null); // textarea — for Quick-access caret insertion
   // Which IG account replies send from — only matters when the host connected
   // more than one (personal + business). Defaults to their chosen default.
   const defaultIg = igAccounts.find((a) => a.isDefault) || igAccounts[0] || null;
@@ -303,6 +331,17 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [] }) {
       } catch { showToast("Couldn't attach that file", "error"); }
     }
     setUploading(false);
+  }
+
+  // Drop a Quick-access value into the message at the caret (or append).
+  function insertAtCaret(text) {
+    const el = taRef.current;
+    if (!el) { setDraft((d) => (d ? `${d} ${text}` : text)); return; }
+    const s = el.selectionStart ?? draft.length;
+    const e = el.selectionEnd ?? draft.length;
+    const next = draft.slice(0, s) + text + draft.slice(e);
+    setDraft(next);
+    requestAnimationFrame(() => { try { el.focus(); const p = s + text.length; el.setSelectionRange(p, p); } catch {} });
   }
 
   async function handleSend() {
@@ -407,12 +446,6 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [] }) {
 
       {/* Composer */}
       <div style={{ borderTop: `1px solid ${colors.border}`, padding: "12px 14px" }}>
-        {person.needsYou && person.move && !draft && (
-          <button onClick={() => setDraft(suggestedDraft(person))} style={{ display: "block", width: "100%", textAlign: "left", marginBottom: "10px", fontSize: "12.5px", color: colors.accent, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, borderRadius: "12px", padding: "10px 12px", cursor: "pointer", lineHeight: 1.4 }}>
-            <span style={{ fontWeight: 700 }}>Suggested:</span> {suggestedDraft(person)}
-          </button>
-        )}
-
         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "9px" }}>
           <span style={{ fontSize: "11px", color: colors.textSubtle, marginRight: "2px" }}>Send on</span>
           {reachable.map((r) => {
@@ -428,9 +461,9 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [] }) {
           })}
         </div>
 
-        {/* Include an event — the message stays native; the event rides along
-            (card on email, link on WhatsApp). No styling. */}
-        {rail !== "instagram" && <EventInsert events={events} eventId={eventId} setEventId={setEventId} />}
+        {/* Quick access — drop in event details / your profile / number, or
+            attach the whole event. Natural part of the composer. */}
+        {rail !== "instagram" && <QuickAccess events={events} host={host} attachedEventId={eventId} setAttachedEventId={setEventId} onInsert={insertAtCaret} />}
 
         {/* Reply-from picker — only when on Instagram with 2+ connected accounts. */}
         {rail === "instagram" && igAccounts.length >= 2 && (
@@ -471,7 +504,7 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [] }) {
         <input ref={fileRef} type="file" multiple onChange={onAttach} style={{ display: "none" }} />
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
           <button onClick={() => fileRef.current?.click()} title="Attach a file or image" disabled={rail === "instagram"} style={{ width: 38, height: 38, flexShrink: 0, borderRadius: "10px", border: `1px solid ${colors.border}`, background: colors.surface, color: rail !== "instagram" ? colors.textMuted : colors.textFaded, cursor: rail !== "instagram" ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center" }}><Paperclip size={16} /></button>
-          <textarea value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder={rail === "whatsapp" && person.windowOpen === false ? "Window closed — sends as a WhatsApp template" : `Message ${person.name.split(" ")[0]} on ${c.label}…`} rows={2} style={{ flex: 1, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none" }} />
+          <textarea ref={taRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder={rail === "whatsapp" && person.windowOpen === false ? "Window closed — sends as a WhatsApp template" : `Message ${person.name.split(" ")[0]} on ${c.label}…`} rows={2} style={{ flex: 1, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none" }} />
           <button onClick={handleSend} disabled={(!draft.trim() && !attachments.length && !eventId) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length || eventId) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length || eventId) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length || eventId) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content" }}>{sending ? "Sending…" : "Send"}</button>
         </div>
       </div>
@@ -486,7 +519,7 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [] }) {
 // out individually to everyone (logistics one-to-many; the anti-extraction
 // line still holds because it's the host's own words, previewed, not faked
 // intimacy generated per person).
-function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) {
+function BulkPanel({ people, events = [], lensEvent = null, host = {}, onClose, onClear }) {
   const { showToast } = useToast();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -494,9 +527,19 @@ function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) 
   const [uploading, setUploading] = useState(false);
   const [eventId, setEventId] = useState(lensEvent?.id || null); // optionally include an event
   const fileRef = useRef(null);
+  const taRef = useRef(null); // textarea — for Quick-access caret insertion
   const move = people[0]?.move;
-  // Pre-fill from the shared suggested move (the brain's opener), host edits.
-  useEffect(() => { setDraft(move ? suggestedDraft(people[0]) : ""); setEventId(lensEvent?.id || null); }, [people, move, lensEvent?.id]);
+  // Start blank — the host writes in their own voice (no pre-filled suggestion).
+  useEffect(() => { setDraft(""); setEventId(lensEvent?.id || null); }, [people, lensEvent?.id]);
+
+  function insertAtCaret(text) {
+    const el = taRef.current;
+    if (!el) { setDraft((d) => (d ? `${d} ${text}` : text)); return; }
+    const s = el.selectionStart ?? draft.length;
+    const e = el.selectionEnd ?? draft.length;
+    setDraft(draft.slice(0, s) + text + draft.slice(e));
+    requestAnimationFrame(() => { try { el.focus(); const p = s + text.length; el.setSelectionRange(p, p); } catch {} });
+  }
 
   // Honest channel split. WhatsApp-reachable people get WhatsApp (native text);
   // everyone else gets email; anyone with neither is surfaced, not dropped.
@@ -602,9 +645,9 @@ function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) 
 
       {/* Composer — looks like a normal send; goes to all individually */}
       <div style={{ borderTop: `1px solid ${colors.border}`, padding: "12px 14px" }}>
-        {/* Native, simple message — optionally include an event (card on email,
-            link on WhatsApp). No templates, no styling. */}
-        <EventInsert events={events} eventId={eventId} setEventId={setEventId} />
+        {/* Quick access — drop in event details / your profile / number, or
+            attach the whole event. Same native composer as 1:1. */}
+        <QuickAccess events={events} host={host} attachedEventId={eventId} setAttachedEventId={setEventId} onInsert={insertAtCaret} />
 
         {/* Honest channel split — where this actually lands. */}
         <div style={{ fontSize: "11px", color: colors.textMuted, background: colors.surfaceMuted, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "8px 11px", marginBottom: "9px", lineHeight: 1.5 }}>
@@ -628,7 +671,7 @@ function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) 
         <input ref={fileRef} type="file" multiple onChange={onAttach} style={{ display: "none" }} />
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
           <button onClick={() => fileRef.current?.click()} title="Attach a file or image" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: "10px", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Paperclip size={16} /></button>
-          <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Write to all ${people.length}…`} rows={3} style={{ flex: 1, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none" }} />
+          <textarea ref={taRef} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Write to all ${people.length}…`} rows={3} style={{ flex: 1, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none" }} />
           <button onClick={handleBulkSend} disabled={(!draft.trim() && !attachments.length && !eventId) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length || eventId) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length || eventId) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length || eventId) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content", whiteSpace: "nowrap" }}>
             {sending ? "Sending…" : `Send to ${people.length}`}
           </button>
@@ -1167,9 +1210,9 @@ export default function RoomPage() {
       {(selected || bulkPeople) && (
         <div style={{ position: "fixed", top: "58px", right: 0, bottom: 0, width: "420px", borderLeft: `1px solid ${colors.border}`, background: colors.surface, boxShadow: "-12px 0 40px rgba(10,10,10,0.08)", zIndex: 30 }}>
           {bulkPeople ? (
-            <BulkPanel people={bulkPeople} events={EVENTS} lensEvent={lensEvent} onClose={() => setBulkPeople(null)} onClear={() => setBulkPeople(null)} />
+            <BulkPanel people={bulkPeople} events={EVENTS} lensEvent={lensEvent} host={HOST} onClose={() => setBulkPeople(null)} onClear={() => setBulkPeople(null)} />
           ) : (
-            <ThreadPanel person={selected} onClose={() => setSelectedId(null)} igAccounts={HOST.igAccounts || []} events={EVENTS} />
+            <ThreadPanel person={selected} onClose={() => setSelectedId(null)} igAccounts={HOST.igAccounts || []} events={EVENTS} host={HOST} />
           )}
         </div>
       )}

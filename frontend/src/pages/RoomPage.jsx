@@ -989,36 +989,40 @@ function MastheadAvatar({ host, loading }) {
   return <div style={{ width: size, height: size, borderRadius: "50%", background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><PullupEyes variant="small" style={{ width: "30px", height: "24px", display: "block" }} /></div>;
 }
 
-function ProfileMasthead({ host, loading, lensEvent, needsCount }) {
+// The masthead reads as a PROFILE — the host's NAME up top, then the substance:
+// people · events · pullups. Consistent whether the owner or an outsider is
+// looking. The "who needs you" action lives below in the inbox, where you act.
+function ProfileMasthead({ host, loading }) {
   const h = host || {};
+  const name = (h.name || "").trim() || "Your room";
   const identity = [(h.handle || "").trim(), (h.role || "").trim()].filter(Boolean).join("  ·  ");
+  const Stat = ({ n, label }) => (
+    <span><span style={{ color: colors.text, fontWeight: 700 }}>{n ?? 0}</span> {label}</span>
+  );
   return (
     <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "22px", fontFamily: SF }}>
       <MastheadAvatar host={h} loading={loading} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <h1 style={{ fontSize: "26px", fontWeight: 750, color: colors.text, margin: "0 0 4px", letterSpacing: "-0.02em" }}>
-          The Room
+        <h1 style={{ fontSize: "26px", fontWeight: 750, color: colors.text, margin: "0 0 5px", letterSpacing: "0.01em", textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {loading ? <Bar w="200px" h={24} /> : name}
         </h1>
-        {/* The stat line — your follower-count slot. "Need you" wears a badge. */}
+        {/* The substance line — people, events, pullups. The profile's proof. */}
         <div style={{ fontSize: "13.5px", color: colors.textMuted, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          {loading ? <Bar w="180px" h={13} />
-            : lensEvent ? <span>Focused on <span style={{ color: colors.text, fontWeight: 600 }}>{lensEvent.title}</span></span>
-            : <span><span style={{ color: colors.text, fontWeight: 700 }}>{h.peopleCount ?? 0}</span> people in your world</span>}
-          {!loading && needsCount > 0 && (
+          {loading ? <Bar w="220px" h={13} /> : (
             <>
+              <Stat n={h.peopleCount} label="people" />
               <span style={{ color: colors.textFaded }}>·</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "7px" }}>
-                <span style={{ minWidth: 19, height: 19, padding: "0 5px", borderRadius: "999px", background: colors.accent, color: "#fff", fontSize: "11px", fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 0 3px ${colors.accentSoft}`, lineHeight: 1 }}>{needsCount}</span>
-                <span style={{ color: colors.accent, fontWeight: 600 }}>need you</span>
-              </span>
+              <Stat n={h.eventsCount} label="events" />
+              <span style={{ color: colors.textFaded }}>·</span>
+              <Stat n={h.pullupsCount} label="pullups" />
             </>
           )}
         </div>
-        {/* Identity — handle + role, so it's unmistakably YOUR room. */}
+        {/* Identity — handle + role. */}
         {loading ? (
           <Bar w="140px" h={11} style={{ marginTop: "7px" }} />
         ) : identity ? (
-          <div style={{ fontSize: "12.5px", color: colors.textSubtle, marginTop: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{identity}</div>
+          <div style={{ fontSize: "12.5px", color: colors.textSubtle, marginTop: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{identity}</div>
         ) : null}
       </div>
     </div>
@@ -1103,7 +1107,7 @@ export default function RoomPage() {
       <div style={{ flex: "1 1 0", overflowY: "auto", minWidth: 0 }}>
         <div style={{ maxWidth: "740px", margin: "0 auto", padding: "28px 20px 60px" }}>
           {/* The profile masthead — your face anchors the Room. */}
-          <ProfileMasthead host={HOST} loading={loading} lensEvent={lensEvent} needsCount={needsCount} />
+          <ProfileMasthead host={HOST} loading={loading} />
 
           {/* Make-it-yours — fills the gaps (photo, bio, Instagram, brief) and
               patches the masthead live as they're completed. Self-hides when

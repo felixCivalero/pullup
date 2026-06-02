@@ -163,11 +163,11 @@ export async function getRoomForHost(hostId) {
     .limit(5000);
   if (peErr) {
     logger?.error?.("[roomService] timeline read failed", { error: peErr.message });
-    return { host: { peopleCount: 0, ...hostProfile }, events: [], signals: [], moments: [], people: [] };
+    return { host: { peopleCount: 0, eventsCount: 0, pullupsCount: 0, ...hostProfile }, events: [], signals: [], moments: [], people: [] };
   }
   const timeline = pe || [];
   if (!timeline.length) {
-    return { host: { peopleCount: 0, ...hostProfile }, events: [], signals: [], moments: [], people: [] };
+    return { host: { peopleCount: 0, eventsCount: 0, pullupsCount: 0, ...hostProfile }, events: [], signals: [], moments: [], people: [] };
   }
 
   // 2. Group by person.
@@ -327,8 +327,12 @@ export async function getRoomForHost(hostId) {
   // warmth. This is the retention moat (the timeline becomes a body of work).
   const moments = buildMoments({ byPerson, peopleById, eventsOut });
 
+  // "Pullups" = times someone actually showed up (attended touchpoints) — the
+  // profile stat that means real-world turnout, not vanity reach.
+  const pullupsCount = timeline.filter((e) => e.type === "attended").length;
+
   return {
-    host: { peopleCount: personIds.length, ...hostProfile },
+    host: { peopleCount: personIds.length, eventsCount: eventsOut.length, pullupsCount, ...hostProfile },
     events: eventsOut,
     signals,
     moments,

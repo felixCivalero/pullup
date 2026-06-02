@@ -11,6 +11,7 @@ import {
   Clock,
   AlertTriangle,
   Loader2,
+  QrCode,
 } from "lucide-react";
 import { useToast } from "../components/Toast";
 import { FaPaperPlane, FaCalendar } from "react-icons/fa";
@@ -1116,6 +1117,30 @@ export function EventGuestsPage() {
                   <span style={{ fontSize: "11px", color: colors.textSubtle, fontWeight: 500 }}>{s.label}</span>
                 </div>
               ))}
+            </div>
+
+            {/* Live check-in — the rotating QR the host holds up at the door. */}
+            <div style={{ padding: "0 20px", marginBottom: "16px" }}>
+              <button
+                onClick={() => navigate(`/app/events/${id}/checkin`)}
+                style={{
+                  width: "100%",
+                  padding: "13px 16px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: colors.accent,
+                  color: "#fff",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                }}
+              >
+                <QrCode size={18} /> Live check-in QR
+              </button>
             </div>
 
             {/* Search Bar - Smartphone Friendly */}

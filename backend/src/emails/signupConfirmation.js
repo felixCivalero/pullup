@@ -301,6 +301,7 @@ export function signupConfirmationEmail({
   timezone = "",
   plusOnes = 0,
   slug = "",
+  eventId = "",
   frontendUrl = "https://pullup.se",
   spotifyUrl = "",
   ticketPrice = 0,
@@ -324,6 +325,10 @@ export function signupConfirmationEmail({
   const dateFormatted = resolveDateText({ startsAt, timezone, hideDate, dateRevealHint, fallback: date || "" });
   const locationText = resolveLocationText({ location, hideLocation, revealHint });
   const eventUrl = slug ? `${frontendUrl}/e/${slug}` : frontendUrl;
+  // The room: the post-arrival space, gated by a pull-up (scan at the door).
+  // Confirmed guests get a one-line heads-up + link to the door (anticipation
+  // pre-event; the real interior opens once they scan in person).
+  const roomUrl = eventId ? `${frontendUrl}/p/${eventId}` : "";
 
   // Calendar links only make sense when the date is real and public.
   const googleCal = !hideDate && startsAt ? googleCalUrl({ title: eventTitle, startsAt, endsAt, location: hideLocation ? "" : location, slug, frontendUrl }) : "";
@@ -413,6 +418,13 @@ ${spotifyUrl ? `<!-- Spotify -->
 <tr><td align="center" style="padding:20px 0 8px;">
   ${ctaButton(eventUrl, "VIEW EVENT", b)}
 </td></tr>
+
+${(!isWaitlist && roomUrl) ? `<!-- The room (anticipation; opens once they pull up at the door) -->
+<tr><td align="center" style="padding:8px 20px 4px;">
+  <p class="pu-muted" style="margin:0;font-size:13px;color:${b.muted};line-height:1.5;font-family:${b.fontStack};">
+    When you arrive, scan the host's live code to step into <a href="${roomUrl}" target="_blank" style="color:${b.ink};text-decoration:underline;text-decoration-color:${rgbaFromHex(b.ink, 0.3)};">the room</a> — where the photos and everyone who showed up live.
+  </p>
+</td></tr>` : ""}
 
 ${(googleCal || outlookCal) ? `<!-- Add to Calendar -->
 <tr><td align="center" style="padding:8px 0 4px;">

@@ -69,7 +69,7 @@ function WorkingIndicator({ label }) {
   );
 }
 
-export function CanvasChat({ eventId, suggestions = [] }) {
+export function CanvasChat({ eventId, suggestions = [], seed = null }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -110,6 +110,12 @@ export function CanvasChat({ eventId, suggestions = [] }) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
+
+  // Seeded prompt (e.g. the create page's "build the look" offer): drop it in
+  // the composer for the host to review and send. We draft, we don't auto-fire.
+  useEffect(() => {
+    if (seed?.text) setInput(seed.text);
+  }, [seed?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // `override` lets a chip send its prompt directly; the composer sends `input`.
   async function send(override) {

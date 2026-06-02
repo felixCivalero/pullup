@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Lightbulb,
   Ticket,
+  Palette,
   AlertTriangle,
   Eye,
   Pencil,
@@ -609,6 +610,34 @@ const FOCUS_TO_FIELD_FLASH = {
   // details/form/tickets don't have a single field to flash — the tab
   // switch is the cue.
 };
+
+// The parts rail — the editor's spine, reframed. Instead of abstract "steps,"
+// the left rail is a table-of-contents of the page itself: the visible PARTS
+// you point at up top, the behind-the-scenes SIGN-UP behaviours below. Each
+// entry routes into the existing step editor (step), optionally scrolling to a
+// specific sub-part (anchor). Items can share a step — `id` disambiguates which
+// one the rail highlights.
+const RAIL_GROUPS = [
+  {
+    group: "The page",
+    items: [
+      { id: "cover", label: "Cover", icon: ImageIcon, step: 1 },
+      // Title, date, place, links, text all live as reorderable blocks in the
+      // sections builder — so this one editor IS the page body.
+      { id: "content", label: "Content", icon: Type, step: 2, anchor: "part-sections" },
+      { id: "theme", label: "Look & theme", icon: Palette, step: 2, anchor: "part-theme" },
+    ],
+  },
+  {
+    group: "Sign-up",
+    items: [
+      { id: "collect", label: "Sign-up form", icon: ClipboardList, step: 3 },
+      { id: "tickets", label: "Capacity & tickets", icon: Ticket, step: 5 },
+    ],
+  },
+];
+const RAIL_ITEMS = RAIL_GROUPS.flatMap((g) => g.items);
+const firstPartForStep = (step) => RAIL_ITEMS.find((it) => it.step === step)?.id || null;
 
 export function CreateEventPage() {
   const navigate = useNavigate();
@@ -1228,10 +1257,68 @@ export function CreateEventPage() {
     setCurrentStep(1);
   }
 
+  // Which rail part is highlighted. Tracked separately from currentStep because
+  // several parts (date / content) can share one step editor.
+  const [activePartId, setActivePartId] = useState(firstPartForStep(draft?.currentStep || 1));
+  const [aiOfferDismissed, setAiOfferDismissed] = useState(false);
+  const editorScrollRef = useRef(null);
+
+  // The two-track offer: hand the creative track to AI while the host does the
+  // logistics. Opens the canvas dock with a ready-to-send "build the look"
+  // prompt, seeded with whatever the event is already called.
+  function offerAiBuildLook() {
+    const named = (title || "").trim();
+    const prompt = named
+      ? `Build the look for "${named}" — design the cover/scene and write the section copy to match its vibe. I'll handle the logistics (date, place, sign-up).`
+      : `Build the look for this event — design a cover/scene and draft the section copy. I'll handle the logistics (date, place, sign-up).`;
+    window.dispatchEvent(new CustomEvent("pullup:ai-build-look", { detail: { prompt, key: `${currentStep}-${named.length}-${sections.length}` } }));
+  }
   function goToStep(step) {
     setStepDirection(step > currentStep ? "forward" : "backward");
     setCurrentStep(step);
-    sidebarRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    setActivePartId(firstPartForStep(step));
+    (editorScrollRef.current || sidebarRef.current)?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  // Parts rail: jump to the editor that owns a page-part / behaviour, then (if
+  // it lives partway down a longer step) scroll that exact part into view. The
+  // scroll waits a beat so the step has switched to display:block first.
+  function goToPart(item) {
+    const sameStep = item.step === currentStep;
+    setStepDirection(item.step > currentStep ? "forward" : "backward");
+    setCurrentStep(item.step);
+    setActivePartId(item.id);
+    const scroller = editorScrollRef.current || sidebarRef.current;
+    const doScroll = () => {
+      if (!item.anchor) { scroller?.scrollTo({ top: 0, behavior: "smooth" }); return; }
+      document.getElementById(item.anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    if (sameStep) doScroll();
+    else setTimeout(doScroll, 60); // let the new step paint first
+  }
+
+  // Point-at-the-preview → open that part's editor. The mirror of hoveredSection
+  // (editor→preview): now preview→editor. Cover opens media, the RSVP box opens
+  // "what you collect," and a section opens the sections builder scrolled to —
+  // and briefly glowing — that exact block.
+  function flashEditor(el) {
+    if (!el) return;
+    el.style.transition = "box-shadow 0.25s ease";
+    el.style.boxShadow = "0 0 0 2px #ec178f";
+    setTimeout(() => { el.style.boxShadow = "none"; }, 1100);
+  }
+  function handleEditPart(part) {
+    if (part.kind === "cover") { goToPart(RAIL_ITEMS.find((i) => i.id === "cover")); return; }
+    if (part.kind === "rsvp") { goToPart(RAIL_ITEMS.find((i) => i.id === "collect")); return; }
+    if (part.kind === "section") {
+      const wasStep2 = currentStep === 2;
+      setStepDirection(2 > currentStep ? "forward" : "backward");
+      setCurrentStep(2);
+      setActivePartId("content");
+      setTimeout(() => {
+        const el = editorScrollRef.current?.querySelector(`[data-section-editor="${part.index}"]`);
+        if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); flashEditor(el); }
+      }, wasStep2 ? 0 : 70);
+    }
   }
 
   function validateStep() {
@@ -2607,121 +2694,97 @@ export function CreateEventPage() {
               height: "100%",
             }}
           >
-          {/* LEFT SIDE: Form sidebar */}
+          {/* LEFT SIDE: parts rail + the active part's editor, side by side. */}
           <div
             ref={sidebarRef}
             className="create-event-sidebar"
             style={{
-              width: "440px",
-              minWidth: "440px",
+              width: "548px",
+              minWidth: "548px",
               height: "100%",
-              overflowY: "auto",
-              overflowX: "hidden",
+              overflow: "hidden",
               padding: "0",
               boxSizing: "border-box",
               borderRight: `1px solid ${colors.border}`,
               background: colors.background,
               display: mobileView === "preview" ? "none" : "flex",
-              flexDirection: "column",
+              flexDirection: "row",
             }}
           >
-            {/* Tab bar */}
-            <div
+            {/* PARTS RAIL — table-of-contents of the page. Point here (or, soon,
+                at the preview) and the matching editor opens to the right. */}
+            <nav
+              className="create-event-parts-rail"
               style={{
-                position: "sticky",
-                top: 0,
-                zIndex: 10,
-                background: colors.backgroundOverlay,
-                backdropFilter: "blur(8px)",
+                width: "158px",
+                minWidth: "158px",
                 flexShrink: 0,
+                height: "100%",
+                overflowY: "auto",
+                overflowX: "hidden",
+                borderRight: `1px solid ${colors.border}`,
+                background: colors.backgroundOverlay,
+                padding: "20px 10px",
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "column",
+                gap: "20px",
               }}
             >
-              {/* Step tabs. Step 4 was retired so the array has 4 entries —
-                  the underline indicator below uses array index, not step
-                  number, to compute its position. */}
-              <div style={{ display: "flex", position: "relative" }}>
-                {[
-                  { num: 1, label: "Media" },
-                  { num: 2, label: "Details" },
-                  { num: 3, label: "Form" },
-                  { num: 5, label: "Tickets" },
-                ].map((tab) => (
-                  <button
-                    key={tab.num}
-                    type="button"
-                    onClick={() => goToStep(tab.num)}
-                    disabled={loading}
-                    style={{
-                      flex: 1,
-                      padding: "14px 0",
-                      background: "none",
-                      border: "none",
-                      cursor: loading ? "not-allowed" : "pointer",
-                      WebkitTapHighlightColor: "transparent",
-                      fontSize: "10.5px",
-                      fontWeight: 600,
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                      color: currentStep === tab.num ? colors.text : colors.textFaded,
-                      transition: "color 0.2s ease",
-                      whiteSpace: "nowrap",
-                      position: "relative",
-                      ...(detailsTabPulse && tab.num === 2 ? {
-                        animation: "detailsTabGlow 1s ease forwards",
-                      } : {}),
-                    }}
-                  >
-                    {tab.label}
-                    {hasAttemptedPublish && tabHasMissing[tab.num] && (
-                      <span style={{
-                        position: "absolute",
-                        top: "8px",
-                        right: "4px",
-                        width: "6px",
-                        height: "6px",
-                        borderRadius: "50%",
-                        background: "#ef4444",
-                      }} />
-                    )}
-                  </button>
-                ))}
-                {/* Sliding underline indicator — anchored by tab index in the
-                    array, not by step number, since step 4 was retired. */}
-                {(() => {
-                  const tabs = [1, 2, 3, 5];
-                  const activeIdx = Math.max(0, tabs.indexOf(currentStep));
-                  const tabWidth = 100 / tabs.length;
-                  return (
-                    <div
-                      style={{
-                        position: "absolute",
-                        bottom: 0,
-                        left: `${activeIdx * tabWidth}%`,
-                        width: `${tabWidth}%`,
-                        height: "2px",
-                        background: colors.accent,
-                        transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                        borderRadius: "1px 1px 0 0",
-                      }}
-                    />
-                  );
-                })()}
-                {/* Bottom border behind the indicator */}
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: "1px",
-                    background: colors.border,
-                  }}
-                />
-              </div>
-            </div>
+              {RAIL_GROUPS.map((grp) => (
+                <div key={grp.group} style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                  <div style={{ fontSize: "9.5px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: colors.textFaded, padding: "0 8px 6px" }}>
+                    {grp.group}
+                  </div>
+                  {grp.items.map((it) => {
+                    const active = activePartId === it.id;
+                    const missing = hasAttemptedPublish && tabHasMissing[it.step];
+                    const Icon = it.icon;
+                    return (
+                      <button
+                        key={it.id}
+                        type="button"
+                        onClick={() => goToPart(it)}
+                        disabled={loading}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          textAlign: "left",
+                          padding: "9px 11px",
+                          borderRadius: "9px",
+                          border: "none",
+                          cursor: loading ? "not-allowed" : "pointer",
+                          WebkitTapHighlightColor: "transparent",
+                          background: active ? colors.accentSoft : "transparent",
+                          color: active ? colors.accent : colors.textMuted,
+                          fontSize: "13px",
+                          fontWeight: active ? 700 : 500,
+                          fontFamily: "inherit",
+                          lineHeight: 1.25,
+                          transition: "background 0.15s ease, color 0.15s ease",
+                          ...(detailsTabPulse && it.step === 2 ? { animation: "detailsTabGlow 1s ease forwards" } : {}),
+                        }}
+                      >
+                        {Icon && <Icon size={16} style={{ flexShrink: 0, opacity: active ? 1 : 0.7 }} />}
+                        <span style={{ flex: 1 }}>{it.label}</span>
+                        {missing && (
+                          <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#ef4444", flexShrink: 0 }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </nav>
 
-            {/* Step content */}
-            <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "24px" }}>
+            {/* Editor column — the active part's editor over a pinned publish
+                bar. This is a COLUMN inside the row sidebar; without it the
+                sticky publish bar becomes a third column and crushes the
+                editor. */}
+            <div style={{ flex: 1, minWidth: 0, height: "100%", display: "flex", flexDirection: "column" }}>
+            {/* Step content — the editor for the active part. */}
+            <div ref={editorScrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "24px" }}>
             <div
               key={`step-anim-${currentStep}`}
               style={{
@@ -2735,6 +2798,45 @@ export function CreateEventPage() {
                 display: currentStep === 1 ? "block" : "none",
               }}
             >
+            {/* Two-track AI offer — hand the look to AI, keep the logistics.
+                Lives at the top of the creative step; dismissible. */}
+            {!aiOfferDismissed && (
+              <div style={{
+                position: "relative",
+                marginBottom: "20px",
+                padding: "13px 14px",
+                borderRadius: "12px",
+                border: `1px solid ${colors.accentBorder}`,
+                background: colors.accentSoft,
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: colors.text }}>
+                    ✦ Let AI build the look
+                  </div>
+                  <div style={{ fontSize: "12px", lineHeight: 1.4, color: colors.textMuted, marginTop: "2px" }}>
+                    It drafts the cover &amp; copy while you do the details.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={offerAiBuildLook}
+                  style={{ flexShrink: 0, fontSize: "12px", fontWeight: 700, color: "#fff", background: colors.accent, border: "none", borderRadius: "999px", padding: "8px 14px", cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  Build it
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAiOfferDismissed(true)}
+                  aria-label="Dismiss"
+                  style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", border: "none", background: "transparent", color: colors.textFaded, cursor: "pointer", fontSize: 15, lineHeight: 1 }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
             {/* Media upload area */}
             <div style={{
               marginBottom: "24px",
@@ -3543,8 +3645,9 @@ export function CreateEventPage() {
 
             {/* Theme — background + register-button styling for THIS event
                 (migration 047). Date/text are styled per-section below.
-                Snapshotted on save; existing/un-themed events stay standard. */}
-            <div style={{ marginBottom: "20px" }}>
+                Snapshotted on save; existing/un-themed events stay standard.
+                Lives under the "Look & theme" rail part. */}
+            <div id="part-theme" style={{ marginBottom: "20px", display: activePartId === "theme" ? "block" : "none" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
                 <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.15em", color: colors.textSubtle, fontWeight: 600 }}>
                   Theme
@@ -3572,7 +3675,7 @@ export function CreateEventPage() {
               <BrandThemeEditor value={brand} onChange={setBrand} />
             </div>
 
-            {chatActivity && (
+            {chatActivity && activePartId !== "theme" && (
               <div
                 style={{
                   padding: "12px 14px",
@@ -3631,7 +3734,7 @@ export function CreateEventPage() {
             )}
 
             {/* Draft restored banner */}
-            {showDraftBanner && !isEditMode && (
+            {showDraftBanner && !isEditMode && activePartId !== "theme" && (
               <div
                 style={{
                   padding: "10px 16px",
@@ -3979,11 +4082,12 @@ export function CreateEventPage() {
 
             </div>}
 
-            {/* Content sections builder */}
-            <div style={{ marginBottom: "16px" }}>
+            {/* Content sections builder — the page body. Lives under "Content". */}
+            <div id="part-sections" style={{ marginBottom: "16px", display: activePartId === "theme" ? "none" : "block" }}>
               {sections.map((section, i) => (
                 <div key={i}
                   data-section-card
+                  data-section-editor={i}
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = "move";
@@ -5325,6 +5429,7 @@ export function CreateEventPage() {
                 </button>
               )}
             </div>
+            </div>{/* end editor column */}
           </div>
 
           {/* RIGHT SIDE: Live Preview (desktop only) — stays dark; it IS the guest page */}
@@ -5552,6 +5657,7 @@ export function CreateEventPage() {
                   sections,
                   design: brand?.design || null,
                   hoveredSection,
+                  onEditPart: handleEditPart,
                   hideLocation,
                   hideDate,
                   revealHint: revealHint || null,

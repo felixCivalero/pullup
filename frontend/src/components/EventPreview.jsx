@@ -43,6 +43,9 @@ export function EventPreview({
   autoShowRsvp = false,
   activeStep,
   onFocusDrag,
+  // Editor-only: point at a part of the preview to open its editor.
+  // onEditPart({ kind: "cover" | "section" | "rsvp", index? }).
+  onEditPart = null,
 }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const scrollRef = useRef(null);
@@ -195,6 +198,25 @@ export function EventPreview({
               touchAction: onFocusDrag && phoneFit === "cover" ? "none" : "pan-y",
             }}
           >
+            {/* Editor-only: point at the cover to open the media editor. Sits
+                above the drag layer with its own pointer target so it never
+                fights the reposition-drag. */}
+            {onEditPart && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onEditPart({ kind: "cover" }); }}
+                style={{
+                  position: "absolute", top: 10, right: 10, zIndex: 20,
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase",
+                  color: "#fff", background: "rgba(236,23,143,0.92)", border: "none",
+                  padding: "5px 10px", borderRadius: "999px", cursor: "pointer",
+                  backdropFilter: "blur(3px)", boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+                }}
+              >
+                ✎ Cover
+              </button>
+            )}
             {(() => {
               // Design archetype overrides the media hero with a generative
               // render (same component in editor preview and live page).
@@ -340,6 +362,7 @@ export function EventPreview({
               hideDate={hideDate}
               revealHint={revealHint}
               dateRevealHint={dateRevealHint}
+              onEditSection={onEditPart ? (index) => onEditPart({ kind: "section", index }) : null}
             />
           </div>
 
@@ -348,10 +371,26 @@ export function EventPreview({
             <div
               ref={rsvpSectionRef}
               style={{
+                position: "relative",
                 background: "var(--brand-bg, #05040a)",
                 padding: `0 20px max(20px, env(safe-area-inset-bottom, 20px))`,
               }}
             >
+              {/* Editor-only: point at the sign-up box to edit what you collect. */}
+              {onEditPart && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onEditPart({ kind: "rsvp" }); }}
+                  style={{
+                    position: "absolute", top: 14, right: 16, zIndex: 6,
+                    fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase",
+                    color: "#fff", background: "rgba(236,23,143,0.92)", border: "none",
+                    padding: "4px 9px", borderRadius: "999px", cursor: "pointer",
+                  }}
+                >
+                  ✎ Sign-up
+                </button>
+              )}
               {/* Price/date row — same as the fixed CTA bar, now inline */}
               <div style={{
                 display: "flex",

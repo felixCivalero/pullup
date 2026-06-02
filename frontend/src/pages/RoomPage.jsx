@@ -43,7 +43,7 @@ function useIsMobile(maxWidth = 640) {
   useEffect(() => {
     const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
     const on = (e) => setMobile(e.matches);
-    setMobile(mq.matches);
+    on(mq); // sync once in case the breakpoint changed since first render
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, [maxWidth]);
@@ -1051,6 +1051,7 @@ function ProfileMasthead({ host, loading }) {
 export default function RoomPage() {
   const navigate = useNavigate();
   const { clearEventNav } = useEventNav();
+  const isMobile = useIsMobile();
   const [selectedId, setSelectedId] = useState(null);
   const [lensEventId, setLensEventId] = useState(null); // event-lens over the global Room
   const [viewMode, setViewMode] = useState("carousel"); // 'carousel' | 'list' | 'dashboard' — same actionables, 3 UX to learn from
@@ -1120,7 +1121,7 @@ export default function RoomPage() {
 
   return (
     <div style={{ display: "flex", height: "100vh", paddingTop: "58px", boxSizing: "border-box" }}>
-      <style>{`@keyframes roomShimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } } @keyframes roomPanelDrop { 0% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: translateY(0); } }`}</style>
+      <style>{`@keyframes roomShimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } } @keyframes roomPanelDrop { 0% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: translateY(0); } } @keyframes roomSheetUp { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }`}</style>
 
       <div style={{ flex: "1 1 0", overflowY: "auto", minWidth: 0 }}>
         <div style={{ maxWidth: "740px", margin: "0 auto", padding: "28px 20px 60px" }}>
@@ -1168,83 +1169,45 @@ export default function RoomPage() {
           {/* Notifications now live in the top-bar bell (ambient facts), not in
               the Room body. The Room is actionables-only. */}
 
-          {/* The filter bar — the ONE clear signal of "you are now working on
-              this event." Replaces the vague 'Focus here'. Only the actionables
-              below are scoped. */}
-          {!loading && lensEvent && (
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px", padding: "10px 14px", borderRadius: "12px", background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, fontFamily: SF }}>
-              <span style={{ fontSize: "13px", color: colors.text }}>
-                Showing who needs you for <strong>{lensEvent.title}</strong>
-                <span style={{ color: colors.textMuted }}> · {needsCount} {needsCount === 1 ? "person" : "people"}</span>
-              </span>
-              <button onClick={() => setLensEventId(null)} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px", fontWeight: 600, color: colors.accent, background: "#fff", border: `1px solid ${colors.accentBorder}`, borderRadius: "999px", padding: "5px 12px", cursor: "pointer", fontFamily: SF }}>
-                ✕ Show everyone
-              </button>
-            </div>
-          )}
-
-          {/* Search the whole world. When there's a query, the body becomes
-              results (everyone, not just actionables); empty → normal Room. */}
+          {/* The people list + search lived here. They now live in the Messages
+              dock (bottom-right) — no need to duplicate them in the Room body.
+              This space under the events is open for what the Room becomes next. */}
           {!loading && (
-            <div style={{ position: "relative", marginBottom: "16px" }}>
-              <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: colors.textSubtle, pointerEvents: "none" }}>
-                <Search size={16} />
-              </span>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search your people…"
-                style={{ width: "100%", boxSizing: "border-box", padding: "11px 38px 11px 40px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.surface, fontSize: "14px", fontFamily: SF, color: colors.text, outline: "none" }}
-              />
-              {query && (
-                <button onClick={() => setQuery("")} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", width: 24, height: 24, borderRadius: "50%", border: "none", background: colors.surfaceMuted, color: colors.textMuted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <X size={13} />
-                </button>
-              )}
+            <div style={{ marginTop: "6px", padding: "30px 20px", borderRadius: "16px", border: `1px dashed ${colors.border}`, textAlign: "center", fontFamily: SF }}>
+              <div style={{ fontSize: "13.5px", color: colors.textMuted }}>Your people moved into <strong style={{ color: colors.text }}>Messages</strong> — bottom-right.</div>
+              <div style={{ fontSize: "12px", color: colors.textFaded, marginTop: "4px" }}>This space is next.</div>
             </div>
-          )}
-
-          {/* The Room body is ALWAYS the actionables — opening someone just
-              slides the chat in on the right, it never replaces this list. The
-              open person is highlighted in place. */}
-          {loading ? (
-            <ActionsSkeleton />
-          ) : searchResults ? (
-            searchResults.length ? (
-              <div>
-                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle, marginBottom: "10px" }}>
-                  {searchResults.length} {searchResults.length === 1 ? "person" : "people"}
-                </div>
-                {searchResults.map((p) => (
-                  <PersonCard key={p.id} person={p} events={EVENTS} active={p.id === selectedId} onClick={() => { setBulkPeople(null); setSelectedId(p.id); }} />
-                ))}
-              </div>
-            ) : (
-              <div style={{ padding: "20px 4px", color: colors.textSubtle, fontSize: "13.5px", fontFamily: SF }}>No one in your world matches “{query}”.</div>
-            )
-          ) : (
-            <ActionInbox
-              people={ranked}
-              onOpen={(id) => { setBulkPeople(null); setSelectedId(id); }}
-              onBulk={(chosen) => { setSelectedId(null); setBulkPeople(chosen); }}
-              activeId={selectedId}
-            />
           )}
         </div>
       </div>
 
-      {/* Right slot — FLOATS over the empty right space (fixed to the edge)
-          instead of being a flex sibling, so opening it doesn't shrink the body
-          and shove the centered content leftward. One panel at a time: a single
+      {/* Right slot — on DESKTOP it floats over the empty right space (fixed to
+          the edge) so opening it doesn't shrink the body. On PHONE it rises from
+          the bottom as a sheet (a 420px side panel would swallow the screen),
+          with a scrim you can tap to dismiss. One at a time: a single
           conversation, or the bulk compose view. */}
       {(selected || bulkPeople) && (
-        <div style={{ position: "fixed", top: "58px", right: 0, bottom: 0, width: "420px", borderLeft: `1px solid ${colors.border}`, background: colors.surface, boxShadow: "-12px 0 40px rgba(10,10,10,0.08)", zIndex: 30 }}>
-          {bulkPeople ? (
-            <BulkPanel people={bulkPeople} events={EVENTS} lensEvent={lensEvent} host={HOST} onClose={() => setBulkPeople(null)} onClear={() => setBulkPeople(null)} />
-          ) : (
-            <ThreadPanel person={selected} onClose={() => setSelectedId(null)} igAccounts={HOST.igAccounts || []} events={EVENTS} host={HOST} />
+        <>
+          {isMobile && (
+            <div
+              onClick={() => { setSelectedId(null); setBulkPeople(null); }}
+              style={{ position: "fixed", inset: 0, background: "rgba(10,10,10,0.4)", zIndex: 29 }}
+            />
           )}
-        </div>
+          <div
+            style={
+              isMobile
+                ? { position: "fixed", left: 0, right: 0, bottom: 0, top: "8vh", borderTopLeftRadius: 18, borderTopRightRadius: 18, background: colors.surface, boxShadow: "0 -12px 40px rgba(10,10,10,0.18)", zIndex: 30, overflow: "hidden", animation: "roomSheetUp 0.2s ease-out" }
+                : { position: "fixed", top: "58px", right: 0, bottom: 0, width: "420px", borderLeft: `1px solid ${colors.border}`, background: colors.surface, boxShadow: "-12px 0 40px rgba(10,10,10,0.08)", zIndex: 30 }
+            }
+          >
+            {bulkPeople ? (
+              <BulkPanel people={bulkPeople} events={EVENTS} lensEvent={lensEvent} host={HOST} onClose={() => setBulkPeople(null)} onClear={() => setBulkPeople(null)} />
+            ) : (
+              <ThreadPanel person={selected} onClose={() => setSelectedId(null)} igAccounts={HOST.igAccounts || []} events={EVENTS} host={HOST} />
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -1445,7 +1408,7 @@ function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage
 // The one panel — same bar for every event. Manage navigates; Team / VIP /
 // Share swap content inline here; Focus drops the event as a lens; delete
 // confirms inline. This is what removes the "some jump, some pop" confusion.
-function EventActionPanel({ event, arrowLeft, tab, onTab, onClose, focused, guestCount = 0, onManage, onFocus, onMessageAll, onDeleted }) {
+function EventActionPanel({ event, arrowLeft, isMobile, tab, onTab, onClose, focused, guestCount = 0, onManage, onFocus, onMessageAll, onDeleted }) {
   const { showToast } = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -1516,7 +1479,7 @@ function EventActionPanel({ event, arrowLeft, tab, onTab, onClose, focused, gues
         </>
       )}
 
-      <div style={{ border: `1px solid ${colors.accentBorder}`, borderTop: `3px solid ${colors.accent}`, borderRadius: "16px", background: colors.surface, overflow: "hidden", boxShadow: "0 14px 40px rgba(10,10,10,0.13)", animation: "roomPanelDrop 0.18s ease-out" }}>
+      <div style={{ border: `1px solid ${colors.accentBorder}`, borderTop: `3px solid ${colors.accent}`, borderRadius: "16px", background: colors.surface, overflow: "hidden", boxShadow: "0 14px 40px rgba(10,10,10,0.13)", animation: isMobile ? undefined : "roomPanelDrop 0.18s ease-out" }}>
         {/* Cover banner — the panel wears the event's poster so it's unmistakably
             THIS event, expanded. */}
         <div style={{ position: "relative", height: 78, background: banner, overflow: "hidden" }}>
@@ -1619,7 +1582,7 @@ function gradientFor(id) {
 // A poster card. The WHOLE card is one button — tapping it selects the event
 // and opens the unified action panel below the strip. No per-card folding
 // actions anymore (that's what caused the inconsistent behaviour).
-function EventPosterCard({ event, focused, selected, onSelect, innerRef }) {
+function EventPosterCard({ event, focused, selected, onSelect, onHoverOpen, innerRef, isMobile }) {
   const live = event.status === "live";
   const isDraft = event.status === "draft";
   const pct = event.capacity ? Math.min(1, event.comingCount / event.capacity) : 0;
@@ -1632,8 +1595,13 @@ function EventPosterCard({ event, focused, selected, onSelect, innerRef }) {
     <button
       ref={innerRef}
       onClick={onSelect}
+      onMouseEnter={onHoverOpen}
       style={{
-        width: 172, flexShrink: 0, borderRadius: "16px", border: `1px solid ${ring}`,
+        // Phone: ~43vw so two cards sit full with a sliver of the third peeking
+        // (reads as swipeable). Desktop: fixed 172.
+        width: isMobile ? "43vw" : 172, maxWidth: isMobile ? 190 : undefined,
+        scrollSnapAlign: isMobile ? "start" : undefined,
+        flexShrink: 0, borderRadius: "16px", border: `1px solid ${ring}`,
         background: colors.surface, overflow: "hidden", textAlign: "left", padding: 0,
         cursor: "pointer", fontFamily: SF,
         // Selected lifts toward you and glows accent — it's clearly the card the
@@ -1674,7 +1642,7 @@ function EventPosterCard({ event, focused, selected, onSelect, innerRef }) {
 
 // The clear primary action — leads the strip, filled accent so it reads as
 // "start here," not a faint placeholder.
-function CreateTile({ onClick }) {
+function CreateTile({ onClick, isMobile }) {
   const [hover, setHover] = useState(false);
   return (
     <button
@@ -1682,7 +1650,9 @@ function CreateTile({ onClick }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        width: 150, flexShrink: 0, minHeight: 92 + 78, borderRadius: "16px",
+        width: isMobile ? "40vw" : 150, maxWidth: isMobile ? 178 : undefined,
+        scrollSnapAlign: isMobile ? "start" : undefined,
+        flexShrink: 0, minHeight: 92 + 78, borderRadius: "16px",
         border: "none",
         background: colors.accent,
         color: "#fff",

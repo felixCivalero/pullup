@@ -25,6 +25,7 @@ import {
 import { suppress } from "../repos/whatsappSuppressionsRepo.js";
 import { upsertThreadFromMessage } from "../repos/whatsappThreadsRepo.js";
 import { supabase } from "../../supabase.js";
+import { logPersonEvent } from "../../services/personTimeline.js";
 import { logger } from "../../logger.js";
 
 /**
@@ -228,6 +229,19 @@ async function handleInboundMessage(message, contacts) {
       outboxId: inboundRow.id,
       at: eventAt,
     });
+
+    // Fold the reply into the person's timeline so it shows in the host's
+    // chat thread — the inbound half of the conversation. Best-effort.
+    await logPersonEvent({
+      personId: personRow.id,
+      hostId: hostProfileId,
+      type: "message_in",
+      channel: "whatsapp",
+      direction: "in",
+      body: text || `[${type}]`,
+      occurredAt: eventAt,
+      metadata: { source: "whatsapp_webhook", outboxId: inboundRow.id },
+    }).catch(() => {});
   }
 }
 

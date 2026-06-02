@@ -29,6 +29,7 @@ import EventRoomPage from "./pages/EventRoomPage";
 import RoomPage from "./pages/RoomPage";
 import PullUpPage from "./pages/PullUpPage";
 import HostCheckinPage from "./pages/HostCheckinPage";
+import NodeProfilePage from "./pages/NodeProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
@@ -103,6 +104,15 @@ function App() {
           element={
             <ErrorBoundary>
               <PullUpPage />
+            </ErrorBoundary>
+          }
+        />
+        {/* A node's profile — the room's public face, viewer-relative. */}
+        <Route
+          path="/r/:id"
+          element={
+            <ErrorBoundary>
+              <NodeProfilePage />
             </ErrorBoundary>
           }
         />

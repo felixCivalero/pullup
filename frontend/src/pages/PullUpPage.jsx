@@ -13,9 +13,10 @@
 //
 // The locked state shows the PROMISE (counts, never content).
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { publicFetch } from "../lib/api.js";
+import RoomConversation from "../components/room/RoomConversation.jsx";
 
 const INK = "#f5f4f7";
 const MUTED = "rgba(245,244,247,0.55)";
@@ -55,6 +56,16 @@ export default function PullUpPage() {
   const [error, setError] = useState("");
   const [interior, setInterior] = useState(null);
   const [justPulledUp, setJustPulledUp] = useState(false);
+
+  // Guest adapter for the topic-organised room conversation (publicFetch +
+  // the email they pulled up with). Guests can't open topics — host holds the pen.
+  const em = email.trim().toLowerCase();
+  const guestApi = useMemo(() => ({
+    loadChannels: () => publicFetch(`/p/${eventId}/channels?email=${encodeURIComponent(em)}`).then((r) => (r.ok ? r.json().then((d) => d.channels || []) : [])),
+    loadMessages: (cid) => publicFetch(`/p/${eventId}/space?email=${encodeURIComponent(em)}&channelId=${cid}`).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
+    post: (cid, body) => publicFetch(`/p/${eventId}/space`, { method: "POST", body: JSON.stringify({ email: em, body, channelId: cid }) }).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
+    createTopic: null,
+  }), [eventId, em]);
 
   useEffect(() => {
     let alive = true;
@@ -157,7 +168,10 @@ export default function PullUpPage() {
             </div>
           )}
 
-          <EventSpace eventId={eventId} email={email.trim().toLowerCase()} />
+          <div style={{ marginTop: 24, borderTop: `1px solid ${BORDER}`, paddingTop: 18 }}>
+            <div style={{ fontSize: 11, color: FAINT, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>The room · talk</div>
+            <RoomConversation dark canCreateTopic={false} api={guestApi} />
+          </div>
         </div>
       </div>
     );
@@ -244,53 +258,6 @@ export default function PullUpPage() {
   );
 }
 
-// ── The room's conversation (mesh — co-present only). Gated server-side: only
-// people who pulled up to THIS event can read or post. ───────────────────────
-function EventSpace({ eventId, email }) {
-  const [messages, setMessages] = useState(null);
-  const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
-
-  async function load() {
-    const r = await publicFetch(`/p/${eventId}/space?email=${encodeURIComponent(email)}`);
-    if (r.ok) { const d = await r.json().catch(() => null); setMessages(d?.messages || []); }
-    else setMessages([]);
-  }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [eventId, email]);
-
-  async function send(e) {
-    e.preventDefault();
-    const body = draft.trim();
-    if (!body) return;
-    setSending(true);
-    try {
-      const r = await publicFetch(`/p/${eventId}/space`, { method: "POST", body: JSON.stringify({ email, body }) });
-      if (r.ok) { setDraft(""); await load(); }
-    } finally { setSending(false); }
-  }
-
-  return (
-    <div style={{ marginTop: 24, borderTop: `1px solid ${BORDER}`, paddingTop: 18 }}>
-      <div style={{ fontSize: 11, color: FAINT, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>The room · {messages?.length || 0} {messages?.length === 1 ? "message" : "messages"}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 220, overflowY: "auto", marginBottom: 12 }}>
-        {(messages || []).map((m) => (
-          <div key={m.id}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: m.isHost ? PINK : INK }}>{m.authorName || "Someone"}{m.isHost ? " · host" : ""}</span>
-            <div style={{ fontSize: 13.5, color: MUTED, lineHeight: 1.45 }}>{m.body}</div>
-          </div>
-        ))}
-        {messages && messages.length === 0 && (
-          <div style={{ fontSize: 13, color: FAINT }}>Quiet so far. Say something to the people who pulled up.</div>
-        )}
-      </div>
-      <form onSubmit={send} style={{ display: "flex", gap: 8 }}>
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Message the room…"
-          style={{ ...inputStyle, flex: 1, padding: "11px 13px", fontSize: 14 }} />
-        <button type="submit" disabled={sending || !draft.trim()} style={{ ...btnStyle, width: "auto", marginTop: 0, padding: "11px 16px", opacity: draft.trim() ? 1 : 0.5 }}>Send</button>
-      </form>
-    </div>
-  );
-}
 
 const inputStyle = { width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 12, border: `1px solid ${BORDER}`, background: "rgba(255,255,255,0.04)", color: INK, fontSize: 15, outline: "none" };
 const btnStyle = { width: "100%", marginTop: 16, padding: "14px", borderRadius: 12, border: "none", background: PINK, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" };

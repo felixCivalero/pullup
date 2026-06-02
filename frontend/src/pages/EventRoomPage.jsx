@@ -22,59 +22,58 @@ import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
 import { authenticatedFetch } from "../lib/api.js";
+import RoomConversation from "../components/room/RoomConversation.jsx";
 import { ROOM_EVENT, ROOM_BRIEF, ROOM_PEOPLE } from "../components/room/roomFixtures.js";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
-// The host's live view of the event SPACE (the mesh conversation everyone who
-// pulled up shares). Real data — sits above the fixtures mockup below.
+// Storage folders — the darkroom as a 4-grid (photos/files), not a flat pile.
+// Shell for now: shows the structure; upload-into-folder is the next pull.
+function StorageFolders() {
+  const folders = [
+    { key: "all", label: "All photos", hint: "everything dropped here" },
+    { key: "group", label: "Group shot", hint: "the one with everyone" },
+    { key: "after", label: "Afters", hint: "what happened later" },
+    { key: "add", label: "+ New folder", hint: "", add: true },
+  ];
+  return (
+    <div style={{ marginBottom: "24px" }}>
+      <div style={{ fontSize: "12px", fontWeight: 700, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "12px" }}>Storage</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px" }}>
+        {folders.map((f) => (
+          <div key={f.key} style={{
+            aspectRatio: "1.6", borderRadius: "14px", padding: "12px 14px",
+            border: `1px ${f.add ? "dashed" : "solid"} ${colors.border}`,
+            background: f.add ? "transparent" : colors.surface,
+            display: "flex", flexDirection: "column", justifyContent: "flex-end",
+            cursor: "pointer",
+          }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, color: f.add ? colors.textMuted : colors.text }}>{f.label}</div>
+            {f.hint && <div style={{ fontSize: "11.5px", color: colors.textFaded, marginTop: "2px" }}>{f.hint}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// The host's view of the event's COLLECTIVE conversation, organised into TOPICS
+// (host holds the pen — can open new topics). Real data, above the mockup below.
 function HostRoomSpace({ eventId }) {
-  const [messages, setMessages] = useState(null);
-  const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
-
-  async function load() {
-    try {
-      const r = await authenticatedFetch(`/host/events/${eventId}/space`);
-      if (r.ok) { const d = await r.json().catch(() => null); setMessages(d?.messages || []); }
-      else setMessages([]);
-    } catch { setMessages([]); }
-  }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [eventId]);
-
-  async function send(e) {
-    e.preventDefault();
-    const body = draft.trim();
-    if (!body) return;
-    setSending(true);
-    try {
-      const r = await authenticatedFetch(`/host/events/${eventId}/space`, { method: "POST", body: JSON.stringify({ body }) });
-      if (r.ok) { const d = await r.json().catch(() => null); setMessages(d?.messages || []); setDraft(""); }
-    } finally { setSending(false); }
-  }
+  const api = useMemo(() => ({
+    loadChannels: () => authenticatedFetch(`/host/events/${eventId}/channels`).then((r) => (r.ok ? r.json().then((d) => d.channels || []) : [])),
+    loadMessages: (cid) => authenticatedFetch(`/host/events/${eventId}/space?channelId=${cid}`).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
+    post: (cid, body) => authenticatedFetch(`/host/events/${eventId}/space`, { method: "POST", body: JSON.stringify({ body, channelId: cid }) }).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
+    createTopic: (name) => authenticatedFetch(`/host/events/${eventId}/channels`, { method: "POST", body: JSON.stringify({ name }) }).then((r) => (r.ok ? r.json().then((d) => d.channels || null) : null)),
+  }), [eventId]);
 
   return (
     <div style={{ marginBottom: "24px", border: `1px solid ${colors.border}`, borderRadius: "16px", padding: "16px 18px", background: colors.surface }}>
       <div style={{ fontSize: "12px", fontWeight: 700, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "12px" }}>
-        The room · {messages?.length || 0} {messages?.length === 1 ? "message" : "messages"}
+        The room · topics
         <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, color: colors.textFaded }}> · only people who pulled up are here</span>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "240px", overflowY: "auto", marginBottom: "12px" }}>
-        {(messages || []).map((m) => (
-          <div key={m.id}>
-            <span style={{ fontSize: "12.5px", fontWeight: 700, color: m.isHost ? colors.accent : colors.text }}>{m.authorName}{m.isHost ? " · you" : ""}</span>
-            <div style={{ fontSize: "13.5px", color: colors.textMuted, lineHeight: 1.45 }}>{m.body}</div>
-          </div>
-        ))}
-        {messages && messages.length === 0 && (
-          <div style={{ fontSize: "13px", color: colors.textFaded }}>No one's said anything yet. The room fills as people pull up.</div>
-        )}
-      </div>
-      <form onSubmit={send} style={{ display: "flex", gap: "8px" }}>
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Say something to the room…"
-          style={{ flex: 1, padding: "11px 13px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: "#fff", color: colors.text, fontSize: "14px", outline: "none" }} />
-        <button type="submit" disabled={sending || !draft.trim()} style={{ padding: "11px 18px", borderRadius: "12px", border: "none", background: colors.accent, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer", opacity: draft.trim() ? 1 : 0.5 }}>Send</button>
-      </form>
+      <RoomConversation canCreateTopic api={api} />
     </div>
   );
 }
@@ -607,6 +606,8 @@ export default function EventRoomPage() {
               {needsCount > 0 && <> · <span style={{ color: colors.accent, fontWeight: 600 }}>{needsCount} need you</span></>}
             </div>
           </div>
+
+          <StorageFolders />
 
           <HostRoomSpace eventId={id} />
 

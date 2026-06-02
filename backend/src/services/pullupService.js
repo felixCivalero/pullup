@@ -227,37 +227,71 @@ export async function hasPulledUp(personId, eventId) {
   return !!data;
 }
 
-// ── The event space (the room's conversation) ──────────────────────────────
+// ── The event space (the room's conversation, organised into TOPICS) ────────
 // Read/write is gated by a pull-up (mesh) or by being the host. No DM
-// primitive — everything lives in this shared, event-scoped space.
-export async function listSpaceMessages(eventId, { limit = 200 } = {}) {
+// primitive — everything lives in shared, event-scoped channels. Topics are
+// host-curated (the host holds the pen); the always-on "Main" is created
+// lazily so every room has somewhere to talk from the first message.
+
+export async function getOrCreateMainChannel(eventId) {
+  const { data: existing } = await supabase
+    .from("event_channels").select("id, name, is_main, sort").eq("event_id", eventId).eq("is_main", true).maybeSingle();
+  if (existing) return existing;
   const { data, error } = await supabase
+    .from("event_channels").insert({ event_id: eventId, name: "Main", is_main: true, sort: 0 }).select("id, name, is_main, sort").single();
+  if (error) {
+    // lost a race — re-read
+    const { data: again } = await supabase.from("event_channels").select("id, name, is_main, sort").eq("event_id", eventId).eq("is_main", true).maybeSingle();
+    return again || null;
+  }
+  return data;
+}
+
+export async function listChannels(eventId) {
+  await getOrCreateMainChannel(eventId); // guarantee Main exists
+  const { data } = await supabase
+    .from("event_channels").select("id, name, is_main, sort").eq("event_id", eventId).order("is_main", { ascending: false }).order("sort").order("created_at");
+  return (data || []).map((c) => ({ id: c.id, name: c.name, isMain: !!c.is_main }));
+}
+
+export async function createChannel({ eventId, name, createdBy = null }) {
+  const clean = (name || "").toString().trim().slice(0, 40);
+  if (!eventId || !clean) return { ok: false, reason: "empty" };
+  const { data: peers } = await supabase.from("event_channels").select("id").eq("event_id", eventId);
+  const { data, error } = await supabase
+    .from("event_channels").insert({ event_id: eventId, name: clean, is_main: false, sort: (peers?.length || 1), created_by: createdBy }).select("id, name, is_main").single();
+  if (error) return { ok: false, reason: error.message };
+  return { ok: true, channel: { id: data.id, name: data.name, isMain: false } };
+}
+
+export async function listSpaceMessages(eventId, { channelId = null, limit = 200 } = {}) {
+  // Default to the Main channel when none is specified.
+  let chId = channelId;
+  if (!chId) { const main = await getOrCreateMainChannel(eventId); chId = main?.id || null; }
+  let q = supabase
     .from("event_space_messages")
-    .select("id, body, author_name, is_host, author_person_id, created_at")
+    .select("id, body, author_name, is_host, author_person_id, channel_id, created_at")
     .eq("event_id", eventId)
     .order("created_at", { ascending: true })
     .limit(limit);
+  q = chId ? q.eq("channel_id", chId) : q.is("channel_id", null);
+  const { data, error } = await q;
   if (error || !data) return [];
-  return data.map((m) => ({
-    id: m.id,
-    body: m.body,
-    authorName: m.author_name || "Someone",
-    isHost: !!m.is_host,
-    personId: m.author_person_id || null,
-    at: m.created_at,
-  }));
+  return data.map((m) => ({ id: m.id, body: m.body, authorName: m.author_name || "Someone", isHost: !!m.is_host, personId: m.author_person_id || null, channelId: m.channel_id || null, at: m.created_at }));
 }
 
-export async function postSpaceMessage({ eventId, personId = null, profileId = null, isHost = false, authorName = null, body }) {
+export async function postSpaceMessage({ eventId, channelId = null, personId = null, profileId = null, isHost = false, authorName = null, body }) {
   const text = (body || "").toString().trim();
   if (!eventId || !text) return { ok: false, reason: "empty" };
+  let chId = channelId;
+  if (!chId) { const main = await getOrCreateMainChannel(eventId); chId = main?.id || null; }
   const { data, error } = await supabase
     .from("event_space_messages")
-    .insert({ event_id: eventId, author_person_id: personId, author_profile_id: profileId, is_host: isHost, author_name: authorName, body: text.slice(0, 4000) })
+    .insert({ event_id: eventId, channel_id: chId, author_person_id: personId, author_profile_id: profileId, is_host: isHost, author_name: authorName, body: text.slice(0, 4000) })
     .select("id")
     .single();
   if (error) return { ok: false, reason: error.message };
-  return { ok: true, id: data.id };
+  return { ok: true, id: data.id, channelId: chId };
 }
 
 export async function getCoPresentAtEvent(personId, eventId) {

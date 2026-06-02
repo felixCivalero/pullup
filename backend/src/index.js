@@ -5362,9 +5362,28 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
   }
 });
 
-// The event SPACE — the room's conversation (mesh). Read/post gated by a
-// pull-up to this event: spokes (RSVP-only) can't see or reach it; co-present
-// nodes can wire sideways. No DM primitive — it's one shared, event-scoped space.
+// The event SPACE — the room's COLLECTIVE conversation, organised into TOPICS
+// (channels). Read/post gated by a pull-up: spokes (RSVP-only) can't see or
+// reach it; co-present nodes wire sideways. No DM primitive, no single-line —
+// it's shared, event-scoped, topic-organised. Topics are host-curated.
+
+// Topics a guest can see (pull-up gated).
+app.get("/p/:eventId/channels", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { hasPulledUp, listChannels } = await import("./services/pullupService.js");
+    const email = (req.query.email || "").toString().trim().toLowerCase();
+    const person = email ? await findPersonByEmail(email) : null;
+    if (!person || !(await hasPulledUp(person.id, eventId))) {
+      return res.status(403).json({ error: "locked", reason: "not_pulled_up" });
+    }
+    res.json({ channels: await listChannels(eventId) });
+  } catch (err) {
+    console.error("[channels:get] error:", err.message);
+    res.status(500).json({ error: "Failed to load topics" });
+  }
+});
+
 app.get("/p/:eventId/space", async (req, res) => {
   try {
     const { eventId } = req.params;
@@ -5374,7 +5393,7 @@ app.get("/p/:eventId/space", async (req, res) => {
     if (!person || !(await hasPulledUp(person.id, eventId))) {
       return res.status(403).json({ error: "locked", reason: "not_pulled_up" });
     }
-    res.json({ messages: await listSpaceMessages(eventId) });
+    res.json({ messages: await listSpaceMessages(eventId, { channelId: req.query.channelId || null }) });
   } catch (err) {
     console.error("[space:get] error:", err.message);
     res.status(500).json({ error: "Failed to load the room" });
@@ -5384,29 +5403,55 @@ app.get("/p/:eventId/space", async (req, res) => {
 app.post("/p/:eventId/space", async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { email, body } = req.body || {};
+    const { email, body, channelId } = req.body || {};
     const { hasPulledUp, postSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
     const norm = (email || "").toString().trim().toLowerCase();
     const person = norm ? await findPersonByEmail(norm) : null;
     if (!person || !(await hasPulledUp(person.id, eventId))) {
       return res.status(403).json({ error: "locked", reason: "not_pulled_up" });
     }
-    const r = await postSpaceMessage({ eventId, personId: person.id, authorName: person.name || "Someone", body });
+    const r = await postSpaceMessage({ eventId, channelId: channelId || null, personId: person.id, authorName: person.name || "Someone", body });
     if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
-    res.json({ ok: true, messages: await listSpaceMessages(eventId) });
+    res.json({ ok: true, messages: await listSpaceMessages(eventId, { channelId: r.channelId }) });
   } catch (err) {
     console.error("[space:post] error:", err.message);
     res.status(500).json({ ok: false, reason: "post_failed" });
   }
 });
 
-// Host side of the same space — the hub. Owner-gated; posts land as `host`.
+// Host side of the same space — the hub, and the pen: the host curates topics.
+app.get("/host/events/:id/channels", requireAuth, async (req, res) => {
+  try {
+    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { listChannels } = await import("./services/pullupService.js");
+    res.json({ channels: await listChannels(req.params.id) });
+  } catch (err) {
+    console.error("[host-channels:get] error:", err.message);
+    res.status(500).json({ error: "Failed to load topics" });
+  }
+});
+
+app.post("/host/events/:id/channels", requireAuth, async (req, res) => {
+  try {
+    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { createChannel, listChannels } = await import("./services/pullupService.js");
+    const r = await createChannel({ eventId: req.params.id, name: req.body?.name, createdBy: req.user.id });
+    if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
+    res.json({ ok: true, channel: r.channel, channels: await listChannels(req.params.id) });
+  } catch (err) {
+    console.error("[host-channels:post] error:", err.message);
+    res.status(500).json({ ok: false, reason: "create_failed" });
+  }
+});
+
 app.get("/host/events/:id/space", requireAuth, async (req, res) => {
   try {
     const { isHost } = await isUserEventHost(req.user.id, req.params.id);
     if (!isHost) return res.status(403).json({ error: "Forbidden" });
     const { listSpaceMessages } = await import("./services/pullupService.js");
-    res.json({ messages: await listSpaceMessages(req.params.id) });
+    res.json({ messages: await listSpaceMessages(req.params.id, { channelId: req.query.channelId || null }) });
   } catch (err) {
     console.error("[host-space:get] error:", err.message);
     res.status(500).json({ error: "Failed to load the room" });
@@ -5421,13 +5466,14 @@ app.post("/host/events/:id/space", requireAuth, async (req, res) => {
     const profile = await getUserProfile(req.user.id).catch(() => null);
     const r = await postSpaceMessage({
       eventId: req.params.id,
+      channelId: req.body?.channelId || null,
       profileId: req.user.id,
       isHost: true,
       authorName: profile?.name || "Host",
       body: req.body?.body,
     });
     if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
-    res.json({ ok: true, messages: await listSpaceMessages(req.params.id) });
+    res.json({ ok: true, messages: await listSpaceMessages(req.params.id, { channelId: r.channelId }) });
   } catch (err) {
     console.error("[host-space:post] error:", err.message);
     res.status(500).json({ ok: false, reason: "post_failed" });

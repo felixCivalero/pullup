@@ -19,7 +19,7 @@
 // to find and delete.
 
 import { supabase } from "../src/supabase.js";
-import { recordPullUp, postSpaceMessage } from "../src/services/pullupService.js";
+import { recordPullUp, postSpaceMessage, getOrCreateMainChannel, createChannel } from "../src/services/pullupService.js";
 
 if (process.env.PULLUP_SEED !== "1") {
   console.error("Refusing to run. This seeds fake pull-ups — set PULLUP_SEED=1 to confirm you mean it.");
@@ -86,11 +86,16 @@ async function seed() {
   await clean(); // idempotent — start fresh
 
   const up = await seedEvent(UPCOMING);
-  await postSpaceMessage({ eventId: up.eventId, personId: up.ids["pulledup@pullup.test"], authorName: "Pia PulledUp", body: "made it — this room is unreal" });
-  await postSpaceMessage({ eventId: up.eventId, personId: up.ids["copresent@pullup.test"], authorName: "Cole CoPresent", body: "who's still here after?" });
+  const upMain = await getOrCreateMainChannel(up.eventId);
+  await postSpaceMessage({ eventId: up.eventId, channelId: upMain.id, personId: up.ids["pulledup@pullup.test"], authorName: "Pia PulledUp", body: "made it — this room is unreal" });
+  await postSpaceMessage({ eventId: up.eventId, channelId: upMain.id, personId: up.ids["copresent@pullup.test"], authorName: "Cole CoPresent", body: "who's still here after?" });
+  // A host-curated topic, with a beat in it.
+  const groupShot = await createChannel({ eventId: up.eventId, name: "Group shot", createdBy: HOST_ID });
+  if (groupShot.ok) await postSpaceMessage({ eventId: up.eventId, channelId: groupShot.channel.id, personId: up.ids["copresent@pullup.test"], authorName: "Cole CoPresent", body: "did anyone get the one on the stairs?" });
 
   const past = await seedEvent(PASSED);
-  await postSpaceMessage({ eventId: past.eventId, personId: past.ids["pastpulledup@pullup.test"], authorName: "Eve Showed", body: "still thinking about last night" });
+  const pastMain = await getOrCreateMainChannel(past.eventId);
+  await postSpaceMessage({ eventId: past.eventId, channelId: pastMain.id, personId: past.ids["pastpulledup@pullup.test"], authorName: "Eve Showed", body: "still thinking about last night" });
 
   console.log("\n✅ Seeded the test world (2 events on the lifecycle).\n");
   console.log("   UPCOMING event id:", up.eventId);

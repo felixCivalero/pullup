@@ -76,10 +76,11 @@ export default function PullUpPage() {
     setPhase("working");
     setError("");
     try {
-      // 1) Already hold the bead? Then you're in — no code required.
+      // 1) Already hold the bead? Then you're in — no code required, forever.
       if (await loadInterior(em)) { setJustPulledUp(false); setPhase("inRoom"); return; }
 
-      // 2) Not in yet. A live code lets you pull up right now.
+      // 2) Not in yet. A live code lets you pull up right now (covers late
+      //    check-ins even just after the nominal end).
       if (hasCode) {
         const res = await publicFetch(`/p/${eventId}/pullup`, {
           method: "POST",
@@ -92,14 +93,18 @@ export default function PullUpPage() {
           setPhase("inRoom");
           return;
         }
+        // Code didn't take. If the event's over, that's the end of the road.
+        if (teaser?.ended) { setPhase("rejected"); return; }
         if (res.status === 410 || data.reason === "expired") { setPhase("expired"); return; }
         setError("Couldn't read that code. Scan the host's screen again.");
         setPhase("entry");
         return;
       }
 
-      // 3) No record, no live code → you have to scan at the event.
-      setPhase("needScan");
+      // 3) No record, no live code.
+      //    Event already passed → you didn't pull up. There's nothing here.
+      //    Still upcoming → go scan the host's live code.
+      setPhase(teaser?.ended ? "rejected" : "needScan");
     } catch {
       setError("Something went wrong. Try again.");
       setPhase("entry");
@@ -153,6 +158,27 @@ export default function PullUpPage() {
           )}
 
           <EventSpace eventId={eventId} email={email.trim().toLowerCase()} />
+        </div>
+      </div>
+    );
+  }
+
+  // Event passed, never pulled up → the thesis, to your face. Harsh, but it
+  // points at the next door instead of just slamming.
+  if (phase === "rejected") {
+    return (
+      <div style={wrap}>
+        <div style={{ ...card, textAlign: "center" }}>
+          <div style={{ fontSize: 13, color: FAINT, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>The deal</div>
+          <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: "-0.02em", margin: "10px 0 10px", lineHeight: 1.2 }}>
+            You didn't pull up — so there's nothing here.
+          </h1>
+          <p style={{ fontSize: 14.5, color: MUTED, lineHeight: 1.55, margin: "0 0 6px" }}>
+            The room only opens for people who showed up. An RSVP you didn't honor doesn't carry over.
+          </p>
+          <p style={{ fontSize: 15, color: PINK, fontWeight: 700, margin: "16px 0 0" }}>
+            Catch the next one.
+          </p>
         </div>
       </div>
     );

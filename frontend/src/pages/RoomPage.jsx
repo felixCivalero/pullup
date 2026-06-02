@@ -32,6 +32,24 @@ import { HOST as HOST_FIXTURE, EVENTS as EVENTS_FIXTURE, SIGNALS as SIGNALS_FIXT
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
+// Phone breakpoint. Drives the two big interaction differences: on desktop the
+// event panel opens on HOVER and the chat/bulk surfaces float at the right
+// edge; on phone there's no hover (you decide right under the cards) and those
+// surfaces rise from the bottom as a sheet instead.
+function useIsMobile(maxWidth = 640) {
+  const [mobile, setMobile] = useState(
+    typeof window !== "undefined" ? window.matchMedia(`(max-width: ${maxWidth}px)`).matches : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const on = (e) => setMobile(e.matches);
+    setMobile(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [maxWidth]);
+  return mobile;
+}
+
 const CHANNELS = {
   whatsapp: { label: "WhatsApp", color: "#25D366", soft: "#e7f9ee", glyph: "WA" },
   instagram: { label: "Instagram", color: "#d6249f", soft: "#fdeef7", glyph: "IG" },
@@ -1285,14 +1303,51 @@ function ActionsSkeleton() {
 // poster opens the event page; its actions stay FOLDED until you want them
 // (the banner shouldn't shout). A create tile is always the last card.
 function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage, onCreate, onFocus, onMessageAll, onDeleted }) {
+  const isMobile = useIsMobile();
   const [showDrafts, setShowDrafts] = useState(false);
-  // One unified panel opens below the strip when you tap a card. It holds the
+  // One unified panel opens below the strip when you open a card. It holds the
   // SAME action bar for every event (Manage · Team · VIP · Share · delete) so
   // nothing behaves inconsistently — only "Manage" navigates; the rest swap
   // content inline. { eventId, tab } | null.
+  //
+  // Desktop opens on HOVER; clicking PINS it open (so moving the mouse away
+  // doesn't close it once you've committed). Phone has no hover — a tap pins it
+  // straight away, and you decide right under the cards.
   const [panel, setPanel] = useState(null);
+  const [pinned, setPinned] = useState(false);
   const panelEvent = panel ? events.find((e) => e.id === panel.eventId) : null;
-  const openPanel = (id) => setPanel((cur) => (cur && cur.eventId === id ? null : { eventId: id, tab: null }));
+  const hoverTimer = useRef(null);
+  const closeTimer = useRef(null);
+  const clearTimers = () => { clearTimeout(hoverTimer.current); clearTimeout(closeTimer.current); };
+
+  // Click/tap: toggle a PINNED panel for this card.
+  const clickCard = (id) => {
+    clearTimers();
+    setPanel((cur) => {
+      if (cur && cur.eventId === id && pinned) { setPinned(false); return null; }
+      setPinned(true);
+      return cur && cur.eventId === id ? cur : { eventId: id, tab: null };
+    });
+  };
+  // Hover (desktop only): open after a short beat so brushing across the strip
+  // doesn't flash panels open.
+  const hoverOpen = (id) => {
+    if (isMobile) return;
+    clearTimeout(closeTimer.current);
+    hoverTimer.current = setTimeout(() => {
+      setPanel((cur) => (cur && cur.eventId === id ? cur : { eventId: id, tab: null }));
+    }, 110);
+  };
+  // Leaving the whole banner closes an UNPINNED panel after a grace beat (so you
+  // can travel from a card down into its panel without it snapping shut).
+  const bannerLeave = () => {
+    if (isMobile) return;
+    clearTimeout(hoverTimer.current);
+    closeTimer.current = setTimeout(() => { if (!pinned) setPanel(null); }, 220);
+  };
+  const bannerEnter = () => { if (!isMobile) clearTimeout(closeTimer.current); };
+  const closePanel = () => { clearTimers(); setPinned(false); setPanel(null); };
+  useEffect(() => () => clearTimers(), []);
 
   // Connector: a beak under the strip that points at the OPEN card, so the
   // panel reads as having dropped out of that specific event — not a detached
@@ -1328,7 +1383,7 @@ function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage
   const shown = showDrafts ? [...drafts, ...published] : published;
 
   return (
-    <div ref={rootRef} style={{ marginBottom: "26px", position: "relative" }}>
+    <div ref={rootRef} onMouseEnter={bannerEnter} onMouseLeave={bannerLeave} style={{ marginBottom: "26px", position: "relative" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
         <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>
           Your events
@@ -1344,16 +1399,18 @@ function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage
           </button>
         )}
       </div>
-      <div ref={stripRef} style={{ display: "flex", gap: "12px", overflowX: "auto", alignItems: "flex-start", paddingBottom: "6px", scrollbarWidth: "thin" }}>
+      <div ref={stripRef} style={{ display: "flex", gap: isMobile ? "10px" : "12px", overflowX: "auto", alignItems: "flex-start", paddingBottom: "6px", scrollbarWidth: "thin", scrollSnapType: isMobile ? "x proximity" : undefined, WebkitOverflowScrolling: "touch" }}>
         {/* Create event leads — the primary, always-available action. */}
-        <CreateTile onClick={onCreate} />
+        <CreateTile onClick={onCreate} isMobile={isMobile} />
         {shown.map((e) => (
           <EventPosterCard
             key={e.id}
             event={e}
+            isMobile={isMobile}
             focused={lensEventId === e.id}
             selected={panel?.eventId === e.id}
-            onSelect={() => openPanel(e.id)}
+            onSelect={() => clickCard(e.id)}
+            onHoverOpen={() => hoverOpen(e.id)}
             innerRef={(el) => { if (el) cardRefs.current[e.id] = el; else delete cardRefs.current[e.id]; }}
           />
         ))}
@@ -1369,15 +1426,16 @@ function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage
         <EventActionPanel
           event={panelEvent}
           arrowLeft={arrowLeft}
+          isMobile={isMobile}
           tab={panel.tab}
-          onTab={(tab) => setPanel((cur) => ({ ...cur, tab: cur.tab === tab ? null : tab }))}
-          onClose={() => setPanel(null)}
+          onTab={(tab) => { setPinned(true); setPanel((cur) => ({ ...cur, tab: cur.tab === tab ? null : tab })); }}
+          onClose={closePanel}
           focused={lensEventId === panelEvent.id}
           guestCount={people.filter((p) => (p.events || []).includes(panelEvent.id)).length}
           onManage={() => onOpenEvent(panelEvent.id)}
           onFocus={() => onFocus(panelEvent.id)}
           onMessageAll={() => onMessageAll?.(panelEvent.id)}
-          onDeleted={() => { setPanel(null); onDeleted?.(panelEvent.id); }}
+          onDeleted={() => { closePanel(); onDeleted?.(panelEvent.id); }}
         />
       )}
     </div>

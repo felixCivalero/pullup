@@ -5246,16 +5246,27 @@ app.get("/p/:eventId/teaser", async (req, res) => {
   try {
     const { eventId } = req.params;
     const { supabase } = await import("./supabase.js");
-    const [{ count: peopleInside }, { count: photoCount }] = await Promise.all([
+    const [{ count: peopleInside }, { count: photoCount }, { data: ev }] = await Promise.all([
       supabase.from("pullups").select("id", { count: "exact", head: true }).eq("event_id", eventId),
       supabase.from("event_media").select("id", { count: "exact", head: true }).eq("event_id", eventId),
+      supabase.from("events").select("title, starts_at, ends_at").eq("id", eventId).maybeSingle(),
     ]);
+    // "Passed" = past the end, or ~12h past the start if no explicit end. After
+    // this, the teaser + host comms dissolve for anyone who never pulled up.
+    let ended = false;
+    if (ev) {
+      const end = ev.ends_at ? new Date(ev.ends_at).getTime()
+        : (ev.starts_at ? new Date(ev.starts_at).getTime() + 12 * 3600 * 1000 : null);
+      ended = end != null && Date.now() > end;
+    }
     res.json({
       eventId,
+      title: ev?.title || null,
       peopleInside: peopleInside || 0,
       photoCount: photoCount || 0,
       // The room reads as "live" once more than one person is inside.
       conversationLive: (peopleInside || 0) > 1,
+      ended,
     });
   } catch (err) {
     console.error("[teaser] error:", err.message);

@@ -5207,6 +5207,150 @@ app.post("/host/room/attachment", requireAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// THE PULL-UP — verified physical presence via the host's live rotating QR.
+// The threshold of the whole relational model: an RSVP is intent, a pull-up
+// is proof. See services/pullupService.js for the integrity mechanism.
+// ─────────────────────────────────────────────────────────────────────────
+
+// The host's live check-in code — the rotating QR they hold up. The client
+// re-fetches when `expiresInMs` elapses, so the displayed code is never stale.
+app.get("/host/events/:id/checkin-code", requireAuth, async (req, res) => {
+  try {
+    const event = await findEventById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+    const { isHost } = await isUserEventHost(req.user.id, event.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { currentCheckinCode } = await import("./services/pullupService.js");
+    const code = await currentCheckinCode(event.id);
+    res.json({
+      eventId: event.id,
+      window: code.window,
+      sig: code.sig,
+      url: code.path, // relative scan path the QR encodes
+      stepSeconds: code.stepSeconds,
+      expiresAt: code.expiresAt,
+      expiresInMs: code.expiresInMs,
+    });
+  } catch (err) {
+    console.error("[checkin-code] error:", err.message);
+    res.status(500).json({ error: "Failed to generate check-in code" });
+  }
+});
+
+// The teaser — sells the door without opening it. Counts + categories ONLY,
+// never interior content (counts aren't content, so this never breaks the
+// "no interior without a pull-up" rule). Public; safe pre-arrival on the event
+// page and in the locked at-event state.
+app.get("/p/:eventId/teaser", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { supabase } = await import("./supabase.js");
+    const [{ count: peopleInside }, { count: photoCount }] = await Promise.all([
+      supabase.from("pullups").select("id", { count: "exact", head: true }).eq("event_id", eventId),
+      supabase.from("event_media").select("id", { count: "exact", head: true }).eq("event_id", eventId),
+    ]);
+    res.json({
+      eventId,
+      peopleInside: peopleInside || 0,
+      photoCount: photoCount || 0,
+      // The room reads as "live" once more than one person is inside.
+      conversationLive: (peopleInside || 0) > 1,
+    });
+  } catch (err) {
+    console.error("[teaser] error:", err.message);
+    res.status(500).json({ error: "Failed to load teaser" });
+  }
+});
+
+// The scan landing target. The guest scanned the host's live QR → verify the
+// rotating code, resolve who they are, record the pull-up. Session-first: a
+// signed-in guest is one tap; otherwise resolve by the contact they RSVP'd
+// with, minting a node for true walk-ins. No login wall at the threshold.
+app.post("/p/:eventId/pullup", optionalAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { w, s, email, name } = req.body || {};
+    const { verifyCheckinCode, recordPullUp } = await import("./services/pullupService.js");
+
+    const check = await verifyCheckinCode(eventId, w, s);
+    if (!check.valid) {
+      // `expired` = they're scanning a stale screenshot, not the live screen.
+      return res
+        .status(check.reason === "expired" ? 410 : 400)
+        .json({ ok: false, reason: check.reason });
+    }
+
+    const { supabase } = await import("./supabase.js");
+    const claimedEmail = (email || req.user?.email || "").trim().toLowerCase();
+    if (!claimedEmail) return res.status(401).json({ ok: false, reason: "needs_identify" });
+
+    let person = await findPersonByEmail(claimedEmail);
+    if (!person) {
+      const { data: created, error } = await supabase
+        .from("people")
+        .insert({ email: claimedEmail, name: name || req.user?.name || null })
+        .select("*")
+        .single();
+      person = error ? await findPersonByEmail(claimedEmail) : created; // tolerate unique race
+    }
+    if (!person) return res.status(500).json({ ok: false, reason: "person_resolve_failed" });
+
+    const result = await recordPullUp({ personId: person.id, eventId, method: "scan" });
+    if (!result.ok) return res.status(500).json({ ok: false, reason: result.reason });
+
+    res.json({ ok: true, alreadyPresent: !!result.alreadyPresent, personId: person.id });
+  } catch (err) {
+    console.error("[pullup] error:", err.message);
+    res.status(500).json({ ok: false, reason: "pullup_failed" });
+  }
+});
+
+// The interior — only for nodes that pulled up to THIS event. The room they
+// earned: who else is here (co-presence, same-event only) + the darkroom. This
+// is the teaser's promise actually opened — gated, never public.
+app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { getCoPresentAtEvent } = await import("./services/pullupService.js");
+    const { supabase } = await import("./supabase.js");
+
+    const email = (req.query.email || req.user?.email || "").toString().trim().toLowerCase();
+    const person = email ? await findPersonByEmail(email) : null;
+    if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
+
+    // Gate: you can only enter a room you pulled up to.
+    const { data: mine } = await supabase
+      .from("pullups").select("id").eq("person_id", person.id).eq("event_id", eventId).maybeSingle();
+    if (!mine) return res.status(403).json({ error: "locked", reason: "not_pulled_up" });
+
+    const coIds = await getCoPresentAtEvent(person.id, eventId);
+    let coPresent = [];
+    if (coIds.length) {
+      const { data } = await supabase.from("people").select("id,name,instagram").in("id", coIds);
+      coPresent = (data || []).map((p) => ({ id: p.id, name: p.name, instagram: p.instagram }));
+    }
+
+    const { data: media } = await supabase
+      .from("event_media").select("id,storage_path,position").eq("event_id", eventId).order("position");
+    const photos = (media || []).map((m) => {
+      let url = m.storage_path;
+      if (url && !url.startsWith("http")) {
+        const match = url.match(/event-images\/([^?]+)/);
+        const fp = match ? match[1] : url;
+        const { data: pub } = supabase.storage.from("event-images").getPublicUrl(fp);
+        if (pub?.publicUrl) url = pub.publicUrl;
+      }
+      return { id: m.id, url };
+    });
+
+    res.json({ eventId, coPresent, photos, photoCount: photos.length });
+  } catch (err) {
+    console.error("[interior] error:", err.message);
+    res.status(500).json({ error: "Failed to load interior" });
+  }
+});
+
 app.get("/host/events/:id/guests", requireAuth, async (req, res) => {
   try {
     const event = await findEventById(req.params.id);

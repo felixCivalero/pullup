@@ -102,6 +102,7 @@ export function IdeaWidget() {
   // pullup chat — talk to your people) and Create (the event-building AI).
   // Messages is the default home; a build surface flips it to Create.
   const [dockTab, setDockTab] = useState("messages");
+  const [msgExpanded, setMsgExpanded] = useState(false);
 
   // The create/edit page broadcasts the event being built so the dock can
   // become a live build chat (the /create-scoped canvas). Null elsewhere.
@@ -352,306 +353,27 @@ export function IdeaWidget() {
       <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
         {open && (
           <div
-            style={{
-              position: "absolute",
-              bottom: 56,
-              right: 0,
-              // Messages is a two-pane messenger (contacts + the open chat), so
-              // it needs room; Create stays a single column.
-              width: dockTab === "messages" ? "min(92vw, 720px)" : 340,
-              background: colors.background,
-              border: `1px solid ${colors.border}`,
-              borderRadius: 16,
-              padding: 18,
-              boxShadow: "0 8px 30px rgba(10,10,10,0.10)",
-            }}
+            style={
+              canvasEventId
+                ? { position: "absolute", bottom: 56, right: 0, width: 360, background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 16, padding: 18, boxShadow: "0 8px 30px rgba(10,10,10,0.10)" }
+                : { position: "absolute", bottom: 56, right: 0, width: msgExpanded ? "min(94vw, 460px)" : 372, height: msgExpanded ? "82vh" : 560, maxHeight: "82vh", background: "#121217", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 20, overflow: "hidden", boxShadow: "0 20px 60px rgba(10,10,10,0.45)" }
+            }
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 12,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 7, color: colors.gold }}>
-                <Sparkles size={14} />
-                <span
-                  style={{
-                    fontSize: 11,
-                    letterSpacing: 0.8,
-                    textTransform: "uppercase",
-                    fontWeight: 600,
-                  }}
-                >
-                  PullUp
-                </span>
-              </div>
-              <button
-                onClick={dismissAiMode}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 4,
-                  color: colors.textSubtle,
-                }}
-                aria-label="Hide for this session"
-                title="Hide for this session"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-              <button onClick={() => setDockTab("messages")} style={dockTabStyle(dockTab === "messages")}><MessageCircle size={14} /> Messages</button>
-              <button onClick={() => setDockTab("create")} style={dockTabStyle(dockTab === "create")}><Wand2 size={14} /> Create</button>
-            </div>
-
-            {dockTab === "messages" ? (
-              <DockMessages />
-            ) : (!mcpStatus.connected && !canvasEventId) ? (
-              <div style={{ padding: "4px 0 8px" }}>
-                <div style={{ fontSize: 13, lineHeight: 1.5, color: colors.textMuted, marginBottom: 12 }}>
-                  Connect PullUp to claude.ai (or any MCP-capable AI) and build events from chat — draft, edit, answer "who's coming Saturday." ~30 seconds.
-                </div>
-                <button onClick={() => { navigate("/settings"); setOpen(false); }} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(180,83,9,0.35)", background: "rgba(180,83,9,0.06)", color: colors.gold, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Connect your AI</button>
-              </div>
-            ) : (
+            {canvasEventId ? (
               <>
-
-            {canvasEventId && (
-              <div style={{ height: "min(72vh, 540px)" }}>
-                <CanvasChat
-                  eventId={canvasEventId}
-                  seed={canvasSeed}
-                  suggestions={(coachItems || []).map((it) => ({
-                    label: it.headline,
-                    prompt: it.headline,
-                  }))}
-                />
-              </div>
-            )}
-
-            {!canvasEventId && (
-            <>
-            {recentActions.length > 0 && (
-              <div
-                style={{
-                  marginBottom: 12,
-                  paddingBottom: 12,
-                  borderBottom: `1px solid ${colors.border}`,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: 0.7,
-                    textTransform: "uppercase",
-                    color: colors.textFaded,
-                    fontWeight: 600,
-                    marginBottom: 2,
-                  }}
-                >
-                  Chat just
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, color: colors.gold }}>
+                    <Sparkles size={14} />
+                    <span style={{ fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase", fontWeight: 600 }}>PullUp · build</span>
+                  </div>
+                  <button onClick={dismissAiMode} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: colors.textSubtle }} aria-label="Hide for this session" title="Hide for this session"><X size={16} /></button>
                 </div>
-                {recentActions.slice(0, 4).map((a) => {
-                  const intent = narrationIntent(a);
-                  const baseStyle = {
-                    fontSize: 12.5,
-                    color: colors.textMuted,
-                    display: "flex",
-                    alignItems: "baseline",
-                    justifyContent: "space-between",
-                    gap: 10,
-                    lineHeight: 1.4,
-                    textAlign: "left",
-                    width: "100%",
-                    padding: 0,
-                    background: "none",
-                    border: "none",
-                  };
-                  const inner = (
-                    <>
-                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", color: intent ? colors.text : colors.textMuted }}>
-                        {narrateAction(a)}
-                      </span>
-                      <span style={{ fontSize: 10.5, color: colors.textFaded, whiteSpace: "nowrap" }}>
-                        {relTime(a.created_at)}
-                      </span>
-                    </>
-                  );
-                  if (!intent) {
-                    return (
-                      <div key={a.id} style={baseStyle}>
-                        {inner}
-                      </div>
-                    );
-                  }
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => dispatchIntent(intent)}
-                      style={{ ...baseStyle, cursor: "pointer" }}
-                      title="Jump to where this happened"
-                    >
-                      {inner}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {!resource && (
-              <div style={{ fontSize: 12.5, color: colors.textMuted, padding: "4px 0 8px", lineHeight: 1.5 }}>
-                Your AI is connected. Open it from any host page for in-context coaching, or jump straight into claude.ai below.
-              </div>
-            )}
-            {resource && coachItems === null && (
-              <div style={{ fontSize: 12, color: colors.textSubtle, padding: "8px 0" }}>Loading…</div>
-            )}
-            {resource && coachItems && coachItems.length === 0 && (
-              <div style={{ fontSize: 12, color: colors.textMuted, padding: "8px 0", lineHeight: 1.5 }}>
-                Nothing left to suggest right now — looks tight from here.
-              </div>
-            )}
-            {coachItems && coachItems.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {coachItems.map((it) => {
-                  const target = it.intent?.url ? it.intent.url.split("?")[0] : null;
-                  // Mutate intents are always actionable. Navigate intents on
-                  // the same page need a `focus` to be meaningful; without
-                  // one they're advice only.
-                  const isMutate = it.intent?.type === "mutate";
-                  const isInfo =
-                    !isMutate &&
-                    target && target === pathname && !it.intent?.focus;
-                  const isMutating = mutatingKey === it.key;
-                  return (
-                    <button
-                      key={it.key}
-                      type="button"
-                      onClick={() =>
-                        isInfo || isMutating
-                          ? null
-                          : dispatchIntent({ ...it.intent, _key: it.key })
-                      }
-                      disabled={isInfo || isMutating}
-                      style={{
-                        textAlign: "left",
-                        display: "grid",
-                        gridTemplateColumns: "1fr auto",
-                        rowGap: 2,
-                        columnGap: 10,
-                        alignItems: "center",
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        border: `1px solid ${isInfo ? colors.border : colors.borderStrong}`,
-                        background: isInfo ? colors.surface : colors.background,
-                        color: colors.text,
-                        cursor: isInfo ? "default" : isMutating ? "wait" : "pointer",
-                        opacity: isMutating ? 0.7 : 1,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isInfo && !isMutating) {
-                          e.currentTarget.style.background = colors.surfaceMuted;
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isInfo && !isMutating) {
-                          e.currentTarget.style.background = colors.background;
-                        }
-                      }}
-                    >
-                      <span
-                        style={{
-                          gridColumn: 1,
-                          gridRow: 1,
-                          fontSize: 13.5,
-                          fontWeight: 600,
-                          lineHeight: 1.3,
-                          color: colors.text,
-                        }}
-                      >
-                        {isMutating ? "Adding…" : it.headline}
-                      </span>
-                      {it.why && !isMutating && (
-                        <span
-                          style={{
-                            gridColumn: 1,
-                            gridRow: 2,
-                            fontSize: 11.5,
-                            color: colors.textMuted,
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {it.why}
-                        </span>
-                      )}
-                      {!isInfo && !isMutating && (
-                        <ChevronRight
-                          size={14}
-                          style={{
-                            gridColumn: 2,
-                            gridRow: "1 / span 2",
-                            alignSelf: "center",
-                            color: colors.textSubtle,
-                          }}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {mutationError && (
-              <div
-                style={{
-                  marginTop: 8,
-                  fontSize: 11.5,
-                  color: colors.danger,
-                  lineHeight: 1.4,
-                }}
-              >
-                {mutationError}
-              </div>
-            )}
-
-            {continueChatUrl && (
-              <a
-                href={continueChatUrl}
-                target="pullup-claude"
-                rel="noopener noreferrer"
-                style={{
-                  marginTop: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  border: `1px solid rgba(180, 83, 9, 0.20)`,
-                  background: `rgba(180, 83, 9, 0.04)`,
-                  color: colors.gold,
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  textDecoration: "none",
-                  letterSpacing: 0.2,
-                }}
-                title="Open this in claude.ai with the context pre-loaded"
-              >
-                <span>Continue in claude.ai</span>
-                <ExternalLink size={12} />
-              </a>
-            )}
-            </>
-            )}
-            </>
+                <div style={{ height: "min(64vh, 480px)" }}>
+                  <CanvasChat eventId={canvasEventId} seed={canvasSeed} suggestions={(coachItems || []).map((it) => ({ label: it.headline, prompt: it.headline }))} />
+                </div>
+              </>
+            ) : (
+              <DockMessages onClose={() => setOpen(false)} expanded={msgExpanded} onToggleExpand={() => setMsgExpanded((v) => !v)} />
             )}
           </div>
         )}

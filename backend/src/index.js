@@ -5164,8 +5164,8 @@ app.post("/host/room/message", requireAuth, async (req, res) => {
 app.post("/host/room/message/bulk", requireAuth, async (req, res) => {
   try {
     const { sendRoomBulk } = await import("./services/roomMessaging.js");
-    const { personIds, channel, text, subject, attachments, branded } = req.body || {};
-    const r = await sendRoomBulk({ hostId: req.user.id, personIds, channel, text, subject, attachments, branded });
+    const { personIds, channel, text, subject, attachments, branded, template, eventId } = req.body || {};
+    const r = await sendRoomBulk({ hostId: req.user.id, personIds, channel, text, subject, attachments, branded, template, eventId });
     res.json({ ok: true, ...r });
   } catch (error) {
     console.error("Error sending room bulk:", error);
@@ -5179,8 +5179,8 @@ app.post("/host/room/message/bulk", requireAuth, async (req, res) => {
 app.post("/host/room/message/preview", requireAuth, async (req, res) => {
   try {
     const { renderRoomEmailHtml } = await import("./services/roomMessaging.js");
-    const { text, attachments, branded } = req.body || {};
-    const html = await renderRoomEmailHtml({ hostId: req.user.id, text, attachments, branded });
+    const { text, attachments, branded, template, eventId } = req.body || {};
+    const html = await renderRoomEmailHtml({ hostId: req.user.id, text, attachments, branded, template, eventId });
     res.json({ ok: true, html });
   } catch (error) {
     console.error("Error rendering room preview:", error);

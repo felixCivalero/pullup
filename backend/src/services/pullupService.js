@@ -218,6 +218,48 @@ export async function isMemberOfRoom(personId, hostProfileId) {
 // Returns the person ids co-present with `personId` at `eventId` (empty unless
 // `personId` themselves pulled up to that event — you can't see a room you
 // didn't enter).
+// Did this person pull up to this event? The durable gate for room access and
+// for the event space — keyed off the PullUp record, never a live code.
+export async function hasPulledUp(personId, eventId) {
+  if (!personId || !eventId) return false;
+  const { data } = await supabase
+    .from("pullups").select("id").eq("person_id", personId).eq("event_id", eventId).maybeSingle();
+  return !!data;
+}
+
+// ── The event space (the room's conversation) ──────────────────────────────
+// Read/write is gated by a pull-up (mesh) or by being the host. No DM
+// primitive — everything lives in this shared, event-scoped space.
+export async function listSpaceMessages(eventId, { limit = 200 } = {}) {
+  const { data, error } = await supabase
+    .from("event_space_messages")
+    .select("id, body, author_name, is_host, author_person_id, created_at")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error || !data) return [];
+  return data.map((m) => ({
+    id: m.id,
+    body: m.body,
+    authorName: m.author_name || "Someone",
+    isHost: !!m.is_host,
+    personId: m.author_person_id || null,
+    at: m.created_at,
+  }));
+}
+
+export async function postSpaceMessage({ eventId, personId = null, profileId = null, isHost = false, authorName = null, body }) {
+  const text = (body || "").toString().trim();
+  if (!eventId || !text) return { ok: false, reason: "empty" };
+  const { data, error } = await supabase
+    .from("event_space_messages")
+    .insert({ event_id: eventId, author_person_id: personId, author_profile_id: profileId, is_host: isHost, author_name: authorName, body: text.slice(0, 4000) })
+    .select("id")
+    .single();
+  if (error) return { ok: false, reason: error.message };
+  return { ok: true, id: data.id };
+}
+
 export async function getCoPresentAtEvent(personId, eventId) {
   const { data: self } = await supabase
     .from("pullups")

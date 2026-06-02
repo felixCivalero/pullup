@@ -1,11 +1,17 @@
-// PullUpPage — the threshold. A guest scanned the host's live rotating QR and
-// landed here (/p/:eventId?w=&s=). This is NOT a "✓ registered" receipt: it's a
-// door. The locked state shows the PROMISE (counts, never content); the scan
-// confirm carries the welcome; the interior reveals itself IN PLACE. You're in,
-// here's the room you just earned.
+// PullUpPage — the threshold AND the persistent room (/p/:eventId).
 //
-// Identity: we resolve by the email they RSVP'd with (mint a node for true
-// walk-ins). Session-first one-tap is a future enhancement.
+// Access is keyed off the DURABLE PullUp record, never a fresh code. The
+// rotating code's only job is to let you CREATE that record at the moment of
+// proof (scan the host's live screen). Once it exists, you re-enter forever by
+// identity alone — the bead persists, the room doesn't evaporate when the code
+// rotates.
+//
+// Flow on identify (email):
+//   • PullUp record exists  → you're in. Show the room. (re-entry, any time)
+//   • no record, valid code → pull up now → record written → door opens.
+//   • no record, no code    → locked. "Scan the host's live code to get in."
+//
+// The locked state shows the PROMISE (counts, never content).
 
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -19,23 +25,11 @@ const CARD = "rgba(255,255,255,0.04)";
 const BORDER = "rgba(255,255,255,0.10)";
 
 const wrap = {
-  minHeight: "100dvh",
-  background: "#08070d",
-  color: INK,
+  minHeight: "100dvh", background: "#08070d", color: INK,
   fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "24px",
+  display: "flex", alignItems: "center", justifyContent: "center", padding: "24px",
 };
-const card = {
-  width: "100%",
-  maxWidth: 440,
-  background: CARD,
-  border: `1px solid ${BORDER}`,
-  borderRadius: 20,
-  padding: "28px 24px",
-};
+const card = { width: "100%", maxWidth: 460, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 20, padding: "28px 24px" };
 
 function Stat({ value, label }) {
   return (
@@ -51,71 +45,83 @@ export default function PullUpPage() {
   const [params] = useSearchParams();
   const w = params.get("w");
   const s = params.get("s");
+  const hasCode = !!(w && s);
 
   const [teaser, setTeaser] = useState(null);
-  const [phase, setPhase] = useState("locked"); // locked | verifying | unlocked | expired | error
-  const [email, setEmail] = useState("");
+  // entry | working | inRoom | needScan | expired | error
+  const [phase, setPhase] = useState("entry");
+  const [email, setEmail] = useState(() => localStorage.getItem("pullup_email") || "");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [interior, setInterior] = useState(null);
+  const [justPulledUp, setJustPulledUp] = useState(false);
 
-  // Load the teaser (counts only — the promise, never the contents).
   useEffect(() => {
     let alive = true;
-    publicFetch(`/p/${eventId}/teaser`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => alive && d && setTeaser(d))
-      .catch(() => {});
+    publicFetch(`/p/${eventId}/teaser`).then((r) => (r.ok ? r.json() : null)).then((d) => alive && d && setTeaser(d)).catch(() => {});
     return () => { alive = false; };
   }, [eventId]);
 
-  async function pullUp(e) {
+  async function loadInterior(em) {
+    const r = await publicFetch(`/p/${eventId}/interior?email=${encodeURIComponent(em)}`);
+    if (r.ok) { setInterior(await r.json().catch(() => null)); return true; }
+    return false;
+  }
+
+  async function enter(e) {
     e?.preventDefault();
-    if (!email.trim()) { setError("Pop in the email you RSVP'd with."); return; }
-    if (!w || !s) { setPhase("expired"); return; }
-    setPhase("verifying");
+    const em = email.trim().toLowerCase();
+    if (!em) { setError("Pop in the email you RSVP'd with."); return; }
+    localStorage.setItem("pullup_email", em);
+    setPhase("working");
     setError("");
     try {
-      const res = await publicFetch(`/p/${eventId}/pullup`, {
-        method: "POST",
-        body: JSON.stringify({ w: Number(w), s, email: email.trim(), name: name.trim() || undefined }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) {
-        // Door opens — fetch the interior we just earned.
-        const intRes = await publicFetch(`/p/${eventId}/interior?email=${encodeURIComponent(email.trim())}`);
-        const intData = intRes.ok ? await intRes.json().catch(() => null) : null;
-        setInterior(intData);
-        setPhase("unlocked");
-      } else if (res.status === 410 || data.reason === "expired") {
-        setPhase("expired");
-      } else if (data.reason === "needs_identify") {
-        setError("Pop in the email you RSVP'd with.");
-        setPhase("locked");
-      } else {
+      // 1) Already hold the bead? Then you're in — no code required.
+      if (await loadInterior(em)) { setJustPulledUp(false); setPhase("inRoom"); return; }
+
+      // 2) Not in yet. A live code lets you pull up right now.
+      if (hasCode) {
+        const res = await publicFetch(`/p/${eventId}/pullup`, {
+          method: "POST",
+          body: JSON.stringify({ w: Number(w), s, email: em, name: name.trim() || undefined }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) {
+          await loadInterior(em);
+          setJustPulledUp(!data.alreadyPresent);
+          setPhase("inRoom");
+          return;
+        }
+        if (res.status === 410 || data.reason === "expired") { setPhase("expired"); return; }
         setError("Couldn't read that code. Scan the host's screen again.");
-        setPhase("locked");
+        setPhase("entry");
+        return;
       }
+
+      // 3) No record, no live code → you have to scan at the event.
+      setPhase("needScan");
     } catch {
-      setError("Something went wrong. Try the scan again.");
-      setPhase("locked");
+      setError("Something went wrong. Try again.");
+      setPhase("entry");
     }
   }
 
-  // ── The room, opened ──────────────────────────────────────────────────
-  if (phase === "unlocked") {
+  // ── In the room ─────────────────────────────────────────────────────────
+  if (phase === "inRoom") {
     const others = interior?.coPresent?.length ?? Math.max((teaser?.peopleInside || 1) - 1, 0);
     const photos = interior?.photoCount ?? teaser?.photoCount ?? 0;
     return (
       <div style={wrap}>
         <div style={{ ...card, animation: "pu-open 600ms cubic-bezier(0.16,1,0.3,1)" }}>
           <style>{`@keyframes pu-open{0%{opacity:0;transform:translateY(10px) scale(0.98)}100%{opacity:1;transform:none}}`}</style>
-          <div style={{ fontSize: 13, color: PINK, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>You're in</div>
+          <div style={{ fontSize: 13, color: PINK, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            {justPulledUp ? "You're in" : "Welcome back"}
+          </div>
           <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", margin: "8px 0 6px" }}>
-            You pulled up.
+            {justPulledUp ? "You pulled up." : "Your room."}
           </h1>
           <p style={{ fontSize: 14.5, color: MUTED, lineHeight: 1.5, margin: "0 0 22px" }}>
-            This is the room you just earned — only people who showed up are inside.
+            Only people who showed up are inside — and you're one of them.
           </p>
 
           <div style={{ display: "flex", justifyContent: "space-around", padding: "18px 0", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
@@ -145,6 +151,8 @@ export default function PullUpPage() {
               ))}
             </div>
           )}
+
+          <EventSpace eventId={eventId} email={email.trim().toLowerCase()} />
         </div>
       </div>
     );
@@ -154,23 +162,29 @@ export default function PullUpPage() {
     return (
       <div style={wrap}>
         <div style={card}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 8px" }}>That code's already turned over.</h1>
-          <p style={{ fontSize: 14.5, color: MUTED, lineHeight: 1.5, margin: 0 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 8px" }}>That code already turned over.</h1>
+          <p style={{ fontSize: 14.5, color: MUTED, lineHeight: 1.5, margin: "0 0 18px" }}>
             The QR refreshes every few seconds — that's what keeps it real, you have to be in the room. Scan the host's live screen again.
           </p>
+          <button onClick={() => setPhase("entry")} style={ghostBtn}>Back</button>
         </div>
       </div>
     );
   }
 
   // ── Locked: the promise, never the contents ─────────────────────────────
+  const needScan = phase === "needScan";
   return (
     <div style={wrap}>
-      <form style={card} onSubmit={pullUp}>
-        <div style={{ fontSize: 12, color: FAINT, textTransform: "uppercase", letterSpacing: "0.08em" }}>Pull up</div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", margin: "6px 0 4px" }}>You're at the door.</h1>
+      <form style={card} onSubmit={enter}>
+        <div style={{ fontSize: 12, color: FAINT, textTransform: "uppercase", letterSpacing: "0.08em" }}>{hasCode ? "Pull up" : "The room"}</div>
+        <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", margin: "6px 0 4px" }}>
+          {needScan ? "You haven't pulled up yet." : "You're at the door."}
+        </h1>
         <p style={{ fontSize: 14, color: MUTED, lineHeight: 1.5, margin: "0 0 20px" }}>
-          Pulling up is the only key. Step in and the room opens.
+          {needScan
+            ? "Pulling up is the only key. Scan the host's live code at the event to get in — a screenshot won't work."
+            : "Pulling up is the only key. Step in and the room opens."}
         </p>
 
         {teaser && (
@@ -181,21 +195,21 @@ export default function PullUpPage() {
           </div>
         )}
 
-        <input
-          type="email" inputMode="email" autoComplete="email" placeholder="the email you RSVP'd with"
-          value={email} onChange={(e) => setEmail(e.target.value)}
-          style={inputStyle}
-        />
-        <input
-          type="text" autoComplete="name" placeholder="your name (if you're new here)"
-          value={name} onChange={(e) => setName(e.target.value)}
-          style={{ ...inputStyle, marginTop: 10 }}
-        />
-        {error && <div style={{ color: "#ff7a9c", fontSize: 13, marginTop: 10 }}>{error}</div>}
+        {!needScan && (
+          <>
+            <input type="email" inputMode="email" autoComplete="email" placeholder="the email you RSVP'd with"
+              value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+            {hasCode && (
+              <input type="text" autoComplete="name" placeholder="your name (if you're new here)"
+                value={name} onChange={(e) => setName(e.target.value)} style={{ ...inputStyle, marginTop: 10 }} />
+            )}
+            {error && <div style={{ color: "#ff7a9c", fontSize: 13, marginTop: 10 }}>{error}</div>}
+            <button type="submit" disabled={phase === "working"} style={btnStyle}>
+              {phase === "working" ? "Opening…" : hasCode ? "Pull up" : "Enter the room"}
+            </button>
+          </>
+        )}
 
-        <button type="submit" disabled={phase === "verifying"} style={btnStyle}>
-          {phase === "verifying" ? "Opening…" : "Pull up"}
-        </button>
         <p style={{ fontSize: 11.5, color: FAINT, textAlign: "center", margin: "14px 0 0", lineHeight: 1.5 }}>
           The room only opens for people who actually showed up.
         </p>
@@ -204,26 +218,54 @@ export default function PullUpPage() {
   );
 }
 
-const inputStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "13px 14px",
-  borderRadius: 12,
-  border: `1px solid ${BORDER}`,
-  background: "rgba(255,255,255,0.04)",
-  color: INK,
-  fontSize: 15,
-  outline: "none",
-};
-const btnStyle = {
-  width: "100%",
-  marginTop: 16,
-  padding: "14px",
-  borderRadius: 12,
-  border: "none",
-  background: PINK,
-  color: "#fff",
-  fontSize: 16,
-  fontWeight: 700,
-  cursor: "pointer",
-};
+// ── The room's conversation (mesh — co-present only). Gated server-side: only
+// people who pulled up to THIS event can read or post. ───────────────────────
+function EventSpace({ eventId, email }) {
+  const [messages, setMessages] = useState(null);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+
+  async function load() {
+    const r = await publicFetch(`/p/${eventId}/space?email=${encodeURIComponent(email)}`);
+    if (r.ok) { const d = await r.json().catch(() => null); setMessages(d?.messages || []); }
+    else setMessages([]);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [eventId, email]);
+
+  async function send(e) {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body) return;
+    setSending(true);
+    try {
+      const r = await publicFetch(`/p/${eventId}/space`, { method: "POST", body: JSON.stringify({ email, body }) });
+      if (r.ok) { setDraft(""); await load(); }
+    } finally { setSending(false); }
+  }
+
+  return (
+    <div style={{ marginTop: 24, borderTop: `1px solid ${BORDER}`, paddingTop: 18 }}>
+      <div style={{ fontSize: 11, color: FAINT, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>The room · {messages?.length || 0} {messages?.length === 1 ? "message" : "messages"}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 220, overflowY: "auto", marginBottom: 12 }}>
+        {(messages || []).map((m) => (
+          <div key={m.id}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: m.isHost ? PINK : INK }}>{m.authorName || "Someone"}{m.isHost ? " · host" : ""}</span>
+            <div style={{ fontSize: 13.5, color: MUTED, lineHeight: 1.45 }}>{m.body}</div>
+          </div>
+        ))}
+        {messages && messages.length === 0 && (
+          <div style={{ fontSize: 13, color: FAINT }}>Quiet so far. Say something to the people who pulled up.</div>
+        )}
+      </div>
+      <form onSubmit={send} style={{ display: "flex", gap: 8 }}>
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Message the room…"
+          style={{ ...inputStyle, flex: 1, padding: "11px 13px", fontSize: 14 }} />
+        <button type="submit" disabled={sending || !draft.trim()} style={{ ...btnStyle, width: "auto", marginTop: 0, padding: "11px 16px", opacity: draft.trim() ? 1 : 0.5 }}>Send</button>
+      </form>
+    </div>
+  );
+}
+
+const inputStyle = { width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 12, border: `1px solid ${BORDER}`, background: "rgba(255,255,255,0.04)", color: INK, fontSize: 15, outline: "none" };
+const btnStyle = { width: "100%", marginTop: 16, padding: "14px", borderRadius: 12, border: "none", background: PINK, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" };
+const ghostBtn = { padding: "10px 18px", borderRadius: 10, border: `1px solid ${BORDER}`, background: "transparent", color: INK, fontSize: 14, fontWeight: 600, cursor: "pointer" };

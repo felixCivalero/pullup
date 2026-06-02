@@ -107,8 +107,10 @@ export async function verifyCheckinCode(eventId, scannedWindow, scannedSig, nowM
   if (!Number.isFinite(win) || !scannedSig) return { valid: false, reason: "malformed" };
 
   const nowWin = windowFor(nowMs);
-  // Reject anything outside [now-1, now] — a stale screenshot lands here.
-  if (win !== nowWin && win !== nowWin - 1) return { valid: false, reason: "expired" };
+  // Accept the current window + the two prior (~45s total) — enough for the
+  // guest to scan and type the email they RSVP'd with, still stale within
+  // seconds so a forwarded screenshot is dead. Anything older → expired.
+  if (win > nowWin || win < nowWin - 2) return { valid: false, reason: "expired" };
 
   const { secret } = await getOrCreateEventSecret(eventId);
   const expected = signWindow(secret, eventId, win);

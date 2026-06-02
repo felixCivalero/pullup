@@ -30,6 +30,8 @@ import { EventSuccessPage } from "./pages/EventSuccessPage";
 import { EventGuestsPage } from "./pages/EventGuestsPage";
 import EventRoomPage from "./pages/EventRoomPage";
 import RoomPage from "./pages/RoomPage";
+import PullUpPage from "./pages/PullUpPage";
+import HostCheckinPage from "./pages/HostCheckinPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
@@ -97,6 +99,16 @@ function App() {
             </ErrorBoundary>
           }
         />
+        {/* The pull-up threshold — a guest scanned the host's live rotating QR
+            and landed here. Public: it mints/identifies on the spot. */}
+        <Route
+          path="/p/:eventId"
+          element={
+            <ErrorBoundary>
+              <PullUpPage />
+            </ErrorBoundary>
+          }
+        />
         {/* "Protected" app area */}
         <Route element={<ProtectedLayout />}>
           {/* Create — auth is deferred to publish time */}
@@ -154,6 +166,15 @@ function App() {
             element={
               <ErrorBoundary>
                 <EventGuestsPage />
+              </ErrorBoundary>
+            }
+          />
+          {/* The host's live rotating QR — held up at the door for guests to scan. */}
+          <Route
+            path="/app/events/:id/checkin"
+            element={
+              <ErrorBoundary>
+                <HostCheckinPage />
               </ErrorBoundary>
             }
           />

@@ -215,20 +215,15 @@ function PersonCard({ person, active, onClick, events }) {
 }
 
 // ─── Side panel: one person's unified, cross-event thread ───────────
-// Email-style picker — two tappable mini-previews so you SEE the difference
-// instead of guessing what "dress up" means. Plain = hand-typed personal note;
-// Branded = wrapped in the host's brand (accent header, avatar, footer). Lives
-// in the BULK composer only — 1:1 messages stay plain and human; brand/style
-// belongs to the campaign-ish moment of sending one thing to many.
 // A real, sandboxed render of the email as the recipient sees it — same HTML
-// the backend ships. Driven from the composer so the brand choice isn't blind.
-function EmailPreviewModal({ html, loading, branded, onClose }) {
+// the backend ships. Driven from the composer so the design choice isn't blind.
+function EmailPreviewModal({ html, loading, label, onClose }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: SF }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 560, maxHeight: "86vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 12px 48px rgba(0,0,0,.25)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", borderBottom: `1px solid ${colors.border}` }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: colors.text }}>
-            Email preview <span style={{ fontSize: 11, fontWeight: 600, color: colors.textSubtle }}>· {branded ? "Branded" : "Plain note"}</span>
+            Email preview <span style={{ fontSize: 11, fontWeight: 600, color: colors.textSubtle }}>· {label || "Plain note"}</span>
           </div>
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: "50%", border: "none", background: colors.surfaceMuted, color: colors.textMuted, fontSize: 15, cursor: "pointer" }}>×</button>
         </div>
@@ -237,69 +232,6 @@ function EmailPreviewModal({ html, loading, branded, onClose }) {
         ) : (
           <iframe title="Email preview" srcDoc={html} style={{ border: "none", width: "100%", height: "62vh", background: "#fff" }} />
         )}
-      </div>
-    </div>
-  );
-}
-
-function StyleCards({ branded, setBranded, onPreview }) {
-  const line = (w, mb = 4) => (
-    <div style={{ height: 4, borderRadius: 2, background: colors.border, width: w, marginBottom: mb }} />
-  );
-  const Card = ({ active, onClick, label, children, note }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        flex: 1,
-        minWidth: 0,
-        textAlign: "left",
-        cursor: "pointer",
-        border: `2px solid ${active ? colors.accent : colors.border}`,
-        background: colors.surface,
-        borderRadius: 12,
-        padding: 8,
-        boxShadow: active ? `0 0 0 3px ${colors.accentSoft}` : "none",
-        transition: "border-color .12s, box-shadow .12s",
-      }}
-    >
-      <div style={{ height: 56, borderRadius: 7, overflow: "hidden", background: colors.surfaceMuted, marginBottom: 7 }}>
-        {children}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: active ? colors.accent : colors.text }}>{label}</span>
-        {active && <span style={{ fontSize: 12, color: colors.accent, fontWeight: 800 }}>✓</span>}
-      </div>
-      <div style={{ fontSize: 10, color: colors.textSubtle, marginTop: 2, lineHeight: 1.3 }}>{note}</div>
-    </button>
-  );
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <span style={{ fontSize: 11, color: colors.textSubtle }}>Email style</span>
-        {onPreview && (
-          <button type="button" onClick={onPreview} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: colors.accent, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
-            Preview <span style={{ fontSize: 12 }}>⤢</span>
-          </button>
-        )}
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <Card active={!branded} onClick={() => setBranded(false)} label="Plain note" note="Looks hand-typed">
-          <div style={{ padding: 9 }}>
-            {line("72%")}{line("88%")}{line("54%")}{line("80%", 0)}
-          </div>
-        </Card>
-        <Card active={branded} onClick={() => setBranded(true)} label="Branded" note="Your colors + avatar">
-          <div>
-            <div style={{ height: 16, background: colors.accent, display: "flex", alignItems: "center", paddingLeft: 7 }}>
-              <div style={{ width: 9, height: 9, borderRadius: "50%", background: "rgba(255,255,255,.9)" }} />
-            </div>
-            <div style={{ padding: "7px 9px" }}>
-              {line("80%")}{line("60%")}
-              <div style={{ height: 3, borderRadius: 2, background: colors.border, width: "45%", marginTop: 6, opacity: 0.6 }} />
-            </div>
-          </div>
-        </Card>
       </div>
     </div>
   );
@@ -533,34 +465,39 @@ function ThreadPanel({ person, onClose, igAccounts = [] }) {
 // out individually to everyone (logistics one-to-many; the anti-extraction
 // line still holds because it's the host's own words, previewed, not faked
 // intimacy generated per person).
-function BulkPanel({ people, onClose, onClear }) {
+function BulkPanel({ people, events = [], lensEvent = null, onClose, onClear }) {
   const { showToast } = useToast();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [branded, setBranded] = useState(false);
+  const [template, setTemplate] = useState("plain"); // plain | branded | event
+  const [eventId, setEventId] = useState(lensEvent?.id || events[0]?.id || null);
   const [preview, setPreview] = useState(null);
   const fileRef = useRef(null);
   const move = people[0]?.move;
+  const templateLabel = template === "event" ? "Event email" : template === "branded" ? "Branded" : "Plain note";
   // Pre-fill from the shared suggested move (the brain's opener), host edits.
-  useEffect(() => { setDraft(move ? suggestedDraft(people[0]) : ""); setBranded(false); setPreview(null); }, [people, move]);
+  useEffect(() => { setDraft(move ? suggestedDraft(people[0]) : ""); setTemplate("plain"); setEventId(lensEvent?.id || events[0]?.id || null); setPreview(null); }, [people, move]);
 
   async function openPreview() {
     setPreview({ html: "", loading: true });
     try {
-      const res = await authenticatedFetch("/host/room/message/preview", { method: "POST", body: JSON.stringify({ text: draft, attachments, branded }) });
+      const res = await authenticatedFetch("/host/room/message/preview", { method: "POST", body: JSON.stringify({ text: draft, attachments, template, eventId }) });
       const data = await res.json().catch(() => ({}));
       if (data.html) setPreview({ html: data.html, loading: false });
       else { setPreview(null); showToast("Couldn't build preview", "error"); }
     } catch { setPreview(null); showToast("Couldn't build preview", "error"); }
   }
 
-  // Tally on the SENDABLE rail (WhatsApp where verified, else the email floor) —
-  // not a preferred-but-unsendable rail like Instagram. Honest "where this lands".
+  // Honest channel split. WhatsApp-reachable people get WhatsApp (native text);
+  // everyone else gets email (where the design applies); neither = surfaced.
   const sendOn = (p) => ((p.reachable || []).includes("whatsapp") ? "whatsapp" : "email");
   const byChannel = {};
   people.forEach((p) => { const ch = sendOn(p); byChannel[ch] = (byChannel[ch] || 0) + 1; });
+  const waCount = people.filter((p) => (p.reachable || []).includes("whatsapp")).length;
+  const emCount = people.filter((p) => !(p.reachable || []).includes("whatsapp") && (p.reachable || []).includes("email")).length;
+  const noneCount = people.length - waCount - emCount;
 
   async function onAttach(e) {
     const files = Array.from(e.target.files || []);
@@ -592,7 +529,7 @@ function BulkPanel({ people, onClose, onClear }) {
     try {
       const res = await authenticatedFetch("/host/room/message/bulk", {
         method: "POST",
-        body: JSON.stringify({ personIds: people.map((p) => p.id), channel: "whatsapp", text, attachments, branded }),
+        body: JSON.stringify({ personIds: people.map((p) => p.id), channel: "whatsapp", text, attachments, template, eventId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
@@ -657,10 +594,40 @@ function BulkPanel({ people, onClose, onClear }) {
 
       {/* Composer — looks like a normal send; goes to all individually */}
       <div style={{ borderTop: `1px solid ${colors.border}`, padding: "12px 14px" }}>
-        <div style={{ fontSize: "11px", color: colors.textSubtle, marginBottom: "8px" }}>
-          One private message each, not a group — WhatsApp where they're reachable, email otherwise.
+        {/* Email design — pick a template, preview it (old-CRM style). Applies
+            to the email cohort; WhatsApp folks get your message as native text. */}
+        <div style={{ marginBottom: "9px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 11, color: colors.textSubtle }}>Email design</span>
+            <button type="button" onClick={openPreview} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: colors.accent, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+              Preview <span style={{ fontSize: 12 }}>⤢</span>
+            </button>
+          </div>
+          <select value={template} onChange={(e) => setTemplate(e.target.value)} style={{ width: "100%", fontSize: 13, fontFamily: SF, color: colors.text, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 11px", cursor: "pointer" }}>
+            <option value="plain">Plain note — hand-typed, no styling</option>
+            <option value="branded">Branded — your colors, avatar &amp; footer</option>
+            <option value="event">Event email — cover, title, date &amp; button</option>
+          </select>
+          {template === "event" && (
+            events.length ? (
+              <select value={eventId || ""} onChange={(e) => setEventId(e.target.value)} style={{ width: "100%", marginTop: 6, fontSize: 13, fontFamily: SF, color: colors.text, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 11px", cursor: "pointer" }}>
+                {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+              </select>
+            ) : (
+              <div style={{ fontSize: 11, color: colors.textSubtle, marginTop: 6 }}>No events to base this on yet.</div>
+            )
+          )}
         </div>
-        <StyleCards branded={branded} setBranded={setBranded} onPreview={openPreview} />
+
+        {/* Honest channel split — where this actually lands. */}
+        <div style={{ fontSize: "11px", color: colors.textMuted, background: colors.surfaceMuted, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "8px 11px", marginBottom: "9px", lineHeight: 1.5 }}>
+          Sends to <strong>{emCount}</strong> on email{template !== "plain" ? " (styled)" : ""}
+          {waCount ? <> · <strong>{waCount}</strong> on WhatsApp</> : null}
+          {noneCount ? <> · <strong>{noneCount}</strong> can’t be reached yet</> : null}.
+          {waCount > 0 && template !== "plain" ? (
+            <div style={{ marginTop: 4, color: colors.textSubtle }}>WhatsApp folks get your message as text, not the design.</div>
+          ) : null}
+        </div>
         {/* Attachment chips */}
         {(attachments.length > 0 || uploading) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "9px" }}>
@@ -686,7 +653,7 @@ function BulkPanel({ people, onClose, onClear }) {
           Clear selection
         </button>
       </div>
-      {preview && <EmailPreviewModal html={preview.html} loading={preview.loading} branded={branded} onClose={() => setPreview(null)} />}
+      {preview && <EmailPreviewModal html={preview.html} loading={preview.loading} label={templateLabel} onClose={() => setPreview(null)} />}
     </div>
   );
 }
@@ -1217,7 +1184,7 @@ export default function RoomPage() {
       {(selected || bulkPeople) && (
         <div style={{ position: "fixed", top: "58px", right: 0, bottom: 0, width: "420px", borderLeft: `1px solid ${colors.border}`, background: colors.surface, boxShadow: "-12px 0 40px rgba(10,10,10,0.08)", zIndex: 30 }}>
           {bulkPeople ? (
-            <BulkPanel people={bulkPeople} onClose={() => setBulkPeople(null)} onClear={() => setBulkPeople(null)} />
+            <BulkPanel people={bulkPeople} events={EVENTS} lensEvent={lensEvent} onClose={() => setBulkPeople(null)} onClear={() => setBulkPeople(null)} />
           ) : (
             <ThreadPanel person={selected} onClose={() => setSelectedId(null)} igAccounts={HOST.igAccounts || []} />
           )}

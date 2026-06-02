@@ -16,13 +16,20 @@
 // Instagram outbound still needs the live send path; it honestly reports "not
 // available yet" rather than pretend to send.
 
-import { findPersonById, personBelongsToHost, getUserProfile } from "../data.js";
+import { findPersonById, personBelongsToHost, getUserProfile, ensureUnsubscribeToken } from "../data.js";
 import { enqueueOutbox } from "../email/index.js";
 import { buildFromHeader } from "./campaignSender.js";
 import { logPersonEvent } from "./personTimeline.js";
 import { sendText } from "../whatsapp/index.js";
 import { isConversationWindowOpen } from "../whatsapp/repos/whatsappThreadsRepo.js";
 import { dispatch } from "../messaging/dispatch.js";
+import { renderFollowUpEmailTemplate } from "./followUpTemplateService.js";
+import { supabase } from "../supabase.js";
+
+const FRONTEND_BASE =
+  process.env.NODE_ENV === "production"
+    ? (process.env.FRONTEND_URL || "https://pullup.se")
+    : (process.env.FRONTEND_URL || "http://localhost:5173");
 
 function escapeHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -112,16 +119,94 @@ function normalizeAttachments(attachments) {
     .map((a) => ({ url: a.url, name: a.name || "Attachment", isImage: !!a.isImage }));
 }
 
+// Resolve an event cover (stored as a bucket path) to a renderable URL.
+function resolveCover(raw) {
+  if (!raw) return null;
+  if (String(raw).startsWith("http")) return raw;
+  try {
+    let fp = raw;
+    if (raw.includes("event-images/")) { const m = raw.match(/event-images\/([^?]+)/); if (m) fp = m[1]; }
+    const { data } = supabase.storage.from("event-images").getPublicUrl(fp);
+    return data?.publicUrl || raw;
+  } catch { return raw; }
+}
+
+// Load the bits of an event the "Event email" design needs. Cached by the bulk
+// caller so we don't refetch per recipient.
+async function getEventForEmail(eventId) {
+  if (!eventId) return null;
+  const { data: e } = await supabase
+    .from("events")
+    .select("id, title, slug, starts_at, location, description, cover_image_url, image_url, brand")
+    .eq("id", eventId)
+    .maybeSingle();
+  if (!e) return null;
+  let whenLabel = "";
+  try {
+    whenLabel = e.starts_at
+      ? new Date(e.starts_at).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })
+      : "";
+  } catch {}
+  return {
+    id: e.id,
+    title: e.title || "the event",
+    slug: e.slug || null,
+    coverImageUrl: resolveCover(e.cover_image_url || e.image_url),
+    whenLabel,
+    location: e.location || "",
+    description: e.description || "",
+    accent: e.brand?.buttonColor || null,
+  };
+}
+
+// Build the "Event email" blocks — the old CRM event design: the host's note as
+// the personal intro, then cover + title + when/where + description + CTA.
+function eventBlocks(event, messageText, accent) {
+  const blocks = [];
+  blocks.push({ type: "text", style: "paragraph", text: (messageText || "").trim() || "Hi {{first_name}}," });
+  if (event.coverImageUrl) blocks.push({ type: "image", url: event.coverImageUrl, aspectRatio: "banner", alt: event.title });
+  if (event.title) blocks.push({ type: "text", style: "heading", text: event.title });
+  const meta = [event.whenLabel, event.location].filter(Boolean).join(" · ");
+  if (meta) blocks.push({ type: "text", style: "paragraph", text: meta });
+  if (event.description) blocks.push({ type: "text", style: "paragraph", text: event.description.slice(0, 700) });
+  if (event.slug) blocks.push({ type: "button", text: "View event", url: `${FRONTEND_BASE}/e/${event.slug}`, bgColor: accent || event.accent || "#ec178f" });
+  return blocks;
+}
+
+// One place that turns (template, message, brand, event) into email HTML — used
+// by both the live preview and the real send so they never drift.
+async function renderEmailFor({ template, body, atts, profile, event, person, withUnsub }) {
+  if (template === "event" && event) {
+    let unsubscribeUrl = null;
+    if (withUnsub && person?.id) {
+      try { unsubscribeUrl = `${FRONTEND_BASE}/u/${await ensureUnsubscribeToken(person.id)}`; } catch {}
+    }
+    return renderFollowUpEmailTemplate({
+      templateContent: {
+        previewText: (body || "").slice(0, 120),
+        blocks: eventBlocks(event, body, profile?.brandPrimaryColor),
+      },
+      person: person || { name: "there" },
+      event,
+      unsubscribeUrl,
+    });
+  }
+  if (template === "branded") return renderBrandedEmail(body, atts, profile);
+  return textToHtml(body, atts);
+}
+
 /**
- * Render the email HTML exactly as it would ship (plain or branded), for the
- * composer's live preview — so the host sees their real brand (accent, avatar,
- * footer) on their real draft, not a blind toggle. Same renderers as the send.
+ * Render the email HTML exactly as it would ship (plain / branded / event), for
+ * the composer's live preview — so the host sees their real brand + design on
+ * their real draft, not a blind toggle. Same renderer as the send.
  */
-export async function renderRoomEmailHtml({ hostId, text = "", attachments = [], branded = false }) {
+export async function renderRoomEmailHtml({ hostId, text = "", attachments = [], template, branded = false, eventId = null }) {
+  const tmpl = template || (branded ? "branded" : "plain");
   const body = (text || "").trim() || "Hey — just thinking of you. Hope you're doing well!";
   const atts = normalizeAttachments(attachments);
-  const profile = branded ? await getUserProfile(hostId).catch(() => null) : null;
-  return branded ? renderBrandedEmail(body, atts, profile) : textToHtml(body, atts);
+  const profile = tmpl !== "plain" ? await getUserProfile(hostId).catch(() => null) : null;
+  const event = tmpl === "event" ? await getEventForEmail(eventId) : null;
+  return renderEmailFor({ template: tmpl, body, atts, profile, event, person: { name: "Alex" }, withUnsub: false });
 }
 
 function logRoomEvent({ personId, hostId, channel, body, attCount }) {
@@ -141,7 +226,7 @@ function logRoomEvent({ personId, hostId, channel, body, attCount }) {
  * Send one message from a host to a person in their world.
  * @returns {Promise<{ok:boolean, error?:string, channel?:string}>}
  */
-export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], branded = false }) {
+export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], branded = false, template, eventId = null, event = null }) {
   const body = (text || "").trim();
   const atts = normalizeAttachments(attachments);
   if (!hostId || !personId) return { ok: false, error: "bad_request" };
@@ -157,7 +242,10 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   const profile = await getUserProfile(hostId).catch(() => null);
   const fromName = ((profile?.name || profile?.brand || "") || "").trim() || null;
   const subj = (subject || "").trim() || `A note from ${fromName || "your host"}`;
-  const emailHtml = () => (branded ? renderBrandedEmail(body, atts, profile) : textToHtml(body, atts));
+  // Email design: explicit template wins; else the legacy branded flag.
+  const tmpl = template || (branded ? "branded" : "plain");
+  const evt = tmpl === "event" ? (event || (await getEventForEmail(eventId))) : null;
+  const emailHtml = () => renderEmailFor({ template: tmpl, body, atts, profile, event: evt, person, withUnsub: tmpl !== "plain" });
   const key = () => `room:${hostId}:${personId}:${Date.now()}:${_sendSeq++}`;
 
   // ── WhatsApp rail — only when the person is honestly reachable there. ──
@@ -197,7 +285,7 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
         },
         email: {
           subject: subj,
-          htmlBody: emailHtml(),
+          htmlBody: await emailHtml(),
           textBody: textBodyWith(body, atts),
           category: "transactional",
         },
@@ -217,9 +305,9 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
     fromEmail: buildFromHeader(fromName),
     toEmail: person.email,
     subject: subj,
-    htmlBody: emailHtml(),
+    htmlBody: await emailHtml(),
     textBody: textBodyWith(body, atts),
-    category: "transactional",
+    category: tmpl === "plain" ? "transactional" : "newsletter",
     idempotencyKey: key(),
   });
 
@@ -235,12 +323,16 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
  * floor. Nothing fails silently — unreachable people are tallied.
  * @returns {Promise<{sent:number, noEmail:number, failed:number, byChannel:object}>}
  */
-export async function sendRoomBulk({ hostId, personIds, channel = "email", text, subject, attachments = [], branded = false }) {
+export async function sendRoomBulk({ hostId, personIds, channel = "email", text, subject, attachments = [], branded = false, template, eventId = null }) {
   const ids = Array.isArray(personIds) ? personIds : [];
   const out = { sent: 0, noEmail: 0, failed: 0, byChannel: { email: 0, whatsapp: 0 } };
+  const tmpl = template || (branded ? "branded" : "plain");
+  // Fetch the event ONCE for the whole send (the design is shared; tokens still
+  // render per recipient).
+  const event = tmpl === "event" ? await getEventForEmail(eventId) : null;
   for (const pid of ids) {
     try {
-      const r = await sendRoomMessage({ hostId, personId: pid, channel, text, subject, attachments, branded });
+      const r = await sendRoomMessage({ hostId, personId: pid, channel, text, subject, attachments, template: tmpl, eventId, event });
       if (r.ok) {
         out.sent++;
         if (r.channel) out.byChannel[r.channel] = (out.byChannel[r.channel] || 0) + 1;

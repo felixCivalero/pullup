@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { X, Sparkles, ChevronRight, ExternalLink, MessageCircle, Wand2 } from "lucide-react";
+import { X, Sparkles, ChevronRight, ExternalLink, MessageCircle, Wand2, Send } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useHostResource } from "../contexts/useHostResource.js";
@@ -9,6 +9,11 @@ import { addSpotifySection, addInstagramField } from "../lib/coachMutations.js";
 import { useMcpStatus } from "../lib/useMcpStatus.js";
 import { colors } from "../theme/colors.js";
 import { CanvasChat } from "./CanvasChat.jsx";
+
+// Tiny face-pile tints for the Messages trigger (mirrors DockMessages avatars).
+const FACE_TINTS = ["#ec178f", "#0d9488", "#ea580c", "#7c3aed", "#1478c8", "#e11d48"];
+function faceColor(n) { let h = 0; for (const c of String(n || "")) h = (h * 31 + c.charCodeAt(0)) >>> 0; return FACE_TINTS[h % FACE_TINTS.length]; }
+function faceInitials(n = "") { return String(n).trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?"; }
 import DockMessages from "./DockMessages.jsx";
 
 // The two-face toggle at the top of the dock: Messages ↔ Create.
@@ -195,6 +200,21 @@ export function IdeaWidget() {
     };
   }, [inAiMode, resource]);
 
+  // A few faces for the Messages trigger — needs-you first. Lightweight read.
+  const [roomFaces, setRoomFaces] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    authenticatedFetch("/host/room")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d) return;
+        const ppl = [...(d.people || [])].sort((a, b) => (b.needsYou ? 1 : 0) - (a.needsYou ? 1 : 0));
+        setRoomFaces(ppl.slice(0, 3));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   // Close the panel when mode flips so the host doesn't see stale chrome.
   useEffect(() => {
     setOpen(false);
@@ -356,7 +376,7 @@ export function IdeaWidget() {
             style={
               canvasEventId
                 ? { position: "absolute", bottom: 56, right: 0, width: 360, background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 16, padding: 18, boxShadow: "0 8px 30px rgba(10,10,10,0.10)" }
-                : { position: "absolute", bottom: 56, right: 0, width: msgExpanded ? "min(94vw, 460px)" : 372, height: msgExpanded ? "82vh" : 560, maxHeight: "82vh", background: "#121217", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 20, overflow: "hidden", boxShadow: "0 20px 60px rgba(10,10,10,0.45)" }
+                : { position: "absolute", bottom: 56, right: 0, width: msgExpanded ? "min(94vw, 460px)" : 372, height: msgExpanded ? "82vh" : 560, maxHeight: "82vh", background: colors.background, border: `1px solid ${colors.borderStrong}`, borderRadius: 20, overflow: "hidden", boxShadow: "0 20px 60px rgba(10,10,10,0.18)" }
             }
           >
             {canvasEventId ? (
@@ -378,23 +398,23 @@ export function IdeaWidget() {
           </div>
         )}
 
-        {/* AI-mode trigger pill — amber-tinted to signal "AI is here" */}
+        {/* Trigger pill — "Messages" (your people) by default; "PullUp" sparkle in AI-build mode */}
         <button
           ref={triggerRef}
           onClick={() => setOpen((prev) => !prev)}
-          title="PullUp"
+          title={canvasEventId ? "PullUp" : "Messages"}
           style={{
             borderRadius: 999,
-            border: `1px solid rgba(180, 83, 9, 0.28)`,
+            border: `1px solid ${canvasEventId ? "rgba(180, 83, 9, 0.28)" : colors.border}`,
             background: colors.background,
             boxShadow: "0 4px 16px rgba(10,10,10,0.08)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: 7,
-            color: colors.gold,
+            gap: 8,
+            color: canvasEventId ? colors.gold : colors.text,
             transition: "all 0.15s ease",
-            padding: "10px 14px 10px 12px",
+            padding: "9px 13px 9px 14px",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = colors.surface;
@@ -405,13 +425,34 @@ export function IdeaWidget() {
             e.currentTarget.style.boxShadow = "0 4px 16px rgba(10,10,10,0.08)";
           }}
         >
-          <span ref={sparkleRef} style={{ display: "inline-flex", alignItems: "center" }}>
-            <Sparkles size={18} />
-          </span>
-          <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", color: colors.gold }}>
-            PullUp
-            {coachItems && coachItems.length > 0 ? ` · ${coachItems.length}` : ""}
-          </span>
+          {canvasEventId ? (
+            <>
+              <span ref={sparkleRef} style={{ display: "inline-flex", alignItems: "center" }}>
+                <Sparkles size={18} />
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", color: colors.gold }}>
+                PullUp
+                {coachItems && coachItems.length > 0 ? ` · ${coachItems.length}` : ""}
+              </span>
+            </>
+          ) : (
+            <>
+              <Send size={17} color={colors.accent} strokeWidth={2.2} />
+              <span style={{ fontSize: 14, fontWeight: 750, whiteSpace: "nowrap", color: colors.text, letterSpacing: "-0.01em" }}>
+                Messages
+              </span>
+              {roomFaces.length > 0 && (
+                <span style={{ display: "flex", marginLeft: 4 }}>
+                  {roomFaces.map((p, i) => (
+                    <span key={p.id || i} title={p.name}
+                      style={{ marginLeft: i === 0 ? 0 : -8, width: 24, height: 24, borderRadius: "50%", boxShadow: `0 0 0 2px ${colors.background}`, background: `linear-gradient(135deg, ${faceColor(p.name)} 0%, ${faceColor(p.name)}99 100%)`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 800, letterSpacing: "-0.02em" }}>
+                      {faceInitials(p.name)}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </>
+          )}
         </button>
       </div>
     );

@@ -133,6 +133,32 @@ body {
     border-right: none !important;
     background: transparent !important;
     padding: 0 !important;
+    flex-direction: column !important;
+  }
+
+  /* Parts rail: on phones it rides as a horizontal strip above the editor
+     (the desktop is a vertical left rail). */
+  .create-event-parts-rail {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(10, 10, 10, 0.08);
+    padding: 10px 4px !important;
+    gap: 8px !important;
+  }
+  .create-event-parts-rail > div {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 6px !important;
+  }
+  /* Hide the little group headers when laid out horizontally. */
+  .create-event-parts-rail > div > div:first-child {
+    display: none !important;
   }
 
   .create-event-preview-desktop {

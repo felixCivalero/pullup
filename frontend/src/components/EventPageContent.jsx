@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort } from "../lib/urlUtils";
@@ -88,7 +88,13 @@ export function EventPageContent({
   hideDate = false,
   revealHint = null,
   dateRevealHint = null,
+  // Editor-only: when provided, each section becomes click-to-edit — point at
+  // the block on the preview and onEditSection(index) opens its editor. Absent
+  // on the live public page, so nothing here changes for guests.
+  onEditSection = null,
 }) {
+  const editable = typeof onEditSection === "function";
+  const [editHover, setEditHover] = useState(null);
   const formattedDate = hideDate ? null : formatDate(startsAt, timezone);
   const locationTba = revealHint || "Location revealed later";
   const dateTba = dateRevealHint || "Date TBA";
@@ -121,14 +127,28 @@ export function EventPageContent({
         // Per-section overrides (migration 047). undefined → inherit/default.
         const sFamily = section.fontFamily ? fontStack(section.fontFamily) : undefined;
         const sColor = section.fontColor || null;
+        const editLit = editable && editHover === i;
         return (
-        <div key={i} data-section-index={i} style={{
+        <div
+          key={i}
+          data-section-index={i}
+          onClick={editable ? (e) => { e.stopPropagation(); onEditSection(i); } : undefined}
+          onMouseEnter={editable ? () => setEditHover(i) : undefined}
+          onMouseLeave={editable ? () => setEditHover(null) : undefined}
+          style={{
+          position: "relative",
+          cursor: editable ? "pointer" : undefined,
           marginBottom: i === sections.length - 1 ? 0 : section.type === "location" ? "4px" : "16px",
           borderRadius: "4px",
-          outline: isHovered ? "1px solid rgba(163, 230, 53, 0.5)" : "1px solid transparent",
+          outline: (isHovered || editLit) ? `1px solid ${editLit ? "#ec178f" : "rgba(163, 230, 53, 0.5)"}` : "1px solid transparent",
           outlineOffset: "4px",
           transition: "outline-color 0.15s ease",
         }}>
+          {editLit && (
+            <span style={{ position: "absolute", top: -10, right: -2, zIndex: 5, fontSize: "9.5px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "#fff", background: "#ec178f", padding: "2px 7px", borderRadius: "999px", pointerEvents: "none", boxShadow: "0 2px 8px rgba(236,23,143,0.45)" }}>
+              Edit
+            </span>
+          )}
           {section.type === "title" ? (
             title ? <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: sColor || "#fff", fontFamily: sFamily, margin: 0 }}>{title}</h1> : null
 

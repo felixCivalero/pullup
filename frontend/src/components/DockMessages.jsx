@@ -1,32 +1,32 @@
 // DockMessages — the pullup messenger. Instagram-DM shape (single pane: a list
-// you tap into a conversation, back out), but darker and sexier. Every thread
+// you tap into a conversation, back out), on the light PullUp palette. Every thread
 // is space-rooted (host↔guest, the star) — your people, never strangers.
 // Reuses /host/room (real data) + /host/room/message (omnichannel via dispatch)
 // + /host/room/attachment. Two-way: inbound threads. Smart: needs-you ranking,
 // the suggested move, channel + search filters, attachments.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2 } from "lucide-react";
+import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 
-// Dark, sexy palette — its own world, not the light dashboard.
+// Light PullUp palette — white canvas, near-black ink, the one pink accent.
 const D = {
-  bg: "#121217",
-  raise: "#1b1b22",
-  hover: "rgba(255,255,255,0.05)",
-  line: "rgba(255,255,255,0.08)",
-  ink: "#f4f4f7",
-  muted: "rgba(244,244,247,0.56)",
-  faint: "rgba(244,244,247,0.34)",
+  bg: "#ffffff",
+  raise: "#f4f4f5",
+  hover: "rgba(10,10,10,0.04)",
+  line: "rgba(10,10,10,0.10)",
+  ink: "#0a0a0a",
+  muted: "rgba(10,10,10,0.56)",
+  faint: "rgba(10,10,10,0.40)",
   pink: "#ec178f",
   youGrad: "linear-gradient(135deg, #ff45ad 0%, #ec178f 55%, #c2127a 100%)",
-  them: "#26262f",
-  green: "#2ecc71",
+  them: "#f1f1f3",
+  green: "#16a34a",
 };
 const CH = {
-  whatsapp: { label: "WhatsApp", color: "#25d366" },
-  instagram: { label: "Instagram", color: "#e1306c" },
-  email: { label: "Email", color: "#9aa0a6" },
+  whatsapp: { label: "WhatsApp", color: "#1aa251" },
+  instagram: { label: "Instagram", color: "#d6249f" },
+  email: { label: "Email", color: "#6b7280" },
 };
 const TINTS = ["#ec178f", "#0d9488", "#ea580c", "#7c3aed", "#1478c8", "#e11d48"];
 function hashName(n) { let h = 0; for (const c of String(n || "")) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
@@ -75,7 +75,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
 
   const thread = useMemo(() => open ? [...(open.thread || []), ...sent.filter((m) => m.personId === open.id)] : [], [open, sent]);
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [thread.length, openId]);
-  useEffect(() => { setDraft(""); setAttachments([]); }, [openId]);
+  useEffect(() => { setDraft(""); setAttachments([]); setSmartOpen(false); }, [openId]);
 
   async function onPickFile(e) {
     const file = e.target.files?.[0]; e.target.value = "";
@@ -99,8 +99,113 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
     finally { setSending(false); }
   }
 
+  // ── Smart insert: pull event name / time / place / maps into the draft ──
+  const [events, setEvents] = useState([]);
+  const [smartOpen, setSmartOpen] = useState(false);
+  const [smartEventId, setSmartEventId] = useState(null);
+  useEffect(() => {
+    authenticatedFetch("/events").then((r) => (r.ok ? r.json() : [])).then((evs) => {
+      const arr = Array.isArray(evs) ? evs : [];
+      arr.sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0));
+      setEvents(arr);
+    }).catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (smartEventId || !events.length) return;
+    const now = Date.now();
+    const upcoming = events.find((e) => e.startsAt && new Date(e.startsAt).getTime() >= now) || events[0];
+    setSmartEventId(upcoming?.id || null);
+  }, [events, smartEventId]);
+  const smartEvent = events.find((e) => e.id === smartEventId) || events[0] || null;
+  function fmtWhen(e) { if (!e?.startsAt) return ""; try { return new Date(e.startsAt).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; } }
+  function mapsLink(e, provider) { const loc = (e?.location || "").trim(); if (!loc) return ""; const query = encodeURIComponent(loc); return provider === "apple" ? `https://maps.apple.com/?q=${query}` : `https://www.google.com/maps/search/?api=1&query=${query}`; }
+  function smartBlock(e) { const parts = []; if (e?.title) parts.push(e.title); const w = fmtWhen(e); if (w) parts.push(w); if (e?.location) parts.push(e.location); const ml = mapsLink(e, "google"); if (ml) parts.push(ml); return parts.join("\n"); }
+  function appendDraft(txt) { if (!txt) return; setDraft((d) => (d && !/\s$/.test(d) ? d + " " : d) + txt); }
+
+  // ── Multi-select → message several people at once ──
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState([]);
+  const [broadcast, setBroadcast] = useState(false);
+  const selectedPeople = useMemo(() => (people || []).filter((p) => selected.includes(p.id)), [people, selected]);
+  function toggleSel(id) { setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])); }
+  function exitSelect() { setSelecting(false); setSelected([]); setBroadcast(false); }
+  async function sendBroadcast(e) {
+    e.preventDefault();
+    const text = draft.trim(); const atts = attachments;
+    if ((!text && !atts.length) || !selectedPeople.length) return;
+    setSending(true);
+    try {
+      await Promise.all(selectedPeople.map((p) => authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: p.id, channel: p.channel || "email", text, attachments: atts }) }).catch(() => null)));
+    } finally {
+      setSending(false); setDraft(""); setAttachments([]); setSmartOpen(false); exitSelect();
+    }
+  }
+
   const iconBtn = { display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", background: "none", cursor: "pointer", color: D.muted, padding: 6 };
   const pill = (on, col) => ({ padding: "5px 11px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", border: `1px solid ${on ? "transparent" : D.line}`, background: on ? D.pink : "transparent", color: on ? "#fff" : (col || D.muted) });
+
+  // Composer shared by single threads + the broadcast view. `suggest` shows the
+  // needs-you nudge (single only); the sparkle opens the event smart-insert.
+  const smartChip = (label, onClick, primary) => (
+    <button type="button" key={label} onClick={onClick}
+      style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, padding: "5px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${primary ? "transparent" : D.line}`, background: primary ? D.pink : D.raise, color: primary ? "#fff" : D.ink }}>
+      {label}
+    </button>
+  );
+  const renderComposer = (onSubmit, placeholder, suggest) => (
+    <div style={{ padding: "10px 12px 12px", borderTop: `1px solid ${D.line}`, position: "relative" }}>
+      {smartOpen && smartEvent && (
+        <div style={{ position: "absolute", left: 12, right: 12, bottom: "calc(100% - 4px)", background: D.bg, border: `1px solid ${D.line}`, borderRadius: 14, boxShadow: "0 14px 36px rgba(10,10,10,0.16)", padding: 11, zIndex: 30 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: D.faint, textTransform: "uppercase", letterSpacing: "0.07em" }}>Insert event details</span>
+            <button type="button" onClick={() => setSmartOpen(false)} style={{ ...iconBtn, padding: 0, color: D.faint }}><X size={14} /></button>
+          </div>
+          {events.length > 1 && (
+            <select value={smartEventId || ""} onChange={(e) => setSmartEventId(e.target.value)}
+              style={{ width: "100%", boxSizing: "border-box", marginBottom: 9, padding: "7px 9px", borderRadius: 9, border: `1px solid ${D.line}`, background: D.raise, color: D.ink, fontSize: 12.5, outline: "none" }}>
+              {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title || "Untitled event"}</option>)}
+            </select>
+          )}
+          <div style={{ fontSize: 13, fontWeight: 700, color: D.ink }}>{smartEvent.title || "Untitled event"}</div>
+          <div style={{ fontSize: 12, color: D.muted, marginBottom: 10 }}>{[fmtWhen(smartEvent), smartEvent.location].filter(Boolean).join(" · ") || "No date or place yet"}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {smartChip("Name", () => appendDraft(smartEvent.title))}
+            {fmtWhen(smartEvent) && smartChip("Date & time", () => appendDraft(fmtWhen(smartEvent)))}
+            {smartEvent.location && smartChip("Location", () => appendDraft(smartEvent.location))}
+            {smartEvent.location && smartChip("Google Maps", () => appendDraft(mapsLink(smartEvent, "google")))}
+            {smartEvent.location && smartChip("Apple Maps", () => appendDraft(mapsLink(smartEvent, "apple")))}
+            {smartChip("Insert all", () => { appendDraft(smartBlock(smartEvent)); setSmartOpen(false); }, true)}
+          </div>
+        </div>
+      )}
+      {suggest && open && open.needsYou && open.move && !draft && attachments.length === 0 && (
+        <button type="button" onClick={() => setDraft(`Hey ${(open.name || "").split(" ")[0]}! `)}
+          style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", textAlign: "left", marginBottom: 9, fontSize: 12, color: D.pink, background: "rgba(236,23,143,0.10)", border: "1px solid rgba(236,23,143,0.30)", borderRadius: 12, padding: "8px 11px", cursor: "pointer", lineHeight: 1.4 }}>
+          <Sparkles size={12} style={{ flexShrink: 0 }} /><span><b>Suggested:</b> {open.move}</span>
+        </button>
+      )}
+      {attachments.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+          {attachments.map((a, i) => (
+            <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, padding: "4px 8px", borderRadius: 8, background: D.raise, color: D.muted }}>
+              <Paperclip size={11} /> {(a.name || "file").slice(0, 16)}
+              <button type="button" onClick={() => setAttachments((p) => p.filter((_, j) => j !== i))} style={{ ...iconBtn, padding: 0, color: D.faint }}><X size={12} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      <form onSubmit={onSubmit} style={{ display: "flex", gap: 8, alignItems: "center", background: D.raise, borderRadius: 999, padding: "5px 6px 5px 8px" }}>
+        <button type="button" onClick={() => setSmartOpen((v) => !v)} disabled={!smartEvent} title="Insert event details"
+          style={{ ...iconBtn, color: smartOpen ? D.pink : (smartEvent ? D.muted : D.faint) }}><CalendarClock size={18} /></button>
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder}
+          style={{ flex: 1, background: "none", border: "none", outline: "none", color: D.ink, fontSize: 13.5 }} />
+        <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: "none" }} />
+        <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={{ ...iconBtn, color: uploading ? D.faint : D.muted }} aria-label="Attach"><Paperclip size={17} /></button>
+        <button type="submit" disabled={sending || (!draft.trim() && !attachments.length)} aria-label="Send"
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "50%", border: "none", background: (draft.trim() || attachments.length) ? D.youGrad : D.them, color: (draft.trim() || attachments.length) ? "#fff" : D.faint, cursor: "pointer" }}><Send size={15} /></button>
+      </form>
+    </div>
+  );
 
   // ── Conversation view ───────────────────────────────────────────────────
   if (open) {
@@ -132,7 +237,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
                   ) : (
                     <div key={j} style={{ fontSize: 12.5, color: D.muted, marginBottom: 4 }}><Paperclip size={11} /> {a.name}</div>
                   ))}
-                  {m.text && <div style={{ padding: "9px 13px", borderRadius: mine ? "18px 18px 5px 18px" : "18px 18px 18px 5px", background: mine ? D.youGrad : D.them, color: "#fff", fontSize: 13.5, lineHeight: 1.45, boxShadow: mine ? "0 4px 14px rgba(236,23,143,0.28)" : "none" }}>{m.text}</div>}
+                  {m.text && <div style={{ padding: "9px 13px", borderRadius: mine ? "18px 18px 5px 18px" : "18px 18px 18px 5px", background: mine ? D.youGrad : D.them, color: mine ? "#fff" : D.ink, fontSize: 13.5, lineHeight: 1.45, boxShadow: mine ? "0 4px 14px rgba(236,23,143,0.24)" : "none" }}>{m.text}</div>}
                   {m.time && <div style={{ fontSize: 10, color: D.faint, marginTop: 3, textAlign: mine ? "right" : "left" }}>{m.time === "now" ? "Sent · now" : m.time}</div>}
                 </div>
               </div>
@@ -141,32 +246,46 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
           {thread.length === 0 && !open.read && <div style={{ fontSize: 13, color: D.faint, textAlign: "center", marginTop: 20 }}>No history yet. Say hi.</div>}
         </div>
 
-        <div style={{ padding: "10px 12px 12px", borderTop: `1px solid ${D.line}` }}>
-          {open.needsYou && open.move && !draft && attachments.length === 0 && (
-            <button type="button" onClick={() => setDraft(`Hey ${(open.name || "").split(" ")[0]}! `)}
-              style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", textAlign: "left", marginBottom: 9, fontSize: 12, color: D.pink, background: "rgba(236,23,143,0.10)", border: "1px solid rgba(236,23,143,0.30)", borderRadius: 12, padding: "8px 11px", cursor: "pointer", lineHeight: 1.4 }}>
-              <Sparkles size={12} style={{ flexShrink: 0 }} /><span><b>Suggested:</b> {open.move}</span>
-            </button>
-          )}
-          {attachments.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-              {attachments.map((a, i) => (
-                <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, padding: "4px 8px", borderRadius: 8, background: D.raise, color: D.muted }}>
-                  <Paperclip size={11} /> {(a.name || "file").slice(0, 16)}
-                  <button type="button" onClick={() => setAttachments((p) => p.filter((_, j) => j !== i))} style={{ ...iconBtn, padding: 0, color: D.faint }}><X size={12} /></button>
-                </span>
-              ))}
-            </div>
-          )}
-          <form onSubmit={send} style={{ display: "flex", gap: 8, alignItems: "center", background: D.raise, borderRadius: 999, padding: "5px 6px 5px 14px" }}>
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Message on ${ch.label}…`}
-              style={{ flex: 1, background: "none", border: "none", outline: "none", color: D.ink, fontSize: 13.5 }} />
-            <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: "none" }} />
-            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={{ ...iconBtn, color: uploading ? D.faint : D.muted }} aria-label="Attach"><Paperclip size={17} /></button>
-            <button type="submit" disabled={sending || (!draft.trim() && !attachments.length)} aria-label="Send"
-              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "50%", border: "none", background: (draft.trim() || attachments.length) ? D.youGrad : D.them, color: "#fff", cursor: "pointer" }}><Send size={15} /></button>
-          </form>
+        {renderComposer(send, `Message on ${ch.label}…`, true)}
+      </div>
+    );
+  }
+
+  // ── Broadcast view — compose once, send to everyone selected ──────────────
+  if (broadcast && selectedPeople.length) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px", borderBottom: `1px solid ${D.line}` }}>
+          <button onClick={() => setBroadcast(false)} style={{ ...iconBtn, color: D.ink }} aria-label="Back"><ChevronLeft size={20} /></button>
+          <div style={{ display: "flex" }}>
+            {selectedPeople.slice(0, 5).map((p, i) => (
+              <div key={p.id} style={{ marginLeft: i === 0 ? 0 : -9, borderRadius: "50%", boxShadow: `0 0 0 2px ${D.bg}` }}><Avatar name={p.name} size={30} /></div>
+            ))}
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{selectedPeople.length} {selectedPeople.length === 1 ? "person" : "people"}</div>
+            <div style={{ fontSize: 11, color: D.muted }}>each gets it on their channel</div>
+          </div>
+          {onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={18} /></button>}
         </div>
+
+        <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px", display: "flex", flexDirection: "column", gap: 8, alignContent: "flex-start" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {selectedPeople.map((p) => {
+              const pch = CH[p.channel] || CH.email;
+              return (
+                <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "5px 10px 5px 6px", borderRadius: 999, background: D.raise, color: D.ink }}>
+                  <Avatar name={p.name} size={20} />{(p.name || "").split(" ")[0]}
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: pch.color }}>{pch.label.slice(0, 2).toUpperCase()}</span>
+                  <button type="button" onClick={() => toggleSel(p.id)} style={{ ...iconBtn, padding: 0, color: D.faint }}><X size={12} /></button>
+                </span>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 12, color: D.faint, marginTop: 4 }}>One message, sent to each person individually — not a group thread.</div>
+        </div>
+
+        {renderComposer(sendBroadcast, `Message ${selectedPeople.length} ${selectedPeople.length === 1 ? "person" : "people"}…`, false)}
       </div>
     );
   }
@@ -176,6 +295,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 12px 11px 16px", borderBottom: `1px solid ${D.line}` }}>
         <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", flex: 1 }}>Messages</div>
+        <button onClick={() => (selecting ? exitSelect() : setSelecting(true))} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: selecting ? D.pink : D.muted, padding: "4px 8px" }}>{selecting ? "Done" : "Select"}</button>
         {onToggleExpand && <button onClick={onToggleExpand} style={iconBtn} aria-label="Expand">{expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>}
         {onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={19} /></button>}
       </div>
@@ -202,9 +322,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
         {list.map((p) => {
           const ch = CH[p.channel] || CH.email;
           const line = p.needsYou && p.move ? p.move : (p.relationship || "");
+          const sel = selected.includes(p.id);
+          const baseBg = selecting && sel ? D.hover : "none";
           return (
-            <button key={p.id} onClick={() => setOpenId(p.id)} onMouseEnter={(e) => (e.currentTarget.style.background = D.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-              style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", padding: "9px 10px", border: "none", borderRadius: 12, background: "none", cursor: "pointer", textAlign: "left", transition: "background 0.12s" }}>
+            <button key={p.id} onClick={() => (selecting ? toggleSel(p.id) : setOpenId(p.id))} onMouseEnter={(e) => (e.currentTarget.style.background = D.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = baseBg)}
+              style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", padding: "9px 10px", border: "none", borderRadius: 12, background: baseBg, cursor: "pointer", textAlign: "left", transition: "background 0.12s" }}>
               <Avatar name={p.name} size={44} dot={p.channel === "whatsapp" && p.windowOpen ? D.green : null} />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -213,11 +335,27 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
                 </div>
                 <div style={{ fontSize: 12.5, color: D.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{line}</div>
               </div>
-              <span style={{ fontSize: 10.5, fontWeight: 700, color: ch.color, flexShrink: 0 }}>{ch.label}</span>
+              {selecting ? (
+                <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, border: `2px solid ${sel ? D.pink : D.line}`, background: sel ? D.pink : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {sel && <Check size={13} color="#fff" strokeWidth={3} />}
+                </span>
+              ) : (
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: ch.color, flexShrink: 0 }}>{ch.label}</span>
+              )}
             </button>
           );
         })}
       </div>
+
+      {selecting && selected.length > 0 && (
+        <div style={{ padding: "10px 12px", borderTop: `1px solid ${D.line}`, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: D.muted, flex: 1 }}>{selected.length} selected</div>
+          <button onClick={() => { setDraft(""); setAttachments([]); setSmartOpen(false); setBroadcast(true); }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 999, border: "none", background: D.youGrad, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
+            Message {selected.length} <Send size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -44,9 +44,11 @@ function Avatar({ name, size = 44, dot }) {
 
 export default function DockMessages({ onClose, expanded, onToggleExpand }) {
   const [people, setPeople] = useState(null);
+  const [roomEvents, setRoomEvents] = useState([]);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("needs");
   const [channel, setChannel] = useState("all");
+  const [eventFilter, setEventFilter] = useState("all");
   const [openId, setOpenId] = useState(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -57,7 +59,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
   const fileRef = useRef(null);
 
   async function load() {
-    try { const r = await authenticatedFetch("/host/room"); const d = r.ok ? await r.json() : null; setPeople(d?.people || []); }
+    try { const r = await authenticatedFetch("/host/room"); const d = r.ok ? await r.json() : null; setPeople(d?.people || []); setRoomEvents(d?.events || []); }
     catch { setPeople([]); }
   }
   useEffect(() => { load(); }, []);
@@ -69,9 +71,10 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
     let ps = [...(people || [])];
     if (filter === "needs") ps = ps.filter((p) => p.needsYou);
     if (channel !== "all") ps = ps.filter((p) => (p.channel || "email") === channel);
+    if (eventFilter !== "all") ps = ps.filter((p) => (p.events || []).includes(eventFilter));
     if (q.trim()) { const s = q.trim().toLowerCase(); ps = ps.filter((p) => (p.name || "").toLowerCase().includes(s)); }
     return ps.sort((a, b) => (a.needsYou === b.needsYou ? (b.warmth || 0) - (a.warmth || 0) : a.needsYou ? -1 : 1));
-  }, [people, filter, channel, q]);
+  }, [people, filter, channel, eventFilter, q]);
 
   const thread = useMemo(() => open ? [...(open.thread || []), ...sent.filter((m) => m.personId === open.id)] : [], [open, sent]);
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [thread.length, openId]);
@@ -129,6 +132,12 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
   const selectedPeople = useMemo(() => (people || []).filter((p) => selected.includes(p.id)), [people, selected]);
   function toggleSel(id) { setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])); }
   function exitSelect() { setSelecting(false); setSelected([]); setBroadcast(false); }
+  // Select-all over the currently-filtered list (event/channel/search aware).
+  const allVisibleSelected = list.length > 0 && list.every((p) => selected.includes(p.id));
+  function toggleSelectAll() {
+    if (allVisibleSelected) setSelected((s) => s.filter((id) => !list.some((p) => p.id === id)));
+    else setSelected((s) => [...new Set([...s, ...list.map((p) => p.id)])]);
+  }
   async function sendBroadcast(e) {
     e.preventDefault();
     const text = draft.trim(); const atts = attachments;
@@ -306,7 +315,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search"
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 32px", borderRadius: 10, border: "none", background: D.raise, color: D.ink, fontSize: 13, outline: "none" }} />
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <button onClick={() => setFilter("needs")} style={pill(filter === "needs")}>Needs you{needsCount ? ` · ${needsCount}` : ""}</button>
           <button onClick={() => setFilter("all")} style={pill(filter === "all")}>All</button>
           <span style={{ width: 1, background: D.line, margin: "2px 2px" }} />
@@ -314,6 +323,27 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
             <button key={c} onClick={() => setChannel(c)} style={pill(channel === c, c === "all" ? D.muted : CH[c].color)}>{c === "all" ? "Any" : CH[c].label.slice(0, 2).toUpperCase()}</button>
           ))}
         </div>
+        {roomEvents.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <select value={eventFilter} onChange={(e) => setEventFilter(e.target.value)}
+              style={{ flex: 1, minWidth: 0, padding: "7px 10px", borderRadius: 10, border: `1px solid ${eventFilter !== "all" ? D.pink : D.line}`, background: D.raise, color: eventFilter !== "all" ? D.pink : D.ink, fontWeight: eventFilter !== "all" ? 700 : 500, fontSize: 12.5, outline: "none" }}>
+              <option value="all">All events</option>
+              {roomEvents.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+            </select>
+            {selecting && (
+              <button onClick={toggleSelectAll} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: D.pink, padding: "4px 6px", whiteSpace: "nowrap" }}>
+                {allVisibleSelected ? "Clear" : `Select all · ${list.length}`}
+              </button>
+            )}
+          </div>
+        )}
+        {selecting && roomEvents.length === 0 && (
+          <div style={{ marginTop: 8 }}>
+            <button onClick={toggleSelectAll} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: D.pink, padding: "4px 6px" }}>
+              {allVisibleSelected ? "Clear" : `Select all · ${list.length}`}
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "2px 6px 8px" }}>

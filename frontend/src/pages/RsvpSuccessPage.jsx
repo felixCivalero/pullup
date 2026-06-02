@@ -181,6 +181,16 @@ export function RsvpSuccessPage() {
     }
   }, [storedPayment]);
 
+  // Pre-store the email they RSVP'd with so the at-event door is one tap: when
+  // they scan the host's live code, /p/:eventId pre-fills this and they're in.
+  // Re-entry to the room (forever, after the event) is keyed off it too. Only
+  // for a confirmed spot — a waitlist isn't a key to the room.
+  useEffect(() => {
+    if (booking?.email && booking?.bookingStatus === "CONFIRMED") {
+      try { localStorage.setItem("pullup_email", booking.email.trim().toLowerCase()); } catch {}
+    }
+  }, [booking?.email, booking?.bookingStatus]);
+
   useEffect(() => {
     async function loadEvent() {
       try {
@@ -1075,6 +1085,68 @@ export function RsvpSuccessPage() {
                   )}
                 </>
               )}
+
+            {/* The room — the door, set as anticipation. Honors the pull-up gate:
+                the interior only opens once they scan the host's live code at the
+                event (an RSVP is intent, a pull-up is proof). Confirmed-only —
+                a waitlist isn't a key. */}
+            {booking?.bookingStatus === "CONFIRMED" && event?.id && (
+              <div
+                style={{
+                  marginBottom: "24px",
+                  padding: "20px",
+                  background: "rgba(236, 23, 143, 0.10)",
+                  borderRadius: "16px",
+                  border: "1px solid rgba(236, 23, 143, 0.30)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: "#ec178f",
+                    marginBottom: "8px",
+                  }}
+                >
+                  The room
+                </div>
+                <div
+                  style={{
+                    fontSize: "14px",
+                    lineHeight: 1.55,
+                    color: "rgba(255,255,255,0.85)",
+                    marginBottom: "16px",
+                  }}
+                >
+                  When you arrive, scan the host's live code to step inside. The
+                  room only opens for people who actually show up — that's where
+                  the photos and everyone who pulled up live.
+                </div>
+                <a
+                  href={`/p/${event.id}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "12px 16px",
+                    borderRadius: "999px",
+                    background: "rgba(255, 255, 255, 0.12)",
+                    border: "1px solid rgba(236, 23, 143, 0.45)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                  }}
+                >
+                  See who's pulled up
+                </a>
+              </div>
+            )}
 
             {/* Payment Receipt Section (for paid events only) - Moved below calendar modules */}
             {event?.ticketType === "paid" &&

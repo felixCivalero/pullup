@@ -1510,9 +1510,6 @@ function EventActionPanel({ event, arrowLeft, isMobile, tab, onTab, onClose, foc
         <Tab id="team" label="Team" />
         {!isPast && <Tab id="vip" label="VIP" />}
         <Tab id="share" label="Share & Track" />
-        <button onClick={onFocus} title="Show only the people who need you for this event" style={{ fontSize: "12.5px", fontWeight: 600, fontFamily: SF, padding: "7px 14px", borderRadius: "999px", cursor: "pointer", border: `1px solid ${focused ? colors.accent : colors.border}`, background: focused ? colors.accent : colors.surface, color: focused ? "#fff" : colors.textMuted, whiteSpace: "nowrap" }}>
-          {focused ? "✓ Filtering below" : "Filter people below"}
-        </button>
         <div style={{ width: 1, height: 20, background: colors.border, margin: "0 2px" }} />
         <button onClick={() => setConfirmDelete(true)} title="Delete event" style={{ width: 32, height: 32, borderRadius: "999px", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.danger, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Trash2 size={14} />

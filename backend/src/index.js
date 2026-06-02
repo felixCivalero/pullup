@@ -3334,6 +3334,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
               timezone: result.event.timezone || "",
               plusOnes: Number(result.rsvp.plusOnes) || 0,
               slug: result.event.slug || "",
+              eventId: result.event.id || "",
               frontendUrl: getFrontendUrl(),
               spotifyUrl: result.event.spotify || "",
               ticketPrice: result.event.ticketPrice ? (Number(result.event.ticketPrice) / 100).toFixed(2) : 0,

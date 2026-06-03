@@ -6336,33 +6336,51 @@ app.delete(
       // Send cancellation email to guest
       if (person?.email) {
         try {
-          let hostBrand = {};
-          try {
-            const hostProfile = await getUserProfile(event.hostId);
-            hostBrand = {
-              brandName: hostProfile?.brand || "",
-              brandWebsite: hostProfile?.brandWebsite || "",
-              contactEmail: hostProfile?.contactEmail || "",
-            };
-          } catch {}
-
-          await sendEmail({
-            to: person.email,
-            subject: "Your booking has been cancelled",
-            html: cancellationEmail({
-              name: rsvp.name || person.name || "there",
-              eventTitle: event.title,
-              imageUrl: event.coverImageUrl || event.imageUrl || "",
-              slug: event.slug || "",
-              frontendUrl: getFrontendUrl(),
-              ...hostBrand,
-              brand: event.brand
-                ? {
-                    background:   event.brand.backgroundColor || null,
-                    primaryColor: event.brand.buttonColor || null,
-                  }
-                : {},
-            }),
+          const cancelHost = await getUserProfile(event.hostId).catch(() => null);
+          const cancelSig =
+            cancelHost?.whatsappSignature ||
+            (cancelHost?.name ? `It's me, ${cancelHost.name.split(/\s+/)[0]}` : "");
+          await dispatchMessage({
+            recipient: {
+              id: person.id || null,
+              email: person.email,
+              phone_e164: person.phone_e164 || null,
+              phone_verified_at: person.phone_verified_at || null,
+              do_not_contact: person.do_not_contact || false,
+            },
+            hostProfile: cancelHost,
+            whatsapp: {
+              templateKey: "booking_cancelled",
+              variables: {
+                guest_first_name: (rsvp.name || person.name || "there").split(/\s+/)[0] || "there",
+                event_title: event.title || "the event",
+                host_signature: cancelSig || "PullUp",
+              },
+            },
+            email: {
+              subject: "Your booking has been cancelled",
+              htmlBody: cancellationEmail({
+                name: rsvp.name || person.name || "there",
+                eventTitle: event.title,
+                imageUrl: event.coverImageUrl || event.imageUrl || "",
+                slug: event.slug || "",
+                frontendUrl: getFrontendUrl(),
+                brandName: cancelHost?.brand || "",
+                brandWebsite: cancelHost?.brandWebsite || "",
+                contactEmail: cancelHost?.contactEmail || "",
+                brand: event.brand
+                  ? {
+                      background:   event.brand.backgroundColor || null,
+                      primaryColor: event.brand.buttonColor || null,
+                    }
+                  : {},
+              }),
+            },
+            context: {
+              personId: person.id || null,
+              hostProfileId: event.hostId || null,
+              idempotencyKey: `cancel-${rsvp.id}`,
+            },
           });
         } catch (emailErr) {
           console.error("Failed to send cancellation email:", emailErr);
@@ -6647,33 +6665,51 @@ app.post(
       const person = await findPersonById(rsvp.personId);
       if (person?.email) {
         try {
-          let hostBrand = {};
-          try {
-            const hostProfile = await getUserProfile(event.hostId);
-            hostBrand = {
-              brandName: hostProfile?.brand || "",
-              brandWebsite: hostProfile?.brandWebsite || "",
-              contactEmail: hostProfile?.contactEmail || "",
-            };
-          } catch {}
-
-          await sendEmail({
-            to: person.email,
-            subject: "Your booking has been cancelled",
-            html: cancellationEmail({
-              name: rsvp.name || person.name || "there",
-              eventTitle: event.title,
-              imageUrl: event.coverImageUrl || event.imageUrl || "",
-              slug: event.slug || "",
-              frontendUrl: getFrontendUrl(),
-              ...hostBrand,
-              brand: event.brand
-                ? {
-                    background:   event.brand.backgroundColor || null,
-                    primaryColor: event.brand.buttonColor || null,
-                  }
-                : {},
-            }),
+          const cancelHost = await getUserProfile(event.hostId).catch(() => null);
+          const cancelSig =
+            cancelHost?.whatsappSignature ||
+            (cancelHost?.name ? `It's me, ${cancelHost.name.split(/\s+/)[0]}` : "");
+          await dispatchMessage({
+            recipient: {
+              id: person.id || null,
+              email: person.email,
+              phone_e164: person.phone_e164 || null,
+              phone_verified_at: person.phone_verified_at || null,
+              do_not_contact: person.do_not_contact || false,
+            },
+            hostProfile: cancelHost,
+            whatsapp: {
+              templateKey: "booking_cancelled",
+              variables: {
+                guest_first_name: (rsvp.name || person.name || "there").split(/\s+/)[0] || "there",
+                event_title: event.title || "the event",
+                host_signature: cancelSig || "PullUp",
+              },
+            },
+            email: {
+              subject: "Your booking has been cancelled",
+              htmlBody: cancellationEmail({
+                name: rsvp.name || person.name || "there",
+                eventTitle: event.title,
+                imageUrl: event.coverImageUrl || event.imageUrl || "",
+                slug: event.slug || "",
+                frontendUrl: getFrontendUrl(),
+                brandName: cancelHost?.brand || "",
+                brandWebsite: cancelHost?.brandWebsite || "",
+                contactEmail: cancelHost?.contactEmail || "",
+                brand: event.brand
+                  ? {
+                      background:   event.brand.backgroundColor || null,
+                      primaryColor: event.brand.buttonColor || null,
+                    }
+                  : {},
+              }),
+            },
+            context: {
+              personId: person.id || null,
+              hostProfileId: event.hostId || null,
+              idempotencyKey: `cancel-${rsvp.id}`,
+            },
           });
         } catch (emailErr) {
           console.error("Failed to send cancellation email:", emailErr);

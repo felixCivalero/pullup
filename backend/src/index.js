@@ -5684,19 +5684,41 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     const { hostId } = req.params;
     const { supabase } = await import("./supabase.js");
 
-    const { data: profile } = await supabase
+    // Resolve the node — every person has a room. It's either an ACCOUNT
+    // (profiles row, id == auth user) or a bare PERSON (people row, a guest who
+    // hasn't claimed an account yet). Either id resolves here so the world list
+    // can link to anyone, account or not.
+    let { data: profile } = await supabase
       .from("profiles").select("id, name, bio, profile_picture_url, host_brief").eq("id", hostId).maybeSingle();
-    if (!profile) return res.status(404).json({ error: "not_found" });
+    let personRow = null;
+    if (!profile) {
+      const { data: pr } = await supabase.from("people").select("id, name, auth_user_id").eq("id", hostId).maybeSingle();
+      if (!pr) return res.status(404).json({ error: "not_found" });
+      personRow = pr;
+      // If this person has since claimed an account, prefer the account identity.
+      if (pr.auth_user_id) {
+        const { data: p2 } = await supabase.from("profiles").select("id, name, bio, profile_picture_url, host_brief").eq("id", pr.auth_user_id).maybeSingle();
+        if (p2) profile = p2;
+      }
+    }
+    const accountId = profile?.id || null;                 // drives hosted events (host_id)
+    const nodeName = profile?.name || personRow?.name || "Someone";
+    const nodeBio = profile ? (profile.bio || profile.host_brief || null) : null;
+    const nodeAvatar = profile?.profile_picture_url || null;
+    const nodeRoomId = accountId || personRow.id;          // canonical room id
 
     // Is the viewer standing in their OWN room? (inside vs outside)
-    const isOwner = !!req.user?.id && req.user.id === hostId;
+    const isOwner = !!req.user?.id && req.user.id === accountId;
 
-    // The events this node HOSTS. Drafts are only ever returned to the owner.
+    // The events this node HOSTS (only accounts can host). Drafts are owner-only.
     const hostSelect = "id, slug, title, cover_image_url, image_url, starts_at, ends_at, status";
-    let hostQuery = supabase.from("events").select(hostSelect).eq("host_id", hostId).order("starts_at", { ascending: false });
-    if (!isOwner) hostQuery = hostQuery.eq("status", "PUBLISHED");
-    const { data: hostRows } = await hostQuery;
-    const hosted = hostRows || [];
+    let hosted = [];
+    if (accountId) {
+      let hostQuery = supabase.from("events").select(hostSelect).eq("host_id", accountId).order("starts_at", { ascending: false });
+      if (!isOwner) hostQuery = hostQuery.eq("status", "PUBLISHED");
+      const { data: hostRows } = await hostQuery;
+      hosted = hostRows || [];
+    }
     const hostedIds = hosted.map((e) => e.id);
 
     // People in this node's world = everyone who pulled up to one of their events.
@@ -5707,12 +5729,18 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     }
     const worldPersonIds = [...new Set(pullupRows.map((r) => r.person_id))];
 
-    // The events this node has PULLED UP TO (as a guest, anywhere). Needs their
-    // person record (people.auth_user_id ↔ the account behind this profile).
-    const { data: nodePerson } = await supabase.from("people").select("id").eq("auth_user_id", hostId).maybeSingle();
+    // This node's own person record (drives "pulled up to"). Either the bare
+    // person row, or the person linked to the account.
+    let nodePersonId = personRow?.id || null;
+    if (!nodePersonId && accountId) {
+      const { data: np } = await supabase.from("people").select("id").eq("auth_user_id", accountId).maybeSingle();
+      nodePersonId = np?.id || null;
+    }
+
+    // The events this node has PULLED UP TO (as a guest, anywhere).
     let pulledUpRows = [];
-    if (nodePerson) {
-      const { data: myUps } = await supabase.from("pullups").select("event_id").eq("person_id", nodePerson.id);
+    if (nodePersonId) {
+      const { data: myUps } = await supabase.from("pullups").select("event_id").eq("person_id", nodePersonId);
       const upIds = [...new Set((myUps || []).map((r) => r.event_id))];
       if (upIds.length) {
         const { data: evs } = await supabase.from("events").select(hostSelect).in("id", upIds).eq("status", "PUBLISHED").order("starts_at", { ascending: false });
@@ -5720,13 +5748,14 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
       }
     }
 
-    // Build the "people in [name]'s world" list. Clickable → their own room only
-    // if they have an account (auth_user_id == their profile/room id).
+    // Build the "people in [name]'s world" list. Everyone is clickable into
+    // their own room — accounts use their auth id, bare guests use their
+    // person id (both resolve at the top of this handler).
     let people = [];
     if (worldPersonIds.length) {
       const { data: pp } = await supabase.from("people").select("id, name, auth_user_id").in("id", worldPersonIds).limit(300);
       people = (pp || [])
-        .map((p) => ({ name: p.name || "Someone", roomId: p.auth_user_id || null }))
+        .map((p) => ({ name: p.name || "Someone", roomId: p.auth_user_id || p.id }))
         .sort((a, b) => a.name.localeCompare(b.name));
     }
 
@@ -5768,10 +5797,10 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
 
     res.json({
       node: {
-        id: profile.id,
-        name: profile.name || "Host",
-        bio: profile.bio || profile.host_brief || null,
-        avatar: profile.profile_picture_url || null,
+        id: nodeRoomId,
+        name: nodeName,
+        bio: nodeBio,
+        avatar: nodeAvatar,
         counts,
       },
       viewer: { known: !!viewer, inOrbit, isOwner },

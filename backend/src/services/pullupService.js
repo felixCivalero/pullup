@@ -24,6 +24,7 @@
 import crypto from "node:crypto";
 import { supabase } from "../supabase.js";
 import { logPersonEvent } from "./personTimeline.js";
+import { resolveCapabilities } from "./roomPermissions.js";
 
 // Window length for the rotating code. Short enough that a screenshot is
 // useless within seconds; long enough to absorb scan latency. One window of
@@ -254,18 +255,22 @@ export async function getRoomAccess(personId, eventId, nowMs = Date.now()) {
   if (!personId || !eventId) return { access: "locked", reason: "no_identity", phase: "upcoming" };
 
   const { data: ev } = await supabase
-    .from("events").select("starts_at, ends_at").eq("id", eventId).maybeSingle();
+    .from("events").select("starts_at, ends_at, room_permissions").eq("id", eventId).maybeSingle();
   const phase = computeEventPhase(ev?.starts_at, ev?.ends_at, nowMs);
 
-  // Pulled up → in, always (earned, never expires).
-  if (await hasPulledUp(personId, eventId)) return { access: "pulledup", phase };
+  // Pulled up → in, always (earned, never expires). Capabilities = host's
+  // pulled-up config (read is always on for the pulled-up state).
+  if (await hasPulledUp(personId, eventId)) {
+    return { access: "pulledup", phase, permissions: resolveCapabilities(ev, "pulledup") };
+  }
 
   // Not pulled up — does an active RSVP let them in?
   const { data: rs } = await supabase
     .from("rsvps").select("id, status").eq("person_id", personId).eq("event_id", eventId).maybeSingle();
   const rsvped = !!rs && rs.status !== "cancelled";
 
-  if (rsvped && phase === "upcoming") return { access: "lobby", phase };           // doors not open yet → prep
+  // doors not open yet → the lobby, with the host's RSVP-state capabilities.
+  if (rsvped && phase === "upcoming") return { access: "lobby", phase, permissions: resolveCapabilities(ev, "lobby") };
   if (rsvped) return { access: "locked", reason: "event_started_no_pullup", phase }; // started/over, never showed
   return { access: "locked", reason: "not_invited", phase };
 }

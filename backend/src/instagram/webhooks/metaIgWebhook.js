@@ -114,12 +114,56 @@ async function handleComment(value, igAccountId) {
  *   3. STOP/opt-out handling, mirroring the WhatsApp handler.
  */
 async function handleMessaging(messagingEvent, igAccountId) {
+  const senderId = messagingEvent?.sender?.id;
+  const text = messagingEvent?.message?.text || "";
+  const isEcho = !!messagingEvent?.message?.is_echo;
   logger?.info?.("[instagram/webhook] message received", {
-    igAccountId,
-    from: messagingEvent?.sender?.id,
-    hasText: !!messagingEvent?.message?.text,
+    igAccountId, from: senderId, hasText: !!text, isEcho,
   });
-  // no-op until IG threads + inbound persistence are wired
+  // Skip our own outbound echoes + malformed/self events.
+  if (isEcho || !senderId || String(senderId) === String(igAccountId)) return;
+
+  try {
+    // 1. Resolve the host whose IG account received the DM.
+    const { getCredentialsByIgUserId } = await import("../repos/instagramConnectionsRepo.js");
+    const creds = await getCredentialsByIgUserId(igAccountId);
+    if (!creds?.hostProfileId) {
+      logger?.warn?.("[instagram/webhook] no connected host for ig account", { igAccountId });
+      return;
+    }
+
+    // 2. Resolve (or mint) the person by their IGSID — binds the IG identity.
+    const { resolvePersonByIdentity } = await import("../../services/personResolution.js");
+    const { personId } = await resolvePersonByIdentity({
+      identifiers: { igUserId: String(senderId) },
+      profile: { acquisition_channel: "ig_dm" },
+      source: "ig",
+    });
+    if (!personId) return;
+
+    // 3. Open/refresh the 24h IG window + log the inbound to the timeline.
+    const { upsertThreadFromMessage } = await import("../repos/instagramThreadsRepo.js");
+    await upsertThreadFromMessage({
+      personId,
+      hostProfileId: creds.hostProfileId,
+      igUserId: String(senderId),
+      direction: "inbound",
+      preview: text || "[media]",
+    });
+
+    const { logPersonEvent } = await import("../../services/personTimeline.js");
+    await logPersonEvent({
+      personId,
+      hostId: creds.hostProfileId,
+      type: "message_in",
+      channel: "instagram",
+      direction: "in",
+      body: text || "[media]",
+      metadata: { source: "instagram_webhook", igAccountId },
+    }).catch(() => {});
+  } catch (err) {
+    logger?.error?.("[instagram/webhook] inbound DM handling error", { err: err.message });
+  }
 }
 
 export async function handleIgWebhookDelivery(req, res) {

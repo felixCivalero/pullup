@@ -1803,6 +1803,57 @@ export async function findPersonByEmail(email) {
   return mapPersonFromDb(data);
 }
 
+// Resolve a person by the DURABLE account link (people.auth_user_id == auth user).
+// This is the spine: a logged-in human maps to their person even if their auth
+// email later differs from the address they first RSVP'd with.
+export async function findPersonByAuthUserId(userId) {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from("people")
+    .select("*")
+    .eq("auth_user_id", userId)
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return mapPersonFromDb(data);
+}
+
+// THE identity resolver the room/access layer should use: durable account link
+// first (auth_user_id), then the email used. So a logged-in viewer always maps
+// to their canonical person; anon/email-only callers still resolve by email.
+export async function resolvePerson({ userId = null, email = null }) {
+  if (userId) {
+    const byAuth = await findPersonByAuthUserId(userId);
+    if (byAuth) return byAuth;
+  }
+  if (email) return findPersonByEmail(email);
+  return null;
+}
+
+// Self-heal the account<->person link on login. Idempotent: link an existing
+// person by email if unclaimed, else create one. Keeps the spine wired going
+// forward (the one-time backfill handled existing rows).
+export async function ensurePersonLinked({ userId, email, name = null }) {
+  if (!userId || !email) return null;
+  const e = String(email).trim().toLowerCase();
+  const { data: byAuth } = await supabase
+    .from("people").select("id").eq("auth_user_id", userId).limit(1).maybeSingle();
+  if (byAuth) return byAuth.id;
+  const { data: byEmail } = await supabase
+    .from("people").select("id, auth_user_id").eq("email", e).limit(1).maybeSingle();
+  if (byEmail) {
+    if (!byEmail.auth_user_id) {
+      await supabase.from("people").update({ auth_user_id: userId }).eq("id", byEmail.id);
+    }
+    return byEmail.id;
+  }
+  const { data: created } = await supabase
+    .from("people")
+    .insert({ email: e, name, auth_user_id: userId, import_source: "account_signup" })
+    .select("id").maybeSingle();
+  return created?.id || null;
+}
+
 // Helper: Map database person to application format
 function mapPersonFromDb(dbPerson) {
   return {

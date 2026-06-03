@@ -29,6 +29,7 @@ import {
   resolvePerson,
   resolveViewer,
   adminForceLevel,
+  isAdminUser,
   ensurePersonLinked,
   mapEventFromDb,
   getUserProfile,
@@ -5709,6 +5710,22 @@ app.post("/p/:eventId/pullup", optionalAuth, async (req, res) => {
   }
 });
 
+// getRoomAccess, but an admin may FORCE the access tier (the "status switch" QA
+// tool). Same return shape, so every room endpoint stays unchanged. Non-admins
+// (no force header / not admin) get the real getRoomAccess.
+async function getRoomAccessForReq(req, personId, eventId) {
+  const { getRoomAccess } = await import("./services/pullupService.js");
+  const forced = await adminForceLevel(req);
+  if (!forced) return getRoomAccess(personId, eventId);
+  const { resolveCapabilities } = await import("./services/roomPermissions.js");
+  const { supabase } = await import("./supabase.js");
+  const { data: ev } = await supabase.from("events").select("room_permissions").eq("id", eventId).maybeSingle();
+  const stateMap = { host: "pulledup", guest_pullup: "pulledup", guest_rsvp: "lobby", guest_waitlist: "waitlist" };
+  const state = stateMap[forced];
+  if (!state) return { access: "locked", reason: "forced", phase: "forced" };
+  return { access: state, phase: "forced", permissions: resolveCapabilities(ev, state) };
+}
+
 // The interior — only for nodes that pulled up to THIS event. The room they
 // earned: who else is here (co-presence, same-event only) + the darkroom. This
 // is the teaser's promise actually opened — gated, never public.
@@ -5726,7 +5743,7 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
     // Time-phased gate: pulled up (forever) OR in the pre-event lobby (RSVP'd +
     // not started). Locked otherwise — the frontend bounces "event_started_no_pullup"
     // to the host's profile room.
-    const access = await getRoomAccess(person.id, eventId);
+    const access = await getRoomAccessForReq(req, person.id, eventId);
     if (access.access === "locked") {
       return res.status(403).json({ error: "locked", reason: access.reason, phase: access.phase });
     }
@@ -5789,7 +5806,7 @@ app.post("/p/:eventId/upload", optionalAuth, async (req, res) => {
     const person = viewer.person;
     if (!person) return res.status(403).json({ ok: false, reason: "no_identity" });
 
-    const access = await getRoomAccess(person.id, eventId);
+    const access = await getRoomAccessForReq(req, person.id, eventId);
     if (access.access === "locked") return res.status(403).json({ ok: false, reason: access.reason });
     if (!access.permissions?.upload) return res.status(403).json({ ok: false, reason: "upload_off" });
 
@@ -5929,7 +5946,9 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     // always gets in. Otherwise return minimal identity + gated:true so the UI can
     // show a graceful "not in this room" with a way back — never the world, stats,
     // events, or the people list (that last one is the real leak this closes).
-    const enteredViaHosted = isOwner || hostedIds.some((id) => myRsvps.has(id) || myPullups.has(id));
+    // Admins can open ANY profile (QA / free navigation); everyone else needs orbit.
+    const adminViewer = await isAdminUser(req.user?.id);
+    const enteredViaHosted = isOwner || adminViewer || hostedIds.some((id) => myRsvps.has(id) || myPullups.has(id));
     if (!enteredViaHosted) {
       return res.json({
         gated: true,
@@ -5988,7 +6007,7 @@ app.get("/p/:eventId/channels", optionalAuth, async (req, res) => {
     const viewer = await resolveViewer(req, { email: email || null });
     const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
-    const access = await getRoomAccess(person.id, eventId);
+    const access = await getRoomAccessForReq(req, person.id, eventId);
     if (access.access === "locked") {
       return res.status(403).json({ error: "locked", reason: access.reason });
     }
@@ -6008,7 +6027,7 @@ app.get("/p/:eventId/space", optionalAuth, async (req, res) => {
     const viewer = await resolveViewer(req, { email: email || null });
     const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
-    const access = await getRoomAccess(person.id, eventId);
+    const access = await getRoomAccessForReq(req, person.id, eventId);
     if (access.access === "locked") {
       return res.status(403).json({ error: "locked", reason: access.reason });
     }
@@ -6029,7 +6048,7 @@ app.post("/p/:eventId/space", optionalAuth, async (req, res) => {
     const viewer = await resolveViewer(req, { email: norm || null });
     const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
-    const access = await getRoomAccess(person.id, eventId);
+    const access = await getRoomAccessForReq(req, person.id, eventId);
     if (access.access === "locked") {
       return res.status(403).json({ ok: false, error: "locked", reason: access.reason });
     }

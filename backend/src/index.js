@@ -5688,37 +5688,84 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
       .from("profiles").select("id, name, bio, profile_picture_url, host_brief").eq("id", hostId).maybeSingle();
     if (!profile) return res.status(404).json({ error: "not_found" });
 
-    const { data: evRows } = await supabase
-      .from("events").select("id, slug, title, cover_image_url, image_url, starts_at, ends_at, status")
-      .eq("host_id", hostId).eq("status", "PUBLISHED").order("starts_at", { ascending: false });
-    const events = evRows || [];
-    const eventIds = events.map((e) => e.id);
+    // Is the viewer standing in their OWN room? (inside vs outside)
+    const isOwner = !!req.user?.id && req.user.id === hostId;
 
-    // Counts.
+    // The events this node HOSTS. Drafts are only ever returned to the owner.
+    const hostSelect = "id, slug, title, cover_image_url, image_url, starts_at, ends_at, status";
+    let hostQuery = supabase.from("events").select(hostSelect).eq("host_id", hostId).order("starts_at", { ascending: false });
+    if (!isOwner) hostQuery = hostQuery.eq("status", "PUBLISHED");
+    const { data: hostRows } = await hostQuery;
+    const hosted = hostRows || [];
+    const hostedIds = hosted.map((e) => e.id);
+
+    // People in this node's world = everyone who pulled up to one of their events.
     let pullupRows = [];
-    if (eventIds.length) {
-      const { data } = await supabase.from("pullups").select("person_id, event_id").in("event_id", eventIds);
+    if (hostedIds.length) {
+      const { data } = await supabase.from("pullups").select("person_id, event_id").in("event_id", hostedIds);
       pullupRows = data || [];
     }
+    const worldPersonIds = [...new Set(pullupRows.map((r) => r.person_id))];
+
+    // The events this node has PULLED UP TO (as a guest, anywhere). Needs their
+    // person record (people.auth_user_id ↔ the account behind this profile).
+    const { data: nodePerson } = await supabase.from("people").select("id").eq("auth_user_id", hostId).maybeSingle();
+    let pulledUpRows = [];
+    if (nodePerson) {
+      const { data: myUps } = await supabase.from("pullups").select("event_id").eq("person_id", nodePerson.id);
+      const upIds = [...new Set((myUps || []).map((r) => r.event_id))];
+      if (upIds.length) {
+        const { data: evs } = await supabase.from("events").select(hostSelect).in("id", upIds).eq("status", "PUBLISHED").order("starts_at", { ascending: false });
+        pulledUpRows = evs || [];
+      }
+    }
+
+    // Build the "people in [name]'s world" list. Clickable → their own room only
+    // if they have an account (auth_user_id == their profile/room id).
+    let people = [];
+    if (worldPersonIds.length) {
+      const { data: pp } = await supabase.from("people").select("id, name, auth_user_id").in("id", worldPersonIds).limit(300);
+      people = (pp || [])
+        .map((p) => ({ name: p.name || "Someone", roomId: p.auth_user_id || null }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     const counts = {
-      events: events.length,
-      pullups: pullupRows.length,
-      people: new Set(pullupRows.map((r) => r.person_id)).size,
+      people: worldPersonIds.length,
+      hosted: hosted.length,
+      pulledUp: pulledUpRows.length,
     };
 
-    // Viewer-relative state. Resolve the viewer (session email or ?email=).
+    // Viewer-relative state across every event we might render (hosted + pulled-up).
     const email = (req.query.email || req.user?.email || "").toString().trim().toLowerCase();
     const viewer = email ? await findPersonByEmail(email) : null;
+    const allIds = [...new Set([...hostedIds, ...pulledUpRows.map((e) => e.id)])];
     let myPullups = new Set(), myRsvps = new Set();
-    if (viewer && eventIds.length) {
-      myPullups = new Set(pullupRows.filter((r) => r.person_id === viewer.id).map((r) => r.event_id));
-      const { data: rs } = await supabase.from("rsvps").select("event_id").eq("person_id", viewer.id).in("event_id", eventIds);
+    if (viewer && allIds.length) {
+      const { data: ups } = await supabase.from("pullups").select("event_id").eq("person_id", viewer.id).in("event_id", allIds);
+      myPullups = new Set((ups || []).map((r) => r.event_id));
+      const { data: rs } = await supabase.from("rsvps").select("event_id").eq("person_id", viewer.id).in("event_id", allIds);
       myRsvps = new Set((rs || []).map((r) => r.event_id));
     }
-    // "In the orbit": RSVP'd or pulled up to anything of theirs → profile is theirs to see.
     const inOrbit = myPullups.size > 0 || myRsvps.size > 0;
 
     const now = Date.now();
+    const mapTile = (e) => {
+      const end = e.ends_at ? new Date(e.ends_at).getTime() : (e.starts_at ? new Date(e.starts_at).getTime() + 12 * 3600 * 1000 : null);
+      // The owner always has full access to their own events.
+      const viewerState = isOwner ? "owner" : myPullups.has(e.id) ? "pulledup" : myRsvps.has(e.id) ? "rsvped" : "none";
+      return {
+        id: e.id,
+        slug: e.slug,
+        title: e.title,
+        cover: e.cover_image_url || e.image_url || null,
+        startsAt: e.starts_at,
+        ended: end != null && now > end,
+        draft: e.status !== "PUBLISHED",
+        viewer: viewerState,
+      };
+    };
+
     res.json({
       node: {
         id: profile.id,
@@ -5727,19 +5774,10 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
         avatar: profile.profile_picture_url || null,
         counts,
       },
-      viewer: { known: !!viewer, inOrbit },
-      events: events.map((e) => {
-        const end = e.ends_at ? new Date(e.ends_at).getTime() : (e.starts_at ? new Date(e.starts_at).getTime() + 12 * 3600 * 1000 : null);
-        return {
-          id: e.id,
-          slug: e.slug,
-          title: e.title,
-          cover: e.cover_image_url || e.image_url || null,
-          startsAt: e.starts_at,
-          ended: end != null && now > end,
-          viewer: myPullups.has(e.id) ? "pulledup" : myRsvps.has(e.id) ? "rsvped" : "none",
-        };
-      }),
+      viewer: { known: !!viewer, inOrbit, isOwner },
+      hosted: hosted.map(mapTile),
+      pulledUp: pulledUpRows.map(mapTile),
+      people,
     });
   } catch (err) {
     console.error("[node-profile] error:", err.message);

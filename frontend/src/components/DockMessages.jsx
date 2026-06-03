@@ -6,6 +6,7 @@
 // the suggested move, channel + search filters, attachments.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 
@@ -43,6 +44,7 @@ function Avatar({ name, size = 44, dot }) {
 }
 
 export default function DockMessages({ onClose, expanded, onToggleExpand }) {
+  const navigate = useNavigate();
   const [people, setPeople] = useState(null);
   const [roomEvents, setRoomEvents] = useState([]);
   const [q, setQ] = useState("");
@@ -224,11 +226,13 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
       <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px", borderBottom: `1px solid ${D.line}` }}>
           <button onClick={() => setOpenId(null)} style={{ ...iconBtn, color: D.ink }} aria-label="Back"><ChevronLeft size={20} /></button>
-          <Avatar name={open.name} size={34} dot={open.channel === "whatsapp" && open.windowOpen ? D.green : null} />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{open.name}</div>
-            <div style={{ fontSize: 11, color: ch.color, fontWeight: 600 }}>{ch.label}{windowClosed ? " · window closed" : ""}</div>
-          </div>
+          <button onClick={() => { navigate(`/r/${open.id}`); onClose?.(); }} title="Open their room" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: "inherit", fontFamily: "inherit" }}>
+            <Avatar name={open.name} size={34} dot={open.channel === "whatsapp" && open.windowOpen ? D.green : null} />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{open.name}</div>
+              <div style={{ fontSize: 11, color: ch.color, fontWeight: 600 }}>{ch.label}{windowClosed ? " · window closed" : ""}</div>
+            </div>
+          </button>
           {onToggleExpand && <button onClick={onToggleExpand} style={iconBtn} aria-label="Expand">{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
           {onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={18} /></button>}
         </div>

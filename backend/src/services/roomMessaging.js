@@ -261,6 +261,42 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
     }
   }
 
+  // ── Instagram rail — in-window live chat ONLY. Meta has no IG message
+  //    templates + a 24h rolling window, so a reply is legal only while the
+  //    window (opened by the guest's inbound DM) is open; otherwise we fall to
+  //    the email floor. Never a "template" on IG. ──
+  const igId = person.ig_user_id || person.igUserId || null;
+  if (channel === "instagram" && igId) {
+    try {
+      const { isConversationWindowOpen: igWindowOpen, upsertThreadFromMessage: igUpsert } =
+        await import("../instagram/repos/instagramThreadsRepo.js");
+      if (await igWindowOpen({ personId, hostProfileId: hostId })) {
+        const { getConnectionForHost, getCredentialsByIgUserId } =
+          await import("../instagram/repos/instagramConnectionsRepo.js");
+        const conn = await getConnectionForHost(hostId);
+        const creds = conn?.ig_user_id ? await getCredentialsByIgUserId(conn.ig_user_id) : null;
+        if (creds?.accessToken) {
+          const { sendMessage } = await import("../instagram/providers/igGraphClient.js");
+          await sendMessage({
+            igUserId: creds.igUserId,
+            accessToken: creds.accessToken,
+            recipientId: igId,
+            text: whatsappBody(body, atts, evt),
+          });
+          await igUpsert({
+            personId, hostProfileId: hostId, igUserId: igId,
+            direction: "outbound", preview: body || "[media]",
+          });
+          logRoomEvent({ ...logArgs, channel: "instagram" });
+          return { ok: true, channel: "instagram" };
+        }
+      }
+      // Window closed (or no creds) → fall through to the email floor.
+    } catch {
+      // Any IG error → fall through to email.
+    }
+  }
+
   // ── Email rail (default + fallback). ──
   if (!person.email) return { ok: false, error: "no_email" };
   await enqueueOutbox({

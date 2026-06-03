@@ -1816,6 +1816,7 @@ function mapPersonFromDb(dbPerson) {
     // Belong on the person, not the RSVP — surfaced here so the CRM can
     // read/filter/export without unpacking rsvps.custom_answers.
     instagram: dbPerson.instagram || null,
+    ig_user_id: dbPerson.ig_user_id || null, // IGSID — the DM recipient id (vs `instagram` = display handle)
     twitter: dbPerson.twitter || null,
     tiktok: dbPerson.tiktok || null,
     linkedin: dbPerson.linkedin || null,

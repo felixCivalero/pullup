@@ -31,7 +31,7 @@ function timeAgo(at) {
   return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export default function RoomConversation({ dark = false, canCreateTopic = false, sidebar = false, api }) {
+export default function RoomConversation({ dark = false, canCreateTopic = false, canPost = true, sidebar = false, api }) {
   const C = dark
     ? { ink: "#f5f4f7", muted: "rgba(245,244,247,0.55)", faint: "rgba(245,244,247,0.35)", pink: "#ec178f", border: "rgba(255,255,255,0.12)", chip: "rgba(255,255,255,0.06)", field: "rgba(255,255,255,0.04)", fieldBg: "rgba(255,255,255,0.04)", rail: "rgba(255,255,255,0.14)" }
     : { ink: "#0a0a0a", muted: "rgba(10,10,10,0.55)", faint: "rgba(10,10,10,0.4)", pink: "#ec178f", border: "rgba(10,10,10,0.10)", chip: "rgba(10,10,10,0.04)", field: "#fff", fieldBg: "#fff", rail: "rgba(10,10,10,0.10)" };
@@ -181,11 +181,11 @@ export default function RoomConversation({ dark = false, canCreateTopic = false,
             <button onClick={() => toggleHeart(m.id)} style={{ ...metaBtn, color: hr.mine ? C.pink : C.muted, display: "inline-flex", alignItems: "center", gap: 4 }}>
               <span style={{ fontSize: 13 }}>{hr.mine ? "♥" : "♡"}</span>{hr.n > 0 ? hr.n : ""}
             </button>
-            <button onClick={() => { setReplyTo(replyTo === m.id ? null : m.id); setReplyDraft(""); }} style={{ ...metaBtn, color: C.muted }}>Reply</button>
+            {canPost && <button onClick={() => { setReplyTo(replyTo === m.id ? null : m.id); setReplyDraft(""); }} style={{ ...metaBtn, color: C.muted }}>Reply</button>}
           </div>
 
           {/* inline reply composer */}
-          {replyTo === m.id && (
+          {canPost && replyTo === m.id && (
             <form onSubmit={(e) => { e.preventDefault(); sendReply(m.id); }} style={{ display: "flex", gap: 7, marginTop: 9 }}>
               <input autoFocus value={replyDraft} onChange={(e) => setReplyDraft(e.target.value)} placeholder={`Reply to ${String(m.authorName || "").split(/\s+/)[0]}…`}
                 style={{ flex: 1, padding: "8px 11px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.field, color: C.ink, fontSize: 13, outline: "none" }} />
@@ -208,12 +208,18 @@ export default function RoomConversation({ dark = false, canCreateTopic = false,
   const activeName = activeChannel ? (activeChannel.isMain ? "Main" : activeChannel.name) : "";
 
   // ── Composer (top, forum-style) + the thread (newest-first) ──
-  const composer = (
+  // When the viewer's state can't post (e.g. a waitlist peek, or a read-only
+  // lobby the host locked), we show a quiet note instead of an input that 403s.
+  const composer = canPost ? (
     <form onSubmit={send} style={{ display: "flex", gap: 8, marginBottom: 16 }}>
       <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={sidebar && activeName ? `Message #${activeName.toLowerCase().replace(/\s+/g, "-")}…` : "Add to this topic…"}
         style={{ flex: 1, padding: "11px 13px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.field, color: C.ink, fontSize: 14, outline: "none" }} />
       <button type="submit" disabled={sending || !draft.trim()} style={{ padding: "11px 18px", borderRadius: 12, border: "none", background: C.pink, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: draft.trim() ? 1 : 0.5 }}>Post</button>
     </form>
+  ) : (
+    <div style={{ fontSize: 13, color: C.muted, padding: "11px 13px", borderRadius: 12, border: `1px dashed ${C.border}`, marginBottom: 16, textAlign: "center" }}>
+      You can see the room — posting isn't open to you yet.
+    </div>
   );
   const thread = (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: sidebar ? 420 : 360, overflowY: "auto" }}>

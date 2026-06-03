@@ -18,7 +18,7 @@
 
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, Link2, Paperclip, X, Search } from "lucide-react";
+import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe } from "lucide-react";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { useToast } from "../components/Toast";
 import { colors } from "../theme/colors.js";
@@ -1013,10 +1013,24 @@ function MastheadAvatar({ host, loading }) {
 // The masthead reads as a PROFILE — the host's NAME up top, then the substance:
 // people · events · pullups. Consistent whether the owner or an outsider is
 // looking. The "who needs you" action lives below in the inbox, where you act.
+// Channel → icon / accent. Mirrors Settings → social links so the masthead
+// reads the same channels the host added a handle to.
+const SOCIAL_ICON = { instagram: Instagram, tiktok: Music2, x: Twitter, youtube: Youtube, website: Globe };
+const SOCIAL_COLOR = { instagram: "#d6249f", tiktok: "#0a0a0a", x: "#0a0a0a", youtube: "#ff0000", website: "#6b6b6b" };
+
 function ProfileMasthead({ host, loading, onStat }) {
   const h = host || {};
   const name = (h.name || "").trim() || "Your room";
-  const identity = [(h.handle || "").trim(), (h.role || "").trim()].filter(Boolean).join("  ·  ");
+  const roleText = (h.role || "").trim();
+  // The channels the host configured in Settings → social links, each with its
+  // own icon + tappable URL. We never assume Instagram. Back-compat: if the
+  // spine only handed a legacy IG handle, synthesise a single Instagram entry.
+  const igClean = (h.handle || "").trim().replace(/^@/, "");
+  const socials = (Array.isArray(h.socials) && h.socials.length)
+    ? h.socials
+    : ((igClean || h.instagramUrl)
+        ? [{ channel: "instagram", label: "Instagram", handle: igClean ? `@${igClean}` : null, url: h.instagramUrl || (igClean ? `https://instagram.com/${igClean}` : null) }]
+        : []);
   const Stat = ({ n, label, onClick }) => (
     onClick
       ? <button onClick={onClick} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SF, fontSize: "13.5px", color: colors.textMuted }}><span style={{ color: colors.text, fontWeight: 700 }}>{n ?? 0}</span> {label}</button>
@@ -1041,11 +1055,33 @@ function ProfileMasthead({ host, loading, onStat }) {
             </>
           )}
         </div>
-        {/* Identity — handle + role. */}
+        {/* Identity — each configured social channel (right icon, clickable to
+            that profile) + the bio. Channel-labelled, never assumed. */}
         {loading ? (
           <Bar w="140px" h={11} style={{ marginTop: "7px" }} />
-        ) : identity ? (
-          <div style={{ fontSize: "12.5px", color: colors.textSubtle, marginTop: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{identity}</div>
+        ) : (socials.length || roleText) ? (
+          <div style={{ fontSize: "12.5px", color: colors.textSubtle, marginTop: "4px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", minWidth: 0 }}>
+            {socials.map((s) => {
+              const Icon = SOCIAL_ICON[s.channel] || Globe;
+              const display = s.handle || s.label;
+              const inner = (
+                <>
+                  <Icon size={13} style={{ color: SOCIAL_COLOR[s.channel] || colors.textMuted, flexShrink: 0 }} />
+                  {display}
+                </>
+              );
+              return s.url ? (
+                <a key={s.channel} href={s.url} target="_blank" rel="noreferrer" title={`${s.label}${s.handle ? ` · ${s.handle}` : ""}`}
+                   style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: colors.text, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>
+                  {inner}
+                </a>
+              ) : (
+                <span key={s.channel} style={{ display: "inline-flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>{inner}</span>
+              );
+            })}
+            {roleText && socials.length > 0 && <span style={{ color: colors.textFaded, flexShrink: 0 }}>·</span>}
+            {roleText && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{roleText}</span>}
+          </div>
         ) : null}
       </div>
     </div>
@@ -1158,7 +1194,7 @@ export default function RoomPage() {
               events={EVENTS}
               people={PEOPLE}
               lensEventId={lensEventId}
-              onOpenEvent={(id) => navigate(`/app/events/${id}/manage`)}
+              onOpenEvent={(id) => navigate(`/events/${id}/room`)}
               onSubpage={(id, sub) => navigate(`/app/events/${id}/${sub}`)}
               onCreate={() => navigate("/create")}
               onFocus={(id) => setLensEventId((cur) => (cur === id ? null : id))}

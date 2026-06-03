@@ -2493,7 +2493,10 @@ export function CreateEventPage() {
         setUploadStatus(null);
         clearDraft();
         showToast("Event created successfully!", "success");
-        navigate(`/events/${finalEvent.slug}/success`, { state: { event: finalEvent } });
+        // New host lands inside their own event's Room — the same surface their
+        // guests will see — so they immediately get what they built. (Host is
+        // signed in, so the room auto-enters via their session identity.)
+        navigate(`/events/${finalEvent.id}/room`);
       } else {
         // --- CREATE MODE (no media): POST new event ---
         const res = await authenticatedFetch("/events", {
@@ -2559,9 +2562,10 @@ export function CreateEventPage() {
         setUploadStatus(null);
         clearDraft();
         showToast("Event created successfully!", "success");
-        navigate(`/events/${finalEvent.slug}/success`, {
-          state: { event: finalEvent },
-        });
+        // New host lands inside their own event's Room — the same surface their
+        // guests will see — so they immediately get what they built. (Host is
+        // signed in, so the room auto-enters via their session identity.)
+        navigate(`/events/${finalEvent.id}/room`);
       }
     } catch (err) {
       if (isNetworkError(err)) {

@@ -6,6 +6,7 @@
 // host's event room (EventRoomPage).
 
 import { useEffect, useState } from "react";
+import { SlidersHorizontal, ChevronDown } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useToast } from "./Toast";
 import { colors } from "../theme/colors.js";
@@ -20,6 +21,7 @@ const CAP_LABELS = {
 const CAP_ORDER = ["read", "post", "seeWho", "upload", "download"];
 
 const STATES = [
+  { key: "waitlist", label: "On the waitlist", sub: "Hoping for a spot — a peek by default" },
   { key: "rsvp", label: "Before the event", sub: "RSVP'd — the lobby" },
   { key: "pulledup", label: "At / after the event", sub: "Pulled up — earned the room" },
 ];
@@ -90,32 +92,26 @@ export function RoomAccessSettings({ eventId }) {
 
   if (err) return null;
 
-  const card = {
-    marginTop: 24, border: `1px solid ${colors.border}`, borderRadius: 16,
-    background: "#fff", overflow: "hidden",
+  // A pill that sits in the room's quick-CTA row (host only); clicking it folds
+  // the access grid down full-width below the row. `width:100%` on the panel
+  // makes it wrap onto its own line inside the flex-wrap CTA row.
+  const pill = {
+    display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px",
+    borderRadius: 999, border: `1px solid ${open ? colors.accent : colors.border}`,
+    background: open ? colors.accentSoft || "rgba(236,23,143,0.08)" : "#fff",
+    color: open ? colors.accent : colors.text, fontSize: 13, fontWeight: 600,
+    cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
   };
 
   return (
-    <div style={card}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 18px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left",
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 650, color: colors.text }}>Room access</div>
-          <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 2 }}>
-            What people can do before vs. after they pull up
-          </div>
-        </div>
-        <span style={{ fontSize: 18, color: colors.textMuted, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>›</span>
+    <>
+      <button type="button" onClick={() => setOpen((o) => !o)} style={pill}>
+        <SlidersHorizontal size={15} /> Room access
+        <ChevronDown size={14} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
       </button>
 
       {open && (
-        <div style={{ padding: "0 18px 18px" }}>
+        <div style={{ width: "100%", marginTop: 10, border: `1px solid ${colors.border}`, borderRadius: 14, background: "#fff", padding: "16px 18px" }}>
           {!perms ? (
             <div style={{ fontSize: 13, color: colors.textMuted, padding: "8px 0" }}>Loading…</div>
           ) : (
@@ -161,6 +157,6 @@ export function RoomAccessSettings({ eventId }) {
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }

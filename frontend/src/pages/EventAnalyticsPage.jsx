@@ -103,6 +103,8 @@ export function EventAnalyticsPage() {
         authenticatedFetch(`/host/events/${id}`),
         authenticatedFetch(`/host/events/${id}/analytics?${params}`),
       ]);
+      // Not your event → graceful exit into the room they can see, not a dead end.
+      if (eventRes.status === 403) { navigate(`/events/${id}/room`, { replace: true }); return; }
       if (eventRes.ok) {
         const eventData = await eventRes.json();
         setEvent(eventData);

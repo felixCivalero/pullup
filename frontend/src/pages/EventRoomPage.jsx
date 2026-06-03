@@ -17,14 +17,19 @@
 // endpoint will return the same shape later.
 
 import { useState, useMemo, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Navigate } from "react-router-dom";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
+import PullUpPage from "./PullUpPage";
+import { useEventAccess } from "../lib/useEventAccess.js";
+import { AccessGate } from "../components/AccessGate.jsx";
+import { EventQuickActions } from "../components/EventQuickActions.jsx";
+import { HostPartnerLinks } from "../components/HostPartnerLinks.jsx";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
 import { authenticatedFetch } from "../lib/api.js";
 import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Folder, FolderPlus } from "lucide-react";
 import { ROOM_EVENT, ROOM_BRIEF, ROOM_PEOPLE } from "../components/room/roomFixtures.js";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -135,101 +140,86 @@ function StorageFolders() {
     return { ...prev, [key]: next };
   });
 
+  // A slim files bar — folders as chips, like a Slack/Discord channel's files.
+  // Not a big grid just because it's photos; it rides inside the room card.
+  const chip = (add, dim) => ({
+    display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px",
+    borderRadius: 999, fontFamily: SF, fontSize: 12.5, fontWeight: 650, cursor: "pointer",
+    border: `1px ${add ? "dashed" : "solid"} ${colors.border}`,
+    background: add ? "transparent" : colors.surface,
+    color: add ? colors.textMuted : colors.text, opacity: dim ? 0.55 : 1, whiteSpace: "nowrap",
+  });
+
   return (
-    <div style={{ marginBottom: "24px" }}>
-      {/* Header — STORAGE + the connect state on the right */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-        <div style={{ fontSize: "12px", fontWeight: 700, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em" }}>Storage</div>
-        {connected ? (
-          <button
-            type="button"
-            onClick={() => setPicking((p) => !p)}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11.5px", fontWeight: 600,
-              color: colors.secondary, background: colors.secondarySoft, border: `1px solid ${colors.secondaryBorder}`,
-              borderRadius: "999px", padding: "3px 10px", cursor: "pointer", fontFamily: SF,
-            }}
-          >
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: colors.secondary }} />
-            {connected.label} · connected
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setPicking((p) => !p)}
-            style={{
-              fontSize: "11.5px", fontWeight: 700, color: colors.accent, background: colors.accentSoft,
-              border: `1px solid ${colors.accentBorder}`, borderRadius: "999px", padding: "4px 12px",
-              cursor: "pointer", fontFamily: SF,
-            }}
-          >
-            Connect storage
-          </button>
+    <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${colors.borderFaint}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.07em", marginRight: 2 }}>Files</span>
+
+        {folders.map((f) =>
+          f.add ? (
+            <button key={f.key} type="button" style={chip(true, false)} title="New folder">
+              <FolderPlus size={13} /> New folder
+            </button>
+          ) : (
+            <span key={f.key} style={chip(false, !connected)}>
+              <Folder size={13} style={{ color: colors.textFaded, flexShrink: 0 }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{f.label}</span>
+              {connected && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); cycleVerb(f.key); }}
+                  title="Who can do what with this folder"
+                  style={{ border: "none", background: "transparent", padding: 0, marginLeft: 2, fontSize: 11, fontWeight: 700, color: colors.accent, cursor: "pointer", fontFamily: SF }}
+                >
+                  {verbs[f.key] || "see"}
+                </button>
+              )}
+            </span>
+          )
         )}
+
+        {/* Connect state — small, on the right */}
+        <button
+          type="button"
+          onClick={() => setPicking((p) => !p)}
+          style={{
+            marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontFamily: SF,
+            fontSize: 11.5, fontWeight: 650, cursor: "pointer", borderRadius: 999, padding: "4px 10px",
+            border: `1px solid ${connected ? colors.secondaryBorder : colors.accentBorder}`,
+            background: connected ? colors.secondarySoft : colors.accentSoft,
+            color: connected ? colors.secondary : colors.accent,
+          }}
+        >
+          {connected ? (
+            <><span style={{ width: 5, height: 5, borderRadius: "50%", background: colors.secondary }} /> {connected.label}</>
+          ) : "Connect storage"}
+        </button>
       </div>
 
-      {/* The thesis, said plainly — only while unconnected */}
-      {!connected && !picking && (
-        <div style={{
-          fontSize: "12px", color: colors.textMuted, background: colors.accentSoft,
-          border: `1px solid ${colors.accentBorder}`, borderRadius: "12px",
-          padding: "9px 12px", marginBottom: "12px", lineHeight: 1.5,
-        }}>
-          Your photos live in <b style={{ color: colors.text }}>your</b> cloud — PullUp just renders the room from them. Connect one to fill these folders.
-        </div>
-      )}
-
-      {/* Provider picker */}
+      {/* Provider picker — small inline row, only while choosing */}
       {picking && (
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px", marginBottom: "12px",
-          padding: "10px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.surface,
-        }}>
-          {STORAGE_PROVIDERS.map((p) => {
-            const active = p.key === provider;
-            return (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => { setProvider(p.key); setPicking(false); }}
-                style={{
-                  textAlign: "left", padding: "9px 11px", borderRadius: "10px", cursor: "pointer", fontFamily: SF,
-                  border: `1px solid ${active ? colors.accentBorder : colors.border}`,
-                  background: active ? colors.accentSoft : "transparent",
-                }}
-              >
-                <div style={{ fontSize: "13px", fontWeight: 700, color: colors.text }}>{p.label}</div>
-                {p.hint && <div style={{ fontSize: "11px", color: colors.textFaded, marginTop: "1px" }}>{p.hint}</div>}
-              </button>
-            );
-          })}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+          {STORAGE_PROVIDERS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => { setProvider(p.key); setPicking(false); }}
+              style={{
+                padding: "6px 11px", borderRadius: 10, cursor: "pointer", fontFamily: SF, fontSize: 12.5, fontWeight: 650,
+                border: `1px solid ${p.key === provider ? colors.accentBorder : colors.border}`,
+                background: p.key === provider ? colors.accentSoft : "transparent", color: colors.text,
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
       )}
 
-      {/* Folder grid — thin rows now; dim until a cloud is behind it */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px", opacity: connected ? 1 : 0.55, transition: "opacity .2s" }}>
-        {folders.map((f) => (
-          <div key={f.key} style={{
-            minHeight: "56px", borderRadius: "12px", padding: "10px 12px",
-            border: `1px ${f.add ? "dashed" : "solid"} ${colors.border}`,
-            background: f.add ? "transparent" : colors.surface,
-            display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px",
-            cursor: "pointer",
-          }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: "13.5px", fontWeight: 700, color: f.add ? colors.textMuted : colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.label}</div>
-              {f.hint && <div style={{ fontSize: "11px", color: colors.textFaded, marginTop: "1px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.hint}</div>}
-            </div>
-            {!f.add && <VerbChip verb={verbs[f.key] || "see"} onCycle={() => cycleVerb(f.key)} />}
-          </div>
-        ))}
-      </div>
-
-      {/* Low-key: where the bytes actually live */}
-      {connected && (
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: colors.textFaded, marginTop: "9px" }}>
-          <span style={{ width: 5, height: 5, borderRadius: "50%", background: colors.secondary, flexShrink: 0 }} />
-          Saved to your {connected.label} — PullUp renders it, never holds it.
+      {/* The thesis, once, small — only while unconnected and not choosing */}
+      {!connected && !picking && (
+        <div style={{ fontSize: 11.5, color: colors.textFaded, marginTop: 8, lineHeight: 1.5 }}>
+          Your photos live in <b style={{ color: colors.textMuted }}>your</b> cloud — PullUp just renders the room from them.
         </div>
       )}
     </div>
@@ -276,6 +266,9 @@ function HostRoomSpace({ eventId, roster }) {
           </div>
         </div>
       )}
+
+      {/* Files live inside the chat now — a slim folder bar, not a big block. */}
+      <StorageFolders />
 
       <RoomConversation canCreateTopic sidebar api={api} />
     </div>
@@ -801,24 +794,64 @@ function RosterStrip({ roster }) {
   );
 }
 
+// Host sub-roles that actually RUN the room (get the chief-of-staff view +
+// edit the room's access config). reception works the door; analytics only
+// reads Insights — neither manages the room itself.
+const ROOM_MANAGER_ROLES = ["owner", "admin", "co_host", "editor"];
+
 export default function EventRoomPage() {
   const { id } = useParams();
-  const { setEventNav } = useEventNav();
+  const { setEventNav, clearEventNav } = useEventNav();
+  // One URL, one permission gate. `level` decides the view: a host runs the
+  // chief-of-staff surface; everyone else gets the room they earned. `role`
+  // refines the host side so analytics/reception don't get the wrong chrome.
+  const { loading, level, role, reason, event } = useEventAccess(id);
   const [roster, setRoster] = useState(null);
 
+  // The host view needs the roster data; load it once the gate confirms we own
+  // the event. For everyone else (and analytics-only, who get sent to Insights),
+  // drop any host event-nav so the shell shows no Guests/Insights/Edit tabs.
   useEffect(() => {
+    if (level == null) return; // still resolving
+    if (level !== "host" || role === "analytics") { clearEventNav(); return; }
     let alive = true;
     authenticatedFetch(`/host/events/${id}/roster`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!alive || !d) return;
         setRoster(d);
-        setEventNav({ title: d.event?.title || "Event", status: d.event?.ended ? "PASSED" : (d.event?.status || "LIVE"), guestsCount: d.pulledUpCount, myRole: "host" });
+        // Carry the REAL sub-role to the shell so the tab set matches the role.
+        setEventNav({ title: d.event?.title || event?.title || "Event", status: d.event?.ended ? "PASSED" : (d.event?.status || "LIVE"), guestsCount: d.pulledUpCount, myRole: role });
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, [id, setEventNav]);
+  }, [level, role, id, setEventNav, clearEventNav, event]);
 
+  if (loading) {
+    return (
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", color: colors.textMuted, fontFamily: SF }}>
+        Opening the room…
+      </div>
+    );
+  }
+
+  // Analytics-only collaborators don't run the room — send them to their
+  // surface (Insights), gracefully, instead of the chief-of-staff view.
+  if (level === "host" && role === "analytics") {
+    return <Navigate to={`/app/events/${id}/analytics`} replace />;
+  }
+
+  // No access and no live QR to pull up with → the reusable polite denial.
+  const hasLiveCode = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("w");
+  if (level === "no_access" && !hasLiveCode) {
+    return <AccessGate reason={reason} event={event} eventId={id} />;
+  }
+
+  // Guest (waitlist peek / lobby / pulled-up / a walk-in scanning the live code)
+  // → the room they earned + its own door. PullUpPage handles every guest state.
+  if (level !== "host") return <PullUpPage eventId={id} />;
+
+  const canManageRoom = ROOM_MANAGER_ROLES.includes(role);
   const ev = roster?.event;
   const when = ev?.startsAt ? new Date(ev.startsAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : null;
 
@@ -826,6 +859,21 @@ export default function EventRoomPage() {
     <div style={{ display: "flex", height: "100vh", paddingTop: "58px", boxSizing: "border-box" }}>
       <div style={{ flex: "1 1 100%", overflowY: "auto", minWidth: 0 }}>
         <div style={{ maxWidth: "720px", margin: "0 auto", padding: "28px 20px 60px" }}>
+          {/* Top actions — sit ABOVE the event so they read as a toolbar of
+              things you DO to it, not part of the event content. Quick CTAs
+              (Room access rides along as a host-only fold-down) + partner shelf. */}
+          <div style={{ marginBottom: 14 }}>
+            <EventQuickActions
+              slug={event?.slug}
+              title={event?.title || ev?.title}
+              startsAt={event?.startsAt || ev?.startsAt}
+              endsAt={event?.endsAt}
+              location={event?.location || ev?.location}
+              trailing={canManageRoom ? <RoomAccessSettings eventId={id} /> : null}
+            />
+          </div>
+
+          <HostPartnerLinks event={event || ev} />
           {/* Event identity — this room IS this event. */}
           <div style={{ marginBottom: "22px" }}>
             {/* Banner: always a soft branded gradient; the cover paints over it
@@ -845,11 +893,7 @@ export default function EventRoomPage() {
             <RosterStrip roster={roster} />
           </div>
 
-          <StorageFolders />
-
           <HostRoomSpace eventId={id} roster={roster} />
-
-          <RoomAccessSettings eventId={id} />
         </div>
       </div>
     </div>

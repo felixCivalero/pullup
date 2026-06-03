@@ -10,6 +10,7 @@ import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { PullupEyes } from "./PullupEyes.jsx";
 import { NotificationsBell } from "./NotificationsBell.jsx";
 import { WhatsNewModal } from "./WhatsNewModal.jsx";
+import { LoginModal } from "./LoginModal.jsx";
 import { colors } from "../theme/colors.js";
 
 function ProtectedLayoutInner() {
@@ -28,9 +29,10 @@ function ProtectedLayoutInner() {
   const { showToast } = useToast();
   const drawerRef = useRef(null);
 
-  // Detect event routes
+  // Detect event routes. Matches the canonical room `/events/:id/room` AND the
+  // host management surfaces under `/app/events/:id/...`.
   const eventRouteMatch = location.pathname.match(
-    /^\/app\/events\/([^/]+)\/(manage|room|guests|analytics|edit)/
+    /^\/(?:app\/)?events\/([^/]+)\/(manage|room|guests|analytics|edit)/
   );
   const isEventRoute = !!eventRouteMatch;
   const eventId = eventRouteMatch?.[1];
@@ -98,12 +100,11 @@ function ProtectedLayoutInner() {
     };
   }, [menuOpen]);
 
-  // Redirect to landing page if not authenticated (except /create where auth is deferred)
-  useEffect(() => {
-    if (!loading && !user && location.pathname !== "/create") {
-      navigate("/");
-    }
-  }, [user, loading, navigate, location.pathname]);
+  // No bounce-to-landing anymore. The shell renders for EVERYONE — guest or
+  // host, same one system. If there's no session on a route that needs one, we
+  // show the login modal in place (see `mustLogin` below). `/create` and the
+  // event Room render anonymously and resolve identity themselves (deferred
+  // publish auth / the room's own door).
 
   // The email section is admin-only — it sends mail outside PullUp. The backend
   // already 403s every /admin/email API, but the SPA would still render the page
@@ -154,6 +155,13 @@ function ProtectedLayoutInner() {
   // can back data-driven features, so the guard is scoped to /admin/email only.
   const isEmailSection = location.pathname.startsWith("/admin/email");
 
+  // The event Room renders for guests too; it (and /create) resolve identity on
+  // their own, so they're allowed without a session. Every other in-shell route
+  // needs one — no session there → the login modal, shown in place of content.
+  const isEventRoom = eventTab === "room";
+  const allowAnon = isCreatingEvent || isEventRoom;
+  const mustLogin = !loading && !user && !allowAnon;
+
   // Nav items for all users.
   //
   // The product is narrowing to a per-event relationship engine (see "The Room"
@@ -177,25 +185,34 @@ function ProtectedLayoutInner() {
     { label: "Analytics", path: "/admin/analytics" },
   ];
 
-  // Event tab items — analytics-only users see just the Analytics tab
-  const isAnalyticsOnly = eventNav?.myRole === "analytics";
-  const eventTabItems = eventId
+  // Event tab items — Guests / Insights / Edit are HOST chrome, and the SET
+  // depends on the host sub-role (so analytics ≠ full host). A guest in the same
+  // room (myRole unset → eventNav cleared) sees none of them; same URL, role
+  // decides. Role vocabulary matches the backend: owner / admin / co_host /
+  // editor / reception / analytics (plus legacy "host" = full).
+  const myRole = eventNav?.myRole;
+  const isAnalyticsOnly = myRole === "analytics";
+  const isReception = myRole === "reception";
+  const MANAGE_ROLES = ["host", "owner", "admin", "co_host", "editor", "reception", "analytics"];
+  const canManageEvent = MANAGE_ROLES.includes(myRole);
+  // The event Room is the home surface of an event — first tab, so the host can
+  // always get to it (and back) from Guests/Insights/Edit. Analytics-only gets
+  // bounced out of the room, so we don't offer them the tab.
+  const roomTab = { label: "Room", path: `/events/${eventId}/room`, tab: "room" };
+  const guestsTab = {
+    label: `Guests${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
+    path: `/app/events/${eventId}/guests`,
+    tab: "guests",
+  };
+  const insightsTab = { label: "Insights", path: `/app/events/${eventId}/analytics`, tab: "analytics" };
+  const editTab = { label: "Edit", path: `/app/events/${eventId}/edit`, tab: "edit" };
+  const eventTabItems = (eventId && canManageEvent)
     ? isAnalyticsOnly
-      ? [
-          { label: "Insights", path: `/app/events/${eventId}/analytics`, tab: "analytics" },
-        ]
-      : [
-          // The Room moved GLOBAL (it's the home of PullUp, person-centric
-          // across all events). The event keeps only what's event-scoped:
-          // the guest list (logistics roster), analytics, and edit.
-          {
-            label: `Guests${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
-            path: `/app/events/${eventId}/guests`,
-            tab: "guests",
-          },
-          { label: "Insights", path: `/app/events/${eventId}/analytics`, tab: "analytics" },
-          { label: "Edit", path: `/app/events/${eventId}/edit`, tab: "edit" },
-        ]
+      ? [insightsTab] // analytics-only: just the numbers
+      : isReception
+        ? [roomTab, guestsTab] // reception: the room + door duty (guest list)
+        // The event keeps Room + the event-scoped management: guest list, analytics, edit.
+        : [roomTab, guestsTab, insightsTab, editTab]
     : [];
 
   function isActive(path) {
@@ -233,10 +250,9 @@ function ProtectedLayoutInner() {
     );
   }
 
-  // Don't render if not authenticated (redirect will happen) — except /create
-  if (!user && location.pathname !== "/create") {
-    return null;
-  }
+  // The shell renders for everyone now. A no-session visitor on a route that
+  // needs auth gets the login modal in place of content (see `mustLogin` at the
+  // Outlet); the menu/header still frame it so it reads as one system.
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -1048,7 +1064,10 @@ function ProtectedLayoutInner() {
           confirmed admin status — never mount the email UI for a non-admin, and
           avoid a flash while /host/profile is still resolving. */}
       <main>
-        {isEmailSection && (!profileChecked || !isAdmin) ? (
+        {mustLogin ? (
+          // No session on a route that needs one → the one door, in place.
+          <LoginModal redirectTo={location.pathname + location.search} />
+        ) : isEmailSection && (!profileChecked || !isAdmin) ? (
           <div
             style={{
               minHeight: "60vh",

@@ -687,8 +687,25 @@ export function EventPage() {
       // Close RSVP form
       setShowRsvpForm(false);
 
-      // Redirect to success page with booking details
+      // The Room is the success now. Both a CONFIRMED spot and a WAITLIST spot
+      // are "in" before the event — they route straight into the event Room
+      // (confirmed → the lobby; waitlist → the lower-key peek the host configures).
+      // (Paid RSVPs never reach here; they return via Stripe to the success page,
+      // which forwards both states on to the room.)
+      const goToRoom = (bookingStatus === "CONFIRMED" || bookingStatus === "WAITLIST") && !!event?.id;
+      const rsvpEmail = (body.rsvp?.email || submittedData?.email || "")
+        .trim()
+        .toLowerCase();
       setTimeout(() => {
+        if (goToRoom) {
+          // Hand identity to the room so a logged-out guest auto-enters the lobby
+          // without being re-asked the email they just typed (PullUpPage reads it).
+          if (rsvpEmail) {
+            try { localStorage.setItem("pullup_email", rsvpEmail); } catch {}
+          }
+          navigate(`/events/${event.id}/room`);
+          return;
+        }
         navigate(`/e/${event.slug}/success`, {
           state: {
             booking: {

@@ -25,6 +25,7 @@ import crypto from "node:crypto";
 import { supabase } from "../supabase.js";
 import { logPersonEvent } from "./personTimeline.js";
 import { resolveCapabilities } from "./roomPermissions.js";
+import { isUserEventHost } from "../data.js";
 
 // Window length for the rotating code. Short enough that a screenshot is
 // useless within seconds; long enough to absorb scan latency. One window of
@@ -93,8 +94,9 @@ export async function currentCheckinCode(eventId, nowMs = Date.now()) {
     hostId,
     window: win,
     sig,
-    // The guest's scanner opens this path on pullup.se. Public landing.
-    path: `/p/${eventId}?w=${win}&s=${sig}`,
+    // The guest's scanner opens this path on pullup.se. Public landing: the one
+    // event Room, with the rotating code as proof so they pull up on arrival.
+    path: `/events/${eventId}/room?w=${win}&s=${sig}`,
     stepSeconds: STEP_SECONDS,
     expiresAt: new Date(expiresAtMs).toISOString(),
     expiresInMs: expiresAtMs - nowMs,
@@ -266,13 +268,47 @@ export async function getRoomAccess(personId, eventId, nowMs = Date.now()) {
 
   // Not pulled up — does an active RSVP let them in?
   const { data: rs } = await supabase
-    .from("rsvps").select("id, status").eq("person_id", personId).eq("event_id", eventId).maybeSingle();
+    .from("rsvps").select("id, status, booking_status").eq("person_id", personId).eq("event_id", eventId).maybeSingle();
   const rsvped = !!rs && rs.status !== "cancelled";
+  // Waitlist is still "in" before the event — just a lower-key state the host
+  // configures separately (peek, not take part, by default).
+  const isWaitlist = rsvped && (rs.status === "waitlist" || rs.booking_status === "WAITLIST");
 
-  // doors not open yet → the lobby, with the host's RSVP-state capabilities.
-  if (rsvped && phase === "upcoming") return { access: "lobby", phase, permissions: resolveCapabilities(ev, "lobby") };
+  // doors not open yet → the lobby (or the waitlist peek), with the host's
+  // capabilities for that state.
+  if (rsvped && phase === "upcoming") {
+    const state = isWaitlist ? "waitlist" : "lobby";
+    return { access: state, phase, permissions: resolveCapabilities(ev, state) };
+  }
   if (rsvped) return { access: "locked", reason: "event_started_no_pullup", phase }; // started/over, never showed
   return { access: "locked", reason: "not_invited", phase };
+}
+
+// ── THE permission gate ──────────────────────────────────────────────────
+// One resolver for "what can this viewer do in this event," reused across the
+// whole platform. It collapses host-ownership + the time-phased room gate into
+// a single level vocabulary the frontend reads everywhere:
+//   host         → owns the event (gets Guests / Insights / Edit + the room)
+//   guest_pullup → pulled up; full + permanent room access
+//   guest_rsvp   → RSVP'd, doors not open yet (the pre-event lobby)
+//   no_access    → not in; `reason` says why (not_invited / event_started_no_pullup
+//                  / no_identity) so the UI can say it nicely and point the way in.
+// `permissions` carries the host's per-state capability config for the room.
+export async function resolveEventAccess({ userId = null, personId = null, eventId, nowMs = Date.now() }) {
+  if (!eventId) return { level: "no_access", reason: "no_event" };
+  // Ownership trumps presence — a host is a host even before anyone pulls up.
+  // We carry the SUB-ROLE (owner / co_host / editor / reception / analytics) so
+  // the UI can show the right chrome (analytics ≠ full host) instead of flattening.
+  if (userId) {
+    const { isHost, role } = await isUserEventHost(userId, eventId);
+    if (isHost) return { level: "host", role: role || "owner", reason: null };
+  }
+  if (!personId) return { level: "no_access", reason: "no_identity" };
+  const room = await getRoomAccess(personId, eventId, nowMs);
+  if (room.access === "pulledup") return { level: "guest_pullup", reason: null, phase: room.phase, permissions: room.permissions };
+  if (room.access === "lobby") return { level: "guest_rsvp", reason: null, phase: room.phase, permissions: room.permissions };
+  if (room.access === "waitlist") return { level: "guest_waitlist", reason: null, phase: room.phase, permissions: room.permissions };
+  return { level: "no_access", reason: room.reason || "locked", phase: room.phase };
 }
 
 // Non-cancelled RSVP count — the "coming" number the lobby shows (before anyone

@@ -5557,7 +5557,7 @@ app.get("/p/:eventId/teaser", async (req, res) => {
     const [{ count: peopleInside }, { count: photoCount }, { data: ev }, coming] = await Promise.all([
       supabase.from("pullups").select("id", { count: "exact", head: true }).eq("event_id", eventId),
       supabase.from("event_media").select("id", { count: "exact", head: true }).eq("event_id", eventId),
-      supabase.from("events").select("title, slug, host_id, starts_at, ends_at").eq("id", eventId).maybeSingle(),
+      supabase.from("events").select("title, slug, host_id, starts_at, ends_at, location").eq("id", eventId).maybeSingle(),
       getComingCount(eventId),
     ]);
     // phase: upcoming (lobby open to RSVP'ers) | ongoing (pull-up only) | ended.
@@ -5567,6 +5567,9 @@ app.get("/p/:eventId/teaser", async (req, res) => {
       title: ev?.title || null,
       slug: ev?.slug || null,
       hostId: ev?.host_id || null,
+      startsAt: ev?.starts_at || null,
+      endsAt: ev?.ends_at || null,
+      location: ev?.location || null,
       phase,
       coming,                       // non-cancelled RSVPs — the lobby's honest count
       peopleInside: peopleInside || 0,
@@ -5578,6 +5581,44 @@ app.get("/p/:eventId/teaser", async (req, res) => {
   } catch (err) {
     console.error("[teaser] error:", err.message);
     res.status(500).json({ error: "Failed to load teaser" });
+  }
+});
+
+// THE access endpoint — the one permission gate, read by useEventAccess on the
+// frontend so every surface resolves "what can this viewer do here" the same
+// way. optionalAuth: a logged-in viewer resolves by session; a logged-out one
+// can pass ?email (the address they RSVP'd / pulled up with).
+app.get("/events/:id/access", optionalAuth, async (req, res) => {
+  try {
+    const { resolveEventAccess } = await import("./services/pullupService.js");
+    const { supabase } = await import("./supabase.js");
+    const eventId = req.params.id;
+    const email = (req.user?.email || req.query.email || "").toString().trim().toLowerCase();
+    const person = email ? await findPersonByEmail(email) : null;
+    const access = await resolveEventAccess({
+      userId: req.user?.id || null,
+      personId: person?.id || null,
+      eventId,
+    });
+    const { data: ev } = await supabase
+      .from("events")
+      .select("title, slug, starts_at, ends_at, status, location")
+      .eq("id", eventId)
+      .maybeSingle();
+    res.json({
+      eventId,
+      level: access.level, // host | guest_pullup | guest_rsvp | guest_waitlist | no_access
+      role: access.role || null, // host sub-role: owner | co_host | editor | reception | analytics
+      reason: access.reason || null,
+      phase: access.phase || null,
+      permissions: access.permissions || null,
+      event: ev
+        ? { title: ev.title, slug: ev.slug, startsAt: ev.starts_at, endsAt: ev.ends_at, status: ev.status, location: ev.location }
+        : null,
+    });
+  } catch (err) {
+    console.error("[access] error:", err.message);
+    res.status(500).json({ error: "Failed to resolve access" });
   }
 });
 

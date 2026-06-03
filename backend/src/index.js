@@ -2449,6 +2449,9 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       customAnswers = {}, // Answers to event-defined custom form fields
       phone = null, // NEW: optional phone for the WhatsApp rail
       whatsappOptIn = false, // NEW: consent to be reached on WhatsApp
+      acquisitionSrc = null, // NEW: entry path (e.g. "ig_comment") from the signup link
+      igRef = null, // NEW: the IG object (comment/media id) that drove the signup
+      igUid = null, // NEW: the commenter's IGSID, to bind their IG identity
     } = req.body;
 
     if (!email && !vipToken) {
@@ -2710,6 +2713,36 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         }
       } catch (e) {
         console.error("[rsvp] whatsapp capture error:", e?.message);
+      }
+    }
+
+    // Acquisition stamping: when the signup came from an Instagram comment link
+    // (?src=ig_comment&ig_ref=<commentId>&ig_uid=<igsid>), record how this person
+    // entered the world + bind their IG identity. Only fills empties — never
+    // overwrites a known channel. Best-effort; never blocks the RSVP.
+    if (acquisitionSrc && result?.rsvp?.personId) {
+      try {
+        const VALID_SRC = new Set(["ig_comment", "ig_dm", "ig_story_link", "direct", "whatsapp", "email"]);
+        const channel = VALID_SRC.has(String(acquisitionSrc)) ? String(acquisitionSrc) : null;
+        if (channel) {
+          const patch = { acquisition_channel: channel };
+          if (igRef) patch.acquisition_ref = String(igRef).slice(0, 120);
+          await supabase
+            .from("people")
+            .update(patch)
+            .eq("id", result.rsvp.personId)
+            .is("acquisition_channel", null);
+          // Bind the IG identity if we got one and it isn't set yet.
+          if (igUid) {
+            await supabase
+              .from("people")
+              .update({ ig_user_id: String(igUid).slice(0, 64) })
+              .eq("id", result.rsvp.personId)
+              .is("ig_user_id", null);
+          }
+        }
+      } catch (e) {
+        console.error("[rsvp] acquisition stamp error:", e?.message);
       }
     }
 

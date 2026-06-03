@@ -6137,6 +6137,40 @@ app.get("/host/events/:id/roster", requireAuth, async (req, res) => {
   }
 });
 
+// The host's window into the room's darkroom — what guests shared at the event,
+// with who shared each. Owner-gated. Mirrors the guest interior's darkroom, but
+// from the host's seat (they don't need to have pulled up to their own event).
+app.get("/host/events/:id/darkroom", requireAuth, async (req, res) => {
+  try {
+    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { supabase } = await import("./supabase.js");
+    const { data: media } = await supabase
+      .from("event_media").select("id, storage_path, uploaded_by, created_at")
+      .eq("event_id", req.params.id).eq("folder", "darkroom").order("created_at", { ascending: false });
+    const ids = [...new Set((media || []).map((m) => m.uploaded_by).filter(Boolean))];
+    const names = {};
+    if (ids.length) {
+      const { data: pp } = await supabase.from("people").select("id, name").in("id", ids);
+      (pp || []).forEach((p) => { names[p.id] = p.name; });
+    }
+    const photos = (media || []).map((m) => {
+      let url = m.storage_path;
+      if (url && !url.startsWith("http")) {
+        const mm = url.match(/event-images\/([^?]+)/);
+        const fp = mm ? mm[1] : url;
+        const { data: pub } = supabase.storage.from("event-images").getPublicUrl(fp);
+        if (pub?.publicUrl) url = pub.publicUrl;
+      }
+      return { id: m.id, url, by: names[m.uploaded_by] || null };
+    });
+    res.json({ photos, count: photos.length });
+  } catch (err) {
+    console.error("[host-darkroom] error:", err.message);
+    res.status(500).json({ error: "Failed to load darkroom" });
+  }
+});
+
 app.get("/host/events/:id/guests", requireAuth, async (req, res) => {
   try {
     const event = await findEventById(req.params.id);

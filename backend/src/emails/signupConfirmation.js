@@ -271,6 +271,21 @@ function ctaButton(href, label, brand) {
   return `<a href="${href}" target="_blank" style="display:inline-block;text-decoration:none;padding:14px 36px;border-radius:999px;background-color:${b.primary};color:${b.primaryInk};font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:1px solid ${b.primary};font-family:${b.fontStack};">${label}</a>`;
 }
 
+/* ── Host's custom note (comms studio) — injected into the email body. ── */
+function noteBlock(customNote, brand) {
+  const b = brand || resolveEmailBrand(null);
+  const text = (customNote || "").toString().trim();
+  if (!text) return "";
+  const esc = text
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
+  return `<tr><td style="padding:6px 20px 0;">
+    <div class="pu-subtle-bg" style="padding:14px 16px;border-radius:12px;background:${rgbaFromHex(b.ink, 0.04)};border:1px solid ${b.subtle};">
+      <p style="margin:0;font-size:14px;line-height:1.55;color:${rgbaFromHex(b.ink, 0.85)};font-family:${b.fontStack};">${esc}</p>
+    </div>
+  </td></tr>`;
+}
+
 /* ── Small link button (for calendar) ── */
 function smallButton(href, label, brand) {
   const b = brand || resolveEmailBrand(null);
@@ -302,6 +317,7 @@ export function signupConfirmationEmail({
   plusOnes = 0,
   slug = "",
   eventId = "",
+  customNote = "",
   frontendUrl = "https://pullup.se",
   spotifyUrl = "",
   ticketPrice = 0,
@@ -374,6 +390,8 @@ ${imageUrl ? `<!-- Event Image -->
       : `Hi ${name}, your spot is confirmed! We look forward to seeing you.`}
   </p>
 </td></tr>
+
+${noteBlock(customNote, b)}
 
 <!-- Event Details Card -->
 <tr><td align="center" style="padding:20px 0 8px;">
@@ -512,6 +530,7 @@ export function reminder24hEmail({
   brandWebsite = "",
   contactEmail = "",
   unsubscribeUrl = "",
+  customNote = "",
   brand = {},
 }) {
   const b = resolveEmailBrand(brand);
@@ -542,6 +561,8 @@ ${imageUrl ? `<!-- Event Image -->
     Hi ${name}, <strong translate="no" class="notranslate">${eventTitle}</strong> is tomorrow!
   </p>
 </td></tr>
+
+${noteBlock(customNote, b)}
 
 <!-- Details Card -->
 <tr><td align="center" style="padding:16px 0 8px;">
@@ -580,6 +601,7 @@ export function reservationEmail({
   slug = "",
   frontendUrl = "https://pullup.se",
   holdMinutes = 30,
+  customNote = "",
   // reveal-later flags
   hideDate = false,
   hideLocation = false,
@@ -622,6 +644,8 @@ ${imageUrl ? `<!-- Event Image -->
     Hi ${name}, your spot is reserved for ${holdMinutes} minutes. Complete your payment to confirm.
   </p>
 </td></tr>
+
+${noteBlock(customNote, b)}
 
 <!-- Event Details Card -->
 <tr><td align="center" style="padding:20px 0 8px;">
@@ -675,6 +699,7 @@ export function waitlistOfferEmail({
   isPaidEvent = false,
   expiresInHours = 6,
   expiresInMinutes = null,
+  customNote = "",
   // reveal-later flags
   hideDate = false,
   hideLocation = false,
@@ -727,6 +752,8 @@ ${imageUrl ? `<!-- Event Image -->
     ${isPaidEvent ? " Complete your payment to secure your spot." : " Confirm your booking below."}
   </p>
 </td></tr>
+
+${noteBlock(customNote, b)}
 
 <!-- Event Details Card -->
 <tr><td align="center" style="padding:20px 0 8px;">

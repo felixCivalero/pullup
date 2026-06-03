@@ -5367,6 +5367,121 @@ app.post("/host/room/attachment", requireAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// COMMS STUDIO — preview + customize every automatic send-out, and the
+// Instagram automated-DM (comment→DM) flows. Powers Settings → Comms.
+// ─────────────────────────────────────────────────────────────────────────
+app.get("/host/comms", requireAuth, async (req, res) => {
+  try {
+    const { renderComms } = await import("./services/commsCatalog.js");
+    const { supabase } = await import("./supabase.js");
+    const profile = await getUserProfile(req.user.id).catch(() => ({}));
+    const { data: row } = await supabase
+      .from("profiles").select("comms_overrides").eq("id", req.user.id).maybeSingle();
+    const messages = renderComms({
+      hostProfile: profile,
+      overrides: row?.comms_overrides || {},
+      frontendUrl: getFrontendUrl(),
+    });
+    res.json({
+      messages,
+      signature: profile?.whatsappSignature || profile?.whatsapp_signature || "",
+      whatsappEnabled: profile?.whatsappEnabled ?? profile?.whatsapp_enabled ?? true,
+    });
+  } catch (e) {
+    console.error("[host/comms:get]", e.message);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+app.put("/host/comms", requireAuth, async (req, res) => {
+  try {
+    const { overrides, signature } = req.body || {};
+    const { supabase } = await import("./supabase.js");
+    const patch = {};
+    if (overrides && typeof overrides === "object") patch.comms_overrides = overrides;
+    if (typeof signature === "string") patch.whatsapp_signature = signature.slice(0, 120);
+    if (Object.keys(patch).length) {
+      patch.updated_at = new Date().toISOString();
+      const { error } = await supabase.from("profiles").update(patch).eq("id", req.user.id);
+      if (error) throw error;
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[host/comms:put]", e.message);
+    res.status(500).json({ ok: false, error: "failed" });
+  }
+});
+
+// Send a test of one message to the host themselves (email rail).
+app.post("/host/comms/test", requireAuth, async (req, res) => {
+  try {
+    const { messageKey } = req.body || {};
+    const { renderComms } = await import("./services/commsCatalog.js");
+    const { supabase } = await import("./supabase.js");
+    const profile = await getUserProfile(req.user.id).catch(() => ({}));
+    const { data: row } = await supabase
+      .from("profiles").select("comms_overrides").eq("id", req.user.id).maybeSingle();
+    const messages = renderComms({
+      hostProfile: profile, overrides: row?.comms_overrides || {}, frontendUrl: getFrontendUrl(),
+    });
+    const msg = messages.find((m) => m.key === messageKey);
+    if (!msg) return res.status(400).json({ ok: false, error: "unknown_message" });
+    const to = profile?.contactEmail || profile?.contact_email || req.user.email;
+    if (!to) return res.status(400).json({ ok: false, error: "no_email_on_file" });
+    const { sendEmail } = await import("./services/emailService.js");
+    await sendEmail({ to, subject: `[Test] ${msg.email.subject}`, html: msg.email.html });
+    res.json({ ok: true, sentTo: to });
+  } catch (e) {
+    console.error("[host/comms/test]", e.message);
+    res.status(500).json({ ok: false, error: "failed" });
+  }
+});
+
+// Instagram automated DMs — the comment→DM rules (keyword → event → reply).
+app.get("/host/instagram/comment-rules", requireAuth, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const { data } = await supabase
+      .from("instagram_connections")
+      .select("id, ig_username, is_default, comment_rules")
+      .eq("host_profile_id", req.user.id)
+      .eq("status", "connected")
+      .order("is_default", { ascending: false });
+    res.json({
+      accounts: (data || []).map((c) => ({
+        id: c.id, username: c.ig_username, isDefault: !!c.is_default, rules: c.comment_rules || [],
+      })),
+    });
+  } catch (e) {
+    console.error("[ig/comment-rules:get]", e.message);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+app.put("/host/instagram/comment-rules", requireAuth, async (req, res) => {
+  try {
+    const { rules } = req.body || {};
+    if (!Array.isArray(rules)) return res.status(400).json({ ok: false, error: "rules_must_be_array" });
+    // Sanitize each rule to the known shape.
+    const clean = rules.slice(0, 50).map((r) => ({
+      id: String(r.id || "").slice(0, 64) || Math.random().toString(36).slice(2, 10),
+      keyword: String(r.keyword || "").slice(0, 80),
+      match: r.match === "exact" ? "exact" : "contains",
+      media_id: r.media_id ? String(r.media_id).slice(0, 64) : null,
+      event_slug: String(r.event_slug || "").slice(0, 120),
+      reply_text: String(r.reply_text || "").slice(0, 900),
+      enabled: r.enabled !== false,
+    })).filter((r) => r.keyword && r.event_slug);
+    const { setCommentRules } = await import("./instagram/repos/instagramConnectionsRepo.js");
+    await setCommentRules(req.user.id, clean);
+    res.json({ ok: true, rules: clean });
+  } catch (e) {
+    console.error("[ig/comment-rules:put]", e.message);
+    res.status(500).json({ ok: false, error: "failed" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // THE PULL-UP — verified physical presence via the host's live rotating QR.
 // The threshold of the whole relational model: an RSVP is intent, a pull-up
 // is proof. See services/pullupService.js for the integrity mechanism.

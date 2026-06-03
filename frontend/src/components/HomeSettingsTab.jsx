@@ -13,6 +13,7 @@ import { colors } from "../theme/colors.js";
 import { openWhatsNew } from "../lib/whatsNew.js";
 import { SettingsProfileSection } from "./SettingsProfileSection.jsx";
 import { SettingsWhatsappSection } from "./SettingsWhatsappSection.jsx";
+import { SettingsCommsSection } from "./SettingsCommsSection.jsx";
 import { SettingsMcpIntegration } from "./SettingsMcpIntegration.jsx";
 
 export function SettingsTab({ user, setUser, onSave, showToast }) {
@@ -251,6 +252,9 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
         onSave={onSave}
         showToast={showToast}
       />
+
+      {/* COMMS — automatic messages + Instagram auto-DMs. */}
+      <SettingsCommsSection user={user} />
 
       {/* PULLUP MCP */}
       <SettingsSection

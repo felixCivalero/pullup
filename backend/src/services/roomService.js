@@ -327,9 +327,19 @@ export async function getRoomForHost(hostId) {
   // warmth. This is the retention moat (the timeline becomes a body of work).
   const moments = buildMoments({ byPerson, peopleById, eventsOut });
 
-  // "Pullups" = times someone actually showed up (attended touchpoints) — the
-  // profile stat that means real-world turnout, not vanity reach.
-  const pullupsCount = timeline.filter((e) => e.type === "attended").length;
+  // "Pullups" = how many events the HOST personally pulled up to (attended as a
+  // guest, anywhere) — their own count, the same number their room shows. Found
+  // via their person record (people.auth_user_id ↔ this account).
+  let pullupsCount = 0;
+  try {
+    const { data: me } = await supabase.from("people").select("id").eq("auth_user_id", hostId).maybeSingle();
+    if (me) {
+      const { data: myUps } = await supabase.from("pullups").select("event_id").eq("person_id", me.id);
+      pullupsCount = new Set((myUps || []).map((r) => r.event_id)).size;
+    }
+  } catch (err) {
+    logger?.warn?.("[roomService] personal pullup count failed", { error: err?.message });
+  }
 
   return {
     host: { peopleCount: personIds.length, eventsCount: eventsOut.length, pullupsCount, ...hostProfile },

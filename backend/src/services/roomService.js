@@ -59,6 +59,8 @@ function buildSocials(links = {}) {
   if (x) { const h = handleFrom(x, "(?:x|twitter)\\.com"); out.push({ channel: "x", label: "X", handle: h ? `@${h}` : null, url: /^https?:/i.test(x) ? x : `https://x.com/${h}` }); }
   const yt = (L.youtube || "").trim();
   if (yt) { out.push({ channel: "youtube", label: "YouTube", handle: null, url: ensureUrl(yt) }); }
+  const li = (L.linkedin || "").trim();
+  if (li) { out.push({ channel: "linkedin", label: "LinkedIn", handle: null, url: ensureUrl(li) }); }
   const web = (L.website || "").trim();
   if (web) { out.push({ channel: "website", label: "Website", handle: null, url: ensureUrl(web) }); }
   return out;

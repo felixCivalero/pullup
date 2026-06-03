@@ -18,7 +18,7 @@
 
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe } from "lucide-react";
+import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin } from "lucide-react";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { useToast } from "../components/Toast";
 import { colors } from "../theme/colors.js";
@@ -1015,8 +1015,8 @@ function MastheadAvatar({ host, loading }) {
 // looking. The "who needs you" action lives below in the inbox, where you act.
 // Channel → icon / accent. Mirrors Settings → social links so the masthead
 // reads the same channels the host added a handle to.
-const SOCIAL_ICON = { instagram: Instagram, tiktok: Music2, x: Twitter, youtube: Youtube, website: Globe };
-const SOCIAL_COLOR = { instagram: "#d6249f", tiktok: "#0a0a0a", x: "#0a0a0a", youtube: "#ff0000", website: "#6b6b6b" };
+const SOCIAL_ICON = { instagram: Instagram, tiktok: Music2, x: Twitter, youtube: Youtube, linkedin: Linkedin, website: Globe };
+const SOCIAL_COLOR = { instagram: "#d6249f", tiktok: "#0a0a0a", x: "#0a0a0a", youtube: "#ff0000", linkedin: "#0a66c2", website: "#6b6b6b" };
 
 function ProfileMasthead({ host, loading, onStat }) {
   const h = host || {};

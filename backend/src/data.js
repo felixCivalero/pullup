@@ -94,6 +94,10 @@ export async function mapEventFromDb(dbEvent) {
       .from("event_media")
       .select("*")
       .eq("event_id", dbEvent.id)
+      // Exclude the room's darkroom (peer-shared photos) — those live in the
+      // event Room only, never on the public marketing page. Keep null-folder
+      // (the host's gallery) and anything that isn't darkroom.
+      .or("folder.is.null,folder.neq.darkroom")
       .order("position", { ascending: true });
 
     if (!mediaError && mediaRows) {

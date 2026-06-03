@@ -13,7 +13,7 @@
 //
 // The locked state shows the PROMISE (counts, never content).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { publicFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
@@ -63,6 +63,8 @@ export default function PullUpPage({ eventId: eventIdProp } = {}) {
   const [error, setError] = useState("");
   const [interior, setInterior] = useState(null);
   const [justPulledUp, setJustPulledUp] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
 
   // Guest adapter for the topic-organised room conversation (publicFetch +
   // the email they pulled up with). Guests can't open topics — host holds the pen.
@@ -107,6 +109,39 @@ export default function PullUpPage({ eventId: eventIdProp } = {}) {
     if (r.ok) { setInterior(await r.json().catch(() => null)); return { ok: true }; }
     const d = await r.json().catch(() => ({}));
     return { ok: false, reason: d?.reason || "locked" };
+  }
+
+  // Drop a photo into the room's darkroom. Reads the file to a base64 dataUrl
+  // (mirrors the host attachment path), posts it, then refreshes the interior so
+  // the new photo appears. Gated server-side by the host's upload capability.
+  async function handleRoomUpload(file) {
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { setError("That file's too big (15MB max)."); return; }
+    setUploading(true);
+    setError("");
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(file);
+      });
+      const res = await publicFetch(`/p/${eventId}/upload`, {
+        method: "POST",
+        body: JSON.stringify({ email: em, dataUrl }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d?.reason === "upload_off" ? "The host hasn't opened photo uploads here." : "Couldn't add that photo.");
+      } else {
+        await loadInterior(em);
+      }
+    } catch {
+      setError("Couldn't add that photo.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   }
 
   async function enter(e, overrideEmail) {
@@ -241,13 +276,42 @@ export default function PullUpPage({ eventId: eventIdProp } = {}) {
             </div>
           )}
 
-          {interior?.photos?.length > 0 && (
-            <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
-              {interior.photos.slice(0, 6).map((ph) => (
-                <div key={ph.id} style={{ aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: "#f4f4f5" }}>
-                  {ph.url && <img src={ph.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+          {/* Darkroom — peer-shared photos from the night. Upload shows only
+              when the host opened it for your state (default: pulled-up). */}
+          {(interior?.permissions?.upload || (interior?.photos?.length > 0)) && (
+            <div style={{ marginTop: 22 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: FAINT, textTransform: "uppercase", letterSpacing: "0.08em" }}>The darkroom</div>
+                {interior?.permissions?.upload && (
+                  <>
+                    <input ref={fileRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={(e) => handleRoomUpload(e.target.files?.[0])} />
+                    <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ fontSize: 12, fontWeight: 700, color: PINK, background: "rgba(236,23,143,0.08)", border: "1px solid rgba(236,23,143,0.22)", borderRadius: 999, padding: "5px 12px", cursor: uploading ? "wait" : "pointer" }}>
+                      {uploading ? "Adding…" : "+ Add photo"}
+                    </button>
+                  </>
+                )}
+              </div>
+              {interior?.photos?.length > 0 ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+                  {interior.photos.slice(0, 9).map((ph) => (
+                    <a
+                      key={ph.id}
+                      href={interior?.permissions?.download ? ph.url : undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                      download={interior?.permissions?.download ? "" : undefined}
+                      onClick={(e) => { if (!interior?.permissions?.download) e.preventDefault(); }}
+                      style={{ aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: "#f4f4f5", display: "block", cursor: interior?.permissions?.download ? "pointer" : "default" }}
+                    >
+                      {ph.url && <img src={ph.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                    </a>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div style={{ fontSize: 13, color: MUTED, padding: "14px 0" }}>
+                  No photos yet — drop the first one.
+                </div>
+              )}
             </div>
           )}
 

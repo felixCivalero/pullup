@@ -1834,6 +1834,42 @@ export async function resolvePerson({ userId = null, email = null }) {
   return null;
 }
 
+// Is this auth user an admin? Cheap check — only called when a view-as override
+// header is actually present, so it never touches the normal request path.
+export async function isAdminUser(userId) {
+  if (!userId) return false;
+  const { data } = await supabase.from("profiles").select("is_admin").eq("id", userId).maybeSingle();
+  return !!data?.is_admin;
+}
+
+// Admin "View as": resolve the EFFECTIVE viewer for a request. An admin may
+// impersonate ANY person by sending `x-pullup-view-as: <personId>`. This is
+// verified SERVER-SIDE against profiles.is_admin on the REAL session — a
+// non-admin's header is silently ignored, so it can never be forged into access.
+// Returns the person plus their account link (authUserId) so callers can do both
+// person-scoped (RSVP/pull-up) and host(account)-scoped checks as them.
+export async function resolveViewer(req, { email = null } = {}) {
+  const realUserId = req.user?.id || null;
+  const viewAsId = (req.headers?.["x-pullup-view-as"] || "").toString().trim() || null;
+  if (viewAsId && realUserId && (await isAdminUser(realUserId))) {
+    const { data } = await supabase.from("people").select("*").eq("id", viewAsId).maybeSingle();
+    if (data) {
+      return { person: mapPersonFromDb(data), authUserId: data.auth_user_id || null, impersonating: true, realUserId };
+    }
+  }
+  const person = await resolvePerson({ userId: realUserId, email });
+  return { person, authUserId: realUserId, impersonating: false, realUserId };
+}
+
+// Admin "Force status": an admin may force an access level via the
+// `x-pullup-force-level` header (preview a state without a user in it). Admin-gated.
+export async function adminForceLevel(req) {
+  const realUserId = req.user?.id || null;
+  const lvl = (req.headers?.["x-pullup-force-level"] || "").toString().trim() || null;
+  if (lvl && realUserId && (await isAdminUser(realUserId))) return lvl;
+  return null;
+}
+
 // Self-heal the account<->person link on login. Idempotent: link an existing
 // person by email if unclaimed, else create one. Keeps the spine wired going
 // forward (the one-time backfill handled existing rows).

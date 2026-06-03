@@ -4,6 +4,25 @@
 import { supabase } from "./supabase.js";
 import { API_BASE } from "./env.js";
 
+// Admin "View as" — when an admin has an active view-as, every request carries
+// these headers so the backend (after re-verifying admin) resolves as that user
+// / forces that status. Empty for everyone else, so normal traffic is untouched.
+export function viewAsHeaders() {
+  const h = {};
+  try {
+    const va = localStorage.getItem("pullup_view_as");
+    const fl = localStorage.getItem("pullup_force_level");
+    if (va) h["x-pullup-view-as"] = va;
+    if (fl) h["x-pullup-force-level"] = fl;
+  } catch {}
+  return h;
+}
+function viewAsActive() {
+  try {
+    return !!(localStorage.getItem("pullup_view_as") || localStorage.getItem("pullup_force_level"));
+  } catch { return false; }
+}
+
 /**
  * Make an authenticated API request
  * Automatically adds Authorization header with JWT token
@@ -15,6 +34,7 @@ export async function authenticatedFetch(url, options = {}) {
 
   const headers = {
     "Content-Type": "application/json",
+    ...viewAsHeaders(),
     ...options.headers,
   };
 
@@ -49,6 +69,17 @@ export async function publicFetch(url, options = {}) {
     "Content-Type": "application/json",
     ...options.headers,
   };
+
+  // When an admin is viewing-as, even "public" room calls must carry the admin
+  // token + the view-as headers so the backend can resolve/act as the chosen
+  // user. Normal (no view-as) traffic stays purely public — unchanged.
+  if (viewAsActive()) {
+    Object.assign(headers, viewAsHeaders());
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+    } catch {}
+  }
 
   return fetch(`${API_BASE}${url}`, {
     ...options,

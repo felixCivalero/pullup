@@ -107,6 +107,28 @@ export const TEMPLATES = {
     ],
   },
 
+  // ── booking_cancelled ───────────────────────────────────────────
+  // Host cancelled a guest's booking. Plain + kind; the host can follow up
+  // personally from the Room. UTILITY (transactional, not marketing).
+  booking_cancelled: {
+    name: "booking_cancelled",
+    category: "utility",
+    meta_category: "UTILITY",
+    locale: "en",
+    status: "draft",
+    body: "Hi {{1}}, your booking for {{2}} has been cancelled by the host. {{3}}",
+    variables: ["guest_first_name", "event_title", "host_signature"],
+    render: ({ guest_first_name, event_title, host_signature }) =>
+      `Hi ${guest_first_name}, your booking for ${event_title} has been cancelled by the host. ${host_signature}`,
+    components: [
+      {
+        type: "BODY",
+        text: "Hi {{1}}, your booking for {{2}} has been cancelled by the host. {{3}}",
+        example: { body_text: [["Adam", "Rooftop Sessions Vol. 4", "It's me, Maya"]] },
+      },
+    ],
+  },
+
   // ── 2. rsvp_confirm ─────────────────────────────────────────────
   // First-touch hello after RSVP. Opens the 24h conversation window
   // so the host can reply freeform until it closes.

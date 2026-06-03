@@ -5558,7 +5558,7 @@ app.get("/p/:eventId/teaser", async (req, res) => {
     const { computeEventPhase, getComingCount } = await import("./services/pullupService.js");
     const [{ count: peopleInside }, { count: photoCount }, { data: ev }, coming] = await Promise.all([
       supabase.from("pullups").select("id", { count: "exact", head: true }).eq("event_id", eventId),
-      supabase.from("event_media").select("id", { count: "exact", head: true }).eq("event_id", eventId),
+      supabase.from("event_media").select("id", { count: "exact", head: true }).eq("event_id", eventId).eq("folder", "darkroom"),
       supabase.from("events").select("title, slug, host_id, starts_at, ends_at, location").eq("id", eventId).maybeSingle(),
       getComingCount(eventId),
     ]);
@@ -5707,8 +5707,11 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
       }
     }
 
+    // The room's DARKROOM = peer-shared content (folder='darkroom'), kept apart
+    // from the host's marketing gallery (folder NULL, which lives on the public
+    // event page). Newest first — the room fills as people drop photos.
     const { data: media } = await supabase
-      .from("event_media").select("id,storage_path,position").eq("event_id", eventId).order("position");
+      .from("event_media").select("id,storage_path,uploaded_by,created_at").eq("event_id", eventId).eq("folder", "darkroom").order("created_at", { ascending: false });
     const photos = (media || []).map((m) => {
       let url = m.storage_path;
       if (url && !url.startsWith("http")) {
@@ -5717,7 +5720,7 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
         const { data: pub } = supabase.storage.from("event-images").getPublicUrl(fp);
         if (pub?.publicUrl) url = pub.publicUrl;
       }
-      return { id: m.id, url };
+      return { id: m.id, url, mine: m.uploaded_by === person.id };
     });
 
     const coming = await getComingCount(eventId);
@@ -5725,6 +5728,53 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
   } catch (err) {
     console.error("[interior] error:", err.message);
     res.status(500).json({ error: "Failed to load interior" });
+  }
+});
+
+// Drop a photo INTO the room's darkroom — the "sharing content inside the event
+// room" path. Gated by the host's `upload` capability for the viewer's state
+// (default: pulled-up only). Lands in folder='darkroom' so it shows in the room
+// but never leaks onto the public event page. Mirrors the host attachment path
+// (base64 dataUrl in, direct-to-storage).
+app.post("/p/:eventId/upload", optionalAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { dataUrl, email } = req.body || {};
+    const { getRoomAccess } = await import("./services/pullupService.js");
+    const { supabase } = await import("./supabase.js");
+
+    const norm = (email || req.user?.email || "").toString().trim().toLowerCase();
+    const person = await resolvePerson({ userId: req.user?.id || null, email: norm || null });
+    if (!person) return res.status(403).json({ ok: false, reason: "no_identity" });
+
+    const access = await getRoomAccess(person.id, eventId);
+    if (access.access === "locked") return res.status(403).json({ ok: false, reason: access.reason });
+    if (!access.permissions?.upload) return res.status(403).json({ ok: false, reason: "upload_off" });
+
+    if (!dataUrl || typeof dataUrl !== "string") return res.status(400).json({ ok: false, reason: "no_file" });
+    const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!m) return res.status(400).json({ ok: false, reason: "bad_data_url" });
+    const contentType = m[1];
+    const buffer = Buffer.from(m[2], "base64");
+    if (buffer.length > 15 * 1024 * 1024) return res.status(413).json({ ok: false, reason: "too_large" });
+
+    const isVideo = contentType.startsWith("video/");
+    const ext = (contentType.split("/")[1] || "jpg").split("+")[0].replace(/[^a-z0-9]/gi, "") || "jpg";
+    const path = `${eventId}/darkroom_${person.id}_${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("event-images").upload(path, buffer, { contentType, upsert: false });
+    if (upErr) { console.error("[room-upload] storage:", upErr.message); return res.status(500).json({ ok: false, reason: "upload_failed" }); }
+
+    const { data: row, error: insErr } = await supabase
+      .from("event_media")
+      .insert({ event_id: eventId, media_type: isVideo ? "video" : "image", storage_path: path, folder: "darkroom", is_cover: false, mime_type: contentType, uploaded_by: person.id, position: 9999 })
+      .select("id").maybeSingle();
+    if (insErr) { console.error("[room-upload] insert:", insErr.message); return res.status(500).json({ ok: false, reason: "save_failed" }); }
+
+    const { data: pub } = supabase.storage.from("event-images").getPublicUrl(path);
+    res.json({ ok: true, photo: { id: row?.id, url: pub?.publicUrl || null, mine: true } });
+  } catch (err) {
+    console.error("[room-upload] error:", err.message);
+    res.status(500).json({ ok: false, reason: "upload_failed" });
   }
 });
 

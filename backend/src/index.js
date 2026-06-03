@@ -26,6 +26,8 @@ import {
   getPaymentsForUser,
   getPaymentsForEvent,
   findPersonByEmail,
+  resolvePerson,
+  ensurePersonLinked,
   mapEventFromDb,
   getUserProfile,
   updateUserProfile,
@@ -5594,7 +5596,9 @@ app.get("/events/:id/access", optionalAuth, async (req, res) => {
     const { supabase } = await import("./supabase.js");
     const eventId = req.params.id;
     const email = (req.user?.email || req.query.email || "").toString().trim().toLowerCase();
-    const person = email ? await findPersonByEmail(email) : null;
+    // Durable account link first, email fallback — a logged-in guest always maps
+    // to their person even if their auth email differs from the RSVP email.
+    const person = await resolvePerson({ userId: req.user?.id || null, email: email || null });
     const access = await resolveEventAccess({
       userId: req.user?.id || null,
       personId: person?.id || null,
@@ -5816,7 +5820,7 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
 
     // Viewer-relative state across every event we might render (hosted + pulled-up).
     const email = (req.query.email || req.user?.email || "").toString().trim().toLowerCase();
-    const viewer = email ? await findPersonByEmail(email) : null;
+    const viewer = await resolvePerson({ userId: req.user?.id || null, email: email || null });
     const allIds = [...new Set([...hostedIds, ...pulledUpRows.map((e) => e.id)])];
     let myPullups = new Set(), myRsvps = new Set();
     if (viewer && allIds.length) {
@@ -10200,6 +10204,15 @@ app.post("/auth/record-consent", requireAuth, async (req, res) => {
         marketing_consent_at: now,
       })
       .eq("email", email);
+
+    // Identity spine: self-heal the account<->person link on every authenticated
+    // load (the one-time backfill handled existing rows; this keeps it wired for
+    // new signups). Best-effort — never block the consent response.
+    try {
+      await ensurePersonLinked({ userId: req.user.id, email, name: req.user.name || null });
+    } catch (e) {
+      console.warn("[consent] ensurePersonLinked failed:", e?.message);
+    }
 
     return res.json({ ok: true });
   } catch (error) {

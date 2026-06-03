@@ -80,6 +80,33 @@ export const TEMPLATES = {
     ],
   },
 
+  // ── 1c. auth_whatsapp_otp ───────────────────────────────────────
+  // The WhatsApp login code. AUTHENTICATION category (the one category that
+  // CARRIES a code) — delivered by the Supabase "Send SMS Hook" so the code +
+  // session are native Supabase; WhatsApp is only the rail. Meta manages the
+  // body wording for auth templates; the code rides {{1}} into the body + the
+  // copy-code button. NOTE: authentication templates are often created/approved
+  // directly in WhatsApp Manager — submit script is best-effort here.
+  auth_whatsapp_otp: {
+    name: "auth_whatsapp_otp",
+    category: "authentication",
+    meta_category: "AUTHENTICATION",
+    locale: "en",
+    status: "draft",
+    body: "{{1}} is your PullUp code. For your security, don't share it.",
+    variables: ["code"],
+    render: ({ code }) =>
+      `${code} is your PullUp code. For your security, don't share it.`,
+    components: [
+      { type: "BODY", add_security_recommendation: true },
+      { type: "FOOTER", code_expiration_minutes: 10 },
+      {
+        type: "BUTTONS",
+        buttons: [{ type: "OTP", otp_type: "COPY_CODE", text: "Copy code" }],
+      },
+    ],
+  },
+
   // ── 2. rsvp_confirm ─────────────────────────────────────────────
   // First-touch hello after RSVP. Opens the 24h conversation window
   // so the host can reply freeform until it closes.

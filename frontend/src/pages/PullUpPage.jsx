@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { publicFetch } from "../lib/api.js";
+import { useAuth } from "../contexts/AuthContext.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 
 const INK = "#0a0a0a";
@@ -43,10 +44,12 @@ function Stat({ value, label }) {
 
 export default function PullUpPage() {
   const { eventId } = useParams();
+  const { user, requestMagicLink } = useAuth();
   const [params] = useSearchParams();
   const w = params.get("w");
   const s = params.get("s");
   const hasCode = !!(w && s);
+  const [verifySent, setVerifySent] = useState(false);
 
   const [teaser, setTeaser] = useState(null);
   // entry | working | inRoom | needScan | expired | error
@@ -73,6 +76,28 @@ export default function PullUpPage() {
     return () => { alive = false; };
   }, [eventId]);
 
+  // Session-first: a logged-in (verified) guest skips the email box entirely —
+  // we walk them into the room with their real identity the moment auth resolves.
+  useEffect(() => {
+    if (user?.email && phase === "entry") {
+      enter(null, user.email);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email]);
+
+  // Send a verify/claim link to the email they're in the room with, so they can
+  // get back in from any device. Best-effort; we just flip to "check your inbox".
+  async function sendVerifyLink() {
+    const em = (email || user?.email || "").trim().toLowerCase();
+    if (!em) return;
+    try {
+      await requestMagicLink(em, { next: window.location.pathname + window.location.search });
+      setVerifySent(true);
+    } catch {
+      setVerifySent(true); // don't reveal failures; the cooldown/no-enumeration path still "succeeds"
+    }
+  }
+
   async function loadInterior(em) {
     const r = await publicFetch(`/p/${eventId}/interior?email=${encodeURIComponent(em)}`);
     if (r.ok) { setInterior(await r.json().catch(() => null)); return { ok: true }; }
@@ -80,10 +105,11 @@ export default function PullUpPage() {
     return { ok: false, reason: d?.reason || "locked" };
   }
 
-  async function enter(e) {
+  async function enter(e, overrideEmail) {
     e?.preventDefault();
-    const em = email.trim().toLowerCase();
+    const em = (overrideEmail || email).trim().toLowerCase();
     if (!em) { setError("Pop in the email you RSVP'd with."); return; }
+    if (overrideEmail && em !== email) setEmail(em);
     localStorage.setItem("pullup_email", em);
     setPhase("working");
     setError("");
@@ -139,6 +165,30 @@ export default function PullUpPage() {
       <div style={wrap}>
         <div style={{ ...card, animation: "pu-open 600ms cubic-bezier(0.16,1,0.3,1)" }}>
           <style>{`@keyframes pu-open{0%{opacity:0;transform:translateY(10px) scale(0.98)}100%{opacity:1;transform:none}}`}</style>
+
+          {/* Claim/verify banner — they're in provisionally (by the email they
+              RSVP'd with). Verifying drops a real session so they own the
+              account and can return from any device. Never a gate, always
+              optional; vanishes once they're a verified session. */}
+          {!user && (
+            <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "rgba(236,23,143,0.06)", border: "1px solid rgba(236,23,143,0.22)" }}>
+              {verifySent ? (
+                <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
+                  <b style={{ color: INK }}>Check your inbox.</b> Tap the link to verify it's you — then you're in from any device.
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.45, flex: 1, minWidth: 160 }}>
+                    <b style={{ color: INK }}>Verify your account</b> to lock it to you and get back in from any device.
+                  </div>
+                  <button onClick={sendVerifyLink} style={{ padding: "8px 16px", borderRadius: 999, border: "none", background: PINK, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                    Verify
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ fontSize: 13, color: PINK, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
             {lobby ? "You're in early" : justPulledUp ? "You're in" : "Welcome back"}
           </div>

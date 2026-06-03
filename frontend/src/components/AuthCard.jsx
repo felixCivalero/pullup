@@ -179,17 +179,16 @@ export function AuthCard({
 }) {
   const t = THEMES[theme] || THEMES.dark;
   const inputStyle = buildInputStyle(t);
-  const { signInWithGoogle, signInWithEmailPassword } = useAuth();
+  const { signInWithGoogle, requestMagicLink } = useAuth();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [formError, setFormError] = useState("");
-  // Which method the user has committed to. null = the three-button picker.
+  // Which method the user has committed to. false = the three-button picker.
   const [emailOpen, setEmailOpen] = useState(false);
-  // When sign-in fails with invalid credentials we surface a
-  // "Create new account with this email?" CTA instead of silently
-  // creating one (typos would mint orphan accounts otherwise).
-  const [offerCreate, setOfferCreate] = useState(false);
+  // Passwordless: once we've sent the magic link, swap the form for a
+  // "check your inbox" confirmation. No password, no account-enumeration —
+  // "log in" and "sign up" are the same action (the backend find-or-creates).
+  const [linkSent, setLinkSent] = useState(false);
   const emailRef = useRef(null);
 
   // Consent is implicit: clicking any "Continue" / submit button counts as
@@ -211,62 +210,39 @@ export function AuthCard({
 
   const closeEmail = () => {
     setEmailOpen(false);
-    setOfferCreate(false);
+    setLinkSent(false);
     setFormError("");
   };
 
-  const submitAuth = async ({ allowAutoCreate }) => {
-    setFormError("");
-    if (!allowAutoCreate) setOfferCreate(false);
-    try {
-      setSigningIn(true);
-      await signInWithEmailPassword(email.trim(), password, {
-        allowAutoCreate,
-      });
-      recordConsent();
-      // signed_in fires from the parent (OnboardingPage's finalize) so the
-      // event is unified across both email and Google OAuth completion paths.
-      onSuccess?.("email");
-    } catch (err) {
-      const msg = (err?.message || "").toLowerCase();
-      // invalid_credentials code from AuthContext = signin failed and
-      // caller hasn't opted in to create. Show the create-account CTA.
-      if (err?.code === "invalid_credentials" && !allowAutoCreate) {
-        setOfferCreate(true);
-        setFormError("");
-        return;
-      }
-      let friendly = "Something went wrong. Please try again.";
-      if (msg.includes("email not confirmed"))
-        friendly = "Check your email to confirm your account, then come back.";
-      else if (msg.includes("invalid login credentials"))
-        friendly = "Incorrect email or password.";
-      else if (msg.includes("rate limit"))
-        friendly = "Too many attempts. Wait a moment, then try again.";
-      else if (msg.includes("already registered"))
-        friendly =
-          'This email uses another sign-in method. Try "Continue with Google".';
-      else if (msg.includes("password")) friendly = err.message;
-      setFormError(friendly);
-      setOfferCreate(false);
-    } finally {
-      setSigningIn(false);
-    }
-  };
-
+  // Passwordless: ask the backend to mint a Supabase magic link and email it.
+  // Same action for new + returning (find-or-create). On success we show the
+  // "check your inbox" state; tapping the link signs them in on this device and
+  // the session persists across all of PullUp.
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
     if (signingIn || !emailOpen) return;
+    const addr = email.trim();
+    if (!addr) {
+      setFormError("Enter your email.");
+      return;
+    }
+    setFormError("");
     trackEvent(`${trackingPrefix}_email_submit`);
-    if (funnelTrack) trackEvent("auth_start", { method: "email" });
-    await submitAuth({ allowAutoCreate: false });
-  };
-
-  const handleConfirmCreate = async () => {
-    if (signingIn) return;
-    trackEvent(`${trackingPrefix}_email_create_confirm`);
-    if (funnelTrack) trackEvent("auth_start", { method: "email_create" });
-    await submitAuth({ allowAutoCreate: true });
+    if (funnelTrack) trackEvent("auth_start", { method: "email_link" });
+    try {
+      setSigningIn(true);
+      await requestMagicLink(addr, { next: redirectTo });
+      setLinkSent(true);
+    } catch (err) {
+      const msg = (err?.message || "").toLowerCase();
+      setFormError(
+        msg.includes("invalid")
+          ? "That email doesn't look right."
+          : "Couldn't send the link. Try again in a moment.",
+      );
+    } finally {
+      setSigningIn(false);
+    }
   };
 
   const handleGoogle = async () => {
@@ -387,70 +363,51 @@ export function AuthCard({
             Other ways to sign in
           </button>
 
-          <input
-            ref={emailRef}
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            tabIndex={emailOpen ? 0 : -1}
-            style={inputStyle}
-          />
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            tabIndex={emailOpen ? 0 : -1}
-            style={inputStyle}
-          />
-
-          {showForgotPassword && (
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -2 }}>
-              <Link
-                to="/forgot-password"
-                state={{ email: email.trim() }}
-                onClick={() => trackEvent(`${trackingPrefix}_forgot_password_click`)}
+          {!linkSent ? (
+            <>
+              <input
+                ref={emailRef}
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
                 tabIndex={emailOpen ? 0 : -1}
-                style={{ fontSize: 12, color: t.forgotLink, textDecoration: "none" }}
+                style={inputStyle}
+              />
+              <button
+                type="submit"
+                disabled={signingIn}
+                tabIndex={emailOpen ? 0 : -1}
+                style={{
+                  width: "100%",
+                  padding: "14px 0",
+                  borderRadius: 999,
+                  border: "none",
+                  background: t.submitBg,
+                  color: t.submitColor,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: signingIn ? "wait" : "pointer",
+                  opacity: signingIn ? 0.7 : 1,
+                  marginTop: 2,
+                }}
               >
-                Forgot password?
-              </Link>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={signingIn}
-            tabIndex={emailOpen ? 0 : -1}
-            style={{
-              width: "100%",
-              padding: "14px 0",
-              borderRadius: 999,
-              border: "none",
-              background: t.submitBg,
-              color: t.submitColor,
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: signingIn ? "wait" : "pointer",
-              opacity: signingIn ? 0.7 : 1,
-              marginTop: 2,
-            }}
-          >
-            {signingIn ? "Entering…" : submitLabel}
-          </button>
-
-          {offerCreate && (
+                {signingIn ? "Sending…" : "Email me a sign-in link"}
+              </button>
+              <p style={{ margin: "2px 0 0", fontSize: 12, lineHeight: 1.5, color: t.mutedColor, textAlign: "center" }}>
+                No password — we'll email a link that signs you in.
+              </p>
+            </>
+          ) : (
             <div
               style={{
-                fontSize: 12,
+                fontSize: 13,
                 color: t.createPanelText,
                 textAlign: "center",
-                padding: "10px 12px",
-                borderRadius: 8,
+                padding: "16px 14px",
+                borderRadius: 12,
                 background: t.createPanelBg,
                 border: `1px solid ${t.createPanelBorder}`,
                 display: "flex",
@@ -458,32 +415,14 @@ export function AuthCard({
                 gap: 8,
               }}
             >
-              <div style={{ color: t.createPanelText }}>
-                No account found for{" "}
-                <strong style={{ color: t.createPanelStrong }}>{email.trim()}</strong>.
+              <div style={{ fontWeight: 700, color: t.createPanelStrong, fontSize: 15 }}>Check your inbox</div>
+              <div>
+                We sent a sign-in link to{" "}
+                <strong style={{ color: t.createPanelStrong }}>{email.trim()}</strong>. Tap it to continue — no password needed.
               </div>
               <button
                 type="button"
-                onClick={handleConfirmCreate}
-                disabled={signingIn}
-                style={{
-                  width: "100%",
-                  borderRadius: 999,
-                  border: `1px solid ${t.createButtonBorder}`,
-                  background: "transparent",
-                  color: t.createButtonColor,
-                  padding: "10px 14px",
-                  cursor: signingIn ? "wait" : "pointer",
-                  fontSize: 13,
-                  fontWeight: 500,
-                }}
-              >
-                Create a new account with this email
-              </button>
-              <button
-                type="button"
-                onClick={() => setOfferCreate(false)}
-                disabled={signingIn}
+                onClick={() => { setLinkSent(false); setTimeout(() => emailRef.current?.focus(), 50); }}
                 style={{
                   background: "transparent",
                   border: "none",
@@ -494,7 +433,7 @@ export function AuthCard({
                   textDecoration: "underline",
                 }}
               >
-                Or check the email — I had a typo
+                Use a different email
               </button>
             </div>
           )}

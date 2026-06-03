@@ -308,6 +308,7 @@ function QuickAccess({ events = [], host = {}, rail = null, attachedEventId, set
 
 function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} }) {
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [draft, setDraft] = useState("");
   const [rail, setRail] = useState(person.channel);
   const [sending, setSending] = useState(false);
@@ -406,11 +407,13 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: SF }}>
       <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "18px 18px 16px", borderBottom: `1px solid ${colors.border}` }}>
-        <Avatar initials={person.initials} color={person.color} size={40} />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: "15px", fontWeight: 700, color: colors.text }}>{person.name}</div>
-          <div style={{ fontSize: "12px", color: colors.textSubtle, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{person.handle}</div>
-        </div>
+        <button onClick={() => navigate(`/r/${person.id}`)} title="Open their room" style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: SF }}>
+          <Avatar initials={person.initials} color={person.color} size={40} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: colors.text }}>{person.name}</div>
+            <div style={{ fontSize: "12px", color: colors.textSubtle, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{person.handle}</div>
+          </div>
+        </button>
         <ChannelChip channel={person.channel} windowOpen={person.windowOpen} windowNote={person.windowNote} />
         <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: colors.surfaceMuted, color: colors.textMuted, fontSize: "16px", cursor: "pointer", flexShrink: 0 }}>×</button>
       </div>
@@ -1010,12 +1013,14 @@ function MastheadAvatar({ host, loading }) {
 // The masthead reads as a PROFILE — the host's NAME up top, then the substance:
 // people · events · pullups. Consistent whether the owner or an outsider is
 // looking. The "who needs you" action lives below in the inbox, where you act.
-function ProfileMasthead({ host, loading }) {
+function ProfileMasthead({ host, loading, onStat }) {
   const h = host || {};
   const name = (h.name || "").trim() || "Your room";
   const identity = [(h.handle || "").trim(), (h.role || "").trim()].filter(Boolean).join("  ·  ");
-  const Stat = ({ n, label }) => (
-    <span><span style={{ color: colors.text, fontWeight: 700 }}>{n ?? 0}</span> {label}</span>
+  const Stat = ({ n, label, onClick }) => (
+    onClick
+      ? <button onClick={onClick} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SF, fontSize: "13.5px", color: colors.textMuted }}><span style={{ color: colors.text, fontWeight: 700 }}>{n ?? 0}</span> {label}</button>
+      : <span><span style={{ color: colors.text, fontWeight: 700 }}>{n ?? 0}</span> {label}</span>
   );
   return (
     <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "22px", fontFamily: SF }}>
@@ -1028,9 +1033,9 @@ function ProfileMasthead({ host, loading }) {
         <div style={{ fontSize: "13.5px", color: colors.textMuted, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
           {loading ? <Bar w="220px" h={13} /> : (
             <>
-              <Stat n={h.peopleCount} label="people" />
+              <Stat n={h.peopleCount} label="people" onClick={() => onStat?.("people")} />
               <span style={{ color: colors.textFaded }}>·</span>
-              <Stat n={h.eventsCount} label="events" />
+              <Stat n={h.eventsCount} label="events" onClick={() => onStat?.("events")} />
               <span style={{ color: colors.textFaded }}>·</span>
               <Stat n={h.pullupsCount} label="pullups" />
             </>
@@ -1057,6 +1062,7 @@ export default function RoomPage() {
   const [viewMode, setViewMode] = useState("carousel"); // 'carousel' | 'list' | 'dashboard' — same actionables, 3 UX to learn from
   const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows the bulk-compose panel
   const [query, setQuery] = useState(""); // people search across the whole world
+  const [statPopup, setStatPopup] = useState(null); // masthead count tapped → "people" | "events"
 
   // Live Room from the spine (/host/room). Falls back to fixtures only if the
   // fetch fails, so the prototype never goes blank while iterating.
@@ -1126,7 +1132,7 @@ export default function RoomPage() {
       <div style={{ flex: "1 1 0", overflowY: "auto", minWidth: 0 }}>
         <div style={{ maxWidth: "740px", margin: "0 auto", padding: "28px 20px 60px" }}>
           {/* The profile masthead — your face anchors the Room. */}
-          <ProfileMasthead host={HOST} loading={loading} />
+          <ProfileMasthead host={HOST} loading={loading} onStat={setStatPopup} />
 
           {/* Make-it-yours — fills the gaps (photo, bio, Instagram, brief) and
               patches the masthead live as they're completed. Self-hides when
@@ -1209,6 +1215,56 @@ export default function RoomPage() {
           </div>
         </>
       )}
+
+      {/* Masthead count tapped — the list behind the number, navigable. */}
+      {statPopup && (
+        <MastheadStatPopup
+          kind={statPopup}
+          people={PEOPLE}
+          events={EVENTS}
+          onClose={() => setStatPopup(null)}
+          onPerson={(id) => { setStatPopup(null); navigate(`/r/${id}`); }}
+          onEvent={(id) => { setStatPopup(null); navigate(`/app/events/${id}/manage`); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// The list behind a masthead count — tap "44 people" / "40 events" and step
+// into who/what's actually there, then click through to anyone's room.
+function MastheadStatPopup({ kind, people = [], events = [], onClose, onPerson, onEvent }) {
+  const isPeople = kind === "people";
+  const sorted = isPeople
+    ? [...people].sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+    : events;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,10,10,0.32)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 60, padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 460, maxHeight: "72vh", background: colors.background, borderRadius: 18, border: `1px solid ${colors.border}`, boxShadow: "0 20px 60px rgba(10,10,10,0.22)", display: "flex", flexDirection: "column", fontFamily: SF }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 12px", borderBottom: `1px solid ${colors.borderFaint}` }}>
+          <span style={{ fontSize: "14.5px", fontWeight: 800, color: colors.text }}>{isPeople ? "People in your world" : "Your events"}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, lineHeight: 1, color: colors.textMuted, padding: 0 }}>×</button>
+        </div>
+        <div style={{ overflowY: "auto", padding: "4px 18px 16px" }}>
+          {sorted.length === 0 && <div style={{ fontSize: 13, color: colors.textFaded, padding: "18px 0", textAlign: "center" }}>{isPeople ? "No one yet." : "No events yet."}</div>}
+          {isPeople && sorted.map((p) => (
+            <button key={p.id} onClick={() => onPerson(p.id)} style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "9px 6px", background: "none", border: "none", borderBottom: `1px solid ${colors.borderFaint}`, cursor: "pointer", fontFamily: SF }}>
+              <Avatar initials={p.initials} color={p.color} size={34} />
+              <span style={{ flex: 1, minWidth: 0, fontSize: "13.5px", fontWeight: 600, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+              <span style={{ fontSize: 12, color: colors.accent, fontWeight: 700 }}>→</span>
+            </button>
+          ))}
+          {!isPeople && sorted.map((e) => (
+            <button key={e.id} onClick={() => onEvent(e.id)} style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "9px 6px", background: "none", border: "none", borderBottom: `1px solid ${colors.borderFaint}`, cursor: "pointer", fontFamily: SF }}>
+              <div style={{ width: 52, height: 40, borderRadius: 9, flexShrink: 0, overflow: "hidden", background: "linear-gradient(135deg, #fde7f3, #f4f4f5)" }}>
+                {e.coverImage && <img src={e.coverImage} alt="" onError={(ev) => { ev.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+              </div>
+              <span style={{ flex: 1, minWidth: 0, fontSize: "13.5px", fontWeight: 700, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title || "Untitled"}</span>
+              <span style={{ fontSize: 12, color: colors.accent, fontWeight: 700 }}>→</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

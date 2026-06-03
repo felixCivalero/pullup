@@ -1120,9 +1120,9 @@ export function RsvpSuccessPage() {
                     marginBottom: "16px",
                   }}
                 >
-                  When you arrive, scan the host's live code to step inside. The
-                  room only opens for people who actually show up — that's where
-                  the photos and everyone who pulled up live.
+                  It's open now — step in to get ready for the night. When the
+                  event starts, pull up at the door to stay in. That's where the
+                  photos and everyone who showed up live.
                 </div>
                 <a
                   href={`/p/${event.id}`}
@@ -1143,7 +1143,7 @@ export function RsvpSuccessPage() {
                     textDecoration: "none",
                   }}
                 >
-                  See who's pulled up
+                  Step into the room
                 </a>
               </div>
             )}

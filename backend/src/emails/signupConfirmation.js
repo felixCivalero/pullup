@@ -422,7 +422,7 @@ ${spotifyUrl ? `<!-- Spotify -->
 ${(!isWaitlist && roomUrl) ? `<!-- The room (anticipation; opens once they pull up at the door) -->
 <tr><td align="center" style="padding:8px 20px 4px;">
   <p class="pu-muted" style="margin:0;font-size:13px;color:${b.muted};line-height:1.5;font-family:${b.fontStack};">
-    When you arrive, scan the host's live code to step into <a href="${roomUrl}" target="_blank" style="color:${b.ink};text-decoration:underline;text-decoration-color:${rgbaFromHex(b.ink, 0.3)};">the room</a> — where the photos and everyone who showed up live.
+    <a href="${roomUrl}" target="_blank" style="color:${b.ink};text-decoration:underline;text-decoration-color:${rgbaFromHex(b.ink, 0.3)};">The room</a> is open now — step in to get ready. When the event starts, pull up at the door to stay in.
   </p>
 </td></tr>` : ""}
 

@@ -5247,27 +5247,27 @@ app.get("/p/:eventId/teaser", async (req, res) => {
   try {
     const { eventId } = req.params;
     const { supabase } = await import("./supabase.js");
-    const [{ count: peopleInside }, { count: photoCount }, { data: ev }] = await Promise.all([
+    const { computeEventPhase, getComingCount } = await import("./services/pullupService.js");
+    const [{ count: peopleInside }, { count: photoCount }, { data: ev }, coming] = await Promise.all([
       supabase.from("pullups").select("id", { count: "exact", head: true }).eq("event_id", eventId),
       supabase.from("event_media").select("id", { count: "exact", head: true }).eq("event_id", eventId),
-      supabase.from("events").select("title, starts_at, ends_at").eq("id", eventId).maybeSingle(),
+      supabase.from("events").select("title, slug, host_id, starts_at, ends_at").eq("id", eventId).maybeSingle(),
+      getComingCount(eventId),
     ]);
-    // "Passed" = past the end, or ~12h past the start if no explicit end. After
-    // this, the teaser + host comms dissolve for anyone who never pulled up.
-    let ended = false;
-    if (ev) {
-      const end = ev.ends_at ? new Date(ev.ends_at).getTime()
-        : (ev.starts_at ? new Date(ev.starts_at).getTime() + 12 * 3600 * 1000 : null);
-      ended = end != null && Date.now() > end;
-    }
+    // phase: upcoming (lobby open to RSVP'ers) | ongoing (pull-up only) | ended.
+    const phase = ev ? computeEventPhase(ev.starts_at, ev.ends_at) : "upcoming";
     res.json({
       eventId,
       title: ev?.title || null,
+      slug: ev?.slug || null,
+      hostId: ev?.host_id || null,
+      phase,
+      coming,                       // non-cancelled RSVPs — the lobby's honest count
       peopleInside: peopleInside || 0,
       photoCount: photoCount || 0,
       // The room reads as "live" once more than one person is inside.
       conversationLive: (peopleInside || 0) > 1,
-      ended,
+      ended: phase === "ended",     // kept for back-compat
     });
   } catch (err) {
     console.error("[teaser] error:", err.message);
@@ -5324,18 +5324,23 @@ app.post("/p/:eventId/pullup", optionalAuth, async (req, res) => {
 app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { getCoPresentAtEvent } = await import("./services/pullupService.js");
+    const { getCoPresentAtEvent, getRoomAccess, getComingCount } = await import("./services/pullupService.js");
     const { supabase } = await import("./supabase.js");
 
     const email = (req.query.email || req.user?.email || "").toString().trim().toLowerCase();
     const person = email ? await findPersonByEmail(email) : null;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
 
-    // Gate: you can only enter a room you pulled up to.
-    const { data: mine } = await supabase
-      .from("pullups").select("id").eq("person_id", person.id).eq("event_id", eventId).maybeSingle();
-    if (!mine) return res.status(403).json({ error: "locked", reason: "not_pulled_up" });
+    // Time-phased gate: pulled up (forever) OR in the pre-event lobby (RSVP'd +
+    // not started). Locked otherwise — the frontend bounces "event_started_no_pullup"
+    // to the host's profile room.
+    const access = await getRoomAccess(person.id, eventId);
+    if (access.access === "locked") {
+      return res.status(403).json({ error: "locked", reason: access.reason, phase: access.phase });
+    }
 
+    // Co-presence is pull-up-keyed, so it's naturally empty in the lobby (nobody
+    // has pulled up yet) — the lobby leans on the "coming" count instead.
     const coIds = await getCoPresentAtEvent(person.id, eventId);
     let coPresent = [];
     if (coIds.length) {
@@ -5356,7 +5361,8 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
       return { id: m.id, url };
     });
 
-    res.json({ eventId, coPresent, photos, photoCount: photos.length });
+    const coming = await getComingCount(eventId);
+    res.json({ eventId, access: access.access, phase: access.phase, coming, coPresent, photos, photoCount: photos.length });
   } catch (err) {
     console.error("[interior] error:", err.message);
     res.status(500).json({ error: "Failed to load interior" });
@@ -5444,11 +5450,13 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
 app.get("/p/:eventId/channels", async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { hasPulledUp, listChannels } = await import("./services/pullupService.js");
+    const { getRoomAccess, listChannels } = await import("./services/pullupService.js");
     const email = (req.query.email || "").toString().trim().toLowerCase();
     const person = email ? await findPersonByEmail(email) : null;
-    if (!person || !(await hasPulledUp(person.id, eventId))) {
-      return res.status(403).json({ error: "locked", reason: "not_pulled_up" });
+    if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
+    const access = await getRoomAccess(person.id, eventId);
+    if (access.access === "locked") {
+      return res.status(403).json({ error: "locked", reason: access.reason });
     }
     res.json({ channels: await listChannels(eventId) });
   } catch (err) {
@@ -5460,11 +5468,13 @@ app.get("/p/:eventId/channels", async (req, res) => {
 app.get("/p/:eventId/space", async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { hasPulledUp, listSpaceMessages } = await import("./services/pullupService.js");
+    const { getRoomAccess, listSpaceMessages } = await import("./services/pullupService.js");
     const email = (req.query.email || "").toString().trim().toLowerCase();
     const person = email ? await findPersonByEmail(email) : null;
-    if (!person || !(await hasPulledUp(person.id, eventId))) {
-      return res.status(403).json({ error: "locked", reason: "not_pulled_up" });
+    if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
+    const access = await getRoomAccess(person.id, eventId);
+    if (access.access === "locked") {
+      return res.status(403).json({ error: "locked", reason: access.reason });
     }
     res.json({ messages: await listSpaceMessages(eventId, { channelId: req.query.channelId || null }) });
   } catch (err) {
@@ -5477,11 +5487,13 @@ app.post("/p/:eventId/space", async (req, res) => {
   try {
     const { eventId } = req.params;
     const { email, body, channelId } = req.body || {};
-    const { hasPulledUp, postSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
+    const { getRoomAccess, postSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
     const norm = (email || "").toString().trim().toLowerCase();
     const person = norm ? await findPersonByEmail(norm) : null;
-    if (!person || !(await hasPulledUp(person.id, eventId))) {
-      return res.status(403).json({ error: "locked", reason: "not_pulled_up" });
+    if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
+    const access = await getRoomAccess(person.id, eventId);
+    if (access.access === "locked") {
+      return res.status(403).json({ ok: false, error: "locked", reason: access.reason });
     }
     const r = await postSpaceMessage({ eventId, channelId: channelId || null, personId: person.id, authorName: person.name || "Someone", body });
     if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });

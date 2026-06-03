@@ -227,6 +227,58 @@ export async function hasPulledUp(personId, eventId) {
   return !!data;
 }
 
+// ── The time-phased room gate ───────────────────────────────────────────────
+// An RSVP is a key that ONLY works before the doors open. Until starts_at the
+// room is a lobby: anyone who RSVP'd can walk in to prep. At starts_at the event
+// goes "ongoing" and the lobby closes — from then on a PullUp (proof of physical
+// presence) is the only key. RSVP'd-but-never-pulled-up after start is locked
+// out of the event room and falls back to the host's profile. Pulled up = in
+// forever (the bead is earned, never expires).
+export function computeEventPhase(startsAt, endsAt, nowMs = Date.now()) {
+  const starts = startsAt ? new Date(startsAt).getTime() : null;
+  // No explicit end → treat the night as ~12h from the start (matches teaser).
+  const end = endsAt ? new Date(endsAt).getTime() : (starts != null ? starts + 12 * 3600 * 1000 : null);
+  if (starts == null) return "upcoming";        // no date set → forever-upcoming (lobby open)
+  if (nowMs < starts) return "upcoming";
+  if (end != null && nowMs > end) return "ended";
+  return "ongoing";
+}
+
+// Returns { access, phase, reason? }.
+//   access "pulledup" → showed up; full + permanent.
+//   access "lobby"    → before start + RSVP'd; prep access (closes at start).
+//   access "locked"   → reason "event_started_no_pullup" (RSVP'd, missed the
+//                       pull-up — stuck at the profile) | "not_invited" |
+//                       "no_identity".
+export async function getRoomAccess(personId, eventId, nowMs = Date.now()) {
+  if (!personId || !eventId) return { access: "locked", reason: "no_identity", phase: "upcoming" };
+
+  const { data: ev } = await supabase
+    .from("events").select("starts_at, ends_at").eq("id", eventId).maybeSingle();
+  const phase = computeEventPhase(ev?.starts_at, ev?.ends_at, nowMs);
+
+  // Pulled up → in, always (earned, never expires).
+  if (await hasPulledUp(personId, eventId)) return { access: "pulledup", phase };
+
+  // Not pulled up — does an active RSVP let them in?
+  const { data: rs } = await supabase
+    .from("rsvps").select("id, status").eq("person_id", personId).eq("event_id", eventId).maybeSingle();
+  const rsvped = !!rs && rs.status !== "cancelled";
+
+  if (rsvped && phase === "upcoming") return { access: "lobby", phase };           // doors not open yet → prep
+  if (rsvped) return { access: "locked", reason: "event_started_no_pullup", phase }; // started/over, never showed
+  return { access: "locked", reason: "not_invited", phase };
+}
+
+// Non-cancelled RSVP count — the "coming" number the lobby shows (before anyone
+// has pulled up, "coming" is the honest signal, not "0 inside").
+export async function getComingCount(eventId) {
+  const { count } = await supabase
+    .from("rsvps").select("id", { count: "exact", head: true })
+    .eq("event_id", eventId).neq("status", "cancelled");
+  return count || 0;
+}
+
 // ── The event space (the room's conversation, organised into TOPICS) ────────
 // Read/write is gated by a pull-up (mesh) or by being the host. No DM
 // primitive — everything lives in shared, event-scoped channels. Topics are

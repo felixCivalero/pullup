@@ -75,8 +75,9 @@ export default function PullUpPage() {
 
   async function loadInterior(em) {
     const r = await publicFetch(`/p/${eventId}/interior?email=${encodeURIComponent(em)}`);
-    if (r.ok) { setInterior(await r.json().catch(() => null)); return true; }
-    return false;
+    if (r.ok) { setInterior(await r.json().catch(() => null)); return { ok: true }; }
+    const d = await r.json().catch(() => ({}));
+    return { ok: false, reason: d?.reason || "locked" };
   }
 
   async function enter(e) {
@@ -87,8 +88,10 @@ export default function PullUpPage() {
     setPhase("working");
     setError("");
     try {
-      // 1) Already hold the bead? Then you're in — no code required, forever.
-      if (await loadInterior(em)) { setJustPulledUp(false); setPhase("inRoom"); return; }
+      // 1) Already have access? Either you hold the bead (pulled up — in forever)
+      //    or you RSVP'd and the doors haven't opened yet (the pre-event lobby).
+      const first = await loadInterior(em);
+      if (first.ok) { setJustPulledUp(false); setPhase("inRoom"); return; }
 
       // 2) Not in yet. A live code lets you pull up right now (covers late
       //    check-ins even just after the nominal end).
@@ -112,9 +115,12 @@ export default function PullUpPage() {
         return;
       }
 
-      // 3) No record, no live code.
-      //    Event already passed → you didn't pull up. There's nothing here.
-      //    Still upcoming → go scan the host's live code.
+      // 3) No record, no live code. Where they land depends on WHY they're out:
+      //    - RSVP'd but the doors already opened and they never pulled up →
+      //      the lobby closed without them; stuck at the host's profile.
+      //    - Event ended, never in their orbit → the rejection door.
+      //    - Still upcoming → go scan the host's live code (or RSVP first).
+      if (first.reason === "event_started_no_pullup") { setPhase("missed"); return; }
       setPhase(teaser?.ended ? "rejected" : "needScan");
     } catch {
       setError("Something went wrong. Try again.");
@@ -124,24 +130,31 @@ export default function PullUpPage() {
 
   // ── In the room ─────────────────────────────────────────────────────────
   if (phase === "inRoom") {
+    // Lobby = pre-event RSVP access (doors not open yet). Pulled-up = earned.
+    const lobby = interior?.access === "lobby";
     const others = interior?.coPresent?.length ?? Math.max((teaser?.peopleInside || 1) - 1, 0);
+    const coming = interior?.coming ?? teaser?.coming ?? 0;
     const photos = interior?.photoCount ?? teaser?.photoCount ?? 0;
     return (
       <div style={wrap}>
         <div style={{ ...card, animation: "pu-open 600ms cubic-bezier(0.16,1,0.3,1)" }}>
           <style>{`@keyframes pu-open{0%{opacity:0;transform:translateY(10px) scale(0.98)}100%{opacity:1;transform:none}}`}</style>
           <div style={{ fontSize: 13, color: PINK, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            {justPulledUp ? "You're in" : "Welcome back"}
+            {lobby ? "You're in early" : justPulledUp ? "You're in" : "Welcome back"}
           </div>
           <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", margin: "8px 0 6px" }}>
-            {justPulledUp ? "You pulled up." : "Your room."}
+            {lobby ? "The room's open." : justPulledUp ? "You pulled up." : "Your room."}
           </h1>
           <p style={{ fontSize: 14.5, color: MUTED, lineHeight: 1.5, margin: "0 0 22px" }}>
-            Only people who showed up are inside — and you're one of them.
+            {lobby
+              ? "You RSVP'd, so you're in to get ready. When the event starts, pull up at the door — that's the only key once it's live."
+              : "Only people who showed up are inside — and you're one of them."}
           </p>
 
           <div style={{ display: "flex", justifyContent: "space-around", padding: "18px 0", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
-            <Stat value={others} label={others === 1 ? "person here" : "people here"} />
+            {lobby
+              ? <Stat value={coming} label="coming" />
+              : <Stat value={others} label={others === 1 ? "person here" : "people here"} />}
             <Stat value={photos} label={photos === 1 ? "photo" : "photos"} />
           </div>
 
@@ -193,6 +206,31 @@ export default function PullUpPage() {
           <p style={{ fontSize: 15, color: PINK, fontWeight: 700, margin: "16px 0 0" }}>
             Catch the next one.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // RSVP'd, but the doors opened and you never pulled up. The lobby closed
+  // without you — your RSVP got you in to prep, not in to the live room. You're
+  // back at the host's profile, where this event reads as one you said yes to
+  // but didn't show for.
+  if (phase === "missed") {
+    return (
+      <div style={wrap}>
+        <div style={{ ...card, textAlign: "center" }}>
+          <div style={{ fontSize: 13, color: FAINT, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>The doors opened</div>
+          <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: "-0.02em", margin: "10px 0 10px", lineHeight: 1.2 }}>
+            You RSVP'd — but you didn't pull up.
+          </h1>
+          <p style={{ fontSize: 14.5, color: MUTED, lineHeight: 1.55, margin: "0 0 6px" }}>
+            The lobby was open to get ready. Once the event starts, pulling up at the door is the only way in — and that window's closed now.
+          </p>
+          {teaser?.hostId && (
+            <a href={`/r/${teaser.hostId}`} style={{ ...ghostBtn, display: "inline-block", marginTop: 18, textDecoration: "none" }}>
+              Back to the profile
+            </a>
+          )}
         </div>
       </div>
     );

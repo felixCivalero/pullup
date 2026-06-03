@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useParams } from "react-router-dom";
+import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 
 // /app/events/:id/manage → redirect to the guests subpage. Absolute path built
 // from the param: a relative <Navigate to="../guests"> over-pops on these flat
@@ -6,6 +6,22 @@ import { Routes, Route, Navigate, useParams } from "react-router-dom";
 function ManageRedirect() {
   const { id } = useParams();
   return <Navigate to={`/app/events/${id}/guests`} replace />;
+}
+
+// /p/:eventId retired — the pull-up threshold + persistent guest room collapsed
+// into the ONE event Room. Forward (carrying the QR's ?w=&s= params) so live
+// scans and any old links land in the canonical room.
+function PullupRedirect() {
+  const { eventId } = useParams();
+  const { search } = useLocation();
+  return <Navigate to={`/events/${eventId}/room${search}`} replace />;
+}
+
+// The event Room is one public URL for everyone now. Old host-only
+// /app/events/:id/room forwards to it.
+function AppRoomRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/events/${id}/room`} replace />;
 }
 
 // The dock is the host's home base across the logged-in app: the pullup chat
@@ -27,7 +43,6 @@ import { EventSuccessPage } from "./pages/EventSuccessPage";
 import { EventGuestsPage } from "./pages/EventGuestsPage";
 import EventRoomPage from "./pages/EventRoomPage";
 import RoomPage from "./pages/RoomPage";
-import PullUpPage from "./pages/PullUpPage";
 import HostCheckinPage from "./pages/HostCheckinPage";
 import NodeProfilePage from "./pages/NodeProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -97,16 +112,9 @@ function App() {
             </ErrorBoundary>
           }
         />
-        {/* The pull-up threshold — a guest scanned the host's live rotating QR
-            and landed here. Public: it mints/identifies on the spot. */}
-        <Route
-          path="/p/:eventId"
-          element={
-            <ErrorBoundary>
-              <PullUpPage />
-            </ErrorBoundary>
-          }
-        />
+        {/* /p/:eventId retired → forwards into the one event Room (preserving
+            any QR ?w=&s= so scans still pull up). */}
+        <Route path="/p/:eventId" element={<PullupRedirect />} />
         {/* A node's profile — the room's public face, viewer-relative. */}
         <Route
           path="/r/:id"
@@ -125,6 +133,18 @@ function App() {
               Keep /events and /home as redirects so old links/bookmarks land
               on the Room instead of 404ing. */}
           <Route path="/room" element={<RoomPage />} />
+          {/* THE event Room — one surface per event for host AND guest, inside
+              the shared shell. Role decides the chrome; no session → login modal
+              (the shell tolerates anon here and lets the room/modal resolve who
+              you are). */}
+          <Route
+            path="/events/:id/room"
+            element={
+              <ErrorBoundary>
+                <EventRoomPage />
+              </ErrorBoundary>
+            }
+          />
           <Route path="/events" element={<Navigate to="/room" replace />} />
           <Route path="/analytics" element={<HostAnalyticsPage />} />
           <Route path="/planner" element={<ContentPlannerPage />} />
@@ -185,14 +205,8 @@ function App() {
               </ErrorBoundary>
             }
           />
-          <Route
-            path="/app/events/:id/room"
-            element={
-              <ErrorBoundary>
-                <EventRoomPage />
-              </ErrorBoundary>
-            }
-          />
+          {/* Canonical event Room moved to public /events/:id/room. */}
+          <Route path="/app/events/:id/room" element={<AppRoomRedirect />} />
         </Route>
       </Routes>
       </HostResourceProvider>

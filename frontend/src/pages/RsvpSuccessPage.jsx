@@ -185,11 +185,25 @@ export function RsvpSuccessPage() {
   // they scan the host's live code, /p/:eventId pre-fills this and they're in.
   // Re-entry to the room (forever, after the event) is keyed off it too. Only
   // for a confirmed spot — a waitlist isn't a key to the room.
+  // Both confirmed and waitlist are "in" before the event now, so both are a key
+  // to the room — stash the email so the room recognises them.
+  const roomBound = booking?.bookingStatus === "CONFIRMED" || booking?.bookingStatus === "WAITLIST";
   useEffect(() => {
-    if (booking?.email && booking?.bookingStatus === "CONFIRMED") {
+    if (booking?.email && roomBound) {
       try { localStorage.setItem("pullup_email", booking.email.trim().toLowerCase()); } catch {}
     }
-  }, [booking?.email, booking?.bookingStatus]);
+  }, [booking?.email, roomBound]);
+
+  // The Room is the success: a confirmed RSVP is forwarded into the event Room
+  // (pre-event lobby), keyed off the pullup_email we just stored. We still render
+  // this page first for the paths that need it — a paid Stripe return (verify,
+  // then forward) and payment errors hold here; a waitlist has no room key and
+  // stays. Old /e/:slug/success bookmarks for confirmed spots forward too.
+  useEffect(() => {
+    if (roomBound && event?.id && !verifying && !verifyError) {
+      navigate(`/events/${event.id}/room`, { replace: true });
+    }
+  }, [roomBound, event?.id, verifying, verifyError, navigate]);
 
   useEffect(() => {
     async function loadEvent() {
@@ -1125,7 +1139,7 @@ export function RsvpSuccessPage() {
                   photos and everyone who showed up live.
                 </div>
                 <a
-                  href={`/p/${event.id}`}
+                  href={`/events/${event.id}/room`}
                   style={{
                     display: "flex",
                     alignItems: "center",

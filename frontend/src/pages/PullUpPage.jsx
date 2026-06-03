@@ -18,6 +18,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { publicFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
+import { EventQuickActions } from "../components/EventQuickActions.jsx";
 
 const INK = "#0a0a0a";
 const MUTED = "rgba(10,10,10,0.60)";
@@ -42,8 +43,11 @@ function Stat({ value, label }) {
   );
 }
 
-export default function PullUpPage() {
-  const { eventId } = useParams();
+export default function PullUpPage({ eventId: eventIdProp } = {}) {
+  const routeParams = useParams();
+  // Embedded inside the event Room (/events/:id/room) we get the id as a prop;
+  // standalone we'd read it from the route. Prop wins.
+  const eventId = eventIdProp || routeParams.eventId;
   const { user, requestMagicLink } = useAuth();
   const [params] = useSearchParams();
   const w = params.get("w");
@@ -156,8 +160,11 @@ export default function PullUpPage() {
 
   // ── In the room ─────────────────────────────────────────────────────────
   if (phase === "inRoom") {
-    // Lobby = pre-event RSVP access (doors not open yet). Pulled-up = earned.
+    // Lobby = pre-event RSVP access (doors not open yet). Waitlist = the lower-key
+    // peek while hoping for a spot. Pulled-up = earned.
     const lobby = interior?.access === "lobby";
+    const waitlist = interior?.access === "waitlist";
+    const preEvent = lobby || waitlist;
     const others = interior?.coPresent?.length ?? Math.max((teaser?.peopleInside || 1) - 1, 0);
     const coming = interior?.coming ?? teaser?.coming ?? 0;
     const photos = interior?.photoCount ?? teaser?.photoCount ?? 0;
@@ -190,19 +197,32 @@ export default function PullUpPage() {
           )}
 
           <div style={{ fontSize: 13, color: PINK, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            {lobby ? "You're in early" : justPulledUp ? "You're in" : "Welcome back"}
+            {waitlist ? "You're on the waitlist" : lobby ? "You're in early" : justPulledUp ? "You're in" : "Welcome back"}
           </div>
           <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", margin: "8px 0 6px" }}>
-            {lobby ? "The room's open." : justPulledUp ? "You pulled up." : "Your room."}
+            {waitlist ? "You're on the list." : lobby ? "The room's open." : justPulledUp ? "You pulled up." : "Your room."}
           </h1>
           <p style={{ fontSize: 14.5, color: MUTED, lineHeight: 1.5, margin: "0 0 22px" }}>
-            {lobby
+            {waitlist
+              ? "You're on the waitlist — here's a peek while you wait. If a spot opens, the host moves you in and the full room unlocks."
+              : lobby
               ? "You RSVP'd, so you're in to get ready. When the event starts, pull up at the door — that's the only key once it's live."
               : "Only people who showed up are inside — and you're one of them."}
           </p>
 
+          {/* Quick CTAs — share / add to calendar / see the live page. */}
+          <div style={{ marginBottom: 18 }}>
+            <EventQuickActions
+              slug={teaser?.slug}
+              title={teaser?.title}
+              startsAt={teaser?.startsAt}
+              endsAt={teaser?.endsAt}
+              location={teaser?.location}
+            />
+          </div>
+
           <div style={{ display: "flex", justifyContent: "space-around", padding: "18px 0", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
-            {lobby
+            {preEvent
               ? <Stat value={coming} label="coming" />
               : <Stat value={others} label={others === 1 ? "person here" : "people here"} />}
             <Stat value={photos} label={photos === 1 ? "photo" : "photos"} />
@@ -233,7 +253,7 @@ export default function PullUpPage() {
 
           <div style={{ marginTop: 24, borderTop: `1px solid ${BORDER}`, paddingTop: 18 }}>
             <div style={{ fontSize: 11, color: FAINT, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>The room · talk</div>
-            <RoomConversation canCreateTopic={false} api={guestApi} />
+            <RoomConversation canCreateTopic={false} canPost={interior?.permissions?.post !== false} api={guestApi} />
           </div>
         </div>
       </div>

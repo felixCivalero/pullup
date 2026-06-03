@@ -258,6 +258,9 @@ export function EventGuestsPage() {
       setNetworkError(false);
       try {
         const res = await authenticatedFetch(`/host/events/${id}/guests`);
+        // Not your event → don't show a broken page; drop them into the room
+        // they CAN see (guest view). One graceful exit, no dead end.
+        if (res.status === 403) { navigate(`/events/${id}/room`, { replace: true }); return; }
         if (!res.ok) throw new Error("Failed to load guests");
         const data = await res.json();
         setEvent(data.event);

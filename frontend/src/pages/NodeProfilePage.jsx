@@ -58,8 +58,8 @@ export default function NodeProfilePage() {
   const c = node.counts || {};
   const whose = isOwner ? "your" : `${firstName(node.name)}'s`;
   const enter = (e) => {
-    if (e.viewer === "pulledup") return navigate(`/p/${e.id}`);
-    if (e.viewer === "owner") return navigate(`/e/${e.slug}`);
+    // Has room access (pulled up, or owns the event) → into the one event Room.
+    if (e.viewer === "pulledup" || e.viewer === "owner") return navigate(`/events/${e.id}/room`);
     if (!e.ended) return navigate(`/e/${e.slug}`);   // locked but still open → go RSVP
     // ended + locked (missed): no-op
   };

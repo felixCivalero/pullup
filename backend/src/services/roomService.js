@@ -32,6 +32,37 @@ function igHandleFrom(profile) {
   const h = (m ? m[1] : raw).replace(/^@/, "").replace(/\/+$/, "").trim();
   return h ? `@${h}` : null;
 }
+
+// Whatever channels the host filled in under Settings → social links. We don't
+// assume Instagram — each gets its real channel + a tappable URL so the UI shows
+// the right icon and links to the right place. value may be a bare @handle or a
+// full URL; we accept both.
+function ensureUrl(v) {
+  const s = String(v || "").trim();
+  if (!s) return null;
+  return /^https?:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, "")}`;
+}
+function handleFrom(v, hostPattern) {
+  const s = String(v || "").trim();
+  const m = s.match(new RegExp(`${hostPattern}\\/(?:@)?([^/?#]+)`, "i"));
+  const h = (m ? m[1] : s).replace(/^@/, "").replace(/\/+$/, "").trim();
+  return h || null;
+}
+function buildSocials(links = {}) {
+  const L = links || {};
+  const out = [];
+  const ig = (L.instagram || "").trim();
+  if (ig) { const h = handleFrom(ig, "instagram\\.com"); out.push({ channel: "instagram", label: "Instagram", handle: h ? `@${h}` : null, url: /^https?:/i.test(ig) ? ig : `https://instagram.com/${h}` }); }
+  const tt = (L.tiktok || "").trim();
+  if (tt) { const h = handleFrom(tt, "tiktok\\.com"); out.push({ channel: "tiktok", label: "TikTok", handle: h ? `@${h}` : null, url: /^https?:/i.test(tt) ? tt : `https://www.tiktok.com/@${h}` }); }
+  const x = (L.x || "").trim();
+  if (x) { const h = handleFrom(x, "(?:x|twitter)\\.com"); out.push({ channel: "x", label: "X", handle: h ? `@${h}` : null, url: /^https?:/i.test(x) ? x : `https://x.com/${h}` }); }
+  const yt = (L.youtube || "").trim();
+  if (yt) { out.push({ channel: "youtube", label: "YouTube", handle: null, url: ensureUrl(yt) }); }
+  const web = (L.website || "").trim();
+  if (web) { out.push({ channel: "website", label: "Website", handle: null, url: ensureUrl(web) }); }
+  return out;
+}
 async function buildHostProfile(hostId) {
   let base = {};
   try {
@@ -48,6 +79,9 @@ async function buildHostProfile(hostId) {
       // For the composer's "Quick access" — share your own profile / number.
       phone: p?.phone_e164 || null,
       instagramUrl: p?.brandingLinks?.instagram || null,
+      // Every social channel they actually configured (not just IG), each with
+      // its real channel + tappable URL so the masthead shows the right icon.
+      socials: buildSocials(p?.brandingLinks),
     };
   } catch (err) {
     logger?.warn?.("[roomService] host profile read failed", { error: err?.message });

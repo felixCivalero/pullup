@@ -1883,6 +1883,11 @@ app.get("/events/:slug", optionalAuth, async (req, res) => {
     };
     if (event.hostId) {
       try {
+        // The GET handler never declared a supabase client (the `sb` at the top
+        // of POST /events/:slug/view is a different scope) — so this lookup was
+        // throwing "sb is not defined" and silently dropping host name/voice on
+        // every event page. Import it here.
+        const { supabase: sb } = await import("./supabase.js");
         const { data: hostProfile } = await sb
           .from("profiles")
           .select("name, brand, whatsapp_signature")

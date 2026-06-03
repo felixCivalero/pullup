@@ -227,6 +227,35 @@ function StorageFolders() {
 
 // The host's view of the event's COLLECTIVE conversation, organised into TOPICS
 // (host holds the pen — can open new topics). Real data, above the mockup below.
+// The host's window into the darkroom — what guests shared at the event. Hidden
+// until there's something to show (it fills as people drop photos in the room).
+function HostDarkroom({ eventId }) {
+  const [photos, setPhotos] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    authenticatedFetch(`/host/events/${eventId}/darkroom`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setPhotos(d.photos || []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [eventId]);
+  if (!photos || photos.length === 0) return null;
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ fontSize: 11, color: colors.textFaded, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+        Darkroom · {photos.length} shared
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
+        {photos.slice(0, 12).map((p) => (
+          <a key={p.id} href={p.url} target="_blank" rel="noreferrer" title={p.by || ""} style={{ aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: colors.surfaceMuted, display: "block" }}>
+            {p.url && <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function HostRoomSpace({ eventId, roster }) {
   const api = useMemo(() => ({
     loadChannels: () => authenticatedFetch(`/host/events/${eventId}/channels`).then((r) => (r.ok ? r.json().then((d) => d.channels || []) : [])),
@@ -270,6 +299,8 @@ function HostRoomSpace({ eventId, roster }) {
       <StorageFolders />
 
       <RoomConversation canCreateTopic sidebar api={api} />
+
+      <HostDarkroom eventId={eventId} />
     </div>
   );
 }

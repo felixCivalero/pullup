@@ -538,6 +538,19 @@ export function EventPage() {
         if (vid) requestBody.visitorId = vid;
       } catch {}
 
+      // Carry the entry-path params from the signup link (e.g. an Instagram
+      // comment link: ?src=ig_comment&ig_ref=<commentId>&ig_uid=<igsid>) so the
+      // backend can stamp how this person found us + bind their IG identity.
+      try {
+        const qp = new URLSearchParams(window.location.search);
+        const src = qp.get("src");
+        if (src) {
+          requestBody.acquisitionSrc = src;
+          if (qp.get("ig_ref")) requestBody.igRef = qp.get("ig_ref");
+          if (qp.get("ig_uid")) requestBody.igUid = qp.get("ig_uid");
+        }
+      } catch {}
+
       if (waitlistOffer && waitlistOffer.rsvpDetails && waitlistToken) {
         requestBody = {
           ...requestBody,

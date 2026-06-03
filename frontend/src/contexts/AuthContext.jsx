@@ -1,6 +1,7 @@
 // frontend/src/contexts/AuthContext.jsx
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { publicFetch } from "../lib/api";
 
 const AuthContext = createContext(null);
 
@@ -167,6 +168,25 @@ export function AuthProvider({ children }) {
     return { data: signInAfterSignUp, created: true };
   };
 
+  // Passwordless email sign-in — the default front door for everyone (guest or
+  // host). We ask the backend to mint a Supabase magic link and deliver it via
+  // our branded email; tapping it lands on /auth/callback and drops a session.
+  // The same call find-or-creates the account, so "log in" and "sign up" are one
+  // action. Always resolves ok (no account-enumeration); throws only on network.
+  const requestMagicLink = async (email, { next = "/room", name = null } = {}) => {
+    const res = await publicFetch("/auth/request-link", {
+      method: "POST",
+      body: JSON.stringify({ email: (email || "").trim().toLowerCase(), next, name }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const e = new Error(data?.error || "request_failed");
+      e.code = data?.error || "request_failed";
+      throw e;
+    }
+    return { ok: true };
+  };
+
   const signInWithGoogle = async (returnTo = null) => {
     // Land every OAuth round-trip on the dedicated /auth/callback handler
     // rather than dropping the user straight onto a protected route. The
@@ -207,6 +227,7 @@ export function AuthProvider({ children }) {
     session,
     loading,
     signInWithEmailPassword,
+    requestMagicLink,
     signInWithGoogle,
     signOut,
     // Helper to get access token for API requests

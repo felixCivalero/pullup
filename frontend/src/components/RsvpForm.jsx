@@ -2,6 +2,7 @@
 // Sleek, native-feeling RSVP form
 import { useState, useEffect } from "react";
 import { publicFetch } from "../lib/api.js";
+import { useAuth } from "../contexts/AuthContext.jsx";
 import { colors } from "../theme/colors.js";
 import { formatEventTime } from "../lib/dateUtils.js";
 
@@ -50,6 +51,18 @@ export function RsvpForm({
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [capacityExceeded, setCapacityExceeded] = useState(false);
   const [customAnswers, setCustomAnswers] = useState({});
+
+  // Session-aware: a returning, logged-in guest shouldn't retype what we know.
+  // Prefill from their verified identity when the fields are still empty (never
+  // override a VIP-pinned email or something they've started typing).
+  const { user } = useAuth();
+  useEffect(() => {
+    if (!user) return;
+    if (user.email && !email) setEmail(user.email);
+    const fullName = user.user_metadata?.full_name || user.user_metadata?.name;
+    if (fullName && !name) setName(fullName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email]);
 
   // Render-order: walk event.formFields, padding with the locked sentinels
   // the event's contact channel requires. WhatsApp events lock a verified

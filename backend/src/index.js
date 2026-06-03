@@ -27,6 +27,8 @@ import {
   getPaymentsForEvent,
   findPersonByEmail,
   resolvePerson,
+  resolveViewer,
+  adminForceLevel,
   ensurePersonLinked,
   mapEventFromDb,
   getUserProfile,
@@ -5596,14 +5598,30 @@ app.get("/events/:id/access", optionalAuth, async (req, res) => {
     const { supabase } = await import("./supabase.js");
     const eventId = req.params.id;
     const email = (req.user?.email || req.query.email || "").toString().trim().toLowerCase();
-    // Durable account link first, email fallback — a logged-in guest always maps
-    // to their person even if their auth email differs from the RSVP email.
-    const person = await resolvePerson({ userId: req.user?.id || null, email: email || null });
-    const access = await resolveEventAccess({
-      userId: req.user?.id || null,
-      personId: person?.id || null,
-      eventId,
-    });
+    // Durable account link first, email fallback — and an admin "View as" override
+    // (header, admin-gated) so QA can resolve as ANY user.
+    const viewer = await resolveViewer(req, { email: email || null });
+    const forced = await adminForceLevel(req);
+    let access;
+    if (forced) {
+      // Admin forces a level to preview a state. Capabilities from defaults.
+      const { resolveCapabilities } = await import("./services/roomPermissions.js");
+      const { supabase: sb } = await import("./supabase.js");
+      const { data: evp } = await sb.from("events").select("room_permissions").eq("id", eventId).maybeSingle();
+      const stateForCaps = forced === "guest_pullup" ? "pulledup" : forced === "guest_waitlist" ? "waitlist" : forced === "guest_rsvp" ? "lobby" : null;
+      access = {
+        level: forced,
+        role: forced === "host" ? "owner" : null,
+        reason: forced === "no_access" ? "forced" : null,
+        permissions: stateForCaps ? resolveCapabilities(evp, stateForCaps) : null,
+      };
+    } else {
+      access = await resolveEventAccess({
+        userId: viewer.impersonating ? viewer.authUserId : (req.user?.id || null),
+        personId: viewer.person?.id || null,
+        eventId,
+      });
+    }
     const { data: ev } = await supabase
       .from("events")
       .select("title, slug, starts_at, ends_at, status, location")
@@ -5619,10 +5637,31 @@ app.get("/events/:id/access", optionalAuth, async (req, res) => {
       event: ev
         ? { title: ev.title, slug: ev.slug, startsAt: ev.starts_at, endsAt: ev.ends_at, status: ev.status, location: ev.location }
         : null,
+      // Admin View-as context (so the UI banner can show it). Null for everyone else.
+      viewingAs: viewer.impersonating ? { id: viewer.person?.id, name: viewer.person?.name || null } : null,
+      forced: forced || null,
     });
   } catch (err) {
     console.error("[access] error:", err.message);
     res.status(500).json({ error: "Failed to resolve access" });
+  }
+});
+
+// Admin-only people search — powers the "View as" user picker. requireAdmin
+// gates it; the query is sanitized before going into the PostgREST filter.
+app.get("/admin/people-search", requireAdmin, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const q = (req.query.q || "").toString().replace(/[^a-zA-Z0-9 @._-]/g, "").trim().slice(0, 60);
+    let query = supabase.from("people").select("id, name, email, auth_user_id").order("name").limit(25);
+    if (q) query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%`);
+    const { data } = await query;
+    res.json({
+      people: (data || []).map((p) => ({ id: p.id, name: p.name || p.email || "Someone", email: p.email, hasAccount: !!p.auth_user_id })),
+    });
+  } catch (err) {
+    console.error("[admin-people-search] error:", err.message);
+    res.status(500).json({ error: "search_failed" });
   }
 });
 
@@ -5646,9 +5685,10 @@ app.post("/p/:eventId/pullup", optionalAuth, async (req, res) => {
 
     const { supabase } = await import("./supabase.js");
     const claimedEmail = (email || req.user?.email || "").trim().toLowerCase();
-    if (!claimedEmail) return res.status(401).json({ ok: false, reason: "needs_identify" });
-
-    let person = await findPersonByEmail(claimedEmail);
+    // Admin view-as can pull up AS a chosen person; otherwise resolve by email.
+    const vw = await resolveViewer(req, { email: claimedEmail || null });
+    let person = vw.person;
+    if (!person && !claimedEmail) return res.status(401).json({ ok: false, reason: "needs_identify" });
     if (!person) {
       const { data: created, error } = await supabase
         .from("people")
@@ -5679,7 +5719,8 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
     const { supabase } = await import("./supabase.js");
 
     const email = (req.query.email || req.user?.email || "").toString().trim().toLowerCase();
-    const person = email ? await findPersonByEmail(email) : null;
+    const viewer = await resolveViewer(req, { email: email || null });
+    const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
 
     // Time-phased gate: pulled up (forever) OR in the pre-event lobby (RSVP'd +
@@ -5744,7 +5785,8 @@ app.post("/p/:eventId/upload", optionalAuth, async (req, res) => {
     const { supabase } = await import("./supabase.js");
 
     const norm = (email || req.user?.email || "").toString().trim().toLowerCase();
-    const person = await resolvePerson({ userId: req.user?.id || null, email: norm || null });
+    const viewer = await resolveViewer(req, { email: norm || null });
+    const person = viewer.person;
     if (!person) return res.status(403).json({ ok: false, reason: "no_identity" });
 
     const access = await getRoomAccess(person.id, eventId);
@@ -5870,7 +5912,8 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
 
     // Viewer-relative state across every event we might render (hosted + pulled-up).
     const email = (req.query.email || req.user?.email || "").toString().trim().toLowerCase();
-    const viewer = await resolvePerson({ userId: req.user?.id || null, email: email || null });
+    const vw = await resolveViewer(req, { email: email || null });
+    const viewer = vw.person;
     const allIds = [...new Set([...hostedIds, ...pulledUpRows.map((e) => e.id)])];
     let myPullups = new Set(), myRsvps = new Set();
     if (viewer && allIds.length) {
@@ -5937,12 +5980,13 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
 // it's shared, event-scoped, topic-organised. Topics are host-curated.
 
 // Topics a guest can see (pull-up gated).
-app.get("/p/:eventId/channels", async (req, res) => {
+app.get("/p/:eventId/channels", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
     const { getRoomAccess, listChannels } = await import("./services/pullupService.js");
     const email = (req.query.email || "").toString().trim().toLowerCase();
-    const person = email ? await findPersonByEmail(email) : null;
+    const viewer = await resolveViewer(req, { email: email || null });
+    const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
     const access = await getRoomAccess(person.id, eventId);
     if (access.access === "locked") {
@@ -5956,12 +6000,13 @@ app.get("/p/:eventId/channels", async (req, res) => {
   }
 });
 
-app.get("/p/:eventId/space", async (req, res) => {
+app.get("/p/:eventId/space", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
     const { getRoomAccess, listSpaceMessages } = await import("./services/pullupService.js");
     const email = (req.query.email || "").toString().trim().toLowerCase();
-    const person = email ? await findPersonByEmail(email) : null;
+    const viewer = await resolveViewer(req, { email: email || null });
+    const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
     const access = await getRoomAccess(person.id, eventId);
     if (access.access === "locked") {
@@ -5975,13 +6020,14 @@ app.get("/p/:eventId/space", async (req, res) => {
   }
 });
 
-app.post("/p/:eventId/space", async (req, res) => {
+app.post("/p/:eventId/space", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
     const { email, body, channelId } = req.body || {};
     const { getRoomAccess, postSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
     const norm = (email || "").toString().trim().toLowerCase();
-    const person = norm ? await findPersonByEmail(norm) : null;
+    const viewer = await resolveViewer(req, { email: norm || null });
+    const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
     const access = await getRoomAccess(person.id, eventId);
     if (access.access === "locked") {

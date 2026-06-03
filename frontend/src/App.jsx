@@ -45,6 +45,7 @@ import EventRoomPage from "./pages/EventRoomPage";
 import RoomPage from "./pages/RoomPage";
 import HostCheckinPage from "./pages/HostCheckinPage";
 import NodeProfilePage from "./pages/NodeProfilePage";
+import { ViewAsBar } from "./components/admin/ViewAsBar.jsx";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
@@ -76,6 +77,7 @@ function App() {
       {/* The PullUp AI coach widget — only mounted on the create/edit-event
           builder (it gets in the way of the Room's chat composer elsewhere). */}
       <CoachWidgetGate />
+      <ViewAsBar />
       <Routes>
         {/* Public — landing page renders the slide shell. /login and
             /start point at the same component so the URL still works

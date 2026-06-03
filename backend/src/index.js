@@ -4269,35 +4269,61 @@ app.post(
 
       // Send waitlist offer email with payment link
       try {
-        await sendEmail({
-          to: person.email,
-          subject: "A spot has opened up!",
-          html: waitlistOfferEmail({
-            name: rsvp.name || person.name || "there",
-            eventTitle: event.title,
-            imageUrl: event.coverImageUrl || event.imageUrl || "",
-            location: event.location || "",
-            startsAt: event.startsAt || "",
-            endsAt: event.endsAt || "",
-            timezone: event.timezone || "",
-            plusOnes: Number(rsvp.plusOnes) || 0,
-            slug: event.slug || "",
-            frontendUrl,
-            offerLink: link,
-            isPaidEvent: true,
-            expiresInMinutes: Math.max(1, Math.round((expiresAt.getTime() - Date.now()) / (60 * 1000))),
-            hideDate: event.hideDate || false,
-            hideLocation: event.hideLocation || false,
-            dateRevealHint: event.dateRevealHint || "",
-            revealHint: event.revealHint || "",
-            ...hostBrand,
-            brand: event.brand
-              ? {
-                  background:   event.brand.backgroundColor || null,
-                  primaryColor: event.brand.buttonColor || null,
-                }
-              : {},
-          }),
+        // Dual-rail: a freed spot is urgent + time-boxed — WhatsApp is the right
+        // rail when we have a verified number; email is the floor. The claim link
+        // rides in the template body (no button-param dependency).
+        const offerHostProfile = await getUserProfile(event.hostId).catch(() => null);
+        await dispatchMessage({
+          recipient: {
+            id: person.id || null,
+            email: person.email,
+            phone_e164: person.phone_e164 || null,
+            phone_verified_at: person.phone_verified_at || null,
+            do_not_contact: person.do_not_contact || false,
+          },
+          hostProfile: offerHostProfile,
+          whatsapp: {
+            templateKey: "waitlist_promotion",
+            variables: {
+              guest_first_name: (rsvp.name || person.name || "there").split(/\s+/)[0] || "there",
+              event_title: event.title || "the event",
+              link,
+            },
+          },
+          email: {
+            subject: "A spot has opened up!",
+            htmlBody: waitlistOfferEmail({
+              name: rsvp.name || person.name || "there",
+              eventTitle: event.title,
+              imageUrl: event.coverImageUrl || event.imageUrl || "",
+              location: event.location || "",
+              startsAt: event.startsAt || "",
+              endsAt: event.endsAt || "",
+              timezone: event.timezone || "",
+              plusOnes: Number(rsvp.plusOnes) || 0,
+              slug: event.slug || "",
+              frontendUrl,
+              offerLink: link,
+              isPaidEvent: true,
+              expiresInMinutes: Math.max(1, Math.round((expiresAt.getTime() - Date.now()) / (60 * 1000))),
+              hideDate: event.hideDate || false,
+              hideLocation: event.hideLocation || false,
+              dateRevealHint: event.dateRevealHint || "",
+              revealHint: event.revealHint || "",
+              ...hostBrand,
+              brand: event.brand
+                ? {
+                    background:   event.brand.backgroundColor || null,
+                    primaryColor: event.brand.buttonColor || null,
+                  }
+                : {},
+            }),
+          },
+          context: {
+            personId: person.id || null,
+            hostProfileId: event.hostId || null,
+            idempotencyKey: `wl-offer-${rsvpId}-${expiresAt.getTime()}`,
+          },
         });
       } catch (emailErr) {
         console.error("Failed to send waitlist offer email:", emailErr);

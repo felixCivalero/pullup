@@ -309,21 +309,19 @@ export const TEMPLATES = {
     meta_category: "UTILITY",
     locale: "en",
     status: "draft",
-    body: "Good news {{1}} — a spot just opened up for {{2}} 🎟️\n\nTap below to claim it before someone else does.",
-    variables: ["guest_first_name", "event_title"],
-    render: ({ guest_first_name, event_title }) =>
-      `Good news ${guest_first_name} — a spot just opened up for ${event_title} 🎟️\n\nTap below to claim it before someone else does.`,
+    // Link rides in the body (like auth_magic_link) rather than a URL button —
+    // our claim link is /e/:slug?wl=<token>, which a fixed button URL can't carry
+    // cleanly. UTILITY templates with a link in the body are accepted (precedent:
+    // auth_magic_link).
+    body: "Good news {{1}} — a spot just opened up for {{2}} 🎟️\n\nClaim it before it's gone: {{3}}",
+    variables: ["guest_first_name", "event_title", "link"],
+    render: ({ guest_first_name, event_title, link }) =>
+      `Good news ${guest_first_name} — a spot just opened up for ${event_title} 🎟️\n\nClaim it before it's gone: ${link}`,
     components: [
       {
         type: "BODY",
-        text: "Good news {{1}} — a spot just opened up for {{2}} 🎟️\n\nTap below to claim it before someone else does.",
-        example: { body_text: [["Adam", "Sundowner Session #4"]] },
-      },
-      {
-        type: "BUTTONS",
-        buttons: [
-          { type: "URL", text: "Claim spot", url: "https://pullup.se/waitlist/{{1}}", example: ["jwt-token"] },
-        ],
+        text: "Good news {{1}} — a spot just opened up for {{2}} 🎟️\n\nClaim it before it's gone: {{3}}",
+        example: { body_text: [["Adam", "Sundowner Session #4", "https://pullup.se/e/sundowner-4?wl=abc123"]] },
       },
     ],
   },

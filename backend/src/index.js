@@ -1310,6 +1310,45 @@ app.get("/v/:token", async (req, res) => {
 });
 
 // ---------------------------
+// PASSWORDLESS LOGIN — email magic link
+// The default front door for everyone (guest or host): no password. We mint a
+// Supabase magic link server-side and deliver it through our branded email.
+// Always returns {ok:true} for a valid email shape (don't reveal whether an
+// account exists), and throttles per-email to keep an inbox from being spammed.
+// ---------------------------
+const _loginLinkCooldown = new Map(); // email -> last-sent ms (in-memory, best-effort)
+const LOGIN_LINK_COOLDOWN_MS = 60 * 1000;
+app.post("/auth/request-link", async (req, res) => {
+  try {
+    const { email, name, next } = req.body || {};
+    const { isValidEmail, normalizeEmail, requestLoginLink } = await import("./services/account.js");
+    const norm = normalizeEmail(email);
+    if (!isValidEmail(norm)) return res.status(400).json({ ok: false, error: "invalid_email" });
+
+    // Per-email cooldown (clear stale entries opportunistically).
+    const now = Date.now();
+    const last = _loginLinkCooldown.get(norm) || 0;
+    if (now - last < LOGIN_LINK_COOLDOWN_MS) {
+      // Don't reveal timing details; just acknowledge.
+      return res.json({ ok: true, throttled: true });
+    }
+    _loginLinkCooldown.set(norm, now);
+    if (_loginLinkCooldown.size > 5000) _loginLinkCooldown.clear();
+
+    const safeNext = typeof next === "string" && next.startsWith("/") ? next : "/room";
+    const result = await requestLoginLink({ email: norm, name, next: safeNext });
+    // Acknowledge regardless of whether the account existed (no enumeration).
+    if (!result.ok && result.error === "invalid_email") {
+      return res.status(400).json({ ok: false, error: "invalid_email" });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[auth/request-link] error:", err.message);
+    res.status(500).json({ ok: false, error: "failed" });
+  }
+});
+
+// ---------------------------
 // INTERNAL: SES EventBridge forwarder
 // ---------------------------
 app.post("/internal/webhooks/ses-eventbridge", async (req, res) => {
@@ -3243,6 +3282,21 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     const isPendingPayment =
       result.rsvp.bookingStatus === "PENDING_PAYMENT" ||
       (stripeClientSecret && stripePayment);
+
+    // The unification spine: every RSVP'er becomes a real (passwordless)
+    // Supabase account, linked to their people row — so they're one tap from
+    // hosting later, and the rooms can key off a real session instead of a
+    // typed email. Best-effort: an auth hiccup must NEVER fail the RSVP.
+    try {
+      const { ensureAccountForPerson } = await import("./services/account.js");
+      await ensureAccountForPerson({
+        personId: result.rsvp.personId || null,
+        email: result.rsvp.email || name,
+        name: result.rsvp.name || name || null,
+      });
+    } catch (acctErr) {
+      logger?.warn?.("[rsvp] account ensure failed (non-blocking)", { error: acctErr?.message });
+    }
 
     // Fetch host branding for email footers
     let hostBrand = {};

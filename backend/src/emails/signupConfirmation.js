@@ -441,6 +441,57 @@ ${emailFooter({ message: isWaitlist ? "If spots open up, you'll receive a notifi
 }
 
 /* ══════════════════════════════════════════
+   PASSWORDLESS SIGN-IN LINK EMAIL
+   One-tap magic link. No password, ever — this link signs you in.
+   ══════════════════════════════════════════ */
+export function loginLinkEmail({
+  name = "",
+  actionLink,
+  brandName = "",
+  contactEmail = "",
+  frontendUrl = "https://pullup.se",
+  brand = null,
+}) {
+  const b = resolveEmailBrand(brand);
+  const greeting = name ? `Hi ${name},` : "Welcome back";
+
+  const content = `
+${logoHeader(b)}
+<!-- Badge -->
+<tr><td align="center" style="padding:24px 0 12px;">
+  ${badge("SIGN IN", b)}
+</td></tr>
+
+<!-- Heading -->
+<tr><td style="padding:8px 20px 0;text-align:center;">
+  <h1 class="pu-text" style="margin:0;font-size:24px;font-weight:700;color:${b.ink};line-height:1.3;font-family:${b.fontStack};">${greeting}</h1>
+</td></tr>
+
+<!-- Message -->
+<tr><td style="padding:10px 20px 0;text-align:center;">
+  <p style="margin:0;font-size:15px;color:${rgbaFromHex(b.ink, 0.7)};line-height:1.5;font-family:${b.fontStack};">
+    Tap below to open PullUp. No password needed — this link signs you straight in.
+  </p>
+</td></tr>
+
+<!-- CTA -->
+<tr><td align="center" style="padding:22px 0 8px;">
+  ${ctaButton(actionLink, "OPEN PULLUP", b)}
+</td></tr>
+
+<!-- Fine print -->
+<tr><td align="center" style="padding:6px 20px 0;">
+  <p class="pu-muted" style="margin:0;font-size:12px;color:${b.muted};line-height:1.5;font-family:${b.fontStack};">
+    This link works once and expires soon. If you didn't ask to sign in, you can safely ignore this email.
+  </p>
+</td></tr>
+
+${emailFooter({ brandName, contactEmail, frontendUrl }, b)}`;
+
+  return emailShell(content, b);
+}
+
+/* ══════════════════════════════════════════
    24-HOUR REMINDER EMAIL
    ══════════════════════════════════════════ */
 export function reminder24hEmail({

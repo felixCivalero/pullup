@@ -5644,14 +5644,22 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
     if (access.access === "locked") {
       return res.status(403).json({ error: "locked", reason: access.reason, phase: access.phase });
     }
+    const caps = access.permissions || {};
+    // The host can close the room at this state (e.g. a teaser-only lobby that
+    // opens once people pull up). Pulled-up read is always on (earned).
+    if (!caps.read) {
+      return res.status(403).json({ error: "locked", reason: "read_off", phase: access.phase });
+    }
 
-    // Co-presence is pull-up-keyed, so it's naturally empty in the lobby (nobody
-    // has pulled up yet) — the lobby leans on the "coming" count instead.
-    const coIds = await getCoPresentAtEvent(person.id, eventId);
+    // Co-presence is pull-up-keyed (empty in the lobby) AND only shown when the
+    // host lets this state see who's here.
     let coPresent = [];
-    if (coIds.length) {
-      const { data } = await supabase.from("people").select("id,name,instagram").in("id", coIds);
-      coPresent = (data || []).map((p) => ({ id: p.id, name: p.name, instagram: p.instagram }));
+    if (caps.seeWho) {
+      const coIds = await getCoPresentAtEvent(person.id, eventId);
+      if (coIds.length) {
+        const { data } = await supabase.from("people").select("id,name,instagram").in("id", coIds);
+        coPresent = (data || []).map((p) => ({ id: p.id, name: p.name, instagram: p.instagram }));
+      }
     }
 
     const { data: media } = await supabase
@@ -5668,7 +5676,7 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
     });
 
     const coming = await getComingCount(eventId);
-    res.json({ eventId, access: access.access, phase: access.phase, coming, coPresent, photos, photoCount: photos.length });
+    res.json({ eventId, access: access.access, phase: access.phase, permissions: caps, coming, coPresent, photos, photoCount: photos.length });
   } catch (err) {
     console.error("[interior] error:", err.message);
     res.status(500).json({ error: "Failed to load interior" });
@@ -5831,6 +5839,7 @@ app.get("/p/:eventId/channels", async (req, res) => {
     if (access.access === "locked") {
       return res.status(403).json({ error: "locked", reason: access.reason });
     }
+    if (!access.permissions?.read) return res.status(403).json({ error: "locked", reason: "read_off" });
     res.json({ channels: await listChannels(eventId) });
   } catch (err) {
     console.error("[channels:get] error:", err.message);
@@ -5849,6 +5858,7 @@ app.get("/p/:eventId/space", async (req, res) => {
     if (access.access === "locked") {
       return res.status(403).json({ error: "locked", reason: access.reason });
     }
+    if (!access.permissions?.read) return res.status(403).json({ error: "locked", reason: "read_off" });
     res.json({ messages: await listSpaceMessages(eventId, { channelId: req.query.channelId || null }) });
   } catch (err) {
     console.error("[space:get] error:", err.message);
@@ -5867,6 +5877,10 @@ app.post("/p/:eventId/space", async (req, res) => {
     const access = await getRoomAccess(person.id, eventId);
     if (access.access === "locked") {
       return res.status(403).json({ ok: false, error: "locked", reason: access.reason });
+    }
+    // Host-configurable: can this state post? (lobby may be read-only.)
+    if (!access.permissions?.post) {
+      return res.status(403).json({ ok: false, error: "locked", reason: "posting_off" });
     }
     const r = await postSpaceMessage({ eventId, channelId: channelId || null, personId: person.id, authorName: person.name || "Someone", body });
     if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
@@ -5935,6 +5949,40 @@ app.post("/host/events/:id/space", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[host-space:post] error:", err.message);
     res.status(500).json({ ok: false, reason: "post_failed" });
+  }
+});
+
+// Room access — the host-configurable capability grid: what RSVP'd (lobby) vs
+// pulled-up guests can DO. The STATE stays system-determined (intent vs proof);
+// this only sets capabilities. The host's pen (create topics, the QR door,
+// moderate) is never a guest permission — it's separate.
+app.get("/host/events/:id/room-permissions", requireAuth, async (req, res) => {
+  try {
+    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { supabase } = await import("./supabase.js");
+    const { resolveGrid, DEFAULT_ROOM_PERMISSIONS, CAPABILITIES } = await import("./services/roomPermissions.js");
+    const { data: ev } = await supabase.from("events").select("room_permissions").eq("id", req.params.id).maybeSingle();
+    res.json({ permissions: resolveGrid(ev || {}), defaults: DEFAULT_ROOM_PERMISSIONS, capabilities: CAPABILITIES });
+  } catch (err) {
+    console.error("[room-permissions:get] error:", err.message);
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+app.put("/host/events/:id/room-permissions", requireAuth, async (req, res) => {
+  try {
+    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { supabase } = await import("./supabase.js");
+    const { sanitizePermissions, resolveGrid } = await import("./services/roomPermissions.js");
+    const clean = sanitizePermissions(req.body?.permissions || {});
+    const { error } = await supabase.from("events").update({ room_permissions: clean }).eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ ok: true, permissions: resolveGrid({ room_permissions: clean }) });
+  } catch (err) {
+    console.error("[room-permissions:put] error:", err.message);
+    res.status(500).json({ ok: false, error: "failed" });
   }
 });
 

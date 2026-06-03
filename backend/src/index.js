@@ -5827,6 +5827,20 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     }
     const inOrbit = myPullups.size > 0 || myRsvps.size > 0;
 
+    // GATE — a person's room is private. You only get in if you've ever RSVP'd or
+    // pulled up to one of THEIR OWN events (the low "seen-content" bar); the owner
+    // always gets in. Otherwise return minimal identity + gated:true so the UI can
+    // show a graceful "not in this room" with a way back — never the world, stats,
+    // events, or the people list (that last one is the real leak this closes).
+    const enteredViaHosted = isOwner || hostedIds.some((id) => myRsvps.has(id) || myPullups.has(id));
+    if (!enteredViaHosted) {
+      return res.json({
+        gated: true,
+        node: { id: nodeRoomId, name: nodeName, avatar: nodeAvatar },
+        viewer: { known: !!viewer, inOrbit: false, isOwner: false },
+      });
+    }
+
     const now = Date.now();
     const mapTile = (e) => {
       const end = e.ends_at ? new Date(e.ends_at).getTime() : (e.starts_at ? new Date(e.starts_at).getTime() + 12 * 3600 * 1000 : null);

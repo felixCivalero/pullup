@@ -55,6 +55,33 @@ export default function NodeProfilePage() {
   if (err) return <Shell><div style={{ color: colors.textMuted, textAlign: "center", marginTop: 40 }}>This room isn't available.</div></Shell>;
   if (!node) return <Shell><div style={{ color: colors.textFaded, textAlign: "center", marginTop: 40 }}>Loading…</div></Shell>;
 
+  // Gated — you haven't been to one of this person's events, so their room is
+  // closed to you. Say it plainly, point the way in, give a way back. Never the
+  // stats / events / world (the backend withholds those entirely).
+  if (data.gated) {
+    return (
+      <Shell>
+        <div style={{ maxWidth: 420, margin: "60px auto 0", textAlign: "center", fontFamily: SF }}>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", margin: "0 auto 18px", background: "linear-gradient(135deg,#ff45ad,#ec178f)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 800, color: "#fff" }}>
+            {node.avatar ? <img src={node.avatar} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : initials(node.name)}
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: colors.text, margin: "0 0 10px" }}>
+            {firstName(node.name)}'s room is private.
+          </h1>
+          <p style={{ fontSize: 14.5, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 22px" }}>
+            You're not in it yet. RSVP to one of {firstName(node.name)}'s events and you're in — that's the key.
+          </p>
+          <button
+            onClick={() => navigate(-1)}
+            style={{ padding: "11px 22px", borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.text, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: SF }}
+          >
+            Go back
+          </button>
+        </div>
+      </Shell>
+    );
+  }
+
   const c = node.counts || {};
   const whose = isOwner ? "your" : `${firstName(node.name)}'s`;
   const enter = (e) => {

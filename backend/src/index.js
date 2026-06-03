@@ -1349,6 +1349,79 @@ app.post("/auth/request-link", async (req, res) => {
 });
 
 // ---------------------------
+// WHATSAPP LOGIN — Supabase "Send SMS Hook" routed over WhatsApp
+//
+// The native-as-possible bridge: Supabase phone-OTP owns the code + the session
+// (real security, real verifyOtp), but instead of letting it send the code by
+// SMS we register THIS endpoint as the Send SMS Hook. Supabase calls us with the
+// {phone, otp}; we deliver the code over WhatsApp (our Meta Cloud rail). The
+// guest types it back into verifyOtp → Supabase mints a genuine session. So the
+// account, session, and OTP are 100% native Supabase; only delivery is ours.
+//
+// Auth: Standard Webhooks signature (HMAC-SHA256) using the hook secret Supabase
+// shows when you create the hook (env SUPABASE_AUTH_HOOK_SECRET, "v1,whsec_..").
+// ---------------------------
+function verifySendSmsHook(req) {
+  const secret = process.env.SUPABASE_AUTH_HOOK_SECRET || "";
+  // Dev convenience: in sandbox with no secret set, don't block local testing.
+  if (!secret) return WHATSAPP_SANDBOX_MODE;
+  try {
+    const id = req.headers["webhook-id"];
+    const ts = req.headers["webhook-timestamp"];
+    const sigHeader = req.headers["webhook-signature"] || "";
+    if (!id || !ts || !sigHeader) return false;
+    const raw = req.rawBody ? req.rawBody.toString("utf8") : JSON.stringify(req.body || {});
+    // Secret is base64 after the "v1,whsec_" prefix.
+    const b64 = secret.split(",").pop().replace(/^whsec_/, "");
+    const key = Buffer.from(b64, "base64");
+    const signed = `${id}.${ts}.${raw}`;
+    const expected = crypto.createHmac("sha256", key).update(signed).digest("base64");
+    // Header may carry several space-separated "v1,<sig>" — match any.
+    return sigHeader.split(" ").some((part) => {
+      const sig = part.includes(",") ? part.split(",")[1] : part;
+      try {
+        return sig && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+      } catch {
+        return false;
+      }
+    });
+  } catch (err) {
+    console.error("[send-sms-hook] verify error:", err.message);
+    return false;
+  }
+}
+
+app.post("/auth/hooks/send-sms", async (req, res) => {
+  try {
+    if (!verifySendSmsHook(req)) {
+      return res.status(401).json({ error: { http_code: 401, message: "invalid signature" } });
+    }
+    // Supabase payload: { user: { phone }, sms: { otp } }.
+    const phoneRaw = req.body?.user?.phone || req.body?.phone || "";
+    const otp = req.body?.sms?.otp || req.body?.otp || "";
+    if (!phoneRaw || !otp) {
+      return res.status(400).json({ error: { http_code: 400, message: "missing phone or otp" } });
+    }
+    const to = phoneRaw.startsWith("+") ? phoneRaw : `+${phoneRaw}`;
+
+    const { sendTemplate } = await import("./whatsapp/index.js");
+    await sendTemplate({
+      to,
+      templateKey: "auth_whatsapp_otp",
+      variables: { code: String(otp) },
+      legalBasis: "consent",
+      idempotencyKey: `wa-otp:${to}:${otp}`,
+    });
+    // 200 with empty body tells Supabase the SMS hook handled delivery.
+    res.json({});
+  } catch (err) {
+    console.error("[send-sms-hook] error:", err.message);
+    // Surface to Supabase so it can fall back / report.
+    res.status(500).json({ error: { http_code: 500, message: "whatsapp delivery failed" } });
+  }
+});
+
+// ---------------------------
 // INTERNAL: SES EventBridge forwarder
 // ---------------------------
 app.post("/internal/webhooks/ses-eventbridge", async (req, res) => {

@@ -179,12 +179,18 @@ export function AuthCard({
 }) {
   const t = THEMES[theme] || THEMES.dark;
   const inputStyle = buildInputStyle(t);
-  const { signInWithGoogle, requestMagicLink } = useAuth();
+  const { signInWithGoogle, requestMagicLink, sendWhatsappCode, verifyWhatsappCode } = useAuth();
   const [email, setEmail] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [formError, setFormError] = useState("");
   // Which method the user has committed to. false = the three-button picker.
   const [emailOpen, setEmailOpen] = useState(false);
+  // WhatsApp login (native Supabase phone OTP, code delivered over WhatsApp).
+  const [waOpen, setWaOpen] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [waCode, setWaCode] = useState("");
+  const [waStage, setWaStage] = useState("phone"); // "phone" | "code"
+  const phoneRef = useRef(null);
   // Passwordless: once we've sent the magic link, swap the form for a
   // "check your inbox" confirmation. No password, no account-enumeration —
   // "log in" and "sign up" are the same action (the backend find-or-creates).
@@ -261,6 +267,64 @@ export function AuthCard({
     }
   };
 
+  // ── WhatsApp login (native Supabase phone OTP; code arrives on WhatsApp) ──
+  const normPhone = (p) => {
+    const t = (p || "").trim().replace(/[^\d+]/g, "");
+    return t.startsWith("+") ? t : `+${t}`;
+  };
+  const openWa = () => {
+    if (signingIn) return;
+    setFormError("");
+    setWaOpen(true);
+    setWaStage("phone");
+    trackEvent(`${trackingPrefix}_wa_open`);
+    setTimeout(() => phoneRef.current?.focus(), 80);
+  };
+  const closeWa = () => {
+    setWaOpen(false);
+    setWaStage("phone");
+    setWaCode("");
+    setFormError("");
+  };
+  const handleSendWaCode = async () => {
+    if (signingIn) return;
+    const ph = normPhone(phone);
+    if (ph.replace(/\D/g, "").length < 8) {
+      setFormError("Enter your number with country code, e.g. +46…");
+      return;
+    }
+    setFormError("");
+    trackEvent(`${trackingPrefix}_wa_send`);
+    if (funnelTrack) trackEvent("auth_start", { method: "whatsapp" });
+    try {
+      setSigningIn(true);
+      await sendWhatsappCode(ph);
+      setWaStage("code");
+    } catch {
+      setFormError("Couldn't send a WhatsApp code. Check the number, or try another way.");
+    } finally {
+      setSigningIn(false);
+    }
+  };
+  const handleVerifyWa = async () => {
+    if (signingIn) return;
+    const code = waCode.trim();
+    if (!code) {
+      setFormError("Enter the code from WhatsApp.");
+      return;
+    }
+    setFormError("");
+    try {
+      setSigningIn(true);
+      await verifyWhatsappCode(normPhone(phone), code);
+      onSuccess?.("whatsapp");
+    } catch {
+      setFormError("That code didn't match. Try again or resend.");
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
   return (
     <form
       onSubmit={handleEmailSubmit}
@@ -273,7 +337,7 @@ export function AuthCard({
     >
       {/* ── Method picker (Google / WhatsApp / email). Collapses when the
           email form opens, handing its slot to the form below. ── */}
-      <div style={collapsible(!emailOpen)} aria-hidden={emailOpen}>
+      <div style={collapsible(!emailOpen && !waOpen)} aria-hidden={emailOpen || waOpen}>
         <div style={collapsibleInner}>
           <button
             type="button"
@@ -291,33 +355,21 @@ export function AuthCard({
             <span>Continue with Google</span>
           </button>
 
-          {/* WhatsApp — visible but disabled until the passwordless backend
-              lands. Structurally ready to become a phone input then. */}
+          {/* WhatsApp — native Supabase phone OTP, code delivered over WhatsApp. */}
           <button
             type="button"
-            disabled
-            aria-disabled="true"
-            title="WhatsApp sign-in is coming soon"
-            style={optionButtonStyle(t, { muted: true, disabled: true })}
+            onClick={openWa}
+            disabled={signingIn}
+            style={optionButtonStyle(t)}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = t.optionHoverBg;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = t.optionBg;
+            }}
           >
-            <FaWhatsapp size={18} color={t.mutedColor} />
+            <FaWhatsapp size={18} color="#25D366" />
             <span>Continue with WhatsApp</span>
-            <span
-              style={{
-                position: "absolute",
-                right: 14,
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                padding: "3px 8px",
-                borderRadius: 999,
-                background: t.pillBg,
-                color: t.pillColor,
-              }}
-            >
-              Coming soon
-            </span>
           </button>
 
           <button
@@ -436,6 +488,123 @@ export function AuthCard({
                 Use a different email
               </button>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── WhatsApp form — native phone OTP, code delivered over WhatsApp. ── */}
+      <div style={collapsible(waOpen)} aria-hidden={!waOpen}>
+        <div style={collapsibleInner}>
+          <button
+            type="button"
+            onClick={closeWa}
+            style={{
+              alignSelf: "flex-start",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "transparent",
+              border: "none",
+              padding: "2px 0",
+              cursor: "pointer",
+              color: t.backColor,
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            <ArrowLeft size={15} />
+            Other ways to sign in
+          </button>
+
+          {waStage === "phone" ? (
+            <>
+              <input
+                ref={phoneRef}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSendWaCode(); } }}
+                placeholder="+46 70 123 45 67"
+                tabIndex={waOpen ? 0 : -1}
+                style={inputStyle}
+              />
+              <button
+                type="button"
+                onClick={handleSendWaCode}
+                disabled={signingIn}
+                tabIndex={waOpen ? 0 : -1}
+                style={{
+                  width: "100%",
+                  padding: "14px 0",
+                  borderRadius: 999,
+                  border: "none",
+                  background: "#25D366",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: signingIn ? "wait" : "pointer",
+                  opacity: signingIn ? 0.7 : 1,
+                  marginTop: 2,
+                }}
+              >
+                {signingIn ? "Sending…" : "Send WhatsApp code"}
+              </button>
+              <p style={{ margin: "2px 0 0", fontSize: 12, lineHeight: 1.5, color: t.mutedColor, textAlign: "center" }}>
+                We'll message a code on WhatsApp — no password.
+              </p>
+            </>
+          ) : (
+            <>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={waCode}
+                onChange={(e) => setWaCode(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleVerifyWa(); } }}
+                placeholder="6-digit code"
+                tabIndex={waOpen ? 0 : -1}
+                style={inputStyle}
+              />
+              <button
+                type="button"
+                onClick={handleVerifyWa}
+                disabled={signingIn}
+                tabIndex={waOpen ? 0 : -1}
+                style={{
+                  width: "100%",
+                  padding: "14px 0",
+                  borderRadius: 999,
+                  border: "none",
+                  background: t.submitBg,
+                  color: t.submitColor,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: signingIn ? "wait" : "pointer",
+                  opacity: signingIn ? 0.7 : 1,
+                  marginTop: 2,
+                }}
+              >
+                {signingIn ? "Verifying…" : "Verify & sign in"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setWaStage("phone"); setWaCode(""); setFormError(""); }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: t.createSecondaryColor,
+                  fontSize: 12,
+                  padding: "4px 0",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                Use a different number
+              </button>
+            </>
           )}
         </div>
       </div>

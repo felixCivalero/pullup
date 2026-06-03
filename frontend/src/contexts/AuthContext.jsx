@@ -187,6 +187,21 @@ export function AuthProvider({ children }) {
     return { ok: true };
   };
 
+  // WhatsApp login = Supabase's NATIVE phone OTP, with delivery routed over
+  // WhatsApp by our Send SMS Hook. signInWithOtp triggers Supabase to generate
+  // the code (and call our hook → WhatsApp); verifyOtp checks it and mints a
+  // real session — identical security + session to email, just a WhatsApp code.
+  const sendWhatsappCode = async (phone) => {
+    const { error } = await supabase.auth.signInWithOtp({ phone });
+    if (error) throw error;
+    return { ok: true };
+  };
+  const verifyWhatsappCode = async (phone, token) => {
+    const { data, error } = await supabase.auth.verifyOtp({ phone, token, type: "sms" });
+    if (error) throw error;
+    return { data };
+  };
+
   const signInWithGoogle = async (returnTo = null) => {
     // Land every OAuth round-trip on the dedicated /auth/callback handler
     // rather than dropping the user straight onto a protected route. The
@@ -228,6 +243,8 @@ export function AuthProvider({ children }) {
     loading,
     signInWithEmailPassword,
     requestMagicLink,
+    sendWhatsappCode,
+    verifyWhatsappCode,
     signInWithGoogle,
     signOut,
     // Helper to get access token for API requests

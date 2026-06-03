@@ -568,47 +568,90 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
           const frontendUrl =
             process.env.FRONTEND_URL || "https://pullup.party";
 
-          // Fetch host branding for email footer
-          let hostBrand = {};
-          try {
-            const { getUserProfile } = await import("./data.js");
-            const hostProfile = await getUserProfile(event.hostId);
-            hostBrand = {
-              brandName: hostProfile?.brand || "",
-              brandWebsite: hostProfile?.brandWebsite || "",
-              contactEmail: hostProfile?.contactEmail || "",
-            };
-          } catch {}
+          // Fetch host profile once — drives the email footer brand AND the
+          // dispatch router's WhatsApp gating (whatsapp_enabled + signature).
+          const { getUserProfile, findPersonById } = await import("./data.js");
+          const hostProfileFull = await getUserProfile(event.hostId).catch(() => null);
+          const hostBrand = {
+            brandName: hostProfileFull?.brand || "",
+            brandWebsite: hostProfileFull?.brandWebsite || "",
+            contactEmail: hostProfileFull?.contactEmail || "",
+          };
 
-          await sendEmail({
-            to: rsvp.email,
-            subject: "Your spot is confirmed",
-            html: signupConfirmationEmail({
-              name: rsvp.name || "",
-              eventTitle: event.title,
-              date: new Date(event.startsAt).toLocaleString(),
-              isWaitlist: false,
-              imageUrl: event.coverImageUrl || event.imageUrl || "",
-              location: event.location || "",
-              startsAt: event.startsAt || "",
-              endsAt: event.endsAt || "",
-              timezone: event.timezone || "",
-              plusOnes: Number(rsvp.plusOnes) || 0,
-              slug: event.slug || "",
-              frontendUrl,
-              spotifyUrl: event.spotify || "",
-              ticketPrice: payment.amount ? (payment.amount / 100).toFixed(2) : 0,
-              ticketCurrency: payment.currency || event.ticketCurrency || "",
-              receiptUrl: receiptUrl || "",
-              hideDate: event.hideDate || false,
-              hideLocation: event.hideLocation || false,
-              dateRevealHint: event.dateRevealHint || "",
-              revealHint: event.revealHint || "",
-              ...hostBrand,
-            }),
+          // Resolve the person so the router can pick WhatsApp when they have a
+          // verified, opted-in number (paid guests now get the same dual-rail
+          // confirmation free guests already do).
+          let recipientPerson = null;
+          if (rsvp.personId) {
+            try { recipientPerson = await findPersonById(rsvp.personId); } catch {}
+          }
+          const recipient = {
+            id: rsvp.personId || null,
+            email: rsvp.email,
+            phone_e164: recipientPerson?.phone_e164 || null,
+            phone_verified_at: recipientPerson?.phone_verified_at || null,
+            do_not_contact: recipientPerson?.do_not_contact || false,
+          };
+          const firstName = (rsvp.name || "").split(/\s+/)[0] || "there";
+          const hostSig =
+            hostProfileFull?.whatsappSignature ||
+            (hostProfileFull?.name ? `It's me, ${hostProfileFull.name.split(/\s+/)[0]}` : "");
+          const friendlyWhen = (() => {
+            try {
+              return new Date(event.startsAt).toLocaleString("en-GB", {
+                weekday: "long", hour: "2-digit", minute: "2-digit", hour12: false,
+              });
+            } catch { return new Date(event.startsAt).toLocaleString(); }
+          })();
+
+          const { dispatch } = await import("./messaging/dispatch.js");
+          await dispatch({
+            recipient,
+            hostProfile: hostProfileFull,
+            whatsapp: {
+              templateKey: "rsvp_confirm",
+              variables: {
+                guest_first_name: firstName,
+                event_title: event.title || "the event",
+                event_when: friendlyWhen,
+                host_signature: hostSig || "PullUp",
+              },
+            },
+            email: {
+              subject: "Your spot is confirmed",
+              htmlBody: signupConfirmationEmail({
+                name: rsvp.name || "",
+                eventTitle: event.title,
+                date: new Date(event.startsAt).toLocaleString(),
+                isWaitlist: false,
+                imageUrl: event.coverImageUrl || event.imageUrl || "",
+                location: event.location || "",
+                startsAt: event.startsAt || "",
+                endsAt: event.endsAt || "",
+                timezone: event.timezone || "",
+                plusOnes: Number(rsvp.plusOnes) || 0,
+                slug: event.slug || "",
+                eventId: event.id || "",
+                frontendUrl,
+                spotifyUrl: event.spotify || "",
+                ticketPrice: payment.amount ? (payment.amount / 100).toFixed(2) : 0,
+                ticketCurrency: payment.currency || event.ticketCurrency || "",
+                receiptUrl: receiptUrl || "",
+                hideDate: event.hideDate || false,
+                hideLocation: event.hideLocation || false,
+                dateRevealHint: event.dateRevealHint || "",
+                revealHint: event.revealHint || "",
+                ...hostBrand,
+              }),
+            },
+            context: {
+              personId: rsvp.personId || null,
+              hostProfileId: event.hostId || null,
+              idempotencyKey: `pay-confirm-${payment.id}`,
+            },
           });
           console.log(
-            "[Webhook] ✅ Confirmation email sent after payment:",
+            "[Webhook] ✅ Confirmation dispatched after payment:",
             rsvp.email
           );
         }

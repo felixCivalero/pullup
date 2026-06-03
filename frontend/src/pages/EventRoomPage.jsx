@@ -22,6 +22,7 @@ import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
 import { authenticatedFetch } from "../lib/api.js";
+import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 import { MessageSquare } from "lucide-react";
 import { ROOM_EVENT, ROOM_BRIEF, ROOM_PEOPLE } from "../components/room/roomFixtures.js";
@@ -847,6 +848,8 @@ export default function EventRoomPage() {
           <StorageFolders />
 
           <HostRoomSpace eventId={id} roster={roster} />
+
+          <RoomAccessSettings eventId={id} />
         </div>
       </div>
     </div>

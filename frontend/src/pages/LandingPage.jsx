@@ -12,9 +12,9 @@ import { PullupEyes } from "../components/PullupEyes.jsx";
 // Mirrors the schema OnboardingPage was using so existing in-flight drafts
 // transfer across to the new slide-shell version.
 const DRAFT_KEY = "pullup_onboarding_draft";
-const EMPTY_DRAFT = { name: "", city: "", bio: "", brand: "", socials: {}, storage: "", resumeStep: 0 };
-const ONBOARDING_TOTAL_STEPS = 5;
-const ONBOARDING_STEP_AUTH = 4;
+const EMPTY_DRAFT = { name: "", city: "", brand: "", socials: {}, storage: "", resumeStep: 0 };
+const ONBOARDING_TOTAL_STEPS = 6;
+const ONBOARDING_STEP_AUTH = 5;
 
 // Social channels — same set Settings supports (saved as brandingLinks). Instagram
 // leads; the rest are added on demand to keep the step clean.
@@ -230,7 +230,6 @@ function OnboardingPanel({ isActive, user }) {
       const payload = {
         name: stored?.name || "",
         city: stored?.city || "",
-        bio: stored?.bio || "",
         brand: stored?.brand || "",
         brandingLinks,
         visitorId: getVisitorId() || null,
@@ -311,7 +310,7 @@ function OnboardingPanel({ isActive, user }) {
       <div className="auth-card-wrap">
         {step === 0 && (
           <>
-            <p className="auth-kicker">Step 1 of 5 · You</p>
+            <p className="auth-kicker">Step 1 of 6 · You</p>
             <h2 className="auth-title">
               What should we <span className="pink">call you</span>?
             </h2>
@@ -326,27 +325,33 @@ function OnboardingPanel({ isActive, user }) {
               placeholder="Your full name"
               autoFocus={isActive}
             />
-            <input
-              className="auth-input"
-              type="text"
-              value={draft.city}
-              onChange={(e) => update({ city: e.target.value })}
-              placeholder="City you're based in (optional)"
-            />
-            <input
-              className="auth-input"
-              type="text"
-              value={draft.bio}
-              onChange={(e) => update({ bio: e.target.value })}
-              placeholder="One line about you — “Rooftop nights in Stockholm”"
-              maxLength={90}
-            />
           </>
         )}
 
         {step === 1 && (
           <>
-            <p className="auth-kicker">Step 2 of 5 · Your brand</p>
+            <p className="auth-kicker">Step 2 of 6 · Where</p>
+            <h2 className="auth-title">
+              Where are you <span className="pink">based</span>?
+            </h2>
+            <p className="auth-sub">
+              Your home base helps put your events on the map and surface the
+              people near you. Skip if you'd rather not say.
+            </p>
+            <input
+              className="auth-input"
+              type="text"
+              value={draft.city}
+              onChange={(e) => update({ city: e.target.value })}
+              placeholder="Your city"
+              autoFocus={isActive}
+            />
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <p className="auth-kicker">Step 3 of 6 · Your brand</p>
             <h2 className="auth-title">Have a brand or studio?</h2>
             <p className="auth-sub">
               Drop the name if you host under one. Skip if it's just you for now — you can add this later in settings.
@@ -362,9 +367,9 @@ function OnboardingPanel({ isActive, user }) {
           </>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <>
-            <p className="auth-kicker">Step 3 of 5 · Channels</p>
+            <p className="auth-kicker">Step 4 of 6 · Channels</p>
             <h2 className="auth-title">
               Where can people <span className="pink">find you</span>?
             </h2>
@@ -424,9 +429,9 @@ function OnboardingPanel({ isActive, user }) {
           </>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <>
-            <p className="auth-kicker">Step 4 of 5 · Your storage</p>
+            <p className="auth-kicker">Step 5 of 6 · Your storage</p>
             <h2 className="auth-title">
               Give your stuff a <span className="pink">home you own</span>.
             </h2>
@@ -467,7 +472,7 @@ function OnboardingPanel({ isActive, user }) {
 
         {step === ONBOARDING_STEP_AUTH && (
           <>
-            <p className="auth-kicker">Step 5 of 5 · Claim it</p>
+            <p className="auth-kicker">Step 6 of 6 · Claim it</p>
             <h2 className="auth-title">
               {draft.name ? `Welcome, ${draft.name.split(" ")[0]}.` : "Almost there."}
             </h2>

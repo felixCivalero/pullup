@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { colors } from "../theme/colors.js";
-import { LoginModal } from "./LoginModal.jsx";
+import { AuthGate } from "./auth/AuthGate.jsx";
 
 // THE polite denial. One reusable screen that explains WHY a viewer can't get in
 // and points them the right way — never a dead end. Driven by the `reason` from
@@ -11,7 +11,7 @@ export function AccessGate({ reason, event, eventId }) {
 
   // No identity at all → the one door. Signing in re-resolves access.
   if (reason === "no_identity") {
-    return <LoginModal redirectTo={`/events/${eventId}/room`} />;
+    return <AuthGate redirectTo={`/events/${eventId}/room`} />;
   }
 
   const slug = event?.slug;

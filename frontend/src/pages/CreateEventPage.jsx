@@ -48,7 +48,7 @@ import { DesktopEventLayout } from "../components/DesktopEventLayout";
 import { VideoPlayer } from "../components/MediaCarousel";
 import { RsvpForm } from "../components/RsvpForm";
 import { useToast } from "../components/Toast";
-import { PublishAuthModal } from "../components/PublishAuthModal";
+import { AuthGate } from "../components/auth/AuthGate.jsx";
 import { useHostActions } from "../lib/useHostActions.js";
 import { useSetHostResource } from "../contexts/useHostResource.js";
 import { useAuth } from "../contexts/AuthContext";
@@ -5868,15 +5868,15 @@ export function CreateEventPage() {
         </button>
       </div>
 
-      {/* Publish auth modal — shown when unauthenticated user hits publish */}
+      {/* Publish auth — the one door. Google returns to /create so the
+          pendingPublish resume (see effect above) fires and auto-publishes;
+          for in-place auth (WhatsApp/email link) onAuthed just closes the
+          modal and that same resume does the publish. */}
       {showPublishAuth && (
-        <PublishAuthModal
-          onClose={() => setShowPublishAuth(false)}
-          onProfileReady={() => {
-            setShowPublishAuth(false);
-            // Profile is now complete — trigger publish
-            handleCreate(null);
-          }}
+        <AuthGate
+          redirectTo="/create"
+          onDismiss={() => setShowPublishAuth(false)}
+          onAuthed={() => setShowPublishAuth(false)}
         />
       )}
 

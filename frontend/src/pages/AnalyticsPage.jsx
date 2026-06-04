@@ -64,9 +64,6 @@ export function AnalyticsPage() {
   const [activitySeries, setActivitySeries] = useState(null);
   const [signupsSeries, setSignupsSeries] = useState(null);
 
-  useEffect(() => {
-    if (!loading && !user) navigate("/");
-  }, [loading, user, navigate]);
 
   // Overview + campaigns now follow the date picker too — every campaign
   // KPI on the page is scoped to the chosen window. When the picker moves,

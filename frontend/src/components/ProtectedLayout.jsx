@@ -10,7 +10,7 @@ import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { PullupEyes } from "./PullupEyes.jsx";
 import { NotificationsBell } from "./NotificationsBell.jsx";
 import { WhatsNewModal } from "./WhatsNewModal.jsx";
-import { LoginModal } from "./LoginModal.jsx";
+import { AuthGate } from "./auth/AuthGate.jsx";
 import { colors } from "../theme/colors.js";
 
 function ProtectedLayoutInner() {
@@ -1066,7 +1066,7 @@ function ProtectedLayoutInner() {
       <main>
         {mustLogin ? (
           // No session on a route that needs one → the one door, in place.
-          <LoginModal redirectTo={location.pathname + location.search} />
+          <AuthGate redirectTo={location.pathname + location.search} />
         ) : isEmailSection && (!profileChecked || !isAdmin) ? (
           <div
             style={{

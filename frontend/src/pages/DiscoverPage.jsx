@@ -448,9 +448,6 @@ export function DiscoverPage() {
     return () => { _cache.scrollY = window.scrollY; };
   }, []);
 
-  useEffect(() => {
-    if (!loading && !user) navigate("/");
-  }, [loading, user, navigate]);
 
   const fetchEvents = useCallback(async () => {
     setEventsLoading(true);

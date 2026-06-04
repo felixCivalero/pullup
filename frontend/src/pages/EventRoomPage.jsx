@@ -22,7 +22,7 @@ import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { useAuth } from "../contexts/AuthContext";
 import { useEventAccess } from "../lib/useEventAccess.js";
 import { AccessGate } from "../components/AccessGate.jsx";
-import { LoginModal } from "../components/LoginModal.jsx";
+import { AuthGate } from "../components/auth/AuthGate.jsx";
 import { EventQuickActions } from "../components/EventQuickActions.jsx";
 import { HostPartnerLinks } from "../components/HostPartnerLinks.jsx";
 import { colors } from "../theme/colors.js";
@@ -932,7 +932,7 @@ export default function EventRoomPage() {
   const hasLiveCode = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("w");
   // No session (real logged-out, or the admin "No session" lens) → the auth wall.
   if ((!user || level === "no_session") && !hasLiveCode) {
-    return <LoginModal redirectTo={`/events/${id}/room${typeof window !== "undefined" ? window.location.search : ""}`} />;
+    return <AuthGate redirectTo={`/events/${id}/room${typeof window !== "undefined" ? window.location.search : ""}`} />;
   }
   if (level === "no_access" && !hasLiveCode) {
     return <AccessGate reason={reason} event={event} eventId={id} />;

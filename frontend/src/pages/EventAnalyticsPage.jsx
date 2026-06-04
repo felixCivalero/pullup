@@ -87,9 +87,6 @@ export function EventAnalyticsPage() {
 
   const days = Math.round((dateEnd - dateStart) / 86400000) + 1;
 
-  useEffect(() => {
-    if (!authLoading && !user) navigate("/");
-  }, [authLoading, user, navigate]);
 
   const loadAnalytics = useCallback(async () => {
     if (!user || !id) return;

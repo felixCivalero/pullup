@@ -16,12 +16,13 @@
 // design against a lived multi-channel reality. The real /events/:id/room
 // endpoint will return the same shape later.
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useParams, Navigate } from "react-router-dom";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
-import PullUpPage from "./PullUpPage";
+import { useAuth } from "../contexts/AuthContext";
 import { useEventAccess } from "../lib/useEventAccess.js";
 import { AccessGate } from "../components/AccessGate.jsx";
+import { LoginModal } from "../components/LoginModal.jsx";
 import { EventQuickActions } from "../components/EventQuickActions.jsx";
 import { HostPartnerLinks } from "../components/HostPartnerLinks.jsx";
 import { colors } from "../theme/colors.js";
@@ -229,42 +230,82 @@ function StorageFolders() {
 // (host holds the pen — can open new topics). Real data, above the mockup below.
 // The host's window into the darkroom — what guests shared at the event. Hidden
 // until there's something to show (it fills as people drop photos in the room).
-function HostDarkroom({ eventId }) {
+// The darkroom — peer-shared photos. Same block for host and guest; the host
+// reads via the owner endpoint, a guest reads (and, if their tier allows it,
+// uploads) via the room endpoints — all session-resolved, no email box.
+function Darkroom({ eventId, isHost, canUpload }) {
   const [photos, setPhotos] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    authenticatedFetch(`/host/events/${eventId}/darkroom`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive && d) setPhotos(d.photos || []); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [eventId]);
-  if (!photos || photos.length === 0) return null;
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+  const load = useCallback(() => {
+    const req = isHost
+      ? authenticatedFetch(`/host/events/${eventId}/darkroom`).then((r) => (r.ok ? r.json().then((d) => d.photos || []) : []))
+      : authenticatedFetch(`/p/${eventId}/interior`).then((r) => (r.ok ? r.json().then((d) => d.photos || []) : []));
+    req.then(setPhotos).catch(() => setPhotos([]));
+  }, [eventId, isHost]);
+  useEffect(() => { load(); }, [load]);
+
+  async function add(file) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
+      const r = await authenticatedFetch(`/p/${eventId}/upload`, { method: "POST", body: JSON.stringify({ dataUrl }) });
+      if (r.ok) load();
+    } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
+  }
+
+  const has = photos && photos.length > 0;
+  if (!canUpload && !has) return null; // read-only + empty → nothing to show
   return (
     <div style={{ marginTop: 18 }}>
-      <div style={{ fontSize: 11, color: colors.textFaded, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-        Darkroom · {photos.length} shared
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <span style={{ fontSize: 11, color: colors.textFaded, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          The darkroom{has ? ` · ${photos.length}` : ""}
+        </span>
+        {canUpload && (
+          <>
+            <input ref={fileRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={(e) => add(e.target.files?.[0])} />
+            <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ fontSize: 12, fontWeight: 700, color: colors.accent, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, borderRadius: 999, padding: "5px 12px", cursor: uploading ? "wait" : "pointer" }}>
+              {uploading ? "Adding…" : "+ Add photo"}
+            </button>
+          </>
+        )}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
-        {photos.slice(0, 12).map((p) => (
-          <a key={p.id} href={p.url} target="_blank" rel="noreferrer" title={p.by || ""} style={{ aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: colors.surfaceMuted, display: "block" }}>
-            {p.url && <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-          </a>
-        ))}
-      </div>
+      {has ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
+          {photos.slice(0, 12).map((p) => (
+            <a key={p.id} href={p.url} target="_blank" rel="noreferrer" title={p.by || ""} style={{ aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: colors.surfaceMuted, display: "block" }}>
+              {p.url && <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, color: colors.textMuted }}>No photos yet — drop the first one.</div>
+      )}
     </div>
   );
 }
 
-function HostRoomSpace({ eventId, roster }) {
-  const api = useMemo(() => ({
+// ONE room body for everyone. Host and guest see the same room — the host just
+// reaches it through the owner endpoints (and holds the pen: create topics,
+// connect storage, the roster faces). A guest reaches the same conversation +
+// darkroom through the room endpoints, session-resolved (no email box).
+function RoomSpace({ eventId, roster, isHost, permissions }) {
+  const api = useMemo(() => (isHost ? {
     loadChannels: () => authenticatedFetch(`/host/events/${eventId}/channels`).then((r) => (r.ok ? r.json().then((d) => d.channels || []) : [])),
     loadMessages: (cid) => authenticatedFetch(`/host/events/${eventId}/space?channelId=${cid}`).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
     post: (cid, body) => authenticatedFetch(`/host/events/${eventId}/space`, { method: "POST", body: JSON.stringify({ body, channelId: cid }) }).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
     createTopic: (name) => authenticatedFetch(`/host/events/${eventId}/channels`, { method: "POST", body: JSON.stringify({ name }) }).then((r) => (r.ok ? r.json().then((d) => d.channels || null) : null)),
-  }), [eventId]);
+  } : {
+    loadChannels: () => authenticatedFetch(`/p/${eventId}/channels`).then((r) => (r.ok ? r.json().then((d) => d.channels || []) : [])),
+    loadMessages: (cid) => authenticatedFetch(`/p/${eventId}/space?channelId=${cid}`).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
+    post: (cid, body) => authenticatedFetch(`/p/${eventId}/space`, { method: "POST", body: JSON.stringify({ body, channelId: cid }) }).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
+    createTopic: null, // host holds the pen
+  }), [eventId, isHost]);
 
   const here = roster?.pulledUp || [];
+  const canPost = isHost || permissions?.post !== false;
 
   return (
     <div style={{ marginBottom: "24px", border: `1px solid ${colors.borderStrong}`, borderRadius: "18px", padding: "18px 20px", background: colors.background, boxShadow: "0 1px 2px rgba(10,10,10,0.03), 0 12px 32px rgba(10,10,10,0.06)" }}>
@@ -278,8 +319,8 @@ function HostRoomSpace({ eventId, roster }) {
         </div>
       </div>
 
-      {/* The people in the circle — faces first, so it reads like a group, not a feed */}
-      {here.length > 0 && (
+      {/* The people in the circle — faces (host's roster view). */}
+      {isHost && here.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: "11px", marginBottom: "14px", paddingBottom: "14px", borderBottom: `1px solid ${colors.borderFaint}` }}>
           <div style={{ display: "flex" }}>
             {here.slice(0, 6).map((p, i) => (
@@ -295,12 +336,12 @@ function HostRoomSpace({ eventId, roster }) {
         </div>
       )}
 
-      {/* Files live inside the chat now — a slim folder bar, not a big block. */}
-      <StorageFolders />
+      {/* Connect-storage / folders are the host's pen. */}
+      {isHost && <StorageFolders />}
 
-      <RoomConversation canCreateTopic sidebar api={api} />
+      <RoomConversation canCreateTopic={isHost} canPost={canPost} sidebar api={api} />
 
-      <HostDarkroom eventId={eventId} />
+      <Darkroom eventId={eventId} isHost={isHost} canUpload={!isHost && permissions?.upload === true} />
     </div>
   );
 }
@@ -835,15 +876,18 @@ export default function EventRoomPage() {
   // One URL, one permission gate. `level` decides the view: a host runs the
   // chief-of-staff surface; everyone else gets the room they earned. `role`
   // refines the host side so analytics/reception don't get the wrong chrome.
-  const { loading, level, role, reason, event } = useEventAccess(id);
+  const { user } = useAuth();
+  const { loading, level, role, reason, permissions, event } = useEventAccess(id);
   const [roster, setRoster] = useState(null);
+  const isHost = level === "host";
+  const canManageRoom = ROOM_MANAGER_ROLES.includes(role);
 
   // The host view needs the roster data; load it once the gate confirms we own
   // the event. For everyone else (and analytics-only, who get sent to Insights),
   // drop any host event-nav so the shell shows no Guests/Insights/Edit tabs.
   useEffect(() => {
     if (level == null) return; // still resolving
-    if (level !== "host" || role === "analytics") { clearEventNav(); return; }
+    if (!isHost || role === "analytics") { clearEventNav(); return; }
     let alive = true;
     authenticatedFetch(`/host/events/${id}/roster`)
       .then((r) => (r.ok ? r.json() : null))
@@ -855,7 +899,20 @@ export default function EventRoomPage() {
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, [level, role, id, setEventNav, clearEventNav, event]);
+  }, [level, role, isHost, id, setEventNav, clearEventNav, event]);
+
+  // QR walk-in: a logged-in viewer who scanned the host's live code records the
+  // pull-up, then re-enters clean (replaces the old email box).
+  useEffect(() => {
+    if (!user) return;
+    const p = new URLSearchParams(window.location.search);
+    const w = p.get("w"), s = p.get("s");
+    if (!w || !s) return;
+    authenticatedFetch(`/p/${id}/pullup`, { method: "POST", body: JSON.stringify({ w: Number(w), s }) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.ok) window.location.replace(`/events/${id}/room`); })
+      .catch(() => {});
+  }, [id, user]);
 
   if (loading) {
     return (
@@ -865,25 +922,24 @@ export default function EventRoomPage() {
     );
   }
 
-  // Analytics-only collaborators don't run the room — send them to their
-  // surface (Insights), gracefully, instead of the chief-of-staff view.
-  if (level === "host" && role === "analytics") {
+  // Analytics-only collaborators don't run the room — send them to Insights.
+  if (isHost && role === "analytics") {
     return <Navigate to={`/app/events/${id}/analytics`} replace />;
   }
 
-  // No access and no live QR to pull up with → the reusable polite denial.
+  // ONE auth gate + ONE permission gate, used everywhere. A scanned live QR
+  // (?w=) is its own credential, so it skips both.
   const hasLiveCode = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("w");
+  if (!user && !hasLiveCode) {
+    return <LoginModal redirectTo={`/events/${id}/room${typeof window !== "undefined" ? window.location.search : ""}`} />;
+  }
   if (level === "no_access" && !hasLiveCode) {
     return <AccessGate reason={reason} event={event} eventId={id} />;
   }
 
-  // Guest (waitlist peek / lobby / pulled-up / a walk-in scanning the live code)
-  // → the room they earned + its own door. PullUpPage handles every guest state.
-  if (level !== "host") return <PullUpPage eventId={id} />;
-
-  const canManageRoom = ROOM_MANAGER_ROLES.includes(role);
-  const ev = roster?.event;
-  const when = ev?.startsAt ? new Date(ev.startsAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : null;
+  // Host AND guest fall through to the SAME room below — what differs is only
+  // what each is allowed to see/do, driven by isHost + permissions.
+  const when = event?.startsAt ? new Date(event.startsAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : null;
 
   return (
     <div style={{ display: "flex", height: "100vh", paddingTop: "58px", boxSizing: "border-box" }}>
@@ -895,35 +951,35 @@ export default function EventRoomPage() {
           <div style={{ marginBottom: 14 }}>
             <EventQuickActions
               slug={event?.slug}
-              title={event?.title || ev?.title}
-              startsAt={event?.startsAt || ev?.startsAt}
+              title={event?.title}
+              startsAt={event?.startsAt}
               endsAt={event?.endsAt}
-              location={event?.location || ev?.location}
+              location={event?.location}
               trailing={canManageRoom ? <RoomAccessSettings eventId={id} /> : null}
             />
           </div>
 
-          <HostPartnerLinks event={event || ev} />
+          {isHost && <HostPartnerLinks event={event} />}
           {/* Event identity — this room IS this event. */}
           <div style={{ marginBottom: "22px" }}>
             {/* Banner: always a soft branded gradient; the cover paints over it
                 only if it actually loads (a missing/broken URL just shows the
                 gradient — never a broken-image icon). */}
             <div style={{ height: 150, borderRadius: "18px", overflow: "hidden", marginBottom: "14px", background: "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)" }}>
-              {ev?.cover && (
-                <img src={ev.cover} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              {event?.cover && (
+                <img src={event.cover} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
               )}
             </div>
             <h1 style={{ fontSize: "26px", fontWeight: 750, color: colors.text, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: SF }}>
-              {ev?.title || "The Room"}
+              {event?.title || "The Room"}
             </h1>
             <div style={{ fontSize: "13.5px", color: colors.textMuted }}>
-              {[when, ev?.location].filter(Boolean).join(" · ") || " "}
+              {[when, event?.location].filter(Boolean).join(" · ") || " "}
             </div>
-            <RosterStrip roster={roster} />
+            {isHost && <RosterStrip roster={roster} />}
           </div>
 
-          <HostRoomSpace eventId={id} roster={roster} />
+          <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} />
         </div>
       </div>
     </div>

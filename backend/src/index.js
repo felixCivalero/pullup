@@ -5625,9 +5625,15 @@ app.get("/events/:id/access", optionalAuth, async (req, res) => {
     }
     const { data: ev } = await supabase
       .from("events")
-      .select("title, slug, starts_at, ends_at, status, location")
+      .select("title, slug, starts_at, ends_at, status, location, cover_image_url, image_url")
       .eq("id", eventId)
       .maybeSingle();
+    let cover = ev?.cover_image_url || ev?.image_url || null;
+    if (cover && !cover.startsWith("http")) {
+      const m = cover.match(/event-images\/([^?]+)/);
+      const { data: pub } = supabase.storage.from("event-images").getPublicUrl(m ? m[1] : cover);
+      if (pub?.publicUrl) cover = pub.publicUrl;
+    }
     res.json({
       eventId,
       level: access.level, // host | guest_pullup | guest_rsvp | guest_waitlist | no_access
@@ -5636,7 +5642,7 @@ app.get("/events/:id/access", optionalAuth, async (req, res) => {
       phase: access.phase || null,
       permissions: access.permissions || null,
       event: ev
-        ? { title: ev.title, slug: ev.slug, startsAt: ev.starts_at, endsAt: ev.ends_at, status: ev.status, location: ev.location }
+        ? { title: ev.title, slug: ev.slug, startsAt: ev.starts_at, endsAt: ev.ends_at, status: ev.status, location: ev.location, cover }
         : null,
       // Admin View-as context (so the UI banner can show it). Null for everyone else.
       viewingAs: viewer.impersonating ? { id: viewer.person?.id, name: viewer.person?.name || null } : null,

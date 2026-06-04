@@ -5734,6 +5734,18 @@ async function getRoomAccessForReq(req, personId, eventId) {
   return { access: state, phase: "forced", permissions: resolveCapabilities(ev, state) };
 }
 
+// Host gate that also honors the admin "Host" lens: an admin previewing with
+// force-level=host inhabits any room AS its host (read-only QA), so the host
+// surfaces actually load. Real hosts always pass. Writes keep the real-host
+// check (below) so QA can never post into someone else's live room.
+async function hostGateForReq(req, eventId) {
+  const real = await isUserEventHost(req.user.id, eventId);
+  if (real.isHost) return real;
+  const forced = await adminForceLevel(req); // null unless an admin sent the header
+  if (forced === "host") return { isHost: true, role: "owner", lens: true };
+  return real;
+}
+
 // The interior — only for nodes that pulled up to THIS event. The room they
 // earned: who else is here (co-presence, same-event only) + the darkroom. This
 // is the teaser's promise actually opened — gated, never public.
@@ -6101,7 +6113,7 @@ app.post("/p/:eventId/space", optionalAuth, async (req, res) => {
 // Host side of the same space — the hub, and the pen: the host curates topics.
 app.get("/host/events/:id/channels", requireAuth, async (req, res) => {
   try {
-    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    const { isHost } = await hostGateForReq(req, req.params.id);
     if (!isHost) return res.status(403).json({ error: "Forbidden" });
     const { listChannels } = await import("./services/pullupService.js");
     res.json({ channels: await listChannels(req.params.id) });
@@ -6127,7 +6139,7 @@ app.post("/host/events/:id/channels", requireAuth, async (req, res) => {
 
 app.get("/host/events/:id/space", requireAuth, async (req, res) => {
   try {
-    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    const { isHost } = await hostGateForReq(req, req.params.id);
     if (!isHost) return res.status(403).json({ error: "Forbidden" });
     const { listSpaceMessages } = await import("./services/pullupService.js");
     res.json({ messages: await listSpaceMessages(req.params.id, { channelId: req.query.channelId || null }) });
@@ -6165,7 +6177,7 @@ app.post("/host/events/:id/space", requireAuth, async (req, res) => {
 // moderate) is never a guest permission — it's separate.
 app.get("/host/events/:id/room-permissions", requireAuth, async (req, res) => {
   try {
-    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    const { isHost } = await hostGateForReq(req, req.params.id);
     if (!isHost) return res.status(403).json({ error: "Forbidden" });
     const { supabase } = await import("./supabase.js");
     const { resolveGrid, DEFAULT_ROOM_PERMISSIONS, CAPABILITIES } = await import("./services/roomPermissions.js");
@@ -6197,7 +6209,7 @@ app.put("/host/events/:id/room-permissions", requireAuth, async (req, res) => {
 // then pull-up-only (showed). The shared area's "who's in the room", not a CRM.
 app.get("/host/events/:id/roster", requireAuth, async (req, res) => {
   try {
-    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    const { isHost } = await hostGateForReq(req, req.params.id);
     if (!isHost) return res.status(403).json({ error: "Forbidden" });
     const { supabase } = await import("./supabase.js");
     const eventId = req.params.id;
@@ -6240,7 +6252,7 @@ app.get("/host/events/:id/roster", requireAuth, async (req, res) => {
 // from the host's seat (they don't need to have pulled up to their own event).
 app.get("/host/events/:id/darkroom", requireAuth, async (req, res) => {
   try {
-    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    const { isHost } = await hostGateForReq(req, req.params.id);
     if (!isHost) return res.status(403).json({ error: "Forbidden" });
     const { supabase } = await import("./supabase.js");
     const { data: media } = await supabase

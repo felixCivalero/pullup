@@ -5875,10 +5875,12 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
 
     // Is the viewer standing in their OWN room? (inside vs outside)
     const isOwner = !!req.user?.id && req.user.id === accountId;
-    // Admin "View as" maps onto the profile's real axis: Host → the owner view
-    // (drafts + create), Locked → the logged-out wall, guest tiers → visitor.
+    // Admin "View as" maps onto the profile's real axis and OVERRIDES reality
+    // (so you can preview your OWN profile as a visitor): Host → owner view
+    // (drafts + create), any guest/locked tier → NOT owner (visitor/wall),
+    // no force → your real ownership.
     const forced = await adminForceLevel(req);
-    const effectiveOwner = isOwner || forced === "host";
+    const effectiveOwner = forced === "host" ? true : forced ? false : isOwner;
 
     // The events this node HOSTS (only accounts can host). Drafts are owner-only.
     const hostSelect = "id, slug, title, cover_image_url, image_url, starts_at, ends_at, status";

@@ -6,7 +6,7 @@ import { AuthCard } from "../components/AuthCard";
 import { hasStoredSession } from "../lib/session.js";
 import { publicFetch, authenticatedFetch } from "../lib/api.js";
 import { trackEvent, getVisitorId } from "../lib/analytics.js";
-import { PullupEyes, SVG_W, SVG_H } from "../components/PullupEyes.jsx";
+import { PullupEyes } from "../components/PullupEyes.jsx";
 
 // ─── Onboarding draft persistence ───
 // Mirrors the schema OnboardingPage was using so existing in-flight drafts
@@ -41,21 +41,6 @@ function resolveNext(params) {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/room";
   return raw;
 }
-
-// 3D cube of words spinning on its X axis behind the gazing star.
-// One word faces the camera at a time. The cube rotateX(0 → -360deg) over
-// CUBE_PERIOD seconds; each face is placed at translateZ(depth) on its own
-// fixed rotateX so the front-face sequence is: people → life → art → culture.
-const CUBE_PERIOD = 10; // seconds — matches the old cube tempo
-// `fadeDelay` is the negative animation-delay (in seconds) that makes each
-// face's opacity fade-keyframe peak exactly when that face is forward-facing.
-// Formula: delay = period * (faceAngle - 360) / 360, mod period.
-const CUBE_WORDS = [
-  { word: "people",  faceAngle: 0,   fadeDelay: 0    }, // front at t=0
-  { word: "life",    faceAngle: 90,  fadeDelay: -7.5 }, // front at t=2.5s
-  { word: "art",     faceAngle: 180, fadeDelay: -5   }, // front at t=5s
-  { word: "culture", faceAngle: -90, fadeDelay: -2.5 }, // front at t=7.5s
-];
 
 const LOGOS = [
   // All logos render as solid black silhouettes via `filter: brightness(0)`
@@ -97,15 +82,17 @@ function useReveal(threshold = 0.15) {
 }
 
 /* ─── generic reveal wrapper ─── */
-function Reveal({ children, delay = 0, y = 24 }) {
+function Reveal({ children, delay = 0, y = 24, className, style }) {
   const [ref, visible] = useReveal(0.12);
   return (
     <div
       ref={ref}
+      className={className}
       style={{
+        ...style,
         transform: visible ? "translateY(0)" : `translateY(${y}px)`,
         opacity: visible ? 1 : 0,
-        transition: `transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}s, opacity 0.7s ease ${delay}s`,
+        transition: `transform 0.8s cubic-bezier(0.16,1,0.3,1) ${delay}s, opacity 0.8s ease ${delay}s`,
       }}
     >
       {children}
@@ -357,6 +344,422 @@ function OnboardingPanel({ isActive, user }) {
   );
 }
 
+/* ─── Auth shell ───
+   Login + onboarding live in one horizontal track that slides between the
+   two. /login → panel 0, /start → panel 1. Rendered only when the URL is on
+   an auth route; the marketing scroll owns the bare "/" view. */
+function AuthShell({ view, user }) {
+  return (
+    <div className="auth-shell">
+      <div className="auth-track" data-view={view}>
+        <div className="auth-slot">
+          <LoginPanel isActive={view === "login"} user={user} />
+        </div>
+        <div className="auth-slot">
+          <OnboardingPanel isActive={view === "onboarding"} user={user} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Marketing primitives ─── */
+
+// A numbered chapter label — "01 · The split" — that anchors each beat.
+function Chapter({ n, label }) {
+  return (
+    <div className="mk-chapter">
+      <span className="mk-chapter-n">{n}</span>
+      <span className="mk-chapter-label">{label}</span>
+    </div>
+  );
+}
+
+// Scene frame — wraps an animated mock and only kicks its CSS animations off
+// once it scrolls into view (adds `.mk-in`). Mirrors the WhatsNewModal scene
+// language: real platform surfaces, built as animated CSS rather than video.
+function SceneFrame({ children, className = "" }) {
+  const [ref, visible] = useReveal(0.28);
+  return (
+    <div ref={ref} className={`mk-scene ${className}${visible ? " mk-in" : ""}`}>
+      {children}
+    </div>
+  );
+}
+
+// Channel glyph — the real Room's cross-channel identity chips.
+const CH = {
+  whatsapp: { glyph: "WA", color: "#25D366", soft: "#e7f9ee" },
+  instagram: { glyph: "IG", color: "#d6249f", soft: "#fdeef7" },
+  email: { glyph: "@", color: "#6b6b6b", soft: "#f0f0ee" },
+};
+function ChannelChip({ ch }) {
+  const c = CH[ch] || CH.email;
+  return (
+    <span className="mk-chchip" style={{ background: c.soft, color: c.color }}>
+      {c.glyph}
+    </span>
+  );
+}
+
+// The recurring trust marquee, reused in the proof section + page foot.
+function LogoMarquee() {
+  return (
+    <div className="logo-marquee" aria-hidden="true">
+      <div className="logo-marquee-track">
+        {[0, 1].map((copy) => (
+          <div className="logo-marquee-group" key={copy}>
+            {LOGOS.map((logo, i) => {
+              const renderH = 22 * (logo.boost || 1);
+              return (
+                <div className="logo-marquee-item" key={i}>
+                  <img
+                    src={logo.src}
+                    alt={copy === 0 ? logo.alt : ""}
+                    width={logo.width}
+                    height={logo.height}
+                    style={{ height: renderH }}
+                    decoding="async"
+                    loading="lazy"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── The marketing scroll ───
+   Eight beats that take a cold visitor from "what is this" to "get started".
+   Brand-soul kept: light canvas, pink accent, the eyes as the recurring
+   motif, pixel cursor, trust marquee. */
+function MarketingScroll({ onGetStarted, onLogin, user }) {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const cta = (location, label = "Get started") => (
+    <button
+      type="button"
+      className="mk-cta"
+      onClick={() => {
+        trackEvent("cta_click", { location, user_logged_in: !!user });
+        onGetStarted();
+      }}
+    >
+      {user ? "Open your room" : label}
+      <ArrowRight size={17} />
+    </button>
+  );
+
+  return (
+    <div className="mk">
+      {/* ─── Top bar — wordmark + log in / get started, fades in on scroll ─── */}
+      <header className={`mk-nav${scrolled ? " is-scrolled" : ""}`}>
+        <button
+          type="button"
+          className="mk-nav-brand"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="PullUp — back to top"
+        >
+          <img src="/pullup-textlogo.svg" alt="PullUp" />
+        </button>
+        <div className="mk-nav-actions">
+          {!user && (
+            <button
+              type="button"
+              className="mk-nav-login"
+              onClick={() => {
+                trackEvent("cta_click", { location: "nav_login", user_logged_in: false });
+                onLogin();
+              }}
+            >
+              Log in
+            </button>
+          )}
+          <button
+            type="button"
+            className="mk-nav-cta"
+            onClick={() => {
+              trackEvent("cta_click", { location: "nav", user_logged_in: !!user });
+              onGetStarted();
+            }}
+          >
+            {user ? "Open your room" : "Get started"}
+          </button>
+        </div>
+      </header>
+
+      {/* ─── 1 · HERO ─── */}
+      <section className="mk-hero">
+        <Reveal y={16}>
+          <PullupEyes variant="big" className="mk-hero-eyes" />
+        </Reveal>
+        <Reveal delay={0.06}>
+          <p className="mk-eyebrow">For creators &amp; solopreneurs</p>
+        </Reveal>
+        <Reveal delay={0.12}>
+          <h1 className="mk-hero-h">
+            Your people don't live<br />in one place.{" "}
+            <span className="pink">Now they do.</span>
+          </h1>
+        </Reveal>
+        <Reveal delay={0.18}>
+          <p className="mk-hero-sub">
+            The home for everyone behind your work — the followers and the
+            friends, the DMs and the dinners. PullUp holds them as one living
+            thing. Then it reaches out, before you remember to.
+          </p>
+        </Reveal>
+        <Reveal delay={0.24}>
+          <div className="mk-hero-cta">{cta("hero")}</div>
+        </Reveal>
+        <Reveal delay={0.4}>
+          <div className="mk-scrollcue" aria-hidden="true">
+            <span>see how it works</span>
+            <span className="mk-scrollcue-line" />
+          </div>
+        </Reveal>
+      </section>
+
+      {/* ─── 2 · THE SPLIT ─── */}
+      <section className="mk-section">
+        <Reveal><Chapter n="01" label="The split" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            Your life as a creator is split in two.
+          </h2>
+        </Reveal>
+        <div className="mk-split">
+          <Reveal delay={0.1} className="mk-split-col">
+            <p className="mk-split-kicker">Online</p>
+            <p className="mk-split-big">Followers. DMs. Likes.</p>
+            <p className="mk-split-note">Reach you can measure but never feel.</p>
+          </Reveal>
+          <Reveal delay={0.18} className="mk-split-vs">
+            <span>vs</span>
+          </Reveal>
+          <Reveal delay={0.26} className="mk-split-col">
+            <p className="mk-split-kicker">In real life</p>
+            <p className="mk-split-big">Who showed up. Who you'd call.</p>
+            <p className="mk-split-note">Presence you feel but can't scale.</p>
+          </Reveal>
+        </div>
+        <Reveal delay={0.32}>
+          <p className="mk-lede">
+            You're the only thing connecting the two. Every name, every promise
+            to follow up, every "we should do this again" — held in your head.
+            <strong> And you're tired.</strong>
+          </p>
+        </Reveal>
+      </section>
+
+      {/* ─── 3 · ONE PERSON ─── */}
+      <section className="mk-section mk-section-tint">
+        <Reveal><Chapter n="02" label="One person" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            The two halves are the <span className="pink">same human</span>.
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            The handle that comments on every post is the same person who came
+            to your last three nights. PullUp resolves them into one —
+            across Instagram, WhatsApp, email, and the door. A single thread
+            per person that outlives any one event.
+          </p>
+        </Reveal>
+
+        {/* Room card mock — a person's living timeline */}
+        <Reveal delay={0.16}>
+          <div className="mk-room">
+            <div className="mk-room-head">
+              <div className="mk-room-stat">
+                <strong>248</strong> in your world
+              </div>
+              <div className="mk-room-dot">·</div>
+              <div className="mk-room-stat mk-room-need">
+                <strong>6</strong> need you
+              </div>
+            </div>
+            <div className="mk-room-people">
+              {[
+                { i: "MA", n: "Maya", m: "Showed up twice · no thank-you yet", hot: true },
+                { i: "JN", n: "Jonas", m: "RSVP'd Friday · first time" },
+                { i: "TL", n: "Talia", m: "Quiet 4 months · was a regular", hot: true },
+                { i: "Re", n: "Rema", m: "Replied to your story · not invited yet" },
+              ].map((p) => (
+                <div className={`mk-room-row${p.hot ? " is-hot" : ""}`} key={p.n}>
+                  <span className="mk-room-av">{p.i}</span>
+                  <span className="mk-room-name">{p.n}</span>
+                  <span className="mk-room-meta">{p.m}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Reveal>
+        <Reveal delay={0.22}>
+          <p className="mk-aside">
+            Not a follower count. A responsibility count. The number that
+            matters is the one that needs you back.
+          </p>
+        </Reveal>
+      </section>
+
+      {/* ─── 4 · ONE NODE THAT ACTS ─── */}
+      <section className="mk-section">
+        <Reveal><Chapter n="03" label="It acts" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            It doesn't wait to be asked.
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            Most tools sit there until you open them. PullUp notices. Who's gone
+            quiet. Who came twice and never heard back. Who's on the waitlist for
+            the night that just opened up. Then it does the hard part — it writes
+            the first draft.
+          </p>
+        </Reveal>
+
+        {/* Proactive nudge mock */}
+        <Reveal delay={0.16}>
+          <div className="mk-nudge">
+            <div className="mk-nudge-tag">PullUp noticed</div>
+            <p className="mk-nudge-line">
+              Maya came to your last two dinners and never got a word after.
+              Want to close the loop?
+            </p>
+            <div className="mk-nudge-draft">
+              "Maya — it genuinely made both nights better having you there.
+              Doing a small one in May, you're first on the list. ✨"
+            </div>
+            <div className="mk-nudge-actions">
+              <span className="mk-nudge-send">Send</span>
+              <span className="mk-nudge-edit">Edit</span>
+              <span className="mk-nudge-skip">Not now</span>
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal delay={0.22}>
+          <p className="mk-creed">
+            It drafts. <span className="pink">You send.</span>
+          </p>
+        </Reveal>
+        <Reveal delay={0.28}>
+          <p className="mk-aside">
+            PullUp amplifies care that already exists. It never manufactures
+            care that doesn't. The warmth is yours — it just makes sure you
+            never drop it.
+          </p>
+        </Reveal>
+      </section>
+
+      {/* ─── 5 · MEETS YOU WHERE YOU WORK ─── */}
+      <section className="mk-section mk-section-tint">
+        <Reveal><Chapter n="04" label="No new tab" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            It lives where you already are.
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            Not one more dashboard to forget about. Talk to PullUp inside the
+            tools you already keep open — Claude, ChatGPT, Cursor. Spin up an
+            event, pull a person's whole history, draft the follow-up, all in
+            a sentence.
+          </p>
+        </Reveal>
+        <Reveal delay={0.16}>
+          <div className="mk-term">
+            <div className="mk-term-bar">
+              <span /><span /><span />
+            </div>
+            <pre className="mk-term-body">
+{`you  ›  make a small dinner for 12, friday the 9th, my place
+
+pullup  ›  Done — draft event "Friday Supper" is live.
+           Pulled 18 people who'd fit. 6 are overdue a
+           reach-out. Want the invites drafted?`}
+            </pre>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* ─── 6 · YOUR PEOPLE STAY YOURS ─── */}
+      <section className="mk-section">
+        <Reveal><Chapter n="05" label="Yours" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            Your people are yours. Full stop.
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            We don't sell contacts. We don't market to your audience. Your
+            memories live in your own cloud — PullUp is the thread that renders
+            them, not the landlord that owns them. Your fans only ever hear from
+            one person: you.
+          </p>
+        </Reveal>
+      </section>
+
+      {/* ─── 7 · PROOF ─── */}
+      <section className="mk-section mk-section-proof">
+        <Reveal>
+          <p className="mk-proof-label">The rooms already run on PullUp</p>
+        </Reveal>
+      </section>
+      <LogoMarquee />
+
+      {/* ─── 8 · FINAL CTA ─── */}
+      <section className="mk-final">
+        <Reveal y={16}>
+          <PullupEyes variant="big" className="mk-final-eyes" />
+        </Reveal>
+        <Reveal delay={0.08}>
+          <h2 className="mk-final-h">
+            Stop managing your people.<br />
+            <span className="pink">Start tending them.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.16}>
+          <p className="mk-final-sub">
+            We're early, and that's the point — we're taking on one creator at a
+            time, and doing it properly. Pull up.
+          </p>
+        </Reveal>
+        <Reveal delay={0.24}>
+          <div className="mk-final-cta">{cta("final")}</div>
+        </Reveal>
+      </section>
+
+      {/* ─── FOOTER ─── */}
+      <footer className="mk-footer">
+        <span>Pullup &copy; {new Date().getFullYear()}</span>
+        <span className="mk-footer-dot">·</span>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/cookies">Cookies</a>
+        <span className="mk-footer-dot">·</span>
+        <a href="mailto:hello@pullup.se">hello@pullup.se</a>
+      </footer>
+    </div>
+  );
+}
+
 /* ─── component ─── */
 export function LandingPage() {
   const navigate = useNavigate();
@@ -364,10 +767,8 @@ export function LandingPage() {
   const { user, loading } = useAuth();
   const redirectedRef = useRef(false);
 
-  // URL → which slide is "front and center". /login → login panel,
-  // /start → onboarding panel, anything else → hero. Browser back/forward
-  // updates the URL which re-derives the view and triggers the slide
-  // animation in reverse.
+  // URL → which surface we show. /login + /start are the auth shell;
+  // anything else is the marketing scroll.
   const view = useMemo(() => {
     if (location.pathname === "/login") return "login";
     if (location.pathname === "/start") return "onboarding";
@@ -375,7 +776,7 @@ export function LandingPage() {
   }, [location.pathname]);
 
   // Pre-paint session gate. If a returning user lands on /, /login (or any
-  // non-onboarding entry) with a stored Supabase session, redirect to /events
+  // non-onboarding entry) with a stored Supabase session, redirect to /room
   // on the FIRST frame — before the marketing/login shell paints — so they
   // never see it flash in and jump away. /start (onboarding) is exempt: that
   // flow flushes the name+brand draft to the profile before forwarding.
@@ -383,23 +784,6 @@ export function LandingPage() {
     if (location.pathname === "/start") return false;
     return hasStoredSession();
   }, [location.pathname]);
-
-  const handleNavCta = () => {
-    trackEvent("cta_click", { location: "nav", user_logged_in: !!user });
-    navigate(user ? "/room" : "/login");
-  };
-
-  const handleEventsCta = () => {
-    trackEvent("cta_click", { location: "hero_events", user_logged_in: !!user });
-    navigate(user ? "/room" : "/login");
-  };
-
-  const handleMarketingCta = () => {
-    trackEvent("cta_click", { location: "hero_marketing", user_logged_in: !!user });
-    // external link — anchor handles the actual navigation, this just tracks
-  };
-
-  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     const visitorId = getVisitorId();
@@ -415,13 +799,13 @@ export function LandingPage() {
     }).catch(() => {});
   }, []);
 
-  // Auto-redirect signed-in users to dashboard, with a sessionStorage
+  // Auto-redirect signed-in users to their room, with a sessionStorage
   // circuit-breaker so a background 401 bouncing us back to "/" doesn't
-  // ping-pong with /events.
+  // ping-pong with /room.
   //
   // Skip when view === "onboarding" — OnboardingPanel owns that path so
   // the draft (name + brand) gets flushed to /host/profile before the
-  // user lands on /events.
+  // user lands on /room.
   useEffect(() => {
     if (loading) return;
     if (!user) return;
@@ -452,11 +836,15 @@ export function LandingPage() {
     navigate("/room", { replace: true });
   }, [user, loading, view, navigate]);
 
+  // Marketing scroll needs the document to scroll normally; auth shell is a
+  // single locked screen. Toggle a body class so the lock only applies to
+  // auth and the marketing page scrolls freely.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    const cls = "pullup-auth-locked";
+    if (view === "hero") document.body.classList.remove(cls);
+    else document.body.classList.add(cls);
+    return () => document.body.classList.remove(cls);
+  }, [view]);
 
   // Returning user with a stored session — skip the shell entirely.
   if (sessionGate) {
@@ -464,769 +852,467 @@ export function LandingPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        flexDirection: "column",
-        background: SURFACE,
-        color: INK,
-        position: "relative",
-        overflowX: "hidden",
-      }}
-    >
-      <style>{`
-        /* Pixel-art pink hand cursor across the entire landing page —
-           same size everywhere (matches the system pointer the footer
-           links would otherwise show). Forced on every descendant so
-           images (incl. the marquee logos) don't fall back to the
-           default arrow. Single 32x32 file with no @2x fallback: the
-           marquee is a GPU-composited layer (translate3d + will-change),
-           and offering two sizes causes the browser to re-rasterize at
-           a different scale over that layer, so the cursor visibly
-           jumps size. One file = one size, everywhere. Form inputs are
-           excluded so the text caret still works in the login /
-           onboarding fields. */
-        html, body, body *:not(input):not(textarea):not(select) {
-          cursor: url('/cursor-finger.png') 11 2, pointer !important;
-        }
-        /* Lock horizontal scroll/swipe on the landing so the slide track
-           never feels like a swipeable carousel on phones — slides are
-           triggered by URL changes only. overflow-x: hidden contains
-           the marquee + slide track, overscroll-behavior-x: none kills
-           the iOS swipe-back gesture inside the page. Both rules
-           unmount with this <style> block when the user navigates away,
-           so other routes get their default scroll back. */
-        html, body {
-          overflow-x: hidden;
-          overscroll-behavior-x: none;
-        }
-        body { touch-action: pan-y; }
-        /* ─── 3D word cube spinning behind the gazing star ─── */
-        /* translateX shifts the rotation axis right so the front-facing
-           word sits along the gaze tail. Y-shift is 0 here because the
-           star itself is shifted DOWN inside the wrap so its gaze line
-           already lines up with the wrap's vertical center (and with
-           "for"/"pullup" in the flex row). */
-        @keyframes cube-spin {
-          from { transform: translateX(60px) rotateX(0deg);    }
-          to   { transform: translateX(60px) rotateX(-360deg); }
-        }
-        .hero-row {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          /* Normal word-spacing between "pullup" and "for". */
-          gap: clamp(8px, 1.5vmin, 18px);
-        }
-        .hero-pullup-logo {
-          /* SVG was re-viewBoxed to crop the original whitespace, so the
-             rendered height equals the visible cap-height directly. */
-          height: clamp(36px, 7vmin, 70px);
-          width: auto;
-          display: block;
-          flex: none;
-        }
-        .hero-for {
-          font-size: clamp(36px, 7vmin, 70px);
-          font-weight: 800;
-          letter-spacing: -0.035em;
-          line-height: 1;
-          color: ${INK};
-          flex: none;
-          /* Lift above the cube-wrap's 3D context so the star can't
-             overlap "for" when the negative margin pulls them together. */
-          position: relative;
-          z-index: 10;
-        }
-        .cube-wrap {
-          position: relative;
-          width: clamp(220px, 40vmin, 360px);
-          height: clamp(220px, 40vmin, 360px);
-          flex: none;
-          /* Aggressively pull the cube-wrap leftward so the star body
-             sits directly after "for" — the wrap has tons of empty space
-             on its left side before the centered star image. */
-          margin-left: clamp(-120px, -20vmin, -70px);
-        }
-        .cube-stage {
-          position: absolute;
-          inset: 0;
-          perspective: 900px;
-          transform-style: preserve-3d;
-        }
-        .word-cube {
-          --depth: clamp(16px, 3vmin, 28px);
-          position: absolute;
-          inset: 0;
-          transform-style: preserve-3d;
-          animation: cube-spin ${CUBE_PERIOD}s linear infinite;
-          will-change: transform;
-        }
-        .cube-face {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          font-size: clamp(36px, 7vmin, 70px);
-          font-weight: 800;
-          letter-spacing: -0.035em;
-          line-height: 1;
-          color: ${INK};
-          white-space: nowrap;
-          backface-visibility: hidden;
-          -webkit-backface-visibility: hidden;
-          transform:
-            translate(-50%, -50%)
-            rotateX(var(--face-angle))
-            translateZ(var(--depth));
-        }
-        .star-3d {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          width: clamp(150px, 30vmin, 260px);
-          height: auto;
-          /* Shift DOWN so the star's gaze line (in its upper half) lands
-             on the wrap's vertical center — that's the line where "for"
-             and the spinning word sit. translateZ(0) keeps the star at
-             z=0 in 3D so the front-facing word renders in front of it. */
-          transform: translate(-50%, calc(-50% + 20px)) translateZ(0);
-          pointer-events: none;
-          user-select: none;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .word-cube { animation: none; }
-        }
-        /* ─── Hero stage: [events] [pullup for word] [marketing] ───
-           Three flex children in one row — the two CTAs flank the hero.
-           Each CTA pairs one of the PullUp eyes variants (small for
-           events, big for marketing) above an italic wordmark sized by
-           height so events and marketing read at the same scale despite
-           having different aspect ratios. On narrow screens the row
-           wraps and the CTAs drop below the hero. */
-        /* ─── Hero stage: Instagram-triptych layout ───
-           Three flex children: [big eyes flank] [hero center] [small
-           eyes flank]. Flanks take flex:1 each, so each one is
-           centered in the space between the viewport edge and the hero
-           center column — matching the @pullupfortheculture IG grid
-           (big eyes left of the wordmark, small eyes right). On hover
-           each eye crossfades into its wordmark (marketing / events). */
-        .hero-stage {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 100%;
-          gap: clamp(16px, 3vw, 56px);
-        }
-        .hero-flank {
-          flex: 1 1 0;
-          min-width: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .hero-center {
-          flex: 0 0 auto;
-        }
-        .hero-cta-btn {
-          position: relative;
-          background: transparent;
-          border: 0;
-          margin: 0;
-          /* Generous hit area around the eyes so hover/click is easy
-             even though the visible glyph is small. */
-          padding: clamp(12px, 1.6vh, 28px) clamp(16px, 2.5vw, 40px);
-          display: inline-flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          text-decoration: none;
-          color: inherit;
-          font: inherit;
-          flex: 0 0 auto;
-          transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        /* Eyes + crossfade label share this anchor — keeps the absolute
-           label positioned over the eyes regardless of the caption below. */
-        .hero-cta-stack {
-          position: relative;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-        }
-        /* Static caption — only visible on devices that can't hover.
-           On desktop the hover swap reveals the full wordmark; on phones
-           we show the same word in plain italic so it's discoverable. */
-        .hero-cta-caption {
-          display: none;
-          font-style: italic;
-          font-weight: 700;
-          font-size: 12px;
-          letter-spacing: 0.01em;
-          color: ${INK};
-        }
-        @media (hover: none) {
-          .hero-cta-caption { display: block; }
-        }
-        .hero-cta-btn:hover  { transform: translateY(-3px); }
-        .hero-cta-btn:active { transform: translateY(-1px); }
-        .hero-cta-btn:focus  { outline: none; }
-        .hero-cta-btn:focus-visible {
-          outline: 2px dashed ${PINK};
-          outline-offset: 6px;
-          border-radius: 10px;
-        }
-        /* Eyes are the in-flow element; label is absolutely centered
-           over the eyes and crossfades in on hover. Container size
-           stays anchored to the eyes so the layout doesn't jump. */
-        .hero-cta-eyes {
-          height: clamp(80px, 13vmin, 170px);
-          aspect-ratio: ${SVG_W} / ${SVG_H};
-          width: auto;
-          display: block;
-          flex: none;
-          transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .hero-cta-eyes svg {
-          width: 100%;
-          height: 100%;
-          display: block;
-        }
-        .hero-cta-label {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          /* Same height for events + marketing so both read at the
-             same type size despite different wordmark widths. */
-          height: clamp(30px, 4.5vmin, 56px);
-          width: auto;
-          max-width: 90%;
-          opacity: 0;
-          transform: translate(-50%, -50%) scale(0.92);
-          transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          pointer-events: none;
-        }
-        .hero-cta-btn:hover .hero-cta-eyes,
-        .hero-cta-btn:focus-visible .hero-cta-eyes {
-          opacity: 0;
-          transform: scale(0.94);
-        }
-        .hero-cta-btn:hover .hero-cta-label,
-        .hero-cta-btn:focus-visible .hero-cta-label {
-          opacity: 1;
-          transform: translate(-50%, -50%) scale(1);
-        }
-        @media (max-width: 720px) {
-          .hero-stage { flex-wrap: wrap; gap: clamp(20px, 5vw, 40px); }
-          .hero-flank { flex: 0 0 auto; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .hero-cta-btn,
-          .hero-cta-btn:hover,
-          .hero-cta-btn:active { transform: none; }
-        }
-        /* ─── Slide shell (hero | login | onboarding) ───
-           Three-panel horizontal track. URL drives which one is
-           "centered" via the data-view attribute, and the track
-           translates by 0 / -33.333% / -66.666%. Hero is panel 0;
-           login and onboarding both slide in from the right. */
-        .slide-viewport {
-          flex: 1;
-          min-height: 0;
-          position: relative;
-          overflow: hidden;
-          width: 100%;
-        }
-        .slide-track {
-          display: flex;
-          width: 300%;
-          height: 100%;
-          transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-          will-change: transform;
-          backface-visibility: hidden;
-          -webkit-backface-visibility: hidden;
-        }
-        .slide-track[data-view="hero"]       { transform: translate3d(0, 0, 0); }
-        .slide-track[data-view="login"]      { transform: translate3d(-33.3333%, 0, 0); }
-        .slide-track[data-view="onboarding"] { transform: translate3d(-66.6666%, 0, 0); }
-        .slide-panel {
-          width: calc(100% / 3);
-          flex: 0 0 auto;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 80px clamp(20px, 5vw, 40px) 40px;
-          /* X explicitly hidden so a hero-row that's a few pixels too
-             wide on a narrow phone can't leak out and create a page
-             scroll. Y stays scrollable for tall auth forms. */
-          overflow-x: hidden;
-          overflow-y: auto;
-          box-sizing: border-box;
-          text-align: center;
-        }
-        /* Footer hides itself until you hover the strip — space stays
-           reserved so the marquee never jumps. */
-        .landing-footer { opacity: 0; transition: opacity 200ms ease; }
-        .landing-footer:hover,
-        .landing-footer:focus-within { opacity: 1; }
+    <div className="landing-root">
+      <style>{STYLES}</style>
 
-        /* The slide-viewport sits above the marquee, so content centered
-           inside it lands above the window's visual center. Bias the hero
-           panel's vertical padding to push it down by roughly half the
-           marquee height so it reads as centered on the whole window
-           rather than just the viewport. */
-        .slide-panel-hero {
-          padding-top: clamp(80px, 18vh, 200px);
-          padding-bottom: clamp(20px, 4vh, 40px);
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .slide-track { transition: none; }
-        }
-
-        /* ─── Auth panels (light theme to match the landing) ─── */
-        .auth-panel {
-          width: 100%;
-          max-width: 460px;
-          display: flex;
-          flex-direction: column;
-          gap: 22px;
-          color: ${INK};
-          text-align: left;
-        }
-        .auth-panel-topbar {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-        }
-        .auth-back {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 14px;
-          border-radius: 999px;
-          border: 1px solid rgba(10, 10, 10, 0.12);
-          background: transparent;
-          color: ${INK};
-          font-family: inherit;
-          font-size: 13px;
-          font-weight: 500;
-          transition: background 0.18s, border-color 0.18s;
-        }
-        .auth-back:hover {
-          background: rgba(10, 10, 10, 0.04);
-          border-color: rgba(10, 10, 10, 0.22);
-        }
-        .auth-link-small {
-          font-size: 12px;
-          color: rgba(10, 10, 10, 0.55);
-          text-decoration: none;
-          letter-spacing: 0.02em;
-        }
-        .auth-link-small strong {
-          color: ${PINK};
-          font-weight: 600;
-        }
-        .auth-step-dots {
-          display: flex;
-          gap: 6px;
-          align-items: center;
-        }
-        .auth-step-dot {
-          height: 4px;
-          width: 14px;
-          border-radius: 2px;
-          background: rgba(10, 10, 10, 0.14);
-          transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .auth-step-dot.is-past    { background: rgba(10, 10, 10, 0.45); }
-        .auth-step-dot.is-current { background: ${PINK}; width: 28px; }
-        .auth-card-wrap {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-        .auth-kicker {
-          margin: 0;
-          font-size: 11px;
-          letter-spacing: 0.22em;
-          text-transform: uppercase;
-          color: rgba(10, 10, 10, 0.42);
-        }
-        .auth-title {
-          margin: 0;
-          font-size: clamp(28px, 4.6vw, 40px);
-          font-weight: 800;
-          letter-spacing: -0.025em;
-          line-height: 1.08;
-          color: ${INK};
-        }
-        .auth-title .pink { color: ${PINK}; }
-        .auth-sub {
-          margin: 0;
-          font-size: 15px;
-          line-height: 1.5;
-          color: rgba(10, 10, 10, 0.6);
-        }
-        .auth-input {
-          width: 100%;
-          padding: 14px 16px;
-          border-radius: 12px;
-          border: 1px solid rgba(10, 10, 10, 0.16);
-          background: #fff;
-          color: ${INK};
-          font-size: 16px;
-          font-family: inherit;
-          outline: none;
-          box-sizing: border-box;
-          transition: border-color 0.18s, box-shadow 0.18s;
-        }
-        .auth-input:focus {
-          border-color: ${PINK};
-          box-shadow: 0 0 0 3px rgba(236, 23, 143, 0.16);
-        }
-        .auth-actions {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-          justify-content: flex-end;
-        }
-        .auth-skip {
-          padding: 10px 16px;
-          border-radius: 999px;
-          background: transparent;
-          border: none;
-          color: rgba(10, 10, 10, 0.55);
-          font-family: inherit;
-          font-size: 13px;
-        }
-        .auth-continue {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 12px 22px;
-          border-radius: 999px;
-          border: none;
-          background: ${PINK};
-          color: #fff;
-          font-family: inherit;
-          font-size: 14px;
-          font-weight: 700;
-          transition: opacity 0.18s, transform 0.18s;
-        }
-        .auth-continue:hover { transform: translateY(-1px); }
-        .auth-continue:disabled {
-          background: rgba(10, 10, 10, 0.08);
-          color: rgba(10, 10, 10, 0.4);
-          transform: none;
-        }
-        .auth-finalizing {
-          text-align: center;
-          padding: 60px 20px;
-          font-size: 12px;
-          letter-spacing: 0.22em;
-          text-transform: uppercase;
-          color: rgba(10, 10, 10, 0.55);
-        }
-
-        @keyframes logo-marquee {
-          from { transform: translate3d(0, 0, 0); }
-          to   { transform: translate3d(-50%, 0, 0); }
-        }
-        .logo-marquee {
-          /* Horizontal strip at the very bottom of the page, sitting
-             below the footer links — scrolls right-to-left so the page
-             "ends" with a slow trust-marquee. */
-          position: relative;
-          width: 100%;
-          overflow: hidden;
-          background: transparent;
-          line-height: 0;
-          padding: 18px 0 calc(18px + env(safe-area-inset-bottom));
-        }
-        .logo-marquee-track {
-          display: flex;
-          flex-direction: row;
-          align-items: center;
-          width: max-content;
-          animation: logo-marquee 40s linear infinite;
-          will-change: transform;
-          backface-visibility: hidden;
-          -webkit-backface-visibility: hidden;
-          transform: translate3d(0, 0, 0);
-        }
-        .logo-marquee-group {
-          /* Each group is forced to at least one viewport wide so the
-             track (= 2 groups) is always ≥ 2 viewports — translating by
-             -50% (one group width) is therefore guaranteed seamless on
-             ANY screen, including ultrawides. Extra space is distributed
-             via space-around so the logos spread out rather than
-             leaving a visible gap. */
-          display: flex;
-          flex-direction: row;
-          align-items: center;
-          justify-content: space-around;
-          flex: none;
-          /* dvw = dynamic viewport width — excludes scrollbar area, so
-             this won't be a hair wider than the visible viewport and
-             trigger a phantom horizontal scrollbar on mobile. */
-          min-width: 100dvw;
-          gap: 48px;
-          padding: 0 24px;
-        }
-        @media (min-width: 768px) {
-          .logo-marquee-group { gap: 64px; padding: 0 32px; }
-        }
-        .logo-marquee-item {
-          flex: none;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          opacity: 0.55;
-          transition: opacity 0.2s;
-        }
-        .logo-marquee-item:hover { opacity: 0.9; }
-        .logo-marquee-item img {
-          width: auto;
-          display: block;
-          /* Force every logo to a solid black silhouette so they read on
-             the white page — alpha is preserved, so transparent areas
-             stay transparent. */
-          filter: brightness(0);
-        }
-
-      `}</style>
-
-      {/* ─── NAV (temporarily hidden — flip false→true to bring back) ─── */}
-      {false && (
-      <nav
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 50,
-          padding: "0 calc(44px + clamp(16px, 4vw, 40px)) 0 clamp(12px, 2vw, 24px)",
-          height: 56,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          background: scrolled ? "rgba(255,255,255,0.92)" : "transparent",
-          backdropFilter: scrolled ? "blur(16px)" : "none",
-          WebkitBackdropFilter: scrolled ? "blur(16px)" : "none",
-          borderBottom: scrolled ? "1px solid rgba(10,10,10,0.06)" : "none",
-          transition: "background 0.3s, border-color 0.3s",
-        }}
-      >
-        <div
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          style={{ cursor: "pointer", display: "flex", alignItems: "center" }}
-        >
-          <img
-            src="/pullup-logo.svg"
-            alt="PullUp"
-            style={{ height: 44, width: "auto", display: "block" }}
-          />
-        </div>
-        <button
-          onClick={handleNavCta}
-          style={{
-            padding: "8px 22px",
-            borderRadius: "999px",
-            border: `1px solid ${PINK}`,
-            background: "transparent",
-            color: PINK,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = PINK;
-            e.currentTarget.style.color = "#fff";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = PINK;
-          }}
-        >
-          Log in
-        </button>
-      </nav>
+      {view === "hero" ? (
+        <MarketingScroll
+          user={user}
+          onGetStarted={() => navigate(user ? "/room" : "/start")}
+          onLogin={() => navigate("/login")}
+        />
+      ) : (
+        <AuthShell view={view} user={user} />
       )}
-
-      {/* ─── SLIDE SHELL (hero ↔ login ↔ onboarding) ───
-          Three panels live in one horizontal track. Switching URL
-          (/, /login, /start) re-derives `view`, which sets data-view on
-          the track and animates the translateX. Footer + marquee sit
-          outside the viewport, so they stay pinned through every slide. */}
-      <div className="slide-viewport">
-        <div className="slide-track" data-view={view}>
-          <section className="slide-panel slide-panel-hero">
-            <div style={{ width: "100%", position: "relative", zIndex: 3 }}>
-              <h1
-                style={{
-                  position: "absolute",
-                  width: 1,
-                  height: 1,
-                  padding: 0,
-                  margin: -1,
-                  overflow: "hidden",
-                  clip: "rect(0,0,0,0)",
-                  whiteSpace: "nowrap",
-                  border: 0,
-                }}
-              >
-                Pullup for people, culture, art, and life.
-              </h1>
-
-              <Reveal delay={0.05}>
-                <div className="hero-stage">
-                  {/* LEFT: big eyes → marketing (Instagram). */}
-                  <div className="hero-flank">
-                    <a
-                      className="hero-cta-btn"
-                      href="https://instagram.com/pullupfortheculture"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={handleMarketingCta}
-                      aria-label="Marketing — opens PullUp on Instagram"
-                    >
-                      <span className="hero-cta-stack">
-                        <PullupEyes variant="big" className="hero-cta-eyes" />
-                        <img
-                          src="/cta-marketing.png"
-                          alt="marketing"
-                          className="hero-cta-label"
-                        />
-                      </span>
-                      <span className="hero-cta-caption">marketing</span>
-                    </a>
-                  </div>
-
-                  {/* CENTER: pullup for [word] hero. */}
-                  <div className="hero-center">
-                    <div className="hero-row" aria-hidden="true">
-                      <img
-                        src="/pullup-textlogo.svg"
-                        alt=""
-                        className="hero-pullup-logo"
-                      />
-                      <span className="hero-for">for</span>
-                      <div className="cube-wrap">
-                        <div className="cube-stage">
-                          <div className="word-cube">
-                            {CUBE_WORDS.map((w) => (
-                              <span
-                                key={w.word}
-                                className="cube-face"
-                                style={{ "--face-angle": `${w.faceAngle}deg` }}
-                              >
-                                {w.word}
-                              </span>
-                            ))}
-                          </div>
-                          <img
-                            src="/pullup-logo.svg"
-                            alt=""
-                            className="star-3d"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* RIGHT: small eyes → events (login). */}
-                  <div className="hero-flank">
-                    <button
-                      type="button"
-                      className="hero-cta-btn"
-                      onClick={handleEventsCta}
-                      aria-label={user ? "Go to your events dashboard" : "Sign in to PullUp events"}
-                    >
-                      <span className="hero-cta-stack">
-                        <PullupEyes variant="small" className="hero-cta-eyes" />
-                        <img
-                          src="/cta-events.png"
-                          alt="events"
-                          className="hero-cta-label"
-                        />
-                      </span>
-                      <span className="hero-cta-caption">events</span>
-                    </button>
-                  </div>
-                </div>
-              </Reveal>
-            </div>
-          </section>
-
-          <section className="slide-panel">
-            <LoginPanel isActive={view === "login"} user={user} />
-          </section>
-
-          <section className="slide-panel">
-            <OnboardingPanel isActive={view === "onboarding"} user={user} />
-          </section>
-        </div>
-      </div>
-
-      {/* ─── FOOTER (hidden until you hover its strip) ─── */}
-      <footer
-        className="landing-footer"
-        style={{
-          position: "relative",
-          padding: "16px 16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "clamp(10px, 3vw, 20px)",
-          flexWrap: "wrap",
-          fontSize: 11,
-          color: INK,
-          background: SURFACE,
-        }}
-      >
-        <span>Pullup &copy; {new Date().getFullYear()}</span>
-        <span style={{ opacity: 0.5 }}>&middot;</span>
-        <a href="/privacy" style={{ color: "inherit", textDecoration: "none" }}>Privacy</a>
-        <a href="/terms" style={{ color: "inherit", textDecoration: "none" }}>Terms</a>
-        <a href="/cookies" style={{ color: "inherit", textDecoration: "none" }}>Cookies</a>
-        <span style={{ opacity: 0.5 }}>&middot;</span>
-        <a href="mailto:hello@pullup.se" style={{ color: "inherit", textDecoration: "none" }}>hello@pullup.se</a>
-      </footer>
-
-      {/* ─── TRUST LOGOS MARQUEE (bottom-of-page horizontal strip) ─── */}
-      <div className="logo-marquee" aria-hidden="true">
-        <div className="logo-marquee-track">
-          {/* Two identical viewport-wide groups; animation translates the
-              track by -50% (= one group), so the second group seamlessly
-              takes the first's place. Works on any screen width because
-              each group is min-width: 100vw. */}
-          {[0, 1].map((copy) => (
-            <div className="logo-marquee-group" key={copy}>
-              {LOGOS.map((logo, i) => {
-                const renderH = 22 * (logo.boost || 1);
-                return (
-                  <div className="logo-marquee-item" key={i}>
-                    <img
-                      src={logo.src}
-                      alt={copy === 0 ? logo.alt : ""}
-                      width={logo.width}
-                      height={logo.height}
-                      style={{ height: renderH }}
-                      decoding="async"
-                      loading="eager"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
+
+/* ─── styles ─── */
+const STYLES = `
+  /* Pixel-art pink hand cursor across the entire landing page. Forced on
+     every descendant so images don't fall back to the default arrow. Form
+     inputs are excluded so the text caret still works in the auth fields. */
+  html, body, body *:not(input):not(textarea):not(select) {
+    cursor: url('/cursor-finger.png') 11 2, pointer !important;
+  }
+  html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+  body { touch-action: pan-y; }
+
+  /* Auth surfaces lock the screen to a single non-scrolling view; the
+     marketing scroll leaves the document free to scroll. */
+  body.pullup-auth-locked { overflow: hidden; }
+
+  .landing-root {
+    min-height: 100dvh;
+    background: ${SURFACE};
+    color: ${INK};
+    position: relative;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  .pink { color: ${PINK}; }
+
+  /* ════════ MARKETING SCROLL ════════ */
+  .mk {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* ─── top nav ─── */
+  .mk-nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 50;
+    height: 60px;
+    padding: 0 clamp(16px, 4vw, 40px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255,255,255,0);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom: 1px solid transparent;
+    transition: background 0.3s, border-color 0.3s, backdrop-filter 0.3s;
+  }
+  .mk-nav.is-scrolled {
+    background: rgba(255,255,255,0.86);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(10,10,10,0.06);
+  }
+  .mk-nav-brand {
+    background: none; border: 0; padding: 0; display: flex; align-items: center;
+  }
+  .mk-nav-brand img { height: 26px; width: auto; display: block; }
+  .mk-nav-actions { display: flex; align-items: center; gap: clamp(8px, 2vw, 20px); }
+  .mk-nav-login {
+    background: none; border: 0; padding: 8px 6px;
+    font: inherit; font-size: 14px; font-weight: 500;
+    color: rgba(10,10,10,0.6);
+    transition: color 0.18s;
+  }
+  .mk-nav-login:hover { color: ${INK}; }
+  .mk-nav-cta {
+    padding: 9px 20px; border-radius: 999px; border: 0;
+    background: ${INK}; color: #fff;
+    font: inherit; font-size: 14px; font-weight: 600;
+    transition: transform 0.18s, background 0.18s;
+  }
+  .mk-nav-cta:hover { transform: translateY(-1px); background: ${PINK}; }
+
+  /* ─── shared section frame ─── */
+  .mk-section {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: clamp(72px, 13vh, 150px) clamp(22px, 6vw, 48px);
+  }
+  .mk-section-tint { background: linear-gradient(180deg, #fafafa, #fff); max-width: none; }
+  .mk-section-tint > * { max-width: 880px; margin-left: auto; margin-right: auto; }
+  .mk-eyebrow {
+    margin: 0;
+    font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(10,10,10,0.42);
+    font-weight: 600;
+  }
+  .mk-chapter { display: flex; align-items: baseline; gap: 12px; margin-bottom: 22px; }
+  .mk-chapter-n {
+    font-size: 13px; font-weight: 700; color: ${PINK};
+    font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
+  }
+  .mk-chapter-label {
+    font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(10,10,10,0.4); font-weight: 600;
+  }
+  .mk-h2 {
+    margin: 0 0 28px;
+    font-size: clamp(30px, 5.4vw, 52px);
+    font-weight: 800; letter-spacing: -0.03em; line-height: 1.06;
+  }
+  .mk-lede {
+    margin: 0;
+    font-size: clamp(17px, 2.3vw, 22px);
+    line-height: 1.55;
+    color: rgba(10,10,10,0.72);
+    max-width: 40ch;
+  }
+  .mk-lede strong { color: ${INK}; font-weight: 700; }
+  .mk-aside {
+    margin: 28px 0 0;
+    font-size: 15px; line-height: 1.6;
+    color: rgba(10,10,10,0.5);
+    max-width: 46ch;
+    border-left: 2px solid rgba(236,23,143,0.35);
+    padding-left: 16px;
+  }
+
+  /* ─── 1 · hero ─── */
+  .mk-hero {
+    min-height: 100dvh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    padding: 100px clamp(22px, 6vw, 48px) 60px;
+    gap: 22px;
+  }
+  .mk-hero-eyes {
+    height: clamp(90px, 16vmin, 150px);
+    width: auto; display: block; margin-bottom: 4px;
+  }
+  .mk-hero-eyes svg { width: 100%; height: 100%; display: block; }
+  .mk-hero-h {
+    margin: 0;
+    font-size: clamp(38px, 7.4vw, 78px);
+    font-weight: 800; letter-spacing: -0.035em; line-height: 1.02;
+    max-width: 16ch;
+  }
+  .mk-hero-sub {
+    margin: 0;
+    font-size: clamp(17px, 2.4vw, 21px);
+    line-height: 1.55;
+    color: rgba(10,10,10,0.66);
+    max-width: 52ch;
+  }
+  .mk-hero-cta { margin-top: 8px; }
+
+  .mk-cta {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 15px 30px; border-radius: 999px; border: 0;
+    background: ${PINK}; color: #fff;
+    font: inherit; font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
+    box-shadow: 0 10px 30px -8px rgba(236,23,143,0.5);
+    transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), box-shadow 0.2s;
+  }
+  .mk-cta:hover { transform: translateY(-2px); box-shadow: 0 16px 40px -10px rgba(236,23,143,0.6); }
+  .mk-cta:active { transform: translateY(0); }
+  .mk-cta svg { transition: transform 0.2s; }
+  .mk-cta:hover svg { transform: translateX(3px); }
+
+  .mk-scrollcue {
+    margin-top: 36px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(10,10,10,0.34);
+  }
+  .mk-scrollcue-line {
+    width: 1px; height: 40px;
+    background: linear-gradient(180deg, rgba(10,10,10,0.3), transparent);
+    animation: cue 2s ease-in-out infinite;
+  }
+  @keyframes cue {
+    0%, 100% { opacity: 0.3; transform: scaleY(0.6); transform-origin: top; }
+    50% { opacity: 1; transform: scaleY(1); transform-origin: top; }
+  }
+
+  /* ─── 2 · split ─── */
+  .mk-split {
+    display: flex; align-items: stretch; gap: clamp(16px, 4vw, 40px);
+    margin: 40px 0 8px;
+  }
+  .mk-split-col {
+    flex: 1 1 0; min-width: 0;
+    padding: 28px; border-radius: 18px;
+    background: #fff; border: 1px solid rgba(10,10,10,0.08);
+  }
+  .mk-split-kicker {
+    margin: 0 0 14px;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: ${PINK}; font-weight: 700;
+  }
+  .mk-split-big { margin: 0 0 10px; font-size: clamp(20px, 3vw, 28px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+  .mk-split-note { margin: 0; font-size: 14px; line-height: 1.5; color: rgba(10,10,10,0.5); }
+  .mk-split-vs {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-style: italic; font-weight: 600; color: rgba(10,10,10,0.32);
+  }
+  @media (max-width: 640px) {
+    .mk-split { flex-direction: column; }
+    .mk-split-vs { padding: 4px 0; }
+  }
+
+  /* ─── 3 · room card ─── */
+  .mk-room {
+    margin: 40px 0 4px;
+    border-radius: 22px;
+    border: 1px solid rgba(10,10,10,0.1);
+    background: #fff;
+    box-shadow: 0 30px 70px -40px rgba(10,10,10,0.4);
+    overflow: hidden;
+  }
+  .mk-room-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 18px 22px;
+    border-bottom: 1px solid rgba(10,10,10,0.07);
+    font-size: clamp(15px, 2vw, 18px);
+    color: rgba(10,10,10,0.55);
+  }
+  .mk-room-head strong { color: ${INK}; font-weight: 800; }
+  .mk-room-need strong { color: ${PINK}; }
+  .mk-room-dot { color: rgba(10,10,10,0.25); }
+  .mk-room-people { padding: 8px; }
+  .mk-room-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 13px 14px; border-radius: 12px;
+    transition: background 0.15s;
+  }
+  .mk-room-row:hover { background: rgba(10,10,10,0.025); }
+  .mk-room-row.is-hot { background: rgba(236,23,143,0.05); }
+  .mk-room-av {
+    flex: 0 0 auto;
+    width: 38px; height: 38px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(10,10,10,0.06); color: rgba(10,10,10,0.6);
+    font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+  }
+  .mk-room-row.is-hot .mk-room-av { background: ${PINK}; color: #fff; }
+  .mk-room-name { font-weight: 700; font-size: 15px; flex: 0 0 auto; }
+  .mk-room-meta { font-size: 13px; color: rgba(10,10,10,0.5); margin-left: auto; text-align: right; }
+  @media (max-width: 560px) {
+    .mk-room-meta { display: none; }
+  }
+
+  /* ─── 4 · nudge ─── */
+  .mk-nudge {
+    margin: 40px 0 4px;
+    border-radius: 20px;
+    border: 1px solid rgba(236,23,143,0.25);
+    background: linear-gradient(180deg, rgba(236,23,143,0.04), #fff);
+    padding: clamp(20px, 4vw, 30px);
+    box-shadow: 0 24px 60px -38px rgba(236,23,143,0.5);
+  }
+  .mk-nudge-tag {
+    display: inline-block; margin-bottom: 14px;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: ${PINK}; font-weight: 700;
+  }
+  .mk-nudge-line { margin: 0 0 18px; font-size: clamp(16px, 2.2vw, 19px); font-weight: 600; line-height: 1.4; }
+  .mk-nudge-draft {
+    margin: 0 0 18px; padding: 16px 18px;
+    border-radius: 14px; background: rgba(10,10,10,0.035);
+    font-size: 15px; line-height: 1.55; color: rgba(10,10,10,0.78);
+    font-style: italic;
+  }
+  .mk-nudge-actions { display: flex; align-items: center; gap: 10px; }
+  .mk-nudge-send {
+    padding: 9px 22px; border-radius: 999px; background: ${PINK}; color: #fff;
+    font-size: 14px; font-weight: 700;
+  }
+  .mk-nudge-edit, .mk-nudge-skip {
+    padding: 9px 16px; font-size: 14px; font-weight: 500; color: rgba(10,10,10,0.55);
+  }
+
+  .mk-creed {
+    margin: 36px 0 0;
+    font-size: clamp(24px, 4vw, 38px);
+    font-weight: 800; letter-spacing: -0.03em;
+  }
+
+  /* ─── 5 · terminal ─── */
+  .mk-term {
+    margin: 40px 0 4px;
+    border-radius: 16px; overflow: hidden;
+    border: 1px solid rgba(10,10,10,0.1);
+    background: #0d0d0f;
+    box-shadow: 0 30px 70px -40px rgba(10,10,10,0.6);
+  }
+  .mk-term-bar {
+    display: flex; gap: 7px; padding: 13px 16px;
+    background: #18181b; border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .mk-term-bar span { width: 11px; height: 11px; border-radius: 999px; background: rgba(255,255,255,0.18); }
+  .mk-term-bar span:first-child { background: ${PINK}; }
+  .mk-term-body {
+    margin: 0; padding: clamp(18px, 3vw, 26px);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: clamp(12px, 1.8vw, 14.5px); line-height: 1.7;
+    color: rgba(255,255,255,0.82);
+    white-space: pre-wrap; word-break: break-word;
+  }
+
+  /* ─── 7 · proof ─── */
+  .mk-section-proof { padding-bottom: 8px; text-align: center; }
+  .mk-proof-label {
+    margin: 0;
+    font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(10,10,10,0.4); font-weight: 600;
+  }
+
+  /* ─── 8 · final ─── */
+  .mk-final {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; gap: 22px;
+    padding: clamp(80px, 16vh, 180px) clamp(22px, 6vw, 48px) clamp(60px, 10vh, 110px);
+  }
+  .mk-final-eyes { height: clamp(80px, 14vmin, 130px); width: auto; display: block; }
+  .mk-final-eyes svg { width: 100%; height: 100%; display: block; }
+  .mk-final-h {
+    margin: 0;
+    font-size: clamp(34px, 6.4vw, 66px);
+    font-weight: 800; letter-spacing: -0.035em; line-height: 1.04;
+  }
+  .mk-final-sub {
+    margin: 0; font-size: clamp(16px, 2.3vw, 20px); line-height: 1.55;
+    color: rgba(10,10,10,0.6); max-width: 46ch;
+  }
+  .mk-final-cta { margin-top: 8px; }
+
+  /* ─── footer ─── */
+  .mk-footer {
+    padding: 30px 16px calc(30px + env(safe-area-inset-bottom));
+    display: flex; align-items: center; justify-content: center;
+    gap: clamp(10px, 3vw, 20px); flex-wrap: wrap;
+    font-size: 11px; color: rgba(10,10,10,0.55);
+    border-top: 1px solid rgba(10,10,10,0.06);
+  }
+  .mk-footer a { color: inherit; text-decoration: none; }
+  .mk-footer a:hover { color: ${INK}; }
+  .mk-footer-dot { opacity: 0.4; }
+
+  /* ════════ TRUST MARQUEE ════════ */
+  @keyframes logo-marquee {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-50%, 0, 0); }
+  }
+  .logo-marquee {
+    position: relative; width: 100%; overflow: hidden;
+    background: transparent; line-height: 0;
+    padding: 26px 0;
+  }
+  .logo-marquee-track {
+    display: flex; flex-direction: row; align-items: center;
+    width: max-content;
+    animation: logo-marquee 40s linear infinite;
+    will-change: transform; backface-visibility: hidden;
+    transform: translate3d(0, 0, 0);
+  }
+  .logo-marquee-group {
+    display: flex; flex-direction: row; align-items: center; justify-content: space-around;
+    flex: none; min-width: 100dvw; gap: 48px; padding: 0 24px;
+  }
+  @media (min-width: 768px) {
+    .logo-marquee-group { gap: 64px; padding: 0 32px; }
+  }
+  .logo-marquee-item {
+    flex: none; display: flex; align-items: center; justify-content: center;
+    opacity: 0.5; transition: opacity 0.2s;
+  }
+  .logo-marquee-item:hover { opacity: 0.85; }
+  .logo-marquee-item img { width: auto; display: block; filter: brightness(0); }
+
+  /* ════════ AUTH SHELL ════════ */
+  .auth-shell {
+    position: relative;
+    width: 100%; height: 100dvh;
+    overflow: hidden;
+  }
+  .auth-track {
+    display: flex; width: 200%; height: 100%;
+    transition: transform 0.6s cubic-bezier(0.16,1,0.3,1);
+    will-change: transform;
+  }
+  .auth-track[data-view="login"]      { transform: translate3d(0, 0, 0); }
+  .auth-track[data-view="onboarding"] { transform: translate3d(-50%, 0, 0); }
+  .auth-slot {
+    width: 50%; flex: 0 0 auto; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px clamp(20px, 5vw, 40px);
+    overflow-y: auto; box-sizing: border-box;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .auth-track { transition: none; }
+  }
+
+  /* ─── auth panels (light) ─── */
+  .auth-panel {
+    width: 100%; max-width: 460px;
+    display: flex; flex-direction: column; gap: 22px;
+    color: ${INK}; text-align: left;
+  }
+  .auth-panel-topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .auth-back {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 999px;
+    border: 1px solid rgba(10,10,10,0.12); background: transparent;
+    color: ${INK}; font-family: inherit; font-size: 13px; font-weight: 500;
+    transition: background 0.18s, border-color 0.18s;
+  }
+  .auth-back:hover { background: rgba(10,10,10,0.04); border-color: rgba(10,10,10,0.22); }
+  .auth-link-small { font-size: 12px; color: rgba(10,10,10,0.55); text-decoration: none; letter-spacing: 0.02em; }
+  .auth-link-small strong { color: ${PINK}; font-weight: 600; }
+  .auth-step-dots { display: flex; gap: 6px; align-items: center; }
+  .auth-step-dot {
+    height: 4px; width: 14px; border-radius: 2px; background: rgba(10,10,10,0.14);
+    transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
+  }
+  .auth-step-dot.is-past    { background: rgba(10,10,10,0.45); }
+  .auth-step-dot.is-current { background: ${PINK}; width: 28px; }
+  .auth-card-wrap { display: flex; flex-direction: column; gap: 16px; }
+  .auth-kicker { margin: 0; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(10,10,10,0.42); }
+  .auth-title { margin: 0; font-size: clamp(28px, 4.6vw, 40px); font-weight: 800; letter-spacing: -0.025em; line-height: 1.08; color: ${INK}; }
+  .auth-title .pink { color: ${PINK}; }
+  .auth-sub { margin: 0; font-size: 15px; line-height: 1.5; color: rgba(10,10,10,0.6); }
+  .auth-input {
+    width: 100%; padding: 14px 16px; border-radius: 12px;
+    border: 1px solid rgba(10,10,10,0.16); background: #fff; color: ${INK};
+    font-size: 16px; font-family: inherit; outline: none; box-sizing: border-box;
+    transition: border-color 0.18s, box-shadow 0.18s;
+  }
+  .auth-input:focus { border-color: ${PINK}; box-shadow: 0 0 0 3px rgba(236,23,143,0.16); }
+  .auth-actions { display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
+  .auth-skip { padding: 10px 16px; border-radius: 999px; background: transparent; border: none; color: rgba(10,10,10,0.55); font-family: inherit; font-size: 13px; }
+  .auth-continue {
+    display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px;
+    border-radius: 999px; border: none; background: ${PINK}; color: #fff;
+    font-family: inherit; font-size: 14px; font-weight: 700;
+    transition: opacity 0.18s, transform 0.18s;
+  }
+  .auth-continue:hover { transform: translateY(-1px); }
+  .auth-continue:disabled { background: rgba(10,10,10,0.08); color: rgba(10,10,10,0.4); transform: none; }
+  .auth-finalizing { text-align: center; padding: 60px 20px; font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(10,10,10,0.55); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mk-scrollcue-line, .logo-marquee-track { animation: none; }
+  }
+`;

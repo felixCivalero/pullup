@@ -5699,13 +5699,15 @@ app.get("/admin/people-search", requireAdmin, async (req, res) => {
 });
 
 // The scan landing target. The guest scanned the host's live QR → verify the
-// rotating code, resolve who they are, record the pull-up. Session-first: a
-// signed-in guest is one tap; otherwise resolve by the contact they RSVP'd
-// with, minting a node for true walk-ins. No login wall at the threshold.
+// rotating code, then record the pull-up for the VERIFIED SESSION standing
+// behind it. Two factors, both strong: the live code proves physical presence
+// at the door; the session (a real account) proves WHO. No email — a walk-in
+// with no account verifies first (the room's AuthGate, WhatsApp-fast), then the
+// scan records them. Identity here is never claimed, only proven.
 app.post("/p/:eventId/pullup", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { w, s, email, name } = req.body || {};
+    const { w, s } = req.body || {};
     const { verifyCheckinCode, recordPullUp } = await import("./services/pullupService.js");
 
     const check = await verifyCheckinCode(eventId, w, s);
@@ -5716,24 +5718,12 @@ app.post("/p/:eventId/pullup", optionalAuth, async (req, res) => {
         .json({ ok: false, reason: check.reason });
     }
 
-    const { supabase } = await import("./supabase.js");
-    const claimedEmail = (email || req.user?.email || "").trim().toLowerCase();
-    // Admin view-as can pull up AS a chosen person; otherwise resolve by email.
-    // trustEmail: the live door code was just verified above, so it vouches for
-    // this walk-in's claimed email — the one place an unauthenticated email is
-    // a legitimate identity (a real credential stands behind it).
-    const vw = await resolveViewer(req, { email: claimedEmail || null, trustEmail: true });
-    let person = vw.person;
-    if (!person && !claimedEmail) return res.status(401).json({ ok: false, reason: "needs_identify" });
-    if (!person) {
-      const { data: created, error } = await supabase
-        .from("people")
-        .insert({ email: claimedEmail, name: name || req.user?.name || null })
-        .select("*")
-        .single();
-      person = error ? await findPersonByEmail(claimedEmail) : created; // tolerate unique race
-    }
-    if (!person) return res.status(500).json({ ok: false, reason: "person_resolve_failed" });
+    // WHO = the verified session only (or an admin view-as). No session ⇒ the
+    // walk-in must verify first; the frontend bounces `needs_identify` to the
+    // room's AuthGate, then retries the scan with a real identity.
+    const vw = await resolveViewer(req);
+    const person = vw.person;
+    if (!person) return res.status(401).json({ ok: false, reason: "needs_identify" });
 
     const result = await recordPullUp({ personId: person.id, eventId, method: "scan" });
     if (!result.ok) return res.status(500).json({ ok: false, reason: result.reason });

@@ -927,11 +927,15 @@ export default function EventRoomPage() {
     return <Navigate to={`/app/events/${id}/analytics`} replace />;
   }
 
-  // ONE auth gate + ONE permission gate, used everywhere. A scanned live QR
-  // (?w=) is its own credential, so it skips both.
+  // ONE auth gate + ONE permission gate. Identity is ALWAYS required — even a
+  // scanned live QR doesn't waive it: you must be a verified session to pull up
+  // (the code proves you're at the door, the session proves who you are). The
+  // live code only waives the PERMISSION gate, so a verified walk-in with no
+  // prior RSVP can still pull up at the door.
   const hasLiveCode = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("w");
   // No session (real logged-out, or the admin "No session" lens) → the auth wall.
-  if ((!user || level === "no_session") && !hasLiveCode) {
+  // Carries ?w=&s= through, so after verifying, the scan retries with identity.
+  if (!user || level === "no_session") {
     return <AuthGate redirectTo={`/events/${id}/room${typeof window !== "undefined" ? window.location.search : ""}`} />;
   }
   if (level === "no_access" && !hasLiveCode) {

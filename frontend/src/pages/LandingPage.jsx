@@ -355,20 +355,35 @@ function OnboardingPanel({ isActive, user }) {
   );
 }
 
-/* ─── Auth shell ───
-   Login + onboarding live in one horizontal track that slides between the
-   two. /login → panel 0, /start → panel 1. Rendered only when the URL is on
-   an auth route; the marketing scroll owns the bare "/" view. */
-function AuthShell({ view, user }) {
+/* ─── Auth modal ───
+   Login + onboarding float in a popup OVER the marketing scroll, so the
+   landing stays visible (dimmed) behind — you never feel you left the page.
+   /login → login, /start → onboarding (both still deep-linkable). Backdrop
+   click + Esc close back to "/"; the panels' own "Back" also closes. On
+   phones the card becomes a bottom sheet. */
+function AuthModal({ view, user, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <div className="auth-shell">
-      <div className="auth-track" data-view={view}>
-        <div className="auth-slot">
-          <LoginPanel isActive={view === "login"} user={user} />
-        </div>
-        <div className="auth-slot">
-          <OnboardingPanel isActive={view === "onboarding"} user={user} />
-        </div>
+    <div className="auth-modal-backdrop" onClick={onClose}>
+      <div
+        className="auth-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={view === "login" ? "Log in" : "Get started"}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {view === "login" ? (
+          <LoginPanel isActive user={user} />
+        ) : (
+          <OnboardingPanel isActive user={user} />
+        )}
       </div>
     </div>
   );
@@ -913,7 +928,17 @@ function MarketingScroll({ onGetStarted, onLogin, user }) {
               it carefully, one creator at a time. If that's the future you
               believe in too, <span className="pink">pull up.</span>
             </p>
-            <p className="mk-manifesto-sign">— PullUp</p>
+            <p className="mk-manifesto-sign">
+              —{" "}
+              <a
+                href="https://instagram.com/itsfelixagain"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Felix Civalero
+              </a>
+              , Founder
+            </p>
           </div>
         </Reveal>
 
@@ -1037,14 +1062,15 @@ export function LandingPage() {
     <div className="landing-root">
       <style>{STYLES}</style>
 
-      {view === "hero" ? (
-        <MarketingScroll
-          user={user}
-          onGetStarted={() => navigate(user ? "/room" : "/start")}
-          onLogin={() => navigate("/login")}
-        />
-      ) : (
-        <AuthShell view={view} user={user} />
+      {/* Marketing always renders; auth floats over it as a popup so the
+          landing stays behind. */}
+      <MarketingScroll
+        user={user}
+        onGetStarted={() => navigate(user ? "/room" : "/start")}
+        onLogin={() => navigate("/login")}
+      />
+      {(view === "login" || view === "onboarding") && (
+        <AuthModal view={view} user={user} onClose={() => navigate("/")} />
       )}
     </div>
   );
@@ -1591,6 +1617,12 @@ const STYLES = `
     margin: 18px 0 0;
     font-size: 14px; font-weight: 700; color: ${INK};
   }
+  .mk-manifesto-sign a {
+    color: ${PINK}; text-decoration: none;
+    border-bottom: 1px solid rgba(236,23,143,0.3);
+    transition: border-color 0.2s ease;
+  }
+  .mk-manifesto-sign a:hover { border-bottom-color: ${PINK}; }
 
   /* ─── trust chips (slim reassurance band under the CTA) ─── */
   .mk-trust-row {
@@ -1651,27 +1683,47 @@ const STYLES = `
   .logo-marquee-item:hover { opacity: 0.85; }
   .logo-marquee-item img { width: auto; display: block; filter: brightness(0); }
 
-  /* ════════ AUTH SHELL ════════ */
-  .auth-shell {
-    position: relative;
-    width: 100%; height: 100dvh;
-    overflow: hidden;
-  }
-  .auth-track {
-    display: flex; width: 200%; height: 100%;
-    transition: transform 0.6s cubic-bezier(0.16,1,0.3,1);
-    will-change: transform;
-  }
-  .auth-track[data-view="login"]      { transform: translate3d(0, 0, 0); }
-  .auth-track[data-view="onboarding"] { transform: translate3d(-50%, 0, 0); }
-  .auth-slot {
-    width: 50%; flex: 0 0 auto; height: 100%;
+  /* ════════ AUTH MODAL (popup over the landing) ════════ */
+  .auth-modal-backdrop {
+    position: fixed; inset: 0; z-index: 200;
     display: flex; align-items: center; justify-content: center;
-    padding: 60px clamp(20px, 5vw, 40px);
-    overflow-y: auto; box-sizing: border-box;
+    padding: 24px;
+    background: rgba(10,10,12,0.5);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    overscroll-behavior: contain;
+    animation: auth-fade 0.25s ease;
   }
+  .auth-modal-card {
+    position: relative;
+    width: 100%; max-width: 460px;
+    max-height: calc(100dvh - 48px); overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #fff;
+    border: 1px solid rgba(10,10,10,0.08);
+    border-radius: 24px;
+    box-shadow: 0 30px 80px -16px rgba(10,10,10,0.4);
+    padding: 28px clamp(20px, 5vw, 32px);
+    box-sizing: border-box;
+    animation: auth-pop 0.32s cubic-bezier(0.16,1,0.3,1);
+  }
+  @keyframes auth-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes auth-pop {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+  }
+  /* phone → bottom sheet */
+  @media (max-width: 560px) {
+    .auth-modal-backdrop { align-items: flex-end; padding: 0; }
+    .auth-modal-card {
+      max-width: none; max-height: 94dvh;
+      border-radius: 22px 22px 0 0;
+      padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+      animation: auth-sheet 0.36s cubic-bezier(0.16,1,0.3,1);
+    }
+  }
+  @keyframes auth-sheet { from { transform: translateY(100%); } to { transform: none; } }
   @media (prefers-reduced-motion: reduce) {
-    .auth-track { transition: none; }
+    .auth-modal-backdrop, .auth-modal-card { animation: none; }
   }
 
   /* ─── auth panels (light) ─── */

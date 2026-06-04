@@ -93,9 +93,6 @@ export function HostAnalyticsPage() {
     }},
   ];
 
-  useEffect(() => {
-    if (!authLoading && !user) navigate("/");
-  }, [authLoading, user, navigate]);
 
   // Fetch profile for brand name
   useEffect(() => {

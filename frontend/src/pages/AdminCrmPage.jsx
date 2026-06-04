@@ -502,9 +502,6 @@ export function AdminCrmPage() {
   });
   const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
-    if (!loading && !user) navigate("/");
-  }, [loading, user, navigate]);
 
   const fetchHosts = async () => {
     setHostsLoading(true);

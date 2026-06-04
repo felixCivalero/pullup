@@ -86,11 +86,6 @@ export function AdminPage() {
   const templateType = "event";
   const TEMPLATE_EVENT_ID = "5e7abfb7-70a5-4bd3-b820-42dd04d1e0c7";
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/");
-    }
-  }, [loading, user, navigate]);
 
   useEffect(() => {
     async function loadProfile() {

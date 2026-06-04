@@ -32,9 +32,6 @@ export function AdminEventsPage() {
   const [tagsInput, setTagsInput] = useState("");
   const [tagsSaving, setTagsSaving] = useState(false);
 
-  useEffect(() => {
-    if (!loading && !user) navigate("/");
-  }, [loading, user, navigate]);
 
   useEffect(() => {
     if (!user) return;

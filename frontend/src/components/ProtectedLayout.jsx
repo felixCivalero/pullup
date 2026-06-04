@@ -7,7 +7,6 @@ import { authenticatedFetch } from "../lib/api.js";
 import { EventNavProvider, useEventNav } from "../contexts/EventNavContext.jsx";
 import { ChevronLeft, Settings } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
-import { PullupEyes } from "./PullupEyes.jsx";
 import { NotificationsBell } from "./NotificationsBell.jsx";
 import { WhatsNewModal } from "./WhatsNewModal.jsx";
 import { AuthGate } from "./auth/AuthGate.jsx";
@@ -346,17 +345,11 @@ function ProtectedLayoutInner() {
               cursor: "pointer",
             }}
           >
-            {/* Small eyes = the event platform. They track the cursor here too,
-                so the brand stays alive inside the app — paired with the pink
-                star mark, as on the landing page. */}
-            <PullupEyes
-              variant="small"
-              style={{ width: "34px", height: "30px", display: "block" }}
-            />
+            {/* The written "pullup" wordmark — the brand as text. */}
             <img
-              src="/pullup-logo.svg"
+              src="/pullup-textlogo.svg"
               alt="PullUp"
-              style={{ height: "26px", width: "auto", display: "block" }}
+              style={{ height: "22px", width: "auto", display: "block" }}
             />
           </button>
         )}

@@ -1,6 +1,6 @@
 import { useNavigate, useLocation, useSearchParams, Link, Navigate } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { ArrowRight, ArrowLeft, Lock, Cloud, UserCheck, PenLine, Heart, Download } from "lucide-react";
+import { ArrowRight, ArrowLeft, Lock, Cloud, UserCheck, PenLine, Heart, Download, Instagram, Music2, Twitter, Youtube, Linkedin, Globe, X, FolderPlus, Check } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { AuthCard } from "../components/AuthCard";
 import { hasStoredSession } from "../lib/session.js";
@@ -12,9 +12,31 @@ import { PullupEyes } from "../components/PullupEyes.jsx";
 // Mirrors the schema OnboardingPage was using so existing in-flight drafts
 // transfer across to the new slide-shell version.
 const DRAFT_KEY = "pullup_onboarding_draft";
-const EMPTY_DRAFT = { name: "", brand: "", resumeStep: 0 };
-const ONBOARDING_TOTAL_STEPS = 3;
-const ONBOARDING_STEP_AUTH = 2;
+const EMPTY_DRAFT = { name: "", city: "", bio: "", brand: "", socials: {}, storage: "", resumeStep: 0 };
+const ONBOARDING_TOTAL_STEPS = 5;
+const ONBOARDING_STEP_AUTH = 4;
+
+// Social channels — same set Settings supports (saved as brandingLinks). Instagram
+// leads; the rest are added on demand to keep the step clean.
+const ONB_CHANNELS = [
+  { key: "instagram", label: "Instagram", icon: Instagram, ph: "yourhandle" },
+  { key: "tiktok", label: "TikTok", icon: Music2, ph: "yourhandle" },
+  { key: "x", label: "X", icon: Twitter, ph: "yourhandle" },
+  { key: "youtube", label: "YouTube", icon: Youtube, ph: "channel link" },
+  { key: "linkedin", label: "LinkedIn", icon: Linkedin, ph: "profile link" },
+  { key: "website", label: "Website", icon: Globe, ph: "yoursite.com" },
+];
+
+// Cloud storage destinations — the big global consumer clouds. Intent-only for
+// now (backend Drive/folder integration is not built yet); brand color tints
+// aid recognition. `color` is a 6-digit hex (alpha is appended at render).
+const ONB_STORAGE = [
+  { key: "gdrive", label: "Google Drive", desc: "A “PullUp” folder in your Drive", color: "#1a9b6c" },
+  { key: "dropbox", label: "Dropbox", desc: "A “PullUp” folder in Dropbox", color: "#0061ff" },
+  { key: "icloud", label: "iCloud Drive", desc: "A “PullUp” folder in iCloud", color: "#3b9cf0" },
+  { key: "onedrive", label: "OneDrive", desc: "A “PullUp” folder in OneDrive", color: "#0a66c2" },
+  { key: "other", label: "Somewhere else", desc: "Tell us where later", color: "#6b6b6b" },
+];
 
 function readDraft() {
   try {
@@ -200,9 +222,17 @@ function OnboardingPanel({ isActive, user }) {
       trackEvent("signed_in", { via: pendingFlag ? "google" : "email" });
 
       const stored = readDraft();
+      // Keep only the channels they actually filled in.
+      const socials = stored?.socials || {};
+      const brandingLinks = Object.fromEntries(
+        Object.entries(socials).filter(([, v]) => v && String(v).trim()),
+      );
       const payload = {
         name: stored?.name || "",
+        city: stored?.city || "",
+        bio: stored?.bio || "",
         brand: stored?.brand || "",
+        brandingLinks,
         visitorId: getVisitorId() || null,
       };
       try {
@@ -224,10 +254,26 @@ function OnboardingPanel({ isActive, user }) {
     finalize();
   }, [isActive, user, finalize]);
 
+  // Which social rows are visible. Instagram always leads; any channel already
+  // started in the draft (e.g. resumed after OAuth) shows too.
+  const [shownSocials, setShownSocials] = useState(() => {
+    const started = Object.keys(draft.socials || {}).filter((k) => draft.socials[k]);
+    return Array.from(new Set(["instagram", ...started]));
+  });
+
   const update = (patch) => setDraft((prev) => ({ ...prev, ...patch }));
+  const updateSocial = (key, val) =>
+    setDraft((prev) => ({ ...prev, socials: { ...prev.socials, [key]: val } }));
+  const addChannel = (key) => setShownSocials((s) => (s.includes(key) ? s : [...s, key]));
+  const removeChannel = (key) => {
+    setShownSocials((s) => s.filter((k) => k !== key));
+    updateSocial(key, "");
+  };
+
   const goNext = () => setStep((s) => Math.min(s + 1, ONBOARDING_STEP_AUTH));
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
   const canAdvance = step === 0 ? draft.name.trim().length > 1 : true;
+  const remaining = ONB_CHANNELS.filter((c) => !shownSocials.includes(c.key));
 
   if (finalizing) {
     return (
@@ -265,12 +311,12 @@ function OnboardingPanel({ isActive, user }) {
       <div className="auth-card-wrap">
         {step === 0 && (
           <>
-            <p className="auth-kicker">Step 1 of 3 · You</p>
+            <p className="auth-kicker">Step 1 of 5 · You</p>
             <h2 className="auth-title">
               What should we <span className="pink">call you</span>?
             </h2>
             <p className="auth-sub">
-              Your name shows on invites and event pages.
+              How you show up on invites, event pages and your room.
             </p>
             <input
               className="auth-input"
@@ -280,11 +326,27 @@ function OnboardingPanel({ isActive, user }) {
               placeholder="Your full name"
               autoFocus={isActive}
             />
+            <input
+              className="auth-input"
+              type="text"
+              value={draft.city}
+              onChange={(e) => update({ city: e.target.value })}
+              placeholder="City you're based in (optional)"
+            />
+            <input
+              className="auth-input"
+              type="text"
+              value={draft.bio}
+              onChange={(e) => update({ bio: e.target.value })}
+              placeholder="One line about you — “Rooftop nights in Stockholm”"
+              maxLength={90}
+            />
           </>
         )}
+
         {step === 1 && (
           <>
-            <p className="auth-kicker">Step 2 of 3 · Your brand</p>
+            <p className="auth-kicker">Step 2 of 5 · Your brand</p>
             <h2 className="auth-title">Have a brand or studio?</h2>
             <p className="auth-sub">
               Drop the name if you host under one. Skip if it's just you for now — you can add this later in settings.
@@ -299,17 +361,117 @@ function OnboardingPanel({ isActive, user }) {
             />
           </>
         )}
-        {step === ONBOARDING_STEP_AUTH && (
+
+        {step === 2 && (
           <>
-            <p className="auth-kicker">Step 3 of 3 · Claim it</p>
+            <p className="auth-kicker">Step 3 of 5 · Channels</p>
             <h2 className="auth-title">
-              {draft.name
-                ? `Welcome, ${draft.name.split(" ")[0]}.`
-                : "Almost there."}
+              Where can people <span className="pink">find you</span>?
             </h2>
             <p className="auth-sub">
-              Sign in to lock everything in. Google is fastest.
+              Link your socials so every event page points back to you. Instagram's
+              a great start — add as many as you like.
             </p>
+            <div className="onb-socials">
+              {shownSocials.map((key) => {
+                const ch = ONB_CHANNELS.find((c) => c.key === key);
+                if (!ch) return null;
+                const Icon = ch.icon;
+                return (
+                  <div className="onb-social-row" key={key}>
+                    <span className="onb-social-ic"><Icon size={17} /></span>
+                    <input
+                      className="auth-input onb-social-input"
+                      type="text"
+                      value={draft.socials[key] || ""}
+                      onChange={(e) => updateSocial(key, e.target.value)}
+                      placeholder={ch.ph}
+                      aria-label={ch.label}
+                      autoFocus={isActive && key === "instagram"}
+                    />
+                    {key !== "instagram" && (
+                      <button
+                        type="button"
+                        className="onb-social-remove"
+                        onClick={() => removeChannel(key)}
+                        aria-label={`Remove ${ch.label}`}
+                      >
+                        <X size={15} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {remaining.length > 0 && (
+              <div className="onb-add-row">
+                <span className="onb-add-label">Add</span>
+                {remaining.map((ch) => {
+                  const Icon = ch.icon;
+                  return (
+                    <button
+                      type="button"
+                      key={ch.key}
+                      className="onb-add-chip"
+                      onClick={() => addChannel(ch.key)}
+                    >
+                      <Icon size={14} /> {ch.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <p className="auth-kicker">Step 4 of 5 · Your storage</p>
+            <h2 className="auth-title">
+              Give your stuff a <span className="pink">home you own</span>.
+            </h2>
+            <p className="auth-sub">
+              Your photos, recaps and files live in your own cloud — PullUp just
+              renders them in the room. Pick where your “PullUp” folder should go.
+            </p>
+            <div className="onb-storage-list">
+              {ONB_STORAGE.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  className={`onb-storage${draft.storage === s.key ? " is-on" : ""}`}
+                  onClick={() => update({ storage: draft.storage === s.key ? "" : s.key })}
+                >
+                  <span
+                    className="onb-storage-ic"
+                    style={{ background: `${s.color}1a`, color: s.color }}
+                  >
+                    <FolderPlus size={18} />
+                  </span>
+                  <span className="onb-storage-txt">
+                    <span className="onb-storage-t">{s.label}</span>
+                    <span className="onb-storage-d">{s.desc}</span>
+                  </span>
+                  <span className="onb-storage-check">
+                    {draft.storage === s.key ? <Check size={18} /> : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="onb-note">
+              Cloud sync is rolling out — pick your home now and you'll be first
+              to get your PullUp folder. Your files never leave your control.
+            </p>
+          </>
+        )}
+
+        {step === ONBOARDING_STEP_AUTH && (
+          <>
+            <p className="auth-kicker">Step 5 of 5 · Claim it</p>
+            <h2 className="auth-title">
+              {draft.name ? `Welcome, ${draft.name.split(" ")[0]}.` : "Almost there."}
+            </h2>
+            <p className="auth-sub">Sign in to lock everything in. Google is fastest.</p>
             <AuthCard
               theme="light"
               redirectTo="/start"
@@ -1775,6 +1937,60 @@ const STYLES = `
   .auth-continue:hover { transform: translateY(-1px); }
   .auth-continue:disabled { background: rgba(10,10,10,0.08); color: rgba(10,10,10,0.4); transform: none; }
   .auth-finalizing { text-align: center; padding: 60px 20px; font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(10,10,10,0.55); }
+
+  /* ─── onboarding: social channels ─── */
+  .onb-socials { display: flex; flex-direction: column; gap: 10px; }
+  .onb-social-row { display: flex; align-items: center; gap: 10px; }
+  .onb-social-ic {
+    flex: 0 0 auto; width: 40px; height: 40px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(236,23,143,0.08); color: ${PINK};
+  }
+  .onb-social-input { flex: 1; min-width: 0; }
+  .onb-social-remove {
+    flex: 0 0 auto; width: 32px; height: 32px; border-radius: 999px;
+    border: none; background: transparent; color: rgba(10,10,10,0.4);
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .onb-social-remove:hover { background: rgba(10,10,10,0.06); color: ${INK}; }
+  .onb-add-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+  .onb-add-label { font-size: 12px; font-weight: 600; color: rgba(10,10,10,0.4); }
+  .onb-add-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 13px; border-radius: 999px;
+    border: 1px solid rgba(10,10,10,0.14); background: #fff;
+    color: rgba(10,10,10,0.7); font: inherit; font-size: 13px; font-weight: 600;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  .onb-add-chip:hover { border-color: ${PINK}; color: ${PINK}; background: rgba(236,23,143,0.04); }
+
+  /* ─── onboarding: storage ─── */
+  .onb-storage-list { display: flex; flex-direction: column; gap: 8px; }
+  .onb-storage {
+    display: flex; align-items: center; gap: 13px; width: 100%;
+    padding: 12px 14px; border-radius: 14px; text-align: left;
+    border: 1px solid rgba(10,10,10,0.14); background: #fff;
+    font: inherit; transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  }
+  .onb-storage:hover { border-color: rgba(236,23,143,0.4); }
+  .onb-storage.is-on {
+    border-color: ${PINK}; background: rgba(236,23,143,0.04);
+    box-shadow: 0 0 0 3px rgba(236,23,143,0.12);
+  }
+  .onb-storage-ic {
+    flex: 0 0 auto; width: 40px; height: 40px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .onb-storage-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .onb-storage-t { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; color: ${INK}; }
+  .onb-storage-d { font-size: 13px; color: rgba(10,10,10,0.55); }
+  .onb-soon {
+    font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+    color: ${PINK}; background: rgba(236,23,143,0.12); padding: 2px 7px; border-radius: 999px;
+  }
+  .onb-storage-check { flex: 0 0 auto; color: ${PINK}; display: flex; align-items: center; }
+  .onb-note { margin: 0; font-size: 12.5px; line-height: 1.5; color: rgba(10,10,10,0.48); }
 
   @media (prefers-reduced-motion: reduce) {
     .mk-scrollcue-line, .logo-marquee-track { animation: none; }

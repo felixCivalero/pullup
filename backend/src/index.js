@@ -5330,7 +5330,7 @@ app.get("/api/location/details", async (req, res) => {
 // RoomPage expects. host_id on person_events scopes it to this host's world.
 app.get("/host/room", requireAuth, async (req, res) => {
   try {
-    const room = await getRoomForHost(req.user.id);
+    const room = await getRoomForHost(req.user.id, { email: req.user.email || null });
     res.json(room);
   } catch (error) {
     console.error("Error building room:", error);

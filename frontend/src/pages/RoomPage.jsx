@@ -18,7 +18,7 @@
 
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin } from "lucide-react";
+import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight } from "lucide-react";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { useToast } from "../components/Toast";
 import { colors } from "../theme/colors.js";
@@ -1089,6 +1089,52 @@ function ProfileMasthead({ host, loading, onStat }) {
 }
 
 // ─── The global Room ────────────────────────────────────────────────
+// Rooms you're in — the events you belong to but don't own: ones you co-host,
+// and ones you attend as a guest (RSVP'd / pulled up). Every card opens the one
+// shared Room. This is what makes the home work for a pure guest, who otherwise
+// hosts nothing and would land on an empty page.
+function MemberRoomsRail({ rooms, onOpen }) {
+  if (!rooms?.length) return null;
+  const tag = (r) =>
+    r.isHost ? { label: "Co-host", c: colors.accent, bg: colors.accentSoft, b: colors.accentBorder }
+             : { label: "Guest", c: colors.textMuted, bg: colors.surfaceMuted, b: colors.border };
+  return (
+    <div style={{ marginTop: "22px", marginBottom: "8px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+        <DoorOpen size={16} color={colors.accent} strokeWidth={2.4} />
+        <div style={{ fontSize: "15px", fontWeight: 750, color: colors.text, letterSpacing: "-0.01em", fontFamily: SF }}>Rooms you're in</div>
+        <div style={{ fontSize: "12.5px", color: colors.textFaded }}>· events you joined</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" }}>
+        {rooms.map((r) => {
+          const t = tag(r);
+          return (
+            <button
+              key={r.id}
+              onClick={() => onOpen(r.id)}
+              style={{ textAlign: "left", cursor: "pointer", padding: 0, border: `1px solid ${colors.border}`, borderRadius: "14px", overflow: "hidden", background: colors.surface, display: "flex", flexDirection: "column", boxShadow: "0 1px 2px rgba(10,10,10,0.03)" }}
+            >
+              <div style={{ height: 84, background: "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)", position: "relative" }}>
+                {r.coverImage && <img src={r.coverImage} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+                <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10.5, fontWeight: 700, color: t.c, background: t.bg, border: `1px solid ${t.b}`, borderRadius: 999, padding: "2px 8px" }}>{t.label}</span>
+              </div>
+              <div style={{ padding: "10px 12px 12px", display: "flex", flexDirection: "column", gap: "3px" }}>
+                <div style={{ fontSize: "13.5px", fontWeight: 700, color: colors.text, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: SF }}>{r.title}</div>
+                <div style={{ fontSize: "12px", color: colors.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {[r.when, r.location].filter(Boolean).join(" · ") || (r.status === "draft" ? "Draft" : "")}
+                </div>
+                <div style={{ marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", fontWeight: 650, color: colors.accent }}>
+                  Enter room <ChevronRight size={13} strokeWidth={2.6} />
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function RoomPage() {
   const navigate = useNavigate();
   const { clearEventNav } = useEventNav();
@@ -1121,6 +1167,7 @@ export default function RoomPage() {
   const loading = !room && !loadError;
   const HOST = room?.host || (loadError ? HOST_FIXTURE : { peopleCount: 0 });
   const EVENTS = room?.events || (loadError ? EVENTS_FIXTURE : []);
+  const MEMBER_ROOMS = room?.memberRooms || [];
   const SIGNALS = room?.signals || (loadError ? SIGNALS_FIXTURE : []);
   const MOMENTS = room?.moments || [];
   const PEOPLE = room?.people || (loadError ? PEOPLE_FIXTURE : []);
@@ -1207,6 +1254,11 @@ export default function RoomPage() {
               onDeleted={(id) => setRoom((r) => (r ? { ...r, events: r.events.filter((e) => e.id !== id) } : r))}
             />
           )}
+
+          {/* Rooms you're in — events you co-host or attend as a guest. Always
+              present (even for pure guests with no hosted events), so login
+              always lands on the rooms you can actually enter. */}
+          {!loading && <MemberRoomsRail rooms={MEMBER_ROOMS} onOpen={(id) => navigate(`/events/${id}/room`)} />}
 
           {/* Notifications now live in the top-bar bell (ambient facts), not in
               the Room body. The Room is actionables-only. */}

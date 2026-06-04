@@ -95,10 +95,38 @@ export default function RoomConversation({
   // never yanks them up while they're reading history.
   const atBottomRef = useRef(true);
 
+  // Mobile gets the native STACKED layout (channel strip on top, full-width
+  // messages, composer at the bottom) instead of the desktop rail+chat split.
+  const [isMobile, setIsMobile] = useState(typeof window !== "undefined" && window.innerWidth < 768);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const stacked = !sidebar || isMobile;
+
   const scrollToBottom = useCallback(() => {
+    // Mobile uses the page scroll (single, native scroll); desktop scrolls the
+    // chat's own region.
+    if (isMobile) {
+      window.scrollTo({ top: document.documentElement.scrollHeight });
+      return;
+    }
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, []);
+  }, [isMobile]);
+
+  // On mobile the page is the scroll container, so track bottom-ness off the
+  // window to avoid auto-yanking someone who's scrolled up to read history.
+  useEffect(() => {
+    if (!isMobile) return;
+    const onWin = () => {
+      atBottomRef.current =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 140;
+    };
+    window.addEventListener("scroll", onWin, { passive: true });
+    return () => window.removeEventListener("scroll", onWin);
+  }, [isMobile]);
 
   const loadMsgs = useCallback(async (chId) => {
     const fresh = await api.loadMessages(chId).catch(() => null);
@@ -292,7 +320,7 @@ export default function RoomConversation({
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2, padding: "4px 0" }}
+      style={{ flex: isMobile ? "none" : 1, minHeight: 0, overflowY: isMobile ? "visible" : "auto", display: "flex", flexDirection: "column", gap: 2, padding: "4px 0" }}
     >
       <style>{`.rc-row-wrap:hover .rc-reply{opacity:1 !important;}`}</style>
       {messages === null && <div style={{ fontSize: 13, color: C.faint, padding: "8px 6px" }}>Loading…</div>}
@@ -317,7 +345,7 @@ export default function RoomConversation({
   );
 
   const composer = canPost ? (
-    <div style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+    <div style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingTop: 12, borderTop: `1px solid ${C.border}`, ...(isMobile ? { position: "sticky", bottom: 0, marginTop: "auto", paddingBottom: 10, background: dark ? "#15101a" : "#ffffff", zIndex: 5 } : {}) }}>
       <textarea
         ref={taRef}
         value={draft}
@@ -325,7 +353,7 @@ export default function RoomConversation({
         onKeyDown={onKeyDown}
         rows={1}
         placeholder={activeName ? `Message #${channelKey(activeName)}` : "Message…"}
-        style={{ flex: 1, resize: "none", maxHeight: 120, padding: "11px 13px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.field, color: C.ink, fontSize: 14, lineHeight: 1.4, outline: "none", fontFamily: "inherit" }}
+        style={{ flex: 1, resize: "none", maxHeight: 120, padding: "11px 13px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.field, color: C.ink, fontSize: isMobile ? 16 : 14, lineHeight: 1.4, outline: "none", fontFamily: "inherit" }}
       />
       <button
         onClick={submit}
@@ -348,10 +376,11 @@ export default function RoomConversation({
     background: on ? C.pink : C.chip, color: on ? "#fff" : C.ink,
   });
 
-  if (!sidebar) {
+  if (stacked) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", height: 440 }}>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12, flexShrink: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: isMobile ? "60vh" : undefined, height: isMobile ? "auto" : 440 }}>
+        {/* Channel strip — horizontal scroll on mobile, the native channel switcher. */}
+        <div style={{ display: "flex", gap: 8, flexWrap: isMobile ? "nowrap" : "wrap", overflowX: isMobile ? "auto" : "visible", WebkitOverflowScrolling: "touch", alignItems: "center", marginBottom: 12, flexShrink: 0, paddingBottom: isMobile ? 2 : 0 }}>
           {channels.map((c) => (
             <button key={c.id} onClick={() => pick(c.id)} style={tab(c.id === active)}>
               {c.isMain ? "Main" : c.name}

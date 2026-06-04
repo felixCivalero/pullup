@@ -432,10 +432,201 @@ function LogoMarquee() {
   );
 }
 
+/* ─── Scenes — animated mocks of the REAL platform ─── */
+
+// 1 · THE ROOM — the real-world people who showed up, kept across every night.
+// `arc` = which of your nights they came to (filled = attended); it's what makes
+// the room persist and grow instead of resetting when an event ends.
+const ROOM_PEOPLE = [
+  { initials: "SL", color: "#ec4899", name: "Sara Lindqvist", arc: [1, 0, 1, 1], rel: "A regular — three nights and counting", need: true },
+  { initials: "AB", color: "#8b5cf6", name: "Adam Berg", arc: [1, 1, 1, 1], rel: "Your most loyal — brings friends every time", need: false },
+  { initials: "PR", color: "#d97706", name: "Priya Raman", arc: [1, 1, 0, 1], rel: "Drifted five months — just came back", need: true },
+  { initials: "TH", color: "#16a34a", name: "Tobias Hane", arc: [0, 0, 0, 1], rel: "First night — found you through your reel", need: false },
+  { initials: "JW", color: "#0d9488", name: "Jonas Wikström", arc: [0, 0, 1, 1], rel: "Reliable — pays, shows up early, party of 3", need: false },
+];
+function RoomScene() {
+  return (
+    <SceneFrame className="mk-room">
+      <div className="mk-room-head">
+        <div className="mk-room-title">Your room</div>
+        <div className="mk-room-stats">
+          <span><strong>248</strong> who've shown up</span>
+          <span className="mk-room-need-stat"><strong>6</strong> need you</span>
+        </div>
+      </div>
+      <div className="mk-room-axis" aria-hidden="true">
+        <span>Vol. 1 · last spring</span>
+        <span className="mk-room-axis-line" />
+        <span>Vol. 4 · Saturday</span>
+      </div>
+      <div className="mk-room-rows">
+        {ROOM_PEOPLE.map((p, i) => (
+          <div className="mk-rp" key={p.name} style={{ "--i": i }}>
+            <span className="mk-rp-av" style={{ background: p.color }}>{p.initials}</span>
+            <div className="mk-rp-id">
+              <span className="mk-rp-name">
+                {p.name}
+                {p.need && <span className="mk-rp-need">needs you</span>}
+              </span>
+              <span className="mk-rp-rel">{p.rel}</span>
+            </div>
+            <span className="mk-arc" title="Nights they came">
+              {p.arc.map((on, j) => (
+                <span key={j} className={`mk-arc-dot${on ? " on" : ""}`} />
+              ))}
+            </span>
+          </div>
+        ))}
+      </div>
+    </SceneFrame>
+  );
+}
+
+// 2 · INSIDE THE ROOM — the exclusive stuff only your pullupers get.
+// Mirrors the federated-room model: memories (photos from the night) +
+// artifacts (a track, a drop) shared with the people who actually showed up.
+function RoomDropScene() {
+  return (
+    <SceneFrame className="mk-drop">
+      <div className="mk-drop-head">
+        <span className="mk-drop-title">Inside the room</span>
+        <span className="mk-drop-lock">only for people who pulled up</span>
+      </div>
+      <div className="mk-drop-grid">
+        {/* music */}
+        <div className="mk-tile" style={{ "--i": 0 }}>
+          <div className="mk-tile-music">
+            <span className="mk-tile-play" />
+            <span className="mk-wave" aria-hidden="true">
+              {Array.from({ length: 14 }).map((_, i) => (
+                <span key={i} style={{ "--b": i }} />
+              ))}
+            </span>
+          </div>
+          <span className="mk-tile-label">Sunset set · unreleased</span>
+        </div>
+        {/* photos */}
+        <div className="mk-tile" style={{ "--i": 1 }}>
+          <div className="mk-tile-photos">
+            <span style={{ background: "linear-gradient(135deg,#ff8a4c,#ec178f)" }} />
+            <span style={{ background: "linear-gradient(135deg,#7b2ff7,#0d9488)" }} />
+            <span style={{ background: "linear-gradient(135deg,#fbbf24,#dc2743)" }} />
+          </div>
+          <span className="mk-tile-label">Vol. 3 night · 48 photos</span>
+        </div>
+        {/* product drop */}
+        <div className="mk-tile" style={{ "--i": 2 }}>
+          <div className="mk-tile-drop">
+            <span className="mk-tile-swatch" />
+            <span className="mk-tile-pill">20% for the room</span>
+          </div>
+          <span className="mk-tile-label">Studio print · early drop</span>
+        </div>
+        {/* next invite */}
+        <div className="mk-tile" style={{ "--i": 3 }}>
+          <div className="mk-tile-invite">
+            <span className="mk-tile-invite-eyes">Vol. 5</span>
+            <span className="mk-tile-invite-note">you're first</span>
+          </div>
+          <span className="mk-tile-label">Next night · before it's public</span>
+        </div>
+      </div>
+    </SceneFrame>
+  );
+}
+
+// 3 · the living cross-channel thread + the draft in your voice.
+const THREAD = [
+  { from: "them", ch: "instagram", text: "saw your story — is Vol 4 happening?? 🙌" },
+  { from: "you", ch: "instagram", text: "Sara!! yes — this Saturday. sending the link" },
+  { from: "sys", ch: "email", text: "RSVP'd to Vol. 4 · confirmed, bringing 1" },
+  { from: "them", ch: "whatsapp", text: "is there parking nearby or should I take the metro?" },
+];
+function ThreadScene() {
+  return (
+    <SceneFrame className="mk-thread">
+      <div className="mk-thread-head">
+        <span className="mk-thread-av" style={{ background: "#ec4899" }}>SL</span>
+        <div className="mk-thread-who">
+          <span className="mk-thread-name">Sara Lindqvist</span>
+          <span className="mk-thread-sub">A regular · Vol. 1 → 3 → 4</span>
+        </div>
+        <span className="mk-window">WhatsApp · open · 21h left</span>
+      </div>
+      <div className="mk-thread-body">
+        {THREAD.map((m, i) => (
+          <div className={`mk-msg mk-msg-${m.from}`} key={i} style={{ "--i": i }}>
+            {m.from !== "you" && <ChannelChip ch={m.ch} />}
+            <span className="mk-msg-bub">{m.text}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mk-draft">
+        <span className="mk-draft-tag">Your move · reply about parking</span>
+        <p className="mk-draft-text">
+          "Metro's easiest — Ringen, 4 min walk. But there's free street parking
+          on Skånegatan after 6 if you'd rather drive 🙂 so glad you're in again."
+        </p>
+        <div className="mk-draft-actions">
+          <span className="mk-draft-send">Send as you</span>
+          <span className="mk-draft-edit">Edit</span>
+          <span className="mk-draft-skip">Skip</span>
+        </div>
+      </div>
+    </SceneFrame>
+  );
+}
+
+// 5 · fill the room — comment → auto-DM → WhatsApp confirm (Tobias' real arc).
+function InboundScene() {
+  return (
+    <SceneFrame className="mk-inbound">
+      <div className="mk-in-comment">
+        <ChannelChip ch="instagram" />
+        <span>🔥 how do I get in??</span>
+      </div>
+      <div className="mk-in-arrow">↓ auto-DM with your link</div>
+      <div className="mk-in-dm">
+        Tap to grab your spot
+        <span className="mk-in-pill">RSVP →</span>
+      </div>
+      <div className="mk-in-arrow mk-in-arrow-2">↓ confirm where they actually reply</div>
+      <div className="mk-in-wa">
+        <ChannelChip ch="whatsapp" />
+        You're in — see you Saturday, 6pm ✓
+      </div>
+    </SceneFrame>
+  );
+}
+
+// 6 · run it from your AI (MCP) — typed prompt → event created.
+function McpScene() {
+  return (
+    <SceneFrame className="mk-mcp">
+      <div className="mk-mcp-prompt">
+        <span className="mk-mcp-pdot" />
+        <span className="mk-mcp-typed">make a rooftop dinner, Sat 6pm, 50 guests</span>
+        <span className="mk-mcp-caret" />
+      </div>
+      <div className="mk-mcp-card">
+        <span className="mk-mcp-cover" />
+        <div className="mk-mcp-meta">
+          <span className="mk-mcp-l1" />
+          <span className="mk-mcp-l2" />
+        </div>
+        <span className="mk-mcp-check">✓ Created</span>
+      </div>
+      <div className="mk-mcp-foot">Claude · ChatGPT · Cursor · your AI</div>
+    </SceneFrame>
+  );
+}
+
 /* ─── The marketing scroll ───
-   Eight beats that take a cold visitor from "what is this" to "get started".
-   Brand-soul kept: light canvas, pink accent, the eyes as the recurring
-   motif, pixel cursor, trust marquee. */
+   Takes a creator who already throws events from "what is this" to
+   "get started", mirroring the real platform: signals that come find you,
+   one identity across channels, the WhatsApp window, drafts in your voice.
+   Brand-soul kept: light canvas, pink accent, the eyes, pixel cursor,
+   trust marquee. */
 function MarketingScroll({ onGetStarted, onLogin, user }) {
   const [scrolled, setScrolled] = useState(false);
 
@@ -504,19 +695,20 @@ function MarketingScroll({ onGetStarted, onLogin, user }) {
           <PullupEyes variant="big" className="mk-hero-eyes" />
         </Reveal>
         <Reveal delay={0.06}>
-          <p className="mk-eyebrow">For creators &amp; solopreneurs</p>
+          <p className="mk-eyebrow">The event platform for creators</p>
         </Reveal>
         <Reveal delay={0.12}>
           <h1 className="mk-hero-h">
-            Your people don't live<br />in one place.{" "}
-            <span className="pink">Now they do.</span>
+            Where your followers<br />
+            <span className="pink">become your people.</span>
           </h1>
         </Reveal>
         <Reveal delay={0.18}>
           <p className="mk-hero-sub">
-            The home for everyone behind your work — the followers and the
-            friends, the DMs and the dinners. PullUp holds them as one living
-            thing. Then it reaches out, before you remember to.
+            PullUp is the bridge between your online world and your real one.
+            Your events bring people together — and PullUp keeps every one of
+            them, across Instagram, WhatsApp and real life, long after the
+            night's over.
           </p>
         </Reveal>
         <Reveal delay={0.24}>
@@ -530,177 +722,103 @@ function MarketingScroll({ onGetStarted, onLogin, user }) {
         </Reveal>
       </section>
 
-      {/* ─── 2 · THE SPLIT ─── */}
+      {/* ─── 1 · THE ROOM (exclusive drops + who's in it) ─── */}
       <section className="mk-section">
-        <Reveal><Chapter n="01" label="The split" /></Reveal>
+        <Reveal><Chapter n="01" label="The Room" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
-            Your life as a creator is split in two.
+            Some things are only for the people <span className="pink">who showed up.</span>
           </h2>
         </Reveal>
-        <div className="mk-split">
-          <Reveal delay={0.1} className="mk-split-col">
-            <p className="mk-split-kicker">Online</p>
-            <p className="mk-split-big">Followers. DMs. Likes.</p>
-            <p className="mk-split-note">Reach you can measure but never feel.</p>
-          </Reveal>
-          <Reveal delay={0.18} className="mk-split-vs">
-            <span>vs</span>
-          </Reveal>
-          <Reveal delay={0.26} className="mk-split-col">
-            <p className="mk-split-kicker">In real life</p>
-            <p className="mk-split-big">Who showed up. Who you'd call.</p>
-            <p className="mk-split-note">Presence you feel but can't scale.</p>
-          </Reveal>
-        </div>
-        <Reveal delay={0.32}>
+        <Reveal delay={0.1}>
           <p className="mk-lede">
-            You're the only thing connecting the two. Every name, every promise
-            to follow up, every "we should do this again" — held in your head.
-            <strong> And you're tired.</strong>
+            The Room is everyone who's ever pulled up — kept long after the
+            night's over — and the place you share what no one else gets. Drop
+            the unreleased track, the photos from the night, the early product,
+            the next invite before it's public. The stuff that never touches
+            your grid lives here, just for them.
+          </p>
+        </Reveal>
+        <RoomDropScene />
+        <Reveal delay={0.1}>
+          <p className="mk-creed">
+            Showing up is the password. <span className="pink">What's inside is the reward.</span>
           </p>
         </Reveal>
       </section>
 
-      {/* ─── 3 · ONE PERSON ─── */}
+      {/* ─── 2 · EVERY PERSON, IN FULL (thread + draft) ─── */}
       <section className="mk-section mk-section-tint">
-        <Reveal><Chapter n="02" label="One person" /></Reveal>
+        <Reveal><Chapter n="02" label="Every person, in full" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
-            The two halves are the <span className="pink">same human</span>.
+            Tap anyone. See the whole story.
           </h2>
         </Reveal>
         <Reveal delay={0.1}>
           <p className="mk-lede">
-            The handle that comments on every post is the same person who came
-            to your last three nights. PullUp resolves them into one —
-            across Instagram, WhatsApp, email, and the door. A single thread
-            per person that outlives any one event.
+            One tap opens a person's entire history with you — every night they
+            came, every message, across Instagram, WhatsApp and email, stitched
+            into one thread. And when they need a reply, PullUp drafts it in your
+            voice, ready the moment you are.
           </p>
         </Reveal>
-
-        {/* Room card mock — a person's living timeline */}
-        <Reveal delay={0.16}>
-          <div className="mk-room">
-            <div className="mk-room-head">
-              <div className="mk-room-stat">
-                <strong>248</strong> in your world
-              </div>
-              <div className="mk-room-dot">·</div>
-              <div className="mk-room-stat mk-room-need">
-                <strong>6</strong> need you
-              </div>
-            </div>
-            <div className="mk-room-people">
-              {[
-                { i: "MA", n: "Maya", m: "Showed up twice · no thank-you yet", hot: true },
-                { i: "JN", n: "Jonas", m: "RSVP'd Friday · first time" },
-                { i: "TL", n: "Talia", m: "Quiet 4 months · was a regular", hot: true },
-                { i: "Re", n: "Rema", m: "Replied to your story · not invited yet" },
-              ].map((p) => (
-                <div className={`mk-room-row${p.hot ? " is-hot" : ""}`} key={p.n}>
-                  <span className="mk-room-av">{p.i}</span>
-                  <span className="mk-room-name">{p.n}</span>
-                  <span className="mk-room-meta">{p.m}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Reveal>
-        <Reveal delay={0.22}>
-          <p className="mk-aside">
-            Not a follower count. A responsibility count. The number that
-            matters is the one that needs you back.
-          </p>
-        </Reveal>
-      </section>
-
-      {/* ─── 4 · ONE NODE THAT ACTS ─── */}
-      <section className="mk-section">
-        <Reveal><Chapter n="03" label="It acts" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            It doesn't wait to be asked.
-          </h2>
-        </Reveal>
+        <ThreadScene />
         <Reveal delay={0.1}>
-          <p className="mk-lede">
-            Most tools sit there until you open them. PullUp notices. Who's gone
-            quiet. Who came twice and never heard back. Who's on the waitlist for
-            the night that just opened up. Then it does the hard part — it writes
-            the first draft.
-          </p>
-        </Reveal>
-
-        {/* Proactive nudge mock */}
-        <Reveal delay={0.16}>
-          <div className="mk-nudge">
-            <div className="mk-nudge-tag">PullUp noticed</div>
-            <p className="mk-nudge-line">
-              Maya came to your last two dinners and never got a word after.
-              Want to close the loop?
-            </p>
-            <div className="mk-nudge-draft">
-              "Maya — it genuinely made both nights better having you there.
-              Doing a small one in May, you're first on the list. ✨"
-            </div>
-            <div className="mk-nudge-actions">
-              <span className="mk-nudge-send">Send</span>
-              <span className="mk-nudge-edit">Edit</span>
-              <span className="mk-nudge-skip">Not now</span>
-            </div>
-          </div>
-        </Reveal>
-
-        <Reveal delay={0.22}>
           <p className="mk-creed">
             It drafts. <span className="pink">You send.</span>
           </p>
         </Reveal>
-        <Reveal delay={0.28}>
+        <Reveal delay={0.06}>
           <p className="mk-aside">
             PullUp amplifies care that already exists. It never manufactures
             care that doesn't. The warmth is yours — it just makes sure you
-            never drop it.
+            never drop it. And it only sends when you say so.
           </p>
         </Reveal>
       </section>
 
-      {/* ─── 5 · MEETS YOU WHERE YOU WORK ─── */}
-      <section className="mk-section mk-section-tint">
-        <Reveal><Chapter n="04" label="No new tab" /></Reveal>
+      {/* ─── 3 · FILL THE ROOM (INBOUND) ─── */}
+      <section className="mk-section">
+        <Reveal><Chapter n="03" label="Fill the room" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
-            It lives where you already are.
+            A comment on your reel becomes a guest at your door.
           </h2>
         </Reveal>
         <Reveal delay={0.1}>
           <p className="mk-lede">
-            Not one more dashboard to forget about. Talk to PullUp inside the
-            tools you already keep open — Claude, ChatGPT, Cursor. Spin up an
-            event, pull a person's whole history, draft the follow-up, all in
-            a sentence.
+            Someone comments asking to get in — PullUp slides into their DMs
+            with your sign-up link, then lands the confirmation on WhatsApp,
+            where people actually open and reply. The whole funnel, from hype to
+            RSVP, without you lifting a finger.
           </p>
         </Reveal>
-        <Reveal delay={0.16}>
-          <div className="mk-term">
-            <div className="mk-term-bar">
-              <span /><span /><span />
-            </div>
-            <pre className="mk-term-body">
-{`you  ›  make a small dinner for 12, friday the 9th, my place
-
-pullup  ›  Done — draft event "Friday Supper" is live.
-           Pulled 18 people who'd fit. 6 are overdue a
-           reach-out. Want the invites drafted?`}
-            </pre>
-          </div>
-        </Reveal>
+        <InboundScene />
       </section>
 
-      {/* ─── 6 · YOUR PEOPLE STAY YOURS ─── */}
-      <section className="mk-section">
-        <Reveal><Chapter n="05" label="Yours" /></Reveal>
+      {/* ─── 5 · RUN IT FROM YOUR AI ─── */}
+      <section className="mk-section mk-section-tint">
+        <Reveal><Chapter n="05" label="No new app to learn" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            Or just tell your AI to do it.
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            PullUp plugs into Claude, ChatGPT, Cursor — any AI that speaks MCP.
+            Spin up an event, pull a person's whole history, draft the
+            follow-ups, all in a sentence. The platform, run from wherever you
+            already think out loud.
+          </p>
+        </Reveal>
+        <McpScene />
+      </section>
+
+      {/* ─── 7 · YOUR PEOPLE STAY YOURS ─── */}
+      <section className="mk-section mk-section-tint">
+        <Reveal><Chapter n="06" label="Yours" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
             Your people are yours. Full stop.
@@ -708,15 +826,15 @@ pullup  ›  Done — draft event "Friday Supper" is live.
         </Reveal>
         <Reveal delay={0.1}>
           <p className="mk-lede">
-            We don't sell contacts. We don't market to your audience. Your
-            memories live in your own cloud — PullUp is the thread that renders
-            them, not the landlord that owns them. Your fans only ever hear from
-            one person: you.
+            We don't sell contacts. We don't market to your audience behind your
+            back. Your memories live in your own cloud — PullUp is the thread
+            that renders them, not the landlord that owns them. Your people only
+            ever hear from one person: you.
           </p>
         </Reveal>
       </section>
 
-      {/* ─── 7 · PROOF ─── */}
+      {/* ─── 8 · PROOF ─── */}
       <section className="mk-section mk-section-proof">
         <Reveal>
           <p className="mk-proof-label">The rooms already run on PullUp</p>
@@ -724,7 +842,7 @@ pullup  ›  Done — draft event "Friday Supper" is live.
       </section>
       <LogoMarquee />
 
-      {/* ─── 8 · FINAL CTA ─── */}
+      {/* ─── 9 · FINAL CTA ─── */}
       <section className="mk-final">
         <Reveal y={16}>
           <PullupEyes variant="big" className="mk-final-eyes" />
@@ -737,8 +855,8 @@ pullup  ›  Done — draft event "Friday Supper" is live.
         </Reveal>
         <Reveal delay={0.16}>
           <p className="mk-final-sub">
-            We're early, and that's the point — we're taking on one creator at a
-            time, and doing it properly. Pull up.
+            We're early, and that's on purpose — we're taking on one creator at
+            a time, and doing it properly. Pull up.
           </p>
         </Reveal>
         <Reveal delay={0.24}>
@@ -1044,129 +1162,272 @@ const STYLES = `
     50% { opacity: 1; transform: scaleY(1); transform-origin: top; }
   }
 
-  /* ─── 2 · split ─── */
-  .mk-split {
-    display: flex; align-items: stretch; gap: clamp(16px, 4vw, 40px);
-    margin: 40px 0 8px;
-  }
-  .mk-split-col {
-    flex: 1 1 0; min-width: 0;
-    padding: 28px; border-radius: 18px;
-    background: #fff; border: 1px solid rgba(10,10,10,0.08);
-  }
-  .mk-split-kicker {
-    margin: 0 0 14px;
-    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
-    color: ${PINK}; font-weight: 700;
-  }
-  .mk-split-big { margin: 0 0 10px; font-size: clamp(20px, 3vw, 28px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
-  .mk-split-note { margin: 0; font-size: 14px; line-height: 1.5; color: rgba(10,10,10,0.5); }
-  .mk-split-vs {
-    flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-style: italic; font-weight: 600; color: rgba(10,10,10,0.32);
-  }
-  @media (max-width: 640px) {
-    .mk-split { flex-direction: column; }
-    .mk-split-vs { padding: 4px 0; }
-  }
-
-  /* ─── 3 · room card ─── */
-  .mk-room {
+  /* ════════ SCENES (animated platform mocks) ════════ */
+  .mk-scene {
     margin: 40px 0 4px;
-    border-radius: 22px;
-    border: 1px solid rgba(10,10,10,0.1);
-    background: #fff;
-    box-shadow: 0 30px 70px -40px rgba(10,10,10,0.4);
-    overflow: hidden;
+    position: relative;
   }
-  .mk-room-head {
-    display: flex; align-items: center; gap: 10px;
-    padding: 18px 22px;
-    border-bottom: 1px solid rgba(10,10,10,0.07);
-    font-size: clamp(15px, 2vw, 18px);
-    color: rgba(10,10,10,0.55);
-  }
-  .mk-room-head strong { color: ${INK}; font-weight: 800; }
-  .mk-room-need strong { color: ${PINK}; }
-  .mk-room-dot { color: rgba(10,10,10,0.25); }
-  .mk-room-people { padding: 8px; }
-  .mk-room-row {
-    display: flex; align-items: center; gap: 14px;
-    padding: 13px 14px; border-radius: 12px;
-    transition: background 0.15s;
-  }
-  .mk-room-row:hover { background: rgba(10,10,10,0.025); }
-  .mk-room-row.is-hot { background: rgba(236,23,143,0.05); }
-  .mk-room-av {
-    flex: 0 0 auto;
-    width: 38px; height: 38px; border-radius: 999px;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(10,10,10,0.06); color: rgba(10,10,10,0.6);
-    font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
-  }
-  .mk-room-row.is-hot .mk-room-av { background: ${PINK}; color: #fff; }
-  .mk-room-name { font-weight: 700; font-size: 15px; flex: 0 0 auto; }
-  .mk-room-meta { font-size: 13px; color: rgba(10,10,10,0.5); margin-left: auto; text-align: right; }
-  @media (max-width: 560px) {
-    .mk-room-meta { display: none; }
-  }
-
-  /* ─── 4 · nudge ─── */
-  .mk-nudge {
-    margin: 40px 0 4px;
-    border-radius: 20px;
-    border: 1px solid rgba(236,23,143,0.25);
-    background: linear-gradient(180deg, rgba(236,23,143,0.04), #fff);
-    padding: clamp(20px, 4vw, 30px);
-    box-shadow: 0 24px 60px -38px rgba(236,23,143,0.5);
-  }
-  .mk-nudge-tag {
-    display: inline-block; margin-bottom: 14px;
-    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
-    color: ${PINK}; font-weight: 700;
-  }
-  .mk-nudge-line { margin: 0 0 18px; font-size: clamp(16px, 2.2vw, 19px); font-weight: 600; line-height: 1.4; }
-  .mk-nudge-draft {
-    margin: 0 0 18px; padding: 16px 18px;
-    border-radius: 14px; background: rgba(10,10,10,0.035);
-    font-size: 15px; line-height: 1.55; color: rgba(10,10,10,0.78);
-    font-style: italic;
-  }
-  .mk-nudge-actions { display: flex; align-items: center; gap: 10px; }
-  .mk-nudge-send {
-    padding: 9px 22px; border-radius: 999px; background: ${PINK}; color: #fff;
-    font-size: 14px; font-weight: 700;
-  }
-  .mk-nudge-edit, .mk-nudge-skip {
-    padding: 9px 16px; font-size: 14px; font-weight: 500; color: rgba(10,10,10,0.55);
-  }
-
   .mk-creed {
     margin: 36px 0 0;
     font-size: clamp(24px, 4vw, 38px);
     font-weight: 800; letter-spacing: -0.03em;
   }
 
-  /* ─── 5 · terminal ─── */
-  .mk-term {
-    margin: 40px 0 4px;
-    border-radius: 16px; overflow: hidden;
-    border: 1px solid rgba(10,10,10,0.1);
-    background: #0d0d0f;
-    box-shadow: 0 30px 70px -40px rgba(10,10,10,0.6);
+  /* cross-channel identity chip */
+  .mk-chchip {
+    flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 7px;
+    font-size: 10.5px; font-weight: 800; letter-spacing: -0.01em;
   }
-  .mk-term-bar {
-    display: flex; gap: 7px; padding: 13px 16px;
-    background: #18181b; border-bottom: 1px solid rgba(255,255,255,0.06);
+
+  /* ─── 1 · the room (real people, kept across every night) ─── */
+  .mk-room {
+    max-width: 620px;
+    border-radius: 22px; overflow: hidden;
+    background: #fff; border: 1px solid rgba(10,10,10,0.1);
+    box-shadow: 0 36px 80px -44px rgba(10,10,10,0.45);
   }
-  .mk-term-bar span { width: 11px; height: 11px; border-radius: 999px; background: rgba(255,255,255,0.18); }
-  .mk-term-bar span:first-child { background: ${PINK}; }
-  .mk-term-body {
-    margin: 0; padding: clamp(18px, 3vw, 26px);
+  .mk-room-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 18px 20px 14px;
+  }
+  .mk-room-title { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+  .mk-room-stats { display: flex; align-items: center; gap: 16px; font-size: 13px; color: rgba(10,10,10,0.5); }
+  .mk-room-stats strong { color: ${INK}; font-weight: 800; }
+  .mk-room-need-stat strong { color: ${PINK}; }
+  .mk-room-axis {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px 14px; font-size: 10.5px; letter-spacing: 0.02em;
+    color: rgba(10,10,10,0.38); white-space: nowrap;
+  }
+  .mk-room-axis-line {
+    flex: 1; height: 1px;
+    background: repeating-linear-gradient(90deg, rgba(10,10,10,0.18) 0 4px, transparent 4px 9px);
+  }
+  .mk-room-rows { padding: 4px; border-top: 1px solid rgba(10,10,10,0.07); }
+  .mk-rp {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 14px; border-radius: 13px;
+    opacity: 0; transform: translateY(8px);
+  }
+  .mk-in .mk-rp { animation: mk-msgin 0.45s ease forwards; animation-delay: calc(var(--i) * 0.12s + 0.15s); }
+  .mk-rp-av {
+    flex: 0 0 auto; width: 42px; height: 42px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 14px; font-weight: 800;
+  }
+  .mk-rp-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .mk-rp-name { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+  .mk-rp-need {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+    color: ${PINK}; background: rgba(236,23,143,0.1);
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .mk-rp-rel { font-size: 13px; color: rgba(10,10,10,0.52); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mk-arc { flex: 0 0 auto; display: inline-flex; gap: 6px; align-items: center; }
+  .mk-arc-dot {
+    width: 9px; height: 9px; border-radius: 999px;
+    background: rgba(10,10,10,0.1);
+  }
+  .mk-arc-dot.on { background: ${PINK}; box-shadow: 0 0 0 3px rgba(236,23,143,0.1); }
+  @media (max-width: 540px) {
+    .mk-rp-rel { white-space: normal; }
+    .mk-room-axis span:not(.mk-room-axis-line) { font-size: 9.5px; }
+  }
+
+  /* ─── 2 · inside the room (exclusive drops) ─── */
+  .mk-drop {
+    max-width: 620px;
+    border-radius: 22px; overflow: hidden;
+    background: #fff; border: 1px solid rgba(10,10,10,0.1);
+    box-shadow: 0 36px 80px -44px rgba(236,23,143,0.4);
+  }
+  .mk-drop-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 16px 18px; border-bottom: 1px solid rgba(10,10,10,0.07);
+  }
+  .mk-drop-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+  .mk-drop-lock {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+    color: ${PINK}; background: rgba(236,23,143,0.1);
+    padding: 5px 11px; border-radius: 999px;
+  }
+  .mk-drop-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    padding: 16px;
+  }
+  @media (max-width: 480px) { .mk-drop-grid { grid-template-columns: 1fr; } }
+  .mk-tile {
+    display: flex; flex-direction: column; gap: 9px;
+    opacity: 0; transform: translateY(10px) scale(0.97);
+  }
+  .mk-in .mk-tile { animation: mk-tilein 0.5s cubic-bezier(0.16,1,0.3,1) forwards; animation-delay: calc(var(--i) * 0.12s + 0.15s); }
+  @keyframes mk-tilein { to { opacity: 1; transform: none; } }
+  .mk-tile-label { font-size: 12.5px; font-weight: 600; color: rgba(10,10,10,0.6); }
+  .mk-tile-music, .mk-tile-photos, .mk-tile-drop, .mk-tile-invite {
+    height: 96px; border-radius: 14px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  /* music */
+  .mk-tile-music { background: #0d0d0f; gap: 12px; }
+  .mk-tile-play {
+    width: 0; height: 0; flex: 0 0 auto;
+    border-left: 14px solid #fff; border-top: 9px solid transparent; border-bottom: 9px solid transparent;
+    margin-left: 4px;
+  }
+  .mk-wave { display: inline-flex; align-items: center; gap: 3px; height: 40px; }
+  .mk-wave span {
+    width: 3px; border-radius: 2px;
+    background: linear-gradient(180deg, #ff8a4c, ${PINK});
+    height: 30%;
+  }
+  .mk-in .mk-wave span { animation: mk-eq 1.1s ease-in-out infinite; animation-delay: calc(var(--b) * -0.09s); }
+  @keyframes mk-eq { 0%,100% { height: 22%; } 50% { height: 92%; } }
+  /* photos */
+  .mk-tile-photos { background: rgba(10,10,10,0.04); }
+  .mk-tile-photos span {
+    position: absolute; width: 46px; height: 58px; border-radius: 8px;
+    box-shadow: 0 6px 16px -6px rgba(10,10,10,0.45); border: 2px solid #fff;
+  }
+  .mk-tile-photos span:nth-child(1) { transform: rotate(-9deg) translateX(-26px); }
+  .mk-tile-photos span:nth-child(2) { transform: rotate(0deg) translateY(-3px); z-index: 2; }
+  .mk-tile-photos span:nth-child(3) { transform: rotate(9deg) translateX(26px); }
+  /* product drop */
+  .mk-tile-drop { background: rgba(10,10,10,0.04); flex-direction: column; gap: 8px; }
+  .mk-tile-swatch {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: linear-gradient(150deg, #fbbf24, #f97316 60%, #b91c1c);
+    box-shadow: 0 8px 18px -8px rgba(185,28,28,0.6);
+  }
+  .mk-tile-pill {
+    font-size: 10.5px; font-weight: 800; color: #fff; background: ${PINK};
+    padding: 4px 10px; border-radius: 999px;
+  }
+  /* invite */
+  .mk-tile-invite { background: linear-gradient(150deg, rgba(236,23,143,0.14), rgba(123,47,247,0.12)); flex-direction: column; gap: 2px; }
+  .mk-tile-invite-eyes { font-size: 22px; font-weight: 900; letter-spacing: -0.03em; color: ${INK}; }
+  .mk-tile-invite-note { font-size: 12px; font-weight: 700; color: ${PINK}; }
+
+  /* ─── 3 · thread + draft ─── */
+  .mk-thread {
+    max-width: 560px;
+    border-radius: 22px; overflow: hidden;
+    background: #fff; border: 1px solid rgba(10,10,10,0.1);
+    box-shadow: 0 36px 80px -44px rgba(10,10,10,0.5);
+  }
+  .mk-thread-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px 18px; border-bottom: 1px solid rgba(10,10,10,0.07);
+  }
+  .mk-thread-av {
+    flex: 0 0 auto; width: 40px; height: 40px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 14px; font-weight: 800;
+  }
+  .mk-thread-who { display: flex; flex-direction: column; min-width: 0; }
+  .mk-thread-name { font-size: 15px; font-weight: 800; }
+  .mk-thread-sub { font-size: 12px; color: rgba(10,10,10,0.5); }
+  .mk-window {
+    margin-left: auto; flex: 0 0 auto;
+    font-size: 11px; font-weight: 700; color: #0a7d54;
+    background: #e7f9ee; border: 1px solid rgba(37,211,102,0.3);
+    padding: 5px 10px; border-radius: 999px;
+  }
+  @media (max-width: 480px) { .mk-window { font-size: 10px; padding: 4px 8px; } }
+  .mk-thread-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .mk-msg { display: flex; align-items: flex-end; gap: 8px; max-width: 86%; opacity: 0; transform: translateY(8px); }
+  .mk-in .mk-msg { animation: mk-msgin 0.45s ease forwards; animation-delay: calc(var(--i) * 0.5s + 0.2s); }
+  @keyframes mk-msgin { to { opacity: 1; transform: translateY(0); } }
+  .mk-msg-you { align-self: flex-end; flex-direction: row-reverse; }
+  .mk-msg-bub {
+    padding: 10px 14px; border-radius: 16px;
+    font-size: 14px; line-height: 1.4;
+    background: rgba(10,10,10,0.05); color: ${INK};
+  }
+  .mk-msg-you .mk-msg-bub { background: ${PINK}; color: #fff; border-bottom-right-radius: 5px; }
+  .mk-msg-them .mk-msg-bub, .mk-msg-sys .mk-msg-bub { border-bottom-left-radius: 5px; }
+  .mk-msg-sys .mk-msg-bub {
+    background: transparent; border: 1px dashed rgba(10,10,10,0.2);
+    color: rgba(10,10,10,0.55); font-size: 13px;
+  }
+  .mk-draft {
+    margin: 4px 14px 18px; padding: 16px 18px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(236,23,143,0.05), rgba(236,23,143,0.02));
+    border: 1px solid rgba(236,23,143,0.25);
+    opacity: 0; transform: translateY(10px);
+  }
+  .mk-in .mk-draft { animation: mk-msgin 0.5s ease 2.4s forwards; }
+  .mk-draft-tag {
+    display: inline-block; margin-bottom: 9px;
+    font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: ${PINK}; font-weight: 800;
+  }
+  .mk-draft-text { margin: 0 0 14px; font-size: 14px; line-height: 1.5; color: rgba(10,10,10,0.8); font-style: italic; }
+  .mk-draft-actions { display: flex; align-items: center; gap: 9px; }
+  .mk-draft-send { padding: 9px 18px; border-radius: 999px; background: ${PINK}; color: #fff; font-size: 13px; font-weight: 700; }
+  .mk-draft-edit, .mk-draft-skip { padding: 9px 12px; font-size: 13px; font-weight: 500; color: rgba(10,10,10,0.5); }
+
+  /* ─── 5 · inbound (comment → DM → WhatsApp) ─── */
+  .mk-inbound { display: flex; flex-direction: column; align-items: center; gap: 9px; max-width: 420px; margin-left: auto; margin-right: auto; }
+  .mk-in-comment, .mk-in-dm, .mk-in-wa {
+    display: flex; align-items: center; gap: 9px;
+    padding: 11px 15px; border-radius: 15px; font-size: 14px;
+    background: #fff; border: 1px solid rgba(10,10,10,0.1);
+    box-shadow: 0 8px 22px -14px rgba(10,10,10,0.3);
+    opacity: 0;
+  }
+  .mk-in-comment { align-self: flex-start; transform: translateX(-12px); }
+  .mk-in .mk-in-comment { animation: mk-slidein 0.45s ease 0.2s forwards; }
+  .mk-in-dm { align-self: flex-end; transform: translateX(12px); border-color: rgba(214,36,159,0.3); }
+  .mk-in .mk-in-dm { animation: mk-in-r 0.45s ease 1.1s forwards; }
+  @keyframes mk-in-r { to { opacity: 1; transform: translateX(0); } }
+  .mk-in-pill { background: #d6249f; color: #fff; font-size: 11px; font-weight: 800; padding: 5px 11px; border-radius: 999px; }
+  .mk-in-wa { align-self: flex-start; transform: translateX(-12px); background: #e7f9ee; border-color: rgba(37,211,102,0.3); color: #0a5c3d; font-weight: 600; }
+  .mk-in .mk-in-wa { animation: mk-slidein 0.45s ease 2s forwards; }
+  .mk-in-arrow { font-size: 11.5px; font-weight: 700; color: rgba(10,10,10,0.4); opacity: 0; }
+  .mk-in .mk-in-arrow { animation: mk-fade 0.4s ease 0.8s forwards; }
+  .mk-in .mk-in-arrow-2 { animation-delay: 1.7s; }
+  @keyframes mk-fade { to { opacity: 1; } }
+
+  /* ─── 6 · mcp terminal ─── */
+  .mk-mcp { display: flex; flex-direction: column; gap: 12px; max-width: 460px; }
+  .mk-mcp-prompt {
+    display: flex; align-items: center; gap: 9px;
+    background: #fff; border: 1px solid rgba(10,10,10,0.12);
+    border-radius: 13px; padding: 13px 15px;
+    font-size: 14px; color: ${INK}; box-shadow: 0 4px 14px -8px rgba(10,10,10,0.25);
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    font-size: clamp(12px, 1.8vw, 14.5px); line-height: 1.7;
-    color: rgba(255,255,255,0.82);
-    white-space: pre-wrap; word-break: break-word;
+  }
+  .mk-mcp-pdot { width: 8px; height: 8px; border-radius: 999px; background: ${PINK}; flex: 0 0 auto; }
+  .mk-mcp-typed { white-space: nowrap; overflow: hidden; display: inline-block; max-width: 0; }
+  .mk-in .mk-mcp-typed { animation: mk-type 1.6s steps(40) 0.3s forwards; }
+  @keyframes mk-type { to { max-width: 360px; } }
+  .mk-mcp-caret { width: 2px; height: 16px; background: ${INK}; animation: mk-blink 1s step-end infinite; }
+  .mk-mcp-card {
+    display: flex; align-items: center; gap: 12px;
+    background: #fff; border: 1px solid rgba(10,10,10,0.12);
+    border-radius: 14px; padding: 13px; box-shadow: 0 12px 30px -18px rgba(10,10,10,0.4);
+    opacity: 0; transform: translateY(10px); position: relative;
+  }
+  .mk-in .mk-mcp-card { animation: mk-msgin 0.5s ease 2.1s forwards; }
+  .mk-mcp-cover { width: 50px; height: 50px; border-radius: 10px; flex: 0 0 auto; background: linear-gradient(150deg, #ff8a4c, #ec178f 62%, #7b2ff7); }
+  .mk-mcp-meta { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+  .mk-mcp-l1 { height: 9px; width: 72%; border-radius: 4px; background: rgba(10,10,10,0.16); }
+  .mk-mcp-l2 { height: 8px; width: 42%; border-radius: 4px; background: rgba(10,10,10,0.1); }
+  .mk-mcp-check { font-size: 12px; font-weight: 800; color: #16a34a; flex: 0 0 auto; }
+  .mk-mcp-foot { text-align: center; font-size: 12px; font-weight: 600; color: rgba(10,10,10,0.4); }
+  @keyframes mk-blink { 50% { opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mk-scene *,
+    .mk-scene .mk-mcp-typed {
+      opacity: 1 !important; transform: none !important;
+      max-width: none !important; height: auto !important; animation: none !important;
+    }
+    .mk-mcp-l1 { height: 9px !important; }
+    .mk-mcp-l2 { height: 8px !important; }
   }
 
   /* ─── 7 · proof ─── */

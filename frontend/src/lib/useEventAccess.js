@@ -4,10 +4,12 @@ import { authenticatedFetch } from "./api.js";
 // THE permission gate (frontend). One hook every surface uses to learn the
 // viewer's level for an event — host | guest_pullup | guest_rsvp | no_access —
 // plus the `reason` when they're out, so the UI can say it nicely and point the
-// way in. Resolves by session server-side (authenticatedFetch sends the token
-// when there is one); for a logged-out guest we pass the email they RSVP'd /
-// pulled up with (pullup_email) so the lobby still recognises them. The endpoint
-// never 401s, so this is safe whether or not you're signed in.
+// way in. Resolves by the VERIFIED session only (authenticatedFetch sends the
+// token when there is one). A logged-out viewer has no trusted identity → the
+// endpoint returns no_session and the surface shows the AuthGate ("verify your
+// account"). We deliberately no longer pass a raw `?email=`: an unverified
+// email must never grant access (it let anyone probe another person's room).
+// The endpoint never 401s, so this is safe whether or not you're signed in.
 export function useEventAccess(eventId) {
   const [state, setState] = useState({
     loading: true,
@@ -25,16 +27,11 @@ export function useEventAccess(eventId) {
       return;
     }
     let alive = true;
-    let email = "";
-    try {
-      email = localStorage.getItem("pullup_email") || "";
-    } catch {}
-    const qs = email ? `?email=${encodeURIComponent(email)}` : "";
     const fail = () =>
       alive &&
       setState({ loading: false, level: "no_access", role: null, reason: "error", phase: null, event: null, permissions: null });
 
-    authenticatedFetch(`/events/${eventId}/access${qs}`)
+    authenticatedFetch(`/events/${eventId}/access`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!alive) return;

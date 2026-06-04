@@ -5622,9 +5622,9 @@ app.get("/events/:id/access", optionalAuth, async (req, res) => {
     const { resolveEventAccess } = await import("./services/pullupService.js");
     const { supabase } = await import("./supabase.js");
     const eventId = req.params.id;
-    const email = (req.user?.email || req.query.email || "").toString().trim().toLowerCase();
-    // Durable account link first, email fallback — and an admin "View as" override
-    // (header, admin-gated) so QA can resolve as ANY user.
+    // Identity = the verified session only (never a `?email=` query param). An
+    // admin "View as" override (header, admin-gated) can still resolve as any user.
+    const email = (req.user?.email || "").toString().trim().toLowerCase();
     const viewer = await resolveViewer(req, { email: email || null });
     const forced = await adminForceLevel(req);
     let access;
@@ -5719,7 +5719,10 @@ app.post("/p/:eventId/pullup", optionalAuth, async (req, res) => {
     const { supabase } = await import("./supabase.js");
     const claimedEmail = (email || req.user?.email || "").trim().toLowerCase();
     // Admin view-as can pull up AS a chosen person; otherwise resolve by email.
-    const vw = await resolveViewer(req, { email: claimedEmail || null });
+    // trustEmail: the live door code was just verified above, so it vouches for
+    // this walk-in's claimed email — the one place an unauthenticated email is
+    // a legitimate identity (a real credential stands behind it).
+    const vw = await resolveViewer(req, { email: claimedEmail || null, trustEmail: true });
     let person = vw.person;
     if (!person && !claimedEmail) return res.status(401).json({ ok: false, reason: "needs_identify" });
     if (!person) {
@@ -5779,7 +5782,8 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
     const { getCoPresentAtEvent, getRoomAccess, getComingCount } = await import("./services/pullupService.js");
     const { supabase } = await import("./supabase.js");
 
-    const email = (req.query.email || req.user?.email || "").toString().trim().toLowerCase();
+    // Identity = the verified session only; a `?email=` query param is ignored.
+    const email = (req.user?.email || "").toString().trim().toLowerCase();
     const viewer = await resolveViewer(req, { email: email || null });
     const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
@@ -5841,11 +5845,14 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
 app.post("/p/:eventId/upload", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { dataUrl, email } = req.body || {};
+    const { dataUrl } = req.body || {};
     const { getRoomAccess } = await import("./services/pullupService.js");
     const { supabase } = await import("./supabase.js");
 
-    const norm = (email || req.user?.email || "").toString().trim().toLowerCase();
+    // Writing into the room is identity = the verified session only; a
+    // body-supplied email is no longer accepted (would let anyone post/upload
+    // as someone else).
+    const norm = (req.user?.email || "").toString().trim().toLowerCase();
     const viewer = await resolveViewer(req, { email: norm || null });
     const person = viewer.person;
     if (!person) return res.status(403).json({ ok: false, reason: "no_identity" });
@@ -5997,7 +6004,9 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     };
 
     // Viewer-relative state across every event we might render (hosted + pulled-up).
-    const email = (req.query.email || req.user?.email || "").toString().trim().toLowerCase();
+    // Identity = the verified session only; a `?email=` query param is ignored,
+    // so a logged-out visitor can't probe whose room this is relative to them.
+    const email = (req.user?.email || "").toString().trim().toLowerCase();
     const vw = await resolveViewer(req, { email: email || null });
     const viewer = vw.person;
     const allIds = [...new Set([...hostedIds, ...pulledUpRows.map((e) => e.id)])];
@@ -6049,12 +6058,27 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     // get the count only (in `counts`), never the names. Protects data ownership.
     const showPeople = effectiveOwner || adminViewer || inOrbit;
 
+    // When the viewer stands in their OWN room, attach the operating-console
+    // payload (rich events, signals, moments, member rooms, people-with-warmth
+    // + thread). This is what used to live behind the separate /host/room
+    // endpoint: the room is now ONE viewer-relative surface, and the console is
+    // simply the owner's slice of it. Non-owners never receive it.
+    let consolePayload = null;
+    if (effectiveOwner && accountId) {
+      try {
+        consolePayload = await getRoomForHost(accountId, { email: email || null });
+      } catch (e) {
+        console.error("[node-profile] console build failed:", e.message);
+      }
+    }
+
     res.json({
       node: header,
       viewer: { known: !!viewer, inOrbit, isOwner: effectiveOwner },
       hosted: hosted.map(mapTile),
       pulledUp: pulledUpRows.map(mapTile),
       people: showPeople ? people : [],
+      console: consolePayload,
     });
   } catch (err) {
     console.error("[node-profile] error:", err.message);
@@ -6072,7 +6096,8 @@ app.get("/p/:eventId/channels", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
     const { getRoomAccess, listChannels } = await import("./services/pullupService.js");
-    const email = (req.query.email || "").toString().trim().toLowerCase();
+    // Identity = the verified session only; a `?email=` query param is ignored.
+    const email = (req.user?.email || "").toString().trim().toLowerCase();
     const viewer = await resolveViewer(req, { email: email || null });
     const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
@@ -6092,7 +6117,8 @@ app.get("/p/:eventId/space", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
     const { getRoomAccess, listSpaceMessages } = await import("./services/pullupService.js");
-    const email = (req.query.email || "").toString().trim().toLowerCase();
+    // Identity = the verified session only; a `?email=` query param is ignored.
+    const email = (req.user?.email || "").toString().trim().toLowerCase();
     const viewer = await resolveViewer(req, { email: email || null });
     const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
@@ -6111,9 +6137,11 @@ app.get("/p/:eventId/space", optionalAuth, async (req, res) => {
 app.post("/p/:eventId/space", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { email, body, channelId } = req.body || {};
+    const { body, channelId } = req.body || {};
     const { getRoomAccess, postSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
-    const norm = (email || "").toString().trim().toLowerCase();
+    // Posting into the room is identity = the verified session only; a
+    // body-supplied email is no longer accepted (would let anyone post as someone else).
+    const norm = (req.user?.email || "").toString().trim().toLowerCase();
     const viewer = await resolveViewer(req, { email: norm || null });
     const person = viewer.person;
     if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });

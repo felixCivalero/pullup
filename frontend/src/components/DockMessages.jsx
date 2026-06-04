@@ -219,13 +219,13 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
   );
 
   // ── Conversation view ───────────────────────────────────────────────────
-  if (open) {
+  const conversationView = (split = false) => {
     const ch = CH[open.channel] || CH.email;
     const windowClosed = open.channel === "whatsapp" && open.windowOpen === false;
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px", borderBottom: `1px solid ${D.line}` }}>
-          <button onClick={() => setOpenId(null)} style={{ ...iconBtn, color: D.ink }} aria-label="Back"><ChevronLeft size={20} /></button>
+          {!split && <button onClick={() => setOpenId(null)} style={{ ...iconBtn, color: D.ink }} aria-label="Back"><ChevronLeft size={20} /></button>}
           <button onClick={() => { navigate(`/r/${open.id}`); onClose?.(); }} title="Open their room" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: "inherit", fontFamily: "inherit" }}>
             <Avatar name={open.name} size={34} dot={open.channel === "whatsapp" && open.windowOpen ? D.green : null} />
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -233,8 +233,8 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
               <div style={{ fontSize: 11, color: ch.color, fontWeight: 600 }}>{ch.label}{windowClosed ? " · window closed" : ""}</div>
             </div>
           </button>
-          {onToggleExpand && <button onClick={onToggleExpand} style={iconBtn} aria-label="Expand">{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
-          {onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={18} /></button>}
+          {!split && onToggleExpand && <button onClick={onToggleExpand} style={iconBtn} aria-label="Expand">{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
+          {!split && onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={18} /></button>}
         </div>
 
         <div ref={scroller} style={{ flex: 1, overflowY: "auto", padding: "14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -262,10 +262,10 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
         {renderComposer(send, `Message on ${ch.label}…`, true)}
       </div>
     );
-  }
+  };
 
   // ── Broadcast view — compose once, send to everyone selected ──────────────
-  if (broadcast && selectedPeople.length) {
+  const broadcastView = (split = false) => {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px", borderBottom: `1px solid ${D.line}` }}>
@@ -279,7 +279,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
             <div style={{ fontSize: 14, fontWeight: 700 }}>{selectedPeople.length} {selectedPeople.length === 1 ? "person" : "people"}</div>
             <div style={{ fontSize: 11, color: D.muted }}>each gets it on their channel</div>
           </div>
-          {onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={18} /></button>}
+          {!split && onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={18} /></button>}
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px", display: "flex", flexDirection: "column", gap: 8, alignContent: "flex-start" }}>
@@ -301,10 +301,10 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
         {renderComposer(sendBroadcast, `Message ${selectedPeople.length} ${selectedPeople.length === 1 ? "person" : "people"}…`, false)}
       </div>
     );
-  }
+  };
 
   // ── List view ───────────────────────────────────────────────────────────
-  return (
+  const listView = (split = false) => (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 12px 11px 16px", borderBottom: `1px solid ${D.line}` }}>
         <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", flex: 1 }}>Messages</div>
@@ -357,7 +357,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
           const ch = CH[p.channel] || CH.email;
           const line = p.needsYou && p.move ? p.move : (p.relationship || "");
           const sel = selected.includes(p.id);
-          const baseBg = selecting && sel ? D.hover : "none";
+          const baseBg = (selecting && sel) || (split && p.id === openId) ? D.hover : "none";
           return (
             <button key={p.id} onClick={() => (selecting ? toggleSel(p.id) : setOpenId(p.id))} onMouseEnter={(e) => (e.currentTarget.style.background = D.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = baseBg)}
               style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", padding: "9px 10px", border: "none", borderRadius: 12, background: baseBg, cursor: "pointer", textAlign: "left", transition: "background 0.12s" }}>
@@ -392,4 +392,34 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
       )}
     </div>
   );
+
+  // ── Compose ───────────────────────────────────────────────────────────────
+  // Expanded = a real two-pane messenger: contacts pinned on the left, the open
+  // conversation (or broadcast) filling the right. Compact = the Instagram-DM
+  // single-pane swap (list ↔ thread). The same state drives both.
+  if (expanded) {
+    return (
+      <div style={{ display: "flex", height: "100%", background: D.bg, color: D.ink }}>
+        <div style={{ width: 340, flexShrink: 0, borderRight: `1px solid ${D.line}`, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          {listView(true)}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          {open
+            ? conversationView(true)
+            : (broadcast && selectedPeople.length)
+              ? broadcastView(true)
+              : (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: D.faint, textAlign: "center", padding: 24 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: D.muted }}>Your messages</div>
+                  <div style={{ fontSize: 13 }}>Pick someone on the left to open the conversation.</div>
+                </div>
+              )}
+        </div>
+      </div>
+    );
+  }
+
+  if (open) return conversationView(false);
+  if (broadcast && selectedPeople.length) return broadcastView(false);
+  return listView(false);
 }

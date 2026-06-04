@@ -5882,24 +5882,38 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     const forced = await adminForceLevel(req);
     const effectiveOwner = forced === "host" ? true : forced ? false : isOwner;
 
-    // The events this node HOSTS (only accounts can host). Drafts are owner-only.
+    // The events this node HOSTS. RELATIONSHIPS ARE PERMANENT: an event with any
+    // RSVP/pull-up activity is a real event — it shows and counts regardless of
+    // its current draft flag (a host can re-draft a past event and its guests
+    // stay). A pristine, never-live draft (no activity) is owner-only.
     const hostSelect = "id, slug, title, cover_image_url, image_url, starts_at, ends_at, status";
-    let hosted = [];
+    let allHosted = [];
     if (accountId) {
-      let hostQuery = supabase.from("events").select(hostSelect).eq("host_id", accountId).order("starts_at", { ascending: false });
-      if (!effectiveOwner) hostQuery = hostQuery.eq("status", "PUBLISHED");
-      const { data: hostRows } = await hostQuery;
-      hosted = hostRows || [];
+      const { data } = await supabase.from("events").select(hostSelect).eq("host_id", accountId).order("starts_at", { ascending: false });
+      allHosted = data || [];
     }
+    const allHostedIds = allHosted.map((e) => e.id);
+
+    // The permanent relationship graph: every RSVP (non-cancelled) + pull-up to
+    // the host's events, ANY status. This is what an "RSVP is an RSVP" means.
+    let rsvpRows = [], pullupRows = [];
+    if (allHostedIds.length) {
+      const [rs, ps] = await Promise.all([
+        supabase.from("rsvps").select("person_id, event_id").in("event_id", allHostedIds).neq("status", "cancelled"),
+        supabase.from("pullups").select("person_id, event_id").in("event_id", allHostedIds),
+      ]);
+      rsvpRows = rs.data || [];
+      pullupRows = ps.data || [];
+    }
+    // The host CAN draft an event to hide it from the public list (their choice);
+    // visitors see published only, owner sees all. But the STATS below persist
+    // regardless — drafting hides the event, never the relationships.
+    const hosted = effectiveOwner ? allHosted : allHosted.filter((e) => e.status === "PUBLISHED");
     const hostedIds = hosted.map((e) => e.id);
 
-    // People in this node's world = everyone who pulled up to one of their events.
-    let pullupRows = [];
-    if (hostedIds.length) {
-      const { data } = await supabase.from("pullups").select("person_id, event_id").in("event_id", hostedIds);
-      pullupRows = data || [];
-    }
-    const worldPersonIds = [...new Set(pullupRows.map((r) => r.person_id))];
+    // World = the host's real audience: everyone who RSVP'd OR pulled up to their
+    // events (ANY status). Never erased by a status change.
+    const worldPersonIds = [...new Set([...rsvpRows.map((r) => r.person_id), ...pullupRows.map((r) => r.person_id)].filter(Boolean))];
 
     // This node's own person record (drives "pulled up to"). Either the bare
     // person row, or the person linked to the account.
@@ -5909,13 +5923,14 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
       nodePersonId = np?.id || null;
     }
 
-    // The events this node has PULLED UP TO (as a guest, anywhere).
+    // The events this node has PULLED UP TO (as a guest, anywhere) — any status
+    // (a pull-up is a real relationship, never hidden by the event's flag).
     let pulledUpRows = [];
     if (nodePersonId) {
       const { data: myUps } = await supabase.from("pullups").select("event_id").eq("person_id", nodePersonId);
       const upIds = [...new Set((myUps || []).map((r) => r.event_id))];
       if (upIds.length) {
-        const { data: evs } = await supabase.from("events").select(hostSelect).in("id", upIds).eq("status", "PUBLISHED").order("starts_at", { ascending: false });
+        const { data: evs } = await supabase.from("events").select(hostSelect).in("id", upIds).order("starts_at", { ascending: false });
         pulledUpRows = evs || [];
       }
     }

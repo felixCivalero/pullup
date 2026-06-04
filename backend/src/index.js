@@ -5330,15 +5330,7 @@ app.get("/api/location/details", async (req, res) => {
 // RoomPage expects. host_id on person_events scopes it to this host's world.
 app.get("/host/room", requireAuth, async (req, res) => {
   try {
-    // Admin "View as X" shows X's OWN home exactly as X sees it (same surface,
-    // their data) — not a separate bare profile. Everyone gets the same room.
-    let targetId = req.user.id, targetEmail = req.user.email || null;
-    const viewer = await resolveViewer(req);
-    if (viewer.impersonating && viewer.person) {
-      targetId = viewer.authUserId || viewer.person.id;
-      targetEmail = viewer.person.email || null;
-    }
-    const room = await getRoomForHost(targetId, { email: targetEmail });
+    const room = await getRoomForHost(req.user.id, { email: req.user.email || null });
     res.json(room);
   } catch (error) {
     console.error("Error building room:", error);
@@ -5619,9 +5611,11 @@ app.get("/events/:id/access", optionalAuth, async (req, res) => {
       const { data: evp } = await sb.from("events").select("room_permissions").eq("id", eventId).maybeSingle();
       const stateForCaps = forced === "guest_pullup" ? "pulledup" : forced === "guest_waitlist" ? "waitlist" : forced === "guest_rsvp" ? "lobby" : null;
       access = {
+        // "no_session" = preview the logged-out wall (auth gate); "no_access" =
+        // logged in but denied (permission gate). Both forced, never time-derived.
         level: forced,
         role: forced === "host" ? "owner" : null,
-        reason: forced === "no_access" ? "forced" : null,
+        reason: forced === "no_access" ? "forced" : forced === "no_session" ? "no_session" : null,
         permissions: stateForCaps ? resolveCapabilities(evp, stateForCaps) : null,
       };
     } else {
@@ -5987,7 +5981,10 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     const header = { id: nodeRoomId, name: nodeName, bio: nodeBio, avatar: nodeAvatar, socials: nodeSocials, counts };
     const hasSession = !!req.user?.id;
     const adminViewer = await isAdminUser(req.user?.id);
-    const forcedLocked = forced === "no_access"; // admin preview of the logged-out wall
+    // Preview the logged-out wall: "no_session" (no login) and "no_access"
+    // (logged in, denied) both render the gate on a person's room — its content
+    // always needs a session, so either lens shows the same wall here.
+    const forcedLocked = forced === "no_access" || forced === "no_session";
     if (forcedLocked || (!hasSession && !adminViewer)) {
       return res.json({ gated: "login", node: header, viewer: { known: false, inOrbit: false, isOwner: false } });
     }

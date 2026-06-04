@@ -5330,7 +5330,15 @@ app.get("/api/location/details", async (req, res) => {
 // RoomPage expects. host_id on person_events scopes it to this host's world.
 app.get("/host/room", requireAuth, async (req, res) => {
   try {
-    const room = await getRoomForHost(req.user.id, { email: req.user.email || null });
+    // Admin "View as X" shows X's OWN home exactly as X sees it (same surface,
+    // their data) — not a separate bare profile. Everyone gets the same room.
+    let targetId = req.user.id, targetEmail = req.user.email || null;
+    const viewer = await resolveViewer(req);
+    if (viewer.impersonating && viewer.person) {
+      targetId = viewer.authUserId || viewer.person.id;
+      targetEmail = viewer.person.email || null;
+    }
+    const room = await getRoomForHost(targetId, { email: targetEmail });
     res.json(room);
   } catch (error) {
     console.error("Error building room:", error);

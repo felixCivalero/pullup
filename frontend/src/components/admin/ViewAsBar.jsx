@@ -2,7 +2,6 @@
 // their profile, + a status switch to preview each access state. Both are
 // honored only because the backend re-verifies is_admin. Hidden for non-admins.
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { authenticatedFetch } from "../../lib/api.js";
 import { colors } from "../../theme/colors.js";
@@ -18,17 +17,19 @@ const LEVELS = [
 
 export function ViewAsBar() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
 
-  let forceLevel = "";
-  try { forceLevel = localStorage.getItem("pullup_force_level") || ""; } catch {}
+  let forceLevel = "", viewAs = "", viewAsName = "";
+  try {
+    forceLevel = localStorage.getItem("pullup_force_level") || "";
+    viewAs = localStorage.getItem("pullup_view_as") || "";
+    viewAsName = localStorage.getItem("pullup_view_as_name") || "";
+  } catch {}
 
   useEffect(() => {
-    try { localStorage.removeItem("pullup_view_as"); localStorage.removeItem("pullup_view_as_name"); } catch {}
     if (!user) { setIsAdmin(false); return; }
     let alive = true;
     authenticatedFetch("/admin/people-search?q=")
@@ -55,8 +56,25 @@ export function ViewAsBar() {
     try { v ? localStorage.setItem("pullup_force_level", v) : localStorage.removeItem("pullup_force_level"); } catch {}
     window.location.reload();
   };
-  const goto = (p) => { setQ(""); setShowResults(false); navigate(`/r/${p.id}`); };
-  const active = !!forceLevel;
+  // View as X = see X's OWN home exactly as X sees it (same surface, their data),
+  // not a separate bare profile. Sticky across navigation until you exit.
+  const goto = (p) => {
+    setQ(""); setShowResults(false);
+    try {
+      localStorage.setItem("pullup_view_as", p.id);
+      localStorage.setItem("pullup_view_as_name", p.name || "");
+    } catch {}
+    window.location.assign("/room");
+  };
+  const exitViewAs = () => {
+    try {
+      localStorage.removeItem("pullup_force_level");
+      localStorage.removeItem("pullup_view_as");
+      localStorage.removeItem("pullup_view_as_name");
+    } catch {}
+    window.location.assign("/room");
+  };
+  const active = !!(forceLevel || viewAs);
 
   return (
     <div style={{ position: "fixed", bottom: 14, left: 14, zIndex: 2147483646, fontFamily: "-apple-system, system-ui, sans-serif" }}>
@@ -76,6 +94,11 @@ export function ViewAsBar() {
 
       <div style={{ display: "flex", alignItems: "center", gap: 6, background: active ? "#1a1a1a" : "#fff", color: active ? "#fff" : colors.text, border: `1px solid ${active ? "#1a1a1a" : colors.border}`, borderRadius: 999, padding: "5px 6px 5px 12px", boxShadow: "0 6px 20px rgba(0,0,0,0.18)" }}>
         <span style={{ fontSize: 13 }}>👁</span>
+        {viewAs && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, background: "rgba(255,255,255,0.16)", color: "#fff", borderRadius: 999, padding: "3px 9px", whiteSpace: "nowrap" }}>
+            as {viewAsName || "someone"}
+          </span>
+        )}
         <input
           value={q}
           onChange={(e) => { setQ(e.target.value); setShowResults(true); }}
@@ -94,7 +117,7 @@ export function ViewAsBar() {
           {LEVELS.map((l) => <option key={l.v} value={l.v} style={{ color: "#000" }}>{l.label}</option>)}
         </select>
         {active && (
-          <button onMouseDown={(e) => { e.preventDefault(); setLevel(""); }} style={{ background: colors.accent, color: "#fff", border: "none", borderRadius: 999, padding: "4px 9px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>Reset</button>
+          <button onMouseDown={(e) => { e.preventDefault(); exitViewAs(); }} style={{ background: colors.accent, color: "#fff", border: "none", borderRadius: 999, padding: "4px 9px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>Reset</button>
         )}
       </div>
     </div>

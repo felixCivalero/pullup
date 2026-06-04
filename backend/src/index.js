@@ -5910,7 +5910,7 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     // strategy notes; showing it would leak sponsor plans to guests).
     const nodeBio = profile?.bio || null;
     const nodeAvatar = profile?.profile_picture_url || null;
-    const { buildSocials } = await import("./services/roomService.js");
+    const { buildSocials, resolveEventImage } = await import("./services/roomService.js");
     const nodeSocials = profile ? buildSocials(profile.branding_links) : [];
     const nodeRoomId = accountId || personRow.id;          // canonical room id
 
@@ -6035,7 +6035,7 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
         id: e.id,
         slug: e.slug,
         title: e.title,
-        cover: e.cover_image_url || e.image_url || null,
+        cover: resolveEventImage(e.cover_image_url || e.image_url),
         startsAt: e.starts_at,
         ended: end != null && now > end,
         draft: e.status !== "PUBLISHED",
@@ -8920,7 +8920,13 @@ app.put("/host/profile", requireAuth, async (req, res) => {
     // creates the default row if missing AND back-links any matching
     // sales_leads by email at the same time.
     await getUserProfile(req.user.id);
-    const updates = req.body;
+    const updates = req.body || {};
+    // Defense in depth: a blank/whitespace name must never overwrite an
+    // identity (onboarding once clobbered real profiles this way). Drop it so
+    // a stray empty name silently no-ops instead of wiping the display name.
+    if (typeof updates.name === "string" && !updates.name.trim()) {
+      delete updates.name;
+    }
     const updated = await updateUserProfile(req.user.id, updates);
 
     // host_brief changes are the one profile field with a dedicated MCP tool

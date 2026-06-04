@@ -1,23 +1,32 @@
-// RoomConversation — the event room's COLLECTIVE talk, organised into TOPICS
-// (Slack-simple: a "Main" topic always on, plus host-curated subjects). Shared
-// by the host view (EventRoomPage, light, can create topics) and the guest
-// view (PullUpPage interior, dark, post-only). It's pure UI + state; each side
-// passes an `api` adapter so it doesn't care about auth-vs-email plumbing.
+// RoomConversation — the event room's COLLECTIVE talk, organised into CHANNELS
+// (Slack-simple: a "Main" channel always on, plus host-curated topics). Shared
+// by the host view (EventRoomPage) and the guest view, both light. It's pure
+// UI + state; each side passes an `api` adapter so it doesn't care about the
+// auth-vs-email plumbing underneath.
 //
 //   api.loadChannels()            -> [{ id, name, isMain }]
-//   api.loadMessages(channelId)   -> [{ id, body, authorName, isHost, at }]
-//   api.post(channelId, body)     -> [{...messages}]  (returns fresh list)
-//   api.createTopic(name)         -> [{...channels}]   (host only; optional)
+//   api.loadMessages(channelId)   -> [{ id, body, authorName, isHost, at }]   (oldest → newest)
+//   api.post(channelId, body)     -> [{...messages}]   (returns the fresh list)
+//   api.createTopic(name)         -> [{...channels}]    (host only; optional)
 //
-// The conversation reads like a comment thread (Reddit-ish): each post can be
-// replied to, replies nest under their parent with a connecting rail, threads
-// collapse, and there's a light heart. NOTE: nesting + hearts are session-local
-// for now — messages are real & persisted, but the parent/heart relationship
-// lives in component state until the backend grows a `parent_id` column.
+// This is a real chat surface, Slack/Discord-grade:
+//   • bottom composer, messages run oldest→newest, autoscroll to newest
+//   • OPTIMISTIC send — your message appears the instant you hit enter, then
+//     reconciles with the server; a failed send shows "Failed · Retry"
+//   • Enter sends, Shift+Enter is a newline
+//   • live polling so other people's posts appear without a reload
+//   • consecutive posts from the same person group together (Slack-style)
+//   • channels are de-duped (no accidental twin "#group-shot")
+//
+// Honesty note: there are no fake reactions/threads here. Reactions and real
+// reply-threads need a backend column; until then "Reply" just @mentions the
+// author into the composer. Better an honest chat than mocked engagement.
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
-// "just now" / "12m" / "3h" / "2d" / "Jun 2"
+let TEMP_SEQ = 0;
+
+// "just now" / "12m" / "3h" — used in the lightweight inline timestamp.
 function timeAgo(at) {
   if (!at) return "";
   const t = new Date(at).getTime();
@@ -31,93 +40,187 @@ function timeAgo(at) {
   return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export default function RoomConversation({ dark = false, canCreateTopic = false, canPost = true, sidebar = false, api }) {
+function channelKey(name) {
+  return String(name || "").trim().toLowerCase().replace(/\s+/g, "-");
+}
+function firstName(name) {
+  return String(name || "").trim().split(/\s+/)[0] || "";
+}
+
+// Drop accidental twins: same id, or same display name (the bug behind the
+// duplicate "#group-shot"). Keep the first occurrence.
+function dedupeChannels(list) {
+  const seenId = new Set();
+  const seenName = new Set();
+  const out = [];
+  for (const c of list || []) {
+    if (!c || c.id == null) continue;
+    if (seenId.has(c.id)) continue;
+    const nm = c.isMain ? "main" : String(c.name || "").trim().toLowerCase();
+    if (nm && seenName.has(nm)) continue;
+    seenId.add(c.id);
+    if (nm) seenName.add(nm);
+    out.push(c);
+  }
+  return out;
+}
+
+export default function RoomConversation({
+  dark = false,
+  canCreateTopic = false,
+  canPost = true,
+  sidebar = false,
+  api,
+  meName = "",
+  meIsHost = false,
+}) {
   const C = dark
-    ? { ink: "#f5f4f7", muted: "rgba(245,244,247,0.55)", faint: "rgba(245,244,247,0.35)", pink: "#ec178f", border: "rgba(255,255,255,0.12)", chip: "rgba(255,255,255,0.06)", field: "rgba(255,255,255,0.04)", fieldBg: "rgba(255,255,255,0.04)", rail: "rgba(255,255,255,0.14)" }
-    : { ink: "#0a0a0a", muted: "rgba(10,10,10,0.55)", faint: "rgba(10,10,10,0.4)", pink: "#ec178f", border: "rgba(10,10,10,0.10)", chip: "rgba(10,10,10,0.04)", field: "#fff", fieldBg: "#fff", rail: "rgba(10,10,10,0.10)" };
+    ? { ink: "#f5f4f7", muted: "rgba(245,244,247,0.6)", faint: "rgba(245,244,247,0.4)", pink: "#ec178f", border: "rgba(255,255,255,0.12)", chip: "rgba(255,255,255,0.06)", field: "rgba(255,255,255,0.05)", fieldBg: "rgba(255,255,255,0.05)", hover: "rgba(255,255,255,0.04)", danger: "#fb7185" }
+    : { ink: "#0a0a0a", muted: "rgba(10,10,10,0.6)", faint: "rgba(10,10,10,0.4)", pink: "#ec178f", border: "rgba(10,10,10,0.10)", chip: "rgba(10,10,10,0.04)", field: "#fff", fieldBg: "#fff", hover: "rgba(236,23,143,0.04)", danger: "#e11d48" };
 
   const [channels, setChannels] = useState([]);
   const [active, setActive] = useState(null);
-  const [messages, setMessages] = useState(null);
+  const [messages, setMessages] = useState(null);  // server-authoritative (oldest→newest)
+  const [pending, setPending] = useState([]);       // optimistic, not yet acked
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newTopic, setNewTopic] = useState("");
 
-  // Thread state (session-local until backend supports it):
-  const [parentOf, setParentOf] = useState({});     // messageId -> parentMessageId
-  const [hearts, setHearts] = useState({});          // messageId -> { n, mine }
-  const [collapsed, setCollapsed] = useState({});    // messageId -> true
-  const [replyTo, setReplyTo] = useState(null);      // messageId being replied to
-  const [replyDraft, setReplyDraft] = useState("");
+  const scrollRef = useRef(null);
+  const taRef = useRef(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  // Track whether the viewer is parked at the bottom, so a background poll
+  // never yanks them up while they're reading history.
+  const atBottomRef = useRef(true);
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
 
   const loadMsgs = useCallback(async (chId) => {
-    setMessages(await api.loadMessages(chId).catch(() => []));
+    const fresh = await api.loadMessages(chId).catch(() => null);
+    if (activeRef.current !== chId) return;
+    if (Array.isArray(fresh)) {
+      setMessages(fresh);
+      // Clear any optimistic temp the server has now echoed back.
+      setPending((p) => p.filter((t) => !fresh.some((m) => m.body === t.body && (m.isHost === t.isHost))));
+    } else {
+      setMessages((m) => m || []);
+    }
   }, [api]);
 
+  // Load channel list once.
   useEffect(() => {
     let alive = true;
     api.loadChannels().then((chs) => {
       if (!alive) return;
-      setChannels(chs || []);
-      const main = (chs || []).find((c) => c.isMain) || (chs || [])[0] || null;
+      const dd = dedupeChannels(chs);
+      setChannels(dd);
+      const main = dd.find((c) => c.isMain) || dd[0] || null;
       setActive(main?.id || null);
-      if (main) loadMsgs(main.id);
     }).catch(() => setChannels([]));
     return () => { alive = false; };
-  }, [api, loadMsgs]);
+  }, [api]);
+
+  // Load + poll the active channel.
+  useEffect(() => {
+    if (!active) return;
+    setMessages(null);
+    setPending([]);
+    atBottomRef.current = true;
+    loadMsgs(active);
+    const iv = setInterval(() => loadMsgs(active), 5000);
+    return () => clearInterval(iv);
+  }, [active, loadMsgs]);
+
+  // Autoscroll: on first paint of a channel + whenever new content arrives and
+  // the viewer is already at the bottom.
+  useEffect(() => {
+    if (atBottomRef.current) scrollToBottom();
+  }, [messages, pending, active, scrollToBottom]);
+
+  function onScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  }
 
   function pick(chId) {
-    setActive(chId); setMessages(null); setReplyTo(null); loadMsgs(chId);
+    if (chId !== active) setActive(chId);
   }
 
-  async function send(e) {
-    e.preventDefault();
-    const body = draft.trim();
-    if (!body || !active) return;
-    setSending(true);
-    try { const fresh = await api.post(active, body); setMessages(fresh || []); setDraft(""); }
-    finally { setSending(false); }
-  }
-
-  // Post a reply: it's a real message; we just remember it hangs under `parentId`.
-  async function sendReply(parentId) {
-    const body = replyDraft.trim();
-    if (!body || !active) return;
-    const prevIds = new Set((messages || []).map((m) => m.id));
+  async function doSend(body, fromTemp) {
+    const text = (body || "").trim();
+    if (!text || !active) return;
+    const temp = fromTemp || {
+      tempId: `t${++TEMP_SEQ}`,
+      body: text,
+      authorName: meName || "You",
+      isHost: meIsHost,
+      at: new Date().toISOString(),
+      status: "sending",
+    };
+    atBottomRef.current = true;
+    setPending((p) => (fromTemp ? p.map((t) => (t.tempId === temp.tempId ? { ...t, status: "sending" } : t)) : [...p, temp]));
     setSending(true);
     try {
-      const fresh = await api.post(active, body);
-      setMessages(fresh || []);
-      const added = (fresh || []).find((m) => !prevIds.has(m.id));
-      if (added) setParentOf((p) => ({ ...p, [added.id]: parentId }));
-      setReplyDraft(""); setReplyTo(null);
-    } finally { setSending(false); }
+      const fresh = await api.post(active, text);
+      if (Array.isArray(fresh)) {
+        setMessages(fresh);
+        setPending((p) => p.filter((t) => t.tempId !== temp.tempId));
+      } else {
+        setPending((p) => p.map((t) => (t.tempId === temp.tempId ? { ...t, status: "failed" } : t)));
+      }
+    } catch {
+      setPending((p) => p.map((t) => (t.tempId === temp.tempId ? { ...t, status: "failed" } : t)));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function submit() {
+    const b = draft;
+    if (!b.trim()) return;
+    setDraft("");
+    if (taRef.current) taRef.current.style.height = "auto";
+    doSend(b);
+  }
+  function onKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submit();
+    }
+  }
+  function onInput(e) {
+    setDraft(e.target.value);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }
+  function mention(name) {
+    const tag = `@${firstName(name)} `;
+    setDraft((d) => (d.startsWith(tag) ? d : tag + d));
+    taRef.current?.focus();
   }
 
   async function addTopic(e) {
     e.preventDefault();
     const name = newTopic.trim();
-    if (!name) return;
+    if (!name || !api.createTopic) return;
     const fresh = await api.createTopic(name).catch(() => null);
-    if (fresh) { setChannels(fresh); const made = fresh.find((c) => c.name === name); setNewTopic(""); setAdding(false); if (made) pick(made.id); }
+    if (fresh) {
+      const dd = dedupeChannels(fresh);
+      setChannels(dd);
+      const made = dd.find((c) => channelKey(c.name) === channelKey(name));
+      setNewTopic(""); setAdding(false);
+      if (made) pick(made.id);
+    }
   }
 
-  function toggleHeart(id) {
-    setHearts((h) => {
-      const cur = h[id] || { n: 0, mine: false };
-      return { ...h, [id]: { n: cur.n + (cur.mine ? -1 : 1), mine: !cur.mine } };
-    });
-  }
-
-  const tab = (on) => ({
-    padding: "6px 12px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
-    border: `1px solid ${on ? C.pink : C.border}`, whiteSpace: "nowrap",
-    background: on ? C.pink : C.chip, color: on ? "#fff" : C.ink,
-  });
-
-  // Warm face on every message — the host glows pink, everyone else gets a
-  // soft tint that stays the same for them. Makes the topic feel like a circle.
+  // ── Avatar — host glows pink, everyone else a stable soft tint. ──
   const AV_TINTS = [
     { bg: "rgba(236,23,143,0.14)", fg: "#ec178f" },
     { bg: "rgba(13,148,136,0.14)", fg: "#0d9488" },
@@ -125,135 +228,148 @@ export default function RoomConversation({ dark = false, canCreateTopic = false,
     { bg: "rgba(124,58,237,0.14)", fg: "#7c3aed" },
     { bg: "rgba(20,120,200,0.14)", fg: "#1478c8" },
   ];
-  const Avatar = ({ name, host, size = 28 }) => {
+  const Avatar = ({ name, host, size = 36 }) => {
     let h = 0;
     for (const ch of String(name || "")) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     const t = host ? { bg: C.pink, fg: "#fff" } : AV_TINTS[h % AV_TINTS.length];
     const ini = String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
     return (
-      <div style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.round(size * 0.39), fontWeight: 800, background: t.bg, color: t.fg, letterSpacing: "-0.02em" }}>{ini}</div>
-    );
-  };
-
-  // Build the tree from flat messages + the session parent map.
-  const list = messages || [];
-  const byId = Object.fromEntries(list.map((m) => [m.id, m]));
-  const childrenOf = {};
-  for (const m of list) {
-    const p = parentOf[m.id];
-    if (p && byId[p]) (childrenOf[p] = childrenOf[p] || []).push(m);
-  }
-  const roots = list.filter((m) => { const p = parentOf[m.id]; return !p || !byId[p]; });
-  const countDescendants = (id) => {
-    const kids = childrenOf[id] || [];
-    return kids.reduce((acc, k) => acc + 1 + countDescendants(k.id), 0);
-  };
-
-  const metaBtn = { background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
-
-  const Comment = ({ m, depth }) => {
-    const kids = childrenOf[m.id] || [];
-    const isCollapsed = !!collapsed[m.id];
-    const hr = hearts[m.id] || { n: 0, mine: false };
-    const showKids = kids.length > 0 && !isCollapsed;
-    return (
-      <div style={{ display: "flex", gap: 9, alignItems: "stretch" }}>
-        {/* avatar column + the thread rail dropping to replies */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
-          <Avatar name={m.authorName} host={m.isHost} />
-          {showKids && <div style={{ flex: 1, width: 2, background: C.rail, marginTop: 6, borderRadius: 2 }} />}
-        </div>
-
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 7, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: m.isHost ? C.pink : C.ink }}>{m.authorName}{m.isHost ? " · host" : ""}</span>
-            {m.at && <span style={{ fontSize: 11.5, color: C.faint }}>{timeAgo(m.at)}</span>}
-            {kids.length > 0 && (
-              <button onClick={() => setCollapsed((c) => ({ ...c, [m.id]: !c[m.id] }))} style={{ ...metaBtn, color: C.faint, fontSize: 11.5 }}>
-                {isCollapsed ? `[+${countDescendants(m.id)}]` : "[–]"}
-              </button>
-            )}
-          </div>
-          <div style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.45, marginTop: 1 }}>{m.body}</div>
-
-          {/* action row */}
-          <div style={{ display: "flex", gap: 16, marginTop: 5 }}>
-            <button onClick={() => toggleHeart(m.id)} style={{ ...metaBtn, color: hr.mine ? C.pink : C.muted, display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 13 }}>{hr.mine ? "♥" : "♡"}</span>{hr.n > 0 ? hr.n : ""}
-            </button>
-            {canPost && <button onClick={() => { setReplyTo(replyTo === m.id ? null : m.id); setReplyDraft(""); }} style={{ ...metaBtn, color: C.muted }}>Reply</button>}
-          </div>
-
-          {/* inline reply composer */}
-          {canPost && replyTo === m.id && (
-            <form onSubmit={(e) => { e.preventDefault(); sendReply(m.id); }} style={{ display: "flex", gap: 7, marginTop: 9 }}>
-              <input autoFocus value={replyDraft} onChange={(e) => setReplyDraft(e.target.value)} placeholder={`Reply to ${String(m.authorName || "").split(/\s+/)[0]}…`}
-                style={{ flex: 1, padding: "8px 11px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.field, color: C.ink, fontSize: 13, outline: "none" }} />
-              <button type="submit" disabled={sending || !replyDraft.trim()} style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: C.pink, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: replyDraft.trim() ? 1 : 0.5 }}>Reply</button>
-            </form>
-          )}
-
-          {/* nested replies */}
-          {showKids && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-              {kids.map((k) => <Comment key={k.id} m={k} depth={depth + 1} />)}
-            </div>
-          )}
-        </div>
-      </div>
+      <div style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.round(size * 0.38), fontWeight: 800, background: t.bg, color: t.fg, letterSpacing: "-0.02em" }}>{ini}</div>
     );
   };
 
   const activeChannel = channels.find((c) => c.id === active) || null;
   const activeName = activeChannel ? (activeChannel.isMain ? "Main" : activeChannel.name) : "";
 
-  // ── Composer (top, forum-style) + the thread (newest-first) ──
-  // When the viewer's state can't post (e.g. a waitlist peek, or a read-only
-  // lobby the host locked), we show a quiet note instead of an input that 403s.
-  const composer = canPost ? (
-    <form onSubmit={send} style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-      <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={sidebar && activeName ? `Message #${activeName.toLowerCase().replace(/\s+/g, "-")}…` : "Add to this topic…"}
-        style={{ flex: 1, padding: "11px 13px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.field, color: C.ink, fontSize: 14, outline: "none" }} />
-      <button type="submit" disabled={sending || !draft.trim()} style={{ padding: "11px 18px", borderRadius: 12, border: "none", background: C.pink, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: draft.trim() ? 1 : 0.5 }}>Post</button>
-    </form>
-  ) : (
-    <div style={{ fontSize: 13, color: C.muted, padding: "11px 13px", borderRadius: 12, border: `1px dashed ${C.border}`, marginBottom: 16, textAlign: "center" }}>
-      You can see the room — posting isn't open to you yet.
+  // Combined render stream: server messages then optimistic temps, all
+  // chronological, with consecutive same-author posts grouped.
+  const stream = [
+    ...(messages || []).map((m) => ({ ...m, key: `m${m.id}` })),
+    ...pending.map((t) => ({ ...t, id: t.tempId, key: t.tempId, optimistic: true })),
+  ];
+
+  const Row = ({ m, grouped }) => (
+    <div
+      style={{ display: "flex", gap: 10, padding: "2px 6px", borderRadius: 8, alignItems: "flex-start", opacity: m.status === "sending" ? 0.55 : 1 }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = C.hover; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
+      <div style={{ width: 36, flexShrink: 0, display: "flex", justifyContent: "center", paddingTop: grouped ? 0 : 2 }}>
+        {grouped ? null : <Avatar name={m.authorName} host={m.isHost} />}
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        {!grouped && (
+          <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: m.isHost ? C.pink : C.ink }}>
+              {m.authorName}{m.isHost ? " · host" : ""}
+            </span>
+            {m.at && <span style={{ fontSize: 11, color: C.faint }}>{timeAgo(m.at)}</span>}
+          </div>
+        )}
+        <div style={{ fontSize: 14, color: C.ink, lineHeight: 1.5, marginTop: grouped ? 0 : 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          {m.body}
+        </div>
+        {m.status === "failed" && (
+          <div style={{ fontSize: 11.5, color: C.danger, marginTop: 2, display: "inline-flex", gap: 8, alignItems: "center" }}>
+            Couldn't send
+            <button onClick={() => doSend(m.body, m)} style={{ background: "none", border: "none", padding: 0, color: C.pink, fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>Retry</button>
+          </div>
+        )}
+        {!m.optimistic && canPost && (
+          <button
+            onClick={() => mention(m.authorName)}
+            className="rc-reply"
+            style={{ background: "none", border: "none", padding: 0, marginTop: 2, color: C.faint, fontSize: 11.5, fontWeight: 600, cursor: "pointer", opacity: 0, transition: "opacity 0.12s" }}
+          >
+            Reply
+          </button>
+        )}
+      </div>
     </div>
   );
-  const thread = (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: sidebar ? 420 : 360, overflowY: "auto" }}>
-      {[...roots].reverse().map((m) => <Comment key={m.id} m={m} depth={0} />)}
-      {messages && roots.length === 0 && (
-        <div style={{ fontSize: 13, color: C.faint }}>Nothing in #{activeName ? activeName.toLowerCase().replace(/\s+/g, "-") : "this"} yet. Start it off.</div>
+
+  const messagesPane = (
+    <div
+      ref={scrollRef}
+      onScroll={onScroll}
+      style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2, padding: "4px 0" }}
+    >
+      <style>{`.rc-row-wrap:hover .rc-reply{opacity:1 !important;}`}</style>
+      {messages === null && <div style={{ fontSize: 13, color: C.faint, padding: "8px 6px" }}>Loading…</div>}
+      {messages !== null && stream.length === 0 && (
+        <div style={{ fontSize: 13, color: C.faint, padding: "8px 6px" }}>
+          Nothing in #{channelKey(activeName) || "this"} yet. {canPost ? "Start it off." : ""}
+        </div>
       )}
-      {messages === null && <div style={{ fontSize: 13, color: C.faint }}>Loading…</div>}
+      {stream.map((m, i) => {
+        const prev = stream[i - 1];
+        const grouped = !!prev
+          && prev.isHost === m.isHost
+          && (prev.authorName || "") === (m.authorName || "")
+          && Math.abs(new Date(m.at).getTime() - new Date(prev.at).getTime()) < 5 * 60 * 1000;
+        return (
+          <div key={m.key} className="rc-row-wrap" style={{ marginTop: grouped ? 0 : 8 }}>
+            <Row m={m} grouped={grouped} />
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const composer = canPost ? (
+    <div style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+      <textarea
+        ref={taRef}
+        value={draft}
+        onChange={onInput}
+        onKeyDown={onKeyDown}
+        rows={1}
+        placeholder={activeName ? `Message #${channelKey(activeName)}` : "Message…"}
+        style={{ flex: 1, resize: "none", maxHeight: 120, padding: "11px 13px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.field, color: C.ink, fontSize: 14, lineHeight: 1.4, outline: "none", fontFamily: "inherit" }}
+      />
+      <button
+        onClick={submit}
+        disabled={!draft.trim()}
+        style={{ padding: "11px 18px", borderRadius: 12, border: "none", background: draft.trim() ? C.pink : C.chip, color: draft.trim() ? "#fff" : C.faint, fontWeight: 700, fontSize: 14, cursor: draft.trim() ? "pointer" : "default", flexShrink: 0, height: "fit-content" }}
+      >
+        {sending ? "Sending…" : "Send"}
+      </button>
+    </div>
+  ) : (
+    <div style={{ fontSize: 13, color: C.muted, padding: "11px 13px", borderRadius: 12, border: `1px dashed ${C.border}`, textAlign: "center", marginTop: 12 }}>
+      You can see the room — posting isn't open to you yet.
     </div>
   );
 
   // ── Channels as horizontal pills (guest / stacked view) ──
+  const tab = (on) => ({
+    padding: "6px 12px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
+    border: `1px solid ${on ? C.pink : C.border}`, whiteSpace: "nowrap",
+    background: on ? C.pink : C.chip, color: on ? "#fff" : C.ink,
+  });
+
   if (!sidebar) {
     return (
-      <div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+      <div style={{ display: "flex", flexDirection: "column", height: 440 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12, flexShrink: 0 }}>
           {channels.map((c) => (
             <button key={c.id} onClick={() => pick(c.id)} style={tab(c.id === active)}>
               {c.isMain ? "Main" : c.name}
             </button>
           ))}
-          {canCreateTopic && !adding && (
+          {canCreateTopic && api.createTopic && !adding && (
             <button onClick={() => setAdding(true)} style={{ ...tab(false), borderStyle: "dashed", color: C.muted }}>+ topic</button>
           )}
           {canCreateTopic && adding && (
             <form onSubmit={addTopic} style={{ display: "inline-flex", gap: 6 }}>
-              <input autoFocus value={newTopic} onChange={(e) => setNewTopic(e.target.value)} placeholder="Group shot…"
+              <input autoFocus value={newTopic} onChange={(e) => setNewTopic(e.target.value)} placeholder="group-shot…"
                 onBlur={() => { if (!newTopic.trim()) setAdding(false); }}
                 style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${C.pink}`, background: C.fieldBg, color: C.ink, fontSize: 13, outline: "none", width: 130 }} />
             </form>
           )}
         </div>
+        {messagesPane}
         {composer}
-        {thread}
       </div>
     );
   }
@@ -265,9 +381,8 @@ export default function RoomConversation({ dark = false, canCreateTopic = false,
     border: "none", background: on ? C.pink : "transparent", color: on ? "#fff" : C.ink,
   });
   return (
-    <div style={{ display: "flex", gap: 18, alignItems: "stretch" }}>
-      {/* Channel rail — a soft pink-tinted panel so it reads as a channel list */}
-      <aside style={{ width: 162, flexShrink: 0, background: dark ? "rgba(255,255,255,0.04)" : "rgba(236,23,143,0.05)", border: `1px solid ${dark ? C.border : "rgba(236,23,143,0.13)"}`, borderRadius: 12, padding: 10, alignSelf: "flex-start", display: "flex", flexDirection: "column", gap: 2 }}>
+    <div style={{ display: "flex", gap: 18, alignItems: "stretch", height: 460 }}>
+      <aside style={{ width: 162, flexShrink: 0, background: dark ? "rgba(255,255,255,0.04)" : "rgba(236,23,143,0.05)", border: `1px solid ${dark ? C.border : "rgba(236,23,143,0.13)"}`, borderRadius: 12, padding: 10, alignSelf: "stretch", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
         <div style={{ fontSize: 10.5, fontWeight: 700, color: C.faint, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 9px", marginBottom: 6 }}>Channels</div>
         {channels.map((c) => {
           const on = c.id === active;
@@ -279,7 +394,7 @@ export default function RoomConversation({ dark = false, canCreateTopic = false,
             </button>
           );
         })}
-        {canCreateTopic && !adding && (
+        {canCreateTopic && api.createTopic && !adding && (
           <button onClick={() => setAdding(true)} style={{ ...chanRow(false), color: C.muted, marginTop: 2 }}>
             <span style={{ fontWeight: 700 }}>+</span><span>Add channel</span>
           </button>
@@ -293,15 +408,14 @@ export default function RoomConversation({ dark = false, canCreateTopic = false,
         )}
       </aside>
 
-      {/* Active channel */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         {activeName && (
-          <div style={{ fontSize: 15.5, fontWeight: 750, color: C.ink, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "baseline", gap: 5, letterSpacing: "-0.01em" }}>
-            <span style={{ color: C.pink, fontWeight: 800 }}>#</span>{activeName.toLowerCase().replace(/\s+/g, "-")}
+          <div style={{ fontSize: 15.5, fontWeight: 750, color: C.ink, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "baseline", gap: 5, letterSpacing: "-0.01em", flexShrink: 0 }}>
+            <span style={{ color: C.pink, fontWeight: 800 }}>#</span>{channelKey(activeName)}
           </div>
         )}
+        {messagesPane}
         {composer}
-        {thread}
       </div>
     </div>
   );

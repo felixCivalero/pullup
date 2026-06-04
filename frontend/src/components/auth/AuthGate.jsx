@@ -169,25 +169,43 @@ function OnboardingPanel({ onAuthed, onDismiss, onSwitchToLogin }) {
       sessionStorage.removeItem("pullup_signin_pending");
       trackEvent("signed_in", { via: pendingFlag ? "google" : "email" });
 
-      const stored = readDraft();
-      const socials = stored?.socials || {};
-      const brandingLinks = Object.fromEntries(
-        Object.entries(socials).filter(([, v]) => v && String(v).trim()),
-      );
-      const payload = {
-        name: stored?.name || "",
-        city: stored?.city || "",
-        brand: stored?.brand || "",
-        brandingLinks,
-        visitorId: getVisitorId() || null,
-      };
+      // CRITICAL GUARD: this flow can be entered by an ALREADY-established user
+      // (e.g. "Get started" while signed in, or authenticating into an existing
+      // account mid-onboarding). The onboarding draft must NEVER overwrite a
+      // real profile. So read the profile first and only flush for a genuinely
+      // new account (no name yet) — and even then, only send fields the user
+      // actually filled, so a blank value can never blank out real data.
+      let existing = null;
       try {
-        await authenticatedFetch("/host/profile", {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
-      } catch (err) {
-        console.error("Failed to save onboarding profile:", err);
+        const r = await authenticatedFetch("/host/profile");
+        if (r.ok) existing = await r.json();
+      } catch {
+        /* network hiccup — fall through; the name-only guard below still holds */
+      }
+      const alreadyEstablished = !!(existing && String(existing.name || "").trim());
+
+      if (!alreadyEstablished) {
+        const stored = readDraft();
+        const socials = stored?.socials || {};
+        const brandingLinks = Object.fromEntries(
+          Object.entries(socials).filter(([, v]) => v && String(v).trim()),
+        );
+        const payload = { visitorId: getVisitorId() || null };
+        if (stored?.name && stored.name.trim()) payload.name = stored.name.trim();
+        if (stored?.city && stored.city.trim()) payload.city = stored.city.trim();
+        if (stored?.brand && stored.brand.trim()) payload.brand = stored.brand.trim();
+        if (Object.keys(brandingLinks).length) payload.brandingLinks = brandingLinks;
+        // No real name → no flush. Onboarding never writes a nameless profile.
+        if (payload.name) {
+          try {
+            await authenticatedFetch("/host/profile", {
+              method: "PUT",
+              body: JSON.stringify(payload),
+            });
+          } catch (err) {
+            console.error("Failed to save onboarding profile:", err);
+          }
+        }
       }
     } finally {
       clearDraft();
@@ -197,8 +215,12 @@ function OnboardingPanel({ onAuthed, onDismiss, onSwitchToLogin }) {
   }, [navigate, onAuthed]);
 
   useEffect(() => {
-    if (user) finalize();
-  }, [user, finalize]);
+    // Only finalize at the auth step. A user who is ALREADY signed in (an
+    // RSVP-level account completing their profile to become a host) must walk
+    // the profile steps first — without this guard, finalize would fire on
+    // mount and skip the whole flow.
+    if (user && step >= ONBOARDING_STEP_AUTH) finalize();
+  }, [user, step, finalize]);
 
   const [shownSocials, setShownSocials] = useState(() => {
     const started = Object.keys(draft.socials || {}).filter((k) => draft.socials[k]);

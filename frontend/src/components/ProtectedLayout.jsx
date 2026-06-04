@@ -26,6 +26,7 @@ function ProtectedLayoutInner() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [profilePic, setProfilePic] = useState(null);
   const [profileComplete, setProfileComplete] = useState(true);
+  const [onboardOpen, setOnboardOpen] = useState(false); // create gate → onboarding door
   const { showToast } = useToast();
   const drawerRef = useRef(null);
 
@@ -61,7 +62,10 @@ function ProtectedLayoutInner() {
         if (p) {
           if (p.profilePicture) setProfilePic(p.profilePicture);
           if (p.isAdmin) setIsAdmin(true);
-          setProfileComplete(!!(p.brand?.trim() && p.contactEmail?.trim()));
+          // Host-ready = has a name + a contact email (auto-set at signup).
+          // NOT "brand" — a casual host has no brand, and onboarding makes
+          // brand optional, so gating on it would loop the create flow.
+          setProfileComplete(!!(p.name?.trim() && p.contactEmail?.trim()));
         }
         setProfileChecked(true);
       })
@@ -630,12 +634,10 @@ function ProtectedLayoutInner() {
                 if (isCreatingEvent) {
                   handleNav("/room");
                 } else if (!profileComplete) {
-                  showToast("Fill in your brand name and contact email first", "error");
-                  if (location.pathname !== "/room") {
-                    handleNav("/room");
-                  } else {
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }
+                  // Not host-ready → the one door: onboarding (complete your
+                  // profile) ending in the auth step (verify via any method),
+                  // then into the editor.
+                  setOnboardOpen(true);
                 } else {
                   handleNav("/create");
                 }
@@ -1088,6 +1090,17 @@ function ProtectedLayoutInner() {
 
       {/* First-login-after-redesign walkthrough (desktop-only, once per browser) */}
       <WhatsNewModal />
+
+      {/* Become-a-host gate: the one door, opened when a not-yet-ready user taps
+          "+ create". Dismissable; collects the profile + verifies via the auth
+          step, then lands them in the editor. */}
+      {onboardOpen && (
+        <AuthGate
+          initialMode="onboarding"
+          onDismiss={() => setOnboardOpen(false)}
+          onAuthed={() => { setOnboardOpen(false); navigate("/create"); }}
+        />
+      )}
 
       {/* Unsaved media confirm dialog */}
       {navConfirm && (

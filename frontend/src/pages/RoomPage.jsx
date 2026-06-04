@@ -19,7 +19,6 @@
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight } from "lucide-react";
-import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { useToast } from "../components/Toast";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
@@ -28,7 +27,6 @@ import { EventHostsSection } from "../components/EventHostsSection.jsx";
 import { VipInviteSection } from "../components/VipInviteSection.jsx";
 import ProfileSetup from "../components/room/ProfileSetup.jsx";
 import LookingBack from "../components/room/LookingBack.jsx";
-import { HOST as HOST_FIXTURE, EVENTS as EVENTS_FIXTURE, SIGNALS as SIGNALS_FIXTURE, PEOPLE as PEOPLE_FIXTURE } from "../components/room/roomGlobalFixtures.js";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
@@ -1135,151 +1133,80 @@ function MemberRoomsRail({ rooms, onOpen }) {
   );
 }
 
-export default function RoomPage() {
+// OwnerConsole — the operating layer of YOUR OWN room. Rendered by
+// NodeProfilePage (/r/:me) only when the viewer is the owner; it sits below the
+// shared identity masthead, which the page owns. No fetch of its own: the whole
+// room (identity + this console payload) arrives in one /r/:id response, so this
+// is a pure render of `room` (the console slice). The masthead, count popups,
+// and viewMode/search stubs that used to live here are gone — the masthead is
+// the page's, and the stubs were never wired.
+export function OwnerConsole({ room: roomProp }) {
   const navigate = useNavigate();
-  const { clearEventNav } = useEventNav();
   const isMobile = useIsMobile();
   const [selectedId, setSelectedId] = useState(null);
-  const [lensEventId, setLensEventId] = useState(null); // event-lens over the global Room
-  const [viewMode, setViewMode] = useState("carousel"); // 'carousel' | 'list' | 'dashboard' — same actionables, 3 UX to learn from
-  const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows the bulk-compose panel
-  const [query, setQuery] = useState(""); // people search across the whole world
-  const [statPopup, setStatPopup] = useState(null); // masthead count tapped → "people" | "events"
+  const [lensEventId, setLensEventId] = useState(null); // event-lens over the Room
+  const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows bulk-compose
+  // Local copy so ProfileSetup patches + event deletion update in place without
+  // a refetch. Re-seed if the parent hands a fresh payload.
+  const [room, setRoom] = useState(roomProp);
+  useEffect(() => { setRoom(roomProp); }, [roomProp]);
 
-  // Live Room from the spine (/host/room). Falls back to fixtures only if the
-  // fetch fails, so the prototype never goes blank while iterating.
-  const [room, setRoom] = useState(null);
-  const [loadError, setLoadError] = useState(false);
-  useEffect(() => {
-    clearEventNav?.();
-    let alive = true;
-    authenticatedFetch("/host/room")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("room fetch failed"))))
-      .then((data) => { if (alive) setRoom(data); })
-      .catch(() => { if (alive) setLoadError(true); });
-    return () => { alive = false; };
-  }, [clearEventNav]);
-
-  // Three states, no mock-data flash:
-  //   loading  → render skeletons (never fixtures)
-  //   loaded   → real data
-  //   error    → fixtures as a last-resort so the page isn't blank
-  const loading = !room && !loadError;
-  const HOST = room?.host || (loadError ? HOST_FIXTURE : { peopleCount: 0 });
-  const EVENTS = room?.events || (loadError ? EVENTS_FIXTURE : []);
+  const HOST = room?.host || { peopleCount: 0 };
+  const EVENTS = room?.events || [];
   const MEMBER_ROOMS = room?.memberRooms || [];
-  const SIGNALS = room?.signals || (loadError ? SIGNALS_FIXTURE : []);
   const MOMENTS = room?.moments || [];
-  const PEOPLE = room?.people || (loadError ? PEOPLE_FIXTURE : []);
+  const PEOPLE = room?.people || [];
 
   const lensEvent = EVENTS.find((e) => e.id === lensEventId) || null;
-
-  // Apply the event lens, then rank: who-needs-you first, then warmth.
-  const ranked = useMemo(() => {
-    let list = PEOPLE;
-    if (lensEventId) {
-      // Focus the global Room on one event: people connected to it, OR
-      // suggestions that match it (the "could invite" crowd).
-      list = PEOPLE.filter((p) => (p.events || []).includes(lensEventId) || p.suggestion);
-    }
-    return [...list].sort((a, b) => {
-      if (a.needsYou !== b.needsYou) return a.needsYou ? -1 : 1;
-      return b.warmth - a.warmth;
-    });
-  }, [lensEventId, PEOPLE]);
-
-  const visibleSignals = useMemo(() => {
-    if (!lensEventId) return SIGNALS;
-    return SIGNALS.filter((s) => s.eventId === lensEventId || (s.personId && ranked.some((p) => p.id === s.personId)));
-  }, [lensEventId, ranked, SIGNALS]);
-
   const selected = PEOPLE.find((p) => p.id === selectedId) || null;
-  const needsCount = ranked.filter((p) => p.needsYou).length;
-
-  // People search — find anyone in the whole world by name / handle / how you
-  // know them. Independent of the event lens; warmest first.
-  const q = query.trim().toLowerCase();
-  const searchResults = useMemo(() => {
-    if (!q) return null;
-    return PEOPLE.filter((p) =>
-      (p.name || "").toLowerCase().includes(q) ||
-      (p.handle || "").toLowerCase().includes(q) ||
-      (p.relationship || "").toLowerCase().includes(q),
-    ).sort((a, b) => (b.warmth || 0) - (a.warmth || 0));
-  }, [q, PEOPLE]);
 
   return (
-    <div style={{ display: "flex", height: "100vh", paddingTop: "58px", boxSizing: "border-box" }}>
+    <>
       <style>{`@keyframes roomShimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } } @keyframes roomPanelDrop { 0% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: translateY(0); } } @keyframes roomSheetUp { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }`}</style>
 
-      <div style={{ flex: "1 1 0", overflowY: "auto", minWidth: 0 }}>
-        <div style={{ maxWidth: "740px", margin: "0 auto", padding: "28px 20px 60px" }}>
-          {/* The profile masthead — your face anchors the Room. */}
-          <ProfileMasthead host={HOST} loading={loading} onStat={setStatPopup} />
+      {/* Make-it-yours — fills the gaps (photo, bio, Instagram, brief). Self-hides
+          when done or dismissed. */}
+      <ProfileSetup onHostPatch={(patch) => setRoom((r) => (r ? { ...r, host: { ...r.host, ...patch } } : r))} />
 
-          {/* Make-it-yours — fills the gaps (photo, bio, Instagram, brief) and
-              patches the masthead live as they're completed. Self-hides when
-              done or dismissed. */}
-          <ProfileSetup onHostPatch={(patch) => setRoom((r) => (r ? { ...r, host: { ...r.host, ...patch } } : r))} />
+      {/* Looking back — the legacy layer. The world they built, read back to
+          them. Warmth, not actions; only shows when there's a real moment. */}
+      <LookingBack
+        moments={MOMENTS}
+        onOpenPerson={(id) => { setBulkPeople(null); setSelectedId(id); }}
+        onCreate={() => navigate("/create")}
+      />
 
-          {/* Looking back — the legacy layer. The world they built, read back to
-              them. Warmth, not actions; only shows when there's a real moment. */}
-          {!loading && (
-            <LookingBack
-              moments={MOMENTS}
-              onOpenPerson={(id) => { setBulkPeople(null); setSelectedId(id); }}
-              onCreate={() => navigate("/create")}
-            />
-          )}
+      {/* The events banner — your content, up top. */}
+      <EventsBanner
+        events={EVENTS}
+        people={PEOPLE}
+        lensEventId={lensEventId}
+        onOpenEvent={(id) => navigate(`/events/${id}/room`)}
+        onSubpage={(id, sub) => navigate(`/app/events/${id}/${sub}`)}
+        onCreate={() => navigate("/create")}
+        onFocus={(id) => setLensEventId((cur) => (cur === id ? null : id))}
+        onMessageAll={(eventId) => {
+          const evp = PEOPLE.filter((p) => (p.events || []).includes(eventId));
+          if (!evp.length) return;
+          setSelectedId(null);
+          setBulkPeople(evp);
+        }}
+        onDeleted={(id) => setRoom((r) => (r ? { ...r, events: r.events.filter((e) => e.id !== id) } : r))}
+      />
 
-          {/* The events banner — your content, up top. While loading, skeleton
-              posters stand in (no mock-data flash). */}
-          {loading ? (
-            <EventsBannerSkeleton />
-          ) : (
-            <EventsBanner
-              events={EVENTS}
-              people={PEOPLE}
-              lensEventId={lensEventId}
-              onOpenEvent={(id) => navigate(`/events/${id}/room`)}
-              onSubpage={(id, sub) => navigate(`/app/events/${id}/${sub}`)}
-              onCreate={() => navigate("/create")}
-              onFocus={(id) => setLensEventId((cur) => (cur === id ? null : id))}
-              onMessageAll={(eventId) => {
-                const evp = PEOPLE.filter((p) => (p.events || []).includes(eventId));
-                if (!evp.length) return;
-                setSelectedId(null);
-                setBulkPeople(evp);
-              }}
-              onDeleted={(id) => setRoom((r) => (r ? { ...r, events: r.events.filter((e) => e.id !== id) } : r))}
-            />
-          )}
+      {/* Rooms you're in — events you co-host or attend as a guest. */}
+      <MemberRoomsRail rooms={MEMBER_ROOMS} onOpen={(id) => navigate(`/events/${id}/room`)} />
 
-          {/* Rooms you're in — events you co-host or attend as a guest. Always
-              present (even for pure guests with no hosted events), so login
-              always lands on the rooms you can actually enter. */}
-          {!loading && <MemberRoomsRail rooms={MEMBER_ROOMS} onOpen={(id) => navigate(`/events/${id}/room`)} />}
-
-          {/* Notifications now live in the top-bar bell (ambient facts), not in
-              the Room body. The Room is actionables-only. */}
-
-          {/* The people list + search lived here. They now live in the Messages
-              dock (bottom-right) — no need to duplicate them in the Room body.
-              This space under the events is open for what the Room becomes next. */}
-          {!loading && (
-            <div style={{ marginTop: "6px", padding: "30px 20px", borderRadius: "16px", border: `1px dashed ${colors.border}`, textAlign: "center", fontFamily: SF }}>
-              <div style={{ fontSize: "13.5px", color: colors.textMuted }}>Your people moved into <strong style={{ color: colors.text }}>Messages</strong> — bottom-right.</div>
-              <div style={{ fontSize: "12px", color: colors.textFaded, marginTop: "4px" }}>This space is next.</div>
-            </div>
-          )}
-        </div>
+      {/* The people list + search live in the Messages dock (bottom-right), not
+          duplicated in the body. This space under the events is open for what the
+          Room becomes next. */}
+      <div style={{ marginTop: "6px", padding: "30px 20px", borderRadius: "16px", border: `1px dashed ${colors.border}`, textAlign: "center", fontFamily: SF }}>
+        <div style={{ fontSize: "13.5px", color: colors.textMuted }}>Your people moved into <strong style={{ color: colors.text }}>Messages</strong> — bottom-right.</div>
+        <div style={{ fontSize: "12px", color: colors.textFaded, marginTop: "4px" }}>This space is next.</div>
       </div>
 
-      {/* Right slot — on DESKTOP it floats over the empty right space (fixed to
-          the edge) so opening it doesn't shrink the body. On PHONE it rises from
-          the bottom as a sheet (a 420px side panel would swallow the screen),
-          with a scrim you can tap to dismiss. One at a time: a single
-          conversation, or the bulk compose view. */}
+      {/* Right slot — DESKTOP: floats fixed to the edge. PHONE: rises as a sheet
+          with a tap-to-dismiss scrim. One at a time: a conversation or bulk compose. */}
       {(selected || bulkPeople) && (
         <>
           {isMobile && (
@@ -1303,19 +1230,7 @@ export default function RoomPage() {
           </div>
         </>
       )}
-
-      {/* Masthead count tapped — the list behind the number, navigable. */}
-      {statPopup && (
-        <MastheadStatPopup
-          kind={statPopup}
-          people={PEOPLE}
-          events={EVENTS}
-          onClose={() => setStatPopup(null)}
-          onPerson={(id) => { setStatPopup(null); navigate(`/r/${id}`); }}
-          onEvent={(id) => { setStatPopup(null); navigate(`/app/events/${id}/manage`); }}
-        />
-      )}
-    </div>
+    </>
   );
 }
 

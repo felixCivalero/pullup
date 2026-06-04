@@ -291,7 +291,7 @@ function Darkroom({ eventId, isHost, canUpload }) {
 // reaches it through the owner endpoints (and holds the pen: create topics,
 // connect storage, the roster faces). A guest reaches the same conversation +
 // darkroom through the room endpoints, session-resolved (no email box).
-function RoomSpace({ eventId, roster, isHost, permissions }) {
+function RoomSpace({ eventId, roster, isHost, permissions, meName }) {
   const api = useMemo(() => (isHost ? {
     loadChannels: () => authenticatedFetch(`/host/events/${eventId}/channels`).then((r) => (r.ok ? r.json().then((d) => d.channels || []) : [])),
     loadMessages: (cid) => authenticatedFetch(`/host/events/${eventId}/space?channelId=${cid}`).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
@@ -339,7 +339,7 @@ function RoomSpace({ eventId, roster, isHost, permissions }) {
       {/* Connect-storage / folders are the host's pen. */}
       {isHost && <StorageFolders />}
 
-      <RoomConversation canCreateTopic={isHost} canPost={canPost} sidebar api={api} />
+      <RoomConversation canCreateTopic={isHost} canPost={canPost} sidebar api={api} meName={meName} meIsHost={isHost} />
 
       <Darkroom eventId={eventId} isHost={isHost} canUpload={!isHost && permissions?.upload === true} />
     </div>
@@ -830,7 +830,7 @@ function Brief({ brief, onOpenPerson }) {
 // RosterStrip — presence as a small global line under the title: a face-pile
 // per state + a quiet count. The full member list lives in Guests; here it's
 // just "who's around", glanceable.
-function RosterStrip({ roster }) {
+function RosterStrip({ roster, inBar = false }) {
   if (!roster) return null;
   const up = roster.pulledUp || [];
   const coming = roster.coming || [];
@@ -858,7 +858,7 @@ function RosterStrip({ roster }) {
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap", marginTop: "14px" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap", marginTop: inBar ? 0 : "14px" }}>
       <Cluster people={up} label="pulled up" accent />
       <Cluster people={coming} label="coming" />
     </div>
@@ -945,6 +945,8 @@ export default function EventRoomPage() {
   // Host AND guest fall through to the SAME room below — what differs is only
   // what each is allowed to see/do, driven by isHost + permissions.
   const when = event?.startsAt ? new Date(event.startsAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : null;
+  const hasCover = !!event?.cover;
+  const meName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || "You";
 
   return (
     <div style={{ display: "flex", height: "100vh", paddingTop: "58px", boxSizing: "border-box" }}>
@@ -965,26 +967,34 @@ export default function EventRoomPage() {
           </div>
 
           {isHost && <HostPartnerLinks event={event} />}
-          {/* Event identity — this room IS this event. */}
-          <div style={{ marginBottom: "22px" }}>
-            {/* Banner: always a soft branded gradient; the cover paints over it
-                only if it actually loads (a missing/broken URL just shows the
-                gradient — never a broken-image icon). */}
-            <div style={{ height: 150, borderRadius: "18px", overflow: "hidden", marginBottom: "14px", background: "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)" }}>
-              {event?.cover && (
-                <img src={event.cover} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          {/* Event identity — ONE unified banner: cover backdrop + scrim,
+              title/meta overlaid, an attached presence bar for the roster. A
+              missing cover falls back to the soft gradient with ink text. */}
+          <div style={{ marginBottom: "22px", borderRadius: "18px", overflow: "hidden", border: `1px solid ${colors.border}`, boxShadow: "0 1px 2px rgba(10,10,10,0.03), 0 10px 30px rgba(10,10,10,0.05)" }}>
+            <div style={{ position: "relative", height: hasCover ? 196 : 132, background: hasCover ? "#1a1016" : "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)" }}>
+              {hasCover && (
+                <img src={event.cover} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
               )}
+              {hasCover && (
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 28%, rgba(0,0,0,0.34) 64%, rgba(0,0,0,0.66) 100%)" }} />
+              )}
+              <div style={{ position: "absolute", left: 22, right: 22, bottom: 16 }}>
+                <h1 style={{ fontSize: "27px", fontWeight: 800, margin: "0 0 4px", letterSpacing: "-0.02em", lineHeight: 1.1, fontFamily: SF, color: hasCover ? "#fff" : colors.text, textShadow: hasCover ? "0 1px 14px rgba(0,0,0,0.45)" : "none" }}>
+                  {event?.title || "The Room"}
+                </h1>
+                <div style={{ fontSize: "13.5px", fontWeight: 500, color: hasCover ? "rgba(255,255,255,0.92)" : colors.textMuted, textShadow: hasCover ? "0 1px 10px rgba(0,0,0,0.45)" : "none" }}>
+                  {[when, event?.location].filter(Boolean).join(" · ") || " "}
+                </div>
+              </div>
             </div>
-            <h1 style={{ fontSize: "26px", fontWeight: 750, color: colors.text, margin: "0 0 4px", letterSpacing: "-0.02em", fontFamily: SF }}>
-              {event?.title || "The Room"}
-            </h1>
-            <div style={{ fontSize: "13.5px", color: colors.textMuted }}>
-              {[when, event?.location].filter(Boolean).join(" · ") || " "}
-            </div>
-            {isHost && <RosterStrip roster={roster} />}
+            {isHost && (roster?.pulledUp?.length || roster?.coming?.length) ? (
+              <div style={{ padding: "11px 20px", background: colors.surface, borderTop: `1px solid ${colors.borderFaint}` }}>
+                <RosterStrip roster={roster} inBar />
+              </div>
+            ) : null}
           </div>
 
-          <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} />
+          <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} />
         </div>
       </div>
     </div>

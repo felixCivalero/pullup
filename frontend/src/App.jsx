@@ -42,7 +42,6 @@ import { RsvpSuccessPage } from "./pages/RsvpSuccessPage";
 import { EventSuccessPage } from "./pages/EventSuccessPage";
 import { EventGuestsPage } from "./pages/EventGuestsPage";
 import EventRoomPage from "./pages/EventRoomPage";
-import RoomPage from "./pages/RoomPage";
 import HostCheckinPage from "./pages/HostCheckinPage";
 import NodeProfilePage from "./pages/NodeProfilePage";
 import { ViewAsBar } from "./components/admin/ViewAsBar.jsx";
@@ -69,6 +68,17 @@ import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { IdeaWidget } from "./components/IdeaWidget";
 import { HostResourceProvider } from "./contexts/HostResourceContext";
+import { useAuth } from "./contexts/AuthContext";
+
+// /room is no longer its own surface — your room is your person room. There is
+// exactly ONE room concept, addressed by id: yours is /r/:me. /room (and every
+// legacy redirect that points at it) bounces to your own person room.
+function RoomRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={`/r/${user.id}`} replace />;
+}
 
 function App() {
   return (
@@ -134,7 +144,7 @@ function App() {
               The old events dashboard (/events) is gone; the Room is home now.
               Keep /events and /home as redirects so old links/bookmarks land
               on the Room instead of 404ing. */}
-          <Route path="/room" element={<RoomPage />} />
+          <Route path="/room" element={<RoomRedirect />} />
           {/* THE event Room — one surface per event for host AND guest, inside
               the shared shell. Role decides the chrome; no session → login modal
               (the shell tolerates anon here and lets the room/modal resolve who

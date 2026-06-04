@@ -14,7 +14,6 @@ import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { Settings } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
-import { PullupEyes } from "./PullupEyes.jsx";
 import { NotificationsBell } from "./NotificationsBell.jsx";
 import { AuthGate } from "./auth/AuthGate.jsx";
 import { colors } from "../theme/colors.js";
@@ -108,8 +107,7 @@ export function AppHeader() {
       <header style={{ position: "fixed", top: 2, left: 0, right: 0, height: "56px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px 0 12px", zIndex: 20, background: "rgba(255, 255, 255, 0.85)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${colors.borderFaint}` }}>
         {/* Logo */}
         <button onClick={() => handleNav("/room")} aria-label="PullUp" style={{ background: "transparent", border: "none", padding: "4px 8px", display: "flex", alignItems: "center", gap: "9px", cursor: "pointer" }}>
-          <PullupEyes variant="small" style={{ width: "34px", height: "30px", display: "block" }} />
-          <img src="/pullup-logo.svg" alt="PullUp" style={{ height: "26px", width: "auto", display: "block" }} />
+          <img src="/pullup-textlogo.svg" alt="PullUp" style={{ height: "22px", width: "auto", display: "block" }} />
         </button>
 
         {/* Center nav (desktop) */}

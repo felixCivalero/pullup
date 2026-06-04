@@ -18,6 +18,8 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
+import { AppHeader } from "../components/AppHeader.jsx";
+import { OwnerConsole } from "./RoomPage.jsx";
 import { Instagram, Music2, Twitter, Youtube, Linkedin, Globe } from "lucide-react";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
@@ -77,8 +79,10 @@ export default function NodeProfilePage() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(false);
   const [popup, setPopup] = useState(null); // "people" | "hosted" | "pulledUp" | null
+  const [shown, setShown] = useState(8); // events grid: 4×2, then "Load more"
 
   useEffect(() => {
+    setShown(8); // reset the events grid limit when the room changes
     let alive = true;
     const p = asEmail
       ? publicFetch(`/r/${id}?email=${encodeURIComponent(asEmail)}`)
@@ -131,35 +135,14 @@ export default function NodeProfilePage() {
     // ended + locked (missed): no-op
   };
 
-  return (
-    <Shell>
-      <Masthead node={node} onCount={setPopup} />
+  // The owner standing in their OWN room (and not previewing as a visitor) gets
+  // the operating console below the identity face — the room is ONE surface,
+  // inside vs. outside. Everyone else sees the public face + the events slider.
+  const showConsole = isOwner && !asEmail && !!data.console;
 
-      {asEmail && <div style={{ fontSize: 11.5, color: colors.textFaded, marginBottom: 16, padding: "6px 10px", borderRadius: 8, border: `1px dashed ${colors.border}`, display: "inline-block" }}>Previewing as {asEmail}</div>}
-
-      {/* Inside-only: this is your room, others see it too. */}
-      {isOwner && !asEmail && (
-        <button onClick={() => navigate("/room")} style={{ width: "100%", textAlign: "left", marginBottom: 20, padding: "11px 14px", borderRadius: 12, border: `1px solid ${colors.border}`, background: colors.surface, cursor: "pointer", fontFamily: SF, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 12.5, color: colors.textMuted }}>This is your room — this is how others see you.</span>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: colors.accent }}>Open your room tools →</span>
-        </button>
-      )}
-
-      {/* Events slider — "your events" inside, "[Name]'s events" outside */}
-      <SectionLabel>{isOwner ? "Your events" : `${firstName(node.name)}'s events`}</SectionLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
-        {isOwner && <CreateCard onClick={() => navigate("/create")} />}
-        {hosted.map((e) => <EventCard key={e.id} e={e} onClick={() => enter(e)} />)}
-        {hosted.length === 0 && !isOwner && <div style={{ fontSize: 13, color: colors.textFaded }}>No events yet.</div>}
-      </div>
-
-      {/* Branding — the eyes */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 44, color: colors.textFaded }}>
-        <PullupEyes variant="small" style={{ width: 26, height: 22, display: "block", opacity: 0.55 }} />
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>PullUp</span>
-      </div>
-
-      {/* Count popups */}
+  // The count popups behind the masthead numbers — shared across both views.
+  const popups = (
+    <>
       {popup === "people" && (
         <Popup title={`People in ${whose} world`} onClose={() => setPopup(null)}>
           {people.length === 0 && <Empty>No one in the world yet.</Empty>}
@@ -180,6 +163,57 @@ export default function NodeProfilePage() {
           {pulledUp.map((e) => <EventRow key={e.id} e={e} onClick={() => (setPopup(null), enter(e))} />)}
         </Popup>
       )}
+    </>
+  );
+
+  // OWNER, inside their own room: full app chrome + identity face + console.
+  if (showConsole) {
+    return (
+      <>
+        <AppHeader />
+        <div style={{ minHeight: "100dvh", background: colors.background, color: colors.text, fontFamily: SF }}>
+          <div style={{ maxWidth: 740, margin: "0 auto", padding: "78px 20px 80px" }}>
+            <Masthead node={node} onCount={setPopup} />
+            <OwnerConsole room={data.console} />
+          </div>
+        </div>
+        {popups}
+      </>
+    );
+  }
+
+  // PUBLIC / VISITOR (or owner previewing as a visitor): clean standalone face.
+  return (
+    <Shell>
+      <Masthead node={node} onCount={setPopup} />
+
+      {asEmail && <div style={{ fontSize: 11.5, color: colors.textFaded, marginBottom: 16, padding: "6px 10px", borderRadius: 8, border: `1px dashed ${colors.border}`, display: "inline-block" }}>Previewing as {asEmail}</div>}
+
+      {/* Events slider — "your events" inside, "[Name]'s events" outside */}
+      <SectionLabel>{isOwner ? "Your events" : `${firstName(node.name)}'s events`}</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+        {isOwner && <CreateCard onClick={() => navigate("/create")} />}
+        {hosted.slice(0, shown).map((e) => <EventCard key={e.id} e={e} onClick={() => enter(e)} />)}
+        {hosted.length === 0 && !isOwner && <div style={{ fontSize: 13, color: colors.textFaded }}>No events yet.</div>}
+      </div>
+      {hosted.length > shown && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+          <button
+            onClick={() => setShown((s) => s + 8)}
+            style={{ padding: "9px 20px", borderRadius: 999, border: `1px solid ${colors.borderStrong}`, background: colors.surface, color: colors.text, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: SF }}
+          >
+            Load more <span style={{ color: colors.textFaded, fontWeight: 600 }}>· {hosted.length - shown} more</span>
+          </button>
+        </div>
+      )}
+
+      {/* Branding — the eyes */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 44, color: colors.textFaded }}>
+        <PullupEyes variant="small" style={{ width: 26, height: 22, display: "block", opacity: 0.55 }} />
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>PullUp</span>
+      </div>
+
+      {popups}
     </Shell>
   );
 }

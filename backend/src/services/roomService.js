@@ -155,7 +155,7 @@ function relTime(iso) {
 // `event-images` bucket paths (not full URLs) — passing the raw path to an
 // <img> src fails, which is why Room posters were falling back to gradients.
 // Mirrors the public-URL logic in data.js (the bucket is public; permanent URL).
-function resolveEventImage(raw) {
+export function resolveEventImage(raw) {
   if (!raw) return null;
   if (String(raw).startsWith("http")) return raw;
   try {

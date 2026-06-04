@@ -366,39 +366,56 @@ export function IdeaWidget() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  if (mode === null) return null;
+  // Desktop hides the slot when there's no mode (logged out / mid-load / public
+  // page). On mobile the AI coach faces stay off, but Messages — your people —
+  // should still be one tap away for any logged-in host on an in-app route.
+  const mobileMessages = !isDesktop && !!user && !isEventPagePath;
+  if (mode === null && !mobileMessages) return null;
 
-  // Promo mode: MCP pitch for hosts who haven't wired up a token yet.
+  // On mobile the dock opens as a full-screen sheet (native messaging feel),
+  // not the small desktop popup. The two-pane "expanded" mode is desktop-only
+  // (it needs width), so mobile always rides the single-pane DockMessages.
+  const fullScreen = !isDesktop;
+
     return (
       <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
         {open && (
           <div
             style={
-              canvasEventId
+              fullScreen
+                ? { position: "fixed", inset: 0, zIndex: 10000, background: colors.background, display: "flex", flexDirection: "column", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "border-box" }
+                : canvasEventId
                 ? { position: "absolute", bottom: 56, right: 0, width: 360, background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 16, padding: 18, boxShadow: "0 8px 30px rgba(10,10,10,0.10)" }
                 : { position: "absolute", bottom: 56, right: 0, width: msgExpanded ? "min(96vw, 960px)" : 372, height: msgExpanded ? "min(88vh, 780px)" : 560, maxHeight: "88vh", background: colors.background, border: `1px solid ${colors.borderStrong}`, borderRadius: 20, overflow: "hidden", boxShadow: "0 20px 60px rgba(10,10,10,0.18)" }
             }
           >
             {canvasEventId ? (
               <>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, padding: fullScreen ? "14px 14px 0" : 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 7, color: colors.gold }}>
                     <Sparkles size={14} />
                     <span style={{ fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase", fontWeight: 600 }}>PullUp · build</span>
                   </div>
                   <button onClick={dismissAiMode} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: colors.textSubtle }} aria-label="Hide for this session" title="Hide for this session"><X size={16} /></button>
                 </div>
-                <div style={{ height: "min(64vh, 480px)" }}>
+                <div style={{ height: fullScreen ? "auto" : "min(64vh, 480px)", flex: fullScreen ? 1 : undefined, minHeight: 0 }}>
                   <CanvasChat eventId={canvasEventId} seed={canvasSeed} suggestions={(coachItems || []).map((it) => ({ label: it.headline, prompt: it.headline }))} />
                 </div>
               </>
             ) : (
-              <DockMessages onClose={() => setOpen(false)} expanded={msgExpanded} onToggleExpand={() => setMsgExpanded((v) => !v)} />
+              <DockMessages
+                onClose={() => setOpen(false)}
+                expanded={!fullScreen && msgExpanded}
+                onToggleExpand={fullScreen ? undefined : () => setMsgExpanded((v) => !v)}
+              />
             )}
           </div>
         )}
 
-        {/* Trigger pill — "Messages" (your people) by default; "PullUp" sparkle in AI-build mode */}
+        {/* Trigger pill — "Messages" (your people) by default; "PullUp" sparkle in
+            AI-build mode. Hidden while the full-screen sheet is open (it has its
+            own close). */}
+        {!(open && fullScreen) && (
         <button
           ref={triggerRef}
           onClick={() => setOpen((prev) => !prev)}
@@ -454,6 +471,7 @@ export function IdeaWidget() {
             </>
           )}
         </button>
+        )}
       </div>
     );
 

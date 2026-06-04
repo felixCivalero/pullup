@@ -930,7 +930,8 @@ export default function EventRoomPage() {
   // ONE auth gate + ONE permission gate, used everywhere. A scanned live QR
   // (?w=) is its own credential, so it skips both.
   const hasLiveCode = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("w");
-  if (!user && !hasLiveCode) {
+  // No session (real logged-out, or the admin "No session" lens) → the auth wall.
+  if ((!user || level === "no_session") && !hasLiveCode) {
     return <LoginModal redirectTo={`/events/${id}/room${typeof window !== "undefined" ? window.location.search : ""}`} />;
   }
   if (level === "no_access" && !hasLiveCode) {

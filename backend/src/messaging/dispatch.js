@@ -30,7 +30,24 @@ import { supabase } from "../supabase.js";
 import { sendTemplate, isPhoneSuppressed } from "../whatsapp/index.js";
 import { hasActiveOptIn } from "../whatsapp/repos/phoneOptInsRepo.js";
 import { enqueueOutbox as enqueueEmailOutbox } from "../email/index.js";
+import { TEMPLATES } from "../whatsapp/templates/registry.js";
 import { logger } from "../logger.js";
+
+/**
+ * A template may only ship on WhatsApp once Meta has approved it. Until then
+ * (status 'draft'/'submitted') email is the floor, in EVERY environment.
+ *
+ * This is deliberately not bypassed in sandbox: sandbox returns a synthetic
+ * provider success, so a non-approved template would otherwise report
+ * "whatsapp sent" and skip the email — silently swallowing the message. And
+ * because WHATSAPP_SANDBOX_MODE defaults to ON, that swallow would hit any
+ * deployment that forgets to disable it. Gating on real approval keeps the
+ * behaviour identical and correct regardless of the sandbox flag: nothing
+ * ships on WhatsApp until Meta says yes, then it lights up automatically.
+ */
+function isTemplateApproved(templateKey) {
+  return TEMPLATES?.[templateKey]?.status === "approved";
+}
 
 /**
  * @param {object} args
@@ -87,6 +104,12 @@ export async function dispatch({
   if (waChosen && recipient.do_not_contact) {
     waChosen = false;
     reasons.push("do_not_contact");
+  }
+  if (waChosen && !isTemplateApproved(whatsapp.templateKey)) {
+    waChosen = false;
+    reasons.push(
+      `template not approved (${TEMPLATES?.[whatsapp.templateKey]?.status || "unknown"})`,
+    );
   }
 
   // Per-guest opt-in + suppression checks (DB lookups; skip when already ruled out).

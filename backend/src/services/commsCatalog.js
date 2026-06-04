@@ -113,8 +113,9 @@ function catalog(b, frontendUrl) {
       label: "Booking cancelled by host",
       description: "Sent when a host cancels a guest's booking.",
       email: () => ({ subject: "Your booking was cancelled", html: cancellationEmail({ ...base, name: MOCK.guestName }) }),
-      wa: "event_change",
-      waVars: { event_title: MOCK.eventTitle, new_when: "—", old_when: MOCK.whenPhrase, host_signature: waSig },
+      // Must match the live send (index.js cancel/delete paths use booking_cancelled).
+      wa: "booking_cancelled",
+      waVars: { guest_first_name: MOCK.firstName, event_title: MOCK.eventTitle, host_signature: waSig },
       editableNote: false,
     },
     {
@@ -140,13 +141,19 @@ export function renderComms({ hostProfile = {}, overrides = {}, frontendUrl = "h
     if (m.wa && TEMPLATES[m.wa]) {
       let text = "";
       try { text = renderTemplate(m.wa, m.waVars); } catch (e) { text = `(template error: ${e.message})`; }
-      whatsapp = { available: true, templateKey: m.wa, status: TEMPLATES[m.wa].status, text, locked: true };
+      const status = TEMPLATES[m.wa].status;
+      // `live` = Meta has approved this template, so it can actually ship on
+      // WhatsApp. Until then dispatch() routes this message to email — the UI
+      // must say so rather than implying WhatsApp is already going out.
+      whatsapp = { available: true, templateKey: m.wa, status, live: status === "approved", text, locked: true };
     }
     return {
       key: m.key,
       label: m.label,
       description: m.description,
       channels: m.emailOnly ? ["email"] : (whatsapp.available ? ["whatsapp", "email"] : ["email"]),
+      // The rail a guest actually receives today: WhatsApp only once approved.
+      deliveredVia: whatsapp.live ? "whatsapp" : "email",
       email,
       whatsapp,
       note,

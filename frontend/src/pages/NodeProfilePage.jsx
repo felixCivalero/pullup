@@ -18,8 +18,52 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
+import { Instagram, Music2, Twitter, Youtube, Linkedin, Globe } from "lucide-react";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+
+const SOCIAL_ICON = { instagram: Instagram, tiktok: Music2, x: Twitter, youtube: Youtube, linkedin: Linkedin, website: Globe };
+const SOCIAL_COLOR = { instagram: "#d6249f", tiktok: "#0a0a0a", x: "#0a0a0a", youtube: "#ff0000", linkedin: "#0a66c2", website: "#6b6b6b" };
+
+function Socials({ socials }) {
+  if (!socials || !socials.length) return null;
+  return (
+    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 8 }}>
+      {socials.map((s) => {
+        const Icon = SOCIAL_ICON[s.channel] || Globe;
+        return s.url ? (
+          <a key={s.channel} href={s.url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: colors.text, fontWeight: 600, textDecoration: "none", fontSize: 12.5 }}>
+            <Icon size={13} style={{ color: SOCIAL_COLOR[s.channel] || colors.textMuted }} /> {s.handle || s.label}
+          </a>
+        ) : null;
+      })}
+    </div>
+  );
+}
+
+// The public face — shown to everyone (the IG-style header). Content below is gated.
+function Masthead({ node, onCount }) {
+  const c = node.counts || {};
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 22 }}>
+      <div style={{ width: 80, height: 80, borderRadius: "50%", flexShrink: 0, overflow: "hidden", background: "linear-gradient(135deg,#ff45ad,#ec178f)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800, color: "#fff", border: `1px solid ${colors.borderFaint}` }}>
+        {node.avatar ? <img src={node.avatar} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials(node.name)}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 8px", textTransform: "uppercase", color: colors.text }}>{node.name}</h1>
+        <div style={{ display: "flex", gap: 6, fontSize: 13.5, color: colors.textMuted, flexWrap: "wrap" }}>
+          <CountChip n={c.people ?? 0} label="people" onClick={() => onCount?.("people")} />
+          <span style={{ color: colors.textFaded }}>·</span>
+          <CountChip n={c.hosted ?? 0} label="events" onClick={() => onCount?.("hosted")} />
+          <span style={{ color: colors.textFaded }}>·</span>
+          <CountChip n={c.pulledUp ?? 0} label="pull-ups" onClick={() => onCount?.("pulledUp")} />
+        </div>
+        <Socials socials={node.socials} />
+        {node.bio && <div style={{ fontSize: 13.5, color: colors.textSubtle, marginTop: 8, lineHeight: 1.5 }}>{node.bio}</div>}
+      </div>
+    </div>
+  );
+}
 
 function initials(n = "") { return String(n).trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?"; }
 function firstName(n = "") { return String(n).trim().split(/\s+/)[0] || "they"; }
@@ -55,34 +99,29 @@ export default function NodeProfilePage() {
   if (err) return <Shell><div style={{ color: colors.textMuted, textAlign: "center", marginTop: 40 }}>This room isn't available.</div></Shell>;
   if (!node) return <Shell><div style={{ color: colors.textFaded, textAlign: "center", marginTop: 40 }}>Loading…</div></Shell>;
 
-  // Gated — you haven't been to one of this person's events, so their room is
-  // closed to you. Say it plainly, point the way in, give a way back. Never the
-  // stats / events / world (the backend withholds those entirely).
+  // Gated — IG-style. The public header (above) is visible to anyone; the
+  // CONTENT (their events) needs a PullUp session. Show who they are + a login
+  // wall where the events would be, so a shared /r/ link is a real landing page.
   if (data.gated) {
     return (
       <Shell>
-        <div style={{ maxWidth: 420, margin: "60px auto 0", textAlign: "center", fontFamily: SF }}>
-          <div style={{ width: 72, height: 72, borderRadius: "50%", margin: "0 auto 18px", background: "linear-gradient(135deg,#ff45ad,#ec178f)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 800, color: "#fff" }}>
-            {node.avatar ? <img src={node.avatar} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : initials(node.name)}
-          </div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: colors.text, margin: "0 0 10px" }}>
-            {firstName(node.name)}'s room is private.
-          </h1>
-          <p style={{ fontSize: 14.5, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 22px" }}>
-            You're not in it yet. RSVP to one of {firstName(node.name)}'s events and you're in — that's the key.
+        <Masthead node={node} onCount={() => {}} />
+        <SectionLabel>{firstName(node.name)}'s events</SectionLabel>
+        <div style={{ marginTop: 4, padding: "26px 20px", borderRadius: 16, border: `1px solid ${colors.border}`, background: colors.surface, textAlign: "center", fontFamily: SF }}>
+          <p style={{ fontSize: 14, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 16px" }}>
+            Log in to step into {firstName(node.name)}'s room and see their events.
           </p>
           <button
-            onClick={() => navigate(-1)}
-            style={{ padding: "11px 22px", borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.text, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: SF }}
+            onClick={() => navigate("/login")}
+            style={{ padding: "11px 24px", borderRadius: 999, border: "none", background: colors.accent, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: SF }}
           >
-            Go back
+            Log in to PullUp
           </button>
         </div>
       </Shell>
     );
   }
 
-  const c = node.counts || {};
   const whose = isOwner ? "your" : `${firstName(node.name)}'s`;
   const enter = (e) => {
     // Has room access (pulled up, or owns the event) → into the one event Room.
@@ -93,23 +132,7 @@ export default function NodeProfilePage() {
 
   return (
     <Shell>
-      {/* Masthead — the node IS the person */}
-      <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 22 }}>
-        <div style={{ width: 80, height: 80, borderRadius: "50%", flexShrink: 0, overflow: "hidden", background: "linear-gradient(135deg,#ff45ad,#ec178f)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800, color: "#fff", border: `1px solid ${colors.borderFaint}` }}>
-          {node.avatar ? <img src={node.avatar} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials(node.name)}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 8px", textTransform: "uppercase", color: colors.text }}>{node.name}</h1>
-          <div style={{ display: "flex", gap: 6, fontSize: 13.5, color: colors.textMuted, flexWrap: "wrap" }}>
-            <CountChip n={c.people ?? 0} label="people" onClick={() => setPopup("people")} />
-            <span style={{ color: colors.textFaded }}>·</span>
-            <CountChip n={c.hosted ?? 0} label="events" onClick={() => setPopup("hosted")} />
-            <span style={{ color: colors.textFaded }}>·</span>
-            <CountChip n={c.pulledUp ?? 0} label="pull-ups" onClick={() => setPopup("pulledUp")} />
-          </div>
-          {node.bio && <div style={{ fontSize: 13.5, color: colors.textSubtle, marginTop: 8, lineHeight: 1.5 }}>{node.bio}</div>}
-        </div>
-      </div>
+      <Masthead node={node} onCount={setPopup} />
 
       {asEmail && <div style={{ fontSize: 11.5, color: colors.textFaded, marginBottom: 16, padding: "6px 10px", borderRadius: 8, border: `1px dashed ${colors.border}`, display: "inline-block" }}>Previewing as {asEmail}</div>}
 

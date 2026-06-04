@@ -292,7 +292,6 @@ function OnboardingPanel({ onAuthed, onDismiss, onSwitchToLogin }) {
               value={draft.name}
               onChange={(e) => update({ name: e.target.value })}
               placeholder="Your full name"
-              autoFocus
             />
           </>
         )}
@@ -313,7 +312,6 @@ function OnboardingPanel({ onAuthed, onDismiss, onSwitchToLogin }) {
               value={draft.city}
               onChange={(e) => update({ city: e.target.value })}
               placeholder="Your city"
-              autoFocus
             />
           </>
         )}
@@ -331,7 +329,6 @@ function OnboardingPanel({ onAuthed, onDismiss, onSwitchToLogin }) {
               value={draft.brand}
               onChange={(e) => update({ brand: e.target.value })}
               placeholder="Brand or studio name"
-              autoFocus
             />
           </>
         )}
@@ -361,7 +358,6 @@ function OnboardingPanel({ onAuthed, onDismiss, onSwitchToLogin }) {
                       onChange={(e) => updateSocial(key, e.target.value)}
                       placeholder={ch.ph}
                       aria-label={ch.label}
-                      autoFocus={key === "instagram"}
                     />
                     {key !== "instagram" && (
                       <button

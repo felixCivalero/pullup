@@ -48,7 +48,7 @@ function handleFrom(v, hostPattern) {
   const h = (m ? m[1] : s).replace(/^@/, "").replace(/\/+$/, "").trim();
   return h || null;
 }
-function buildSocials(links = {}) {
+export function buildSocials(links = {}) {
   const L = links || {};
   const out = [];
   const ig = (L.instagram || "").trim();

@@ -5851,7 +5851,7 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     // hasn't claimed an account yet). Either id resolves here so the world list
     // can link to anyone, account or not.
     let { data: profile } = await supabase
-      .from("profiles").select("id, name, bio, profile_picture_url, host_brief").eq("id", hostId).maybeSingle();
+      .from("profiles").select("id, name, bio, profile_picture_url, branding_links").eq("id", hostId).maybeSingle();
     let personRow = null;
     if (!profile) {
       const { data: pr } = await supabase.from("people").select("id, name, auth_user_id").eq("id", hostId).maybeSingle();
@@ -5859,14 +5859,18 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
       personRow = pr;
       // If this person has since claimed an account, prefer the account identity.
       if (pr.auth_user_id) {
-        const { data: p2 } = await supabase.from("profiles").select("id, name, bio, profile_picture_url, host_brief").eq("id", pr.auth_user_id).maybeSingle();
+        const { data: p2 } = await supabase.from("profiles").select("id, name, bio, profile_picture_url, branding_links").eq("id", pr.auth_user_id).maybeSingle();
         if (p2) profile = p2;
       }
     }
     const accountId = profile?.id || null;                 // drives hosted events (host_id)
     const nodeName = profile?.name || personRow?.name || "Someone";
-    const nodeBio = profile ? (profile.bio || profile.host_brief || null) : null;
+    // PUBLIC bio only — never the internal host_brief (that's the AI-coach's
+    // strategy notes; showing it would leak sponsor plans to guests).
+    const nodeBio = profile?.bio || null;
     const nodeAvatar = profile?.profile_picture_url || null;
+    const { buildSocials } = await import("./services/roomService.js");
+    const nodeSocials = profile ? buildSocials(profile.branding_links) : [];
     const nodeRoomId = accountId || personRow.id;          // canonical room id
 
     // Is the viewer standing in their OWN room? (inside vs outside)
@@ -5941,20 +5945,16 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     }
     const inOrbit = myPullups.size > 0 || myRsvps.size > 0;
 
-    // GATE — a person's room is private. You only get in if you've ever RSVP'd or
-    // pulled up to one of THEIR OWN events (the low "seen-content" bar); the owner
-    // always gets in. Otherwise return minimal identity + gated:true so the UI can
-    // show a graceful "not in this room" with a way back — never the world, stats,
-    // events, or the people list (that last one is the real leak this closes).
-    // Admins can open ANY profile (QA / free navigation); everyone else needs orbit.
+    // Header = the public face (shareable, IG-style): who you are. Content (the
+    // events + world) needs a PullUp SESSION — anyone sees WHO you are; you log in
+    // to see more. Keeps PullUp from being a public event-discovery directory
+    // while letting a creator share their /r/ link as a real landing page.
+    const header = { id: nodeRoomId, name: nodeName, bio: nodeBio, avatar: nodeAvatar, socials: nodeSocials, counts };
+    const hasSession = !!req.user?.id;
     const adminViewer = await isAdminUser(req.user?.id);
-    const enteredViaHosted = isOwner || adminViewer || hostedIds.some((id) => myRsvps.has(id) || myPullups.has(id));
-    if (!enteredViaHosted) {
-      return res.json({
-        gated: true,
-        node: { id: nodeRoomId, name: nodeName, avatar: nodeAvatar },
-        viewer: { known: !!viewer, inOrbit: false, isOwner: false },
-      });
+    const forcedLocked = (await adminForceLevel(req)) === "no_access"; // admin preview of the logged-out wall
+    if (forcedLocked || (!hasSession && !adminViewer)) {
+      return res.json({ gated: "login", node: header, viewer: { known: false, inOrbit: false, isOwner: false } });
     }
 
     const now = Date.now();
@@ -5974,18 +5974,17 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
       };
     };
 
+    // The people list (their world) is the creator's AUDIENCE — show it only to
+    // the owner / admin / people already in their orbit. Other logged-in visitors
+    // get the count only (in `counts`), never the names. Protects data ownership.
+    const showPeople = isOwner || adminViewer || inOrbit;
+
     res.json({
-      node: {
-        id: nodeRoomId,
-        name: nodeName,
-        bio: nodeBio,
-        avatar: nodeAvatar,
-        counts,
-      },
+      node: header,
       viewer: { known: !!viewer, inOrbit, isOwner },
       hosted: hosted.map(mapTile),
       pulledUp: pulledUpRows.map(mapTile),
-      people,
+      people: showPeople ? people : [],
     });
   } catch (err) {
     console.error("[node-profile] error:", err.message);

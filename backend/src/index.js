@@ -5875,13 +5875,17 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
 
     // Is the viewer standing in their OWN room? (inside vs outside)
     const isOwner = !!req.user?.id && req.user.id === accountId;
+    // Admin "View as" maps onto the profile's real axis: Host → the owner view
+    // (drafts + create), Locked → the logged-out wall, guest tiers → visitor.
+    const forced = await adminForceLevel(req);
+    const effectiveOwner = isOwner || forced === "host";
 
     // The events this node HOSTS (only accounts can host). Drafts are owner-only.
     const hostSelect = "id, slug, title, cover_image_url, image_url, starts_at, ends_at, status";
     let hosted = [];
     if (accountId) {
       let hostQuery = supabase.from("events").select(hostSelect).eq("host_id", accountId).order("starts_at", { ascending: false });
-      if (!isOwner) hostQuery = hostQuery.eq("status", "PUBLISHED");
+      if (!effectiveOwner) hostQuery = hostQuery.eq("status", "PUBLISHED");
       const { data: hostRows } = await hostQuery;
       hosted = hostRows || [];
     }
@@ -5952,7 +5956,7 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     const header = { id: nodeRoomId, name: nodeName, bio: nodeBio, avatar: nodeAvatar, socials: nodeSocials, counts };
     const hasSession = !!req.user?.id;
     const adminViewer = await isAdminUser(req.user?.id);
-    const forcedLocked = (await adminForceLevel(req)) === "no_access"; // admin preview of the logged-out wall
+    const forcedLocked = forced === "no_access"; // admin preview of the logged-out wall
     if (forcedLocked || (!hasSession && !adminViewer)) {
       return res.json({ gated: "login", node: header, viewer: { known: false, inOrbit: false, isOwner: false } });
     }
@@ -5961,7 +5965,7 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     const mapTile = (e) => {
       const end = e.ends_at ? new Date(e.ends_at).getTime() : (e.starts_at ? new Date(e.starts_at).getTime() + 12 * 3600 * 1000 : null);
       // The owner always has full access to their own events.
-      const viewerState = isOwner ? "owner" : myPullups.has(e.id) ? "pulledup" : myRsvps.has(e.id) ? "rsvped" : "none";
+      const viewerState = effectiveOwner ? "owner" : myPullups.has(e.id) ? "pulledup" : myRsvps.has(e.id) ? "rsvped" : "none";
       return {
         id: e.id,
         slug: e.slug,
@@ -5977,11 +5981,11 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     // The people list (their world) is the creator's AUDIENCE — show it only to
     // the owner / admin / people already in their orbit. Other logged-in visitors
     // get the count only (in `counts`), never the names. Protects data ownership.
-    const showPeople = isOwner || adminViewer || inOrbit;
+    const showPeople = effectiveOwner || adminViewer || inOrbit;
 
     res.json({
       node: header,
-      viewer: { known: !!viewer, inOrbit, isOwner },
+      viewer: { known: !!viewer, inOrbit, isOwner: effectiveOwner },
       hosted: hosted.map(mapTile),
       pulledUp: pulledUpRows.map(mapTile),
       people: showPeople ? people : [],

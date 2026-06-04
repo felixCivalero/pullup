@@ -4186,16 +4186,13 @@ app.post(
 
       const frontendUrl = getFrontendUrl();
 
-      // Fetch host branding for email footers
-      let hostBrand = {};
-      try {
-        const hostProfile = await getUserProfile(event.hostId);
-        hostBrand = {
-          brandName: hostProfile?.brand || "",
-          brandWebsite: hostProfile?.brandWebsite || "",
-          contactEmail: hostProfile?.contactEmail || "",
-        };
-      } catch {}
+      // Fetch host branding for email footers + WhatsApp signature.
+      const promoteHost = await getUserProfile(event.hostId).catch(() => null);
+      const hostBrand = {
+        brandName: promoteHost?.brand || "",
+        brandWebsite: promoteHost?.brandWebsite || "",
+        contactEmail: promoteHost?.contactEmail || "",
+      };
 
       // FREE EVENTS: Immediately confirm the guest (no payment needed)
       if (isFreeEvent) {
@@ -4204,39 +4201,66 @@ app.post(
           status: "attending",
         }, { forceConfirm: true });
 
-        // Send confirmation email
+        // Confirmed off the waitlist — same dual-rail as a fresh RSVP confirm,
+        // so a verified + opted-in guest gets WhatsApp (email is the floor).
         try {
-          await sendEmail({
-            to: person.email,
-            subject: "Your spot is confirmed",
-            html: signupConfirmationEmail({
-              name: rsvp.name || person.name || "there",
-              eventTitle: event.title,
-              date: event.startsAt ? new Date(event.startsAt).toLocaleString() : "",
-              isWaitlist: false,
-              imageUrl: event.coverImageUrl || event.imageUrl || "",
-              location: event.location || "",
-              startsAt: event.startsAt || "",
-              endsAt: event.endsAt || "",
-              timezone: event.timezone || "",
-              plusOnes: Number(rsvp.plusOnes) || 0,
-              slug: event.slug || "",
-              frontendUrl,
-              spotifyUrl: event.spotify || "",
-              hideDate: event.hideDate || false,
-              hideLocation: event.hideLocation || false,
-              dateRevealHint: event.dateRevealHint || "",
-              revealHint: event.revealHint || "",
-              ...hostBrand,
-              // Event's own brand snapshot (migration 047): backgroundColor →
-              // canvas, buttonColor → accent/button. {} → PullUp default.
-              brand: event.brand
-                ? {
-                    background:   event.brand.backgroundColor || null,
-                    primaryColor: event.brand.buttonColor || null,
-                  }
-                : {},
-            }),
+          const firstName = (rsvp.name || person.name || "there").split(/\s+/)[0] || "there";
+          const promoteSig =
+            promoteHost?.whatsappSignature ||
+            (promoteHost?.name ? `It's me, ${promoteHost.name.split(/\s+/)[0]}` : "");
+          await dispatchMessage({
+            recipient: {
+              id: person.id || null,
+              email: person.email,
+              phone_e164: person.phone_e164 || null,
+              phone_verified_at: person.phone_verified_at || null,
+              do_not_contact: person.do_not_contact || false,
+            },
+            hostProfile: promoteHost,
+            whatsapp: {
+              templateKey: "rsvp_confirm",
+              variables: {
+                guest_first_name: firstName,
+                event_title: event.title || "the event",
+                event_when: event.startsAt ? new Date(event.startsAt).toLocaleString() : "soon",
+                host_signature: promoteSig || "PullUp",
+              },
+            },
+            email: {
+              subject: "Your spot is confirmed",
+              htmlBody: signupConfirmationEmail({
+                name: rsvp.name || person.name || "there",
+                eventTitle: event.title,
+                date: event.startsAt ? new Date(event.startsAt).toLocaleString() : "",
+                isWaitlist: false,
+                imageUrl: event.coverImageUrl || event.imageUrl || "",
+                location: event.location || "",
+                startsAt: event.startsAt || "",
+                endsAt: event.endsAt || "",
+                timezone: event.timezone || "",
+                plusOnes: Number(rsvp.plusOnes) || 0,
+                slug: event.slug || "",
+                frontendUrl,
+                spotifyUrl: event.spotify || "",
+                hideDate: event.hideDate || false,
+                hideLocation: event.hideLocation || false,
+                dateRevealHint: event.dateRevealHint || "",
+                revealHint: event.revealHint || "",
+                ...hostBrand,
+                // Event's own brand snapshot (migration 047): backgroundColor →
+                // canvas, buttonColor → accent/button. {} → PullUp default.
+                brand: event.brand
+                  ? {
+                      background:   event.brand.backgroundColor || null,
+                      primaryColor: event.brand.buttonColor || null,
+                    }
+                  : {},
+              }),
+            },
+            context: {
+              personId: person.id || null,
+              hostProfileId: event.hostId || null,
+            },
           });
         } catch (emailErr) {
           console.error("Failed to send confirmation email:", emailErr);
@@ -6816,41 +6840,66 @@ app.post(
           const person = await findPersonById(rsvp.personId);
           const email = person?.email || rsvp.email;
           if (email) {
-            let hostBrand = {};
-            try {
-              const hostProfile = await getUserProfile(event.hostId);
-              hostBrand = {
-                brandName: hostProfile?.brand || "",
-                brandWebsite: hostProfile?.brandWebsite || "",
-                contactEmail: hostProfile?.contactEmail || "",
-              };
-            } catch {}
+            const promoteHost = await getUserProfile(event.hostId).catch(() => null);
+            const hostBrand = {
+              brandName: promoteHost?.brand || "",
+              brandWebsite: promoteHost?.brandWebsite || "",
+              contactEmail: promoteHost?.contactEmail || "",
+            };
+            const firstName = (rsvp.name || person?.name || "there").split(/\s+/)[0] || "there";
+            const promoteSig =
+              promoteHost?.whatsappSignature ||
+              (promoteHost?.name ? `It's me, ${promoteHost.name.split(/\s+/)[0]}` : "");
 
-            await sendEmail({
-              to: email,
-              subject: "Your spot is confirmed",
-              html: signupConfirmationEmail({
-                name: rsvp.name || person?.name || "",
-                eventTitle: event.title,
-                date: new Date(event.startsAt).toLocaleString(),
-                isWaitlist: false,
-                imageUrl: event.coverImageUrl || event.imageUrl || "",
-                location: event.location || "",
-                startsAt: event.startsAt || "",
-                endsAt: event.endsAt || "",
-                timezone: event.timezone || "",
-                plusOnes: Number(rsvp.plusOnes) || 0,
-                slug: event.slug || "",
-                frontendUrl: getFrontendUrl(),
-                spotifyUrl: event.spotify || "",
-                ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
-                ticketCurrency: event.ticketCurrency || "",
-                hideDate: event.hideDate || false,
-                hideLocation: event.hideLocation || false,
-                dateRevealHint: event.dateRevealHint || "",
-                revealHint: event.revealHint || "",
-                ...hostBrand,
-              }),
+            // Dual-rail confirm — identical to a fresh RSVP confirm so a verified
+            // + opted-in guest gets WhatsApp; email is the floor otherwise.
+            await dispatchMessage({
+              recipient: {
+                id: person?.id || null,
+                email,
+                phone_e164: person?.phone_e164 || null,
+                phone_verified_at: person?.phone_verified_at || null,
+                do_not_contact: person?.do_not_contact || false,
+              },
+              hostProfile: promoteHost,
+              whatsapp: {
+                templateKey: "rsvp_confirm",
+                variables: {
+                  guest_first_name: firstName,
+                  event_title: event.title || "the event",
+                  event_when: event.startsAt ? new Date(event.startsAt).toLocaleString() : "soon",
+                  host_signature: promoteSig || "PullUp",
+                },
+              },
+              email: {
+                subject: "Your spot is confirmed",
+                htmlBody: signupConfirmationEmail({
+                  name: rsvp.name || person?.name || "",
+                  eventTitle: event.title,
+                  date: new Date(event.startsAt).toLocaleString(),
+                  isWaitlist: false,
+                  imageUrl: event.coverImageUrl || event.imageUrl || "",
+                  location: event.location || "",
+                  startsAt: event.startsAt || "",
+                  endsAt: event.endsAt || "",
+                  timezone: event.timezone || "",
+                  plusOnes: Number(rsvp.plusOnes) || 0,
+                  slug: event.slug || "",
+                  frontendUrl: getFrontendUrl(),
+                  spotifyUrl: event.spotify || "",
+                  ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
+                  ticketCurrency: event.ticketCurrency || "",
+                  hideDate: event.hideDate || false,
+                  hideLocation: event.hideLocation || false,
+                  dateRevealHint: event.dateRevealHint || "",
+                  revealHint: event.revealHint || "",
+                  ...hostBrand,
+                }),
+              },
+              context: {
+                personId: person?.id || null,
+                hostProfileId: event.hostId || null,
+              },
             });
           }
         } catch (emailErr) {
@@ -6908,16 +6957,16 @@ app.post(
       // Sort FIFO by RSVP creation date
       rsvps.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-      // Fetch host branding once for all emails
-      let hostBrand = {};
-      try {
-        const hostProfile = await getUserProfile(event.hostId);
-        hostBrand = {
-          brandName: hostProfile?.brand || "",
-          brandWebsite: hostProfile?.brandWebsite || "",
-          contactEmail: hostProfile?.contactEmail || "",
-        };
-      } catch {}
+      // Fetch host branding + signature once for all sends.
+      const bulkHost = await getUserProfile(event.hostId).catch(() => null);
+      const hostBrand = {
+        brandName: bulkHost?.brand || "",
+        brandWebsite: bulkHost?.brandWebsite || "",
+        contactEmail: bulkHost?.contactEmail || "",
+      };
+      const bulkSig =
+        bulkHost?.whatsappSignature ||
+        (bulkHost?.name ? `It's me, ${bulkHost.name.split(/\s+/)[0]}` : "");
 
       let promoted = 0;
       for (const rsvp of rsvps) {
@@ -6935,31 +6984,54 @@ app.post(
               const person = await findPersonById(rsvp.personId);
               const email = person?.email || rsvp.email;
               if (email) {
-                await sendEmail({
-                  to: email,
-                  subject: "Your spot is confirmed",
-                  html: signupConfirmationEmail({
-                    name: rsvp.name || person?.name || "",
-                    eventTitle: event.title,
-                    date: new Date(event.startsAt).toLocaleString(),
-                    isWaitlist: false,
-                    imageUrl: event.coverImageUrl || event.imageUrl || "",
-                    location: event.location || "",
-                    startsAt: event.startsAt || "",
-                    endsAt: event.endsAt || "",
-                    timezone: event.timezone || "",
-                    plusOnes: Number(rsvp.plusOnes) || 0,
-                    slug: event.slug || "",
-                    frontendUrl: getFrontendUrl(),
-                    spotifyUrl: event.spotify || "",
-                    ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
-                    ticketCurrency: event.ticketCurrency || "",
-                    hideDate: event.hideDate || false,
-                    hideLocation: event.hideLocation || false,
-                    dateRevealHint: event.dateRevealHint || "",
-                    revealHint: event.revealHint || "",
-                    ...hostBrand,
-                  }),
+                const firstName = (rsvp.name || person?.name || "there").split(/\s+/)[0] || "there";
+                await dispatchMessage({
+                  recipient: {
+                    id: person?.id || null,
+                    email,
+                    phone_e164: person?.phone_e164 || null,
+                    phone_verified_at: person?.phone_verified_at || null,
+                    do_not_contact: person?.do_not_contact || false,
+                  },
+                  hostProfile: bulkHost,
+                  whatsapp: {
+                    templateKey: "rsvp_confirm",
+                    variables: {
+                      guest_first_name: firstName,
+                      event_title: event.title || "the event",
+                      event_when: event.startsAt ? new Date(event.startsAt).toLocaleString() : "soon",
+                      host_signature: bulkSig || "PullUp",
+                    },
+                  },
+                  email: {
+                    subject: "Your spot is confirmed",
+                    htmlBody: signupConfirmationEmail({
+                      name: rsvp.name || person?.name || "",
+                      eventTitle: event.title,
+                      date: new Date(event.startsAt).toLocaleString(),
+                      isWaitlist: false,
+                      imageUrl: event.coverImageUrl || event.imageUrl || "",
+                      location: event.location || "",
+                      startsAt: event.startsAt || "",
+                      endsAt: event.endsAt || "",
+                      timezone: event.timezone || "",
+                      plusOnes: Number(rsvp.plusOnes) || 0,
+                      slug: event.slug || "",
+                      frontendUrl: getFrontendUrl(),
+                      spotifyUrl: event.spotify || "",
+                      ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
+                      ticketCurrency: event.ticketCurrency || "",
+                      hideDate: event.hideDate || false,
+                      hideLocation: event.hideLocation || false,
+                      dateRevealHint: event.dateRevealHint || "",
+                      revealHint: event.revealHint || "",
+                      ...hostBrand,
+                    }),
+                  },
+                  context: {
+                    personId: person?.id || null,
+                    hostProfileId: event.hostId || null,
+                  },
                 });
               }
             } catch (emailErr) {

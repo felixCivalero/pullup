@@ -67,9 +67,12 @@ const pillButton = (active) => ({
   boxShadow: colors.accentShadow,
 });
 
-// ── A small channel chip — "Email" or "WhatsApp" (+ status). ──
-function ChannelChip({ channel, status }) {
+// ── A small channel chip — "Email" or "WhatsApp" (+ pending state). ──
+// WhatsApp only actually ships once Meta approves the template; until then the
+// chip says "pending approval" so the host never thinks it's going out yet.
+function ChannelChip({ channel, live }) {
   const isWa = channel === "whatsapp";
+  const pending = isWa && !live;
   return (
     <span
       style={{
@@ -86,10 +89,8 @@ function ChannelChip({ channel, status }) {
       }}
     >
       {isWa ? "WhatsApp" : "Email"}
-      {isWa && status && (
-        <span style={{ fontSize: 10, opacity: 0.85, textTransform: "capitalize" }}>
-          · {status}
-        </span>
+      {pending && (
+        <span style={{ fontSize: 10, opacity: 0.85 }}>· pending approval</span>
       )}
     </span>
   );
@@ -126,9 +127,15 @@ function MessageCard({ msg, note, onNote, onTest, testing }) {
 
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         {channels.map((c) => (
-          <ChannelChip key={c} channel={c} status={c === "whatsapp" ? wa.status : null} />
+          <ChannelChip key={c} channel={c} live={c === "whatsapp" ? wa.live : true} />
         ))}
       </div>
+
+      {wa.available && !wa.live && (
+        <div style={{ fontSize: 11.5, color: colors.textSubtle, lineHeight: 1.5 }}>
+          Goes out by email for now — WhatsApp switches on automatically once Meta approves the template.
+        </div>
+      )}
 
       {msg.note && (
         <div style={{ fontSize: 12, color: colors.textSubtle, lineHeight: 1.5 }}>{msg.note}</div>
@@ -201,6 +208,7 @@ function MessageCard({ msg, note, onNote, onTest, testing }) {
               </div>
               <div style={{ fontSize: 11.5, color: colors.textSubtle, marginTop: 6, lineHeight: 1.5 }}>
                 WhatsApp wording is set by Meta — your signature personalizes it.
+                {!wa.live && " This template is still pending Meta approval, so it's delivered by email until then."}
               </div>
             </div>
           )}

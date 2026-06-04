@@ -376,7 +376,7 @@ export function IdeaWidget() {
             style={
               canvasEventId
                 ? { position: "absolute", bottom: 56, right: 0, width: 360, background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 16, padding: 18, boxShadow: "0 8px 30px rgba(10,10,10,0.10)" }
-                : { position: "absolute", bottom: 56, right: 0, width: msgExpanded ? "min(94vw, 460px)" : 372, height: msgExpanded ? "82vh" : 560, maxHeight: "82vh", background: colors.background, border: `1px solid ${colors.borderStrong}`, borderRadius: 20, overflow: "hidden", boxShadow: "0 20px 60px rgba(10,10,10,0.18)" }
+                : { position: "absolute", bottom: 56, right: 0, width: msgExpanded ? "min(96vw, 960px)" : 372, height: msgExpanded ? "min(88vh, 780px)" : 560, maxHeight: "88vh", background: colors.background, border: `1px solid ${colors.borderStrong}`, borderRadius: 20, overflow: "hidden", boxShadow: "0 20px 60px rgba(10,10,10,0.18)" }
             }
           >
             {canvasEventId ? (

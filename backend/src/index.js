@@ -508,7 +508,7 @@ function generateOgHtml(event, queryString = "") {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>${ogTitle} — Pull Up</title>
+  <title>${ogTitle} — PullUp</title>
   <meta name="description" content="${description}">
 
   <meta property="og:type" content="website">
@@ -521,7 +521,7 @@ function generateOgHtml(event, queryString = "") {
   <meta property="og:image:width" content="${OG_IMAGE_WIDTH}">
   <meta property="og:image:height" content="${OG_IMAGE_HEIGHT}">
   <meta property="og:image:alt" content="${escapedTitle}">
-  <meta property="og:site_name" content="Pull Up">
+  <meta property="og:site_name" content="PullUp">
 
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${ogTitle}">

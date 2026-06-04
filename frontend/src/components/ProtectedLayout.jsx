@@ -23,6 +23,7 @@ function ProtectedLayoutInner() {
   // doesn't bounce a real admin while their profile is still loading.
   const [profileChecked, setProfileChecked] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false); // mobile admin popover
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [profilePic, setProfilePic] = useState(null);
   const [profileComplete, setProfileComplete] = useState(true);
@@ -90,6 +91,7 @@ function ProtectedLayoutInner() {
   // Close menu on route change
   useEffect(() => {
     setMenuOpen(false);
+    setAdminMenuOpen(false);
   }, [location.pathname]);
 
   // Lock body scroll when menu open
@@ -142,6 +144,7 @@ function ProtectedLayoutInner() {
     }
     navigate(path);
     setMenuOpen(false);
+    setAdminMenuOpen(false);
   }
 
   function confirmNavLeave() {
@@ -574,16 +577,19 @@ function ProtectedLayoutInner() {
             </a>
           )}
 
-          {/* Desktop: Notifications bell (ambient facts) — sits next to Settings */}
-          {!isMobile && <NotificationsBell />}
+          {/* Notifications bell (ambient facts). Desktop always; mobile shows it
+              as a badge on the default app (event routes keep the tab menu). */}
+          {(!isMobile || !isEventRoute) && <NotificationsBell />}
 
-          {/* Desktop: Settings icon */}
-          {!isMobile && (
+          {/* Settings badge. Same surfacing rule as the bell — a direct icon on
+              mobile so we don't need a drawer just to reach Settings. */}
+          {(!isMobile || !isEventRoute) && (
             <button
               onClick={() => handleNav("/settings")}
+              aria-label="Settings"
               style={{
-                width: 32,
-                height: 32,
+                width: isMobile ? 36 : 32,
+                height: isMobile ? 36 : 32,
                 borderRadius: "999px",
                 border: `1px solid ${colors.border}`,
                 background: "transparent",
@@ -597,12 +603,94 @@ function ProtectedLayoutInner() {
               onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceMuted; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
-              <SilverIcon as={Settings} size={16} />
+              <SilverIcon as={Settings} size={isMobile ? 17 : 16} />
             </button>
           )}
 
-          {/* Mobile: Hamburger */}
-          {isMobile && (
+          {/* Mobile admin badge → a compact popover with the gold admin surfaces
+              (CRM / Email / Analytics), instead of burying them in a drawer. */}
+          {isMobile && !isEventRoute && isAdmin && (
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setAdminMenuOpen((o) => !o)}
+                aria-label="Admin menu"
+                aria-expanded={adminMenuOpen}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "8px 12px",
+                  borderRadius: "999px",
+                  border: `1px solid ${adminMenuOpen ? "rgba(180,83,9,0.45)" : "rgba(180,83,9,0.28)"}`,
+                  background: adminMenuOpen ? "rgba(180,83,9,0.14)" : "rgba(180,83,9,0.08)",
+                  color: "#b45309",
+                  fontFamily: "inherit",
+                  fontSize: "10.5px",
+                  fontWeight: 700,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                }}
+              >
+                Admin
+              </button>
+              {adminMenuOpen && (
+                <>
+                  <div
+                    onClick={() => setAdminMenuOpen(false)}
+                    style={{ position: "fixed", inset: 0, zIndex: 18 }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 10px)",
+                      right: 0,
+                      zIndex: 19,
+                      minWidth: 180,
+                      background: "#fff",
+                      border: "1px solid rgba(180,83,9,0.18)",
+                      borderRadius: "16px",
+                      boxShadow: "0 18px 48px rgba(10,10,10,0.18)",
+                      padding: "6px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "2px",
+                    }}
+                  >
+                    {adminNavItems.map(({ label, path }) => (
+                      <button
+                        key={path}
+                        onClick={() => handleNav(path)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          width: "100%",
+                          padding: "11px 14px",
+                          borderRadius: "11px",
+                          border: "none",
+                          background: isActive(path) ? "rgba(180,83,9,0.10)" : "transparent",
+                          color: isActive(path) ? "#b45309" : "rgba(180,83,9,0.72)",
+                          fontFamily: "inherit",
+                          fontSize: "14px",
+                          fontWeight: isActive(path) ? 700 : 600,
+                          cursor: "pointer",
+                          textAlign: "left",
+                          touchAction: "manipulation",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Mobile: Hamburger — only on event routes, where it carries the
+              event tabs (Guests / Insights / Edit). The default app uses the
+              direct badges above, no drawer. */}
+          {isMobile && isEventRoute && (
             <button
               onClick={() => setMenuOpen(true)}
               aria-label="Open menu"

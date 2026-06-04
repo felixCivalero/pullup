@@ -155,11 +155,13 @@ function ProtectedLayoutInner() {
   // can back data-driven features, so the guard is scoped to /admin/email only.
   const isEmailSection = location.pathname.startsWith("/admin/email");
 
-  // The event Room renders for guests too; it (and /create) resolve identity on
-  // their own, so they're allowed without a session. Every other in-shell route
-  // needs one — no session there → the login modal, shown in place of content.
+  // The event Room renders for guests too — it resolves identity on its own, so
+  // it's allowed without a session. Everything else, INCLUDING /create, needs a
+  // verified session: a creator is a real, signed-in identity from the first
+  // keystroke (no more anonymous drafting with auth deferred to publish). No
+  // session on a route that needs one → the AuthGate, shown in place of content.
   const isEventRoom = eventTab === "room";
-  const allowAnon = isCreatingEvent || isEventRoom;
+  const allowAnon = isEventRoom;
   const mustLogin = !loading && !user && !allowAnon;
 
   // Nav items for all users.

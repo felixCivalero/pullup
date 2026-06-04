@@ -1848,7 +1848,7 @@ export async function isAdminUser(userId) {
 // non-admin's header is silently ignored, so it can never be forged into access.
 // Returns the person plus their account link (authUserId) so callers can do both
 // person-scoped (RSVP/pull-up) and host(account)-scoped checks as them.
-export async function resolveViewer(req, { email = null } = {}) {
+export async function resolveViewer(req, { email = null, trustEmail = false } = {}) {
   const realUserId = req.user?.id || null;
   const viewAsId = (req.headers?.["x-pullup-view-as"] || "").toString().trim() || null;
   if (viewAsId && realUserId && (await isAdminUser(realUserId))) {
@@ -1857,7 +1857,15 @@ export async function resolveViewer(req, { email = null } = {}) {
       return { person: mapPersonFromDb(data), authUserId: data.auth_user_id || null, impersonating: true, realUserId };
     }
   }
-  const person = await resolvePerson({ userId: realUserId, email });
+  // SECURITY: identity comes from the VERIFIED session. A caller-supplied email
+  // is honored as identity only when (a) there's a real session — in which case
+  // userId wins anyway and the email is corroborating — or (b) the caller has
+  // INDEPENDENTLY vouched for it (trustEmail: e.g. a verified live door code in
+  // the pull-up flow). An unauthenticated `?email=` is NEVER trusted: otherwise
+  // anyone could assume any identity and read/probe another person's room
+  // membership, attendance, or content. Logged-out + unvouched ⇒ no viewer.
+  const effectiveEmail = (realUserId || trustEmail) ? email : null;
+  const person = await resolvePerson({ userId: realUserId, email: effectiveEmail });
   return { person, authUserId: realUserId, impersonating: false, realUserId };
 }
 

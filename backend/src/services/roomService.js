@@ -179,16 +179,147 @@ const TYPE_VERB = {
   host_logged: "You logged", acquired: "Found you", identity_linked: "Linked identity", note: "Note",
 };
 
+// The host's own events as banner cards. Pulled out so the home renders them
+// even before any timeline activity exists (a brand-new host who just created
+// their first event still sees it — the per-person timeline can be empty).
+async function getHostedEventCards(hostId) {
+  const { data: events } = await supabase
+    .from("events")
+    .select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, ticket_type, ticket_price, ticket_currency, location")
+    .eq("host_id", hostId);
+  const list = events || [];
+  if (!list.length) return [];
+  const comingByEvent = new Map();
+  const { data: rsvpRows } = await supabase.from("rsvps").select("event_id, status").in("event_id", list.map((e) => e.id));
+  for (const r of rsvpRows || []) {
+    if (r.status === "cancelled") continue;
+    comingByEvent.set(r.event_id, (comingByEvent.get(r.event_id) || 0) + 1);
+  }
+  const now = Date.now();
+  return list
+    .map((e) => {
+      const published = (e.status || "").toUpperCase() === "PUBLISHED";
+      const starts = e.starts_at ? new Date(e.starts_at).getTime() : null;
+      const isPast = published && starts != null && starts < now;
+      const status = !published ? "draft" : isPast ? "past" : "live";
+      return {
+        id: e.id,
+        title: e.title || "Untitled event",
+        slug: e.slug || null,
+        coverImage: resolveEventImage(e.cover_image_url || e.image_url),
+        startsAt: e.starts_at || null,
+        when: eventDateLabel(e.starts_at, status),
+        location: e.location || "",
+        status,
+        capacity: e.total_capacity || null,
+        comingCount: comingByEvent.get(e.id) || 0,
+        ticketType: e.ticket_type || "free",
+        ticketPrice: e.ticket_price || 0,
+        ticketCurrency: e.ticket_currency || null,
+        _sort: status === "live" ? 2 : status === "past" ? 1 : 0,
+      };
+    })
+    .sort((a, b) => {
+      if (a._sort !== b._sort) return b._sort - a._sort;
+      const ta = a.startsAt ? new Date(a.startsAt).getTime() : 0;
+      const tb = b.startsAt ? new Date(b.startsAt).getTime() : 0;
+      return a.status === "live" ? ta - tb : tb - ta;
+    })
+    .map(({ _sort, ...e }) => e);
+}
+
+// Events this account BELONGS TO but does not own via host_id: ones it co-hosts
+// (event_hosts collaborator) + ones it attends as a guest (rsvp/pullup on its
+// own person record). This is what makes the home work for everyone — a pure
+// guest with zero hosted events still lands on the rooms they can enter, and a
+// collaborator sees the events they help run. Relationships are permanent, so
+// guest events show regardless of the event's current draft flag.
+async function getMemberRooms(accountId, email = null) {
+  if (!accountId) return [];
+  try {
+    const { data: owned } = await supabase.from("events").select("id").eq("host_id", accountId);
+    const ownedIds = new Set((owned || []).map((e) => e.id));
+
+    // co-host via the collaborator table
+    const { data: eh } = await supabase.from("event_hosts").select("event_id, role").eq("user_id", accountId);
+    const roleByEvent = new Map();
+    for (const r of eh || []) if (r.event_id && !ownedIds.has(r.event_id)) roleByEvent.set(r.event_id, r.role || "co_host");
+
+    // guest via this account's person record(s). Match by auth link OR the
+    // login email — a returning guest may not be auth-linked yet, and the same
+    // human can have several person rows; union them all so no room is missed.
+    const personIds = new Set();
+    const { data: byAuth } = await supabase.from("people").select("id").eq("auth_user_id", accountId);
+    for (const p of byAuth || []) personIds.add(p.id);
+    const e = (email || "").toString().trim().toLowerCase();
+    if (e) {
+      const { data: byEmail } = await supabase.from("people").select("id").ilike("email", e);
+      for (const p of byEmail || []) personIds.add(p.id);
+    }
+    const guestIds = new Set();
+    if (personIds.size) {
+      const ids = [...personIds];
+      const [{ data: rs }, { data: ps }] = await Promise.all([
+        supabase.from("rsvps").select("event_id").in("person_id", ids).neq("status", "cancelled"),
+        supabase.from("pullups").select("event_id").in("person_id", ids),
+      ]);
+      for (const r of [...(rs || []), ...(ps || [])]) if (r.event_id && !ownedIds.has(r.event_id)) guestIds.add(r.event_id);
+    }
+
+    const ids = [...new Set([...roleByEvent.keys(), ...guestIds])];
+    if (!ids.length) return [];
+    const { data: evs } = await supabase
+      .from("events")
+      .select("id, title, slug, starts_at, status, cover_image_url, image_url, location")
+      .in("id", ids);
+    const now = Date.now();
+    return (evs || [])
+      .map((e) => {
+        const published = (e.status || "").toUpperCase() === "PUBLISHED";
+        const starts = e.starts_at ? new Date(e.starts_at).getTime() : null;
+        const isPast = published && starts != null && starts < now;
+        const status = !published ? "draft" : isPast ? "past" : "live";
+        const isCoHost = roleByEvent.has(e.id);
+        return {
+          id: e.id,
+          title: e.title || "Untitled event",
+          slug: e.slug || null,
+          coverImage: resolveEventImage(e.cover_image_url || e.image_url),
+          startsAt: e.starts_at || null,
+          when: eventDateLabel(e.starts_at, status),
+          location: e.location || "",
+          status,
+          role: isCoHost ? roleByEvent.get(e.id) : "guest",
+          isHost: isCoHost,
+          _sort: status === "live" ? 2 : status === "past" ? 1 : 0,
+        };
+      })
+      .sort((a, b) => {
+        if (a._sort !== b._sort) return b._sort - a._sort;
+        const ta = a.startsAt ? new Date(a.startsAt).getTime() : 0;
+        const tb = b.startsAt ? new Date(b.startsAt).getTime() : 0;
+        return a.status === "live" ? ta - tb : tb - ta;
+      })
+      .map(({ _sort, ...e }) => e);
+  } catch (err) {
+    logger?.warn?.("[roomService] member rooms read failed", { error: err?.message });
+    return [];
+  }
+}
+
 /**
  * Build the global Room payload for a host.
  * @param {string} hostId
- * @returns {Promise<{ host, events, signals, people }>}
+ * @returns {Promise<{ host, events, memberRooms, signals, people }>}
  */
-export async function getRoomForHost(hostId) {
+export async function getRoomForHost(hostId, { email = null } = {}) {
   if (!hostId) throw new Error("[roomService] hostId required");
 
-  // 0. The host's own profile for the masthead (their face anchors the Room).
+  // 0. The host's own profile for the masthead (their face anchors the Room),
+  //    and the rooms they belong to but don't own (co-host + guest) — always
+  //    included so the home is never blank for a pure guest.
   const hostProfile = await buildHostProfile(hostId);
+  const memberRooms = await getMemberRooms(hostId, email);
 
   // 1. All timeline events in this host's world, newest first.
   const { data: pe, error: peErr } = await supabase
@@ -199,11 +330,15 @@ export async function getRoomForHost(hostId) {
     .limit(5000);
   if (peErr) {
     logger?.error?.("[roomService] timeline read failed", { error: peErr.message });
-    return { host: { peopleCount: 0, eventsCount: 0, pullupsCount: 0, ...hostProfile }, events: [], signals: [], moments: [], people: [] };
+    return { host: { peopleCount: 0, eventsCount: 0, pullupsCount: 0, ...hostProfile }, events: [], memberRooms, signals: [], moments: [], people: [] };
   }
   const timeline = pe || [];
   if (!timeline.length) {
-    return { host: { peopleCount: 0, eventsCount: 0, pullupsCount: 0, ...hostProfile }, events: [], signals: [], moments: [], people: [] };
+    // No per-person timeline yet — but the host may still have events (a fresh
+    // host who just created one, before any RSVP). Render those so the home is
+    // truthful from the first event, not only after the first guest.
+    const hostedCards = await getHostedEventCards(hostId);
+    return { host: { peopleCount: 0, eventsCount: hostedCards.length, pullupsCount: 0, ...hostProfile }, events: hostedCards, memberRooms, signals: [], moments: [], people: [] };
   }
 
   // 2. Group by person.
@@ -380,6 +515,7 @@ export async function getRoomForHost(hostId) {
   return {
     host: { peopleCount: personIds.length, eventsCount: eventsOut.length, pullupsCount, ...hostProfile },
     events: eventsOut,
+    memberRooms,
     signals,
     moments,
     people: peopleOut,

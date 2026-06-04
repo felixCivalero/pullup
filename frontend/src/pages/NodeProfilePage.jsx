@@ -124,8 +124,9 @@ export default function NodeProfilePage() {
 
   const whose = isOwner ? "your" : `${firstName(node.name)}'s`;
   const enter = (e) => {
-    // Has room access (pulled up, or owns the event) → into the one event Room.
-    if (e.viewer === "pulledup" || e.viewer === "owner") return navigate(`/events/${e.id}/room`);
+    // Anyone with a relationship to the event (pulled up / going / waitlisted /
+    // owner) goes into the one event Room; "none" + still-open → go RSVP.
+    if (["pulledup", "owner", "rsvped", "waitlist"].includes(e.viewer)) return navigate(`/events/${e.id}/room`);
     if (!e.ended) return navigate(`/e/${e.slug}`);   // locked but still open → go RSVP
     // ended + locked (missed): no-op
   };
@@ -200,6 +201,7 @@ function tagFor(e) {
   if (e.viewer === "owner") return null;
   if (e.viewer === "pulledup") return { t: "You pulled up", c: colors.accent };
   if (e.viewer === "rsvped") return { t: "You're going", c: colors.secondary };
+  if (e.viewer === "waitlist") return { t: "Waitlisted", c: "#d97706" };
   return { t: e.ended ? "Missed" : "Locked", c: colors.textSubtle };
 }
 
@@ -228,7 +230,7 @@ function EventCard({ e, onClick }) {
       </div>
       <div style={{ padding: "10px 12px" }}>
         <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title || "Untitled"}</div>
-        <div style={{ fontSize: 11.5, color: colors.textFaded, marginTop: 2 }}>{whenLabel(e.startsAt)}{e.viewer === "pulledup" ? " · enter →" : e.viewer === "rsvped" ? " · view" : ""}</div>
+        <div style={{ fontSize: 11.5, color: colors.textFaded, marginTop: 2 }}>{whenLabel(e.startsAt)}{e.viewer === "pulledup" ? " · enter →" : (e.viewer === "rsvped" || e.viewer === "waitlist") ? " · view" : ""}</div>
       </div>
     </button>
   );

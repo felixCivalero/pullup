@@ -5962,10 +5962,12 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     }
 
     const now = Date.now();
+    // Admin can force the guest tier onto every tile (preview "how it looks if
+    // you pulled up / RSVP'd / are waitlisted"). Otherwise it's the real relationship.
+    const forcedTile = forced === "guest_pullup" ? "pulledup" : forced === "guest_rsvp" ? "rsvped" : forced === "guest_waitlist" ? "waitlist" : null;
     const mapTile = (e) => {
       const end = e.ends_at ? new Date(e.ends_at).getTime() : (e.starts_at ? new Date(e.starts_at).getTime() + 12 * 3600 * 1000 : null);
-      // The owner always has full access to their own events.
-      const viewerState = effectiveOwner ? "owner" : myPullups.has(e.id) ? "pulledup" : myRsvps.has(e.id) ? "rsvped" : "none";
+      const viewerState = effectiveOwner ? "owner" : forcedTile ? forcedTile : myPullups.has(e.id) ? "pulledup" : myRsvps.has(e.id) ? "rsvped" : "none";
       return {
         id: e.id,
         slug: e.slug,

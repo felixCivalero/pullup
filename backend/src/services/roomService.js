@@ -324,7 +324,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   // 1. All timeline events in this host's world, newest first.
   const { data: pe, error: peErr } = await supabase
     .from("person_events")
-    .select("id, person_id, event_id, type, channel, direction, body, occurred_at")
+    .select("id, person_id, event_id, type, channel, direction, body, occurred_at, metadata")
     .eq("host_id", hostId)
     .order("occurred_at", { ascending: false })
     .limit(5000);
@@ -647,20 +647,44 @@ function buildPersonSignals({ attended, eventsTouched, kinds }) {
   return s.length ? s : ["In your people"];
 }
 
+// Attachments persisted on a message ({name,url,contentType,isImage}). undefined
+// when none, so the payload stays lean.
+function attsOf(e) {
+  const a = e?.metadata?.attachments;
+  return Array.isArray(a) && a.length ? a : undefined;
+}
+
+// A short stand-in for messages whose only content is an attachment, so the
+// inbox preview never goes blank.
+function attPreview(atts) {
+  if (!atts) return "";
+  if (atts.length === 1) return atts[0].isImage ? "📷 Photo" : `📎 ${atts[0].name || "Attachment"}`;
+  return `📎 ${atts.length} attachments`;
+}
+
 function lastMessageFrom(evs, eventTitleById) {
   const e = evs[0];
   if (!e) return null;
-  return { from: e.direction === "in" ? "them" : "system", text: lineFor(e, eventTitleById), time: relTime(e.occurred_at) };
+  const atts = attsOf(e);
+  return {
+    from: e.direction === "in" ? "them" : "system",
+    text: e.body || attPreview(atts) || lineFor(e, eventTitleById),
+    time: relTime(e.occurred_at),
+  };
 }
 
 function buildThread(evs, eventTitleById) {
   // oldest → newest for the thread view
-  return [...evs].reverse().map((e) => ({
-    from: e.direction === "in" ? "them" : e.direction === "out" ? "you" : "system",
-    text: e.body || lineFor(e, eventTitleById),
-    time: relTime(e.occurred_at),
-    channel: e.channel || undefined,
-  }));
+  return [...evs].reverse().map((e) => {
+    const atts = attsOf(e);
+    return {
+      from: e.direction === "in" ? "them" : e.direction === "out" ? "you" : "system",
+      text: e.body || (atts ? "" : lineFor(e, eventTitleById)),
+      atts, // matches the dock's render (m.atts) + the optimistic-send shape
+      time: relTime(e.occurred_at),
+      channel: e.channel || undefined,
+    };
+  });
 }
 
 function lineFor(e, eventTitleById) {

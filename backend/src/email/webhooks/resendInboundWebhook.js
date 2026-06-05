@@ -9,10 +9,65 @@
 // pipeline the SES path uses (processInboundEmail) so the reply lands in the
 // host's Room thread.
 
+import crypto from "node:crypto";
 import { Resend } from "resend";
 import { INBOUND_EMAIL_DOMAIN, INBOUND_EMAIL_LOCAL } from "../config.js";
 import { extractToken } from "../inbound/parseInboundEmail.js";
 import { processInboundEmail } from "../inbound/processInboundEmail.js";
+import { supabase } from "../../supabase.js";
+
+const ATTACH_BUCKET = "event-images";
+const MAX_ATTACH_BYTES = 15 * 1024 * 1024;
+
+// Resend's attachment endpoint returns a short-lived download_url, so we pull
+// the bytes and re-host them in our own storage — durable public URLs that
+// persist on the message and survive reloads. Returns [{name,url,contentType,isImage}].
+async function storeAttachments(emailId, meta) {
+  const out = [];
+  for (const a of meta || []) {
+    try {
+      const { data, error } = await client().emails.receiving.attachments.get({
+        emailId,
+        id: a.id,
+      });
+      const dl = data?.download_url;
+      if (error || !dl) {
+        console.error("[resendInbound] attachment fetch failed", { id: a.id, error: error?.message });
+        continue;
+      }
+      const resp = await fetch(dl);
+      if (!resp.ok) {
+        console.error("[resendInbound] attachment download failed", { id: a.id, status: resp.status });
+        continue;
+      }
+      const buf = Buffer.from(await resp.arrayBuffer());
+      if (buf.length > MAX_ATTACH_BYTES) {
+        console.warn("[resendInbound] attachment too large, skipping", a.filename);
+        continue;
+      }
+      const ct = a.content_type || "application/octet-stream";
+      const ext = (ct.split("/")[1] || "bin").split("+")[0].replace(/[^a-z0-9]/gi, "").slice(0, 8) || "bin";
+      const key = `room-attachments/inbound/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from(ATTACH_BUCKET)
+        .upload(key, buf, { contentType: ct, upsert: true });
+      if (upErr) {
+        console.error("[resendInbound] storage upload failed", upErr.message);
+        continue;
+      }
+      const { data: pub } = supabase.storage.from(ATTACH_BUCKET).getPublicUrl(key);
+      out.push({
+        name: a.filename || `file.${ext}`,
+        url: pub.publicUrl,
+        contentType: ct,
+        isImage: ct.startsWith("image/"),
+      });
+    } catch (err) {
+      console.error("[resendInbound] attachment store error", err?.message);
+    }
+  }
+  return out;
+}
 
 // Resend's webhook signing secret (whsec_…). Accept either name; the prod/dev
 // .env uses RESEND_WEBHOOK_SIGNING_SECRET.
@@ -126,10 +181,8 @@ export async function handleResendInboundEvent({ rawBody, body, headers }) {
     headers: hdrs,
   };
 
-  // Attachment filenames are in the webhook payload itself (no fetch needed).
-  const attachments = (d.attachments || [])
-    .map((a) => a.filename)
-    .filter(Boolean);
+  // Fetch + re-host attachments durably (webhook only carries metadata).
+  const attachments = await storeAttachments(d.email_id, d.attachments || []);
 
   const result = await processInboundEmail({ parsed, token, toAddress, attachments });
   return { ok: true, result: result.status };

@@ -92,10 +92,10 @@ export function AppHeader() {
 
   return (
     <>
-      {/* Top accent line */}
-      <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: "2px", background: "linear-gradient(90deg, transparent 0%, #ec178f 20%, #ec178f 50%, #ec178f 80%, transparent 100%)", zIndex: 22 }} />
+      {/* Top accent line — sits just under the status bar in standalone. */}
+      <div style={{ position: "fixed", top: "env(safe-area-inset-top, 0px)", left: 0, right: 0, height: "2px", background: "linear-gradient(90deg, transparent 0%, #ec178f 20%, #ec178f 50%, #ec178f 80%, transparent 100%)", zIndex: 22 }} />
 
-      <header style={{ position: "fixed", top: 2, left: 0, right: 0, height: "56px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px 0 12px", zIndex: 20, background: "rgba(255, 255, 255, 0.85)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${colors.borderFaint}` }}>
+      <header style={{ position: "fixed", top: 0, left: 0, right: 0, height: "56px", boxSizing: "content-box", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(2px + env(safe-area-inset-top, 0px)) 16px 0 12px", zIndex: 20, background: "rgba(255, 255, 255, 0.85)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${colors.borderFaint}` }}>
         {/* Logo */}
         <button onClick={() => handleNav("/room")} aria-label="PullUp" style={{ background: "transparent", border: "none", padding: "4px 8px", display: "flex", alignItems: "center", gap: "9px", cursor: "pointer" }}>
           <img src="/pullup-textlogo.svg" alt="PullUp" style={{ height: "22px", width: "auto", display: "block" }} />

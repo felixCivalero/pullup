@@ -70,9 +70,49 @@ body {
   }
 }
 
-/* 5. Top spacing for pages with fixed header */
+/* 5. Top spacing for pages with fixed header.
+   env(safe-area-inset-top) is 0 in a normal browser and only nonzero in
+   full-bleed standalone (viewport-fit=cover), so this clears the notch when
+   installed and is a no-op everywhere else. */
 .page-with-header {
-  padding-top: 70px;
+  padding-top: calc(70px + env(safe-area-inset-top, 0px));
+}
+
+/* ---------------------------
+   Native-app feel — kill the "this is a website in a browser" tells.
+   Scoped so CONTENT stays selectable/saveable (event copy, room messages,
+   darkroom photos) — only UI chrome is locked down.
+---------------------------- */
+
+/* No grey tap-flash on any touch target (the biggest tell). */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* No rubber-band white-bounce, no accidental pull-to-refresh reload. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Chrome only: no long-press callout menu, no text-selection on controls. */
+button,
+[role="button"],
+header,
+nav,
+.mk-nav {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Don't let logos/icon imagery be dragged or long-press-saved like content. */
+header img,
+nav img,
+.mk-nav img {
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none;
 }
 
 /* 6. Clean full-width inputs */

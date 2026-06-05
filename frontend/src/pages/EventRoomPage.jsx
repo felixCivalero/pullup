@@ -468,7 +468,7 @@ export default function EventRoomPage() {
   const meName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || "You";
 
   return (
-    <div style={{ display: "flex", height: "100vh", paddingTop: "58px", boxSizing: "border-box" }}>
+    <div style={{ display: "flex", height: "100vh", paddingTop: "calc(58px + env(safe-area-inset-top, 0px))", boxSizing: "border-box" }}>
       <div style={{ flex: "1 1 100%", overflowY: "auto", minWidth: 0 }}>
         <div style={{ maxWidth: "720px", margin: "0 auto", padding: "28px 20px 60px" }}>
           {/* Top actions — sit ABOVE the event so they read as a toolbar of

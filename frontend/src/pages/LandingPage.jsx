@@ -939,7 +939,10 @@ const STYLES = `
     top: 0; left: 0; right: 0;
     z-index: 50;
     height: 60px;
-    padding: 0 clamp(16px, 4vw, 40px);
+    padding-top: env(safe-area-inset-top, 0px);
+    box-sizing: content-box;
+    padding-left: clamp(16px, 4vw, 40px);
+    padding-right: clamp(16px, 4vw, 40px);
     display: flex;
     align-items: center;
     justify-content: space-between;

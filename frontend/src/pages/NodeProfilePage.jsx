@@ -172,7 +172,7 @@ export default function NodeProfilePage() {
       <>
         <AppHeader />
         <div style={{ minHeight: "100dvh", background: colors.background, color: colors.text, fontFamily: SF }}>
-          <div style={{ maxWidth: 740, margin: "0 auto", padding: "78px 20px 80px" }}>
+          <div style={{ maxWidth: 740, margin: "0 auto", padding: "calc(78px + env(safe-area-inset-top, 0px)) 20px calc(80px + env(safe-area-inset-bottom, 0px))" }}>
             <Masthead node={node} onCount={setPopup} />
             <OwnerConsole room={data.console} />
           </div>

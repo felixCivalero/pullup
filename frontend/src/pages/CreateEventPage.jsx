@@ -1581,12 +1581,10 @@ export function CreateEventPage() {
         setMaxAttendees(ev.cocktailCapacity ? String(ev.cocktailCapacity) : "");
         setWaitlistEnabled(!!ev.waitlistEnabled);
 
-        // Tickets
-        if (ev.ticketType === "paid") {
-          setSellTicketsEnabled(true);
-          setTicketPrice(ev.ticketPrice ? String(ev.ticketPrice / 100) : "");
-          setTicketCurrency((ev.ticketCurrency || "USD").toUpperCase());
-        }
+        // Tickets — paid tickets are paused (Stripe-only payments aren't
+        // viable; returning with Swish/M-Pesa). Never re-enable paid on load,
+        // so editing an existing paid event won't keep selling without payment.
+        // Existing paid events stay safe via the backend payments-unavailable guard.
 
         // Plus-ones
         if (ev.maxPlusOnesPerGuest > 0) {
@@ -2287,12 +2285,10 @@ export function CreateEventPage() {
       brand: brand || null,
       calendar,
       visibility,
-      ticketType: sellTicketsEnabled ? "paid" : "free",
-      ticketPrice:
-        sellTicketsEnabled && ticketPrice
-          ? Math.round(parseFloat(ticketPrice) * 100)
-          : null, // Convert to cents
-      ticketCurrency: sellTicketsEnabled ? ticketCurrency : null,
+      // Paid tickets are paused — always publish as free until Swish/M-Pesa land.
+      ticketType: "free",
+      ticketPrice: null,
+      ticketCurrency: null,
       maxPlusOnesPerGuest: parsedMaxPlus,
       dinnerEnabled,
       dinnerStartTime: dinnerEnabled ? dinnerStartTimeIso : null,
@@ -5230,109 +5226,30 @@ export function CreateEventPage() {
               }}
             >
               <div style={{ fontSize: "13px", color: colors.textFaded, marginBottom: "16px" }}>
-                Set a price to sell tickets. Leave empty for a free event.
+                Every event is free to attend right now.
               </div>
 
               <div
                 style={{
                   display: "flex",
-                  alignItems: "stretch",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  padding: "16px",
                   borderRadius: "12px",
-                  overflow: "hidden",
                   border: `1px solid ${colors.border}`,
-                  background: "#fff",
-                  boxShadow: "0 2px 8px rgba(10,10,10,0.04)",
+                  background: colors.surface,
                 }}
               >
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={ticketPrice}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setTicketPrice(val);
-                    setSellTicketsEnabled(val && parseFloat(val) > 0);
-                  }}
-                  placeholder="0"
-                  style={{
-                    flex: 1,
-                    background: "transparent",
-                    border: "none",
-                    color: colors.text,
-                    fontSize: "24px",
-                    fontWeight: 700,
-                    padding: "14px 18px",
-                    outline: "none",
-                    minWidth: 0,
-                  }}
-                />
-                <select
-                  value={ticketCurrency}
-                  onChange={(e) => setTicketCurrency(e.target.value)}
-                  style={{
-                    background: colors.surface,
-                    border: "none",
-                    borderLeft: `1px solid ${colors.border}`,
-                    color: colors.textMuted,
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    padding: "0 16px",
-                    cursor: "pointer",
-                    outline: "none",
-                    appearance: "none",
-                    WebkitAppearance: "none",
-                  }}
-                >
-                  <option value="SEK">SEK</option>
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                  <option value="GBP">GBP</option>
-                  <option value="DKK">DKK</option>
-                  <option value="NOK">NOK</option>
-                </select>
-              </div>
-
-              <div style={{ marginTop: "8px", fontSize: "12px", color: colors.textFaded, display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ color: isPaidEvent ? colors.success : colors.textFaded }}>
-                  {isPaidEvent ? "●" : "○"}
-                </span>
-                {isPaidEvent ? `Paid event — ${ticketPrice} ${ticketCurrency}` : "Free event"}
-              </div>
-
-              {/* Stripe — only when paid */}
-              {isPaidEvent && (
-                <div style={{ marginTop: "20px", padding: "16px", borderRadius: "12px",
-                  border: stripeConnected ? "1px solid rgba(34, 197, 94, 0.2)" : "1px solid rgba(251, 191, 36, 0.3)",
-                  background: stripeConnected ? "rgba(34, 197, 94, 0.05)" : "rgba(251, 191, 36, 0.05)",
-                }}>
-                  {stripeConnected ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "13px" }}>
-                      <span style={{ color: "#22c55e", fontSize: "16px" }}>✓</span>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{stripeBusinessName || "Stripe connected"}</div>
-                        {stripeAccountEmail && <div style={{ opacity: 0.5, fontSize: "11px" }}>{stripeAccountEmail}</div>}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <SilverIcon as={AlertTriangle} size={18} style={{ color: "#f59e0b", flexShrink: 0 }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px", color: colors.text }}>Connect Stripe to accept payments</div>
-                        <button type="button" onClick={handleConnectStripeInline} disabled={stripeConnecting}
-                          style={{
-                            padding: "8px 16px", borderRadius: "999px", border: "none",
-                            background: colors.accent,
-                            color: "#fff", fontSize: "13px", fontWeight: 600,
-                            cursor: stripeConnecting ? "default" : "pointer",
-                            opacity: stripeConnecting ? 0.6 : 1,
-                          }}
-                        >{stripeConnecting ? "Connecting..." : "Connect Stripe"}</button>
-                      </div>
-                    </div>
-                  )}
+                <SilverIcon as={AlertTriangle} size={18} style={{ color: colors.textFaded, flexShrink: 0, marginTop: "1px" }} />
+                <div style={{ fontSize: "13px", lineHeight: 1.5, color: colors.textMuted }}>
+                  <div style={{ fontWeight: 600, color: colors.text, marginBottom: "4px" }}>
+                    Paid tickets are paused
+                  </div>
+                  We're rebuilding payments around Swish and M-Pesa so they actually
+                  fit how people pay. Until then, events go out free — and you'll be
+                  first to know when selling is back.
                 </div>
-              )}
+              </div>
 
             </div>
             {/* end animation wrapper */}
@@ -5649,15 +5566,14 @@ export function CreateEventPage() {
                     position: i,
                   })) : null,
                   mediaSettings: buildMediaSettings(),
-                  ticketType: sellTicketsEnabled ? "paid" : "free",
+                  // Paid tickets are paused — always free until Swish/M-Pesa land.
+                  ticketType: "free",
                   instagram,
                   spotify,
                   tiktok,
                   soundcloud,
-                  ticketPrice: sellTicketsEnabled && ticketPrice
-                    ? Math.round(parseFloat(ticketPrice) * 100)
-                    : null,
-                  ticketCurrency: sellTicketsEnabled ? ticketCurrency : null,
+                  ticketPrice: null,
+                  ticketCurrency: null,
                   sections,
                   design: brand?.design || null,
                   hoveredSection,
@@ -5766,18 +5682,14 @@ export function CreateEventPage() {
               position: i,
             })) : null}
             mediaSettings={buildMediaSettings()}
-            ticketType={sellTicketsEnabled ? "paid" : "free"}
+            ticketType="free"
             compact
             autoShowRsvp={currentStep === 4 || currentStep === 5}
             activeStep={currentStep}
             instagram={instagram}
             spotify={spotify}
-            ticketPrice={
-              sellTicketsEnabled && ticketPrice
-                ? Math.round(parseFloat(ticketPrice) * 100)
-                : null
-            }
-            ticketCurrency={sellTicketsEnabled ? ticketCurrency : null}
+            ticketPrice={null}
+            ticketCurrency={null}
             sections={sections}
             design={brand?.design || null}
             rsvpContent={({ onClose }) => (

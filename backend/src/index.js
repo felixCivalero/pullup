@@ -3356,6 +3356,28 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             customerTotalAmount,
             platformFeePercentage: platformFeePercentage * 100,
           };
+        } else {
+          // Paid event but the host never connected a Stripe account.
+          // Without this guard the RSVP silently succeeds and the guest gets a
+          // "spot confirmed" email for a ticket they never paid for (money hole).
+          // Roll back the RSVP and surface a clear error instead.
+          console.error(
+            "[Payment] Paid event has no connected Stripe account — blocking RSVP",
+            { eventId: result.event.id, hostId: result.event.hostId }
+          );
+          try {
+            await deleteRsvp(result.rsvp.id);
+          } catch (deleteError) {
+            console.error(
+              "Error deleting RSVP after missing payment account:",
+              deleteError
+            );
+          }
+          return res.status(503).json({
+            error: "payments_unavailable",
+            message:
+              "This event can't accept payments right now. Please reach out to the host.",
+          });
         }
       }
     } catch (paymentError) {

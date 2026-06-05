@@ -126,6 +126,11 @@ export async function handleResendInboundEvent({ rawBody, body, headers }) {
     headers: hdrs,
   };
 
-  const result = await processInboundEmail({ parsed, token, toAddress });
+  // Attachment filenames are in the webhook payload itself (no fetch needed).
+  const attachments = (d.attachments || [])
+    .map((a) => a.filename)
+    .filter(Boolean);
+
+  const result = await processInboundEmail({ parsed, token, toAddress, attachments });
   return { ok: true, result: result.status };
 }

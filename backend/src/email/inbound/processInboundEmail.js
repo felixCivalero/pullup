@@ -58,7 +58,7 @@ async function recordInbound(fields) {
  * @param {string} args.toAddress the matched recipient address (for audit)
  * @returns {Promise<{status:string, personId?:string, hostProfileId?:string}>}
  */
-export async function processInboundEmail({ parsed, token, toAddress }) {
+export async function processInboundEmail({ parsed, token, toAddress, attachments = [] }) {
   if (!parsed) return { status: "unparseable" };
 
   const sesMessageId = parsed.messageId || null;
@@ -76,7 +76,16 @@ export async function processInboundEmail({ parsed, token, toAddress }) {
     null;
 
   const rawBody = parsed.text || "";
-  const bodyText = stripQuotedReply(rawBody);
+  let bodyText = stripQuotedReply(rawBody);
+
+  // Surface attachments in the chat bubble (filenames come from the webhook
+  // metadata — no body fetch needed). Appended AFTER quote-stripping so the
+  // note isn't mistaken for quoted history.
+  const names = (attachments || []).filter(Boolean);
+  if (names.length) {
+    const note = `📎 ${names.length} attachment${names.length > 1 ? "s" : ""}: ${names.join(", ")}`;
+    bodyText = bodyText ? `${bodyText}\n${note}` : note;
+  }
 
   const baseRecord = {
     ses_message_id: sesMessageId,

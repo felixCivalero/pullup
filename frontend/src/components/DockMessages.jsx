@@ -137,6 +137,23 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
     setSmartEventId(upcoming?.id || null);
   }, [events, smartEventId]);
   const smartEvent = events.find((e) => e.id === smartEventId) || events[0] || null;
+  // Keep the initial event list tight instead of dumping every event: what's
+  // upcoming (soonest first) + the 2 most recent past. "Show all" reveals the
+  // long tail (older + undated/drafts).
+  const [showAllEvents, setShowAllEvents] = useState(false);
+  const curatedEvents = useMemo(() => {
+    const now = Date.now();
+    const dated = events.filter((e) => e.startsAt);
+    const upcoming = dated
+      .filter((e) => new Date(e.startsAt).getTime() >= now)
+      .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+    const past = dated
+      .filter((e) => new Date(e.startsAt).getTime() < now)
+      .sort((a, b) => new Date(b.startsAt) - new Date(a.startsAt))
+      .slice(0, 2);
+    return [...upcoming, ...past];
+  }, [events]);
+  const visibleEvents = showAllEvents || !curatedEvents.length ? events : curatedEvents;
   function fmtWhen(e) { if (!e?.startsAt) return ""; try { return new Date(e.startsAt).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; } }
   function mapsLink(e, provider) { const loc = (e?.location || "").trim(); if (!loc) return ""; const query = encodeURIComponent(loc); return provider === "apple" ? `https://maps.apple.com/?q=${query}` : `https://www.google.com/maps/search/?api=1&query=${query}`; }
   function smartBlock(e) { const parts = []; if (e?.title) parts.push(e.title); const w = fmtWhen(e); if (w) parts.push(w); if (e?.location) parts.push(e.location); const ml = mapsLink(e, "google"); if (ml) parts.push(ml); return parts.join("\n"); }
@@ -187,9 +204,10 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
             <button type="button" onClick={() => setSmartOpen(false)} style={{ ...iconBtn, padding: 0, color: D.faint }}><X size={14} /></button>
           </div>
           {events.length > 1 && (
-            <select value={smartEventId || ""} onChange={(e) => setSmartEventId(e.target.value)}
+            <select value={smartEventId || ""} onChange={(e) => { if (e.target.value === "__all__") { setShowAllEvents(true); return; } setSmartEventId(e.target.value); }}
               style={{ width: "100%", boxSizing: "border-box", marginBottom: 9, padding: "7px 9px", borderRadius: 9, border: `1px solid ${D.line}`, background: D.raise, color: D.ink, fontSize: 12.5, outline: "none" }}>
-              {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title || "Untitled event"}</option>)}
+              {visibleEvents.map((ev) => <option key={ev.id} value={ev.id}>{ev.title || "Untitled event"}</option>)}
+              {!showAllEvents && events.length > visibleEvents.length && <option value="__all__">Show all events… ({events.length})</option>}
             </select>
           )}
           <div style={{ fontSize: 13, fontWeight: 700, color: D.ink }}>{smartEvent.title || "Untitled event"}</div>

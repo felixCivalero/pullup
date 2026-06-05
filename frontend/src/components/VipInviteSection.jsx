@@ -14,13 +14,7 @@ export function VipInviteSection({ event, showToast, compact = false }) {
   const [stats, setStats] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
 
-  if (!event) return null;
-
-  const isPaidEvent =
-    event.ticketType === "paid" &&
-    typeof event.ticketPrice === "number" &&
-    event.ticketPrice > 0;
-
+  // Hooks must run on every render — keep the early return below all of them.
   useEffect(() => {
     let isMounted = true;
     if (!event?.id) return;
@@ -45,6 +39,13 @@ export function VipInviteSection({ event, showToast, compact = false }) {
       isMounted = false;
     };
   }, [event?.id]);
+
+  if (!event) return null;
+
+  const isPaidEvent =
+    event.ticketType === "paid" &&
+    typeof event.ticketPrice === "number" &&
+    event.ticketPrice > 0;
 
   async function handleGenerateVipInvite(e) {
     e?.preventDefault();

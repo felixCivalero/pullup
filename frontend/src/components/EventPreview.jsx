@@ -39,6 +39,8 @@ export function EventPreview({
   revealHint = null,
   dateRevealHint = null,
   instantWaitlist = false,
+  isEventPast = false,
+  isSoldOut = false,
   rsvpContent,
   autoShowRsvp = false,
   activeStep,
@@ -139,7 +141,7 @@ export function EventPreview({
     container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
   }, [hoveredSection]);
 
-  const buttonLabel = getCtaLabel({ ticketType, ticketPrice, ticketCurrency, instantWaitlist });
+  const buttonLabel = getCtaLabel({ ticketType, ticketPrice, ticketCurrency, instantWaitlist, isEventPast, isSoldOut });
   const hasContent = description || (sections && sections.length > 0);
 
   return (

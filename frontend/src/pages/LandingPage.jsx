@@ -7,6 +7,8 @@ import { hasStoredSession } from "../lib/session.js";
 import { publicFetch } from "../lib/api.js";
 import { trackEvent, getVisitorId } from "../lib/analytics.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
+import { WebGLHero } from "../components/WebGLHero.jsx";
+import { transformedImageUrl } from "../lib/imageUtils.js";
 
 
 const LOGOS = [
@@ -25,6 +27,32 @@ const LOGOS = [
 const PINK = "#EC178F";
 const INK = "#0a0a0a";
 const SURFACE = "#ffffff";
+
+// Public Supabase storage base for event cover images.
+const STORAGE_BASE =
+  (import.meta.env.VITE_SUPABASE_URL || "") +
+  "/storage/v1/object/public/event-images/";
+
+// The showcase wall — a curated, hand-picked drift of real rooms already live
+// on PullUp, with a couple of AI-dreamed designs that actually *move* sprinkled
+// in. Real cards link straight to their live /e/:slug page (tap-through proof
+// that the thing you're about to make looks like this). The `ai` cards render a
+// live WebGL hero instead of a photo and wear a "designed by AI" tag — the
+// playful "you could conjure a whole world in a sentence" flex. Order here is
+// the on-screen order; AI tiles are interleaved on purpose.
+const SHOWCASE = [
+  { slug: "divine-earth-live-4hy5", title: "Divine Earth — Spiritual Jazz", meta: "Soho House · Sthlm", cover: "052e22f6-d7fe-4772-8f95-55b826434000/media_0_1779391795495.webp" },
+  { slug: "techo-cocktails", title: "Jägermeister × ADAMO", meta: "Göteborg", cover: "035d3cad-dd9e-4f66-a3e1-3baf9422b40d/media_0_1778075065925.png" },
+  { ai: true, title: "Hypershape Release", sub: "a world, written in a sentence", params: { colors: ["#d0d8e8", "#f0f4ff", "#a0b0c8", "#e8e8f0", "#7090b0"], intensity: 0.95 } },
+  { slug: "aperidisco-bbtr", title: "Aperidisco", meta: "Brunkebergstorg · Sthlm", cover: "07324036-a348-4940-98d9-43f2f8821eda/media_0_1778621428603.png" },
+  { slug: "twin-freaks-listening-release", title: "TWIN FREAKS — listening release", meta: "Slakthusområdet · Sthlm", cover: "83e543b6-4a95-4277-8e42-bb4e579f9127/thumb_0_1780266730534.jpg" },
+  { slug: "cocktails-and-caviar-asrf", title: "Cocktails and Caviar", meta: "Sjövikskajen · Sthlm", cover: "b8cf87c8-6483-4da3-93e3-63b4689e1ff7/media_0_1777968238709.jpeg" },
+  { ai: true, title: "Pullup 2026", sub: "dreamed up in one line", params: { colors: ["#0a0617", "#ec178f", "#16e0c0"], intensity: 0.85 } },
+  { slug: "nigab-dagen-x74s", title: "nigab. DAGEN", meta: "Visby", cover: "26a96f49-5b68-4dbe-838b-01e71657c234/media_0_1779893707128.webp" },
+  { slug: "henning-ulln-house-jazz-294-soho-house", title: "Henning Ullén pianotrio", meta: "Soho House · Sthlm", cover: "e4d1dbae-bf83-4fa2-82bc-641251a2b083/media_0_1776700815357.jpeg" },
+  { slug: "peep-take-over-8e7y", title: "P.E.E.P Take over", meta: "Birger Jarlsgatan · Sthlm", cover: "955c371e-bba6-44c9-87f1-bb96edbc1792/media_0_1778243555025.jpeg" },
+  { slug: "utbildning-bstad-g6hy", title: "Jägermeister Båstad", meta: "Skansenbadet · Båstad", cover: "bccc176a-e8dd-4d13-8f70-97c097e809a0/media_0_1779793614037.webp" },
+];
 
 // The quiet promises under the final CTA — security, control and the moral
 // line, the things that make the whole system feel safe to hand your people to.
@@ -145,6 +173,98 @@ function LogoMarquee() {
         ))}
       </div>
     </div>
+  );
+}
+
+// One tile on the showcase wall. Real events are an <a> straight to their live
+// /e/:slug page; AI tiles render a moving WebGL hero and don't link anywhere —
+// they're the "look what you could conjure" flex. `live` gates the WebGL so it
+// only spins up once the wall has scrolled into view (no shaders running on
+// page load). `dim` marks the duplicated copy that only exists to make the
+// marquee loop seamless — it's hidden from screen readers and keyboard order.
+function ShowcaseCard({ item, live, dim }) {
+  if (item.ai) {
+    const [c0, c1] = item.params.colors;
+    return (
+      <div className="mk-show-card mk-show-card-ai" aria-hidden={dim || undefined}>
+        {live ? (
+          <WebGLHero params={item.params} />
+        ) : (
+          <div
+            className="mk-show-ai-fallback"
+            style={{ background: `linear-gradient(135deg, ${c0}, ${c1 || c0})` }}
+          />
+        )}
+        <span className="mk-show-aitag">✦ designed by AI</span>
+        <div className="mk-show-meta">
+          <p className="mk-show-title">{item.title}</p>
+          {item.sub && <p className="mk-show-sub">{item.sub}</p>}
+        </div>
+      </div>
+    );
+  }
+  const src = transformedImageUrl(STORAGE_BASE + item.cover, { width: 320 });
+  return (
+    <a
+      className="mk-show-card"
+      href={`/e/${item.slug}`}
+      aria-hidden={dim || undefined}
+      tabIndex={dim ? -1 : undefined}
+    >
+      <img
+        className="mk-show-img"
+        src={src}
+        alt={dim ? "" : item.title}
+        loading="lazy"
+        decoding="async"
+      />
+      <div className="mk-show-meta">
+        <p className="mk-show-title">{item.title}</p>
+        {item.meta && <p className="mk-show-sub">{item.meta}</p>}
+      </div>
+    </a>
+  );
+}
+
+// The showcase wall — a drifting, hover-to-pause marquee of real rooms (and a
+// couple of live AI designs). Mounts its WebGL tiles only once it scrolls into
+// view. Two identical card groups translate -50% for a seamless infinite loop.
+function EventShowcase() {
+  const [ref, visible] = useReveal(0.2);
+  return (
+    <section className="mk-show" ref={ref}>
+      <div className="mk-show-head">
+        <Reveal><Chapter n="06" label="The rooms themselves" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            Real rooms, already live. <span className="pink">A few dreamed up by AI.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            Every card is a real page someone built on PullUp — tap in. The ones
+            that move? Designed by AI in a single sentence. This is what your next
+            night looks like before anyone's even arrived.
+          </p>
+        </Reveal>
+      </div>
+      <div className="mk-show-wall" aria-label="Events made on PullUp">
+        <div className="mk-show-track">
+          {[0, 1].map((copy) => (
+            <div className="mk-show-group" key={copy}>
+              {SHOWCASE.map((item, i) => (
+                <ShowcaseCard
+                  key={`${copy}-${i}`}
+                  item={item}
+                  live={visible && copy === 0}
+                  dim={copy === 1}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -583,7 +703,7 @@ function MarketingScroll({ onGetStarted, onLogin, user }) {
       <LogoMarquee />
 
       {/* ─── 9 · FINAL CTA ─── */}
-      <section className="mk-final">
+      <section className="mk-final mk-final--pre">
         <Reveal y={16}>
           <PullupEyes variant="big" className="mk-final-eyes" />
         </Reveal>
@@ -602,21 +722,26 @@ function MarketingScroll({ onGetStarted, onLogin, user }) {
         <Reveal delay={0.2}>
           <div className="mk-final-cta">{cta("final")}</div>
         </Reveal>
+      </section>
 
-        {/* manifesto — the why + the future we're betting on, so a creator can
-            feel they're on the same level as us. Brand voice for now; to make it
-            personal, swap mk-manifesto-sign to e.g. "— Felix, building PullUp"
-            (and optionally drop a small avatar in front of it). */}
-        <Reveal delay={0.28}>
+      {/* ─── THE ROOMS THEMSELVES (showcase wall) — sits between the CTA and
+          Felix's note, so right after "get started" you see what people make ─── */}
+      <EventShowcase />
+
+      {/* ─── A NOTE FROM FELIX (the quote) ─── */}
+      <section className="mk-final mk-coda">
+        {/* first-person, in Felix's own voice — the founder talking straight to
+            another creator, not a brand manifesto. */}
+        <Reveal delay={0.08}>
           <div className="mk-manifesto">
             <p className="mk-manifesto-eyebrow">Why we're building this</p>
             <p className="mk-manifesto-body">
-              We're not here to make you go viral — the internet has plenty of
-              that. We're building the opposite: a quiet home for the real
-              relationships behind your work, owned by you, that only grow more
-              valuable as the world fills with synthetic everything. We're doing
-              it carefully, one creator at a time. If that's the future you
-              believe in too, <span className="pink">pull up.</span>
+              Everyone's automating, scaling, going synthetic. We're building the
+              opposite — a place where the people who actually show up for you are
+              yours: owned by you, kept by you, never sold. As the rest of the
+              internet gets faker, that only gets more valuable. That's the future
+              we're betting on. If it's yours too —{" "}
+              <span className="pink">pull up.</span>
             </p>
             <p className="mk-manifesto-sign">
               —{" "}
@@ -635,7 +760,7 @@ function MarketingScroll({ onGetStarted, onLogin, user }) {
         {/* the quiet promises — a slim reassurance band, not a wall of text */}
         <div className="mk-trust-row">
           {TRUST.map((t, i) => (
-            <Reveal key={t.title} delay={0.3 + i * 0.04} y={10} className="mk-trust-chip">
+            <Reveal key={t.title} delay={0.12 + i * 0.04} y={10} className="mk-trust-chip">
               <t.icon className="mk-trust-ic" size={15} strokeWidth={2} />
               <span>{t.title}</span>
             </Reveal>
@@ -1379,7 +1504,81 @@ const STYLES = `
   .logo-marquee-item img { width: auto; display: block; filter: brightness(0); }
 
 
+  /* ════════ SHOWCASE WALL ════════ */
+  @keyframes mk-show-scroll {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-50%, 0, 0); }
+  }
+  .mk-show {
+    padding: clamp(36px, 7vh, 80px) 0 clamp(40px, 7vh, 84px);
+  }
+  /* the CTA above the wall gives up some of its tail so "get started" and the
+     rooms you'd make read as one breath; the coda leans on the wall as its
+     divider, so it drops the manifesto hairline + heavy top gap. */
+  .mk-final--pre { padding-bottom: clamp(32px, 5vh, 56px); }
+  .mk-coda { padding-top: clamp(8px, 3vh, 28px); }
+  .mk-coda .mk-manifesto { margin-top: 0; padding-top: 0; border-top: none; }
+  .mk-show-head {
+    max-width: 880px; margin: 0 auto;
+    padding: 0 clamp(22px, 6vw, 48px);
+  }
+  .mk-show-wall {
+    position: relative; width: 100%; overflow: hidden;
+    margin-top: clamp(28px, 5vw, 44px);
+    padding: 14px 0 30px;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+    /* skip paint + pause the drift while the wall is off-screen */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 340px;
+  }
+  .mk-show-track {
+    display: flex; width: max-content;
+    animation: mk-show-scroll 60s linear infinite;
+    will-change: transform; backface-visibility: hidden;
+    transform: translate3d(0, 0, 0);
+  }
+  .mk-show-wall:hover .mk-show-track { animation-play-state: paused; }
+  .mk-show-group { display: flex; flex: none; gap: 18px; padding: 0 9px; }
+  .mk-show-card {
+    position: relative; flex: none;
+    width: clamp(176px, 44vw, 214px);
+    height: clamp(244px, 60vw, 298px);
+    border-radius: 20px; overflow: hidden;
+    background: #0b0b10;
+    box-shadow: 0 10px 30px rgba(10,10,10,0.16);
+    text-decoration: none; color: #fff;
+    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s ease;
+    cursor: url('/cursor-finger.png') 11 2, pointer;
+  }
+  .mk-show-group .mk-show-card:nth-child(even) { transform: translateY(16px); }
+  .mk-show-card:hover {
+    transform: translateY(-6px) scale(1.015);
+    box-shadow: 0 20px 46px rgba(236,23,143,0.24);
+  }
+  .mk-show-group .mk-show-card:nth-child(even):hover {
+    transform: translateY(8px) scale(1.015);
+  }
+  .mk-show-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mk-show-ai-fallback { position: absolute; inset: 0; }
+  .mk-show-card::after {
+    content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background: linear-gradient(to top, rgba(0,0,0,0.74) 0%, rgba(0,0,0,0.12) 44%, rgba(0,0,0,0) 66%);
+  }
+  .mk-show-meta { position: absolute; left: 14px; right: 14px; bottom: 13px; z-index: 2; text-align: left; }
+  .mk-show-title { margin: 0; font-size: 14px; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; }
+  .mk-show-sub { margin: 3px 0 0; font-size: 11px; color: rgba(255,255,255,0.72); font-weight: 500; }
+  .mk-show-card-ai .mk-show-meta { text-shadow: 0 1px 14px rgba(0,0,0,0.55); }
+  .mk-show-aitag {
+    position: absolute; top: 11px; left: 11px; z-index: 2;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 650; letter-spacing: 0.01em;
+    color: #fff; background: rgba(236,23,143,0.92);
+    box-shadow: 0 2px 12px rgba(236,23,143,0.42);
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .mk-scrollcue-line, .logo-marquee-track { animation: none; }
+    .mk-scrollcue-line, .logo-marquee-track, .mk-show-track { animation: none; }
   }
 `;

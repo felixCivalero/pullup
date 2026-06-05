@@ -2639,7 +2639,6 @@ export function CreateEventPage() {
     <div
       className="page-with-header create-event-page"
       style={{
-        height: "100vh",
         height: "100dvh",
         position: "relative",
         background: colors.surface,
@@ -2682,7 +2681,6 @@ export function CreateEventPage() {
           zIndex: 2,
           opacity: isMounted ? 1 : 0,
           transition: "opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
-          height: "calc(100vh - 56px)",
           height: "calc(100dvh - 56px)",
         }}
       >
@@ -5657,7 +5655,6 @@ export function CreateEventPage() {
             top: 0,
             left: 0,
             width: "100vw",
-            height: "100vh",
             height: "100dvh",
             zIndex: 100,
             background: brand?.backgroundColor || "#05040a",

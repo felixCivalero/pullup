@@ -76,16 +76,13 @@ export async function processInboundEmail({ parsed, token, toAddress, attachment
     null;
 
   const rawBody = parsed.text || "";
-  let bodyText = stripQuotedReply(rawBody);
+  const bodyText = stripQuotedReply(rawBody);
 
-  // Surface attachments in the chat bubble (filenames come from the webhook
-  // metadata — no body fetch needed). Appended AFTER quote-stripping so the
-  // note isn't mistaken for quoted history.
-  const names = (attachments || []).filter(Boolean);
-  if (names.length) {
-    const note = `📎 ${names.length} attachment${names.length > 1 ? "s" : ""}: ${names.join(", ")}`;
-    bodyText = bodyText ? `${bodyText}\n${note}` : note;
-  }
+  // Attachments arrive already fetched + uploaded to durable storage (each with
+  // a public url), so they persist on the message and survive reloads instead
+  // of decaying to a plain-text note. Stored on the event metadata + rendered
+  // in the dock. Shape: { name, url, contentType, isImage }.
+  const atts = Array.isArray(attachments) ? attachments.filter((a) => a && a.url) : [];
 
   const baseRecord = {
     ses_message_id: sesMessageId,
@@ -129,11 +126,12 @@ export async function processInboundEmail({ parsed, token, toAddress, attachment
     body: bodyText,
     occurredAt: parsed.date || new Date(),
     metadata: {
-      source: "ses_inbound",
+      source: "email_inbound",
       from: parsed.from || null,
       subject: parsed.subject || null,
       sesMessageId,
       outboxId: outboxRow?.id || null,
+      ...(atts.length ? { attachments: atts } : {}),
     },
   });
 

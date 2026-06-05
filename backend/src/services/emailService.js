@@ -1,12 +1,17 @@
 import { sendEmail as infraSendEmail } from "../email/index.js";
 
-export async function sendEmail({ to, subject, html, text, from }) {
+export async function sendEmail({ to, subject, html, text, from, personId = null, hostProfileId = null }) {
   return infraSendEmail({
     from: from || '"PullUp RSVP" <no-reply@pullup.se>',
     to,
     subject,
     html,
     text,
+    // When a host↔guest send passes these, the email becomes repliable: a reply
+    // routes back into this host's Room thread (two-way email). Platform emails
+    // (auth, receipts) omit them and stay correctly non-repliable.
+    personId,
+    hostProfileId,
   });
 }
 

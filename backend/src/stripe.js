@@ -714,6 +714,8 @@ async function handlePaymentIntentFailed(paymentIntent) {
 
             await sendEmail({
               to: person.email,
+              personId: person.id || null,
+              hostProfileId: event.hostId || null,
               subject: "Payment failed — your spot was not confirmed",
               html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#111;color:#fff;font-family:sans-serif"><div style="max-width:500px;margin:0 auto;padding:40px 20px"><div style="text-align:center;margin-bottom:24px"><span style="display:inline-block;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">PAYMENT FAILED</span></div><h1 translate="no" class="notranslate" style="font-size:22px;text-align:center;margin:0 0 12px">${event.title}</h1><p style="font-size:15px;color:#aaa;text-align:center;line-height:1.6">Hi ${rsvp.name || person.name || "there"},</p><p style="font-size:15px;color:#aaa;text-align:center;line-height:1.6">Your payment could not be processed and your spot was not confirmed. You can try booking again from the event page.</p><div style="text-align:center;margin:32px 0"><a href="${frontendUrl}/e/${event.slug}" style="display:inline-block;padding:14px 32px;background:#c0a060;color:#000;font-weight:700;border-radius:8px;text-decoration:none;font-size:15px">Try Again</a></div><p style="font-size:12px;color:#666;text-align:center">If you believe this is an error, please contact the event organizer.${footerHtml}</p></div></body></html>`,
             });

@@ -307,6 +307,9 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
     textBody: textBodyWith(body, atts, evt),
     category: "transactional",
     idempotencyKey: key(),
+    // Host's own message to a guest — make the reply route back to this thread.
+    personId,
+    hostProfileId: hostId,
   });
   logRoomEvent({ ...logArgs, channel: "email" });
   return { ok: true, channel: "email" };

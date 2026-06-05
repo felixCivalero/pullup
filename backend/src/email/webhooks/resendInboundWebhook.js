@@ -106,6 +106,58 @@ function lowerKeys(obj) {
   return out;
 }
 
+// Where the quoted reply chain begins in the HTML, per client. We keep only the
+// HTML BEFORE the first marker as the sender's "new" content.
+const HTML_QUOTE_MARKERS = [
+  /<div[^>]*class="[^"]*gmail_quote/i, // Gmail
+  /<blockquote[^>]*type="cite"/i, // Apple Mail
+  /<div[^>]*class="[^"]*yahoo_quoted/i, // Yahoo
+  /<div[^>]*id="divRplyFwdMsg/i, // Outlook desktop
+  /<div[^>]*id="mail-editor-reference-message-container/i, // Outlook web
+  /<hr[^>]*id="zwchr"/i, // Zimbra
+  /<blockquote/i, // generic — last resort
+];
+
+export function stripQuotedHtml(html) {
+  if (!html) return { newHtml: "", quotedFound: false };
+  let cut = -1;
+  for (const re of HTML_QUOTE_MARKERS) {
+    const m = html.match(re);
+    if (m && (cut === -1 || m.index < cut)) cut = m.index;
+  }
+  if (cut === -1) return { newHtml: html, quotedFound: false };
+  return { newHtml: html.slice(0, cut), quotedFound: true };
+}
+
+export function collectCids(html) {
+  const set = new Set();
+  if (!html) return set;
+  const re = /cid:([^"'\s>)]+)/gi;
+  let m;
+  while ((m = re.exec(html))) set.add(m[1].trim().toLowerCase());
+  return set;
+}
+
+// Keep only attachments that are part of the NEW reply, not the quoted thread:
+//  • an explicitly attached file (disposition "attachment") → always keep
+//  • an inline image (content_id) → keep ONLY if its cid is referenced in the
+//    new (pre-quote) HTML, i.e. the sender pasted it into their reply
+//  • when no quote boundary is detected (e.g. some Outlook markup), fall back to
+//    conservative: drop inline images (never re-attach the thread's embeds)
+export function selectNewAttachments(attachments, html) {
+  const { newHtml, quotedFound } = stripQuotedHtml(html);
+  const newCids = quotedFound ? collectCids(newHtml) : new Set();
+  return (attachments || []).filter((a) => {
+    const disp = String(a.content_disposition || "").toLowerCase();
+    if (disp === "attachment") return true;
+    const cid = a.content_id
+      ? String(a.content_id).replace(/^<|>$/g, "").trim().toLowerCase()
+      : null;
+    if (cid) return newCids.has(cid);
+    return disp !== "inline";
+  });
+}
+
 /**
  * @param {object} args
  * @param {string} args.rawBody  exact raw request body (for Svix signature verify)
@@ -155,13 +207,15 @@ export async function handleResendInboundEvent({ rawBody, body, headers }) {
 
   // ── Fetch the body — the webhook carries metadata only. ──
   let text = "";
+  let html = "";
   let hdrs = {};
   try {
     const { data, error } = await client().emails.receiving.get(d.email_id);
     if (error) {
       console.error("[resendInbound] receiving.get error", error);
     } else if (data) {
-      text = data.text || (data.html ? htmlToText(data.html) : "");
+      html = data.html || "";
+      text = data.text || (html ? htmlToText(html) : "");
       hdrs = lowerKeys(data.headers);
     }
   } catch (err) {
@@ -181,15 +235,10 @@ export async function handleResendInboundEvent({ rawBody, body, headers }) {
     headers: hdrs,
   };
 
-  // Only standalone attachments the sender actually added — NOT images embedded
-  // in the quoted reply chain (signatures, logos, the photo from the email
-  // they're replying to). Those come through with an `inline` disposition or a
-  // content_id (they're referenced by cid in the HTML body), so a reply doesn't
-  // re-attach the whole thread's images.
-  const newAttachments = (d.attachments || []).filter((a) => {
-    const disp = String(a.content_disposition || "").toLowerCase();
-    return disp !== "inline" && !a.content_id;
-  });
+  // Keep only attachments from the NEW reply (attached files + inline images the
+  // sender pasted into their reply) — not the quoted thread's embedded images,
+  // signatures or logos. Uses the HTML to tell new cids from quoted ones.
+  const newAttachments = selectNewAttachments(d.attachments || [], html);
 
   // Fetch + re-host attachments durably (webhook only carries metadata).
   const attachments = await storeAttachments(d.email_id, newAttachments);

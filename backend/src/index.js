@@ -104,6 +104,7 @@ import {
 } from "./utils/waitlistTokens.js";
 import { processSesEvent } from "./email/events/processSesEvent.js";
 import { handleProviderEvent, enqueueOutbox, sendEmail as infraSendEmail } from "./email/index.js";
+import { handleSesInboundEvent } from "./email/webhooks/sesInboundWebhook.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
 import { emitIntent, sourceFromRequest } from "./services/intentLog.js";
 import {
@@ -1101,6 +1102,29 @@ app.post("/webhooks/ses-eventbridge", async (req, res) => {
     });
   }
 });
+
+// ---------------------------
+// WEBHOOKS: SES inbound (two-way email — guest replies → host Room thread)
+// ---------------------------
+// SNS posts notifications as text/plain, which the global express.json() skips,
+// so parse the body as text here and coerce to the SNS object. The handler does
+// SNS signature verification + subscription confirmation itself.
+app.post(
+  "/webhooks/ses-inbound",
+  express.text({ type: "*/*", limit: "15mb" }),
+  async (req, res) => {
+    try {
+      const body =
+        typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body;
+      const result = await handleSesInboundEvent({ body });
+      res.json(result);
+    } catch (error) {
+      console.error("[Webhook][SES-inbound] Error", error);
+      const status = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+      res.status(status).json({ error: error?.message || "Failed to process inbound email" });
+    }
+  },
+);
 
 // ---------------------------
 // WEBHOOKS: WhatsApp (Meta Cloud API)

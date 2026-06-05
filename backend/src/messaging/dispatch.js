@@ -192,6 +192,9 @@ export async function dispatch({
     campaignTag: context.campaignTag ?? null,
     idempotencyKey: context.idempotencyKey ?? null,
     category: email.category ?? "transactional",
+    // Lets a reply to this email thread back to the host's Room (two-way email).
+    personId,
+    hostProfileId,
   });
 
   return {

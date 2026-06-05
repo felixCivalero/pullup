@@ -33,6 +33,7 @@ export async function sendEmailViaSes({
   html,
   text,
   tags = {},
+  replyTo = null,
 }) {
   if (!to) {
     throw new Error("[sesProvider] 'to' is required");
@@ -93,6 +94,10 @@ export async function sendEmailViaSes({
       },
     },
   };
+
+  if (replyTo) {
+    input.ReplyToAddresses = [replyTo];
+  }
 
   if (SES_CONFIGURATION_SET_NAME) {
     input.ConfigurationSetName = SES_CONFIGURATION_SET_NAME;

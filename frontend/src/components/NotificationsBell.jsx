@@ -65,8 +65,14 @@ export function NotificationsBell() {
 
   function onItem(s) {
     setOpen(false);
-    // Notifications are passive → land in the Room (where the person/event
-    // lives). Deep-linking to the specific person is a future refinement.
+    // Take the host to where they can act on it. A message → pop the Messages
+    // dock open on that exact person's thread. An RSVP / waitlist / attendance
+    // → the event's guest list. Else → the Room.
+    if (s.type === "message_in" && s.personId) {
+      window.dispatchEvent(new CustomEvent("pullup:open-thread", { detail: { personId: s.personId } }));
+      return;
+    }
+    if (s.eventId) { navigate(`/app/events/${s.eventId}/guests`); return; }
     navigate("/room");
   }
 

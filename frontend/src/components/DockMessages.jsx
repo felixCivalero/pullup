@@ -44,7 +44,7 @@ function Avatar({ name, size = 44, dot }) {
   );
 }
 
-export default function DockMessages({ onClose, expanded, onToggleExpand }) {
+export default function DockMessages({ onClose, expanded, onToggleExpand, openThread = null }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [people, setPeople] = useState(null);
@@ -69,6 +69,9 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
   useEffect(() => { load(); }, []);
 
   const open = useMemo(() => (people || []).find((p) => p.id === openId) || null, [people, openId]);
+  // A notification (via IdeaWidget) can target a specific person's thread. Set
+  // the id; the thread resolves as soon as `people` loads.
+  useEffect(() => { if (openThread?.id) setOpenId(openThread.id); }, [openThread]);
   const needsCount = (people || []).filter((p) => p.needsYou).length;
 
   const list = useMemo(() => {

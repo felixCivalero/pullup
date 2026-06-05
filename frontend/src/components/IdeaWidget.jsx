@@ -109,6 +109,22 @@ export function IdeaWidget() {
   const [dockTab, setDockTab] = useState("messages");
   const [msgExpanded, setMsgExpanded] = useState(false);
 
+  // A notification (or anywhere) can pop the Messages dock open on a specific
+  // person's thread via the `pullup:open-thread` event. {id,ts} — ts so the same
+  // person re-opens even if already the target.
+  const [openThread, setOpenThread] = useState(null);
+  useEffect(() => {
+    const onOpenThread = (e) => {
+      const pid = e?.detail?.personId;
+      if (!pid) return;
+      setDockTab("messages");
+      setOpen(true);
+      setOpenThread({ id: pid, ts: Date.now() });
+    };
+    window.addEventListener("pullup:open-thread", onOpenThread);
+    return () => window.removeEventListener("pullup:open-thread", onOpenThread);
+  }, []);
+
   // The create/edit page broadcasts the event being built so the dock can
   // become a live build chat (the /create-scoped canvas). Null elsewhere.
   const [canvasEventId, setCanvasEventId] = useState(null);
@@ -407,6 +423,7 @@ export function IdeaWidget() {
                 onClose={() => setOpen(false)}
                 expanded={!fullScreen && msgExpanded}
                 onToggleExpand={fullScreen ? undefined : () => setMsgExpanded((v) => !v)}
+                openThread={openThread}
               />
             )}
           </div>

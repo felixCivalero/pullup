@@ -728,7 +728,7 @@ function buildSignals(timeline, peopleById, eventTitleById) {
     else if (e.type === "waitlist_join") { kind = "urgent"; text = `${name} joined the waitlist${title ? ` for ${title}` : ""}.`; }
     else if (e.type === "attended") { kind = "warm"; text = `${name} came to ${title || "your event"} — worth a thank-you.`; }
     else { text = `${name} RSVP'd${title ? ` to ${title}` : ""}.`; }
-    out.push({ id: e.id, kind, text, personId: e.person_id, eventId: e.event_id || undefined, time: relTime(e.occurred_at) });
+    out.push({ id: e.id, type: e.type, kind, text, personId: e.person_id, eventId: e.event_id || undefined, time: relTime(e.occurred_at) });
   }
   return out;
 }

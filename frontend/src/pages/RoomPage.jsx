@@ -27,6 +27,7 @@ import { EventHostsSection } from "../components/EventHostsSection.jsx";
 import { VipInviteSection } from "../components/VipInviteSection.jsx";
 import ProfileSetup from "../components/room/ProfileSetup.jsx";
 import LookingBack from "../components/room/LookingBack.jsx";
+import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
@@ -1219,6 +1220,13 @@ export function OwnerConsole({ room: roomProp }) {
           </div>
         </>
       )}
+
+      {/* Host-home install nudge — "your Room on your home screen". Self-gates:
+          renders only when this visitor can actually install and hasn't snoozed. */}
+      <InstallPrompt
+        headline="Your Room on your home screen"
+        subtext="Add PullUp as an app — your people and events, one tap away."
+      />
     </>
   );
 }

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Full-bleed background so OS masking never clips brand; eyes kept inside the 80% safe zone -->
+  <rect width="512" height="512" fill="#ffffff"/>
+  <g transform="translate(54.9,54.9) scale(6.095)">
+    <circle cx="24" cy="33" r="12" fill="none" stroke="#0a0a0a" stroke-width="4.5"/>
+    <circle cx="42" cy="33" r="12" fill="none" stroke="#0a0a0a" stroke-width="4.5"/>
+    <circle cx="24" cy="33" r="4.6" fill="#EC178F"/>
+    <circle cx="42" cy="33" r="4.6" fill="#EC178F"/>
+  </g>
+</svg>

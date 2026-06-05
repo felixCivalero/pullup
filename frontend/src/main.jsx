@@ -9,6 +9,8 @@ import "./styles/responsive.css";
 // moment (it fires before React mounts) so the install CTA knows whether this
 // visitor can convert the site into an app.
 import "./lib/pwa/installState.js";
+// Side-effect import: tags <html class="pwa-standalone"> when running installed.
+import "./lib/pwa/displayMode.js";
 import { registerServiceWorker } from "./lib/pwa/registerSW.js";
 
 registerServiceWorker();

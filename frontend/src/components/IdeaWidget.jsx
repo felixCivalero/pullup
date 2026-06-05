@@ -378,7 +378,7 @@ export function IdeaWidget() {
   const fullScreen = !isDesktop;
 
     return (
-      <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}>
+      <div style={{ position: "fixed", bottom: "calc(24px + env(safe-area-inset-bottom, 0px))", right: 24, zIndex: 9999 }}>
         {open && (
           <div
             style={

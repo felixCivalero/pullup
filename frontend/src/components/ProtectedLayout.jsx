@@ -267,7 +267,7 @@ function ProtectedLayoutInner() {
       <div
         style={{
           position: "fixed",
-          top: 0,
+          top: "env(safe-area-inset-top, 0px)",
           left: 0,
           right: 0,
           height: "2px",
@@ -284,14 +284,17 @@ function ProtectedLayoutInner() {
       <header
         style={{
           position: "fixed",
-          top: 2,
+          // Sit at the very top and let safe-area padding push the content
+          // below the notch/Dynamic Island; the frosted bg fills the inset.
+          top: 0,
           left: 0,
           right: 0,
           height: "56px",
+          boxSizing: "content-box",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 16px 0 12px",
+          padding: "calc(2px + env(safe-area-inset-top, 0px)) 16px 0 12px",
           zIndex: 20,
           background: "rgba(255, 255, 255, 0.85)",
           backdropFilter: "blur(12px)",

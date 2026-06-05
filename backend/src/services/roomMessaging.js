@@ -169,21 +169,33 @@ async function getEventForEmail(eventId) {
 
 const emailHtmlFor = (body, atts, event) => textToHtml(body, atts) + eventCardHtml(event);
 
-function logRoomEvent({ personId, hostId, channel, body, attachments = [], eventTitle }) {
+function logRoomEvent({ personId, hostId, channel, body, attachments = [], event = null }) {
   const atts = Array.isArray(attachments) ? attachments : [];
-  const bits = [];
-  if (eventTitle) bits.push(`📅 ${eventTitle}`);
-  const note = bits.length ? ` (${bits.join(", ")})` : "";
   logPersonEvent({
     personId,
     hostId,
     type: "message_out",
     channel,
     direction: "out",
-    body: (body || (atts.length ? "" : "(message)")) + note,
-    // Persist the real attachments (url/name/isImage) so they render in the
-    // thread and survive reloads — not just a count.
-    metadata: { source: "room", attachments: atts },
+    body: body || (atts.length || event ? "" : "(message)"),
+    // Persist the real attachments + (when attached) the event so they render
+    // as durable images / an event card in the thread, not a count or a note.
+    metadata: {
+      source: "room",
+      attachments: atts,
+      ...(event
+        ? {
+            event: {
+              id: event.id || null,
+              title: event.title || null,
+              slug: event.slug || null,
+              coverImageUrl: event.coverImageUrl || null,
+              whenLabel: event.whenLabel || null,
+              location: event.location || null,
+            },
+          }
+        : {}),
+    },
   }).catch(() => {});
 }
 
@@ -211,7 +223,7 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   const evt = eventId ? (event || (await getEventForEmail(eventId))) : null;
   const htmlBody = emailHtmlFor(body, atts, evt);
   const key = () => `room:${hostId}:${personId}:${Date.now()}:${_sendSeq++}`;
-  const logArgs = { personId, hostId, body, attachments: atts, eventTitle: evt?.title };
+  const logArgs = { personId, hostId, body, attachments: atts, event: evt };
 
   // ── WhatsApp rail — only when the person is honestly reachable there. ──
   const waReachable = !!(person.phone_e164 && person.phone_verified_at);

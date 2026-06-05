@@ -1,6 +1,7 @@
 // backend/src/email/config.js
 import dotenv from "dotenv";
-dotenv.config();
+// override:true — .env wins over PM2's baked-in env (see index.js note).
+dotenv.config({ override: true });
 
 const bool = (value, defaultValue = false) => {
   if (value === undefined || value === null) return defaultValue;

@@ -14,7 +14,12 @@ import { INBOUND_EMAIL_DOMAIN, INBOUND_EMAIL_LOCAL } from "../config.js";
 import { extractToken } from "../inbound/parseInboundEmail.js";
 import { processInboundEmail } from "../inbound/processInboundEmail.js";
 
-const RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET || null;
+// Resend's webhook signing secret (whsec_…). Accept either name; the prod/dev
+// .env uses RESEND_WEBHOOK_SIGNING_SECRET.
+const RESEND_WEBHOOK_SECRET =
+  process.env.RESEND_WEBHOOK_SIGNING_SECRET ||
+  process.env.RESEND_WEBHOOK_SECRET ||
+  null;
 
 let _client = null;
 function client() {

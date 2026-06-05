@@ -661,6 +661,12 @@ function eventOf(e) {
   return ev && ev.title ? ev : undefined;
 }
 
+// An attached location ({label,url}) → a clickable address link in the thread.
+function locOf(e) {
+  const l = e?.metadata?.location;
+  return l && l.url ? l : undefined;
+}
+
 // A short stand-in for messages whose only content is an attachment/event, so
 // the inbox preview never goes blank.
 function attPreview(atts, ev) {
@@ -686,11 +692,13 @@ function buildThread(evs, eventTitleById) {
   return [...evs].reverse().map((e) => {
     const atts = attsOf(e);
     const event = eventOf(e);
+    const location = locOf(e);
     return {
       from: e.direction === "in" ? "them" : e.direction === "out" ? "you" : "system",
-      text: e.body || (atts || event ? "" : lineFor(e, eventTitleById)),
+      text: e.body || (atts || event || location ? "" : lineFor(e, eventTitleById)),
       atts, // matches the dock's render (m.atts) + the optimistic-send shape
       event, // attached event → rendered as a card linking to /e/:slug
+      location, // attached location → clickable address link
       time: relTime(e.occurred_at),
       channel: e.channel || undefined,
     };

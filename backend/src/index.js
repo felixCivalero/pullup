@@ -1346,6 +1346,17 @@ app.post("/auth/request-link", async (req, res) => {
     if (!result.ok && result.error === "invalid_email") {
       return res.status(400).json({ ok: false, error: "invalid_email" });
     }
+    // A real failure (account_failed / link_failed / send_failed) used to be
+    // swallowed by the ok:true anti-enumeration response — the user is told
+    // "check your inbox" for a mail that never sends, with no signal anywhere.
+    // Keep the client response generic, but log loudly server-side so the
+    // failure is alertable instead of invisible.
+    if (!result.ok) {
+      console.error("[auth/request-link] login link not delivered", {
+        event: "login_link_failed",
+        reason: result.error || "unknown",
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error("[auth/request-link] error:", err.message);

@@ -60,7 +60,6 @@ import { CookiesPage } from "./pages/CookiesPage";
 import { HostAnalyticsPage } from "./pages/HostAnalyticsPage";
 import { OAuthAuthorizePage } from "./pages/OAuthAuthorizePage";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
-import { WhatsappVerifyPage } from "./pages/WhatsappVerifyPage";
 import { MediaUploadPage } from "./pages/MediaUploadPage";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -96,7 +95,6 @@ function App() {
         <Route path="/start" element={<LandingPage />} />
         <Route path="/login" element={<LandingPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
-        <Route path="/whatsapp-verify" element={<WhatsappVerifyPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/newsletter" element={<NewsletterPage />} />

@@ -50,6 +50,14 @@ export async function sendEmailViaSes({
   }
 
   if (SES_TEST_MODE) {
+    // SES_TEST_MODE defaults to true. In production that means every send is
+    // faked and the outbox marks it "sent" → the mail silently vanishes. Fail
+    // loud instead so the row lands in `failed` and the misconfig is visible.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "[sesProvider] SES_TEST_MODE=true in production — refusing to fake-send. Set SES_TEST_MODE=false.",
+      );
+    }
     const fakeId = `TEST-${crypto.randomUUID()}`;
     console.log("[sesProvider] SES_TEST_MODE=true, not sending to SES", {
       to,

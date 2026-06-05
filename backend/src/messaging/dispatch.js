@@ -49,6 +49,14 @@ function isTemplateApproved(templateKey) {
   return TEMPLATES?.[templateKey]?.status === "approved";
 }
 
+// Is ANY WhatsApp template approved yet? Until at least one is, dispatch()
+// can never actually pick WhatsApp, so a generic "this guest gets WhatsApp"
+// preview would be lying. previewChannel() gates on this so the UI stops
+// promising a rail we don't have; it lights up automatically on approval.
+function anyTemplateApproved() {
+  return Object.values(TEMPLATES || {}).some((t) => t?.status === "approved");
+}
+
 /**
  * @param {object} args
  * @param {object} args.recipient
@@ -160,11 +168,18 @@ export async function dispatch({
 
   // ── Email path (default + fallback) ────────────────────────────────
   if (!recipient.email) {
-    logger?.warn?.("[messaging/dispatch] no email to fall back to — message dropped", {
-      recipient_id: recipient.id,
+    // No WhatsApp and no email = the message reaches no one. This was a quiet
+    // warn with no audit trail; make it a loud, structured, alertable signal
+    // (stable `event` tag) and flag it on the return so callers can react.
+    logger?.error?.("[messaging/dispatch] message dropped — no deliverable channel", {
+      event: "message_dropped",
+      recipient_id: recipient.id ?? null,
+      person_id: personId,
+      host_profile_id: hostProfileId,
+      whatsapp_template: whatsapp?.templateKey ?? null,
       reasons,
     });
-    return { channel: "suppressed", row: null, fallback: waChosen };
+    return { channel: "suppressed", row: null, fallback: waChosen, dropped: true };
   }
 
   const emailRow = await enqueueEmailOutbox({
@@ -194,6 +209,8 @@ export async function dispatch({
  */
 export async function previewChannel({ recipient, hostProfile }) {
   if (!recipient) return "email";
+  // No approved template → dispatch() always falls to email; don't preview WA.
+  if (!anyTemplateApproved()) return "email";
   if (hostProfile?.whatsapp_enabled === false) return "email";
   if (!recipient.phone_e164) return "email";
   if (!recipient.phone_verified_at) return "email";

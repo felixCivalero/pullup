@@ -866,7 +866,6 @@ export function EventPage() {
         className="brand-scope"
         style={{
           width: "100%",
-          height: "100vh",
           height: "100dvh",
           overflow: "hidden",
           background: backgroundColor,
@@ -940,6 +939,8 @@ export function EventPage() {
             ticketType: event?.ticketType || "free",
             ticketPrice: event?.ticketPrice,
             ticketCurrency: event?.ticketCurrency,
+            isEventPast,
+            isSoldOut,
             instagram: event?.instagram,
             spotify: event?.spotify,
             tiktok: event?.tiktok,

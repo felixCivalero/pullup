@@ -189,7 +189,6 @@ function ProtectedLayoutInner() {
   // Admin-only nav items
   const adminNavItems = [
     { label: "CRM", path: "/admin/crm" },
-    { label: "Email", path: "/admin/email" },
     { label: "Analytics", path: "/admin/analytics" },
   ];
 

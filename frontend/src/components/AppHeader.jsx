@@ -7,10 +7,14 @@
 //
 // This is the NON-event header only. Event routes keep their bespoke header
 // inline in ProtectedLayout (it's tightly coupled to the event nav context).
-import { useState, useEffect, useRef } from "react";
+//
+// Mobile surfacing mirrors ProtectedLayout's default-app header (commit
+// bca179f5): the bell + settings are DIRECT icon badges and admin is a compact
+// gold popover — no hamburger drawer. The person room IS the profile, so the
+// header never needs to carry an avatar/account drawer.
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { Settings } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
@@ -18,21 +22,16 @@ import { NotificationsBell } from "./NotificationsBell.jsx";
 import { AuthGate } from "./auth/AuthGate.jsx";
 import { colors } from "../theme/colors.js";
 
-const barStyle = { width: 14, height: 2, borderRadius: 999, background: "#0a0a0a" };
-
 export function AppHeader() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { showToast } = useToast();
   const [isAdmin, setIsAdmin] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false); // mobile admin popover
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [profilePic, setProfilePic] = useState(null);
   const [profileComplete, setProfileComplete] = useState(true);
   const [onboardOpen, setOnboardOpen] = useState(false); // create gate → onboarding door
   const [navConfirm, setNavConfirm] = useState(null);
-  const drawerRef = useRef(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -46,7 +45,6 @@ export function AppHeader() {
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => {
         if (p) {
-          if (p.profilePicture) setProfilePic(p.profilePicture);
           if (p.isAdmin) setIsAdmin(true);
           // Host-ready = name + contact email (auto-set at signup), not "brand".
           setProfileComplete(!!(p.name?.trim() && p.contactEmail?.trim()));
@@ -61,24 +59,18 @@ export function AppHeader() {
     return () => window.removeEventListener("profileUpdated", onProfileUpdated);
   }, [user]);
 
-  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
-  useEffect(() => {
-    document.body.style.overflow = menuOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [menuOpen]);
-
-  const avatarSrc = profilePic || null;
+  // Close the admin popover whenever the route changes.
+  useEffect(() => { setAdminMenuOpen(false); }, [location.pathname]);
 
   function handleNav(path) {
     if (window.__pullupUnsavedMedia) { setNavConfirm({ path }); return; }
+    setAdminMenuOpen(false);
     navigate(path);
-    setMenuOpen(false);
   }
   function confirmNavLeave() {
     window.__pullupUnsavedMedia = false;
     const path = navConfirm.path;
     setNavConfirm(null);
-    setMenuOpen(false);
     navigate(path);
   }
 
@@ -88,7 +80,6 @@ export function AppHeader() {
   ];
   const adminNavItems = [
     { label: "CRM", path: "/admin/crm" },
-    { label: "Email", path: "/admin/email" },
     { label: "Analytics", path: "/admin/analytics" },
   ];
 
@@ -137,21 +128,47 @@ export function AppHeader() {
 
         {/* Right side */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          {!isMobile && <NotificationsBell />}
-          {!isMobile && (
-            <button onClick={() => handleNav("/settings")} style={{ width: 32, height: 32, borderRadius: "999px", border: `1px solid ${colors.border}`, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, transition: "background 0.2s" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceMuted; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-              <SilverIcon as={Settings} size={16} />
-            </button>
+          {/* Notifications + Settings as DIRECT icons — same on desktop and
+              mobile, so the person room never needs a drawer to reach them. */}
+          <NotificationsBell />
+          <button
+            onClick={() => handleNav("/settings")}
+            aria-label="Settings"
+            style={{ width: isMobile ? 36 : 32, height: isMobile ? 36 : 32, borderRadius: "999px", border: `1px solid ${colors.border}`, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, transition: "background 0.2s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceMuted; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            <SilverIcon as={Settings} size={isMobile ? 17 : 16} />
+          </button>
+
+          {/* Mobile admin badge → a compact gold popover with the admin surfaces
+              (CRM / Email / Analytics). Desktop shows them inline in the center
+              nav above. */}
+          {isMobile && isAdmin && (
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setAdminMenuOpen((o) => !o)}
+                aria-label="Admin menu"
+                aria-expanded={adminMenuOpen}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "8px 12px", borderRadius: "999px", border: `1px solid ${adminMenuOpen ? "rgba(180,83,9,0.45)" : "rgba(180,83,9,0.28)"}`, background: adminMenuOpen ? "rgba(180,83,9,0.14)" : "rgba(180,83,9,0.08)", color: "#b45309", fontFamily: "inherit", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}
+              >
+                Admin
+              </button>
+              {adminMenuOpen && (
+                <>
+                  <div onClick={() => setAdminMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 18 }} />
+                  <div style={{ position: "absolute", top: "calc(100% + 10px)", right: 0, zIndex: 19, minWidth: 180, background: "#fff", border: "1px solid rgba(180,83,9,0.18)", borderRadius: "16px", boxShadow: "0 18px 48px rgba(10,10,10,0.18)", padding: "6px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                    {adminNavItems.map(({ label, path }) => (
+                      <button key={path} onClick={() => handleNav(path)} style={{ display: "flex", alignItems: "center", width: "100%", padding: "11px 14px", borderRadius: "11px", border: "none", background: isActive(path) ? "rgba(180,83,9,0.10)" : "transparent", color: isActive(path) ? "#b45309" : "rgba(180,83,9,0.72)", fontFamily: "inherit", fontSize: "14px", fontWeight: isActive(path) ? 700 : 600, cursor: "pointer", textAlign: "left", touchAction: "manipulation" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
-          {isMobile && (
-            <button onClick={() => setMenuOpen(true)} aria-label="Open menu" style={{ width: 36, height: 36, borderRadius: "999px", border: `1px solid ${colors.border}`, background: "transparent", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px", cursor: "pointer", padding: 0 }}>
-              <span style={barStyle} />
-              <span style={barStyle} />
-              <span style={{ ...barStyle, width: 10 }} />
-            </button>
-          )}
+
           <button onClick={() => { if (!profileComplete) { setOnboardOpen(true); } else { handleNav("/create"); } }} style={{ padding: "10px 18px", borderRadius: "999px", border: "none", background: colors.accent, color: "#fff", fontWeight: 700, fontSize: "clamp(11px, 2.5vw, 12px)", letterSpacing: "0.02em", cursor: "pointer", transition: "all 0.2s ease", boxShadow: colors.accentShadow, whiteSpace: "nowrap", touchAction: "manipulation" }}
             onMouseEnter={(e) => { e.target.style.transform = "translateY(-1px)"; e.target.style.background = colors.accentHover; e.target.style.boxShadow = "0 8px 22px rgba(236, 23, 143, 0.34)"; }}
             onMouseLeave={(e) => { e.target.style.transform = "translateY(0)"; e.target.style.background = colors.accent; e.target.style.boxShadow = colors.accentShadow; }}>
@@ -159,55 +176,6 @@ export function AppHeader() {
           </button>
         </div>
       </header>
-
-      {/* Mobile drawer */}
-      {isMobile && menuOpen && (
-        <>
-          <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0, 0, 0, 0.5)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", zIndex: 998, animation: "menuFadeIn 0.2s ease" }} />
-          <div ref={drawerRef} style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(300px, 80vw)", background: "#fff", boxShadow: "-12px 0 48px rgba(10, 10, 10, 0.16)", borderLeft: `1px solid ${colors.border}`, zIndex: 999, animation: "menuSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${colors.border}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ width: 40, height: 40, borderRadius: "999px", border: `1px solid ${colors.border}`, background: colors.surfaceMuted, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-                  {avatarSrc ? (
-                    <img src={avatarSrc} alt="Profile" referrerPolicy="no-referrer" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { e.target.style.display = "none"; }} />
-                  ) : (
-                    <span style={{ color: colors.text, fontSize: "14px", fontWeight: 600, textTransform: "uppercase" }}>{(user?.email || "?").slice(0, 2).toUpperCase()}</span>
-                  )}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ color: colors.text, fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || "User"}
-                  </div>
-                  {isAdmin && <div style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#b45309", marginTop: "2px" }}>Admin</div>}
-                </div>
-              </div>
-              <button onClick={() => setMenuOpen(false)} style={{ width: 32, height: 32, borderRadius: "999px", border: "none", background: colors.surfaceMuted, color: colors.textMuted, fontSize: "18px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
-            </div>
-            <nav style={{ padding: "12px 8px", flex: 1 }}>
-              {navItems.map(({ label, path }) => (
-                <button key={path} onClick={() => handleNav(path)} style={{ display: "flex", alignItems: "center", width: "100%", padding: "14px 16px", borderRadius: "12px", border: "none", background: isActive(path) ? colors.accentSoft : "transparent", color: isActive(path) ? colors.accent : colors.textMuted, fontSize: "15px", fontWeight: isActive(path) ? 600 : 500, cursor: "pointer", textAlign: "left", transition: "all 0.15s ease", touchAction: "manipulation" }}>
-                  {label}
-                </button>
-              ))}
-              {isAdmin && (
-                <>
-                  <div style={{ margin: "12px 16px 8px", display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, rgba(180, 83, 9, 0.35), transparent)" }} />
-                    <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#b45309" }}>Admin</span>
-                    <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, transparent, rgba(180, 83, 9, 0.35))" }} />
-                  </div>
-                  {adminNavItems.map(({ label, path }) => (
-                    <button key={path} onClick={() => handleNav(path)} style={{ display: "flex", alignItems: "center", width: "100%", padding: "14px 16px", borderRadius: "12px", border: "none", background: isActive(path) ? "rgba(180, 83, 9, 0.10)" : "transparent", color: isActive(path) ? "#b45309" : "rgba(180, 83, 9, 0.6)", fontSize: "15px", fontWeight: isActive(path) ? 600 : 500, cursor: "pointer", textAlign: "left", transition: "all 0.15s ease", touchAction: "manipulation" }}>
-                      {label}
-                    </button>
-                  ))}
-                </>
-              )}
-            </nav>
-          </div>
-          <style>{`@keyframes menuFadeIn { from { opacity: 0; } to { opacity: 1; } } @keyframes menuSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
-        </>
-      )}
 
       {/* Become-a-host gate: the one door, opened when a not-yet-ready user taps
           "+ create". Collects profile + verifies via the auth step, then lands

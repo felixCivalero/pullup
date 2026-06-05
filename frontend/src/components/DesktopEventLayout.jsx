@@ -48,6 +48,8 @@ export function DesktopEventLayout({
   revealHint = null,
   dateRevealHint = null,
   instantWaitlist = false,
+  isEventPast = false,
+  isSoldOut = false,
   rsvpContent,
   autoShowRsvp = false,
   activeStep,
@@ -134,6 +136,8 @@ export function DesktopEventLayout({
     ticketPrice,
     ticketCurrency,
     instantWaitlist,
+    isEventPast,
+    isSoldOut,
   });
 
   const formattedDate = useMemo(() => {

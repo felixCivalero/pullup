@@ -169,7 +169,7 @@ async function getEventForEmail(eventId) {
 
 const emailHtmlFor = (body, atts, event) => textToHtml(body, atts) + eventCardHtml(event);
 
-function logRoomEvent({ personId, hostId, channel, body, attachments = [], event = null }) {
+function logRoomEvent({ personId, hostId, channel, body, attachments = [], event = null, location = null }) {
   const atts = Array.isArray(attachments) ? attachments : [];
   logPersonEvent({
     personId,
@@ -177,7 +177,7 @@ function logRoomEvent({ personId, hostId, channel, body, attachments = [], event
     type: "message_out",
     channel,
     direction: "out",
-    body: body || (atts.length || event ? "" : "(message)"),
+    body: body || (atts.length || event || location ? "" : "(message)"),
     // Persist the real attachments + (when attached) the event so they render
     // as durable images / an event card in the thread, not a count or a note.
     metadata: {
@@ -195,6 +195,7 @@ function logRoomEvent({ personId, hostId, channel, body, attachments = [], event
             },
           }
         : {}),
+      ...(location ? { location: { label: location.label || null, url: location.url || null } } : {}),
     },
   }).catch(() => {});
 }
@@ -204,11 +205,12 @@ function logRoomEvent({ personId, hostId, channel, body, attachments = [], event
  * specific event (eventId): an inline card on email, a link on WhatsApp/IG.
  * @returns {Promise<{ok:boolean, error?:string, channel?:string}>}
  */
-export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], eventId = null, event = null }) {
+export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], eventId = null, event = null, location = null }) {
   const body = (text || "").trim();
   const atts = normalizeAttachments(attachments);
+  const loc = location && location.url ? { label: (location.label || "Location").trim() || "Location", url: location.url } : null;
   if (!hostId || !personId) return { ok: false, error: "bad_request" };
-  if (!body && !atts.length && !eventId) return { ok: false, error: "empty" };
+  if (!body && !atts.length && !eventId && !loc) return { ok: false, error: "empty" };
 
   // Scope: a host may only message someone already in their world.
   const allowed = await personBelongsToHost(personId, hostId);
@@ -221,9 +223,14 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   const fromName = ((profile?.name || profile?.brand || "") || "").trim() || null;
   const subj = (subject || "").trim() || `A note from ${fromName || "your host"}`;
   const evt = eventId ? (event || (await getEventForEmail(eventId))) : null;
-  const htmlBody = emailHtmlFor(body, atts, evt);
+  // Location renders as a clean clickable link, never a raw URL: an <a> on
+  // email; the text rails (WA/IG) fold address + url into the body (they
+  // linkify URLs natively).
+  const locHtml = loc ? `<p style="margin:14px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><a href="${escapeAttr(loc.url)}" style="color:#ec178f;font-weight:600;text-decoration:none;">📍 ${escapeHtml(loc.label)}</a></p>` : "";
+  const bodyForText = loc ? `${body}${body ? "\n\n" : ""}📍 ${loc.label}\n${loc.url}` : body;
+  const htmlBody = emailHtmlFor(body, atts, evt) + locHtml;
   const key = () => `room:${hostId}:${personId}:${Date.now()}:${_sendSeq++}`;
-  const logArgs = { personId, hostId, body, attachments: atts, event: evt };
+  const logArgs = { personId, hostId, body, attachments: atts, event: evt, location: loc };
 
   // ── WhatsApp rail — only when the person is honestly reachable there. ──
   const waReachable = !!(person.phone_e164 && person.phone_verified_at);
@@ -234,7 +241,7 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
         // Inside the 24h window: a real, free-text WhatsApp in the host's voice.
         await sendText({
           to: person.phone_e164,
-          body: whatsappBody(body, atts, evt),
+          body: whatsappBody(bodyForText, atts, evt),
           personId,
           hostProfileId: hostId,
           legalBasis: "consent",
@@ -257,12 +264,12 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
         hostProfile: profile,
         whatsapp: {
           templateKey: "host_broadcast",
-          variables: { host_signature: sig, body: whatsappBody(body, atts, evt) },
+          variables: { host_signature: sig, body: whatsappBody(bodyForText, atts, evt) },
         },
         email: {
           subject: subj,
           htmlBody,
-          textBody: textBodyWith(body, atts, evt),
+          textBody: textBodyWith(bodyForText, atts, evt),
           category: "transactional",
         },
         context: { personId, hostProfileId: hostId, legalBasis: "consent", idempotencyKey: key() },
@@ -295,7 +302,7 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
             igUserId: creds.igUserId,
             accessToken: creds.accessToken,
             recipientId: igId,
-            text: whatsappBody(body, atts, evt),
+            text: whatsappBody(bodyForText, atts, evt),
           });
           await igUpsert({
             personId, hostProfileId: hostId, igUserId: igId,
@@ -318,7 +325,7 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
     toEmail: person.email,
     subject: subj,
     htmlBody,
-    textBody: textBodyWith(body, atts, evt),
+    textBody: textBodyWith(bodyForText, atts, evt),
     category: "transactional",
     idempotencyKey: key(),
     // Host's own message to a guest — make the reply route back to this thread.

@@ -5456,8 +5456,8 @@ app.get("/host/room", requireAuth, async (req, res) => {
 app.post("/host/room/message", requireAuth, async (req, res) => {
   try {
     const { sendRoomMessage } = await import("./services/roomMessaging.js");
-    const { personId, channel, text, subject, attachments, eventId } = req.body || {};
-    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject, attachments, eventId });
+    const { personId, channel, text, subject, attachments, eventId, location } = req.body || {};
+    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject, attachments, eventId, location });
     if (!r.ok) {
       return res.status(r.error === "channel_unavailable" ? 501 : 400).json(r);
     }

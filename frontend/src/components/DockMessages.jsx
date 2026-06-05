@@ -98,11 +98,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
   async function send(e) {
     e.preventDefault();
     const text = draft.trim();
-    if ((!text && attachments.length === 0) || !open || sending) return;
+    if ((!text && attachments.length === 0 && !attachedEventId) || !open || sending) return;
     const ch = open.channel || "email"; const atts = attachments;
     setSending(true);
     try {
-      const res = await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: open.id, channel: ch, text, attachments: atts }) });
+      const res = await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: open.id, channel: ch, text, attachments: atts, eventId: attachedEventId || undefined }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         // Don't pretend it sent — surface the real reason and keep the draft.
@@ -111,8 +111,9 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
       }
       // Reflect the channel the server actually used (WhatsApp/IG can fall to email).
       const used = data.channel || ch;
-      setSent((s) => [...s, { personId: open.id, from: "you", text, atts, time: "now", channel: used }]);
-      setDraft(""); setAttachments([]);
+      const ev = attachedEvent ? { id: attachedEvent.id, title: attachedEvent.title, slug: attachedEvent.slug, coverImageUrl: attachedEvent.coverImageUrl || attachedEvent.image || null, whenLabel: fmtWhen(attachedEvent), location: attachedEvent.location } : undefined;
+      setSent((s) => [...s, { personId: open.id, from: "you", text, atts, event: ev, time: "now", channel: used }]);
+      setDraft(""); setAttachments([]); setAttachedEventId(null);
       showToast(ch !== "email" && used === "email" ? `Sent as email — couldn't reach them on ${CH[ch]?.label || ch} right now` : "Sent", "success");
     } catch {
       showToast("Couldn't send — try again", "error");
@@ -123,6 +124,8 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
   const [events, setEvents] = useState([]);
   const [smartOpen, setSmartOpen] = useState(false);
   const [smartEventId, setSmartEventId] = useState(null);
+  const [attachedEventId, setAttachedEventId] = useState(null); // event attached as a card
+  const attachedEvent = events.find((e) => e.id === attachedEventId) || null;
   useEffect(() => {
     authenticatedFetch("/events").then((r) => (r.ok ? r.json() : [])).then((evs) => {
       const arr = Array.isArray(evs) ? evs : [];
@@ -175,12 +178,12 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
   async function sendBroadcast(e) {
     e.preventDefault();
     const text = draft.trim(); const atts = attachments;
-    if ((!text && !atts.length) || !selectedPeople.length) return;
+    if ((!text && !atts.length && !attachedEventId) || !selectedPeople.length) return;
     setSending(true);
     try {
-      await Promise.all(selectedPeople.map((p) => authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: p.id, channel: p.channel || "email", text, attachments: atts }) }).catch(() => null)));
+      await Promise.all(selectedPeople.map((p) => authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: p.id, channel: p.channel || "email", text, attachments: atts, eventId: attachedEventId || undefined }) }).catch(() => null)));
     } finally {
-      setSending(false); setDraft(""); setAttachments([]); setSmartOpen(false); exitSelect();
+      setSending(false); setDraft(""); setAttachments([]); setAttachedEventId(null); setSmartOpen(false); exitSelect();
     }
   }
 
@@ -215,10 +218,8 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {smartChip("Name", () => appendDraft(smartEvent.title))}
             {fmtWhen(smartEvent) && smartChip("Date & time", () => appendDraft(fmtWhen(smartEvent)))}
-            {smartEvent.location && smartChip("Location", () => appendDraft(smartEvent.location))}
-            {smartEvent.location && smartChip("Google Maps", () => appendDraft(mapsLink(smartEvent, "google")))}
-            {smartEvent.location && smartChip("Apple Maps", () => appendDraft(mapsLink(smartEvent, "apple")))}
-            {smartChip("Insert all", () => { appendDraft(smartBlock(smartEvent)); setSmartOpen(false); }, true)}
+            {smartEvent.location && smartChip("Location", () => appendDraft(`${smartEvent.location}\n${mapsLink(smartEvent, "google")}`))}
+            {smartChip("Attach event card", () => { setAttachedEventId(smartEvent.id); setSmartOpen(false); }, true)}
           </div>
         </div>
       )}
@@ -238,6 +239,14 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
           ))}
         </div>
       )}
+      {attachedEvent && (
+        <div style={{ marginBottom: 8 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "rgba(236,23,143,0.10)", border: "1px solid rgba(236,23,143,0.30)", borderRadius: 10, padding: "5px 8px 5px 10px", fontSize: 12, fontWeight: 600, color: D.pink, maxWidth: "100%" }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📅 {attachedEvent.title} · event card</span>
+            <button type="button" onClick={() => setAttachedEventId(null)} style={{ ...iconBtn, padding: 0, color: D.pink }}><X size={13} /></button>
+          </span>
+        </div>
+      )}
       <form onSubmit={onSubmit} style={{ display: "flex", gap: 8, alignItems: "center", background: D.raise, borderRadius: 999, padding: "5px 6px 5px 8px" }}>
         <button type="button" onClick={() => setSmartOpen((v) => !v)} disabled={!smartEvent} title="Insert event details"
           style={{ ...iconBtn, color: smartOpen ? D.pink : (smartEvent ? D.muted : D.faint) }}><CalendarClock size={18} /></button>
@@ -245,7 +254,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
           style={{ flex: 1, background: "none", border: "none", outline: "none", color: D.ink, fontSize: 13.5 }} />
         <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: "none" }} />
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={{ ...iconBtn, color: uploading ? D.faint : D.muted }} aria-label="Attach"><Paperclip size={17} /></button>
-        <button type="submit" disabled={sending || (!draft.trim() && !attachments.length)} aria-label="Send"
+        <button type="submit" disabled={sending || (!draft.trim() && !attachments.length && !attachedEventId)} aria-label="Send"
           style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "50%", border: "none", background: (draft.trim() || attachments.length) ? D.youGrad : D.them, color: (draft.trim() || attachments.length) ? "#fff" : D.faint, cursor: "pointer" }}><Send size={15} /></button>
       </form>
     </div>
@@ -284,6 +293,16 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
                     <div key={j} style={{ fontSize: 12.5, color: D.muted, marginBottom: 4 }}><Paperclip size={11} /> {a.name}</div>
                   ))}
                   {m.text && <div style={{ padding: "9px 13px", borderRadius: mine ? "18px 18px 5px 18px" : "18px 18px 18px 5px", background: mine ? D.youGrad : D.them, color: mine ? "#fff" : D.ink, fontSize: 13.5, lineHeight: 1.45, boxShadow: mine ? "0 4px 14px rgba(236,23,143,0.24)" : "none" }}>{m.text}</div>}
+                  {m.event && m.event.slug && (
+                    <a href={`/e/${m.event.slug}`} target="_blank" rel="noreferrer" style={{ display: "flex", gap: 9, alignItems: "center", textDecoration: "none", marginTop: m.text ? 4 : 0, padding: 8, borderRadius: 14, border: `1px solid ${D.line}`, background: D.raise, maxWidth: 264 }}>
+                      {m.event.coverImageUrl && <img src={m.event.coverImageUrl} alt="" style={{ width: 44, height: 44, borderRadius: 9, objectFit: "cover", flexShrink: 0 }} />}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: D.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.event.title}</div>
+                        {[m.event.whenLabel, m.event.location].filter(Boolean).length > 0 && <div style={{ fontSize: 11, color: D.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{[m.event.whenLabel, m.event.location].filter(Boolean).join(" · ")}</div>}
+                        <div style={{ fontSize: 11, fontWeight: 700, color: D.pink, marginTop: 2 }}>View event →</div>
+                      </div>
+                    </a>
+                  )}
                   {m.time && <div style={{ fontSize: 10, color: D.faint, marginTop: 3, textAlign: mine ? "right" : "left" }}>{m.time === "now" ? "Sent · now" : m.time}</div>}
                 </div>
               </div>

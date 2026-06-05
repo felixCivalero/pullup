@@ -654,9 +654,17 @@ function attsOf(e) {
   return Array.isArray(a) && a.length ? a : undefined;
 }
 
-// A short stand-in for messages whose only content is an attachment, so the
-// inbox preview never goes blank.
-function attPreview(atts) {
+// An attached event ({id,title,slug,coverImageUrl,whenLabel,location}), rendered
+// as a card in the thread. undefined when none.
+function eventOf(e) {
+  const ev = e?.metadata?.event;
+  return ev && ev.title ? ev : undefined;
+}
+
+// A short stand-in for messages whose only content is an attachment/event, so
+// the inbox preview never goes blank.
+function attPreview(atts, ev) {
+  if (ev) return `📅 ${ev.title}`;
   if (!atts) return "";
   if (atts.length === 1) return atts[0].isImage ? "📷 Photo" : `📎 ${atts[0].name || "Attachment"}`;
   return `📎 ${atts.length} attachments`;
@@ -668,7 +676,7 @@ function lastMessageFrom(evs, eventTitleById) {
   const atts = attsOf(e);
   return {
     from: e.direction === "in" ? "them" : "system",
-    text: e.body || attPreview(atts) || lineFor(e, eventTitleById),
+    text: e.body || attPreview(atts, eventOf(e)) || lineFor(e, eventTitleById),
     time: relTime(e.occurred_at),
   };
 }
@@ -677,10 +685,12 @@ function buildThread(evs, eventTitleById) {
   // oldest → newest for the thread view
   return [...evs].reverse().map((e) => {
     const atts = attsOf(e);
+    const event = eventOf(e);
     return {
       from: e.direction === "in" ? "them" : e.direction === "out" ? "you" : "system",
-      text: e.body || (atts ? "" : lineFor(e, eventTitleById)),
+      text: e.body || (atts || event ? "" : lineFor(e, eventTitleById)),
       atts, // matches the dock's render (m.atts) + the optimistic-send shape
+      event, // attached event → rendered as a card linking to /e/:slug
       time: relTime(e.occurred_at),
       channel: e.channel || undefined,
     };

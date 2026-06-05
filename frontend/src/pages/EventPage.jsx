@@ -693,16 +693,11 @@ export function EventPage() {
       // (Paid RSVPs never reach here; they return via Stripe to the success page,
       // which forwards both states on to the room.)
       const goToRoom = (bookingStatus === "CONFIRMED" || bookingStatus === "WAITLIST") && !!event?.id;
-      const rsvpEmail = (body.rsvp?.email || submittedData?.email || "")
-        .trim()
-        .toLowerCase();
       setTimeout(() => {
         if (goToRoom) {
-          // Hand identity to the room so a logged-out guest auto-enters the lobby
-          // without being re-asked the email they just typed (PullUpPage reads it).
-          if (rsvpEmail) {
-            try { localStorage.setItem("pullup_email", rsvpEmail); } catch {}
-          }
+          // A logged-out guest lands on the room and authenticates through the
+          // AuthGate — access resolves off a verified session, never a stored
+          // email (see the killed ?email= bypass). No client-side identity stash.
           navigate(`/events/${event.id}/room`);
           return;
         }

@@ -28,18 +28,56 @@ export async function insertOutboxRow({
     ...(campaignTag ? { campaign_tag: campaignTag } : {}),
   };
 
-  const { data, error } = await supabase
+  // No idempotency key → every call is a distinct send. Plain insert.
+  // (NULL idempotency_key never collides on the unique index anyway, but
+  // being explicit keeps the conflict path below purely about real keys.)
+  if (!idempotencyKey) {
+    const { data, error } = await supabase
+      .from("email_outbox")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[emailOutboxRepo] insertOutboxRow error", error);
+      throw new Error(`Failed to insert into email_outbox: ${error.message}`);
+    }
+    return data;
+  }
+
+  // Idempotency key present → the row for this key must be written AT MOST
+  // ONCE and never overwritten. The previous code upserted with
+  // status:"queued", so a repeated enqueue (e.g. the every-15-min reminder
+  // cron re-running across its 25h window) reset an already-sent row back to
+  // "queued" and the worker re-sent it — verified in prod as 14–16 duplicate
+  // 24h reminders per guest. ON CONFLICT DO NOTHING (ignoreDuplicates) makes
+  // the repeat a true no-op; we then load and return the untouched existing
+  // row so callers still receive it.
+  const { data: inserted, error } = await supabase
     .from("email_outbox")
-    .upsert(payload, { onConflict: "idempotency_key" })
-    .select()
-    .single();
+    .upsert(payload, { onConflict: "idempotency_key", ignoreDuplicates: true })
+    .select();
 
   if (error) {
     console.error("[emailOutboxRepo] insertOutboxRow error", error);
     throw new Error(`Failed to insert into email_outbox: ${error.message}`);
   }
 
-  return data;
+  // A fresh insert returns the new row; a conflict (DO NOTHING) returns [].
+  if (inserted && inserted.length) return inserted[0];
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("email_outbox")
+    .select("*")
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+
+  if (fetchError) {
+    console.error("[emailOutboxRepo] insertOutboxRow fetch-existing error", fetchError);
+    throw new Error(`Failed to load existing email_outbox row: ${fetchError.message}`);
+  }
+
+  return existing;
 }
 
 export async function findById(id) {

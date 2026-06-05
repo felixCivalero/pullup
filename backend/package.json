@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "NODE_ENV=development nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "worker": "node src/email/outbox/outboxWorkerRunner.js",
+    "worker:once": "node src/email/outbox/outboxWorkerRunner.js --mode=once"
   },
   "keywords": [],
   "author": "",

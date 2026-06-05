@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
+import { useToast } from "./Toast";
 
 // Light PullUp palette — white canvas, near-black ink, the one pink accent.
 const D = {
@@ -45,6 +46,7 @@ function Avatar({ name, size = 44, dot }) {
 
 export default function DockMessages({ onClose, expanded, onToggleExpand }) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [people, setPeople] = useState(null);
   const [roomEvents, setRoomEvents] = useState([]);
   const [q, setQ] = useState("");
@@ -96,12 +98,25 @@ export default function DockMessages({ onClose, expanded, onToggleExpand }) {
   async function send(e) {
     e.preventDefault();
     const text = draft.trim();
-    if ((!text && attachments.length === 0) || !open) return;
+    if ((!text && attachments.length === 0) || !open || sending) return;
     const ch = open.channel || "email"; const atts = attachments;
-    setSending(true); setDraft(""); setAttachments([]);
-    setSent((s) => [...s, { personId: open.id, from: "you", text, atts, time: "now" }]);
-    try { await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: open.id, channel: ch, text, attachments: atts }) }); }
-    finally { setSending(false); }
+    setSending(true);
+    try {
+      const res = await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: open.id, channel: ch, text, attachments: atts }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        // Don't pretend it sent — surface the real reason and keep the draft.
+        showToast(data.error === "no_email" ? "No email on file for them yet" : "Couldn't send — try again", "error");
+        return;
+      }
+      // Reflect the channel the server actually used (WhatsApp/IG can fall to email).
+      const used = data.channel || ch;
+      setSent((s) => [...s, { personId: open.id, from: "you", text, atts, time: "now", channel: used }]);
+      setDraft(""); setAttachments([]);
+      showToast(ch !== "email" && used === "email" ? `Sent as email — couldn't reach them on ${CH[ch]?.label || ch} right now` : "Sent", "success");
+    } catch {
+      showToast("Couldn't send — try again", "error");
+    } finally { setSending(false); }
   }
 
   // ── Smart insert: pull event name / time / place / maps into the draft ──

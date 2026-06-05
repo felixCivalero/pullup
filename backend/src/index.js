@@ -3599,6 +3599,8 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       try {
         await sendEmail({
           to: result.rsvp.email,
+          personId: result.rsvp.personId || null,
+          hostProfileId: result.event.hostId || null,
           subject: "Your spot is reserved",
           html: reservationEmail({
             name: result.rsvp.name || name,
@@ -4684,6 +4686,9 @@ ${spotifyUrl ? `<!-- Spotify -->
         const senderName = event.title.replace(/"/g, "");
         const outboxRow = await sendEmail({
           to: normalizedEmail,
+          // Cold invite: no person node yet, but host context makes it
+          // repliable — a reply resolves the sender's address at thread time.
+          hostProfileId: event.hostId || null,
           subject,
           text: textBody,
           html: htmlBody,
@@ -8600,6 +8605,8 @@ app.post(
 
             await sendEmail({
               to: personForEmail.email,
+              personId: personForEmail.id || null,
+              hostProfileId: event.hostId || null,
               subject: isFullRefund ? "Your payment has been refunded" : "Partial refund processed",
               html: refundEmail({
                 name: rsvpForEmail.name || personForEmail.name || "there",

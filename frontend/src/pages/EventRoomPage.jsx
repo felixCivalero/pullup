@@ -27,6 +27,7 @@ import { colors } from "../theme/colors.js";
 import { authenticatedFetch } from "../lib/api.js";
 import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
+import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
 import { MessageSquare, Folder, FolderPlus } from "lucide-react";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -515,6 +516,16 @@ export default function EventRoomPage() {
           <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} />
         </div>
       </div>
+      {/* Install nudge — same room, role-aware copy. Only renders if the visitor
+          can actually install (prompt captured / iOS Safari) and hasn't snoozed. */}
+      <InstallPrompt
+        headline={isHost ? "Keep this room in your pocket" : "Get the app for this event"}
+        subtext={
+          isHost
+            ? "Add PullUp to your home screen — your room, one tap away."
+            : "Add PullUp to your home screen for your spot, updates and the photos."
+        }
+      />
     </div>
   );
 }

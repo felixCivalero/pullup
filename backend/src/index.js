@@ -105,6 +105,7 @@ import {
 import { processSesEvent } from "./email/events/processSesEvent.js";
 import { handleProviderEvent, enqueueOutbox, sendEmail as infraSendEmail } from "./email/index.js";
 import { handleSesInboundEvent } from "./email/webhooks/sesInboundWebhook.js";
+import { handleResendInboundEvent } from "./email/webhooks/resendInboundWebhook.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
 import { emitIntent, sourceFromRequest } from "./services/intentLog.js";
 import {
@@ -1125,6 +1126,27 @@ app.post(
     }
   },
 );
+
+// ---------------------------
+// WEBHOOKS: Resend inbound (two-way email — guest replies → host Room thread)
+// ---------------------------
+// Resend posts application/json, so the global express.json() already parsed
+// req.body AND captured the exact bytes in req.rawBody (verify hook above) —
+// the Svix signature is checked against those raw bytes.
+app.post("/webhooks/resend-inbound", async (req, res) => {
+  try {
+    const result = await handleResendInboundEvent({
+      rawBody: req.rawBody ? req.rawBody.toString("utf8") : JSON.stringify(req.body || {}),
+      body: req.body,
+      headers: req.headers,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error("[Webhook][Resend-inbound] Error", error);
+    const status = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+    res.status(status).json({ error: error?.message || "Failed to process inbound email" });
+  }
+});
 
 // ---------------------------
 // WEBHOOKS: WhatsApp (Meta Cloud API)

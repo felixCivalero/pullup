@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect x="12" y="12" width="488" height="488" rx="120" fill="#ffffff" stroke="#0a0a0a" stroke-opacity="0.08" stroke-width="12"/>
+  <!-- PullUp eyes: ink rings, pink pupils -->
+  <g transform="translate(4.5,4.5) scale(7.62)">
+    <circle cx="24" cy="33" r="12" fill="none" stroke="#0a0a0a" stroke-width="4.5"/>
+    <circle cx="42" cy="33" r="12" fill="none" stroke="#0a0a0a" stroke-width="4.5"/>
+    <circle cx="24" cy="33" r="4.6" fill="#EC178F"/>
+    <circle cx="42" cy="33" r="4.6" fill="#EC178F"/>
+  </g>
+</svg>

@@ -2,8 +2,8 @@
 //
 // MCP (Model Context Protocol) is open — any client that speaks it can
 // connect: Claude (web/Desktop/Code), ChatGPT, Cursor, Cline, Windsurf,
-// Continue, Goose, etc. This card surfaces the endpoint URL, tabbed
-// per-client setup guides, and the host's PAT manager.
+// Continue, Goose, even PewDiePie's Odysseus, etc. This card surfaces the
+// endpoint URL, tabbed per-client setup guides, and the host's PAT manager.
 //
 // Backend endpoints used:
 //   POST   /host/tokens   { name } → { id, name, token, createdAt }
@@ -102,7 +102,7 @@ const GUIDES = [
     slug: "other",
     label: "Other",
     steps: [
-      "PullUp speaks standard MCP over Streamable HTTP with OAuth 2.1 + Dynamic Client Registration, so any MCP-capable client (Cline, Windsurf, Continue, Goose, Gemini CLI, LibreChat, Zed, Sourcegraph Cody, …) works.",
+      "PullUp speaks standard MCP over Streamable HTTP with OAuth 2.1 + Dynamic Client Registration, so any MCP-capable client (Cline, Windsurf, Continue, Goose, Gemini CLI, LibreChat, Zed, Sourcegraph Cody, even a home-rolled rig like PewDiePie's Odysseus, …) works.",
       `Endpoint: ${MCP_URL}`,
       "Auth: OAuth flow auto-discovers from the resource (RFC 9728). The user authorizes in their browser; the client receives a Bearer token transparently.",
       "Fallback: paste a personal access token directly as Authorization: Bearer pup_… if your client doesn't trigger OAuth.",
@@ -227,7 +227,8 @@ export function SettingsMcpIntegration({ showToast }) {
             <div style={cardTitleStyle}>Connect any AI assistant</div>
             <div style={cardDescStyle}>
               MCP is an open protocol. Anything that speaks it — Claude, ChatGPT,
-              Cursor, Cline, Gemini CLI, Goose — can manage your PullUp events.
+              Cursor, Cline, Gemini CLI, Goose, even PewDiePie's Odysseus — can
+              manage your PullUp events.
             </div>
 
             <div style={{ marginTop: "16px" }}>

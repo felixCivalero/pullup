@@ -181,8 +181,18 @@ export async function handleResendInboundEvent({ rawBody, body, headers }) {
     headers: hdrs,
   };
 
+  // Only standalone attachments the sender actually added — NOT images embedded
+  // in the quoted reply chain (signatures, logos, the photo from the email
+  // they're replying to). Those come through with an `inline` disposition or a
+  // content_id (they're referenced by cid in the HTML body), so a reply doesn't
+  // re-attach the whole thread's images.
+  const newAttachments = (d.attachments || []).filter((a) => {
+    const disp = String(a.content_disposition || "").toLowerCase();
+    return disp !== "inline" && !a.content_id;
+  });
+
   // Fetch + re-host attachments durably (webhook only carries metadata).
-  const attachments = await storeAttachments(d.email_id, d.attachments || []);
+  const attachments = await storeAttachments(d.email_id, newAttachments);
 
   const result = await processInboundEmail({ parsed, token, toAddress, attachments });
   return { ok: true, result: result.status };

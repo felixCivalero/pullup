@@ -24,6 +24,7 @@ export async function sendEmailViaResend({
   subject,
   html,
   text,
+  replyTo = null,
 }) {
   const client = getResendClient();
 
@@ -36,6 +37,7 @@ export async function sendEmailViaResend({
   if (text) payload.text = text;
   if (html) payload.html = html;
   if (!payload.text && !payload.html) payload.html = "";
+  if (replyTo) payload.replyTo = replyTo;
 
   const result = await client.emails.send(payload);
 

@@ -13,6 +13,8 @@ export async function insertOutboxRow({
   provider = "ses",
   category = "transactional",
   campaignTag = null,
+  personId = null,
+  hostProfileId = null,
 }) {
   const payload = {
     from_email: fromEmail,
@@ -26,6 +28,10 @@ export async function insertOutboxRow({
     category,
     status: "queued",
     ...(campaignTag ? { campaign_tag: campaignTag } : {}),
+    // Carried so an inbound reply (Reply-To token = tracking_id) can be mapped
+    // back to this (person, host) and threaded into the host's Room inbox.
+    ...(personId ? { person_id: personId } : {}),
+    ...(hostProfileId ? { host_profile_id: hostProfileId } : {}),
   };
 
   // No idempotency key → every call is a distinct send. Plain insert.

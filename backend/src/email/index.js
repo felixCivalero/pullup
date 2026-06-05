@@ -25,6 +25,8 @@ export async function sendEmail({
   text,
   idempotencyKey = null,
   sendAfter = null,
+  personId = null,
+  hostProfileId = null,
 }) {
   return enqueueOutbox({
     fromEmail: from,
@@ -35,6 +37,8 @@ export async function sendEmail({
     campaignSendId: null,
     idempotencyKey,
     sendAfter,
+    personId,
+    hostProfileId,
   });
 }
 
@@ -52,6 +56,8 @@ export async function enqueueOutbox({
   sendAfter = null,
   category = "transactional",
   campaignTag = null,
+  personId = null,
+  hostProfileId = null,
 }) {
   if (!toEmail) {
     throw new Error("[email] enqueueOutbox: toEmail is required");
@@ -77,6 +83,8 @@ export async function enqueueOutbox({
       provider: providerName,
       category,
       campaignTag,
+      personId,
+      hostProfileId,
     }).then((row) => row);
   }
 
@@ -94,6 +102,8 @@ export async function enqueueOutbox({
     provider: providerName,
     category,
     campaignTag,
+    personId,
+    hostProfileId,
   });
 
   if (sendAfter) {

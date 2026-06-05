@@ -5,6 +5,8 @@ import {
   EMAIL_MAX_RETRIES,
   EMAIL_WORKER_BATCH_SIZE,
   EMAIL_DAILY_LIMIT,
+  INBOUND_EMAIL_DOMAIN,
+  INBOUND_EMAIL_LOCAL,
 } from "../config.js";
 import { getActiveProvider } from "../providers/providerRouter.js";
 import { sendEmailViaSes } from "../providers/sesProvider.js";
@@ -35,6 +37,16 @@ function sleep(ms) {
 function trackingBaseUrl() {
   if (process.env.NODE_ENV !== "production") return "http://localhost:3001";
   return `${process.env.FRONTEND_URL || "https://pullup.se"}/api`;
+}
+
+// Two-way email: address a guest's reply can route back on. Only set when the
+// row carries host context (so an inbound reply can resolve to a real thread)
+// and an inbound domain is configured — otherwise email stays one-way and a
+// reply bounces, exactly as before. Token = the row's per-send tracking_id.
+function replyToFor(row) {
+  if (!INBOUND_EMAIL_DOMAIN) return null;
+  if (!row.host_profile_id || !row.tracking_id) return null;
+  return `${INBOUND_EMAIL_LOCAL}+${row.tracking_id}@${INBOUND_EMAIL_DOMAIN}`;
 }
 
 // Inject open-pixel + click-redirect tracking into a row's HTML at send time,
@@ -161,6 +173,7 @@ export async function processBatch({
       }
 
       const htmlToSend = await withTracking(row);
+      const replyTo = replyToFor(row);
 
       const result = await sendEmailFn({
         from: row.from_email,
@@ -168,6 +181,7 @@ export async function processBatch({
         subject: row.subject,
         html: htmlToSend,
         text: row.text_body,
+        replyTo,
         tags: {
           outbox_id: row.id,
           email_type: row.campaign_send_id ? "campaign" : "transactional",

@@ -25,6 +25,7 @@
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "libphonenumber-js": "^1.13.3",
+    "mailparser": "^3.9.9",
     "resend": "^6.6.0",
     "sns-validator": "^0.3.5",
     "stripe": "^17.7.0",

@@ -44,3 +44,18 @@ export const EMAIL_DAILY_LIMIT = Number(
 );
 
 export const WEBHOOK_SNS_VERIFY = bool(process.env.WEBHOOK_SNS_VERIFY, true);
+
+// ── Two-way email (inbound replies) ────────────────────────────────────
+// When set, outbound guest emails carry a Reply-To of
+//   <INBOUND_EMAIL_LOCAL>+<tracking_id>@<INBOUND_EMAIL_DOMAIN>
+// and a guest's reply routes (via an SES inbound receipt rule → SNS →
+// /webhooks/ses-inbound) back into the host's Room thread. Leave
+// INBOUND_EMAIL_DOMAIN unset to keep email one-way (no Reply-To injected).
+export const INBOUND_EMAIL_DOMAIN = process.env.INBOUND_EMAIL_DOMAIN || null;
+export const INBOUND_EMAIL_LOCAL = process.env.INBOUND_EMAIL_LOCAL || "reply";
+
+// Optional: if the SES receipt rule stores the raw email in S3 instead of
+// inlining it in the SNS notification, the inbound handler fetches it from
+// here. Unset → handler only accepts SNS notifications that include content.
+export const INBOUND_EMAIL_S3_BUCKET =
+  process.env.INBOUND_EMAIL_S3_BUCKET || null;

@@ -68,10 +68,12 @@ export function NotificationsBell() {
     // Take the host to where they can act on it. A message → pop the Messages
     // dock open on that exact person's thread. An RSVP / waitlist / attendance
     // → the event's guest list. Else → the Room.
-    if (s.type === "message_in" && s.personId) {
+    // Message / thank-a-guest → pop their thread (the action is to reply).
+    if ((s.type === "message_in" || s.type === "attended") && s.personId) {
       window.dispatchEvent(new CustomEvent("pullup:open-thread", { detail: { personId: s.personId } }));
       return;
     }
+    // RSVP / waitlist → the event's guest list (the action is to see/manage).
     if (s.eventId) { navigate(`/app/events/${s.eventId}/guests`); return; }
     navigate("/room");
   }

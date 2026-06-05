@@ -215,7 +215,7 @@ function PersonCard({ person, active, onClick, events }) {
           {/* History: which events this relationship has touched */}
           {evChips.map((e) => (
             <span key={e.id} style={{ fontSize: "10.5px", color: colors.textSubtle, background: colors.surfaceMuted, border: `1px solid ${colors.borderFaint}`, padding: "2px 8px", borderRadius: "999px", whiteSpace: "nowrap" }}>
-              {e.title.replace("Sunset Rooftop · ", "")}
+              {e.title}
             </span>
           ))}
           {/* The one suggested move */}
@@ -717,18 +717,7 @@ function BulkPanel({ people, events = [], lensEvent = null, host = {}, onClose, 
 // sends manufactured warmth on its own).
 function suggestedDraft(person) {
   const first = (person.name || "there").split(" ")[0];
-  const bespoke = {
-    p_sara: "Metro's easiest — Medborgarplatsen, 4 min walk. Street parking's a pain on Saturdays. Can't wait to see you both!",
-    p_priya: `${first}! So good to see you back — it's been a minute. Saved you a good spot 🙌`,
-    p_adam: "Noah's in — bring him! Always good to have you, Adam.",
-    p_emma: `${first} — two spots just opened. You're in if you still want it!`,
-    p_tobias: `Welcome ${first}! So glad you found us. Anything you want to know before Saturday?`,
-    p_lina: `Hey ${first}! Saw you peeking — Vol. 4's shaping up beautifully, would love to have you back. Want me to hold you a spot?`,
-    p_nadia: `Same energy, even better view this time. Here's the link — ${first}, would love to have you: pullup.se/e/sunset-vol-4`,
-    p_marcus: `Hey ${first}! Doing another rooftop night Saturday — your kind of crowd. Want the details?`,
-  };
-  if (bespoke[person.id]) return bespoke[person.id];
-  // Real person: draft from the move, in the host's hands to edit.
+  // Draft from the move, in the host's hands to edit.
   const m = (person.move || "").toLowerCase();
   if (m.includes("offer")) return `Hey ${first} — a spot just opened up. Want it? 🙌`;
   if (m.includes("reconnect") || m.includes("quiet")) return `Hey ${first}! It's been a minute — would love to have you at the next one.`;
@@ -1642,7 +1631,7 @@ function EventPosterCard({ event, focused, selected, onSelect, onHoverOpen, inne
   const live = event.status === "live";
   const isDraft = event.status === "draft";
   const pct = event.capacity ? Math.min(1, event.comingCount / event.capacity) : 0;
-  const short = event.title.replace("Sunset Rooftop · ", "");
+  const short = event.title;
   const fallback = event.poster || gradientFor(event.id);
   const pillBg = isDraft ? "rgba(180,83,9,0.85)" : live ? "rgba(22,163,74,0.85)" : "rgba(0,0,0,0.45)";
   const pillLabel = isDraft ? "Draft" : live ? "Live" : "Past";

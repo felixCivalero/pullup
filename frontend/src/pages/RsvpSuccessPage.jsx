@@ -181,24 +181,16 @@ export function RsvpSuccessPage() {
     }
   }, [storedPayment]);
 
-  // Pre-store the email they RSVP'd with so the at-event door is one tap: when
-  // they scan the host's live code, /p/:eventId pre-fills this and they're in.
-  // Re-entry to the room (forever, after the event) is keyed off it too. Only
-  // for a confirmed spot — a waitlist isn't a key to the room.
-  // Both confirmed and waitlist are "in" before the event now, so both are a key
-  // to the room — stash the email so the room recognises them.
+  // Both confirmed and waitlist are "in" before the event now, so both forward
+  // into the room. Access there resolves off a verified session (the AuthGate),
+  // never a client-stored email — see the killed ?email= identity bypass.
   const roomBound = booking?.bookingStatus === "CONFIRMED" || booking?.bookingStatus === "WAITLIST";
-  useEffect(() => {
-    if (booking?.email && roomBound) {
-      try { localStorage.setItem("pullup_email", booking.email.trim().toLowerCase()); } catch {}
-    }
-  }, [booking?.email, roomBound]);
 
-  // The Room is the success: a confirmed RSVP is forwarded into the event Room
-  // (pre-event lobby), keyed off the pullup_email we just stored. We still render
-  // this page first for the paths that need it — a paid Stripe return (verify,
-  // then forward) and payment errors hold here; a waitlist has no room key and
-  // stays. Old /e/:slug/success bookmarks for confirmed spots forward too.
+  // The Room is the success: a confirmed/waitlist RSVP is forwarded into the
+  // event Room (pre-event lobby). We still render this page first for the paths
+  // that need it — a paid Stripe return (verify, then forward) and payment
+  // errors hold here. Old /e/:slug/success bookmarks for confirmed spots forward
+  // too; the room's own gate decides who actually gets in.
   useEffect(() => {
     if (roomBound && event?.id && !verifying && !verifyError) {
       navigate(`/events/${event.id}/room`, { replace: true });

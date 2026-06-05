@@ -46,7 +46,6 @@ import HostCheckinPage from "./pages/HostCheckinPage";
 import NodeProfilePage from "./pages/NodeProfilePage";
 import { ViewAsBar } from "./components/admin/ViewAsBar.jsx";
 import { SettingsPage } from "./pages/SettingsPage";
-import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
 import { DiscoverPage } from "./pages/DiscoverPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
@@ -59,7 +58,6 @@ import { PrivacyPage } from "./pages/PrivacyPage";
 import { TermsPage } from "./pages/TermsPage";
 import { CookiesPage } from "./pages/CookiesPage";
 import { HostAnalyticsPage } from "./pages/HostAnalyticsPage";
-import { ContentPlannerPage } from "./pages/ContentPlannerPage";
 import { OAuthAuthorizePage } from "./pages/OAuthAuthorizePage";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { WhatsappVerifyPage } from "./pages/WhatsappVerifyPage";
@@ -159,7 +157,9 @@ function App() {
           />
           <Route path="/events" element={<Navigate to="/room" replace />} />
           <Route path="/analytics" element={<HostAnalyticsPage />} />
-          <Route path="/planner" element={<ContentPlannerPage />} />
+          {/* Content Planner is PAUSED (superseded by The Room). The page +
+              backend still exist on disk; the route is pulled so it can't ship
+              as a reachable URL. Re-add this line to resume the work. */}
           {/* Host CRM composer / email campaigns were removed — relationships
               live in the Room now, and the platform no longer sends styled mass
               email. Redirect old links so they land on the Room, not a 404. */}
@@ -180,7 +180,6 @@ function App() {
           {/* Backwards-compat: /home used to point at the events dashboard;
               now it lands on the Room like everything else. */}
           <Route path="/home" element={<Navigate to="/room" replace />} />
-          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/app/events/:id/edit" element={<CreateEventPage key="edit" />} />
           <Route path="/events/:slug/success" element={<EventSuccessPage />} />

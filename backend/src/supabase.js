@@ -6,7 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 
 // Load environment variables (if not already loaded by index.js or a script).
-dotenv.config();
+// override:true — .env wins over PM2's baked-in env (see index.js note).
+dotenv.config({ override: true });
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;

@@ -153,9 +153,12 @@ import {
   setOauthCorsHeaders,
 } from "./oauth/routes.js";
 
-// Load environment variables once. NODE_ENV can come from the process
-// (PM2, npm scripts) or from .env.
-dotenv.config();
+// Load environment variables once. override:true makes .env authoritative —
+// PM2 bakes a snapshot of env into ~/.pm2/dump.pm2 and re-injects it on every
+// restart, and plain dotenv.config() will NOT replace an already-set var. That
+// silently pinned a rotated RESEND_API_KEY to the stale value. .env is our
+// source of truth, so let it win.
+dotenv.config({ override: true });
 
 // Determine environment mode (supports NODE_ENV set via env or .env)
 const nodeEnv = process.env.NODE_ENV || "development";

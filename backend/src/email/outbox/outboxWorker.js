@@ -30,6 +30,39 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Public base the tracking pixel / click-redirect resolve against. Mirrors the
+// VIP-invite path in index.js: prod routes through nginx /api/ to the backend.
+function trackingBaseUrl() {
+  if (process.env.NODE_ENV !== "production") return "http://localhost:3001";
+  return `${process.env.FRONTEND_URL || "https://pullup.se"}/api`;
+}
+
+// Inject open-pixel + click-redirect tracking into a row's HTML at send time,
+// for EVERY email (previously only the VIP invite path did this, so opens/
+// clicks were invisible for confirmations, reminders, waitlist + room mail).
+// Guarded: the VIP path pre-injects and persists tracked HTML, so we skip any
+// body that already carries the open pixel to avoid double-wrapping links.
+// Never throws — a tracking failure must not block the actual send.
+async function withTracking(row) {
+  const html = row.html_body;
+  if (!html || !row.tracking_id) return html;
+  if (html.includes("/t/o/")) return html; // already tracked (e.g. VIP)
+  try {
+    const { addTracking } = await import("../tracking/linkRewriter.js");
+    return addTracking(html, {
+      trackingId: row.tracking_id,
+      baseUrl: trackingBaseUrl(),
+      campaignTag: row.campaign_tag || null,
+    });
+  } catch (err) {
+    console.error("[outboxWorker] tracking injection failed", {
+      id: row.id,
+      error: err?.message,
+    });
+    return html;
+  }
+}
+
 function isTransientError(error) {
   const status =
     error?.$metadata?.httpStatusCode || error?.statusCode || error?.status;
@@ -127,11 +160,13 @@ export async function processBatch({
         sendEmailFn = sendEmailViaResend;
       }
 
+      const htmlToSend = await withTracking(row);
+
       const result = await sendEmailFn({
         from: row.from_email,
         to: row.to_email,
         subject: row.subject,
-        html: row.html_body,
+        html: htmlToSend,
         text: row.text_body,
         tags: {
           outbox_id: row.id,

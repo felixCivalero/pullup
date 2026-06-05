@@ -103,6 +103,13 @@ const optionButtonStyle = (t, { muted = false, disabled = false } = {}) => ({
   transition: "background 0.15s ease",
 });
 
+// WhatsApp login rides on the auth_whatsapp_otp template, which Meta hasn't
+// approved yet — so the OTP send hard-fails ("Couldn't send a WhatsApp code").
+// Keep the button visible but inert ("Coming soon") until then. Flip the env
+// flag to VITE_WHATSAPP_LOGIN_ENABLED=true the moment the template is approved.
+const WHATSAPP_LOGIN_ENABLED =
+  import.meta.env.VITE_WHATSAPP_LOGIN_ENABLED === "true";
+
 // grid-rows 0fr↔1fr gives a clean height collapse/expand with no JS
 // measuring. Paired with overflow:hidden on the inner wrapper.
 const collapsible = (open) => ({
@@ -355,21 +362,30 @@ export function AuthCard({
             <span>Continue with Google</span>
           </button>
 
-          {/* WhatsApp — native Supabase phone OTP, code delivered over WhatsApp. */}
+          {/* WhatsApp — native Supabase phone OTP, code delivered over WhatsApp.
+              Inert until Meta approves the auth template (see WHATSAPP_LOGIN_ENABLED). */}
           <button
             type="button"
-            onClick={openWa}
-            disabled={signingIn}
-            style={optionButtonStyle(t)}
+            onClick={WHATSAPP_LOGIN_ENABLED ? openWa : undefined}
+            disabled={signingIn || !WHATSAPP_LOGIN_ENABLED}
+            title={WHATSAPP_LOGIN_ENABLED ? undefined : "Coming soon"}
+            style={optionButtonStyle(t, {
+              muted: !WHATSAPP_LOGIN_ENABLED,
+              disabled: !WHATSAPP_LOGIN_ENABLED,
+            })}
             onMouseEnter={(e) => {
+              if (!WHATSAPP_LOGIN_ENABLED) return;
               e.currentTarget.style.background = t.optionHoverBg;
             }}
             onMouseLeave={(e) => {
+              if (!WHATSAPP_LOGIN_ENABLED) return;
               e.currentTarget.style.background = t.optionBg;
             }}
           >
             <FaWhatsapp size={18} color="#25D366" />
-            <span>Continue with WhatsApp</span>
+            <span>
+              Continue with WhatsApp{WHATSAPP_LOGIN_ENABLED ? "" : " · Coming soon"}
+            </span>
           </button>
 
           <button

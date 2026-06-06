@@ -58,11 +58,14 @@ export const IG_APP_SECRET =
 
 // Scopes requested at connect. The two manage_* scopes are App-Review-gated
 // (work for app-role accounts in Dev Mode meanwhile).
-// Scope names must match the app's "Add required messaging permissions" list
-// exactly (dashboard → API setup with Instagram login → step 1).
+// IMPORTANT: the authorize endpoint requires the `instagram_business_*` scope
+// names (e.g. instagram_business_manage_comments). Meta's dashboard "permissions"
+// list confusingly shows the legacy `instagram_manage_comments` name, but passing
+// that to /oauth/authorize is rejected as "Invalid platform app". Source of truth
+// is the dashboard's "Set up Instagram business login" → Embed URL.
 export const IG_SCOPES = (
   process.env.IG_SCOPES ||
-  "instagram_business_basic,instagram_manage_comments,instagram_business_manage_messages"
+  "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments"
 )
   .split(",")
   .map((s) => s.trim())

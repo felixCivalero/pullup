@@ -106,24 +106,63 @@ async function handleComment(value, igAccountId) {
   }
 }
 
+// A human-readable preview for a media-only DM (the thread/timeline label).
+function describeAttachments(attachments) {
+  if (!Array.isArray(attachments) || !attachments.length) return null;
+  const label = {
+    image: "[Photo]", video: "[Video]", audio: "[Voice message]",
+    file: "[File]", share: "[Shared post]", story_mention: "[Story mention]",
+    reel: "[Reel]", ig_reel: "[Reel]", like_heart: "[❤️]",
+  }[attachments[0]?.type] || `[${attachments[0]?.type || "media"}]`;
+  return attachments.length > 1 ? `${label} +${attachments.length - 1}` : label;
+}
+
+// Persist everything IG told us about the sender. name + handle mirror onto the
+// flat columns (only filling gaps — never clobber a name the host already set);
+// the full snapshot (pic, followers, follow-state, fetched_at) lands in
+// people.ig_profile.
+async function enrichPersonFromIgProfile(personId, igProfile) {
+  if (!personId || !igProfile) return;
+  try {
+    const { supabase } = await import("../../supabase.js");
+    const { data: existing } = await supabase
+      .from("people").select("name, instagram").eq("id", personId).maybeSingle();
+    const patch = {
+      ig_profile: { ...igProfile, fetched_at: new Date().toISOString() },
+      updated_at: new Date().toISOString(),
+    };
+    if (!existing?.name && (igProfile.name || igProfile.username)) {
+      patch.name = igProfile.name || igProfile.username;
+    }
+    if (!existing?.instagram && igProfile.username) patch.instagram = igProfile.username;
+    await supabase.from("people").update(patch).eq("id", personId);
+  } catch (e) {
+    logger?.warn?.("[instagram/webhook] person enrich failed", { err: e.message });
+  }
+}
+
 /**
- * An inbound DM (or postback). Opens/refreshes the 24h IG messaging window
- * for this person — the IG analogue of upsertThreadFromMessage() for WhatsApp.
+ * An inbound DM. Opens/refreshes the IG messaging window for this person and
+ * captures everything the interaction carries:
+ *   • webhook message: { mid, text, attachments[], reply_to, timestamp }
+ *   • the sender's profile (name, username, pic, follower_count, follow-state)
+ *     via the User Profile API — the webhook only gives us the IGSID.
  *
- * messaging shape: { sender: { id }, recipient: { id }, message: { mid, text } }
- *
- * TODO (needs token + connect flow):
- *   1. Resolve host (recipient.id → instagram_connections) + person (sender.id → people.ig_user_id).
- *   2. Persist inbound message; upsert the IG conversation thread + window.
- *   3. STOP/opt-out handling, mirroring the WhatsApp handler.
+ * messaging shape: { sender:{id}, recipient:{id}, timestamp,
+ *                    message:{ mid, text, attachments[], is_echo, reply_to } }
  */
 async function handleMessaging(messagingEvent, igAccountId) {
   const senderId = messagingEvent?.sender?.id;
-  const text = messagingEvent?.message?.text || "";
-  const isEcho = !!messagingEvent?.message?.is_echo;
+  const msg = messagingEvent?.message || {};
+  const text = msg.text || "";
+  const attachments = Array.isArray(msg.attachments) ? msg.attachments : [];
+  const isEcho = !!msg.is_echo;
   logger?.info?.("[instagram/webhook] message received", {
-    igAccountId, from: senderId, hasText: !!text, isEcho,
+    igAccountId, from: senderId, hasText: !!text, attachments: attachments.length, isEcho,
   });
+  // Full raw envelope — so we can SEE exactly what Meta sends, and so nothing
+  // is lost even before we model a field. (Low volume: one line per inbound DM.)
+  logger?.info?.("[instagram/webhook] raw messaging event", { event: messagingEvent });
   // Skip our own outbound echoes + malformed/self events.
   if (isEcho || !senderId || String(senderId) === String(igAccountId)) return;
 
@@ -136,23 +175,42 @@ async function handleMessaging(messagingEvent, igAccountId) {
       return;
     }
 
-    // 2. Resolve (or mint) the person by their IGSID — binds the IG identity.
+    // 2. Fetch the sender's profile (username/name/pic/followers) — the webhook
+    //    has none of it. Best-effort: a failure must not drop the message.
+    let igProfile = null;
+    try {
+      const { fetchUserProfile } = await import("../providers/igGraphClient.js");
+      igProfile = await fetchUserProfile({ igsid: String(senderId), accessToken: creds.accessToken });
+      logger?.info?.("[instagram/webhook] sender profile", { igProfile });
+    } catch (e) {
+      logger?.warn?.("[instagram/webhook] profile fetch failed", { igsid: String(senderId), err: e.message });
+    }
+
+    // 3. Resolve (or mint) the person by their IGSID — seed name + handle on create.
     const { resolvePersonByIdentity } = await import("../../services/personResolution.js");
     const { personId } = await resolvePersonByIdentity({
       identifiers: { igUserId: String(senderId) },
-      profile: { acquisition_channel: "ig_dm" },
+      profile: {
+        acquisition_channel: "ig_dm",
+        name: igProfile?.name || igProfile?.username || null,
+        instagram: igProfile?.username || null,
+      },
       source: "ig",
     });
     if (!personId) return;
 
-    // 3. Open/refresh the 24h IG window + log the inbound to the timeline.
+    // 4. Store the full profile snapshot (+ backfill name/handle for existing people).
+    await enrichPersonFromIgProfile(personId, igProfile);
+
+    // 5. Open/refresh the IG window + log the inbound, keeping all message fields.
+    const preview = text || describeAttachments(attachments) || "[media]";
     const { upsertThreadFromMessage } = await import("../repos/instagramThreadsRepo.js");
     await upsertThreadFromMessage({
       personId,
       hostProfileId: creds.hostProfileId,
       igUserId: String(senderId),
       direction: "inbound",
-      preview: text || "[media]",
+      preview,
     });
 
     const { logPersonEvent } = await import("../../services/personTimeline.js");
@@ -162,8 +220,15 @@ async function handleMessaging(messagingEvent, igAccountId) {
       type: "message_in",
       channel: "instagram",
       direction: "in",
-      body: text || "[media]",
-      metadata: { source: "instagram_webhook", igAccountId },
+      body: text || preview,
+      metadata: {
+        source: "instagram_webhook",
+        igAccountId,
+        mid: msg.mid || null,
+        attachments: attachments.map((a) => ({ type: a?.type || null, url: a?.payload?.url || null })),
+        reply_to: msg.reply_to || null,
+        ig_timestamp: messagingEvent?.timestamp || null,
+      },
     }).catch(() => {});
   } catch (err) {
     logger?.error?.("[instagram/webhook] inbound DM handling error", { err: err.message });

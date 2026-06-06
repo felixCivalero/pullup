@@ -114,6 +114,35 @@ export async function fetchAccount(accessToken) {
 }
 
 /**
+ * Fetch a MESSAGE SENDER's public profile by their Instagram-scoped id (IGSID),
+ * using the connected host's token. This is the only way to get a name/username/
+ * picture for an inbound DM — the messaging webhook carries just the IGSID.
+ * Requires `instagram_business_manage_messages`; consent is implied by the DM.
+ * Returns a normalized snapshot (null fields where IG didn't supply one).
+ */
+export async function fetchUserProfile({ igsid, accessToken }) {
+  if (IG_SANDBOX_MODE) {
+    return {
+      id: String(igsid), username: "sandbox_user", name: "Sandbox User",
+      profilePic: null, followerCount: 0,
+      isUserFollowBusiness: false, isBusinessFollowUser: false,
+    };
+  }
+  const fields = "name,username,profile_pic,follower_count,is_user_follow_business,is_business_follow_user";
+  const url = `${IG_GRAPH_HOST}/${META_GRAPH_VERSION}/${igsid}?fields=${fields}&access_token=${encodeURIComponent(accessToken)}`;
+  const json = await getJson(url);
+  return {
+    id: String(igsid),
+    username: json.username || null,
+    name: json.name || null,
+    profilePic: json.profile_pic || null,
+    followerCount: typeof json.follower_count === "number" ? json.follower_count : null,
+    isUserFollowBusiness: json.is_user_follow_business ?? null,
+    isBusinessFollowUser: json.is_business_follow_user ?? null,
+  };
+}
+
+/**
  * Send a DM from the connected IG account to a recipient (by IGSID).
  * Used both for direct DMs and as the delivery for a private reply.
  * `igUserId` is the sender (the host's connected account).

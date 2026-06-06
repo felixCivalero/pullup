@@ -22,7 +22,7 @@
 import crypto from "node:crypto";
 import {
   IG_VERIFY_TOKEN,
-  META_APP_SECRET,
+  IG_APP_SECRET,
   IG_SANDBOX_MODE,
 } from "../config.js";
 import { handleCommentEvent } from "../commentTriggers.js";
@@ -49,12 +49,16 @@ export function handleIgWebhookVerification(req, res) {
 }
 
 /**
- * Constant-time HMAC-SHA256 over the raw body, using the shared Meta app
- * secret. Meta sends `X-Hub-Signature-256: sha256=<hex>`.
+ * Constant-time HMAC-SHA256 over the raw body, using the INSTAGRAM app's
+ * secret (IG_APP_SECRET) — NOT META_APP_SECRET. The IG webhook is the
+ * `pullup dm` app; the WhatsApp webhook is the separate `pullup.se` app, and
+ * it owns META_APP_SECRET. Signing both with one secret would reject one
+ * channel's events. IG_APP_SECRET falls back to META_APP_SECRET in config,
+ * so single-app setups still work. Meta sends `X-Hub-Signature-256: sha256=<hex>`.
  */
 function isValidSignature(rawBody, signatureHeader) {
   if (IG_SANDBOX_MODE) return true; // skip in dev/sandbox
-  if (!META_APP_SECRET) return false;
+  if (!IG_APP_SECRET) return false;
   if (!signatureHeader || !rawBody) return false;
 
   const prefix = "sha256=";
@@ -62,7 +66,7 @@ function isValidSignature(rawBody, signatureHeader) {
 
   const expected = signatureHeader.slice(prefix.length);
   const computed = crypto
-    .createHmac("sha256", META_APP_SECRET)
+    .createHmac("sha256", IG_APP_SECRET)
     .update(rawBody)
     .digest("hex");
 

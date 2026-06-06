@@ -197,6 +197,8 @@ export async function mapEventFromDb(dbEvent) {
     adminTags: Array.isArray(dbEvent.admin_tags) ? dbEvent.admin_tags : [],
     formFields: dbEvent.form_fields || [],
     contactChannel: dbEvent.contact_channel || "email",
+    requirePhone: dbEvent.require_phone || false,
+    requireInstagram: dbEvent.require_instagram || false,
     hideLocation: dbEvent.hide_location || false,
     hideDate: dbEvent.hide_date || false,
     instantWaitlist: dbEvent.instant_waitlist || false,
@@ -743,6 +745,8 @@ function mapEventToDb(eventData) {
   if (eventData.sections !== undefined) dbData.sections = eventData.sections;
   if (eventData.formFields !== undefined) dbData.form_fields = eventData.formFields;
   if (eventData.contactChannel !== undefined) dbData.contact_channel = eventData.contactChannel;
+  if (eventData.requirePhone !== undefined) dbData.require_phone = eventData.requirePhone;
+  if (eventData.requireInstagram !== undefined) dbData.require_instagram = eventData.requireInstagram;
   if (eventData.hideLocation !== undefined) dbData.hide_location = eventData.hideLocation;
   if (eventData.hideDate !== undefined) dbData.hide_date = eventData.hideDate;
   if (eventData.instantWaitlist !== undefined) dbData.instant_waitlist = eventData.instantWaitlist;

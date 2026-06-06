@@ -2711,6 +2711,15 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         const trimmed = typeof val === "string" ? val.trim() : "";
         if (trimmed) resolvedCustomAnswers[f.id] = trimmed.slice(0, 1000);
       }
+      // Enforce host-required anchors server-side. Name + Email are validated
+      // elsewhere; WhatsApp + Instagram are required only when the host opted in.
+      // A verified IG entry (igUid present) satisfies the Instagram requirement.
+      if (eventForFields?.requirePhone && !(phone && String(phone).trim())) {
+        return res.status(400).json({ error: "missing_required_fields", message: "WhatsApp number is required", fields: ["phone"] });
+      }
+      if (eventForFields?.requireInstagram && !igUid && !(instagram && String(instagram).trim())) {
+        return res.status(400).json({ error: "missing_required_fields", message: "Instagram is required", fields: ["instagram"] });
+      }
     }
 
     // For waitlist upgrades, use existing RSVP details (all fields locked)

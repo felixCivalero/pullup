@@ -123,6 +123,9 @@ import {
 import {
   handleIgWebhookVerification,
   handleIgWebhookDelivery,
+  handleIgDeauthorize,
+  handleIgDataDeletion,
+  handleIgDataDeletionStatus,
 } from "./instagram/webhooks/metaIgWebhook.js";
 import {
   startInstagramConnect,
@@ -1169,6 +1172,10 @@ app.post("/webhooks/whatsapp", handleWhatsappWebhookDelivery);
 // strips /api): https://pullup.se/api/webhooks/instagram
 app.get("/webhooks/instagram", handleIgWebhookVerification);
 app.post("/webhooks/instagram", handleIgWebhookDelivery);
+// App-management callbacks (Meta signed_request) — required to publish the app.
+app.post("/webhooks/instagram/deauthorize", handleIgDeauthorize);
+app.post("/webhooks/instagram/data-deletion", handleIgDataDeletion);
+app.get("/webhooks/instagram/data-deletion/status", handleIgDataDeletionStatus);
 
 // ---------------------------
 // INSTAGRAM CONNECT (per-host OAuth — PullUp as client to Meta)

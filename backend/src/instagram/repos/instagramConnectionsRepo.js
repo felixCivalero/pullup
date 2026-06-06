@@ -222,3 +222,20 @@ export async function markConnectionStatus(igUserId, status) {
     .update({ status, updated_at: new Date().toISOString() })
     .eq("ig_user_id", String(igUserId));
 }
+
+/**
+ * Hard-delete the stored connection for an IG account — Meta's data-deletion
+ * callback. The connection row holds the credential/PII we obtained via the IG
+ * platform (encrypted token + IG id/username), so removing it is the meaningful
+ * deletion. Idempotent: a no-op if nothing is stored.
+ */
+export async function deleteByIgUserId(igUserId) {
+  const { error } = await supabase
+    .from("instagram_connections")
+    .delete()
+    .eq("ig_user_id", String(igUserId));
+  if (error) {
+    logger?.error?.("[instagramConnectionsRepo] delete failed", { error: error.message });
+    throw error;
+  }
+}

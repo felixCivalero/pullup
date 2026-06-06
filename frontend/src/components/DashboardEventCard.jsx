@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaInstagram, FaTiktok, FaFacebookF, FaXTwitter, FaLinkedinIn } from "react-icons/fa6";
-import { Users, Link2, Check, Link as LinkIcon, Share, ChevronRight, Megaphone, Trash2 } from "lucide-react";
+import { Users, Link2, Check, Link as LinkIcon, Share, ChevronRight, Megaphone, Trash2, Copy } from "lucide-react";
 import { getEventShareUrl } from "../lib/urlUtils";
 import { formatReadableDateTime } from "../lib/dateUtils.js";
 import { useToast } from "./Toast";
@@ -31,7 +31,7 @@ const shareChannels = [
   { key: "direct", icon: LinkIcon, color: colors.textMuted, label: "Direct link" },
 ];
 
-export function DashboardEventCard({ event, onPreview, onManage, onDelete, index = 0 }) {
+export function DashboardEventCard({ event, onPreview, onManage, onDelete, onDuplicate, index = 0 }) {
   const status = getEventStatus(event);
   const isLive = status === "ongoing";
   const navigate = useNavigate();
@@ -40,6 +40,7 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
   const [showShare, setShowShare] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const { showToast } = useToast();
 
   const canManageHosts = event.myRole === "owner" || event.myRole === "admin";
@@ -310,6 +311,37 @@ export function DashboardEventCard({ event, onPreview, onManage, onDelete, index
                   <span>{btn.label}</span>
                 </button>
               ))}
+
+              {/* Duplicate → fresh draft, host just changes name + date */}
+              {onDuplicate && (
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (duplicating) return;
+                    setDuplicating(true);
+                    try { await onDuplicate(event.id); }
+                    finally { setDuplicating(false); }
+                  }}
+                  disabled={duplicating}
+                  style={{
+                    padding: "6px 14px", borderRadius: "999px",
+                    border: `1px solid ${colors.border}`,
+                    background: colors.surface,
+                    color: colors.textMuted,
+                    fontWeight: 500, fontSize: "12px",
+                    cursor: duplicating ? "default" : "pointer",
+                    opacity: duplicating ? 0.6 : 1,
+                    transition: "all 0.2s ease",
+                    display: "flex", alignItems: "center", gap: "5px",
+                  }}
+                  onMouseEnter={(e) => { if (!duplicating) { e.currentTarget.style.background = colors.surfaceMuted; e.currentTarget.style.color = colors.text; } }}
+                  onMouseLeave={(e) => { if (!duplicating) { e.currentTarget.style.background = colors.surface; e.currentTarget.style.color = colors.textMuted; } }}
+                  title="Duplicate as a new draft"
+                >
+                  <Copy size={12} />
+                  <span>{duplicating ? "Duplicating…" : "Duplicate"}</span>
+                </button>
+              )}
               </>
               )}
 

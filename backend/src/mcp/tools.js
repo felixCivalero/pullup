@@ -1415,32 +1415,15 @@ function buildHandlers(api, hostId) {
 
   async function duplicateEvent(args) {
     const src = await resolveEventBySlug(args.slug);
-    // Pull the full event so we copy theme, sections, settings — not just
-    // top-level fields. The host expects "duplicate" to mean an editable
-    // clone, not a stripped skeleton.
-    const full = await api("GET", `/host/events/${src.id}`);
-
-    const newStartsAt = args.startsAt
-      || (full.startsAt
-        ? new Date(new Date(full.startsAt).getTime() + 7 * 86400000).toISOString()
-        : new Date(Date.now() + 7 * 86400000).toISOString());
-    const newTitle = args.title || `${full.title} (copy)`;
-
-    // Strip identity / lifecycle fields so POST starts a new record.
-    const {
-      id, slug, hostId, createdAt, updatedAt,
-      stripeProductId, stripePriceId,
-      ...rest
-    } = full;
-
-    const payload = {
-      ...rest,
-      title: newTitle,
-      startsAt: newStartsAt,
-      status: "DRAFT", // Always land as DRAFT so the host previews before going live.
-    };
-
-    const created = await api("POST", "/events", { body: payload });
+    // Delegate to the shared duplicate endpoint so chat and the dashboard button
+    // behave identically — same clone semantics (theme, sections, settings,
+    // location pin, AND the media gallery), always landing as a DRAFT. Optional
+    // title/startsAt overrides ride through; they default server-side otherwise.
+    const { event: created } = await api(
+      "POST",
+      `/host/events/${src.id}/duplicate`,
+      { body: { title: args.title, startsAt: args.startsAt } },
+    );
 
     return toolResultText(
       eventBanner({
@@ -1448,7 +1431,7 @@ function buildHandlers(api, hostId) {
         status: "DRAFT",
         previewUrl: editUrlForEventId(created.id),
         rsvpsUrl: rsvpsDashboardForId(created.id),
-        note: `Duplicated from "${full.title}". Update or publish when ready.`,
+        note: `Duplicated from "${src.title || src.slug}". Update or publish when ready.`,
       })
     );
   }

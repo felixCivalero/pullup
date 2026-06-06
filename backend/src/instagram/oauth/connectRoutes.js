@@ -151,12 +151,11 @@ function buildInstagramAuthorizeUrl(hostProfileId, req) {
     const cbBase = IG_OAUTH_REDIRECT_URI || `${req?.protocol}://${req?.get("host")}/oauth/instagram/callback`;
     return `${cbBase}?code=sbx-code&state=${encodeURIComponent(state)}`;
   }
-  // Instagram Business Login (Instagram API with Instagram Login) REQUIRES
-  // enable_fb_login=0 — without it Instagram routes to the Facebook-login
-  // (first_party) path and rejects with "Invalid platform app". force_authentication=1
-  // makes the user re-auth so a wrong logged-in account can be switched.
+  // Match Meta's own "Set up Instagram business login" Embed URL format:
+  // force_reauth=true makes the user re-auth so a wrong logged-in account can be
+  // switched. (The "Invalid platform app" error was a bad scope name, not a param.)
   return (
-    `${IG_AUTHORIZE_URL}?enable_fb_login=0&force_authentication=1` +
+    `${IG_AUTHORIZE_URL}?force_reauth=true` +
     `&client_id=${encodeURIComponent(IG_APP_ID)}` +
     `&redirect_uri=${encodeURIComponent(IG_OAUTH_REDIRECT_URI)}` +
     `&response_type=code` +

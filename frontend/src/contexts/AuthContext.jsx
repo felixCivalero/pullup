@@ -22,20 +22,59 @@ export function AuthProvider({ children }) {
       hash.includes("refresh_token") ||
       search.includes("code=");
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      // Only resolve loading if there are no pending OAuth tokens to process
-      if (!hasOAuthTokens || session) {
-        setLoading(false);
+    // Resolve the initial session — but VALIDATE it before trusting it.
+    // getSession() only reads localStorage; it never asks the server whether
+    // the token is still good. A session revoked elsewhere (global sign-out,
+    // password change, long absence) still sits in localStorage with an
+    // unexpired-but-dead access token. Trusting it sets `user` truthy, which
+    // mounts every authenticated component at once → a 401 storm against the
+    // API, and each 401 fires a doomed logout (403) — the console mess on a
+    // stale /r/:id load. Our backend validates tokens server-side
+    // (supabase.auth.getUser), so the frontend must do the same to agree.
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      // During an OAuth round-trip the fresh, server-issued session arrives via
+      // onAuthStateChange — stay optimistic and let the listener resolve it.
+      if (hasOAuthTokens) {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session) setLoading(false);
+        return;
       }
+
+      if (!session) {
+        setSession(null);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      const { data: { user: validUser }, error } = await supabase.auth.getUser();
+      if (validUser) {
+        setSession(session);
+        setUser(validUser);
+      } else if (error && (error.status === 401 || error.status === 403)) {
+        // Definitively dead — drop it locally so the token stops being sent.
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        setSession(null);
+        setUser(null);
+      } else {
+        // Transient (network/server) error — don't nuke a possibly-valid
+        // session. Fall back to optimistic; api.js clears it if the backend
+        // later rejects it.
+        setSession(session);
+        setUser(session?.user ?? null);
+      }
+      setLoading(false);
     });
 
-    // Listen for auth changes (fires after OAuth tokens are processed)
+    // Listen for auth changes (fires after OAuth tokens are processed).
+    // Skip INITIAL_SESSION: it carries the same unvalidated cached session the
+    // block above owns (with validation), so honoring it here would re-set a
+    // dead `user` and bring the storm right back.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION") return;
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);

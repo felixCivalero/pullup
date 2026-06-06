@@ -19,11 +19,8 @@
 // available yet" rather than pretend to send.
 
 import { findPersonById, personBelongsToHost, getUserProfile } from "../data.js";
-import { enqueueOutbox } from "../email/index.js";
 import { SES_FROM_EMAIL } from "../email/config.js";
 import { logPersonEvent } from "./personTimeline.js";
-import { sendText } from "../whatsapp/index.js";
-import { isConversationWindowOpen } from "../whatsapp/repos/whatsappThreadsRepo.js";
 import { dispatch } from "../messaging/dispatch.js";
 import { supabase } from "../supabase.js";
 
@@ -232,125 +229,47 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   const key = () => `room:${hostId}:${personId}:${Date.now()}:${_sendSeq++}`;
   const logArgs = { personId, hostId, body, attachments: atts, event: evt, location: loc };
 
-  // ── WhatsApp rail — only when the person is honestly reachable there. ──
-  const waReachable = !!(person.phone_e164 && person.phone_verified_at);
-  if (channel === "whatsapp" && waReachable) {
-    try {
-      const open = await isConversationWindowOpen({ personId, hostProfileId: hostId });
-      if (open) {
-        // Inside the 24h window: a real, free-text WhatsApp in the host's voice.
-        await sendText({
-          to: person.phone_e164,
-          body: whatsappBody(bodyForText, atts, evt),
-          personId,
-          hostProfileId: hostId,
-          legalBasis: "consent",
-          idempotencyKey: key(),
-        });
-        logRoomEvent({ ...logArgs, channel: "whatsapp" });
-        return { ok: true, channel: "whatsapp" };
-      }
-      // Window closed: the only WhatsApp-legal path is a template. dispatch()
-      // re-checks opt-in/suppression and falls to the email floor if WA can't
-      // deliver (e.g. template not yet Meta-approved) — graceful by design.
-      const sig = ((profile?.whatsappSignature || (fromName ? `It's ${fromName}` : "PullUp")) || "").trim();
-      const r = await dispatch({
-        recipient: {
-          id: personId,
-          email: person.email,
-          phone_e164: person.phone_e164,
-          phone_verified_at: person.phone_verified_at,
-        },
-        hostProfile: profile,
-        whatsapp: {
-          templateKey: "host_broadcast",
-          variables: { host_signature: sig, body: whatsappBody(bodyForText, atts, evt) },
-        },
-        email: {
-          subject: subj,
-          htmlBody,
-          textBody: textBodyWith(bodyForText, atts, evt),
-          category: "transactional",
-        },
-        context: { personId, hostProfileId: hostId, legalBasis: "consent", idempotencyKey: key() },
-      });
-      const used = r.channel === "whatsapp" ? "whatsapp" : "email";
-      logRoomEvent({ ...logArgs, channel: used });
-      return { ok: true, channel: used };
-    } catch {
-      // Any WhatsApp error → fall through to the email floor below.
-    }
-  }
-
-  // ── Instagram rail — in-window live chat ONLY. Meta has no IG message
-  //    templates + a 24h rolling window, so a reply is legal only while the
-  //    window (opened by the guest's inbound DM) is open; otherwise we fall to
-  //    the email floor. Never a "template" on IG. ──
-  const igId = person.ig_user_id || person.igUserId || null;
-  if (channel === "instagram" && igId) {
-    // When the contact has an email we fall through to the email floor on any IG
-    // problem (graceful). When they DON'T (IG-only contact), there's no floor —
-    // so we return the real reason instead of masking it as a confusing
-    // "no_email" 400. Either way we LOG it, so a failure is never silent.
-    const igFailEmailless = (error) => (person.email ? null : { ok: false, error });
-    try {
-      const { isConversationWindowOpen: igWindowOpen, upsertThreadFromMessage: igUpsert } =
-        await import("../instagram/repos/instagramThreadsRepo.js");
-      if (!(await igWindowOpen({ personId, hostProfileId: hostId }))) {
-        // Meta allows a reply only inside the 24h window the guest's inbound DM
-        // opened. Closed → no legal IG send.
-        console.warn("[room] IG window closed", { personId, hostId });
-        const r = igFailEmailless("ig_window_closed");
-        if (r) return r;
-      } else {
-        const { getConnectionForHost, getCredentialsByIgUserId } =
-          await import("../instagram/repos/instagramConnectionsRepo.js");
-        const conn = await getConnectionForHost(hostId);
-        const creds = conn?.ig_user_id ? await getCredentialsByIgUserId(conn.ig_user_id) : null;
-        if (!creds?.accessToken) {
-          console.warn("[room] IG not connected for host", { hostId });
-          const r = igFailEmailless("ig_not_connected");
-          if (r) return r;
-        } else {
-          const { sendMessage } = await import("../instagram/providers/igGraphClient.js");
-          await sendMessage({
-            igUserId: creds.igUserId,
-            accessToken: creds.accessToken,
-            recipientId: igId,
-            text: whatsappBody(bodyForText, atts, evt),
-          });
-          await igUpsert({
-            personId, hostProfileId: hostId, igUserId: igId,
-            direction: "outbound", preview: body || "[media]",
-          });
-          logRoomEvent({ ...logArgs, channel: "instagram" });
-          return { ok: true, channel: "instagram" };
-        }
-      }
-    } catch (e) {
-      console.error("[room] IG send failed:", e?.message || e);
-      const r = igFailEmailless("ig_send_failed");
-      if (r) return r;
-      // else fall through to the email floor below
-    }
-  }
-
-  // ── Email rail (default + fallback). ──
-  if (!person.email) return { ok: false, error: "no_email" };
-  await enqueueOutbox({
-    fromEmail: buildFromHeader(fromName),
-    toEmail: person.email,
-    subject: subj,
-    htmlBody,
-    textBody: textBodyWith(bodyForText, atts, evt),
-    category: "transactional",
-    idempotencyKey: key(),
-    // Host's own message to a guest — make the reply route back to this thread.
-    personId,
-    hostProfileId: hostId,
+  // ── One unified route for every rail. dispatch() owns the channel choice
+  //    and every per-channel constraint — WhatsApp (24h window → free text,
+  //    else approved template; opt-in/suppression), Instagram (24h standard +
+  //    24h–7d human-agent windows, no templates), and the email floor — plus
+  //    graceful fallback. Room messages are always host-typed, so
+  //    humanComposed=true (lets the IG human-agent reply through). ──
+  const sig = ((profile?.whatsappSignature || (fromName ? `It's ${fromName}` : "PullUp")) || "").trim();
+  const liveText = whatsappBody(bodyForText, atts, evt);
+  const r = await dispatch({
+    recipient: {
+      id: personId,
+      email: person.email,
+      phone_e164: person.phone_e164,
+      phone_verified_at: person.phone_verified_at,
+      ig_user_id: person.ig_user_id || person.igUserId || null,
+    },
+    hostProfile: profile,
+    preferredChannel: channel,
+    text: liveText,
+    whatsapp: {
+      templateKey: "host_broadcast",
+      variables: { host_signature: sig, body: liveText },
+    },
+    email: {
+      subject: subj,
+      htmlBody,
+      textBody: textBodyWith(bodyForText, atts, evt),
+      fromEmail: buildFromHeader(fromName),
+      category: "transactional",
+    },
+    humanComposed: true,
+    context: { personId, hostProfileId: hostId, legalBasis: "consent", idempotencyKey: key() },
   });
-  logRoomEvent({ ...logArgs, channel: "email" });
-  return { ok: true, channel: "email" };
+
+  if (r.channel === "suppressed" || r.dropped) {
+    // No rail worked and there's no email floor to catch it — surface the real
+    // reason (e.g. ig window expired / not connected) instead of a vague 400.
+    return { ok: false, error: "undeliverable", reasons: r.reasons };
+  }
+  logRoomEvent({ ...logArgs, channel: r.channel });
+  return { ok: true, channel: r.channel };
 }
 
 /**

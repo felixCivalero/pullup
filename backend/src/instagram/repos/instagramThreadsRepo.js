@@ -8,6 +8,7 @@
 import { supabase } from "../../supabase.js";
 
 const HOURS_24 = 24 * 60 * 60 * 1000;
+const DAYS_7 = 7 * 24 * 60 * 60 * 1000;
 
 export async function fetchByPair({ personId, hostProfileId }) {
   const { data, error } = await supabase
@@ -41,10 +42,15 @@ export async function upsertThreadFromMessage({
 
   let conversation_window_opens_at = existing?.conversation_window_opens_at ?? null;
   let conversation_window_expires_at = existing?.conversation_window_expires_at ?? null;
+  // Never cleared — only an inbound advances it. This anchors the 7-day
+  // human-agent window (see getWindowState), which must survive past the 24h
+  // standard window's expiry.
+  let last_inbound_at = existing?.last_inbound_at ?? null;
 
   if (isInbound) {
     conversation_window_opens_at = at.toISOString();
     conversation_window_expires_at = new Date(at.getTime() + HOURS_24).toISOString();
+    last_inbound_at = at.toISOString();
   } else if (conversation_window_expires_at && new Date(conversation_window_expires_at) < at) {
     conversation_window_opens_at = null;
     conversation_window_expires_at = null;
@@ -59,6 +65,7 @@ export async function upsertThreadFromMessage({
     last_message_direction: direction,
     conversation_window_opens_at,
     conversation_window_expires_at,
+    last_inbound_at,
     updated_at: new Date().toISOString(),
   };
 
@@ -93,4 +100,21 @@ export async function isConversationWindowOpen({ personId, hostProfileId }) {
   const t = await fetchByPair({ personId, hostProfileId });
   if (!t?.conversation_window_expires_at) return false;
   return new Date(t.conversation_window_expires_at) > new Date();
+}
+
+/**
+ * The IG send eligibility for this pair, measured from the guest's last inbound:
+ *   'standard'     — within 24h: any free-text reply is allowed.
+ *   'human_agent'  — 24h–7d: a reply is allowed ONLY with the HUMAN_AGENT tag,
+ *                    and ONLY for a human-composed message (Meta policy).
+ *   'expired'      — beyond 7d (or never any inbound): no IG send is legal.
+ * dispatch() reads this to choose the IG path or fall to the email floor.
+ */
+export async function getWindowState({ personId, hostProfileId }) {
+  const t = await fetchByPair({ personId, hostProfileId });
+  if (!t?.last_inbound_at) return "expired";
+  const elapsed = Date.now() - new Date(t.last_inbound_at).getTime();
+  if (elapsed <= HOURS_24) return "standard";
+  if (elapsed <= DAYS_7) return "human_agent";
+  return "expired";
 }

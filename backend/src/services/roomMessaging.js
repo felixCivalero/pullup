@@ -236,7 +236,11 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   //    graceful fallback. Room messages are always host-typed, so
   //    humanComposed=true (lets the IG human-agent reply through). ──
   const sig = ((profile?.whatsappSignature || (fromName ? `It's ${fromName}` : "PullUp")) || "").trim();
-  const liveText = whatsappBody(bodyForText, atts, evt);
+  // Clean note (body + location + event link, NO attachment URLs) — each rail
+  // composes attachments its own way: IG sends real images, WhatsApp folds the
+  // URLs in, the template carries the folded text. Email embeds them in htmlBody.
+  const cleanText = whatsappBody(bodyForText, [], evt);
+  const foldedText = whatsappBody(bodyForText, atts, evt);
   const r = await dispatch({
     recipient: {
       id: personId,
@@ -247,10 +251,11 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
     },
     hostProfile: profile,
     preferredChannel: channel,
-    text: liveText,
+    text: cleanText,
+    attachments: atts,
     whatsapp: {
       templateKey: "host_broadcast",
-      variables: { host_signature: sig, body: liveText },
+      variables: { host_signature: sig, body: foldedText },
     },
     email: {
       subject: subj,

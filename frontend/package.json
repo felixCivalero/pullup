@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deadfiles": "node scripts/find-dead-files.mjs"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^5.4.1",

@@ -18,7 +18,7 @@
 
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight } from "lucide-react";
+import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight, Copy } from "lucide-react";
 import { useToast } from "../components/Toast";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
@@ -1466,8 +1466,10 @@ function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage
 // confirms inline. This is what removes the "some jump, some pop" confusion.
 function EventActionPanel({ event, arrowLeft, isMobile, tab, onTab, onClose, focused, guestCount = 0, onManage, onFocus, onMessageAll, onDeleted }) {
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [copied, setCopied] = useState(null);
   const isPast = event.status === "past";
   // Banner identity — mirrors the poster card so the panel wears the event.
@@ -1506,6 +1508,17 @@ function EventActionPanel({ event, arrowLeft, isMobile, tab, onTab, onClose, foc
       showToast("Event deleted", "success");
       onDeleted?.();
     } catch { showToast("Could not delete event", "error"); setDeleting(false); }
+  }
+  async function doDuplicate() {
+    if (duplicating) return;
+    setDuplicating(true);
+    try {
+      const res = await authenticatedFetch(`/host/events/${event.id}/duplicate`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.event?.id) { showToast(data.message || "Could not duplicate event", "error"); setDuplicating(false); return; }
+      showToast("Duplicated — change the name and date", "success");
+      navigate(`/app/events/${data.event.id}/edit`); // land in the new draft's editor
+    } catch { showToast("Could not duplicate event", "error"); setDuplicating(false); }
   }
 
   // The bar — mirrors the old dashboard: Manage (filled, the one nav) then the
@@ -1566,6 +1579,10 @@ function EventActionPanel({ event, arrowLeft, isMobile, tab, onTab, onClose, foc
         <Tab id="team" label="Team" />
         {!isPast && <Tab id="vip" label="VIP" />}
         <Tab id="share" label="Share & Track" />
+        <div style={{ width: 1, height: 20, background: colors.border, margin: "0 2px" }} />
+        <button onClick={doDuplicate} disabled={duplicating} title="Duplicate as a new draft" style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12.5px", fontWeight: 600, fontFamily: SF, padding: "7px 14px", borderRadius: "999px", cursor: duplicating ? "default" : "pointer", opacity: duplicating ? 0.6 : 1, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, whiteSpace: "nowrap" }}>
+          <Copy size={13} />{duplicating ? "Duplicating…" : "Duplicate"}
+        </button>
         <div style={{ width: 1, height: 20, background: colors.border, margin: "0 2px" }} />
         <button onClick={() => setConfirmDelete(true)} title="Delete event" style={{ width: 32, height: 32, borderRadius: "999px", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.danger, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Trash2 size={14} />

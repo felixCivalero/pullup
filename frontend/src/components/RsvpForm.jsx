@@ -89,19 +89,18 @@ export function RsvpForm({
   const channel = ["email", "whatsapp", "both"].includes(event?.contactChannel)
     ? event.contactChannel
     : "email";
-  const wantsEmail = channel === "email" || channel === "both";
-  const wantsPhone = channel === "whatsapp" || channel === "both";
-  // The form is now fixed to four fields: Name, Email/WhatsApp (per channel),
-  // and Instagram. Hosts can no longer add custom fields — only verifiable
-  // identity anchors are collected. We build the field list from scratch and
-  // intentionally ignore any legacy event.formFields custom entries.
-  const orderedFields = (() => {
-    const fields = [{ id: NAME_FIELD_ID, type: "name" }];
-    if (wantsEmail) fields.push({ id: EMAIL_FIELD_ID, type: "email" });
-    if (wantsPhone) fields.push({ id: PHONE_FIELD_ID, type: "phone", verify: "whatsapp" });
-    fields.push({ id: INSTAGRAM_FIELD_ID, type: "instagram" });
-    return fields;
-  })();
+  // The form is fixed to four anchors: Name, Email, WhatsApp, Instagram — always
+  // shown. Name + Email are always required; WhatsApp and Instagram are required
+  // only when the host opted in. contactChannel no longer drives the form (it's
+  // not used by comms routing either). Hosts can no longer add custom fields.
+  const requirePhone = !!event?.requirePhone;
+  const requireInstagram = !!event?.requireInstagram;
+  const orderedFields = [
+    { id: NAME_FIELD_ID, type: "name" },
+    { id: EMAIL_FIELD_ID, type: "email" },
+    { id: PHONE_FIELD_ID, type: "phone", verify: "whatsapp" },
+    { id: INSTAGRAM_FIELD_ID, type: "instagram" },
+  ];
   // No host custom fields anymore; kept as [] so the submit handler's loop is a no-op.
   const customFields = [];
 
@@ -246,15 +245,14 @@ export function RsvpForm({
       return;
     }
 
-    // Required custom fields
-    for (const f of customFields) {
-      if (f.required) {
-        const val = (customAnswers[f.id] || "").trim();
-        if (!val) {
-          setError(`${f.label} is required`);
-          return;
-        }
-      }
+    // Host-required anchors (WhatsApp / Instagram are optional unless toggled on).
+    if (requirePhone && !phone.trim()) {
+      setError("WhatsApp number is required");
+      return;
+    }
+    if (requireInstagram && !igEntry.verified && !instagram.trim()) {
+      setError("Instagram is required");
+      return;
     }
 
     if (wantsDinner && !dinnerTimeSlot) {
@@ -282,7 +280,7 @@ export function RsvpForm({
         const result = await onSubmit({
           email: isVipInvite ? (vipOffer.invite?.email || "").trim() : email.trim(),
           name: name.trim() || null,
-          phone: wantsPhone ? phone.trim() : (phone.trim() || null),
+          phone: phone.trim() || null,
           contactChannel: channel,
           plusOnes: cocktailGuests,
           wantsDinner,
@@ -466,11 +464,11 @@ export function RsvpForm({
             return (
               <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                 <label style={fieldLabelStyle}>
-                  Email{wantsEmail && <span style={requiredMarkStyle}>*</span>}
+                  Email<span style={requiredMarkStyle}>*</span>
                 </label>
                 <input
                   type="email"
-                  required={wantsEmail}
+                  required
                   value={email}
                   onChange={(e) => { if (!isVipInvite) { setEmail(e.target.value); setError(""); } }}
                   placeholder="you@example.com"
@@ -495,13 +493,13 @@ export function RsvpForm({
             return (
               <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                 <label style={fieldLabelStyle}>
-                  WhatsApp number<span style={requiredMarkStyle}>*</span>
+                  WhatsApp number{requirePhone && <span style={requiredMarkStyle}>*</span>}
                 </label>
                 <input
                   type="tel"
                   inputMode="tel"
                   autoComplete="tel"
-                  required
+                  required={requirePhone}
                   value={phone}
                   onChange={(e) => { setPhone(e.target.value); setError(""); }}
                   placeholder="+46 70 123 45 67"
@@ -520,7 +518,9 @@ export function RsvpForm({
           if (f.id === INSTAGRAM_FIELD_ID) {
             return (
               <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <label style={fieldLabelStyle}>Instagram</label>
+                <label style={fieldLabelStyle}>
+                  Instagram{requireInstagram && !igEntry.verified && <span style={requiredMarkStyle}>*</span>}
+                </label>
                 {igEntry.verified ? (
                   <div style={{ ...inputStyle, display: "flex", alignItems: "center", gap: "8px", cursor: "default" }}>
                     <span style={{ fontWeight: 500 }}>@{instagram}</span>
@@ -531,7 +531,8 @@ export function RsvpForm({
                     type="text"
                     value={instagram}
                     onChange={(e) => setInstagram(e.target.value.replace(/^@+/, ""))}
-                    placeholder="yourhandle (optional)"
+                    placeholder={requireInstagram ? "yourhandle" : "yourhandle (optional)"}
+                    required={requireInstagram}
                     disabled={loading}
                     autoComplete="off"
                     style={inputStyle}
@@ -540,7 +541,7 @@ export function RsvpForm({
                 <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.45)", paddingLeft: "2px", lineHeight: 1.45 }}>
                   {igEntry.verified
                     ? "Pulled from Instagram — the account you messaged us from."
-                    : "Optional. We'll confirm it automatically if you DM or comment from it."}
+                    : "We'll confirm it automatically if you DM or comment from it."}
                 </div>
               </div>
             );

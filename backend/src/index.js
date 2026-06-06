@@ -2526,6 +2526,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       acquisitionSrc = null, // NEW: entry path (e.g. "ig_comment") from the signup link
       igRef = null, // NEW: the IG object (comment/media id) that drove the signup
       igUid = null, // NEW: the commenter's IGSID, to bind their IG identity
+      instagram = null, // NEW: IG handle — verified (prefilled from an IG entry) or a typed claim
     } = req.body;
 
     if (!email && !vipToken) {
@@ -2699,28 +2700,16 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         : [];
       const incoming =
         customAnswers && typeof customAnswers === "object" ? customAnswers : {};
-      const missing = [];
+      // The form is now fixed to name/email/WhatsApp/Instagram — hosts can no
+      // longer add custom fields. We DON'T enforce required custom fields anymore
+      // (a leftover required field from an old event would otherwise block every
+      // RSVP, since the guest form no longer renders it). We still capture any
+      // answers that happen to arrive, harmlessly, for legacy events.
       for (const f of fields) {
-        if (!f || !f.id) continue;
-        // Skip built-in name/email sentinels — the host event editor inserts
-        // these into form_fields so they show up in the form-fields drag-drop
-        // UI, but their values arrive on the top-level `name` / `email` body
-        // params, not inside customAnswers. Iterating them here previously
-        // produced the bogus "Please fill in: Full name, Email" error.
-        if (f.id.startsWith("__")) continue;
+        if (!f || !f.id || f.id.startsWith("__")) continue;
         const val = incoming[f.id];
         const trimmed = typeof val === "string" ? val.trim() : "";
-        if (f.required && !trimmed) {
-          missing.push(f.label || f.id);
-        }
         if (trimmed) resolvedCustomAnswers[f.id] = trimmed.slice(0, 1000);
-      }
-      if (missing.length > 0) {
-        return res.status(400).json({
-          error: "missing_required_fields",
-          message: `Please fill in: ${missing.join(", ")}`,
-          fields: missing,
-        });
       }
     }
 
@@ -2817,6 +2806,26 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         }
       } catch (e) {
         console.error("[rsvp] acquisition stamp error:", e?.message);
+      }
+    }
+
+    // Instagram handle: store as people.instagram (display/claim). When the
+    // signup carried a verified IGSID (igUid, from an IG entry), the hard
+    // identity is already bound above; this is the human-readable handle. When
+    // it's a typed handle with no igUid, it's an UNVERIFIED claim — a seed that
+    // a later DM/comment can reconcile, never a hard match key. Only fills empty.
+    if (instagram && result?.rsvp?.personId) {
+      try {
+        const handle = String(instagram).trim().replace(/^@+/, "").slice(0, 64);
+        if (handle) {
+          await supabase
+            .from("people")
+            .update({ instagram: handle })
+            .eq("id", result.rsvp.personId)
+            .is("instagram", null);
+        }
+      } catch (e) {
+        console.error("[rsvp] instagram stamp error:", e?.message);
       }
     }
 

@@ -41,12 +41,15 @@ export function matchRule(rules, { text, mediaId }) {
  * the signup handler can set acquisition_channel/acquisition_ref + bind the
  * commenter's IGSID to the new account.
  */
-export function buildSignupLink({ eventSlug, commentId, commenterIgId }) {
+export function buildSignupLink({ eventSlug, commentId, commenterIgId, commenterUsername }) {
   const base = APP_BASE_URL || "https://pullup.se";
   const path = eventSlug ? `/e/${encodeURIComponent(eventSlug)}` : "/join";
   const params = new URLSearchParams({ src: "ig_comment" });
   if (commentId) params.set("ig_ref", commentId);
   if (commenterIgId) params.set("ig_uid", commenterIgId);
+  // The verified handle (Meta gives us from.username on a comment) so the RSVP
+  // form can prefill the Instagram field, read-only — they see what we have.
+  if (commenterUsername) params.set("ig", String(commenterUsername).replace(/^@+/, ""));
   return `${base}${path}?${params.toString()}`;
 }
 
@@ -80,6 +83,7 @@ export async function handleCommentEvent({ igAccountId, comment }) {
     eventSlug: rule.event_slug,
     commentId,
     commenterIgId,
+    commenterUsername,
   });
 
   // Claim the comment FIRST (idempotency). If another delivery already

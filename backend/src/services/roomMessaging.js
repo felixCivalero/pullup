@@ -166,7 +166,7 @@ async function getEventForEmail(eventId) {
 
 const emailHtmlFor = (body, atts, event) => textToHtml(body, atts) + eventCardHtml(event);
 
-function logRoomEvent({ personId, hostId, channel, body, attachments = [], event = null, location = null }) {
+function logRoomEvent({ personId, hostId, channel, body, attachments = [], event = null, location = null, providerMid = null, status = null }) {
   const atts = Array.isArray(attachments) ? attachments : [];
   logPersonEvent({
     personId,
@@ -180,6 +180,8 @@ function logRoomEvent({ personId, hostId, channel, body, attachments = [], event
     metadata: {
       source: "room",
       attachments: atts,
+      ...(status ? { status, sent_at: new Date().toISOString() } : {}),
+      ...(providerMid ? { provider_mid: providerMid } : {}),
       ...(event
         ? {
             event: {
@@ -273,7 +275,9 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
     // reason (e.g. ig window expired / not connected) instead of a vague 400.
     return { ok: false, error: "undeliverable", reasons: r.reasons };
   }
-  logRoomEvent({ ...logArgs, channel: r.channel });
+  // status starts at "sent"; IG read receipts flip it to "read" (foundation for
+  // WhatsApp-style sent → delivered → read ticks, later pushable over a socket).
+  logRoomEvent({ ...logArgs, channel: r.channel, providerMid: r.mid || null, status: "sent" });
   return { ok: true, channel: r.channel };
 }
 

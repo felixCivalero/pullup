@@ -96,6 +96,18 @@ export async function markRead({ threadId }) {
   if (error) throw new Error(`[instagramThreadsRepo] markRead: ${error.message}`);
 }
 
+// The GUEST read our outbound DMs (IG `read` webhook) → stamp the watermark.
+// Outbound bubbles older than this read as "read" (derived, never mutated).
+export async function markUserRead({ personId, hostProfileId, at = new Date() }) {
+  if (!personId || !hostProfileId) return;
+  const { error } = await supabase
+    .from("instagram_threads")
+    .update({ last_read_at: at.toISOString(), updated_at: new Date().toISOString() })
+    .eq("person_id", personId)
+    .eq("host_profile_id", hostProfileId);
+  if (error) console.error("[instagramThreadsRepo] markUserRead:", error.message);
+}
+
 export async function isConversationWindowOpen({ personId, hostProfileId }) {
   const t = await fetchByPair({ personId, hostProfileId });
   if (!t?.conversation_window_expires_at) return false;

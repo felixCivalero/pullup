@@ -382,6 +382,23 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     logger?.warn?.("[roomService] whatsapp window read failed", { error: err?.message });
   }
 
+  // 3c. IG read-receipt watermark per person — outbound DMs older than this
+  // render as "read" (derived from the guest's IG `read` events; the timeline
+  // itself is never mutated). Foundation for sent → read ticks.
+  const igReadByPerson = new Map();
+  try {
+    const { data: igThreads } = await supabase
+      .from("instagram_threads")
+      .select("person_id, last_read_at")
+      .eq("host_profile_id", hostId)
+      .in("person_id", personIds);
+    for (const t of igThreads || []) {
+      if (t.last_read_at) igReadByPerson.set(t.person_id, new Date(t.last_read_at).getTime());
+    }
+  } catch (err) {
+    logger?.warn?.("[roomService] instagram read watermark read failed", { error: err?.message });
+  }
+
   // 4. Events list (content pieces, for the lens + the banner).
   //   status: draft (not published) | live (published, upcoming/ongoing) |
   //           past (published, already happened). Coming counts from rsvps.
@@ -483,7 +500,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       needsYou,
       move,
       lastMessage: lastMessageFrom(evs, eventTitleById),
-      thread: buildThread(evs, eventTitleById),
+      thread: buildThread(evs, eventTitleById, igReadByPerson.get(pid) || null),
     });
   }
 
@@ -687,12 +704,21 @@ function lastMessageFrom(evs, eventTitleById) {
   };
 }
 
-function buildThread(evs, eventTitleById) {
+function buildThread(evs, eventTitleById, igReadAtMs = null) {
   // oldest → newest for the thread view
   return [...evs].reverse().map((e) => {
     const atts = attsOf(e);
     const event = eventOf(e);
     const location = locOf(e);
+    // Delivery status for OUR outbound bubbles (the WhatsApp-style tick). For IG
+    // it's derived from the read watermark; other channels report "sent" for now.
+    // 'in' messages carry no status. Built to extend to delivered / per-channel.
+    let status;
+    if (e.direction === "out") {
+      const isRead = e.channel === "instagram" && igReadAtMs &&
+        e.occurred_at && new Date(e.occurred_at).getTime() <= igReadAtMs;
+      status = isRead ? "read" : (e.metadata?.status || "sent");
+    }
     return {
       from: e.direction === "in" ? "them" : e.direction === "out" ? "you" : "system",
       text: e.body || (atts || event || location ? "" : lineFor(e, eventTitleById)),
@@ -701,6 +727,7 @@ function buildThread(evs, eventTitleById) {
       location, // attached location → clickable address link
       time: relTime(e.occurred_at),
       channel: e.channel || undefined,
+      status, // 'sent' | 'read' (undefined for inbound)
     };
   });
 }

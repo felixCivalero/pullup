@@ -142,6 +142,31 @@ async function enrichPersonFromIgProfile(personId, igProfile) {
 }
 
 /**
+ * The guest read our outbound DM(s) — IG's `read` webhook. Stamp the thread's
+ * read watermark so outbound bubbles can render a "read" tick (derived, never
+ * mutating the append-only timeline). Look the person up — never mint one from
+ * a read receipt.
+ */
+async function handleReadReceipt(messagingEvent, igAccountId) {
+  const senderId = messagingEvent?.sender?.id;
+  if (!senderId || String(senderId) === String(igAccountId)) return;
+  try {
+    const { getCredentialsByIgUserId } = await import("../repos/instagramConnectionsRepo.js");
+    const creds = await getCredentialsByIgUserId(igAccountId);
+    if (!creds?.hostProfileId) return;
+    const { supabase } = await import("../../supabase.js");
+    const { data: person } = await supabase
+      .from("people").select("id").eq("ig_user_id", String(senderId)).maybeSingle();
+    if (!person?.id) return;
+    const { markUserRead } = await import("../repos/instagramThreadsRepo.js");
+    await markUserRead({ personId: person.id, hostProfileId: creds.hostProfileId });
+    logger?.info?.("[instagram/webhook] read receipt", { personId: person.id });
+  } catch (e) {
+    logger?.warn?.("[instagram/webhook] read receipt failed", { err: e.message });
+  }
+}
+
+/**
  * An inbound DM. Opens/refreshes the IG messaging window for this person and
  * captures everything the interaction carries:
  *   • webhook message: { mid, text, attachments[], reply_to, timestamp }
@@ -165,6 +190,12 @@ async function handleMessaging(messagingEvent, igAccountId) {
   logger?.info?.("[instagram/webhook] raw messaging event", { event: messagingEvent });
   // Skip our own outbound echoes + malformed/self events.
   if (isEcho || !senderId || String(senderId) === String(igAccountId)) return;
+  // Read receipts → mark our outbound DMs as read (status foundation), NOT a
+  // message. They arrive on the same `messaging` array with a `read` payload
+  // and no `message` — without this they were logged as a phantom "[media]".
+  if (messagingEvent.read) { await handleReadReceipt(messagingEvent, igAccountId); return; }
+  // Reactions / postbacks / other non-message events also carry no message body.
+  if (!messagingEvent.message) return;
 
   try {
     // 1. Resolve the host whose IG account received the DM.

@@ -41,7 +41,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "submitted",
+    status: "approved",
     body: "Tap to finish on PullUp: {{1}}\nLink expires in 15 minutes.",
     variables: ["link"],
     render: ({ link }) =>
@@ -66,7 +66,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "submitted",
+    status: "approved",
     body: "Your PullUp link: {{1}}\nValid for 15 minutes.",
     variables: ["link"],
     render: ({ link }) =>
@@ -92,7 +92,7 @@ export const TEMPLATES = {
     category: "authentication",
     meta_category: "AUTHENTICATION",
     locale: "en",
-    status: "draft",
+    status: "approved",
     body: "{{1}} is your PullUp code. For your security, don't share it.",
     variables: ["code"],
     render: ({ code }) =>
@@ -115,15 +115,15 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "draft",
-    body: "Hi {{1}}, your booking for {{2}} has been cancelled by the host. {{3}}",
+    status: "submitted",
+    body: "Hi {{1}}, sorry — your booking for {{2}} was cancelled by the host. {{3}} — reach out if you have any questions.",
     variables: ["guest_first_name", "event_title", "host_signature"],
     render: ({ guest_first_name, event_title, host_signature }) =>
-      `Hi ${guest_first_name}, your booking for ${event_title} has been cancelled by the host. ${host_signature}`,
+      `Hi ${guest_first_name}, sorry — your booking for ${event_title} was cancelled by the host. ${host_signature} — reach out if you have any questions.`,
     components: [
       {
         type: "BODY",
-        text: "Hi {{1}}, your booking for {{2}} has been cancelled by the host. {{3}}",
+        text: "Hi {{1}}, sorry — your booking for {{2}} was cancelled by the host. {{3}} — reach out if you have any questions.",
         example: { body_text: [["Adam", "Rooftop Sessions Vol. 4", "It's me, Maya"]] },
       },
     ],
@@ -137,7 +137,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "draft",
+    status: "approved",
     body: "Hi {{1}}, great news — your spot for {{2}} is confirmed. It's happening on {{3}}. {{4}} — can't wait to see you there!",
     variables: ["guest_first_name", "event_title", "event_when", "host_signature"],
     render: ({ guest_first_name, event_title, event_when, host_signature }) =>
@@ -167,7 +167,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "draft",
+    status: "approved",
     body: "Reminder: {{1}} is happening tomorrow {{2}}. {{3}} — hope you can still make it, see you there!",
     variables: ["event_title", "time_phrase", "host_signature"],
     render: ({ event_title, time_phrase, host_signature }) =>
@@ -194,7 +194,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "draft",
+    status: "approved",
     body: "Almost time! {{1}} starts in about 2 hours over at {{2}}. {{3}} — head down whenever you're ready, see you soon!",
     variables: ["event_title", "venue", "host_signature"],
     render: ({ event_title, venue, host_signature }) =>
@@ -223,7 +223,7 @@ export const TEMPLATES = {
     category: "marketing",
     meta_category: "MARKETING",
     locale: "en",
-    status: "draft",
+    status: "approved",
     body: "Hi 👋\n\n{{2}}\n\n— {{1}}\n\nReply here anytime.",
     variables: ["host_signature", "body"],
     render: ({ host_signature, body }) => `Hi 👋\n\n${body}\n\n— ${host_signature}\n\nReply here anytime.`,
@@ -248,7 +248,7 @@ export const TEMPLATES = {
     category: "marketing",
     meta_category: "MARKETING",
     locale: "en",
-    status: "draft",
+    status: "approved",
     body: "You're invited 🎉\n\n{{2}} invited you to {{3}}.\n\n{{1}}\n\nTap below to claim your spot.",
     variables: ["host_signature", "host_name", "event_title"],
     render: ({ host_signature, host_name, event_title }) =>
@@ -276,7 +276,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "draft",
+    status: "approved",
     body: "Quick heads up about {{1}} — the timing changed. It's now {{2}}, instead of the original {{3}}. {{4}} — sorry for any shuffle!",
     variables: ["event_title", "new_when", "old_when", "host_signature"],
     render: ({ event_title, new_when, old_when, host_signature }) =>
@@ -304,7 +304,7 @@ export const TEMPLATES = {
     category: "marketing",
     meta_category: "MARKETING",
     locale: "en",
-    status: "draft",
+    status: "approved",
     body: "Hope you enjoyed {{1}}! The photos and what's coming next are ready for you. {{2}} — thanks so much for coming 🙏",
     variables: ["event_title", "host_signature"],
     render: ({ event_title, host_signature }) =>
@@ -330,19 +330,20 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "draft",
+    status: "submitted",
     // Link rides in the body (like auth_magic_link) rather than a URL button —
     // our claim link is /e/:slug?wl=<token>, which a fixed button URL can't carry
     // cleanly. UTILITY templates with a link in the body are accepted (precedent:
-    // auth_magic_link).
-    body: "Good news {{1}} — a spot just opened up for {{2}} 🎟️\n\nClaim it before it's gone: {{3}}",
+    // auth_magic_link). Body must not END on a variable, so a fixed sign-off line
+    // follows the link (Meta error_subcode 2388299 otherwise).
+    body: "Good news {{1}} — a spot just opened up for {{2}} 🎟️\n\nClaim it here before it's gone: {{3}}\n\nHope you can make it!",
     variables: ["guest_first_name", "event_title", "link"],
     render: ({ guest_first_name, event_title, link }) =>
-      `Good news ${guest_first_name} — a spot just opened up for ${event_title} 🎟️\n\nClaim it before it's gone: ${link}`,
+      `Good news ${guest_first_name} — a spot just opened up for ${event_title} 🎟️\n\nClaim it here before it's gone: ${link}\n\nHope you can make it!`,
     components: [
       {
         type: "BODY",
-        text: "Good news {{1}} — a spot just opened up for {{2}} 🎟️\n\nClaim it before it's gone: {{3}}",
+        text: "Good news {{1}} — a spot just opened up for {{2}} 🎟️\n\nClaim it here before it's gone: {{3}}\n\nHope you can make it!",
         example: { body_text: [["Adam", "Sundowner Session #4", "https://pullup.se/e/sundowner-4?wl=abc123"]] },
       },
     ],

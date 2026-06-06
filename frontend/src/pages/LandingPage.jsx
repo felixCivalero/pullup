@@ -1,9 +1,8 @@
-import { useNavigate, useLocation, useSearchParams, Navigate } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ArrowRight, Lock, Cloud, UserCheck, PenLine, Heart, Download } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { AuthGate, resolveNext } from "../components/auth/AuthGate.jsx";
-import { hasStoredSession } from "../lib/session.js";
 import { publicFetch } from "../lib/api.js";
 import { trackEvent, getVisitorId } from "../lib/analytics.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
@@ -793,8 +792,7 @@ export function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user, loading } = useAuth();
-  const redirectedRef = useRef(false);
+  const { user } = useAuth();
 
   // URL → which surface we show. /login + /start are the auth shell;
   // anything else is the marketing scroll.
@@ -802,16 +800,6 @@ export function LandingPage() {
     if (location.pathname === "/login") return "login";
     if (location.pathname === "/start") return "onboarding";
     return "hero";
-  }, [location.pathname]);
-
-  // Pre-paint session gate. If a returning user lands on /, /login (or any
-  // non-onboarding entry) with a stored Supabase session, redirect to /room
-  // on the FIRST frame — before the marketing/login shell paints — so they
-  // never see it flash in and jump away. /start (onboarding) is exempt: that
-  // flow flushes the name+brand draft to the profile before forwarding.
-  const sessionGate = useMemo(() => {
-    if (location.pathname === "/start") return false;
-    return hasStoredSession();
   }, [location.pathname]);
 
   useEffect(() => {
@@ -828,42 +816,14 @@ export function LandingPage() {
     }).catch(() => {});
   }, []);
 
-  // Auto-redirect signed-in users to their room, with a sessionStorage
-  // circuit-breaker so a background 401 bouncing us back to "/" doesn't
-  // ping-pong with /room.
-  //
-  // Skip when view === "onboarding" — AuthGate's onboarding flow owns that
-  // path so the draft (name + brand) gets flushed to /host/profile before
-  // the user lands on /room.
-  useEffect(() => {
-    if (loading) return;
-    if (!user) return;
-    if (view === "onboarding") return;
-    if (redirectedRef.current) return;
-
-    const LAST_KEY = "pullup_landing_redirected_at";
-    const lastAt = Number(sessionStorage.getItem(LAST_KEY)) || 0;
-    if (Date.now() - lastAt < 4000) return;
-
-    redirectedRef.current = true;
-    sessionStorage.setItem(LAST_KEY, String(Date.now()));
-
-    const hash = window.location.hash || "";
-    const search = window.location.search || "";
-    const pendingFlag = sessionStorage.getItem("pullup_signin_pending") === "1";
-    const justCompletedOAuth =
-      pendingFlag ||
-      hash.includes("access_token") ||
-      hash.includes("refresh_token") ||
-      search.includes("code=");
-    if (justCompletedOAuth) {
-      sessionStorage.removeItem("pullup_signin_pending");
-      trackEvent("signed_in", { via: pendingFlag ? "google" : "auto" });
-    }
-    // AuthGate pushes its own ?next= redirect once signed in; we only kick
-    // in here for the bare hero/login states.
-    navigate("/room", { replace: true });
-  }, [user, loading, view, navigate]);
+  // We deliberately DON'T auto-redirect signed-in visitors to their room.
+  // pullup.se is also the marketing home, so a returning user just sees it
+  // with an explicit "Open your room" CTA (in the nav + hero). Auto-forwarding
+  // off a merely-stored token was fragile: a stale/globally-revoked session
+  // still has a token blob in localStorage, so it bounced / → /room → /r/:me
+  // through a broken authed view before the 401s cleared it. Explicit entry is
+  // stable. Login/onboarding/OAuth all self-forward via AuthGate ?next= and
+  // /auth/callback, so the deliberate flows are unaffected.
 
   // Marketing scroll needs the document to scroll normally; auth shell is a
   // single locked screen. Toggle a body class so the lock only applies to
@@ -874,11 +834,6 @@ export function LandingPage() {
     else document.body.classList.add(cls);
     return () => document.body.classList.remove(cls);
   }, [view]);
-
-  // Returning user with a stored session — skip the shell entirely.
-  if (sessionGate) {
-    return <Navigate to="/room" replace />;
-  }
 
   return (
     <div className="landing-root">

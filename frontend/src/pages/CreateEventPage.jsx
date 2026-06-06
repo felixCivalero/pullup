@@ -774,6 +774,10 @@ export function CreateEventPage() {
   // Instagram. These toggles make WhatsApp / Instagram required (else optional).
   const [requirePhone, setRequirePhone] = useState(!!draft?.requirePhone);
   const [requireInstagram, setRequireInstagram] = useState(!!draft?.requireInstagram);
+  // Whether WhatsApp / Instagram are collected at all (false = Off, removed from
+  // the form). With require* this gives each a 3-state Off/Optional/Required.
+  const [collectPhone, setCollectPhone] = useState(draft?.collectPhone !== false);
+  const [collectInstagram, setCollectInstagram] = useState(draft?.collectInstagram !== false);
 
   const [loading, setLoading] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -857,7 +861,7 @@ export function CreateEventPage() {
     allowPlusOnes, maxPlusOnesPerGuest, dinnerEnabled, dinnerStartTime,
     dinnerEndTime, dinnerMaxSeatsPerSlot, dinnerOverflowAction, dinnerBookingEmail,
     hideDinnerRemaining, dinnerSlotsConfig, instagram, spotify, tiktok, soundcloud,
-    formFields, contactChannel, requirePhone, requireInstagram, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
+    formFields, contactChannel, requirePhone, requireInstagram, collectPhone, collectInstagram, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
     customThumbnail: !!customThumbnail,
   });
   const baselineSnapshot = useRef(null);
@@ -1026,6 +1030,8 @@ export function CreateEventPage() {
           contactChannel,
           requirePhone,
           requireInstagram,
+          collectPhone,
+          collectInstagram,
           currentStep,
           _savedAt: Date.now(),
         };
@@ -1447,6 +1453,8 @@ export function CreateEventPage() {
         setContactChannelRaw(loadedChannel);
         setRequirePhone(!!ev.requirePhone);
         setRequireInstagram(!!ev.requireInstagram);
+        setCollectPhone(ev.collectPhone !== false);
+        setCollectInstagram(ev.collectInstagram !== false);
         setFormFields(withLockedFields(ev.formFields, loadedChannel));
 
         // Media settings
@@ -2088,6 +2096,8 @@ export function CreateEventPage() {
       contactChannel,
       requirePhone,
       requireInstagram,
+      collectPhone,
+      collectInstagram,
       location,
       locationLat: locationLat || null,
       locationLng: locationLng || null,
@@ -4566,15 +4576,17 @@ export function CreateEventPage() {
                   RSVP form
                 </div>
                 <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
-                  Guests give four things. Name and email are always required — that's how you reach and recognise them. WhatsApp and Instagram are optional unless you switch them on.
+                  Name and email are always required — that's how you reach and recognise people. Choose whether to collect WhatsApp and Instagram, and whether they're required.
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {[
                     { label: "Name", fixed: true },
                     { label: "Email", fixed: true },
-                    { label: "WhatsApp", on: requirePhone, toggle: () => setRequirePhone((v) => !v) },
-                    { label: "Instagram", on: requireInstagram, toggle: () => setRequireInstagram((v) => !v) },
-                  ].map((row) => (
+                    { label: "WhatsApp", collect: collectPhone, require: requirePhone, set: (c, r) => { setCollectPhone(c); setRequirePhone(r); } },
+                    { label: "Instagram", collect: collectInstagram, require: requireInstagram, set: (c, r) => { setCollectInstagram(c); setRequireInstagram(r); } },
+                  ].map((row) => {
+                    const mode = row.fixed ? "required" : !row.collect ? "off" : row.require ? "required" : "optional";
+                    return (
                     <div
                       key={row.label}
                       style={{
@@ -4591,21 +4603,39 @@ export function CreateEventPage() {
                       {row.fixed ? (
                         <span style={{ fontSize: "12px", color: colors.textMuted }}>Always required</span>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={row.toggle}
-                          style={{ display: "inline-flex", alignItems: "center", gap: "8px", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
-                        >
-                          <span style={{ fontSize: "12px", fontWeight: 500, color: row.on ? colors.text : colors.textMuted }}>
-                            {row.on ? "Required" : "Optional"}
-                          </span>
-                          <span style={{ position: "relative", width: "34px", height: "20px", borderRadius: "999px", background: row.on ? "#ec178f" : colors.border, transition: "background 120ms ease" }}>
-                            <span style={{ position: "absolute", top: "2px", left: row.on ? "16px" : "2px", width: "16px", height: "16px", borderRadius: "999px", background: "#fff", transition: "left 120ms ease", boxShadow: "0 1px 2px rgba(10,10,10,0.2)" }} />
-                          </span>
-                        </button>
+                        <div style={{ display: "inline-flex", gap: "2px", padding: "2px", background: colors.background, border: `1px solid ${colors.border}`, borderRadius: "8px" }}>
+                          {[
+                            { key: "off", label: "Off" },
+                            { key: "optional", label: "Optional" },
+                            { key: "required", label: "Required" },
+                          ].map((opt) => {
+                            const active = mode === opt.key;
+                            return (
+                              <button
+                                key={opt.key}
+                                type="button"
+                                onClick={() => row.set(opt.key !== "off", opt.key === "required")}
+                                style={{
+                                  padding: "5px 10px",
+                                  borderRadius: "6px",
+                                  border: "none",
+                                  background: active ? (opt.key === "off" ? colors.border : "#ec178f") : "transparent",
+                                  color: active ? (opt.key === "off" ? colors.text : "#fff") : colors.textMuted,
+                                  fontSize: "12px",
+                                  fontWeight: active ? 600 : 500,
+                                  cursor: "pointer",
+                                  transition: "background 120ms ease, color 120ms ease",
+                                }}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -5399,6 +5429,8 @@ export function CreateEventPage() {
                         contactChannel,
                         requirePhone,
                         requireInstagram,
+                        collectPhone,
+                        collectInstagram,
                       }}
                       previewSlots={previewDinnerSlots}
                       onSubmit={async () => {
@@ -5508,6 +5540,8 @@ export function CreateEventPage() {
                   contactChannel,
                   requirePhone,
                   requireInstagram,
+                  collectPhone,
+                  collectInstagram,
                 }}
                 previewSlots={previewDinnerSlots}
                 onSubmit={async () => {

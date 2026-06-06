@@ -89,17 +89,19 @@ export function RsvpForm({
   const channel = ["email", "whatsapp", "both"].includes(event?.contactChannel)
     ? event.contactChannel
     : "email";
-  // The form is fixed to four anchors: Name, Email, WhatsApp, Instagram — always
-  // shown. Name + Email are always required; WhatsApp and Instagram are required
-  // only when the host opted in. contactChannel no longer drives the form (it's
+  // Name + Email are always shown and required. WhatsApp and Instagram each have
+  // a 3-state host setting: Off (not collected → not shown), Optional (shown), or
+  // Required (shown + required). contactChannel no longer drives the form (it's
   // not used by comms routing either). Hosts can no longer add custom fields.
-  const requirePhone = !!event?.requirePhone;
-  const requireInstagram = !!event?.requireInstagram;
+  const collectPhone = event?.collectPhone !== false;
+  const collectInstagram = event?.collectInstagram !== false;
+  const requirePhone = collectPhone && !!event?.requirePhone;
+  const requireInstagram = collectInstagram && !!event?.requireInstagram;
   const orderedFields = [
     { id: NAME_FIELD_ID, type: "name" },
     { id: EMAIL_FIELD_ID, type: "email" },
-    { id: PHONE_FIELD_ID, type: "phone", verify: "whatsapp" },
-    { id: INSTAGRAM_FIELD_ID, type: "instagram" },
+    ...(collectPhone ? [{ id: PHONE_FIELD_ID, type: "phone", verify: "whatsapp" }] : []),
+    ...(collectInstagram ? [{ id: INSTAGRAM_FIELD_ID, type: "instagram" }] : []),
   ];
   // No host custom fields anymore; kept as [] so the submit handler's loop is a no-op.
   const customFields = [];

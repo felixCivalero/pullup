@@ -60,10 +60,18 @@ function anyTemplateApproved() {
 // ── Instagram attempt — in-window live chat only (no templates). ───────
 // Free text within 24h of the guest's last inbound; within 24h–7d only a
 // human-composed reply with the HUMAN_AGENT tag. Beyond 7d → not deliverable.
-async function attemptInstagram({ recipient, text, humanComposed, personId, hostProfileId, reasons }) {
+async function attemptInstagram({ recipient, text, attachments = [], humanComposed, personId, hostProfileId, reasons }) {
   const igId = recipient.ig_user_id || recipient.igUserId || null;
   if (!igId) { reasons.push("ig: no ig_user_id"); return null; }
-  if (!text) { reasons.push("ig: no text body"); return null; }
+  // Images go as real attachments; anything we can't deliver as media (e.g. a
+  // generic file) rides along as a link in the text — IG attachments only
+  // support image/video/audio.
+  const images = (attachments || []).filter((a) => a?.url && a?.isImage);
+  const others = (attachments || []).filter((a) => a?.url && !a?.isImage);
+  const bodyText = others.length
+    ? `${text ? text + "\n\n" : ""}${others.map((a) => a.url).join("\n")}`.trim()
+    : (text || "");
+  if (!bodyText && !images.length) { reasons.push("ig: nothing to send"); return null; }
   try {
     const { getWindowState, upsertThreadFromMessage } =
       await import("../instagram/repos/instagramThreadsRepo.js");
@@ -79,16 +87,15 @@ async function attemptInstagram({ recipient, text, humanComposed, personId, host
     const creds = conn?.ig_user_id ? await getCredentialsByIgUserId(conn.ig_user_id) : null;
     if (!creds?.accessToken) { reasons.push("ig: host not connected"); return null; }
     const { sendMessage } = await import("../instagram/providers/igGraphClient.js");
-    await sendMessage({
-      igUserId: creds.igUserId,
-      accessToken: creds.accessToken,
-      recipientId: igId,
-      text,
-      humanAgent: state === "human_agent",
-    });
+    const base = { igUserId: creds.igUserId, accessToken: creds.accessToken, recipientId: igId, humanAgent: state === "human_agent" };
+    // A message is text OR one attachment — so send the note, then one send per image.
+    if (bodyText) await sendMessage({ ...base, text: bodyText });
+    for (const img of images) {
+      await sendMessage({ ...base, attachment: { type: "image", url: img.url } });
+    }
     await upsertThreadFromMessage({
       personId, hostProfileId, igUserId: igId,
-      direction: "outbound", preview: text,
+      direction: "outbound", preview: bodyText || (images.length ? "[Photo]" : "[media]"),
     });
     return { channel: "instagram" };
   } catch (e) {
@@ -101,7 +108,7 @@ async function attemptInstagram({ recipient, text, humanComposed, personId, host
 }
 
 // ── WhatsApp attempt — in-window free text, else approved template. ────
-async function attemptWhatsApp({ recipient, hostProfile, text, whatsapp, personId, hostProfileId, context, reasons }) {
+async function attemptWhatsApp({ recipient, hostProfile, text, attachments = [], whatsapp, personId, hostProfileId, context, reasons }) {
   if (hostProfile?.whatsapp_enabled === false) { reasons.push("wa: host disabled"); return null; }
   if (!recipient.phone_e164) { reasons.push("wa: no phone_e164"); return null; }
   if (!recipient.phone_verified_at) { reasons.push("wa: phone not verified"); return null; }
@@ -112,13 +119,19 @@ async function attemptWhatsApp({ recipient, hostProfile, text, whatsapp, personI
     return null;
   }
 
+  // WhatsApp text is plain — fold any attachment URLs into the body (we don't
+  // do WA media upload yet, so they ride as links).
+  const waBody = (attachments && attachments.length)
+    ? `${text ? text + "\n\n" : ""}${attachments.map((a) => a.url).join("\n")}`.trim()
+    : text;
+
   // Inside the 24h window → a real free-text message in the host's voice.
-  if (text) {
+  if (waBody) {
     try {
       const { isConversationWindowOpen } = await import("../whatsapp/repos/whatsappThreadsRepo.js");
       if (await isConversationWindowOpen({ personId, hostProfileId })) {
         const row = await sendText({
-          to: recipient.phone_e164, body: text, personId, hostProfileId,
+          to: recipient.phone_e164, body: waBody, personId, hostProfileId,
           legalBasis: context.legalBasis ?? "consent",
           idempotencyKey: context.idempotencyKey ?? null,
         });
@@ -184,6 +197,7 @@ export async function dispatch({
   hostProfile,
   preferredChannel = null,
   text = null,
+  attachments = [],
   whatsapp = null,
   email,
   humanComposed = false,
@@ -208,8 +222,8 @@ export async function dispatch({
 
   for (const ch of tryOrder) {
     const r = ch === "instagram"
-      ? await attemptInstagram({ recipient, text, humanComposed, personId, hostProfileId, reasons })
-      : await attemptWhatsApp({ recipient, hostProfile, text, whatsapp, personId, hostProfileId, context, reasons });
+      ? await attemptInstagram({ recipient, text, attachments, humanComposed, personId, hostProfileId, reasons })
+      : await attemptWhatsApp({ recipient, hostProfile, text, attachments, whatsapp, personId, hostProfileId, context, reasons });
     if (r?.channel) return { ...r, fallback: false };
   }
 

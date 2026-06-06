@@ -151,18 +151,24 @@ export async function fetchUserProfile({ igsid, accessToken }) {
  * 7 days after the user's last message — but ONLY for a human-composed reply.
  * dispatch() sets it only inside the 24h–7d "human_agent" window.
  */
-export async function sendMessage({ igUserId, accessToken, recipientId, text, humanAgent = false }) {
+export async function sendMessage({ igUserId, accessToken, recipientId, text, attachment = null, humanAgent = false }) {
   if (IG_SANDBOX_MODE) {
-    logger?.info?.("[igGraphClient] (sandbox) sendMessage", { recipientId, text, humanAgent });
+    logger?.info?.("[igGraphClient] (sandbox) sendMessage", { recipientId, text, attachment, humanAgent });
     return { ok: true, sandbox: true, message_id: `sbx-msg-${recipientId}` };
   }
   // Instagram API with Instagram Login sends on graph.instagram.com — NOT
   // graph.facebook.com (that's the Facebook-Login/Page flow, which rejects our
   // IG-issued user token). Same host the token + OAuth came from.
   const url = `${IG_GRAPH_HOST}/${META_GRAPH_VERSION}/${igUserId}/messages`;
+  // A message is EITHER text OR a single attachment (Meta doesn't allow both in
+  // one send). Attachment delivers a real image/video by URL — Meta fetches it —
+  // instead of pasting a link. type ∈ image | video | audio.
+  const message = attachment
+    ? { attachment: { type: attachment.type || "image", payload: { url: attachment.url, is_reusable: true } } }
+    : { text };
   const params = {
     recipient: JSON.stringify({ id: recipientId }),
-    message: JSON.stringify({ text }),
+    message: JSON.stringify(message),
     access_token: accessToken,
   };
   if (humanAgent) {

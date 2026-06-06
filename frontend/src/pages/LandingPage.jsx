@@ -910,7 +910,12 @@ const STYLES = `
   html, body, body *:not(input):not(textarea):not(select) {
     cursor: url('/cursor-finger.png') 11 2, pointer !important;
   }
-  html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+  /* clip, not hidden, on purpose: hidden makes html/body Y-axis scroll
+     containers (overflow-x:hidden computes overflow-y to auto), and with the
+     global overscroll-behavior:none the wheel dead-ends on body and can't chain
+     to the document scroller — the page won't scroll. clip hides the horizontal
+     overflow without creating a scroll container, so vertical scroll works. */
+  html, body { overflow-x: clip; overscroll-behavior-x: none; }
   body { touch-action: pan-y; }
 
   /* Auth surfaces lock the screen to a single non-scrolling view; the
@@ -922,7 +927,7 @@ const STYLES = `
     background: ${SURFACE};
     color: ${INK};
     position: relative;
-    overflow-x: hidden;
+    overflow-x: clip; /* clip, not hidden — see html/body note above (don't trap vertical scroll) */
     -webkit-font-smoothing: antialiased;
   }
   .pink { color: ${PINK}; }

@@ -23,6 +23,27 @@ function viewAsActive() {
   } catch { return false; }
 }
 
+// A 401 means the stored session is already dead server-side, so there's
+// nothing to revoke globally — we only need to drop it locally so React
+// re-routes to the login gate. We dedupe concurrent sign-outs: when a page
+// fires several authenticated calls at once (chrome + content), they'd each
+// 401 and each kick off its own signOut, producing a storm of doomed
+// logout round-trips. One shared local sign-out covers them all.
+let pendingSignOut = null;
+function clearDeadSession() {
+  if (!pendingSignOut) {
+    // scope:'local' clears localStorage without POSTing to the logout
+    // endpoint with the already-invalid token (which returns 403).
+    pendingSignOut = supabase.auth
+      .signOut({ scope: "local" })
+      .catch(() => {})
+      .finally(() => {
+        pendingSignOut = null;
+      });
+  }
+  return pendingSignOut;
+}
+
 /**
  * Make an authenticated API request
  * Automatically adds Authorization header with JWT token
@@ -54,7 +75,7 @@ export async function authenticatedFetch(url, options = {}) {
   // loop with LandingPage's auto-redirect to /room when best-effort
   // background calls (e.g. /auth/record-consent on every mount) flapped.
   if (response.status === 401) {
-    await supabase.auth.signOut();
+    await clearDeadSession();
     throw new Error("Unauthorized - please sign in");
   }
 

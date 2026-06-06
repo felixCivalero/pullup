@@ -186,9 +186,9 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
     }
   }
 
-  const handleSignOut = async () => {
+  const handleSignOut = async (scope = "local") => {
     try {
-      await signOut();
+      await signOut({ scope });
       navigate("/");
     } catch (error) {
       console.error("Sign out error:", error);
@@ -459,35 +459,58 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
         {/* SIGN OUT */}
         <SettingsSection
           title="Sign Out"
-          description="Sign out of your PullUp account. You can sign back in at any time."
+          description="Sign out of this device. Your other devices stay signed in, and you can sign back in any time."
         >
-          <button
-            type="button"
-            onClick={handleSignOut}
-            style={{
-              padding: "12px 24px",
-              borderRadius: "999px",
-              border: `1px solid ${colors.borderStrong}`,
-              background: colors.surface,
-              color: colors.text,
-              fontWeight: 600,
-              fontSize: "14px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = colors.surfaceMuted;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = colors.surface;
-            }}
-          >
-            <SilverIcon as={LogOut} size={18} />
-            <span>Sign Out</span>
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "14px" }}>
+            <button
+              type="button"
+              onClick={() => handleSignOut("local")}
+              style={{
+                padding: "12px 24px",
+                borderRadius: "999px",
+                border: `1px solid ${colors.borderStrong}`,
+                background: colors.surface,
+                color: colors.text,
+                fontWeight: 600,
+                fontSize: "14px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                transition: "all 0.3s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = colors.surfaceMuted;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = colors.surface;
+              }}
+            >
+              <SilverIcon as={LogOut} size={18} />
+              <span>Sign Out</span>
+            </button>
+
+            {/* Global sign-out — revokes every session server-side. No data is
+                deleted; every device gets signed out. Styled as a quieter
+                secondary action so it's deliberate, not an accidental tap. */}
+            <button
+              type="button"
+              onClick={() => handleSignOut("global")}
+              style={{
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                color: colors.textMuted,
+                fontWeight: 500,
+                fontSize: "13px",
+                cursor: "pointer",
+                textDecoration: "underline",
+                textUnderlineOffset: "3px",
+              }}
+            >
+              Log out of all devices
+            </button>
+          </div>
         </SettingsSection>
 
         {/* DELETE ACCOUNT */}

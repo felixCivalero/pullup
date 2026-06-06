@@ -1485,21 +1485,36 @@ export async function findPersonById(personId) {
 // use, so the detail GET/PUT endpoints stay consistent with the list view.
 export async function personBelongsToHost(personId, userId) {
   if (!personId || !userId) return false;
+
+  // In the host's world via an RSVP to one of their events…
   const eventIds = await getUserEventIds(userId);
-  if (!eventIds || eventIds.length === 0) return false;
-
-  const { data, error } = await supabase
-    .from("rsvps")
-    .select("id")
-    .eq("person_id", personId)
-    .in("event_id", eventIds)
-    .limit(1);
-
-  if (error) {
-    console.error("[personBelongsToHost] error:", error);
-    return false;
+  if (eventIds && eventIds.length > 0) {
+    const { data, error } = await supabase
+      .from("rsvps")
+      .select("id")
+      .eq("person_id", personId)
+      .in("event_id", eventIds)
+      .limit(1);
+    if (error) console.error("[personBelongsToHost] rsvp error:", error);
+    else if (Array.isArray(data) && data.length > 0) return true;
   }
-  return Array.isArray(data) && data.length > 0;
+
+  // …or via a direct messaging thread with this host. Someone who DM'd the
+  // host's connected Instagram / WhatsApp account is just as much "in their
+  // world" as an RSVP'er — and an IG/WA-only lead often has no RSVP at all.
+  // Without this, the Room can't message them back (silent not_in_world).
+  for (const table of ["instagram_threads", "whatsapp_threads"]) {
+    const { data, error } = await supabase
+      .from(table)
+      .select("id")
+      .eq("person_id", personId)
+      .eq("host_profile_id", userId)
+      .limit(1);
+    if (error) { console.error(`[personBelongsToHost] ${table} error:`, error); continue; }
+    if (Array.isArray(data) && data.length > 0) return true;
+  }
+
+  return false;
 }
 
 // ─── Content Planner cards (per-host) ─────────────────────────────────

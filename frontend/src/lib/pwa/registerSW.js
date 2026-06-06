@@ -10,6 +10,14 @@ export function registerServiceWorker() {
   if (!import.meta.env.PROD) return;
 
   window.addEventListener("load", () => {
+    // Was the page already controlled by a SW when it loaded? If NOT, the first
+    // `controllerchange` is THIS worker taking control for the first time
+    // (clients.claim() in the SW's activate) — that is NOT an update. Reloading
+    // there double-loads every fresh visit (first visit, incognito, post
+    // cache-clear) and yanks the page back to top mid-scroll. We only want to
+    // reload when an update REPLACES an already-active controller.
+    const hadControllerAtLoad = !!navigator.serviceWorker.controller;
+
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {
@@ -31,6 +39,9 @@ export function registerServiceWorker() {
 
     let reloaded = false;
     navigator.serviceWorker.addEventListener("controllerchange", () => {
+      // Initial control acquisition on a fresh visit — not an update. Skip it,
+      // or we'd reload a page that just finished loading.
+      if (!hadControllerAtLoad) return;
       if (reloaded) return;
       reloaded = true;
       window.location.reload();

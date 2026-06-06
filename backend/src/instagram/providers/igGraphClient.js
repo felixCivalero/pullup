@@ -117,21 +117,30 @@ export async function fetchAccount(accessToken) {
  * Send a DM from the connected IG account to a recipient (by IGSID).
  * Used both for direct DMs and as the delivery for a private reply.
  * `igUserId` is the sender (the host's connected account).
+ *
+ * `humanAgent: true` sends with the HUMAN_AGENT tag, which Meta allows up to
+ * 7 days after the user's last message — but ONLY for a human-composed reply.
+ * dispatch() sets it only inside the 24h–7d "human_agent" window.
  */
-export async function sendMessage({ igUserId, accessToken, recipientId, text }) {
+export async function sendMessage({ igUserId, accessToken, recipientId, text, humanAgent = false }) {
   if (IG_SANDBOX_MODE) {
-    logger?.info?.("[igGraphClient] (sandbox) sendMessage", { recipientId, text });
+    logger?.info?.("[igGraphClient] (sandbox) sendMessage", { recipientId, text, humanAgent });
     return { ok: true, sandbox: true, message_id: `sbx-msg-${recipientId}` };
   }
   // Instagram API with Instagram Login sends on graph.instagram.com — NOT
   // graph.facebook.com (that's the Facebook-Login/Page flow, which rejects our
   // IG-issued user token). Same host the token + OAuth came from.
   const url = `${IG_GRAPH_HOST}/${META_GRAPH_VERSION}/${igUserId}/messages`;
-  const json = await postForm(url, {
+  const params = {
     recipient: JSON.stringify({ id: recipientId }),
     message: JSON.stringify({ text }),
     access_token: accessToken,
-  });
+  };
+  if (humanAgent) {
+    params.messaging_type = "MESSAGE_TAG";
+    params.tag = "HUMAN_AGENT";
+  }
+  const json = await postForm(url, params);
   return { ok: true, message_id: json.message_id || json.id || null };
 }
 

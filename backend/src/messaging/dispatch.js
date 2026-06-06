@@ -27,7 +27,7 @@
 //     fallback: <truthy when WA was preferred but failed/skipped> }
 
 import { supabase } from "../supabase.js";
-import { sendTemplate, isPhoneSuppressed } from "../whatsapp/index.js";
+import { sendTemplate, sendText, isPhoneSuppressed } from "../whatsapp/index.js";
 import { hasActiveOptIn } from "../whatsapp/repos/phoneOptInsRepo.js";
 import { enqueueOutbox as enqueueEmailOutbox } from "../email/index.js";
 import { TEMPLATES } from "../whatsapp/templates/registry.js";
@@ -57,90 +57,84 @@ function anyTemplateApproved() {
   return Object.values(TEMPLATES || {}).some((t) => t?.status === "approved");
 }
 
-/**
- * @param {object} args
- * @param {object} args.recipient
- *   { id, email, phone_e164, phone_verified_at, marketing_consent, do_not_contact }
- * @param {object} args.hostProfile
- *   { id, whatsapp_enabled, whatsapp_signature, name, brand }
- * @param {object} [args.whatsapp]
- *   { templateKey, variables, locale? }    — required to even consider WA
- * @param {object} args.email
- *   { subject, htmlBody, textBody, fromEmail?, category? }
- * @param {object} [args.context]
- *   { campaignSendId, campaignTag, legalBasis, idempotencyKey,
- *     personId, hostProfileId }
- *   Used for outbox bookkeeping + tracking. Defaults derived from
- *   recipient / hostProfile when not passed.
- */
-export async function dispatch({
-  recipient,
-  hostProfile,
-  whatsapp = null,
-  email,
-  context = {},
-}) {
-  if (!recipient) throw new Error("[messaging/dispatch] recipient required");
-  if (!email || (!email.subject && !email.htmlBody && !email.textBody)) {
-    throw new Error(
-      "[messaging/dispatch] email payload required for fallback",
-    );
-  }
-
-  const personId = context.personId ?? recipient.id ?? null;
-  const hostProfileId = context.hostProfileId ?? hostProfile?.id ?? null;
-
-  // ── Decide whether WhatsApp is even a candidate. ───────────────────
-  const reasons = [];
-  let waChosen = !!whatsapp;
-  if (!whatsapp || !whatsapp.templateKey) {
-    waChosen = false;
-    reasons.push("no whatsapp payload");
-  }
-  if (waChosen && hostProfile?.whatsapp_enabled === false) {
-    waChosen = false;
-    reasons.push("host disabled whatsapp");
-  }
-  if (waChosen && !recipient.phone_e164) {
-    waChosen = false;
-    reasons.push("no phone_e164");
-  }
-  if (waChosen && !recipient.phone_verified_at) {
-    waChosen = false;
-    reasons.push("phone not verified");
-  }
-  if (waChosen && recipient.do_not_contact) {
-    waChosen = false;
-    reasons.push("do_not_contact");
-  }
-  if (waChosen && !isTemplateApproved(whatsapp.templateKey)) {
-    waChosen = false;
-    reasons.push(
-      `template not approved (${TEMPLATES?.[whatsapp.templateKey]?.status || "unknown"})`,
-    );
-  }
-
-  // Per-guest opt-in + suppression checks (DB lookups; skip when already ruled out).
-  if (waChosen) {
-    if (await isPhoneSuppressed(recipient.phone_e164)) {
-      waChosen = false;
-      reasons.push("phone suppressed");
+// ── Instagram attempt — in-window live chat only (no templates). ───────
+// Free text within 24h of the guest's last inbound; within 24h–7d only a
+// human-composed reply with the HUMAN_AGENT tag. Beyond 7d → not deliverable.
+async function attemptInstagram({ recipient, text, humanComposed, personId, hostProfileId, reasons }) {
+  const igId = recipient.ig_user_id || recipient.igUserId || null;
+  if (!igId) { reasons.push("ig: no ig_user_id"); return null; }
+  if (!text) { reasons.push("ig: no text body"); return null; }
+  try {
+    const { getWindowState, upsertThreadFromMessage } =
+      await import("../instagram/repos/instagramThreadsRepo.js");
+    const state = await getWindowState({ personId, hostProfileId });
+    if (state === "expired") { reasons.push("ig: window expired (>7d since inbound)"); return null; }
+    if (state === "human_agent" && !humanComposed) {
+      reasons.push("ig: 24h–7d window needs a human-composed reply");
+      return null;
     }
-  }
-  if (waChosen) {
-    const okay = await hasActiveOptIn({
-      phoneE164: recipient.phone_e164,
-      channel: "whatsapp",
-      hostProfileId,
+    const { getConnectionForHost, getCredentialsByIgUserId } =
+      await import("../instagram/repos/instagramConnectionsRepo.js");
+    const conn = await getConnectionForHost(hostProfileId);
+    const creds = conn?.ig_user_id ? await getCredentialsByIgUserId(conn.ig_user_id) : null;
+    if (!creds?.accessToken) { reasons.push("ig: host not connected"); return null; }
+    const { sendMessage } = await import("../instagram/providers/igGraphClient.js");
+    await sendMessage({
+      igUserId: creds.igUserId,
+      accessToken: creds.accessToken,
+      recipientId: igId,
+      text,
+      humanAgent: state === "human_agent",
     });
-    if (!okay) {
-      waChosen = false;
-      reasons.push("no active opt-in");
+    await upsertThreadFromMessage({
+      personId, hostProfileId, igUserId: igId,
+      direction: "outbound", preview: text,
+    });
+    return { channel: "instagram" };
+  } catch (e) {
+    reasons.push(`ig: send failed (${e?.message || e})`);
+    logger?.error?.("[messaging/dispatch] instagram send failed, falling through", {
+      person_id: personId, host_profile_id: hostProfileId, message: e?.message,
+    });
+    return null;
+  }
+}
+
+// ── WhatsApp attempt — in-window free text, else approved template. ────
+async function attemptWhatsApp({ recipient, hostProfile, text, whatsapp, personId, hostProfileId, context, reasons }) {
+  if (hostProfile?.whatsapp_enabled === false) { reasons.push("wa: host disabled"); return null; }
+  if (!recipient.phone_e164) { reasons.push("wa: no phone_e164"); return null; }
+  if (!recipient.phone_verified_at) { reasons.push("wa: phone not verified"); return null; }
+  if (recipient.do_not_contact) { reasons.push("wa: do_not_contact"); return null; }
+  if (await isPhoneSuppressed(recipient.phone_e164)) { reasons.push("wa: phone suppressed"); return null; }
+  if (!(await hasActiveOptIn({ phoneE164: recipient.phone_e164, channel: "whatsapp", hostProfileId }))) {
+    reasons.push("wa: no active opt-in");
+    return null;
+  }
+
+  // Inside the 24h window → a real free-text message in the host's voice.
+  if (text) {
+    try {
+      const { isConversationWindowOpen } = await import("../whatsapp/repos/whatsappThreadsRepo.js");
+      if (await isConversationWindowOpen({ personId, hostProfileId })) {
+        const row = await sendText({
+          to: recipient.phone_e164, body: text, personId, hostProfileId,
+          legalBasis: context.legalBasis ?? "consent",
+          idempotencyKey: context.idempotencyKey ?? null,
+        });
+        return { channel: "whatsapp", row };
+      }
+    } catch (e) {
+      reasons.push(`wa: in-window send failed (${e?.message || e})`);
     }
   }
 
-  // ── WhatsApp path ──────────────────────────────────────────────────
-  if (waChosen) {
+  // Window closed (or no live text) → only an approved template is legal.
+  if (whatsapp?.templateKey) {
+    if (!isTemplateApproved(whatsapp.templateKey)) {
+      reasons.push(`wa: template not approved (${TEMPLATES?.[whatsapp.templateKey]?.status || "unknown"})`);
+      return null;
+    }
     try {
       const row = await sendTemplate({
         to: recipient.phone_e164,
@@ -156,30 +150,80 @@ export async function dispatch({
       });
       return { channel: "whatsapp", row };
     } catch (err) {
-      logger?.warn?.("[messaging/dispatch] whatsapp send failed, falling back to email", {
-        to: recipient.phone_e164,
-        templateKey: whatsapp.templateKey,
-        code: err.code,
-        message: err.message,
+      reasons.push(`wa: template send failed (${err?.message})`);
+      logger?.warn?.("[messaging/dispatch] whatsapp template failed, falling back to email", {
+        to: recipient.phone_e164, templateKey: whatsapp.templateKey, code: err.code, message: err.message,
       });
-      // fall through to email below
+      return null;
     }
   }
+  reasons.push("wa: no in-window text and no template");
+  return null;
+}
 
-  // ── Email path (default + fallback) ────────────────────────────────
+/**
+ * The single send router for every 1:1 message. The caller renders ONCE and
+ * supplies whatever the chosen rail might need; the router picks the channel,
+ * enforces every per-channel constraint (WA 24h window/template approval/opt-in,
+ * IG 24h + 7d human-agent windows), and falls through to the email floor.
+ *
+ * @param {object} args
+ * @param {object} args.recipient { id, email, phone_e164, phone_verified_at, ig_user_id, do_not_contact }
+ * @param {object} args.hostProfile { id, whatsapp_enabled, ... }
+ * @param {string} [args.preferredChannel] 'whatsapp' | 'instagram' | 'email' — the
+ *   thread's rail. Omitted (legacy proactive callers) ⇒ WhatsApp-template-then-email.
+ * @param {string} [args.text] free-text body for the live rails (WA in-window, IG).
+ * @param {object} [args.whatsapp] { templateKey, variables, locale } for the closed-window WA template.
+ * @param {object} args.email { subject, htmlBody, textBody, fromEmail?, category? } — the floor (required).
+ * @param {boolean} [args.humanComposed] true for host-typed Room messages; gates IG's 7d human-agent tag.
+ * @param {object} [args.context] { campaignSendId, campaignTag, legalBasis, idempotencyKey, personId, hostProfileId }
+ * @returns {Promise<{channel, row?, fallback, dropped?, reasons?}>}
+ */
+export async function dispatch({
+  recipient,
+  hostProfile,
+  preferredChannel = null,
+  text = null,
+  whatsapp = null,
+  email,
+  humanComposed = false,
+  context = {},
+}) {
+  if (!recipient) throw new Error("[messaging/dispatch] recipient required");
+  if (!email || (!email.subject && !email.htmlBody && !email.textBody)) {
+    throw new Error("[messaging/dispatch] email payload required for fallback");
+  }
+
+  const personId = context.personId ?? recipient.id ?? null;
+  const hostProfileId = context.hostProfileId ?? hostProfile?.id ?? null;
+  const reasons = [];
+
+  // Which rail to try before the email floor. An explicit preferredChannel is
+  // the thread's rail; with none (legacy proactive sends) we try WhatsApp when
+  // a template was supplied, exactly as before. Email is always the floor.
+  const tryOrder = [];
+  if (preferredChannel === "instagram") tryOrder.push("instagram");
+  else if (preferredChannel === "whatsapp") tryOrder.push("whatsapp");
+  else if (!preferredChannel && whatsapp) tryOrder.push("whatsapp");
+
+  for (const ch of tryOrder) {
+    const r = ch === "instagram"
+      ? await attemptInstagram({ recipient, text, humanComposed, personId, hostProfileId, reasons })
+      : await attemptWhatsApp({ recipient, hostProfile, text, whatsapp, personId, hostProfileId, context, reasons });
+    if (r?.channel) return { ...r, fallback: false };
+  }
+
+  // ── Email floor (default + fallback) ───────────────────────────────
   if (!recipient.email) {
-    // No WhatsApp and no email = the message reaches no one. This was a quiet
-    // warn with no audit trail; make it a loud, structured, alertable signal
-    // (stable `event` tag) and flag it on the return so callers can react.
     logger?.error?.("[messaging/dispatch] message dropped — no deliverable channel", {
       event: "message_dropped",
       recipient_id: recipient.id ?? null,
       person_id: personId,
       host_profile_id: hostProfileId,
-      whatsapp_template: whatsapp?.templateKey ?? null,
+      preferred_channel: preferredChannel,
       reasons,
     });
-    return { channel: "suppressed", row: null, fallback: waChosen, dropped: true };
+    return { channel: "suppressed", row: null, fallback: tryOrder.length > 0, dropped: true, reasons };
   }
 
   const emailRow = await enqueueEmailOutbox({
@@ -200,8 +244,8 @@ export async function dispatch({
   return {
     channel: "email",
     row: emailRow,
-    fallback: !!whatsapp && !waChosen ? false : !!whatsapp,
-    skipped_whatsapp_because: reasons,
+    fallback: tryOrder.length > 0,
+    skipped_because: reasons,
   };
 }
 

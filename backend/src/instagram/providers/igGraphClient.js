@@ -123,7 +123,10 @@ export async function sendMessage({ igUserId, accessToken, recipientId, text }) 
     logger?.info?.("[igGraphClient] (sandbox) sendMessage", { recipientId, text });
     return { ok: true, sandbox: true, message_id: `sbx-msg-${recipientId}` };
   }
-  const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${igUserId}/messages`;
+  // Instagram API with Instagram Login sends on graph.instagram.com — NOT
+  // graph.facebook.com (that's the Facebook-Login/Page flow, which rejects our
+  // IG-issued user token). Same host the token + OAuth came from.
+  const url = `${IG_GRAPH_HOST}/${META_GRAPH_VERSION}/${igUserId}/messages`;
   const json = await postForm(url, {
     recipient: JSON.stringify({ id: recipientId }),
     message: JSON.stringify({ text }),
@@ -142,7 +145,10 @@ export async function sendPrivateReply({ igUserId, accessToken, commentId, text 
     logger?.info?.("[igGraphClient] (sandbox) sendPrivateReply", { commentId, text });
     return { ok: true, sandbox: true, message_id: `sbx-priv-${commentId}` };
   }
-  const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${igUserId}/messages`;
+  // Instagram API with Instagram Login sends on graph.instagram.com — NOT
+  // graph.facebook.com (that's the Facebook-Login/Page flow, which rejects our
+  // IG-issued user token). Same host the token + OAuth came from.
+  const url = `${IG_GRAPH_HOST}/${META_GRAPH_VERSION}/${igUserId}/messages`;
   const json = await postForm(url, {
     recipient: JSON.stringify({ comment_id: commentId }),
     message: JSON.stringify({ text }),

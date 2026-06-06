@@ -52,6 +52,20 @@ export function RsvpForm({
   const [capacityExceeded, setCapacityExceeded] = useState(false);
   const [customAnswers, setCustomAnswers] = useState({});
 
+  // Instagram handle. When the guest arrived via an IG entry link (carries
+  // ?ig=<username>&ig_uid=<igsid>), we already hold their VERIFIED handle — show
+  // it read-only so they see exactly what's collected. Otherwise it's an
+  // optional typed claim, reconciled later if they ever DM/comment from it.
+  const igEntry = (() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const handle = (p.get("ig") || "").replace(/^@+/, "").trim();
+      const uid = p.get("ig_uid") || p.get("igUid") || null;
+      return { handle: handle || null, verified: !!(handle && uid) };
+    } catch { return { handle: null, verified: false }; }
+  })();
+  const [instagram, setInstagram] = useState(igEntry.handle || "");
+
   // Session-aware: a returning, logged-in guest shouldn't retype what we know.
   // Prefill from their verified identity when the fields are still empty (never
   // override a VIP-pinned email or something they've started typing).
@@ -71,31 +85,25 @@ export function RsvpForm({
   const NAME_FIELD_ID = "__name__";
   const EMAIL_FIELD_ID = "__email__";
   const PHONE_FIELD_ID = "__phone__";
-  const rawFields = Array.isArray(event?.formFields) ? event.formFields : [];
+  const INSTAGRAM_FIELD_ID = "__instagram__";
   const channel = ["email", "whatsapp", "both"].includes(event?.contactChannel)
     ? event.contactChannel
     : "email";
   const wantsEmail = channel === "email" || channel === "both";
   const wantsPhone = channel === "whatsapp" || channel === "both";
+  // The form is now fixed to four fields: Name, Email/WhatsApp (per channel),
+  // and Instagram. Hosts can no longer add custom fields — only verifiable
+  // identity anchors are collected. We build the field list from scratch and
+  // intentionally ignore any legacy event.formFields custom entries.
   const orderedFields = (() => {
-    const hasName  = rawFields.some((f) => f && f.id === NAME_FIELD_ID);
-    const hasEmail = rawFields.some((f) => f && f.id === EMAIL_FIELD_ID);
-    const hasPhone = rawFields.some((f) => f && f.id === PHONE_FIELD_ID);
-    const prefix = [];
-    if (!hasName)                  prefix.push({ id: NAME_FIELD_ID,  type: "name"  });
-    if (wantsEmail && !hasEmail)   prefix.push({ id: EMAIL_FIELD_ID, type: "email" });
-    if (wantsPhone && !hasPhone)   prefix.push({ id: PHONE_FIELD_ID, type: "phone", verify: "whatsapp" });
-    return [...prefix, ...rawFields];
+    const fields = [{ id: NAME_FIELD_ID, type: "name" }];
+    if (wantsEmail) fields.push({ id: EMAIL_FIELD_ID, type: "email" });
+    if (wantsPhone) fields.push({ id: PHONE_FIELD_ID, type: "phone", verify: "whatsapp" });
+    fields.push({ id: INSTAGRAM_FIELD_ID, type: "instagram" });
+    return fields;
   })();
-  const customFields = orderedFields.filter(
-    (f) =>
-      f &&
-      f.id &&
-      f.id !== NAME_FIELD_ID &&
-      f.id !== EMAIL_FIELD_ID &&
-      f.id !== PHONE_FIELD_ID &&
-      (f.label || "").trim(),
-  );
+  // No host custom fields anymore; kept as [] so the submit handler's loop is a no-op.
+  const customFields = [];
 
   useEffect(() => {
     if (document.activeElement && document.activeElement.blur) {
@@ -281,6 +289,7 @@ export function RsvpForm({
           dinnerTimeSlot: wantsDinner ? dinnerTimeSlot : null,
           dinnerPartySize: wantsDinner ? dinnerSeats : null,
           marketingOptIn,
+          instagram: (instagram || "").trim() || null,
           customAnswers: trimmedAnswers,
         });
         if (result && result.error) {
@@ -504,6 +513,34 @@ export function RsvpForm({
                 />
                 <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.45)", paddingLeft: "2px", lineHeight: 1.45 }}>
                   We'll WhatsApp you a one-tap link to confirm — no codes to type.
+                </div>
+              </div>
+            );
+          }
+          if (f.id === INSTAGRAM_FIELD_ID) {
+            return (
+              <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={fieldLabelStyle}>Instagram</label>
+                {igEntry.verified ? (
+                  <div style={{ ...inputStyle, display: "flex", alignItems: "center", gap: "8px", cursor: "default" }}>
+                    <span style={{ fontWeight: 500 }}>@{instagram}</span>
+                    <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: 600 }}>✓ verified</span>
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={instagram}
+                    onChange={(e) => setInstagram(e.target.value.replace(/^@+/, ""))}
+                    placeholder="yourhandle (optional)"
+                    disabled={loading}
+                    autoComplete="off"
+                    style={inputStyle}
+                  />
+                )}
+                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.45)", paddingLeft: "2px", lineHeight: 1.45 }}>
+                  {igEntry.verified
+                    ? "Pulled from Instagram — the account you messaged us from."
+                    : "Optional. We'll confirm it automatically if you DM or comment from it."}
                 </div>
               </div>
             );

@@ -288,15 +288,30 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   //    the email floor. Never a "template" on IG. ──
   const igId = person.ig_user_id || person.igUserId || null;
   if (channel === "instagram" && igId) {
+    // When the contact has an email we fall through to the email floor on any IG
+    // problem (graceful). When they DON'T (IG-only contact), there's no floor —
+    // so we return the real reason instead of masking it as a confusing
+    // "no_email" 400. Either way we LOG it, so a failure is never silent.
+    const igFailEmailless = (error) => (person.email ? null : { ok: false, error });
     try {
       const { isConversationWindowOpen: igWindowOpen, upsertThreadFromMessage: igUpsert } =
         await import("../instagram/repos/instagramThreadsRepo.js");
-      if (await igWindowOpen({ personId, hostProfileId: hostId })) {
+      if (!(await igWindowOpen({ personId, hostProfileId: hostId }))) {
+        // Meta allows a reply only inside the 24h window the guest's inbound DM
+        // opened. Closed → no legal IG send.
+        console.warn("[room] IG window closed", { personId, hostId });
+        const r = igFailEmailless("ig_window_closed");
+        if (r) return r;
+      } else {
         const { getConnectionForHost, getCredentialsByIgUserId } =
           await import("../instagram/repos/instagramConnectionsRepo.js");
         const conn = await getConnectionForHost(hostId);
         const creds = conn?.ig_user_id ? await getCredentialsByIgUserId(conn.ig_user_id) : null;
-        if (creds?.accessToken) {
+        if (!creds?.accessToken) {
+          console.warn("[room] IG not connected for host", { hostId });
+          const r = igFailEmailless("ig_not_connected");
+          if (r) return r;
+        } else {
           const { sendMessage } = await import("../instagram/providers/igGraphClient.js");
           await sendMessage({
             igUserId: creds.igUserId,
@@ -312,9 +327,11 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
           return { ok: true, channel: "instagram" };
         }
       }
-      // Window closed (or no creds) → fall through to the email floor.
-    } catch {
-      // Any IG error → fall through to email.
+    } catch (e) {
+      console.error("[room] IG send failed:", e?.message || e);
+      const r = igFailEmailless("ig_send_failed");
+      if (r) return r;
+      // else fall through to the email floor below
     }
   }
 

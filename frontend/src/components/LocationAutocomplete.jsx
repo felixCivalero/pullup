@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { MapPin } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { loadGooglePlaces } from "../lib/loadGooglePlaces.js";
+import { composeLocationLabel } from "../lib/urlUtils";
 import { colors } from "../theme/colors.js";
 
 // Enhanced location picker with autocomplete and current location
@@ -177,6 +178,7 @@ export function LocationAutocomplete({
     let address = suggestion.description || suggestion.main_text;
     let lat = null;
     let lng = null;
+    let placeId = suggestion.place_id || null;
 
     if (suggestion.source === "google" && suggestion.place_id) {
       const ok = await ensurePlacesLoaded();
@@ -185,7 +187,9 @@ export function LocationAutocomplete({
           placesServiceRef.current.getDetails(
             {
               placeId: suggestion.place_id,
-              fields: ["formatted_address", "geometry.location"],
+              // Richer fields so we can compose a clean human label and keep the
+              // precise data behind it (coords for the pin, place_id as the seed).
+              fields: ["formatted_address", "geometry.location", "address_components", "name", "types", "place_id"],
             },
             (result, status) => {
               if (
@@ -193,7 +197,10 @@ export function LocationAutocomplete({
                   window.google.maps.places.PlacesServiceStatus.OK &&
                 result
               ) {
-                address = result.formatted_address || address;
+                // Clean label ("Francesco, Stockholm") over the verbose
+                // formatted_address; fall back if we can't compose one.
+                address = composeLocationLabel(result) || result.formatted_address || address;
+                if (result.place_id) placeId = result.place_id;
                 if (result.geometry?.location) {
                   lat = result.geometry.location.lat();
                   lng = result.geometry.location.lng();
@@ -213,6 +220,7 @@ export function LocationAutocomplete({
         address,
         lat,
         lng,
+        placeId,
       });
     }
 

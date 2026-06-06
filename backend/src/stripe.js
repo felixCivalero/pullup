@@ -626,6 +626,8 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
                 isWaitlist: false,
                 imageUrl: event.coverImageUrl || event.imageUrl || "",
                 location: event.location || "",
+                locationLat: event.locationLat ?? null,
+                locationLng: event.locationLng ?? null,
                 startsAt: event.startsAt || "",
                 endsAt: event.endsAt || "",
                 timezone: event.timezone || "",

@@ -144,8 +144,10 @@ export function generateCalendarUrls({
  * @returns {string} Google Maps URL
  */
 export function getGoogleMapsUrl(location, lat = null, lng = null) {
-  if (lat !== null && lng !== null) {
-    // Use coordinates if available (most precise)
+  // Loose null-check on purpose: an undefined lat/lng (event with no picked
+  // place) must fall through to the text branch, not emit `?q=undefined`.
+  if (lat != null && lng != null) {
+    // Use coordinates if available (most precise — drops the exact pin)
     return `https://www.google.com/maps?q=${lat},${lng}`;
   } else if (location) {
     // Use location text as fallback
@@ -153,6 +155,45 @@ export function getGoogleMapsUrl(location, lat = null, lng = null) {
     return `https://www.google.com/maps/search/?api=1&query=${encodedLocation}`;
   }
   return null;
+}
+
+/**
+ * Compose a clean, human-facing label from a Google Places details result.
+ * We keep the visible text short — a named place + city ("Francesco, Stockholm")
+ * or a street + city ("Katarina Bangata 47, Stockholm") — and drop the postal
+ * code + country. Precision lives in lat/lng + place_id, not this string, so the
+ * label can be pretty without losing the exact pin.
+ * @param {object} place - Google PlaceResult (address_components, name, types, formatted_address)
+ * @returns {string} clean label, or "" if nothing usable
+ */
+export function composeLocationLabel(place) {
+  if (!place) return "";
+  const comps = place.address_components || [];
+  const pick = (type) => comps.find((c) => (c.types || []).includes(type))?.long_name;
+  const city =
+    pick("postal_town") ||
+    pick("locality") ||
+    pick("sublocality") ||
+    pick("administrative_area_level_2") ||
+    pick("administrative_area_level_1") ||
+    "";
+
+  const fa = place.formatted_address || "";
+  // First comma-segment of the formatted address is the street line in the
+  // local convention (e.g. "Katarina Bangata 47", number kept) — better than
+  // recomposing route + number ourselves, which gets the order wrong per-locale.
+  const firstSegment = fa.split(",")[0].trim();
+
+  const types = place.types || [];
+  const isNamedPlace =
+    !!place.name &&
+    (types.includes("establishment") || types.includes("point_of_interest")) &&
+    place.name.trim() !== firstSegment;
+
+  const head = (isNamedPlace ? place.name.trim() : firstSegment) || place.name || "";
+
+  if (head && city && head !== city) return `${head}, ${city}`;
+  return head || city || fa;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { formatEventTime } from "../lib/dateUtils.js";
-import { formatLocationShort } from "../lib/urlUtils";
+import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { fontStack, loadFont } from "../lib/brand.js";
 
 // Each embed helper PARSES the URL and only emits an iframe src whose host
@@ -80,6 +80,8 @@ export function EventPageContent({
   title,
   description,
   location,
+  locationLat = null,
+  locationLng = null,
   startsAt,
   timezone,
   sections = [],
@@ -99,6 +101,26 @@ export function EventPageContent({
   const locationTba = revealHint || "Location revealed later";
   const dateTba = dateRevealHint || "Date TBA";
 
+  // Render the location text as a tappable Google Maps link (exact pin when we
+  // have coords, address search otherwise). In editor mode the whole section is
+  // a click-to-edit target, so we keep it plain text there — an anchor would
+  // hijack the click and navigate away from the editor.
+  const locationNode = (style) => {
+    const mapsUrl = !editable ? getGoogleMapsUrl(location, locationLat, locationLng) : null;
+    if (!mapsUrl) return <span style={style}>{formatLocationShort(location)}</span>;
+    return (
+      <a
+        href={mapsUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        style={{ ...style, color: style.color, textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}
+      >
+        {formatLocationShort(location)}
+      </a>
+    );
+  };
+
   // Per-section theming (migration 047): each section may carry its own
   // `fontFamily` (curated font name) + `fontColor`. Lazy-load any webfonts
   // those sections reference so they render in the real face.
@@ -111,7 +133,7 @@ export function EventPageContent({
     return (
       <>
         {title && <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: "0 0 12px 0" }}>{title}</h1>}
-        {location && !hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6, marginBottom: "4px" }}>{formatLocationShort(location)}</div>}
+        {location && !hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6, marginBottom: "4px" }}>{locationNode({ color: "#fff" })}</div>}
         {hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.35, marginBottom: "4px", fontStyle: "italic" }}>{locationTba}</div>}
         {formattedDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", marginBottom: "20px" }}>{formattedDate}</div>}
         {hideDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", opacity: 0.5, marginBottom: "20px", fontStyle: "italic" }}>{dateTba}</div>}
@@ -155,7 +177,7 @@ export function EventPageContent({
           ) : section.type === "location" ? (
             hideLocation
               ? <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "#fff", fontFamily: sFamily, opacity: 0.35, fontStyle: "italic" }}>{locationTba}</div>
-              : location ? <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "#fff", fontFamily: sFamily, opacity: 0.6 }}>{formatLocationShort(location)}</div> : null
+              : location ? <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "#fff", fontFamily: sFamily, opacity: 0.6 }}>{locationNode({ color: sColor || "#fff" })}</div> : null
 
           ) : section.type === "datetime" ? (
             hideDate

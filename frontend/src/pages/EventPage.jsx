@@ -925,6 +925,8 @@ export function EventPage() {
             title: event?.titleSettings?.visible !== false ? event?.title : null,
             description: event?.description,
             location: event?.location,
+            locationLat: event?.locationLat,
+            locationLng: event?.locationLng,
             startsAt: event?.startsAt,
             endsAt: event?.endsAt,
             timezone: event?.timezone,

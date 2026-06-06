@@ -222,6 +222,23 @@ function resolveLocationText({ location, hideLocation, revealHint }) {
   if (hideLocation) return revealHint || "Location revealed later";
   return location || "";
 }
+// Always Google Maps. Exact pin when the event carries coords, address search
+// otherwise. (Loose null-check so an undefined coord falls through to text.)
+function googleMapsUrl(location, lat, lng) {
+  if (lat != null && lng != null) return `https://www.google.com/maps?q=${lat},${lng}`;
+  if (location) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+  return null;
+}
+// Inner HTML for a "Where" cell: the location as a tappable Maps link, or plain
+// text when the location is hidden (reveal-later) or we have nothing to link.
+function locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint }, color) {
+  const text = resolveLocationText({ location, hideLocation, revealHint });
+  if (!text) return "";
+  const url = hideLocation ? null : googleMapsUrl(location, locationLat, locationLng);
+  return url
+    ? `<a href="${url}" target="_blank" style="color:${color};text-decoration:underline;">${text}</a>`
+    : text;
+}
 
 /* ── Badge pill component ── */
 function badge(text, brand, overrides = {}) {
@@ -311,6 +328,8 @@ export function signupConfirmationEmail({
   // new enriched fields
   imageUrl = "",
   location = "",
+  locationLat = null,
+  locationLng = null,
   startsAt = "",
   endsAt = "",
   timezone = "",
@@ -405,7 +424,7 @@ ${noteBlock(customNote, b)}
     ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
         <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td>
-        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationText}</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint }, b.ink)}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px ${ticketPrice ? "0" : "14px"};">
@@ -519,6 +538,8 @@ export function reminder24hEmail({
   timezone = "",
   imageUrl = "",
   location = "",
+  locationLat = null,
+  locationLng = null,
   slug = "",
   frontendUrl = "https://pullup.se",
   // reveal-later flags
@@ -570,7 +591,7 @@ ${noteBlock(customNote, b)}
     <tr><td style="padding:14px 20px;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation">
         ${dateFormatted ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${b.muted};font-family:${b.fontStack};">When</td><td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${dateFormatted}</td></tr>` : ""}
-        ${locationText ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td><td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationText}</td></tr>` : ""}
+        ${locationText ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td><td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint }, b.ink)}</td></tr>` : ""}
       </table>
     </td></tr>
   </table>
@@ -594,6 +615,8 @@ export function reservationEmail({
   eventTitle,
   imageUrl = "",
   location = "",
+  locationLat = null,
+  locationLng = null,
   startsAt = "",
   endsAt = "",
   timezone = "",
@@ -659,7 +682,7 @@ ${noteBlock(customNote, b)}
     ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
         <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td>
-        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationText}</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint }, b.ink)}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px 14px;">
@@ -689,6 +712,8 @@ export function waitlistOfferEmail({
   eventTitle,
   imageUrl = "",
   location = "",
+  locationLat = null,
+  locationLng = null,
   startsAt = "",
   endsAt = "",
   timezone = "",
@@ -767,7 +792,7 @@ ${noteBlock(customNote, b)}
     ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
         <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td>
-        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationText}</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint }, b.ink)}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px 14px;">

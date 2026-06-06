@@ -170,6 +170,105 @@ async function handleMessaging(messagingEvent, igAccountId) {
   }
 }
 
+// ── App-management webhooks: deauthorize + data deletion ─────────────
+// Meta calls these with a `signed_request` (form field) when a user removes the
+// app or requests deletion. Required for the app to be published / pass review.
+
+/**
+ * Verify + decode Meta's signed_request: `<base64url-sig>.<base64url-payload>`,
+ * where sig = HMAC-SHA256(payload) keyed by the app secret. Returns the payload
+ * object ({ user_id, issued_at, ... }) or null if missing/tampered.
+ */
+function parseSignedRequest(signedRequest) {
+  if (typeof signedRequest !== "string" || !signedRequest.includes(".")) return null;
+  if (!IG_APP_SECRET) return null;
+  const [encodedSig, payload] = signedRequest.split(".", 2);
+  let providedSig;
+  try {
+    providedSig = Buffer.from(encodedSig, "base64url");
+  } catch {
+    return null;
+  }
+  const expectedSig = crypto.createHmac("sha256", IG_APP_SECRET).update(payload).digest();
+  if (
+    providedSig.length !== expectedSig.length ||
+    !crypto.timingSafeEqual(providedSig, expectedSig)
+  ) {
+    return null;
+  }
+  try {
+    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * POST /webhooks/instagram/deauthorize — user removed the app. Mark their
+ * connection revoked. 200 on success so Meta doesn't retry.
+ */
+export async function handleIgDeauthorize(req, res) {
+  const data = parseSignedRequest(req.body?.signed_request);
+  if (!data?.user_id) {
+    res.status(400).json({ error: "invalid signed_request" });
+    return;
+  }
+  try {
+    const { markConnectionStatus } = await import("../repos/instagramConnectionsRepo.js");
+    await markConnectionStatus(data.user_id, "revoked");
+    logger?.info?.("[instagram/deauthorize] connection revoked", { igUserId: data.user_id });
+  } catch (err) {
+    logger?.error?.("[instagram/deauthorize] failed", { err: err.message });
+  }
+  res.status(200).json({ ok: true });
+}
+
+/**
+ * POST /webhooks/instagram/data-deletion — delete the user's stored IG data,
+ * then return Meta's required JSON shape: a status URL + a confirmation code.
+ */
+export async function handleIgDataDeletion(req, res) {
+  const data = parseSignedRequest(req.body?.signed_request);
+  if (!data?.user_id) {
+    res.status(400).json({ error: "invalid signed_request" });
+    return;
+  }
+  const code = `igdel_${data.user_id}`;
+  try {
+    const { deleteByIgUserId } = await import("../repos/instagramConnectionsRepo.js");
+    await deleteByIgUserId(data.user_id);
+    logger?.info?.("[instagram/data-deletion] data deleted", { igUserId: data.user_id });
+  } catch (err) {
+    logger?.error?.("[instagram/data-deletion] failed", { err: err.message });
+  }
+  res.status(200).json({
+    url: `https://pullup.se/webhooks/instagram/data-deletion/status?code=${encodeURIComponent(code)}`,
+    confirmation_code: code,
+  });
+}
+
+/**
+ * GET /webhooks/instagram/data-deletion/status — the human-facing page Meta's
+ * data-deletion response links to. Static confirmation.
+ */
+export function handleIgDataDeletionStatus(req, res) {
+  const code = String(req.query?.code || "").replace(/[^a-zA-Z0-9_-]/g, "");
+  res
+    .status(200)
+    .type("html")
+    .send(
+      `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+        `<meta name="viewport" content="width=device-width,initial-scale=1">` +
+        `<title>Data deletion — PullUp</title></head>` +
+        `<body style="font-family:system-ui,sans-serif;max-width:560px;margin:48px auto;padding:0 20px;color:#0a0a0a">` +
+        `<h1 style="color:#ec178f">Data deletion complete</h1>` +
+        `<p>Your Instagram connection and its stored data (account link and access token) have been removed from PullUp.</p>` +
+        (code ? `<p>Confirmation code: <code>${code}</code></p>` : "") +
+        `<p>Questions? See our <a href="https://pullup.se/privacy">privacy policy</a>.</p>` +
+        `</body></html>`,
+    );
+}
+
 export async function handleIgWebhookDelivery(req, res) {
   const signature = req.headers["x-hub-signature-256"];
   if (!isValidSignature(req.rawBody, signature)) {

@@ -949,6 +949,10 @@ export function CreateEventPage() {
   const [formFields, setFormFields] = useState(
     withLockedFields(draft?.formFields, draft?.contactChannel || "email"),
   );
+  // The RSVP form is fixed to Name + Email (always required) + WhatsApp +
+  // Instagram. These toggles make WhatsApp / Instagram required (else optional).
+  const [requirePhone, setRequirePhone] = useState(!!draft?.requirePhone);
+  const [requireInstagram, setRequireInstagram] = useState(!!draft?.requireInstagram);
   // When the host flips the contact channel, re-lock the form fields so
   // the right contact row sits at the top (Email / WhatsApp / both) and
   // duplicate phone presets are pruned. Custom + identity fields keep
@@ -1041,7 +1045,7 @@ export function CreateEventPage() {
     allowPlusOnes, maxPlusOnesPerGuest, dinnerEnabled, dinnerStartTime,
     dinnerEndTime, dinnerMaxSeatsPerSlot, dinnerOverflowAction, dinnerBookingEmail,
     hideDinnerRemaining, dinnerSlotsConfig, instagram, spotify, tiktok, soundcloud,
-    formFields, contactChannel, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
+    formFields, contactChannel, requirePhone, requireInstagram, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
     customThumbnail: !!customThumbnail,
   });
   const baselineSnapshot = useRef(null);
@@ -1208,6 +1212,8 @@ export function CreateEventPage() {
           instagram, spotify, tiktok, soundcloud,
           formFields,
           contactChannel,
+          requirePhone,
+          requireInstagram,
           currentStep,
           _savedAt: Date.now(),
         };
@@ -1627,6 +1633,8 @@ export function CreateEventPage() {
           ? ev.contactChannel
           : "email";
         setContactChannelRaw(loadedChannel);
+        setRequirePhone(!!ev.requirePhone);
+        setRequireInstagram(!!ev.requireInstagram);
         setFormFields(withLockedFields(ev.formFields, loadedChannel));
 
         // Media settings
@@ -2266,6 +2274,8 @@ export function CreateEventPage() {
       }),
       formFields: (formFields || []).filter(f => f && f.id && (isLockedFieldId(f.id) || (f.label || "").trim())),
       contactChannel,
+      requirePhone,
+      requireInstagram,
       location,
       locationLat: locationLat || null,
       locationLng: locationLng || null,
@@ -4741,75 +4751,51 @@ export function CreateEventPage() {
                     marginBottom: 6,
                   }}
                 >
-                  How guests hear from you
+                  RSVP form
                 </div>
-                {/* Inline light-zone segmented control. SegmentedChoice
-                    elsewhere in this file is dark-tokened; the create-event
-                    shell is light, so we draw our own here. */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: "4px",
-                    padding: "3px",
-                    background: colors.surface,
-                    border: `1px solid ${colors.border}`,
-                    borderRadius: "10px",
-                  }}
-                >
+                <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
+                  Guests give four things. Name and email are always required — that's how you reach and recognise them. WhatsApp and Instagram are optional unless you switch them on.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {[
-                    { value: "email",    label: "Email" },
-                    { value: "whatsapp", label: "WhatsApp" },
-                    { value: "both",     label: "Both" },
-                  ].map((opt) => {
-                    const active = contactChannel === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setContactChannel(opt.value)}
-                        style={{
-                          padding: "8px 4px",
-                          borderRadius: "7px",
-                          border: "none",
-                          background: active ? colors.background : "transparent",
-                          color: active ? colors.text : colors.textMuted,
-                          fontSize: "13px",
-                          fontWeight: active ? 600 : 500,
-                          cursor: "pointer",
-                          transition: "background 120ms ease, color 120ms ease",
-                          whiteSpace: "nowrap",
-                          boxShadow: active ? "0 1px 2px rgba(10,10,10,0.06)" : "none",
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: colors.textMuted,
-                    marginTop: 8,
-                    lineHeight: 1.45,
-                  }}
-                >
-                  {contactChannel === "whatsapp"
-                    ? "RSVPs verify their phone via a one-tap WhatsApp link. Confirms, reminders and your broadcasts all reach them in the same DM thread."
-                    : contactChannel === "both"
-                    ? "We collect both, with WhatsApp as the primary contact. Falls back to email when a guest isn't on WhatsApp."
-                    : "Classic email flow — confirms, reminders and broadcasts via email."}
+                    { label: "Name", fixed: true },
+                    { label: "Email", fixed: true },
+                    { label: "WhatsApp", on: requirePhone, toggle: () => setRequirePhone((v) => !v) },
+                    { label: "Instagram", on: requireInstagram, toggle: () => setRequireInstagram((v) => !v) },
+                  ].map((row) => (
+                    <div
+                      key={row.label}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "10px 12px",
+                        background: colors.surface,
+                        border: `1px solid ${colors.border}`,
+                        borderRadius: "8px",
+                      }}
+                    >
+                      <span style={{ fontSize: "14px", fontWeight: 500, color: colors.text }}>{row.label}</span>
+                      {row.fixed ? (
+                        <span style={{ fontSize: "12px", color: colors.textMuted }}>Always required</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={row.toggle}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "8px", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
+                        >
+                          <span style={{ fontSize: "12px", fontWeight: 500, color: row.on ? colors.text : colors.textMuted }}>
+                            {row.on ? "Required" : "Optional"}
+                          </span>
+                          <span style={{ position: "relative", width: "34px", height: "20px", borderRadius: "999px", background: row.on ? "#ec178f" : colors.border, transition: "background 120ms ease" }}>
+                            <span style={{ position: "absolute", top: "2px", left: row.on ? "16px" : "2px", width: "16px", height: "16px", borderRadius: "999px", background: "#fff", transition: "left 120ms ease", boxShadow: "0 1px 2px rgba(10,10,10,0.2)" }} />
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
-
-              {/* RSVP form fields builder */}
-              <FormFieldsBuilder
-                fields={formFields}
-                setFields={setFormFields}
-                dragIndex={formFieldDragIndex}
-                setDragIndex={setFormFieldDragIndex}
-              />
 
               {/* event options */}
               <div style={{ marginTop: "28px", marginBottom: "16px" }}>
@@ -5599,6 +5585,8 @@ export function CreateEventPage() {
                         timezone: timezone,
                         formFields,
                         contactChannel,
+                        requirePhone,
+                        requireInstagram,
                       }}
                       previewSlots={previewDinnerSlots}
                       onSubmit={async () => {
@@ -5706,6 +5694,8 @@ export function CreateEventPage() {
                   maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
                   formFields,
                   contactChannel,
+                  requirePhone,
+                  requireInstagram,
                 }}
                 previewSlots={previewDinnerSlots}
                 onSubmit={async () => {

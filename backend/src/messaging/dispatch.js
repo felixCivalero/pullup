@@ -88,16 +88,19 @@ async function attemptInstagram({ recipient, text, attachments = [], humanCompos
     if (!creds?.accessToken) { reasons.push("ig: host not connected"); return null; }
     const { sendMessage } = await import("../instagram/providers/igGraphClient.js");
     const base = { igUserId: creds.igUserId, accessToken: creds.accessToken, recipientId: igId, humanAgent: state === "human_agent" };
-    // A message is text OR one attachment — so send the note, then one send per image.
-    if (bodyText) await sendMessage({ ...base, text: bodyText });
+    // A message is text OR one attachment — so send the note, then one send per
+    // image. Keep the last provider message id for delivery/read tracking.
+    let mid = null;
+    if (bodyText) { const res = await sendMessage({ ...base, text: bodyText }); mid = res?.message_id || mid; }
     for (const img of images) {
-      await sendMessage({ ...base, attachment: { type: "image", url: img.url } });
+      const res = await sendMessage({ ...base, attachment: { type: "image", url: img.url } });
+      mid = res?.message_id || mid;
     }
     await upsertThreadFromMessage({
       personId, hostProfileId, igUserId: igId,
       direction: "outbound", preview: bodyText || (images.length ? "[Photo]" : "[media]"),
     });
-    return { channel: "instagram" };
+    return { channel: "instagram", mid };
   } catch (e) {
     reasons.push(`ig: send failed (${e?.message || e})`);
     logger?.error?.("[messaging/dispatch] instagram send failed, falling through", {

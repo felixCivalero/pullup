@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
+import { getGoogleMapsUrl } from "../lib/urlUtils";
 import { useToast } from "./Toast";
 
 // Light PullUp palette — white canvas, near-black ink, the one pink accent.
@@ -162,8 +163,9 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   }, [events]);
   const visibleEvents = showAllEvents || !curatedEvents.length ? events : curatedEvents;
   function fmtWhen(e) { if (!e?.startsAt) return ""; try { return new Date(e.startsAt).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; } }
-  function mapsLink(e, provider) { const loc = (e?.location || "").trim(); if (!loc) return ""; const query = encodeURIComponent(loc); return provider === "apple" ? `https://maps.apple.com/?q=${query}` : `https://www.google.com/maps/search/?api=1&query=${query}`; }
-  function smartBlock(e) { const parts = []; if (e?.title) parts.push(e.title); const w = fmtWhen(e); if (w) parts.push(w); if (e?.location) parts.push(e.location); const ml = mapsLink(e, "google"); if (ml) parts.push(ml); return parts.join("\n"); }
+  // Always Google Maps, exact pin when the event carries coords (else address search).
+  function mapsLink(e) { if (!(e?.location || "").trim()) return ""; return getGoogleMapsUrl(e.location, e.locationLat, e.locationLng) || ""; }
+  function smartBlock(e) { const parts = []; if (e?.title) parts.push(e.title); const w = fmtWhen(e); if (w) parts.push(w); if (e?.location) parts.push(e.location); const ml = mapsLink(e); if (ml) parts.push(ml); return parts.join("\n"); }
   function appendDraft(txt) { if (!txt) return; setDraft((d) => (d && !/\s$/.test(d) ? d + " " : d) + txt); }
 
   // ── Multi-select → message several people at once ──
@@ -222,7 +224,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {smartChip("Name", () => appendDraft(smartEvent.title))}
             {fmtWhen(smartEvent) && smartChip("Date & time", () => appendDraft(fmtWhen(smartEvent)))}
-            {smartEvent.location && smartChip("Location", () => { setAttachedLocation({ label: smartEvent.location, url: mapsLink(smartEvent, "google") }); setSmartOpen(false); })}
+            {smartEvent.location && smartChip("Location", () => { setAttachedLocation({ label: smartEvent.location, url: mapsLink(smartEvent) }); setSmartOpen(false); })}
             {smartChip("Attach event card", () => { setAttachedEventId(smartEvent.id); setSmartOpen(false); }, true)}
           </div>
         </div>

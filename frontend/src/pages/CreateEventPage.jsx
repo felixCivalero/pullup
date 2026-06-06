@@ -800,6 +800,7 @@ export function CreateEventPage() {
   const [location, setLocation] = useState(draft?.location || "Slakthusomr\u00e5det");
   const [locationLat, setLocationLat] = useState(draft?.locationLat || null);
   const [locationLng, setLocationLng] = useState(draft?.locationLng || null);
+  const [locationPlaceId, setLocationPlaceId] = useState(draft?.locationPlaceId || null);
   const [hideLocation, setHideLocation] = useState(draft?.hideLocation || false);
   const [startsAt, setStartsAt] = useState(() => {
     // Always start at tomorrow 19:00 local — overwritten by the load path in
@@ -1034,7 +1035,7 @@ export function CreateEventPage() {
   const formSnapshot = JSON.stringify({
     title, titleVisible, titleAlign, titleFont, titleSize, titleColor,
     detailsColor, detailsGradient, detailsGradientEnabled, description, sections,
-    location, locationLat, locationLng, hideLocation, hideDate, revealHint,
+    location, locationLat, locationLng, locationPlaceId, hideLocation, hideDate, revealHint,
     dateRevealHint, startsAt, endsAt, timezone, maxAttendees, waitlistEnabled,
     instantWaitlist, sellTicketsEnabled, ticketPrice, ticketCurrency,
     allowPlusOnes, maxPlusOnesPerGuest, dinnerEnabled, dinnerStartTime,
@@ -1196,7 +1197,7 @@ export function CreateEventPage() {
           title, titleVisible, titleAlign, titleFont, titleSize, titleColor, detailsColor, detailsGradient, detailsGradientEnabled,
           brand,
           draftEventId: draftEventIdRef.current,
-          description, location, locationLat, locationLng, hideLocation, hideDate, revealHint, dateRevealHint,
+          description, location, locationLat, locationLng, locationPlaceId, hideLocation, hideDate, revealHint, dateRevealHint,
           startsAt, endsAt, timezone, maxAttendees, waitlistEnabled, instantWaitlist,
           sellTicketsEnabled, ticketPrice, ticketCurrency,
           allowPlusOnes, maxPlusOnesPerGuest,
@@ -1215,7 +1216,7 @@ export function CreateEventPage() {
     }, 500);
     return () => clearTimeout(timeout);
   }, [
-    isEditMode, title, description, location, locationLat, locationLng,
+    isEditMode, title, description, location, locationLat, locationLng, locationPlaceId,
     startsAt, endsAt, timezone, maxAttendees, waitlistEnabled,
     sellTicketsEnabled, ticketPrice, ticketCurrency,
     allowPlusOnes, maxPlusOnesPerGuest,
@@ -1570,6 +1571,7 @@ export function CreateEventPage() {
         setLocation(ev.location || "");
         setLocationLat(ev.locationLat || null);
         setLocationLng(ev.locationLng || null);
+        setLocationPlaceId(ev.locationPlaceId || null);
         setHideLocation(ev.hideLocation || false);
         setHideDate(ev.hideDate || false);
         setInstantWaitlist(ev.instantWaitlist || false);
@@ -2267,6 +2269,7 @@ export function CreateEventPage() {
       location,
       locationLat: locationLat || null,
       locationLng: locationLng || null,
+      locationPlaceId: locationPlaceId || null,
       hideLocation,
       hideDate,
       revealHint: revealHint.trim() || null,
@@ -3808,6 +3811,7 @@ export function CreateEventPage() {
                       setLocation(locationData.address);
                       setLocationLat(locationData.lat);
                       setLocationLng(locationData.lng);
+                      setLocationPlaceId(locationData.placeId || null);
 
                       const tz = await fetchTimezoneForLocation(
                         locationData.lat,
@@ -4207,6 +4211,7 @@ export function CreateEventPage() {
                           setLocation(locationData.address);
                           setLocationLat(locationData.lat);
                           setLocationLng(locationData.lng);
+                          setLocationPlaceId(locationData.placeId || null);
                           const tz = await fetchTimezoneForLocation(locationData.lat, locationData.lng);
                           if (tz) setTimezone(tz);
                         }}

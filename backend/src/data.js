@@ -147,6 +147,7 @@ export async function mapEventFromDb(dbEvent) {
     location: dbEvent.location,
     locationLat: dbEvent.location_lat || null,
     locationLng: dbEvent.location_lng || null,
+    locationPlaceId: dbEvent.location_place_id || null,
     startsAt: dbEvent.starts_at,
     endsAt: dbEvent.ends_at,
     timezone: dbEvent.timezone,
@@ -656,6 +657,11 @@ function mapEventToDb(eventData) {
   if (eventData.locationLng !== undefined && eventData.locationLng !== null) {
     dbData.location_lng = eventData.locationLng;
   }
+  // Google's permanent key for the picked spot — lets us re-expand the full
+  // address / hours / map later without the host re-typing anything.
+  if (eventData.locationPlaceId !== undefined && eventData.locationPlaceId !== null) {
+    dbData.location_place_id = eventData.locationPlaceId;
+  }
   if (eventData.startsAt !== undefined) dbData.starts_at = eventData.startsAt;
   if (eventData.endsAt !== undefined) dbData.ends_at = eventData.endsAt;
   if (eventData.timezone !== undefined) dbData.timezone = eventData.timezone;
@@ -755,6 +761,7 @@ export async function createEvent({
   location,
   locationLat = null,
   locationLng = null,
+  locationPlaceId = null,
   startsAt,
   endsAt,
   timezone,
@@ -846,6 +853,7 @@ export async function createEvent({
     location,
     locationLat: locationLat || null,
     locationLng: locationLng || null,
+    locationPlaceId: locationPlaceId || null,
     startsAt,
     endsAt: endsAt || null,
     timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -917,6 +925,9 @@ export async function createEvent({
   }
   if (dbData.location_lng === null || dbData.location_lng === undefined) {
     delete dbData.location_lng;
+  }
+  if (dbData.location_place_id === null || dbData.location_place_id === undefined) {
+    delete dbData.location_place_id;
   }
 
   // Remove createdVia and status if they're not in the database schema yet

@@ -5,7 +5,7 @@ import { SceneFrame } from "./SceneFrame";
 import { EventPageContent } from "./EventPageContent";
 import { getCtaLabel } from "./EventCTA";
 import { formatEventTime } from "../lib/dateUtils.js";
-import { formatLocationShort } from "../lib/urlUtils";
+import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { transformedImageUrl } from "../lib/imageUtils";
 
@@ -32,6 +32,8 @@ export function DesktopEventLayout({
   title,
   description,
   location,
+  locationLat = null,
+  locationLng = null,
   startsAt,
   timezone,
   imagePreview,
@@ -320,6 +322,8 @@ export function DesktopEventLayout({
               title={title}
               description={description}
               location={location}
+              locationLat={locationLat}
+              locationLng={locationLng}
               startsAt={startsAt}
               timezone={timezone}
               sections={sections}
@@ -400,7 +404,14 @@ export function DesktopEventLayout({
                         marginTop: "1px",
                       }}
                     >
-                      {formatLocationShort(location)}
+                      <a
+                        href={getGoogleMapsUrl(location, locationLat, locationLng)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}
+                      >
+                        {formatLocationShort(location)}
+                      </a>
                     </div>
                   )}
                 </div>

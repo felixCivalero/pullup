@@ -51,6 +51,13 @@ export function validateEventData(req, res, next) {
     }
   }
 
+  // Google Places place_id (opaque token, e.g. "ChIJ..."). Just guard type/length.
+  if (req.body.locationPlaceId !== undefined && req.body.locationPlaceId !== null) {
+    if (typeof req.body.locationPlaceId !== "string" || req.body.locationPlaceId.length > 300) {
+      errors.push("Location place ID must be a string under 300 characters");
+    }
+  }
+
   // Date validation
   if (req.body.startsAt !== undefined) {
     if (typeof req.body.startsAt !== "string") {

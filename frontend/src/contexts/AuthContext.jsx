@@ -22,59 +22,29 @@ export function AuthProvider({ children }) {
       hash.includes("refresh_token") ||
       search.includes("code=");
 
-    // Resolve the initial session — but VALIDATE it before trusting it.
-    // getSession() only reads localStorage; it never asks the server whether
-    // the token is still good. A session revoked elsewhere (global sign-out,
-    // password change, long absence) still sits in localStorage with an
-    // unexpired-but-dead access token. Trusting it sets `user` truthy, which
-    // mounts every authenticated component at once → a 401 storm against the
-    // API, and each 401 fires a doomed logout (403) — the console mess on a
-    // stale /r/:id load. Our backend validates tokens server-side
-    // (supabase.auth.getUser), so the frontend must do the same to agree.
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      // During an OAuth round-trip the fresh, server-issued session arrives via
-      // onAuthStateChange — stay optimistic and let the listener resolve it.
-      if (hasOAuthTokens) {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session) setLoading(false);
-        return;
-      }
-
-      if (!session) {
-        setSession(null);
-        setUser(null);
+    // Resolve the initial session optimistically from storage — fast, no
+    // server round-trip on every load. We deliberately DON'T validate here:
+    // auth is only checked on the login action (see LandingPage). If a stored
+    // session has gone dead (e.g. a global "log out everywhere" from another
+    // device), the local mechanisms catch it without a storm: the first
+    // authenticated API call 401s → api.js clears the session locally → that
+    // fires SIGNED_OUT → the listener below nulls `user`.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      // Only resolve loading if there are no pending OAuth tokens to process
+      if (!hasOAuthTokens || session) {
         setLoading(false);
-        return;
       }
-
-      const { data: { user: validUser }, error } = await supabase.auth.getUser();
-      if (validUser) {
-        setSession(session);
-        setUser(validUser);
-      } else if (error && (error.status === 401 || error.status === 403)) {
-        // Definitively dead — drop it locally so the token stops being sent.
-        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
-        setSession(null);
-        setUser(null);
-      } else {
-        // Transient (network/server) error — don't nuke a possibly-valid
-        // session. Fall back to optimistic; api.js clears it if the backend
-        // later rejects it.
-        setSession(session);
-        setUser(session?.user ?? null);
-      }
-      setLoading(false);
     });
 
-    // Listen for auth changes (fires after OAuth tokens are processed).
-    // Skip INITIAL_SESSION: it carries the same unvalidated cached session the
-    // block above owns (with validation), so honoring it here would re-set a
-    // dead `user` and bring the storm right back.
+    // Listen for auth changes — fires after OAuth tokens are processed, and on
+    // SIGNED_OUT (including the local clear api.js triggers when it sees a dead
+    // session). This is the spine that keeps every device in sync: a global
+    // logout elsewhere lands here as SIGNED_OUT once the local clear runs.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "INITIAL_SESSION") return;
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -268,8 +238,13 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
+  // Default logout is LOCAL: it clears this browser's session and revokes only
+  // this device's refresh token — your other devices stay signed in. Pass
+  // { scope: "global" } for "log out everywhere", which revokes ALL of the
+  // user's sessions server-side (no data is deleted; every device gets kicked
+  // the moment its short-lived access token expires or its next API call 401s).
+  const signOut = async ({ scope = "local" } = {}) => {
+    const { error } = await supabase.auth.signOut({ scope });
     if (error) {
       console.error("Error signing out:", error);
       throw error;

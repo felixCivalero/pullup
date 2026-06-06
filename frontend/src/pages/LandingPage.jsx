@@ -1,9 +1,9 @@
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ArrowRight, Lock, Cloud, UserCheck, PenLine, Heart, Download } from "lucide-react";
-import { useAuth } from "../contexts/AuthContext";
 import { AuthGate, resolveNext } from "../components/auth/AuthGate.jsx";
 import { publicFetch } from "../lib/api.js";
+import { supabase } from "../lib/supabase.js";
 import { trackEvent, getVisitorId } from "../lib/analytics.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
@@ -486,7 +486,13 @@ function McpScene() {
    one identity across channels, the WhatsApp window, drafts in your voice.
    Brand-soul kept: light canvas, pink accent, the eyes, pixel cursor,
    trust marquee. */
-function MarketingScroll({ onGetStarted, onLogin, user }) {
+// The landing is one page for everyone — logged in or out. It never reads auth
+// state: it always offers "Log in" / "Get started". A returning user either
+// taps in (the /login + /start action validates the session and drops them in
+// their room) or goes straight to their room URL. Keeping the public page
+// auth-agnostic is what makes it stable — no optimistic redirect off a token
+// that might be dead.
+function MarketingScroll({ onGetStarted, onLogin }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -501,11 +507,11 @@ function MarketingScroll({ onGetStarted, onLogin, user }) {
       type="button"
       className="mk-cta"
       onClick={() => {
-        trackEvent("cta_click", { location, user_logged_in: !!user });
+        trackEvent("cta_click", { location });
         onGetStarted();
       }}
     >
-      {user ? "Open your room" : label}
+      {label}
       <ArrowRight size={17} />
     </button>
   );
@@ -523,27 +529,25 @@ function MarketingScroll({ onGetStarted, onLogin, user }) {
           <img src="/pullup-textlogo.svg" alt="PullUp" />
         </button>
         <div className="mk-nav-actions">
-          {!user && (
-            <button
-              type="button"
-              className="mk-nav-login"
-              onClick={() => {
-                trackEvent("cta_click", { location: "nav_login", user_logged_in: false });
-                onLogin();
-              }}
-            >
-              Log in
-            </button>
-          )}
+          <button
+            type="button"
+            className="mk-nav-login"
+            onClick={() => {
+              trackEvent("cta_click", { location: "nav_login" });
+              onLogin();
+            }}
+          >
+            Log in
+          </button>
           <button
             type="button"
             className="mk-nav-cta"
             onClick={() => {
-              trackEvent("cta_click", { location: "nav", user_logged_in: !!user });
+              trackEvent("cta_click", { location: "nav" });
               onGetStarted();
             }}
           >
-            {user ? "Open your room" : "Get started"}
+            Get started
           </button>
         </div>
       </header>
@@ -792,7 +796,6 @@ export function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
 
   // URL → which surface we show. /login + /start are the auth shell;
   // anything else is the marketing scroll.
@@ -816,14 +819,34 @@ export function LandingPage() {
     }).catch(() => {});
   }, []);
 
-  // We deliberately DON'T auto-redirect signed-in visitors to their room.
-  // pullup.se is also the marketing home, so a returning user just sees it
-  // with an explicit "Open your room" CTA (in the nav + hero). Auto-forwarding
-  // off a merely-stored token was fragile: a stale/globally-revoked session
-  // still has a token blob in localStorage, so it bounced / → /room → /r/:me
-  // through a broken authed view before the 401s cleared it. Explicit entry is
-  // stable. Login/onboarding/OAuth all self-forward via AuthGate ?next= and
-  // /auth/callback, so the deliberate flows are unaffected.
+  // The ONE auth check in the whole landing — and only on the login action.
+  // The marketing page itself never reads auth (it always offers Log in / Get
+  // started). When someone taps Log in and already has a stored session, we
+  // validate it server-side (getUser, the same check the backend runs) and:
+  //   • valid  → drop them straight into their room, no re-login.
+  //   • dead   → clear it locally so the login form shows cleanly. This is the
+  //              graceful catch for a session revoked elsewhere by a global
+  //              "log out everywhere".
+  // Onboarding (/start) is intentionally excluded — AuthGate owns that flow
+  // (it flushes the name+brand draft before forwarding).
+  useEffect(() => {
+    if (view !== "login") return;
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled || !session) return;
+      const { data: { user: validUser }, error } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (validUser) {
+        navigate(resolveNext(searchParams), { replace: true });
+      } else if (error && (error.status === 401 || error.status === 403)) {
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [view, navigate, searchParams]);
 
   // Marketing scroll needs the document to scroll normally; auth shell is a
   // single locked screen. Toggle a body class so the lock only applies to
@@ -842,8 +865,7 @@ export function LandingPage() {
       {/* Marketing always renders; auth floats over it as a popup so the
           landing stays behind. */}
       <MarketingScroll
-        user={user}
-        onGetStarted={() => navigate(user ? "/room" : "/start")}
+        onGetStarted={() => navigate("/start")}
         onLogin={() => navigate("/login")}
       />
       {(view === "login" || view === "onboarding") && (

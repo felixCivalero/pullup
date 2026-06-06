@@ -5285,6 +5285,100 @@ app.delete("/host/events/:id", requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// Duplicate an event into a fresh DRAFT the current user owns. Copies
+// everything *inside* the event (theme, sections, media, location + pin,
+// ticket/capacity/dinner settings) but NOT the guest graph — RSVPs, the room
+// timeline, and tracking live in separate tables keyed by event_id, so a clone
+// starts empty. The host only has to change name + date. Mirrors the MCP
+// duplicate_event so chat and the dashboard button behave identically.
+app.post("/host/events/:id/duplicate", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const event = await findEventById(id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const { isHost } = await isUserEventHost(req.user.id, event.id);
+    if (!isHost) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Only a host of this event can duplicate it.",
+      });
+    }
+
+    // Strip identity / lifecycle so createEvent starts a clean record. Also drop
+    // the computed fields findEventById tacks on (they aren't event columns).
+    const {
+      id: _id, slug, hostId, createdAt, updatedAt, status,
+      stripeProductId, stripePriceId,
+      myRole, _stats, _count, viewCount,
+      ...rest
+    } = event;
+
+    // Optional overrides (the MCP passes these when the AI already knows the new
+    // title/date, e.g. "Vol 3" from a series). Default: "<title> (copy)" and a
+    // future placeholder the host overwrites. Duration is preserved either way.
+    const titleOverride = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+    const newTitle = titleOverride || `${event.title || "Untitled event"} (copy)`;
+    const newStartsAt = req.body?.startsAt || new Date(Date.now() + 7 * 86400000).toISOString();
+    let newEndsAt = null;
+    if (event.startsAt && event.endsAt) {
+      const delta = new Date(event.endsAt).getTime() - new Date(event.startsAt).getTime();
+      if (delta > 0) newEndsAt = new Date(new Date(newStartsAt).getTime() + delta).toISOString();
+    }
+
+    const created = await createEvent({
+      ...rest,
+      hostId: req.user.id,
+      title: newTitle,
+      startsAt: newStartsAt,
+      endsAt: newEndsAt,
+      status: "DRAFT",
+    });
+
+    // Clone the host's media gallery. The rows point at shared storage paths, so
+    // we copy the rows (not the files) under the new event_id. Skip the
+    // `darkroom` folder — that's guests' post-event uploads, not the host's set.
+    try {
+      const { supabase } = await import("./supabase.js");
+      const { data: mediaRows } = await supabase
+        .from("event_media")
+        .select("media_type, storage_path, thumbnail_path, position, is_cover, mime_type, folder")
+        .eq("event_id", event.id)
+        .or("folder.is.null,folder.neq.darkroom")
+        .order("position", { ascending: true });
+      if (mediaRows && mediaRows.length) {
+        await supabase
+          .from("event_media")
+          .insert(mediaRows.map((m) => ({ ...m, event_id: created.id })));
+      }
+      // createEvent copies image_url but not cover_image_url — carry it so the
+      // clone's cover is identical on every surface.
+      if (event.coverImageUrl) {
+        await supabase
+          .from("events")
+          .update({ cover_image_url: event.coverImageUrl })
+          .eq("id", created.id);
+      }
+    } catch (mediaErr) {
+      console.error("Duplicate: media gallery copy failed (event still created):", mediaErr?.message);
+    }
+
+    emitIntent({
+      hostId: req.user.id,
+      tool: "duplicate_event",
+      args: { id },
+      source: sourceFromRequest(req),
+      target: { type: "event", id: created.id },
+      result: { slug: created.slug, from: event.slug },
+    });
+
+    res.json({ success: true, event: created });
+  } catch (error) {
+    console.error("Error duplicating event:", error);
+    res.status(500).json({ error: "Failed to duplicate event" });
+  }
+});
+
 // ---------------------------
 // PROTECTED: Guest list (requires auth, verifies ownership)
 // ---------------------------

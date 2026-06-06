@@ -157,6 +157,24 @@ export function EventsTab({
                   return false;
                 }
               }}
+              onDuplicate={async (eventId) => {
+                try {
+                  const res = await authenticatedFetch(`/host/events/${eventId}/duplicate`, { method: "POST" });
+                  const data = await res.json();
+                  if (!res.ok || !data.event?.id) {
+                    showToast(data.message || "Could not duplicate event", "error");
+                    return false;
+                  }
+                  showToast("Duplicated — change the name and date", "success");
+                  // Land straight in the new draft's editor.
+                  navigate(`/app/events/${data.event.id}/edit`);
+                  return true;
+                } catch (err) {
+                  console.error(err);
+                  showToast("Could not duplicate event", "error");
+                  return false;
+                }
+              }}
             />
           ))}
 

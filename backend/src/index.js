@@ -7581,6 +7581,25 @@ app.get("/host/crm/people-filter-index", requireAuth, async (req, res) => {
 // ---------------------------
 // PROTECTED: Get person details with touchpoints
 // ---------------------------
+// Who in your world is closest to this person, and WHY — behavioral overlap
+// (shared events) fused with third-party signals (IG reach + reciprocity).
+// Explainable: each match carries its reasons. Foundation for intros/lookalikes.
+app.get("/host/crm/people/:personId/matches", requireAuth, async (req, res) => {
+  try {
+    const { personId } = req.params;
+    const { personBelongsToHost } = await import("./data.js");
+    const allowed = await personBelongsToHost(personId, req.user.id);
+    if (!allowed) return res.status(404).json({ error: "Person not found" });
+    const { findMatches } = await import("./services/peopleMatching.js");
+    const limit = Math.max(1, Math.min(Number(req.query.limit) || 10, 50));
+    const result = await findMatches({ hostId: req.user.id, personId, limit });
+    res.json(result);
+  } catch (error) {
+    console.error("Error finding matches:", error);
+    res.status(500).json({ error: "match_failed" });
+  }
+});
+
 app.get("/host/crm/people/:personId", requireAuth, async (req, res) => {
   try {
     const { personId } = req.params;

@@ -21,6 +21,7 @@ import { supabase } from "../supabase.js";
 import { logger } from "../logger.js";
 import { getUserProfile } from "../data.js";
 import { getConnectionsForHost } from "../instagram/repos/instagramConnectionsRepo.js";
+import { getForPersons, resolveDisplay } from "./personSourceProfiles.js";
 
 // The host's own profile, shaped for the Room masthead — so the page reads as
 // "this is YOUR profile, these are YOUR people" (the social-dashboard framing).
@@ -356,6 +357,8 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency, location").eq("host_id", hostId),
   ]);
   const peopleById = new Map((people || []).map((p) => [p.id, p]));
+  // Linked external-source profiles (IG etc.) → avatar + reach/reciprocity signals.
+  const sourceProfilesByPerson = await getForPersons(personIds);
   const identsByPerson = new Map();
   for (const i of idents || []) {
     if (!identsByPerson.has(i.person_id)) identsByPerson.set(i.person_id, new Set());
@@ -483,11 +486,16 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     const relationship = describeRelationship({ attended, rsvps, eventsTouched: eventsTouched.length, waitlisted, lastAt });
     const { needsYou, move } = suggestMove({ waitlisted, attended, lastAt, rsvps });
 
+    const sps = sourceProfilesByPerson.get(pid) || [];
+    const disp = resolveDisplay(sps);
+    const external = externalFromProfiles(sps);
+
     peopleOut.push({
       id: pid,
-      name: person.name || (person.email ? person.email.split("@")[0] : "Someone"),
-      handle: person.instagram ? `@${String(person.instagram).replace(/^@/, "")}` : (person.email || ""),
-      initials: initials(person.name, person.email),
+      name: person.name || disp.name || (person.email ? person.email.split("@")[0] : "Someone"),
+      handle: person.instagram ? `@${String(person.instagram).replace(/^@/, "")}` : (disp.handle ? `@${disp.handle}` : (person.email || "")),
+      initials: initials(person.name || disp.name, person.email),
+      avatarUrl: disp.avatarUrl || null, // IG profile pic etc. → real avatar (UI: fall back to initials)
       color: colorFor(pid),
       channel,
       reachable,
@@ -495,8 +503,12 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       windowNote,
       warmth,
       relationship,
+      external, // { instagram: { username, followerCount, followsYou, youFollow, verified } }
       events: eventsTouched,
-      signals: buildPersonSignals({ attended, eventsTouched: eventsTouched.length, kinds }),
+      signals: [
+        ...buildPersonSignals({ attended, eventsTouched: eventsTouched.length, kinds }),
+        ...externalSignals(external),
+      ],
       needsYou,
       move,
       lastMessage: lastMessageFrom(evs, eventTitleById),
@@ -662,6 +674,43 @@ function buildPersonSignals({ attended, eventsTouched, kinds }) {
   if (eventsTouched > 1) s.push(`Touched ${eventsTouched} of your events`);
   if (kinds.size > 1) s.push(`Reached on ${kinds.size} channels`);
   return s.length ? s : ["In your people"];
+}
+
+// Normalize the third-party facts we hold on a person (today: Instagram) into a
+// compact shape the UI + matching can read. Tolerant of camel/snake keys since
+// the raw snapshot is stored as the source gave it.
+function externalFromProfiles(profiles = []) {
+  const ig = profiles.find((p) => p.source === "instagram");
+  if (!ig) return undefined;
+  const d = ig.data || {};
+  const num = (...vals) => { for (const v of vals) if (typeof v === "number") return v; return null; };
+  const bool = (...vals) => { for (const v of vals) if (typeof v === "boolean") return v; return null; };
+  return {
+    instagram: {
+      username: ig.handle || d.username || null,
+      followerCount: num(d.followerCount, d.follower_count),
+      followsYou: bool(d.isUserFollowBusiness, d.is_user_follow_business),
+      youFollow: bool(d.isBusinessFollowUser, d.is_business_follow_user),
+      verified: bool(d.isVerified, d.is_verified_user),
+    },
+  };
+}
+
+function humanCount(n) {
+  if (n == null) return null;
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`.replace(".0k", "k");
+  return String(n);
+}
+
+// External facts → a few extra signal lines for the brain (reach, reciprocity).
+function externalSignals(external) {
+  const s = [];
+  const ig = external?.instagram;
+  if (!ig) return s;
+  if (ig.verified) s.push("Verified on Instagram");
+  if (ig.followerCount != null) s.push(`${humanCount(ig.followerCount)} IG followers`);
+  if (ig.followsYou) s.push("Follows you on IG");
+  return s;
 }
 
 // Attachments persisted on a message ({name,url,contentType,isImage}). undefined

@@ -35,11 +35,18 @@ const TINTS = ["#ec178f", "#0d9488", "#ea580c", "#7c3aed", "#1478c8", "#e11d48"]
 function hashName(n) { let h = 0; for (const c of String(n || "")) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 function initials(n = "") { return String(n).trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?"; }
 
-function Avatar({ name, size = 44, dot }) {
+function Avatar({ name, size = 44, dot, src }) {
   const c = TINTS[hashName(name) % TINTS.length];
+  const [broken, setBroken] = useState(false);
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>
-      <div style={{ width: size, height: size, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", background: `linear-gradient(135deg, ${c} 0%, ${c}99 100%)` }}>{initials(name)}</div>
+      {src && !broken ? (
+        // Real profile photo (e.g. Instagram), resolved from the person's linked
+        // source profiles. Falls back to the initials tile if the URL 404s.
+        <img src={src} alt={name || ""} onError={() => setBroken(true)} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", display: "block" }} />
+      ) : (
+        <div style={{ width: size, height: size, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", background: `linear-gradient(135deg, ${c} 0%, ${c}99 100%)` }}>{initials(name)}</div>
+      )}
       {dot && <span style={{ position: "absolute", right: -1, bottom: -1, width: size * 0.28, height: size * 0.28, borderRadius: "50%", background: dot, border: `2px solid ${D.bg}` }} />}
     </div>
   );
@@ -283,7 +290,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px", borderBottom: `1px solid ${D.line}` }}>
           {!split && <button onClick={() => setOpenId(null)} style={{ ...iconBtn, color: D.ink }} aria-label="Back"><ChevronLeft size={20} /></button>}
           <button onClick={() => { navigate(`/r/${open.id}`); onClose?.(); }} title="Open their room" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: "inherit", fontFamily: "inherit" }}>
-            <Avatar name={open.name} size={34} dot={open.channel === "whatsapp" && open.windowOpen ? D.green : null} />
+            <Avatar name={open.name} src={open.avatarUrl} size={34} dot={open.channel === "whatsapp" && open.windowOpen ? D.green : null} />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{open.name}</div>
               <div style={{ fontSize: 11, color: ch.color, fontWeight: 600 }}>{ch.label}{windowClosed ? " · window closed" : ""}</div>
@@ -299,7 +306,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             const mine = m.from === "you" || m.from === "system";
             return (
               <div key={i} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 7 }}>
-                {!mine && <Avatar name={open.name} size={22} />}
+                {!mine && <Avatar name={open.name} src={open.avatarUrl} size={22} />}
                 <div style={{ maxWidth: "74%" }}>
                   {(m.atts || []).map((a, j) => a.isImage ? (
                     <img key={j} src={a.url} alt="" style={{ display: "block", maxWidth: "100%", borderRadius: 16, marginBottom: 4 }} />
@@ -322,7 +329,18 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
                       📍 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.location.label}</span>
                     </a>
                   )}
-                  {m.time && <div style={{ fontSize: 10, color: D.faint, marginTop: 3, textAlign: mine ? "right" : "left" }}>{m.time === "now" ? "Sent · now" : m.time}</div>}
+                  {m.time && (
+                    <div style={{ fontSize: 10, color: D.faint, marginTop: 3, display: "flex", gap: 3, alignItems: "center", justifyContent: mine ? "flex-end" : "flex-start" }}>
+                      <span>{m.time === "now" ? "Sent · now" : m.time}</span>
+                      {/* WhatsApp-style ticks on our own messages: double pink = read, single faint = sent. */}
+                      {mine && m.status === "read" && (
+                        <span title="Read" style={{ display: "inline-flex", alignItems: "center", color: D.pink }}><Check size={11} /><Check size={11} style={{ marginLeft: -6 }} /></span>
+                      )}
+                      {mine && m.status && m.status !== "read" && (
+                        <Check size={11} title="Sent" style={{ color: D.faint }} />
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -343,7 +361,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           <button onClick={() => setBroadcast(false)} style={{ ...iconBtn, color: D.ink }} aria-label="Back"><ChevronLeft size={20} /></button>
           <div style={{ display: "flex" }}>
             {selectedPeople.slice(0, 5).map((p, i) => (
-              <div key={p.id} style={{ marginLeft: i === 0 ? 0 : -9, borderRadius: "50%", boxShadow: `0 0 0 2px ${D.bg}` }}><Avatar name={p.name} size={30} /></div>
+              <div key={p.id} style={{ marginLeft: i === 0 ? 0 : -9, borderRadius: "50%", boxShadow: `0 0 0 2px ${D.bg}` }}><Avatar name={p.name} src={p.avatarUrl} size={30} /></div>
             ))}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -359,7 +377,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
               const pch = CH[p.channel] || CH.email;
               return (
                 <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "5px 10px 5px 6px", borderRadius: 999, background: D.raise, color: D.ink }}>
-                  <Avatar name={p.name} size={20} />{(p.name || "").split(" ")[0]}
+                  <Avatar name={p.name} src={p.avatarUrl} size={20} />{(p.name || "").split(" ")[0]}
                   <span style={{ fontSize: 9.5, fontWeight: 700, color: pch.color }}>{pch.label.slice(0, 2).toUpperCase()}</span>
                   <button type="button" onClick={() => toggleSel(p.id)} style={{ ...iconBtn, padding: 0, color: D.faint }}><X size={12} /></button>
                 </span>
@@ -432,7 +450,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           return (
             <button key={p.id} onClick={() => (selecting ? toggleSel(p.id) : setOpenId(p.id))} onMouseEnter={(e) => (e.currentTarget.style.background = D.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = baseBg)}
               style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", padding: "9px 10px", border: "none", borderRadius: 12, background: baseBg, cursor: "pointer", textAlign: "left", transition: "background 0.12s" }}>
-              <Avatar name={p.name} size={44} dot={p.channel === "whatsapp" && p.windowOpen ? D.green : null} />
+              <Avatar name={p.name} src={p.avatarUrl} size={44} dot={p.channel === "whatsapp" && p.windowOpen ? D.green : null} />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: D.ink }}>{p.name}</span>

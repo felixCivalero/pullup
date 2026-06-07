@@ -7,7 +7,8 @@
     "dev": "NODE_ENV=development nodemon src/index.js",
     "start": "node src/index.js",
     "worker": "node src/email/outbox/outboxWorkerRunner.js",
-    "worker:once": "node src/email/outbox/outboxWorkerRunner.js --mode=once"
+    "worker:once": "node src/email/outbox/outboxWorkerRunner.js --mode=once",
+    "test": "fail=0; for f in tests/*.test.js; do echo \"\\n--- $f ---\"; node \"$f\" || fail=1; done; exit $fail"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +18,7 @@
     "@anthropic-ai/sdk": "^0.95.2",
     "@aws-sdk/client-sesv2": "^3.598.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@sentry/node": "^8.55.2",
     "@supabase/supabase-js": "^2.87.0",
     "cheerio": "^1.2.0",
     "cors": "^2.8.5",

@@ -1,6 +1,8 @@
 // backend/src/logger.js
 // Lightweight backend logger wrapper
 
+import { captureError } from "./observability.js";
+
 const LEVELS = ["debug", "info", "warn", "error"];
 
 const currentLevel = process.env.LOG_LEVEL || "info";
@@ -37,6 +39,9 @@ export const logger = {
     console.warn(formatMessage("warn", message, meta));
   },
   error(message, meta) {
+    // Always forward errors to the remote tracker, even if the console level
+    // is raised — a silenced log must not become a silenced incident.
+    captureError(meta?.error instanceof Error ? meta.error : new Error(message), meta);
     if (!shouldLog("error")) return;
     // eslint-disable-next-line no-console
     console.error(formatMessage("error", message, meta));

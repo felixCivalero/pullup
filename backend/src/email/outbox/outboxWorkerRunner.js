@@ -1,4 +1,5 @@
 import { processBatch } from "./outboxWorker.js";
+import { initObservability } from "../../observability.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -17,6 +18,10 @@ const ERROR_BASE_DELAY_MS = 2000;
 const ERROR_MAX_DELAY_MS = 60_000;
 
 async function runLoop() {
+  // The worker is its OWN process — wire its error sink up separately from the
+  // API, else a crash in here would be invisible (the exact dark-failure mode).
+  await initObservability({ serviceName: "pullup-email-worker" });
+
   const modeArg = process.argv.find((arg) => arg.startsWith("--mode="));
   const mode = modeArg ? modeArg.split("=")[1] : "loop";
 

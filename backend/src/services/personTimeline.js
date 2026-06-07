@@ -22,6 +22,7 @@
 
 import { supabase } from "../supabase.js";
 import { logger } from "../logger.js";
+import { interpretUpsert } from "../lib/idempotency.js";
 
 // The vocabulary, kept in sync with the migration-048 CHECK constraint so a
 // typo fails loudly here instead of as a DB error deep in a request.
@@ -46,12 +47,16 @@ const CHANNELS = new Set(["instagram", "whatsapp", "email", "web", "phone", "sys
  * @param {string} [e.body]        human-readable summary or message text
  * @param {object} [e.metadata]    structured extras (idempotency keys, ids…)
  * @param {string|Date} [e.occurredAt]  when it actually happened (defaults now)
- * @returns {Promise<{ ok: boolean, id?: string }>}
+ * @param {string} [e.dedupeKey]   at-most-once key for REPLAYABLE events (webhook
+ *                                 retries). With it set, a redelivery is a no-op
+ *                                 instead of a duplicate timeline row. Omit for
+ *                                 naturally-unique events (notes, page views).
+ * @returns {Promise<{ ok: boolean, id?: string, deduped?: boolean }>}
  */
 export async function logPersonEvent({
   personId, type, hostId = null, eventId = null,
   channel = null, direction = null, body = null,
-  metadata = {}, occurredAt = null,
+  metadata = {}, occurredAt = null, dedupeKey = null,
 } = {}) {
   if (!personId || !type) {
     logger?.warn?.("[personTimeline] skipped (missing personId/type)", { personId, type });
@@ -77,6 +82,24 @@ export async function logPersonEvent({
       metadata: metadata || {},
     };
     if (occurredAt) row.occurred_at = new Date(occurredAt).toISOString();
+
+    // Replayable event → upsert on dedupe_key (migration 065). A redelivered
+    // webhook hits ON CONFLICT DO NOTHING and writes nothing: the ledger stays
+    // genuinely append-only-without-duplicates.
+    if (dedupeKey) {
+      row.dedupe_key = dedupeKey;
+      const { data, error } = await supabase
+        .from("person_events")
+        .upsert(row, { onConflict: "dedupe_key", ignoreDuplicates: true })
+        .select("id");
+      if (error) {
+        logger?.warn?.("[personTimeline] upsert failed", { error: error.message });
+        return { ok: false };
+      }
+      const { row: inserted, deduped } = interpretUpsert(data);
+      return deduped ? { ok: true, deduped: true } : { ok: true, id: inserted.id };
+    }
+
     const { data, error } = await supabase
       .from("person_events").insert(row).select("id").single();
     if (error) {

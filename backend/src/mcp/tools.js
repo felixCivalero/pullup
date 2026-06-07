@@ -555,6 +555,13 @@ const GetPersonInput = {
   ),
 };
 
+const FindMatchesInput = {
+  personId: z.string().uuid().describe(
+    "Person id (UUID) to find lookalikes/connections for. Use find_person first if you only have a name."
+  ),
+  limit: z.number().int().positive().max(50).optional().describe("Max matches to return (default 10)."),
+};
+
 const QueryPeopleInput = {
   attendedEventSlug: z.string().optional().describe(
     "Limit to people who have attended this event (by slug)."
@@ -1584,6 +1591,20 @@ function buildHandlers(api, hostId) {
     );
   }
 
+  async function findMatches(args) {
+    const limit = args.limit || 10;
+    const data = await api("GET", `/host/crm/people/${args.personId}/matches`, { query: { limit } });
+    const matches = data?.matches || [];
+    if (!matches.length) {
+      return toolResultText("No clear matches yet — not enough shared events or linked profiles to connect them to anyone.");
+    }
+    const subj = data?.subject?.name ? ` for ${data.subject.name}` : "";
+    const lines = matches.map((m, i) =>
+      `${i + 1}. ${m.name}  (score ${m.score})\n   ${(m.reasons || []).join(" · ")}`
+    );
+    return toolResultText(`Closest people${subj}:\n${lines.join("\n")}`);
+  }
+
   // ─── Slice D — Guest actions ──────────────────────────────────────
 
   async function findRsvpByEmail(eventId, email) {
@@ -1998,6 +2019,7 @@ function buildHandlers(api, hostId) {
     queryPeople,
     updatePerson,
     addPersonNote,
+    findMatches,
     // Slice D — Guest actions
     updateRsvp,
     refundPayment,
@@ -2212,6 +2234,7 @@ const READ_ONLY_TOOLS = new Set([
   "get_crm_summary", "get_revenue_summary", "get_attendance_trends",
   "get_audience_segments", "get_recent_activity",
   "get_event_analytics", "find_person", "get_person", "query_people",
+  "find_matches",
   "suggest_event_improvements",
   "get_crm_signals", "audit_customer_journey",
   "get_recent_actions", "get_host_brief",
@@ -2258,6 +2281,7 @@ const TOOL_PROFILES = {
   ]),
   crm: new Set([
     "find_person", "get_person", "query_people", "update_person",
+    "find_matches",
     "add_person_note", "get_crm_summary", "get_crm_signals",
     "get_audience_segments", "get_attendance_trends",
     "get_revenue_summary", "refund_payment", "list_rsvps",
@@ -2469,6 +2493,14 @@ export function buildTools(ctx) {
         "Patches a person record. Pass only the fields to change. Useful for enriching contacts post-event: add an IG handle the host grabbed in person, replace the tag list, etc. tags is a FULL replacement (pass [] to clear). To log an observation about someone, use add_person_note instead.",
       inputSchema: UpdatePersonInput,
       handler: h.updatePerson,
+    },
+    {
+      name: "find_matches",
+      title: "Find a person's closest connections (with reasons)",
+      description:
+        "Given a person, ranks who else in the host's world is closest to them and WHY — shared events (co-attendance) fused with Instagram signals (reach tier, verified, follow reciprocity). Each match carries explainable reasons. Use for introductions ('who should meet Sara'), lookalikes ('find people like my top guest'), and curated invites.",
+      inputSchema: FindMatchesInput,
+      handler: h.findMatches,
     },
     {
       name: "add_person_note",

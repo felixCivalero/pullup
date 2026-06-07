@@ -124,18 +124,24 @@ function describeAttachments(attachments) {
 async function enrichPersonFromIgProfile(personId, igProfile) {
   if (!personId || !igProfile) return;
   try {
+    // The Instagram source-of-record (raw snapshot, kept as-is). The upsert
+    // reconciles people.name / people.instagram by precedence (gap-fill +
+    // manual-wins) — never clobbering a name the host set.
+    const { upsertSourceProfile } = await import("../../services/personSourceProfiles.js");
+    await upsertSourceProfile({
+      personId,
+      source: "instagram",
+      sourceId: igProfile.id || null,
+      handle: igProfile.username || null,
+      displayName: igProfile.name || igProfile.username || null,
+      avatarUrl: igProfile.profilePic || null,
+      data: { ...igProfile, fetched_at: new Date().toISOString() },
+    });
+    // Backward-compat cache on people.ig_profile (until reads move to the resolver).
     const { supabase } = await import("../../supabase.js");
-    const { data: existing } = await supabase
-      .from("people").select("name, instagram").eq("id", personId).maybeSingle();
-    const patch = {
-      ig_profile: { ...igProfile, fetched_at: new Date().toISOString() },
-      updated_at: new Date().toISOString(),
-    };
-    if (!existing?.name && (igProfile.name || igProfile.username)) {
-      patch.name = igProfile.name || igProfile.username;
-    }
-    if (!existing?.instagram && igProfile.username) patch.instagram = igProfile.username;
-    await supabase.from("people").update(patch).eq("id", personId);
+    await supabase.from("people")
+      .update({ ig_profile: { ...igProfile, fetched_at: new Date().toISOString() }, updated_at: new Date().toISOString() })
+      .eq("id", personId);
   } catch (e) {
     logger?.warn?.("[instagram/webhook] person enrich failed", { err: e.message });
   }

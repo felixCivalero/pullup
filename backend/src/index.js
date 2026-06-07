@@ -7830,6 +7830,23 @@ app.put("/host/crm/people/:personId", requireAuth, async (req, res) => {
       return res.status(404).json({ error: "Person not found" });
     }
 
+    // Host typed this in → record it as the top-precedence "manual" source so it
+    // wins over any platform profile and survives future re-resolution.
+    if (result.person && (name || instagram)) {
+      try {
+        const { upsertSourceProfile } = await import("./services/personSourceProfiles.js");
+        await upsertSourceProfile({
+          personId,
+          source: "manual",
+          handle: instagram || null,
+          displayName: (name || "").trim() || null,
+          data: { name, instagram, twitter, tiktok, linkedin, company, birthday, edited_by: req.user.id },
+        });
+      } catch (e) {
+        console.error("[update_person] manual source capture failed:", e?.message);
+      }
+    }
+
     emitIntent({
       hostId: req.user.id,
       tool: "update_person",

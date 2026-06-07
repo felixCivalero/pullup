@@ -202,6 +202,30 @@ export async function resolvePersonByIdentity({ identifiers, profile = {}, sourc
     }
   }
 
+  // Capture THIS source's view of the person (linked, kept as-is) so the
+  // resolver can derive the display by precedence. Best-effort — a failure here
+  // must never break resolution. Skip the generic "resolve" tag + empty bags;
+  // richer sources (e.g. the IG webhook's full profile) upsert their own row.
+  try {
+    const { upsertSourceProfile, canonicalSource } = await import("./personSourceProfiles.js");
+    const src = canonicalSource(source);
+    const handle = profile.instagram || identifiers.igHandle || null;
+    const display = profile.name || null;
+    const sourceId =
+      identifiers.igUserId || profile.ig_user_id ||
+      identifiers.email || profile.email ||
+      identifiers.phone_e164 || profile.phone_e164 || null;
+    if (src !== "resolve" && (display || handle || profile.email || profile.phone_e164)) {
+      await upsertSourceProfile({
+        personId: canonicalId, source: src, sourceId,
+        handle, displayName: display,
+        data: { ...profile, via: source },
+      });
+    }
+  } catch (e) {
+    logger?.warn?.("[personResolution] source profile capture failed", { error: e?.message });
+  }
+
   return { personId: canonicalId, created, linkedIdentities, conflicts };
 }
 

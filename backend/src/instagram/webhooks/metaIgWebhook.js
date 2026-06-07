@@ -27,6 +27,8 @@ import {
 } from "../config.js";
 import { handleCommentEvent } from "../commentTriggers.js";
 import { logger } from "../../logger.js";
+import { dedupeKey } from "../../lib/idempotency.js";
+import { captureError } from "../../observability.js";
 
 /**
  * GET handler. Meta hits this once when you register the webhook URL.
@@ -223,10 +225,13 @@ async function handleMessaging(messagingEvent, igAccountId) {
       logger?.warn?.("[instagram/webhook] profile fetch failed", { igsid: String(senderId), err: e.message });
     }
 
-    // 3. Resolve (or mint) the person by their IGSID — seed name + handle on create.
+    // 3. Resolve (or mint) the person. Match on BOTH the IGSID and the fetched
+    //    @handle, so a DM links to an existing record that only had the handle
+    //    (e.g. an RSVP where the host noted their Instagram) instead of spawning
+    //    a duplicate. A genuine handle/IGSID clash is flagged, never auto-merged.
     const { resolvePersonByIdentity } = await import("../../services/personResolution.js");
     const { personId } = await resolvePersonByIdentity({
-      identifiers: { igUserId: String(senderId) },
+      identifiers: { igUserId: String(senderId), igHandle: igProfile?.username || null },
       profile: {
         acquisition_channel: "ig_dm",
         name: igProfile?.name || igProfile?.username || null,
@@ -258,6 +263,9 @@ async function handleMessaging(messagingEvent, igAccountId) {
       channel: "instagram",
       direction: "in",
       body: text || preview,
+      // The DM's `mid` makes a Meta redelivery a no-op instead of a duplicate
+      // bubble in the thread.
+      dedupeKey: dedupeKey("ig:msgin", msg.mid),
       metadata: {
         source: "instagram_webhook",
         igAccountId,
@@ -266,9 +274,16 @@ async function handleMessaging(messagingEvent, igAccountId) {
         reply_to: msg.reply_to || null,
         ig_timestamp: messagingEvent?.timestamp || null,
       },
-    }).catch(() => {});
+    }).catch((err) => {
+      // Best-effort, but no longer silent — a dropped timeline write is captured.
+      logger?.error?.("[instagram/webhook] timeline log failed", {
+        mid: msg.mid || null, person_id: personId, error: err?.message,
+      });
+      captureError(err, { where: "instagram_webhook.logPersonEvent", mid: msg.mid || null });
+    });
   } catch (err) {
     logger?.error?.("[instagram/webhook] inbound DM handling error", { err: err.message });
+    captureError(err, { where: "instagram_webhook.handleMessaging", igAccountId });
   }
 }
 

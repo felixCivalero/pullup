@@ -32,6 +32,30 @@ import { hasActiveOptIn } from "../whatsapp/repos/phoneOptInsRepo.js";
 import { enqueueOutbox as enqueueEmailOutbox } from "../email/index.js";
 import { TEMPLATES } from "../whatsapp/templates/registry.js";
 import { logger } from "../logger.js";
+import { resolveTryOrder } from "../lib/idempotency.js";
+
+// A message dispatch() could not deliver on ANY channel — persist it so a drop
+// is a recoverable row, not just a stderr line. Best-effort: never throw out of
+// the send path because we failed to record the failure.
+async function recordDeadLetter({ recipient, personId, hostProfileId, preferredChannel, email, reasons }) {
+  try {
+    await supabase.from("message_dead_letters").insert({
+      person_id: personId,
+      host_profile_id: hostProfileId,
+      preferred_channel: preferredChannel,
+      subject: email?.subject ?? null,
+      reasons,
+      payload: {
+        recipient_id: recipient?.id ?? null,
+        has_phone: !!recipient?.phone_e164,
+        has_email: !!recipient?.email,
+        has_ig: !!(recipient?.ig_user_id || recipient?.igUserId),
+      },
+    });
+  } catch (err) {
+    logger?.error?.("[messaging/dispatch] dead-letter write failed", { error: err?.message });
+  }
+}
 
 /**
  * A template may only ship on WhatsApp once Meta has approved it. Until then
@@ -218,10 +242,7 @@ export async function dispatch({
   // Which rail to try before the email floor. An explicit preferredChannel is
   // the thread's rail; with none (legacy proactive sends) we try WhatsApp when
   // a template was supplied, exactly as before. Email is always the floor.
-  const tryOrder = [];
-  if (preferredChannel === "instagram") tryOrder.push("instagram");
-  else if (preferredChannel === "whatsapp") tryOrder.push("whatsapp");
-  else if (!preferredChannel && whatsapp) tryOrder.push("whatsapp");
+  const tryOrder = resolveTryOrder({ preferredChannel, hasWhatsAppTemplate: !!whatsapp });
 
   for (const ch of tryOrder) {
     const r = ch === "instagram"
@@ -240,6 +261,7 @@ export async function dispatch({
       preferred_channel: preferredChannel,
       reasons,
     });
+    await recordDeadLetter({ recipient, personId, hostProfileId, preferredChannel, email, reasons });
     return { channel: "suppressed", row: null, fallback: tryOrder.length > 0, dropped: true, reasons };
   }
 

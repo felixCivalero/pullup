@@ -1,6 +1,7 @@
 // backend/src/whatsapp/repos/whatsappOutboxRepo.js
 
 import { supabase } from "../../supabase.js";
+import { interpretUpsert } from "../../lib/idempotency.js";
 
 /**
  * Insert a new row into whatsapp_outbox. Idempotent on `idempotency_key`
@@ -63,17 +64,50 @@ export async function insertOutboxRow({
     status: "queued",
   };
 
-  const query = supabase.from("whatsapp_outbox");
-  const { data, error } = idempotencyKey
-    ? await query.upsert(payload, { onConflict: "idempotency_key" }).select().single()
-    : await query.insert(payload).select().single();
+  // No idempotency key → every call is a distinct send. Plain insert.
+  if (!idempotencyKey) {
+    const { data, error } = await supabase
+      .from("whatsapp_outbox")
+      .insert(payload)
+      .select()
+      .single();
+    if (error) {
+      console.error("[whatsappOutboxRepo] insertOutboxRow error", error);
+      throw new Error(`Failed to insert into whatsapp_outbox: ${error.message}`);
+    }
+    return data;
+  }
+
+  // Idempotency key present → write AT MOST ONCE, never overwrite. The previous
+  // code upserted WITHOUT ignoreDuplicates, so a repeat (e.g. a reminder cron
+  // re-running across its window, or a Meta webhook redelivering an inbound)
+  // reset an already-queued/sent row back to status:"queued" and the worker
+  // re-sent it — the exact duplicate-send bug email already fixed (see
+  // emailOutboxRepo.js). ON CONFLICT DO NOTHING makes the repeat a true no-op;
+  // we then load and return the untouched existing row so callers still get it.
+  const { data: inserted, error } = await supabase
+    .from("whatsapp_outbox")
+    .upsert(payload, { onConflict: "idempotency_key", ignoreDuplicates: true })
+    .select();
 
   if (error) {
     console.error("[whatsappOutboxRepo] insertOutboxRow error", error);
     throw new Error(`Failed to insert into whatsapp_outbox: ${error.message}`);
   }
 
-  return data;
+  const { row, deduped } = interpretUpsert(inserted);
+  if (!deduped) return row;
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("whatsapp_outbox")
+    .select("*")
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+  if (fetchError) {
+    console.error("[whatsappOutboxRepo] insertOutboxRow fetch-existing error", fetchError);
+    throw new Error(`Failed to load existing whatsapp_outbox row: ${fetchError.message}`);
+  }
+  return existing;
 }
 
 export async function findById(id) {

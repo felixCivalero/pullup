@@ -14270,6 +14270,12 @@ const HOST = process.env.HOST || "0.0.0.0";
 app.listen(PORT, HOST, async () => {
   console.log(`PullUp API running on http://${HOST}:${PORT}`);
   try {
+    const { initObservability } = await import("./observability.js");
+    await initObservability({ serviceName: "pullup-api" });
+  } catch (e) {
+    console.log("Observability init note:", e.message);
+  }
+  try {
     const { backfillEventHostsCoHostToEditor } = await import("./migrations.js");
     const updated = await backfillEventHostsCoHostToEditor();
     if (updated?.length) console.log(`Migration: backfilled ${updated.length} event_hosts co_host -> editor`);

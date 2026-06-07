@@ -27,6 +27,8 @@ import { upsertThreadFromMessage } from "../repos/whatsappThreadsRepo.js";
 import { supabase } from "../../supabase.js";
 import { logPersonEvent } from "../../services/personTimeline.js";
 import { logger } from "../../logger.js";
+import { dedupeKey } from "../../lib/idempotency.js";
+import { captureError } from "../../observability.js";
 
 /**
  * GET handler. Meta hits this once when you register the webhook URL.
@@ -194,7 +196,9 @@ async function handleInboundMessage(message, contacts) {
     /* phoneNumberId from value.metadata */
   );
 
-  // Record the inbound message in whatsapp_outbox (direction=inbound).
+  // Record the inbound message in whatsapp_outbox (direction=inbound). The
+  // idempotency key makes a Meta redelivery of this same inbound a no-op instead
+  // of a second phantom inbound row.
   const inboundRow = await insertOutboxRow({
     personId: personRow?.id || null,
     toPhoneE164: fromPhone,         // for inbound, "to_phone_e164" stores the contact's phone
@@ -205,6 +209,7 @@ async function handleInboundMessage(message, contacts) {
     bodyMedia: type !== "text" ? { type, raw: message } : null,
     category: "service",
     sandboxMode: WHATSAPP_SANDBOX_MODE,
+    idempotencyKey: dedupeKey("wa:in", providerMessageId),
   });
 
   // Mark it as delivered (it arrived) and update provider_message_id +
@@ -231,7 +236,10 @@ async function handleInboundMessage(message, contacts) {
     });
 
     // Fold the reply into the person's timeline so it shows in the host's
-    // chat thread — the inbound half of the conversation. Best-effort.
+    // chat thread — the inbound half of the conversation. Best-effort (a
+    // logging hiccup must not 500 the webhook and trigger a Meta retry storm),
+    // but no longer SILENT: a failure is captured, and the dedupe_key makes a
+    // genuine redelivery a no-op rather than a duplicate bubble.
     await logPersonEvent({
       personId: personRow.id,
       hostId: hostProfileId,
@@ -241,7 +249,13 @@ async function handleInboundMessage(message, contacts) {
       body: text || `[${type}]`,
       occurredAt: eventAt,
       metadata: { source: "whatsapp_webhook", outboxId: inboundRow.id },
-    }).catch(() => {});
+      dedupeKey: dedupeKey("wa:msgin", providerMessageId),
+    }).catch((err) => {
+      logger?.error?.("[whatsapp/webhook] timeline log failed", {
+        provider_message_id: providerMessageId, person_id: personRow.id, error: err?.message,
+      });
+      captureError(err, { where: "whatsapp_webhook.logPersonEvent", providerMessageId });
+    });
   }
 }
 

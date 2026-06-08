@@ -308,6 +308,14 @@ export function RsvpForm({
             method: "POST",
             body: JSON.stringify({
               phone: phone.trim(),
+              // The identity anchor: lets the backend link the verify token to
+              // THIS person even when the typed number isn't on their record yet
+              // (returning guest / new number). Without it the token orphans and
+              // phone_verified_at never gets set — the WhatsApp rail stays shut.
+              email: (isVipInvite
+                ? vipOffer.invite?.email || ""
+                : email || ""
+              ).trim() || null,
               intent: "rsvp_verify",
               payload: {
                 source: "rsvp_form",

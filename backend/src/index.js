@@ -2760,6 +2760,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     // gate dispatch() needs before anything ships on WhatsApp.
     if (phone && result?.rsvp?.personId) {
       try {
+        const { supabase } = await import("./supabase.js");
         const norm = normalisePhone(phone, result.event?.country || null);
         if (norm.ok) {
           const personId = result.rsvp.personId;
@@ -2794,6 +2795,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     // overwrites a known channel. Best-effort; never blocks the RSVP.
     if (acquisitionSrc && result?.rsvp?.personId) {
       try {
+        const { supabase } = await import("./supabase.js");
         const VALID_SRC = new Set(["ig_comment", "ig_dm", "ig_story_link", "direct", "whatsapp", "email"]);
         const channel = VALID_SRC.has(String(acquisitionSrc)) ? String(acquisitionSrc) : null;
         if (channel) {
@@ -2825,6 +2827,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
     // a later DM/comment can reconcile, never a hard match key. Only fills empty.
     if (instagram && result?.rsvp?.personId) {
       try {
+        const { supabase } = await import("./supabase.js");
         const handle = String(instagram).trim().replace(/^@+/, "").slice(0, 64);
         if (handle) {
           await supabase
@@ -3536,6 +3539,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
 
     if (!isPendingPayment) {
       try {
+        const { supabase } = await import("./supabase.js");
         const isWaitlistEmail =
           result.rsvp.bookingStatus === "WAITLIST" ||
           result.rsvp.status === "waitlist";

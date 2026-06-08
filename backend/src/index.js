@@ -142,6 +142,7 @@ import {
 } from "./services/phoneVerification.js";
 import { normalisePhone } from "./utils/phone.js";
 import { recordOptIn as recordPhoneOptIn } from "./whatsapp/repos/phoneOptInsRepo.js";
+import { logPersonEvent } from "./services/personTimeline.js";
 import { dispatch as dispatchMessage } from "./messaging/index.js";
 import { getRoomForHost } from "./services/roomService.js";
 import {
@@ -1203,15 +1204,19 @@ app.post("/verify/phone/start", async (req, res) => {
   try {
     const {
       phone,
+      email = null,
       intent = "verify_phone",
       payload = {},
       defaultCountry = null,
       templateKey,
     } = req.body || {};
-    // Link the verification to the person when we can resolve them by phone —
-    // the token's person_id is what lets redeem set phone_verified_at on the
-    // RIGHT person (the gate the WhatsApp rail needs). RSVP stores the phone
-    // just before this fires, so the lookup resolves.
+    // Link the verification to the person so redeem can set phone_verified_at on
+    // the RIGHT person (the gate the WhatsApp rail needs). Resolve by phone_e164
+    // first, then fall back to email — the identity anchor the RSVP always
+    // stores. Phone-only resolution misses when the verified number isn't yet on
+    // the person (returning guest, new number, or a write/lookup race), which
+    // silently orphans the token.
+    const normEmail = email ? String(email).trim().toLowerCase() : null;
     let resolvedPersonId = null;
     try {
       const norm = normalisePhone(phone, defaultCountry);
@@ -1223,11 +1228,21 @@ app.post("/verify/phone/start", async (req, res) => {
           .maybeSingle();
         resolvedPersonId = p?.id || null;
       }
+      if (!resolvedPersonId && normEmail) {
+        const { data: pe } = await supabase
+          .from("people")
+          .select("id")
+          .eq("email", normEmail)
+          .maybeSingle();
+        resolvedPersonId = pe?.id || null;
+      }
     } catch { /* best-effort linkage */ }
     const result = await startPhoneVerification({
       phone,
       intent,
-      payload,
+      // Carry the email in the token payload too, so redeemToken can self-heal
+      // the link even if mint-time resolution missed.
+      payload: normEmail ? { ...payload, email: normEmail } : payload,
       defaultCountry,
       personId: resolvedPersonId,
       templateKey: templateKey || undefined,
@@ -2839,6 +2854,29 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       } catch (e) {
         console.error("[rsvp] instagram stamp error:", e?.message);
       }
+    }
+
+    // ── Append to the append-only person timeline (the Room reads this). ──
+    // THE spine: without this, a live RSVP never shows in the person's Room —
+    // only the one-time backfill ever populated it. Best-effort (never blocks
+    // the RSVP); dedupeKey makes a re-submit a no-op instead of a duplicate row.
+    if (result?.rsvp?.personId && !result.error) {
+      const isWaitlist =
+        result.rsvp.bookingStatus === "WAITLIST" ||
+        result.rsvp.status === "waitlist";
+      const evTitle = result.event?.title || "an event";
+      await logPersonEvent({
+        personId: result.rsvp.personId,
+        hostId: result.event?.hostId || null,
+        eventId: result.rsvp.eventId || result.event?.id || null,
+        type: isWaitlist ? "waitlist_join" : "rsvp",
+        channel: "web",
+        body: isWaitlist
+          ? `Joined the waitlist for ${evTitle}`
+          : `RSVP'd to ${evTitle}`,
+        metadata: { event_title: evTitle, source: "rsvp_endpoint" },
+        dedupeKey: `rsvp:${result.rsvp.id}`,
+      });
     }
 
     const isEventPaid =

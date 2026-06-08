@@ -149,6 +149,18 @@ export async function backfillFromRsvps({ batchSize = 1000 } = {}) {
       if (src) done.add(src);
     }
   }
+  // Also treat LIVE-appended rsvp rows as done. The RSVP endpoint writes these
+  // with dedupe_key=`rsvp:<id>` (not backfill_src), so without this a re-run
+  // would duplicate every RSVP captured since the live append shipped.
+  {
+    const { data } = await supabase
+      .from("person_events")
+      .select("dedupe_key")
+      .like("dedupe_key", "rsvp:%");
+    for (const r of data || []) {
+      if (r.dedupe_key) done.add(r.dedupe_key);
+    }
+  }
 
   // Pull rsvps that have a person, with their event's host + title.
   // Schema note: rsvps has NO checked_in_at/cancelled_at. Attendance is the

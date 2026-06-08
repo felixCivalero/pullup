@@ -348,11 +348,40 @@ export const TEMPLATES = {
       },
     ],
   },
+
+  // ── auth_confirm_number ─────────────────────────────────────────
+  // Clearer wording for the magic-link verify ("...confirm your number...")
+  // so the guest knows WHAT they're finishing. NEW NAME on purpose: the
+  // submitter skips already-APPROVED templates, so we can't edit auth_magic_link
+  // in place — a fresh name is the only way to get new copy through review.
+  // RISK: Meta auto-rejected the near-identical "verify your number" as
+  // INCORRECT_CATEGORY (it wanted Authentication, which bans URL bodies). If
+  // this bounces too, fall back to auth_magic_link / pullup_continue. Do NOT
+  // switch startVerification's default templateKey to this until Meta APPROVES.
+  auth_confirm_number: {
+    name: "auth_confirm_number",
+    category: "utility",
+    meta_category: "UTILITY",
+    locale: "en",
+    status: "submitted",
+    body: "Tap to confirm your number for PullUp: {{1}}\nLink expires in 15 minutes.",
+    variables: ["link"],
+    render: ({ link }) =>
+      `Tap to confirm your number for PullUp: ${link}\nLink expires in 15 minutes.`,
+    components: [
+      {
+        type: "BODY",
+        text: "Tap to confirm your number for PullUp: {{1}}\nLink expires in 15 minutes.",
+        example: { body_text: [["https://pullup.se/v/abc123xyz9defg"]] },
+      },
+    ],
+  },
 };
 
 /** Tier-1 templates we submit + approve first. */
 export const TIER_1_TEMPLATES = [
   "auth_magic_link",
+  "auth_confirm_number",
   "rsvp_confirm",
   "event_reminder_24h",
   "event_reminder_2h",

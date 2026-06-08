@@ -201,26 +201,72 @@ export async function redeemToken({
     return { ok: false, error: "token already used" };
   }
 
+  // Resolve the person if the token wasn't minted with one. The mint-time
+  // lookup (by phone_e164) can miss when the verified number isn't yet on the
+  // person — e.g. a returning guest verifying a NEW number, or a race between
+  // the RSVP phone write and the frontend's verify-start. By redeem time the
+  // RSVP has fully committed, so the email carried in the payload resolves
+  // reliably; phone is the fallback.
+  let personId = row.person_id;
+  if (!personId) {
+    const email = String(row.payload?.email || "").trim().toLowerCase();
+    if (email) {
+      const { data: byEmail } = await supabase
+        .from("people").select("id").eq("email", email).maybeSingle();
+      personId = byEmail?.id || null;
+    }
+    if (!personId && row.phone_e164) {
+      const { data: byPhone } = await supabase
+        .from("people").select("id").eq("phone_e164", row.phone_e164).maybeSingle();
+      personId = byPhone?.id || null;
+    }
+    if (personId) {
+      logger?.info?.("[phoneVerification] resolved orphaned token to person", {
+        token_id: row.id, personId,
+      });
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+
   // Mark phone_verified_at on whichever record(s) the token references.
-  if (row.person_id) {
-    await supabase
+  // Rule: the latest verified number CONTROLS the phone row — the confirmed
+  // E.164 becomes the canonical `phone` too, and phone_verified_at is the gate
+  // dispatch() keys off before anything ships on WhatsApp.
+  if (personId) {
+    const { error: pErr } = await supabase
       .from("people")
       .update({
+        phone: row.phone_e164,
         phone_e164: row.phone_e164,
-        phone_verified_at: new Date().toISOString(),
+        phone_verified_at: nowIso,
         phone_verification_source: row.intent,
       })
-      .eq("id", row.person_id);
+      .eq("id", personId);
+    if (pErr) {
+      logger?.error?.("[phoneVerification] people writeback failed", {
+        personId, err: pErr.message,
+      });
+    }
+  } else {
+    logger?.warn?.("[phoneVerification] redeemed but no person to link", {
+      token_id: row.id, phone_e164: row.phone_e164, intent: row.intent,
+    });
   }
   if (row.profile_id) {
-    await supabase
+    const { error: prErr } = await supabase
       .from("profiles")
       .update({
         phone_e164: row.phone_e164,
-        phone_verified_at: new Date().toISOString(),
+        phone_verified_at: nowIso,
         phone_verification_source: row.intent,
       })
       .eq("id", row.profile_id);
+    if (prErr) {
+      logger?.error?.("[phoneVerification] profiles writeback failed", {
+        profileId: row.profile_id, err: prErr.message,
+      });
+    }
   }
 
   // Record the WhatsApp opt-in. Verification implies opt-in to the
@@ -230,7 +276,7 @@ export async function redeemToken({
       phoneE164: row.phone_e164,
       channel: "whatsapp",
       source: "magic_link_verify",
-      personId: row.person_id,
+      personId,
       profileId: row.profile_id,
       legalBasis: "consent",
       ipAddress,
@@ -247,7 +293,7 @@ export async function redeemToken({
     ok: true,
     intent: row.intent,
     phone_e164: row.phone_e164,
-    person_id: row.person_id,
+    person_id: personId,
     profile_id: row.profile_id,
     payload: row.payload || {},
   };
